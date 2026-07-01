@@ -86,8 +86,8 @@ export interface NativeConnectionOptions {
   /**
    * Transport-level gRPC compression configuration for Core service requests.
    *
-   * Defaults to no compression. Set to `{ codec: 'gzip' }` to compress outbound
-   * request bodies and accept gzip-compressed responses.
+   * Defaults to gzip, which compresses outbound request bodies and accepts
+   * gzip-compressed responses. Set to `{ codec: 'none' }` to opt out.
    */
   grpcCompression?: GrpcCompressionConfig;
 
@@ -165,7 +165,7 @@ export function toNativeClientOptions(options: NativeConnectionOptions): native.
       }
     : null;
 
-  const grpcCompression: native.GrpcCompressionConfig = options.grpcCompression ?? { codec: 'none' };
+  const grpcCompression: native.GrpcCompressionConfig = options.grpcCompression ?? { codec: 'gzip' };
   switch (grpcCompression.codec) {
     case 'gzip':
     case 'none':
