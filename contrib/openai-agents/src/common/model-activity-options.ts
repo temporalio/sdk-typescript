@@ -1,5 +1,5 @@
 import type { Agent, AgentInputItem } from '@openai/agents-core';
-import type { ActivityOptions } from '@temporalio/common';
+import type { ActivityOptions, Duration } from '@temporalio/common';
 
 export interface ModelSummaryProvider {
   /**
@@ -18,6 +18,22 @@ export interface ModelActivityOptions extends Omit<ActivityOptions, 'summary'> {
   useLocalActivity?: boolean;
   /** Activity summary shown in the Temporal UI. String for static text, ModelSummaryProvider for dynamic. */
   summary?: string | ModelSummaryProvider;
+  /**
+   * Topic that the streaming model Activity publishes raw model stream events to
+   * for live external consumption. Required when running with `{ stream: true }`;
+   * `run()` throws before scheduling any Activity if it is unset. The Workflow must
+   * host a `WorkflowStream` (from `@temporalio/workflow-streams/workflow`) to receive
+   * the publishes.
+   *
+   * @experimental Streaming support is experimental and may change without notice.
+   */
+  streamingTopic?: string;
+  /**
+   * Batch flush interval for the stream publisher used by the streaming Activity.
+   *
+   * @experimental Streaming support is experimental and may change without notice.
+   */
+  streamingBatchInterval?: Duration;
 }
 
 /**
@@ -34,3 +50,10 @@ export const DEFAULT_MODEL_ACTIVITY_OPTIONS: SerializableModelActivityOptions = 
   startToCloseTimeout: '60s',
   useLocalActivity: false,
 };
+
+export const STREAMING_TOPIC_NOT_CONFIGURED = {
+  type: 'StreamingTopicNotConfigured',
+  message:
+    'Streaming requires modelParams.streamingTopic to be set on OpenAIAgentsPlugin. ' +
+    'Host a WorkflowStream in your Workflow and configure the topic to use run(agent, input, { stream: true }).',
+} as const;

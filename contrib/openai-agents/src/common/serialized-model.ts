@@ -1,4 +1,10 @@
-import type { ModelSettings, SerializedHandoff, SerializedOutputType, SerializedTool } from '@openai/agents-core';
+import type {
+  ModelSettings,
+  SerializedHandoff,
+  SerializedOutputType,
+  SerializedTool,
+  StreamEvent,
+} from '@openai/agents-core';
 
 export type JsonValue = null | string | number | boolean | JsonValue[] | { [k: string]: JsonValue };
 
@@ -29,4 +35,24 @@ export interface SerializedModelResponse {
 export interface InvokeModelActivityInput {
   modelName: string;
   request: SerializedModelRequest;
+}
+
+export type SerializedStreamEvent = JsonValue;
+
+// StreamEvents are JSON-by-construction (zod-inferred), so the cast is a no-op at
+// runtime. Centralize it here so the boundary assumption is documented, not scattered.
+export function toSerializedStreamEvent(event: StreamEvent): SerializedStreamEvent {
+  return event as unknown as SerializedStreamEvent;
+}
+
+export function fromSerializedStreamEvent(event: SerializedStreamEvent): StreamEvent {
+  return event as unknown as StreamEvent;
+}
+
+export interface InvokeModelStreamActivityInput {
+  modelName: string;
+  request: SerializedModelRequest;
+  streamingTopic: string;
+  /** Stream publisher batch flush interval, as a Duration string. */
+  streamingBatchInterval?: string;
 }

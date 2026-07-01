@@ -54,6 +54,12 @@ export function installPolyfills(): void {
     (globalThis as any).crypto.randomUUID = (): string => uuid4();
   }
 
+  // The sandbox exposes AbortController but not the AbortSignal global; agents-core's
+  // streaming path references AbortSignal directly. Derive it from a controller's signal.
+  if (typeof (globalThis as any).AbortSignal === 'undefined' && typeof globalThis.AbortController !== 'undefined') {
+    (globalThis as any).AbortSignal = new globalThis.AbortController().signal.constructor;
+  }
+
   if (typeof (globalThis as any).EventTarget === 'undefined') {
     (globalThis as any).EventTarget = EventTargetPolyfill;
   }
