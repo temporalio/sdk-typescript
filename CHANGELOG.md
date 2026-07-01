@@ -53,3 +53,4 @@ to docs, or any other relevant information.
 ### Changed
 
 - gRPC compression is disabled by default. Pass `grpcCompression: { codec: 'gzip' }` to enable it.
+- protobufjs bumped to ^7.6.4

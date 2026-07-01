@@ -28,7 +28,7 @@
     "heap-js": "^2.6.0",
     "memfs": "^4.6.0",
     "nexus-rpc": "^0.0.2",
-    "protobufjs": "^7.6.2",
+    "protobufjs": "^7.6.4",
     "rxjs": "^7.8.1",
     "source-map": "^0.7.4",
     "source-map-loader": "^5.0.0",
