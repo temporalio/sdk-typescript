@@ -27,6 +27,20 @@ to docs, or any other relevant information.
   signaled event is attached to the caller workflow's Nexus operation history event. This makes the
   caller and callee mutually navigable in the UI for signal-based Nexus operations.
 
+- `@temporalio/openai-agents` now supports streaming. Passing `{ stream: true }` to `run()` streams an
+  agent's model events from the Workflow to an outside subscriber over a Workflow Stream topic (set via
+  `modelParams.streamingTopic`), matching the shape of the Python SDK. Requires `@temporalio/workflow-streams`.
+
+- New `@temporalio/langsmith` package for tracing Temporal apps to [LangSmith](https://smith.langchain.com/).
+  It hooks the client, Workflow, and Activity interceptors so a Workflow and the Activities it runs show up
+  as a single LangSmith run tree.
+
+### Changed
+
+- `@temporalio/openai-agents`: Query handlers and update validators now derive trace span IDs from the SDK's
+  replay-safe random source instead of a private seeded PRNG. This removes the old seed-collision workaround
+  and gives read-only handlers distinct, well-formed span IDs.
+
 ### Breaking Changes
 
 - `WorkflowHandle.runId` in `@temporalio/nexus` is now an optional property to support creating a handle using only a workflow ID.
