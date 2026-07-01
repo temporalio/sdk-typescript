@@ -48,9 +48,11 @@ to docs, or any other relevant information.
 - fix(openai-agents): correct misleading legacy-query comment in resolveQueryKey
 - avoid logging `NativeConnection` on worker startup
 
-## [Unreleased]
+## [1.19.1]
 
 ### Changed
 
 - gRPC compression is disabled by default. Pass `grpcCompression: { codec: 'gzip' }` to enable it.
 - protobufjs bumped to ^7.6.4
+
+## [Unreleased]
