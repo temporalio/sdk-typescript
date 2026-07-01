@@ -11,6 +11,8 @@
       "@temporalio/openai-agents/*": ["contrib/openai-agents/src/*"],
       "@temporalio/external-storage-s3": ["contrib/external-storage-s3"],
       "@temporalio/external-storage-s3-aws-sdk": ["contrib/external-storage-s3-aws-sdk"],
+      "@temporalio/external-storage-gcs": ["contrib/external-storage-gcs"],
+      "@temporalio/external-storage-gcs-google-sdk": ["contrib/external-storage-gcs-google-sdk"],
       "@temporalio/*": ["packages/*"]
     }
   },
@@ -30,6 +32,8 @@
     "./contrib/interceptors-opentelemetry/src/index.ts",
     "./contrib/external-storage-s3/src/index.ts",
     "./contrib/external-storage-s3-aws-sdk/src/index.ts",
+    "./contrib/external-storage-gcs/src/index.ts",
+    "./contrib/external-storage-gcs-google-sdk/src/index.ts",
     "./packages/nyc-test-coverage/src/index.ts",
     "./packages/meta/src/index.ts",
     "./packages/plugin/src/index.ts",
