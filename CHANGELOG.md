@@ -17,7 +17,7 @@ to docs, or any other relevant information.
 
 # Changelog
 
-## [Unreleased]
+## [1.19.0]
 
 ### Added
 
@@ -26,7 +26,31 @@ to docs, or any other relevant information.
   workflow so its history events link back to the caller, and the link the server returns for the
   signaled event is attached to the caller workflow's Nexus operation history event. This makes the
   caller and callee mutually navigable in the UI for signal-based Nexus operations.
+- Added `@temporalio/interceptors-opentelemetry-v2` to support OpenTelemetry JS SDK 2.
+- Expose continue-as-new backoff start interval.
+- add nondeterministic `unsafe.random` for read-only contexts.
 
 ### Breaking Changes
 
 - `WorkflowHandle.runId` in `@temporalio/nexus` is now an optional property to support creating a handle using only a workflow ID.
+- Enable gRPC gzip compression by default. Can be disabled by passing `grpcCompression: { codec: none }` when constructing a `NativeConnection`.
+- bump required Node version to 20.3.0.
+
+### Changed
+
+- Standalone Nexus operation links are now formatted to align with server side support.
+- Standalone Nexus operation links are now forwarded on start workflow and signal requests.
+- `protobufjs` bumped to 7.6.2
+- Rename @temporalio/openai-agents tracing sink to the reserved \__temporal_ prefix
+
+### Fixed
+
+- fix(openai-agents): correct misleading legacy-query comment in resolveQueryKey
+- avoid logging `NativeConnection` on worker startup
+
+## [Unreleased]
+
+### Changed
+
+- gRPC compression is disabled by default. Pass `grpcCompression: { codec: 'gzip' }` to enable it.
+- protobufjs bumped to ^7.6.4

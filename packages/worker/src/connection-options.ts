@@ -26,6 +26,25 @@ export interface DNSLoadBalancingConfig {
 }
 
 /**
+ * Use gzip for transport-level gRPC compression.
+ */
+export interface GzipGrpcCompressionConfig {
+  codec: 'gzip';
+}
+
+/**
+ * Disable transport-level gRPC compression.
+ */
+export interface NoneGrpcCompressionConfig {
+  codec: 'none';
+}
+
+/**
+ * Transport-level gRPC compression configuration.
+ */
+export type GrpcCompressionConfig = GzipGrpcCompressionConfig | NoneGrpcCompressionConfig;
+
+/**
  * The default Temporal Server's TCP port for public gRPC connections.
  */
 const DEFAULT_TEMPORAL_GRPC_PORT = 7233;
@@ -63,6 +82,14 @@ export interface NativeConnectionOptions {
    * is disabled because the two options are mutually exclusive.
    */
   dnsLoadBalancingConfig?: DNSLoadBalancingConfig | null;
+
+  /**
+   * Transport-level gRPC compression configuration for Core service requests.
+   *
+   * Defaults to no compression. Set to `{ codec: 'gzip' }` to compress outbound
+   * request bodies and accept gzip-compressed responses.
+   */
+  grpcCompression?: GrpcCompressionConfig;
 
   /**
    * Optional mapping of gRPC metadata (HTTP headers) to send with each request to the server.
@@ -138,6 +165,15 @@ export function toNativeClientOptions(options: NativeConnectionOptions): native.
       }
     : null;
 
+  const grpcCompression: native.GrpcCompressionConfig = options.grpcCompression ?? { codec: 'none' };
+  switch (grpcCompression.codec) {
+    case 'gzip':
+    case 'none':
+      break;
+    default:
+      throw new TypeError(`Unsupported gRPC compression codec: ${(grpcCompression as { codec: string }).codec}`);
+  }
+
   if (options?.apiKey && options.metadata?.['Authorization']) {
     throw new TypeError(
       'Both `apiKey` option and `Authorization` header were provided. Only one makes sense to use at a time.'
@@ -163,6 +199,7 @@ export function toNativeClientOptions(options: NativeConnectionOptions): native.
     tls,
     httpConnectProxy,
     dnsLoadBalancingConfig,
+    grpcCompression,
     headers,
     apiKey: options.apiKey ?? null,
     disableErrorCodeMetricTags: options.disableErrorCodeMetricTags ?? false,
