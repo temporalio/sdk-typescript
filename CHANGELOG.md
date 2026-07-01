@@ -49,3 +49,7 @@ to docs, or any other relevant information.
 - avoid logging `NativeConnection` on worker startup
 
 ## [Unreleased]
+
+### Changed
+
+- protobufjs bumped to ^7.6.4
