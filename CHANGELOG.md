@@ -49,3 +49,7 @@ to docs, or any other relevant information.
 - avoid logging `NativeConnection` on worker startup
 
 ## [Unreleased]
+
+### Changed
+
+- gRPC compression is disabled by default. Pass `grpcCompression: { codec: 'gzip' }` to enable it.
