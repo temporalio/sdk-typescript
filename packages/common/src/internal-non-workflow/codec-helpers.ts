@@ -13,6 +13,7 @@ import type { LoadedDataConverter } from '../converter/data-converter';
 import type { UserMetadata } from '../user-metadata';
 import type { SerializationContext } from '../converter/serialization-context';
 import type { DecodedPayload, DecodedProtoFailure, EncodedPayload, EncodedProtoFailure } from './codec-types';
+import { TypeHint } from '../type-hints';
 
 /**
  * Decode through each codec, starting with the last codec.
@@ -195,13 +196,15 @@ export async function encodeToPayloads(
 export async function encodeToPayloadsWithContext(
   converter: LoadedDataConverter,
   context: SerializationContext | undefined,
-  values: unknown[]
+  values: unknown[],
+  typeHints?: readonly TypeHint[],
 ): Promise<Payload[] | undefined> {
   const { payloadConverter, payloadCodecs } = converter;
   if (values.length === 0) {
     return undefined;
   }
-  const payloads = toPayloadsWithContext(payloadConverter, context, values);
+  
+  const payloads = toPayloadsWithContext(payloadConverter, context, values, typeHints);
   return payloads ? await encode(payloadCodecs, payloads, context) : undefined;
 }
 

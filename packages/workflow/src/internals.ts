@@ -15,6 +15,7 @@ import type {
   VersioningBehavior,
   WorkflowDefinitionOptions,
   WorkflowSerializationContext,
+  PayloadTypeHints,
 } from '@temporalio/common';
 import {
   defaultFailureConverter,
@@ -502,6 +503,9 @@ export class Activator implements ActivationHandler {
 
   protected readonly stackTracesEnabled: boolean;
 
+  // THOMAS - maybe store static options directly?
+  public typeHints?: PayloadTypeHints;
+
   constructor({
     info,
     now,
@@ -639,7 +643,7 @@ export class Activator implements ActivationHandler {
       executeWithLifecycleLogging(() =>
         execute({
           headers: activation.headers ?? {},
-          args: arrayFromPayloads(this.payloadConverter, activation.arguments, context),
+          args: arrayFromPayloads(this.payloadConverter, activation.arguments, context, this.typeHints?.inputTypes),
         })
       ).then(this.completeWorkflow.bind(this), this.handleWorkflowFailure.bind(this))
     );
@@ -655,7 +659,7 @@ export class Activator implements ActivationHandler {
 
       searchAttributes: decodeSearchAttributes(searchAttributes?.indexedFields),
       typedSearchAttributes: decodeTypedSearchAttributes(searchAttributes?.indexedFields),
-
+      // THOMAS - this is where we'd decode memo with type hints on workflow start
       memo: mapFromPayloads(this.payloadConverter, memo?.fields, context),
       lastResult: fromPayloadsAtIndex(this.payloadConverter, 0, lastCompletionResult?.payloads, context),
       lastFailure:

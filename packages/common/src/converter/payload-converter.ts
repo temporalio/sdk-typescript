@@ -1,6 +1,7 @@
 import { decode, encode } from '../encoding';
 import { PayloadConverterError, ValueError } from '../errors';
 import type { Payload } from '../interfaces';
+import { PayloadTypeHints, TypeHint } from '../type-hints';
 import type { SerializationContext } from './serialization-context';
 import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY } from './types';
 
@@ -20,12 +21,17 @@ export interface PayloadConverter {
    *
    * Should throw {@link ValueError} if unable to convert.
    */
-  toPayload<T>(value: T, context?: SerializationContext): Payload;
+  toPayload<T>(value: T, context?: SerializationContext, typeHint?: TypeHint): Payload;
 
   /**
    * Converts a {@link Payload} back to a value.
    */
-  fromPayload<T>(payload: Payload, context?: SerializationContext): T;
+  fromPayload<T>(payload: Payload, context?: SerializationContext, typeHint?: TypeHint): T;
+
+  /**
+   * Optional method to validate a type hint for the converter
+   */
+  validateTypeHint?: (typeHint: TypeHint) => boolean;
 }
 
 /**
@@ -49,13 +55,17 @@ export function toPayloads(converter: PayloadConverter, ...values: unknown[]): P
 export function toPayloadsWithContext(
   converter: PayloadConverter,
   context: SerializationContext | undefined,
-  values: unknown[]
+  values: unknown[],
+  typeHints?: readonly TypeHint[],
 ): Payload[] | undefined {
   if (values.length === 0) {
     return undefined;
   }
+  if (typeHints && typeHints.length !== values.length) {
+    throw new ValueError(`Got ${typeHints.length} type hints for ${values.length} values`);
+  }
 
-  return values.map((value) => converter.toPayload(value, context));
+  return values.map((value, index) => converter.toPayload(value, context, typeHints?.[index]));
 }
 
 /**
@@ -120,11 +130,16 @@ export function fromPayloadsAtIndex<T>(
 export function arrayFromPayloads(
   converter: PayloadConverter,
   payloads?: Payload[] | null,
-  context?: SerializationContext
+  context?: SerializationContext,
+  typeHints?: readonly TypeHint[]
 ): unknown[] {
   if (!payloads) {
     return [];
   }
+  if (typeHints && typeHints.length !== payloads.length) {
+    throw new ValueError(`Got ${typeHints.length} type hints for ${payloads.length} values`);
+  }
+
   return payloads.map((payload: Payload) => converter.fromPayload(payload, context));
 }
 

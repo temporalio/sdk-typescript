@@ -21,11 +21,11 @@ import {
   TimeoutType,
   WorkflowExecutionAlreadyStartedError,
   WorkflowNotFoundError,
-  extractWorkflowType,
   encodeWorkflowIdReusePolicy,
   decodeRetryState,
   encodeWorkflowIdConflictPolicy,
   compilePriority,
+  extractWorkflowTypeAndConfig,
 } from '@temporalio/common';
 import { encodeUserMetadata } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
 import { encodeUnifiedSearchAttributes } from '@temporalio/common/lib/converter/payload-search-attributes';
@@ -537,8 +537,10 @@ export class WorkflowClient extends BaseClient {
     options: WorkflowStartOptions<T>,
     interceptors: WorkflowClientInterceptor[]
   ): Promise<WorkflowStartOutput> {
-    const workflowType = extractWorkflowType(workflowTypeOrFunc);
+    const workflowDefinitionConfig = extractWorkflowTypeAndConfig(workflowTypeOrFunc);
     assertRequiredWorkflowOptions(options);
+    // Resolve type hints (type hints provided at call site take precedence)
+    options.typeHints = options.typeHints ?? workflowDefinitionConfig.staticOptions?.typeHints;
     const compiledOptions = compileWorkflowOptions(ensureArgs(options));
     const adaptedInterceptors = interceptors.map((i) => adaptWorkflowClientInterceptor(i));
 
@@ -551,7 +553,7 @@ export class WorkflowClient extends BaseClient {
     return startWithDetails({
       options: compiledOptions,
       headers: {},
-      workflowType,
+      workflowType: workflowDefinitionConfig.type,
     });
   }
 
@@ -560,10 +562,16 @@ export class WorkflowClient extends BaseClient {
     options: WithWorkflowArgs<T, WorkflowSignalWithStartOptions<SA>>,
     interceptors: WorkflowClientInterceptor[]
   ): Promise<string> {
-    const workflowType = extractWorkflowType(workflowTypeOrFunc);
+    const workflowDefinitionConfig = extractWorkflowTypeAndConfig(workflowTypeOrFunc);
     const { signal, signalArgs, ...rest } = options;
     assertRequiredWorkflowOptions(rest);
-    const compiledOptions = compileWorkflowOptions(ensureArgs(rest));
+    // Resolve type hints (type hints provided at call site take precedence)
+    const typeHints = rest.typeHints ?? workflowDefinitionConfig.staticOptions?.typeHints;
+    const workflowOptions = {
+      ...rest,
+      typeHints,
+    };
+    const compiledOptions = compileWorkflowOptions(ensureArgs(workflowOptions));
     const signalWithStart = composeInterceptors(
       interceptors,
       'signalWithStart',
@@ -573,7 +581,7 @@ export class WorkflowClient extends BaseClient {
     return signalWithStart({
       options: compiledOptions,
       headers: {},
-      workflowType,
+      workflowType: workflowDefinitionConfig.type,
       signalName: typeof signal === 'string' ? signal : signal.name,
       signalArgs: signalArgs ?? [],
     });
@@ -719,10 +727,13 @@ export class WorkflowClient extends BaseClient {
       throw new Error('This WithStartWorkflowOperation instance has already been executed.');
     }
     startWorkflowOperation[withStartWorkflowOperationUsed] = true;
+    const workflowDefinitionConfig = extractWorkflowTypeAndConfig(workflowTypeOrFunc);
     assertRequiredWorkflowOptions(workflowOptions);
 
+    // Resolve type hints (type hints provided at call site take precedence)
+    workflowOptions.typeHints = workflowOptions.typeHints ?? workflowDefinitionConfig.staticOptions?.typeHints;
     const startUpdateWithStartInput: WorkflowStartUpdateWithStartInput = {
-      workflowType: extractWorkflowType(workflowTypeOrFunc),
+      workflowType: workflowDefinitionConfig.type,
       workflowStartOptions: compileWorkflowOptions(ensureArgs(workflowOptions)),
       workflowStartHeaders: {},
       updateName: typeof updateDef === 'string' ? updateDef : updateDef.name,
@@ -1352,7 +1363,7 @@ export class WorkflowClient extends BaseClient {
       workflowIdReusePolicy: encodeWorkflowIdReusePolicy(opts.workflowIdReusePolicy),
       workflowIdConflictPolicy: encodeWorkflowIdConflictPolicy(opts.workflowIdConflictPolicy),
       workflowType: { name: workflowType },
-      input: { payloads: await encodeToPayloadsWithContext(dataConverter, context, opts.args) },
+      input: { payloads: await encodeToPayloadsWithContext(dataConverter, context, opts.args, opts.typeHints?.inputTypes) },
       taskQueue: {
         kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_NORMAL,
         name: opts.taskQueue,
@@ -1362,6 +1373,8 @@ export class WorkflowClient extends BaseClient {
       workflowTaskTimeout: opts.workflowTaskTimeout,
       workflowStartDelay: opts.startDelay,
       retryPolicy: opts.retry ? compileRetryPolicy(opts.retry) : undefined,
+      // TYPE HINTS: skipping memo for now
+      // (can support by adjusting typeHints field in BaseWorkflowOptions and WorkflowDefinitionConfig)
       memo: opts.memo ? { fields: await encodeMapToPayloads(dataConverter, opts.memo, context) } : undefined,
       searchAttributes:
         opts.searchAttributes || opts.typedSearchAttributes

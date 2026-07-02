@@ -29,12 +29,6 @@ export * from './logger';
 export * from './priority';
 export * from './metrics';
 export * from './retry-policy';
-export type { Timestamp, Duration, StringValue } from './time';
-export * from './worker-deployments';
-export * from './workflow-definition-options';
-export * from './workflow-handle';
-export * from './workflow-options';
-export * from './versioning-intent';
 export {
   SearchAttributes,
   SearchAttributeValue,
@@ -44,6 +38,16 @@ export {
   TypedSearchAttributes,
   defineSearchAttributeKey,
 } from './search-attributes';
+export type { Timestamp, Duration, StringValue } from './time';
+export {
+  TypeHint,
+  PayloadTypeHints
+} from './type-hints';
+export * from './worker-deployments';
+export * from './workflow-definition-options';
+export * from './workflow-handle';
+export * from './workflow-options';
+export * from './versioning-intent';
 
 /**
  * Encode a UTF-8 string into a Uint8Array
