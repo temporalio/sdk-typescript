@@ -540,8 +540,12 @@ export class WorkflowClient extends BaseClient {
     const workflowDefinitionConfig = extractWorkflowTypeAndConfig(workflowTypeOrFunc);
     assertRequiredWorkflowOptions(options);
     // Resolve type hints (type hints provided at call site take precedence)
-    options.typeHints = options.typeHints ?? workflowDefinitionConfig.staticOptions?.typeHints;
-    const compiledOptions = compileWorkflowOptions(ensureArgs(options));
+    const typeHints = options.typeHints ?? workflowDefinitionConfig.staticOptions?.typeHints;
+    const workflowOptions = {
+      ...options,
+      typeHints,
+    };
+    const compiledOptions = compileWorkflowOptions(ensureArgs(workflowOptions));
     const adaptedInterceptors = interceptors.map((i) => adaptWorkflowClientInterceptor(i));
 
     const startWithDetails = composeInterceptors(
@@ -731,10 +735,14 @@ export class WorkflowClient extends BaseClient {
     assertRequiredWorkflowOptions(workflowOptions);
 
     // Resolve type hints (type hints provided at call site take precedence)
-    workflowOptions.typeHints = workflowOptions.typeHints ?? workflowDefinitionConfig.staticOptions?.typeHints;
+    const typeHints = workflowOptions.typeHints ?? workflowDefinitionConfig.staticOptions?.typeHints;
+    const resolvedWorkflowOptions = {
+      ...workflowOptions,
+      typeHints,
+    };
     const startUpdateWithStartInput: WorkflowStartUpdateWithStartInput = {
       workflowType: workflowDefinitionConfig.type,
-      workflowStartOptions: compileWorkflowOptions(ensureArgs(workflowOptions)),
+      workflowStartOptions: compileWorkflowOptions(ensureArgs(resolvedWorkflowOptions)),
       workflowStartHeaders: {},
       updateName: typeof updateDef === 'string' ? updateDef : updateDef.name,
       updateArgs: args ?? [],
@@ -1363,7 +1371,9 @@ export class WorkflowClient extends BaseClient {
       workflowIdReusePolicy: encodeWorkflowIdReusePolicy(opts.workflowIdReusePolicy),
       workflowIdConflictPolicy: encodeWorkflowIdConflictPolicy(opts.workflowIdConflictPolicy),
       workflowType: { name: workflowType },
-      input: { payloads: await encodeToPayloadsWithContext(dataConverter, context, opts.args, opts.typeHints?.inputTypes) },
+      input: {
+        payloads: await encodeToPayloadsWithContext(dataConverter, context, opts.args, opts.typeHints?.inputTypes),
+      },
       taskQueue: {
         kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_NORMAL,
         name: opts.taskQueue,

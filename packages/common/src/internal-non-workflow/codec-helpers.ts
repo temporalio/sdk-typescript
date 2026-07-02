@@ -197,13 +197,13 @@ export async function encodeToPayloadsWithContext(
   converter: LoadedDataConverter,
   context: SerializationContext | undefined,
   values: unknown[],
-  typeHints?: readonly TypeHint[],
+  typeHints?: readonly TypeHint[]
 ): Promise<Payload[] | undefined> {
   const { payloadConverter, payloadCodecs } = converter;
   if (values.length === 0) {
     return undefined;
   }
-  
+
   const payloads = toPayloadsWithContext(payloadConverter, context, values, typeHints);
   return payloads ? await encode(payloadCodecs, payloads, context) : undefined;
 }

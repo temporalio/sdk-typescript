@@ -39,10 +39,7 @@ export {
   defineSearchAttributeKey,
 } from './search-attributes';
 export type { Timestamp, Duration, StringValue } from './time';
-export {
-  TypeHint,
-  PayloadTypeHints
-} from './type-hints';
+export { TypeHint, PayloadTypeHints } from './type-hints';
 export * from './worker-deployments';
 export * from './workflow-definition-options';
 export * from './workflow-handle';

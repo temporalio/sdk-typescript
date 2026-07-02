@@ -4,7 +4,12 @@
  * @module
  */
 import type { WorkflowFunctionWithOptions } from '@temporalio/common';
-import { encodeVersioningBehavior, IllegalStateError, isWorkflowFunctionWithOptions, isWorkflowFunctionWithStaticOptions } from '@temporalio/common';
+import {
+  encodeVersioningBehavior,
+  IllegalStateError,
+  isWorkflowFunctionWithOptions,
+  isWorkflowFunctionWithStaticOptions,
+} from '@temporalio/common';
 import type { coresdk } from '@temporalio/proto';
 import type { WorkflowInterceptorsFactory } from './interceptors';
 import type { WorkflowCreateOptionsInternal } from './interfaces';

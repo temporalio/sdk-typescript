@@ -1764,7 +1764,7 @@ export function allHandlersFinished(): boolean {
 
 /**
  * Can be used to alter workflow functions with certain options specified at definition time.
- * 
+ *
  * Prefer {@link defineWorkflowOptions} for new code, especially when setting static workflow
  * metadata such as type hints.
  *
@@ -1801,15 +1801,15 @@ export function allHandlersFinished(): boolean {
  */
 export function setWorkflowOptions<A extends any[], RT>(
   options: WorkflowDefinitionOptionsOrGetter,
-  fn: (...args: A) => Promise<RT>,
+  fn: (...args: A) => Promise<RT>
 ): void {
-  return defineWorkflowOptions(fn, { workflowDefinitionOptions: options })
+  return defineWorkflowOptions(fn, { workflowDefinitionOptions: options });
 }
 
 /** NEEDS DOCSTRING */
 export function defineWorkflowOptions<A extends any[], RT>(
   fn: (...args: A) => Promise<RT>,
-  config: WorkflowDefinitionConfig,
+  config: WorkflowDefinitionConfig
 ): void {
   Object.assign(fn, config);
 }

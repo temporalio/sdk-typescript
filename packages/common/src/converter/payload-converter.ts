@@ -56,7 +56,7 @@ export function toPayloadsWithContext(
   converter: PayloadConverter,
   context: SerializationContext | undefined,
   values: unknown[],
-  typeHints?: readonly TypeHint[],
+  typeHints?: readonly TypeHint[]
 ): Payload[] | undefined {
   if (values.length === 0) {
     return undefined;
@@ -140,7 +140,7 @@ export function arrayFromPayloads(
     throw new ValueError(`Got ${typeHints.length} type hints for ${payloads.length} values`);
   }
 
-  return payloads.map((payload: Payload) => converter.fromPayload(payload, context));
+  return payloads.map((payload: Payload, index) => converter.fromPayload(payload, context, typeHints?.[index]));
 }
 
 export function mapFromPayloads<K extends string, T = unknown>(
@@ -187,14 +187,19 @@ export interface PayloadConverterWithEncoding {
    * @param value The value to convert. Example values include the Workflow args sent from the Client and the values returned by a Workflow or Activity.
    * @returns The {@link Payload}, or `undefined` if unable to convert.
    */
-  toPayload<T>(value: T, context?: SerializationContext): Payload | undefined;
+  toPayload<T>(value: T, context?: SerializationContext, typeHint?: TypeHint): Payload | undefined;
 
   /**
    * Converts a {@link Payload} back to a value.
    */
-  fromPayload<T>(payload: Payload, context?: SerializationContext): T;
+  fromPayload<T>(payload: Payload, context?: SerializationContext, typeHint?: TypeHint): T;
 
   readonly encodingType: string;
+
+  /**
+   * Optional method to validate a type hint for the converter
+   */
+  validateTypeHint?: (typeHint: TypeHint) => boolean;
 }
 
 /**
@@ -222,12 +227,12 @@ export class CompositePayloadConverter implements PayloadConverter {
    * Tries to run `.toPayload(value)` on each converter in the order provided at construction.
    * Returns the first successful result, throws {@link ValueError} if there is no converter that can handle the value.
    */
-  public toPayload<T>(value: T, context?: SerializationContext): Payload {
+  public toPayload<T>(value: T, context?: SerializationContext, typeHint?: TypeHint): Payload {
     if (value instanceof RawValue) {
       return value.payload;
     }
     for (const converter of this.converters) {
-      const result = converter.toPayload(value, context);
+      const result = converter.toPayload(value, context, typeHint);
       if (result !== undefined) {
         return result;
       }

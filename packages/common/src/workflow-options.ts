@@ -5,7 +5,11 @@ import type { Duration } from './time';
 import { makeProtoEnumConverters } from './internal-workflow';
 import type { SearchAttributePair, SearchAttributes, TypedSearchAttributes } from './search-attributes';
 import type { Priority } from './priority';
-import type { WorkflowStaticOptions, WorkflowFunctionWithOptions, WorkflowDefinitionConfig } from './workflow-definition-options';
+import {
+  type WorkflowStaticOptions,
+  type WorkflowFunctionWithOptions,
+  isWorkflowFunctionWithStaticOptions,
+} from './workflow-definition-options';
 import { PayloadTypeHints } from './type-hints';
 /**
  * Defines what happens when trying to start a Workflow with the same ID as a *Closed* Workflow.
@@ -215,9 +219,9 @@ export interface BaseWorkflowOptions {
 
   /**
    * Type hints! For workflow input/output.
-   * 
+   *
    * Validated at runtime.
-   * 
+   *
    * @experimental
    */
   typeHints?: PayloadTypeHints;
@@ -273,7 +277,7 @@ export interface WorkflowTypeOptions {
   staticOptions?: WorkflowStaticOptions;
 }
 
-// Maybe get rid of
+// THOMAS - Maybe get rid of this
 export function extractWorkflowType<T extends Workflow>(
   workflowTypeOrFunc: string | T | WorkflowFunctionWithOptions<any[], any>
 ): string {
@@ -287,26 +291,16 @@ export function extractWorkflowType<T extends Workflow>(
   );
 }
 
-type WorkflowWithStaticOptions = Workflow & {
-  workflowStaticOptions: WorkflowStaticOptions;
-};
-
-function hasWorkflowStaticOptions(fn: Workflow): fn is WorkflowWithStaticOptions {
-  return Object.hasOwn(fn, 'workflowStaticOptions');
-}
-
-export function extractWorkflowTypeAndConfig<T extends Workflow>(
-  workflowTypeOrFunc: string | T
-): WorkflowTypeOptions {
+export function extractWorkflowTypeAndConfig<T extends Workflow>(workflowTypeOrFunc: string | T): WorkflowTypeOptions {
   if (typeof workflowTypeOrFunc === 'string') {
-    return { type: workflowTypeOrFunc }
+    return { type: workflowTypeOrFunc };
   }
   if (typeof workflowTypeOrFunc === 'function') {
     if (!workflowTypeOrFunc.name) {
       throw new TypeError('Invalid workflow type: the workflow function is anonymous');
     }
-    const staticOptions = hasWorkflowStaticOptions(workflowTypeOrFunc)
-      ? workflowTypeOrFunc.workflowStaticOptions
+    const staticOptions = isWorkflowFunctionWithStaticOptions(workflowTypeOrFunc)
+      ? workflowTypeOrFunc.staticOptions
       : undefined;
     return {
       type: workflowTypeOrFunc.name,
