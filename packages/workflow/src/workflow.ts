@@ -24,7 +24,7 @@ import {
   compilePriority,
   encodeActivityCancellationType,
   encodeWorkflowIdReusePolicy,
-  extractWorkflowType,
+  extractWorkflowTypeAndConfig,
   HandlerUnfinishedPolicy,
   mapToPayloads,
   encodeInitialVersioningBehavior,
@@ -435,7 +435,7 @@ function startChildWorkflowExecutionNextHandler({
         seq,
         workflowId,
         workflowType,
-        input: toPayloadsWithContext(activator.payloadConverter, context, options.args),
+        input: toPayloadsWithContext(activator.payloadConverter, context, options.args, options.typeHints?.inputTypes),
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
         taskQueue: options.taskQueue || activator.info.taskQueue,
         workflowExecutionTimeout: msOptionalToTs(options.workflowExecutionTimeout),
@@ -451,6 +451,7 @@ function startChildWorkflowExecutionNextHandler({
           options.searchAttributes || options.typedSearchAttributes
             ? { indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes) }
             : undefined,
+        // THOMAS - memo type hints not supported yet!
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo, context),
         versioningIntent: versioningIntentToProto(options.versioningIntent),
         priority: options.priority ? compilePriority(options.priority) : undefined,
@@ -875,7 +876,13 @@ export async function startChild<T extends Workflow>(
     'Workflow.startChild(...) may only be used from a Workflow Execution. Consider using Client.workflow.start(...) instead.)'
   );
   const optionsWithDefaults = addDefaultWorkflowOptions(options ?? ({} as any));
-  const workflowType = extractWorkflowType(workflowTypeOrFunc);
+  const workflowDefinitionConfig = extractWorkflowTypeAndConfig(workflowTypeOrFunc);
+  // Resolve type hints (type hints provided at call site take precedence)
+  const typeHints = optionsWithDefaults?.typeHints ?? workflowDefinitionConfig.staticOptions?.typeHints;
+  const workflowOptions = {
+    ...optionsWithDefaults,
+    typeHints,
+  };
   const execute = composeInterceptors(
     activator.interceptors.outbound,
     'startChildWorkflowExecution',
@@ -883,14 +890,14 @@ export async function startChild<T extends Workflow>(
   );
   const [started, completed] = await execute({
     seq: activator.nextSeqs.childWorkflow++,
-    options: optionsWithDefaults,
+    options: workflowOptions,
     headers: {},
-    workflowType,
+    workflowType: workflowDefinitionConfig.type,
   });
   const firstExecutionRunId = await started;
 
   return {
-    workflowId: optionsWithDefaults.workflowId,
+    workflowId: workflowOptions.workflowId,
     firstExecutionRunId,
     async result(): Promise<WorkflowResultType<T>> {
       return (await completed) as any;
@@ -906,7 +913,7 @@ export async function startChild<T extends Workflow>(
         args,
         target: {
           type: 'child',
-          childWorkflowId: optionsWithDefaults.workflowId,
+          childWorkflowId: workflowOptions.workflowId,
         },
         headers: {},
       });
@@ -976,7 +983,13 @@ export async function executeChild<T extends Workflow>(
     'Workflow.executeChild(...) may only be used from a Workflow Execution. Consider using Client.workflow.execute(...) instead.'
   );
   const optionsWithDefaults = addDefaultWorkflowOptions(options ?? ({} as any));
-  const workflowType = extractWorkflowType(workflowTypeOrFunc);
+  const workflowDefinitionConfig = extractWorkflowTypeAndConfig(workflowTypeOrFunc);
+  // Resolve type hints (type hints provided at call site take precedence)
+  const typeHints = optionsWithDefaults?.typeHints ?? workflowDefinitionConfig.staticOptions?.typeHints;
+  const workflowOptions = {
+    ...optionsWithDefaults,
+    typeHints,
+  };
   const execute = composeInterceptors(
     activator.interceptors.outbound,
     'startChildWorkflowExecution',
@@ -984,9 +997,9 @@ export async function executeChild<T extends Workflow>(
   );
   const execPromise = execute({
     seq: activator.nextSeqs.childWorkflow++,
-    options: optionsWithDefaults,
+    options: workflowOptions,
     headers: {},
-    workflowType,
+    workflowType: workflowDefinitionConfig.type,
   });
   untrackPromise(execPromise);
   const completedPromise = execPromise.then(([_started, completed]) => completed);
@@ -1074,7 +1087,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
       const { headers, args, options } = input;
       throw new ContinueAsNew({
         workflowType: options.workflowType,
-        arguments: toPayloadsWithContext(activator.payloadConverter, context, args),
+        arguments: toPayloadsWithContext(activator.payloadConverter, context, args, activator.typeHints?.inputTypes),
         headers,
         taskQueue: options.taskQueue,
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo, context),

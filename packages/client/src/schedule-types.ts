@@ -6,6 +6,7 @@ import type {
   Workflow,
   TypedSearchAttributes,
   SearchAttributePair,
+  PayloadTypeHints,
 } from '@temporalio/common';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import type { temporal } from '@temporalio/proto';
@@ -792,6 +793,7 @@ export type ScheduleOptionsStartWorkflowAction<W extends Workflow> = {
   | 'workflowTaskTimeout'
   | 'staticDetails'
   | 'staticSummary'
+  | 'typeHints'
 > & {
     /**
      * Workflow id to use when starting. Assign a meaningful business id.
@@ -838,7 +840,11 @@ export type CompiledScheduleAction = Replace<
     workflowType: string;
     args: unknown[];
   }
->;
+  > & {
+  // THOMAS - a bit hacky, needed due to CompiledScheduleAction being a derived
+  // type of ScheduleDescriptionAction for some reason
+  typeHints?: PayloadTypeHints;
+};
 
 /**
  * Policy for overlapping Actions.

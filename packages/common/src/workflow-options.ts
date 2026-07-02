@@ -277,20 +277,7 @@ export interface WorkflowTypeOptions {
   staticOptions?: WorkflowStaticOptions;
 }
 
-// THOMAS - Maybe get rid of this
-export function extractWorkflowType<T extends Workflow>(
-  workflowTypeOrFunc: string | T | WorkflowFunctionWithOptions<any[], any>
-): string {
-  if (typeof workflowTypeOrFunc === 'string') return workflowTypeOrFunc as string;
-  if (typeof workflowTypeOrFunc === 'function') {
-    if (workflowTypeOrFunc?.name) return workflowTypeOrFunc.name;
-    throw new TypeError('Invalid workflow type: the workflow function is anonymous');
-  }
-  throw new TypeError(
-    `Invalid workflow type: expected either a string or a function, got '${typeof workflowTypeOrFunc}'`
-  );
-}
-
+// THOMAS - rename (function and return type)
 export function extractWorkflowTypeAndConfig<T extends Workflow>(workflowTypeOrFunc: string | T): WorkflowTypeOptions {
   if (typeof workflowTypeOrFunc === 'string') {
     return { type: workflowTypeOrFunc };

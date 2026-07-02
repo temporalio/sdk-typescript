@@ -1265,7 +1265,7 @@ export class WorkflowClient extends BaseClient {
       workflowIdReusePolicy: encodeWorkflowIdReusePolicy(options.workflowIdReusePolicy),
       workflowIdConflictPolicy: encodeWorkflowIdConflictPolicy(options.workflowIdConflictPolicy),
       workflowType: { name: workflowType },
-      input: { payloads: await encodeToPayloadsWithContext(dataConverter, context, options.args) },
+      input: { payloads: await encodeToPayloadsWithContext(dataConverter, context, options.args, options.typeHints?.inputTypes) },
       signalName,
       signalInput: { payloads: await encodeToPayloadsWithContext(dataConverter, context, signalArgs) },
       taskQueue: {
@@ -1277,6 +1277,7 @@ export class WorkflowClient extends BaseClient {
       workflowTaskTimeout: options.workflowTaskTimeout,
       workflowStartDelay: options.startDelay,
       retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
+      // THOMAS - memo type hints not supported yet
       memo: options.memo ? { fields: await encodeMapToPayloads(dataConverter, options.memo, context) } : undefined,
       searchAttributes:
         options.searchAttributes || options.typedSearchAttributes
