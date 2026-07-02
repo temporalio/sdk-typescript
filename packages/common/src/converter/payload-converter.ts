@@ -244,7 +244,7 @@ export class CompositePayloadConverter implements PayloadConverter {
   /**
    * Run {@link PayloadConverterWithEncoding.fromPayload} based on the `encoding` metadata of the {@link Payload}.
    */
-  public fromPayload<T>(payload: Payload, context?: SerializationContext): T {
+  public fromPayload<T>(payload: Payload, context?: SerializationContext, typeHint?: TypeHint): T {
     if (payload.metadata === undefined || payload.metadata === null) {
       throw new ValueError('Missing payload metadata');
     }
@@ -254,7 +254,7 @@ export class CompositePayloadConverter implements PayloadConverter {
     if (converter === undefined) {
       throw new ValueError(`Unknown encoding: ${encoding}`);
     }
-    return converter.fromPayload(payload, context);
+    return converter.fromPayload(payload, context, typeHint);
   }
 }
 
