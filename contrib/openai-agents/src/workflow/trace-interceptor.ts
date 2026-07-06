@@ -35,7 +35,6 @@ import {
   withIsolatedAgentsTraceContext,
   withSpanAsCurrent,
 } from '../common/trace-context';
-import { DEFAULT_MODEL_ACTIVITY_OPTIONS } from '../common/model-activity-options';
 import {
   captureHeaderUnderMaybeInstantSpan,
   isFireAndForgetActivity,
@@ -75,7 +74,10 @@ class OpenAIAgentsTraceInboundInterceptor implements WorkflowInboundCallsInterce
       const headerConfig: PluginConfig = {
         addTemporalSpans: configHeader.addTemporalSpans ?? false,
         useOtelInstrumentation: configHeader.useOtelInstrumentation ?? false,
-        modelParams: { ...DEFAULT_MODEL_ACTIVITY_OPTIONS, ...configHeader.modelParams },
+        // Store only the client-explicitly-set fields; the runner applies
+        // DEFAULT_MODEL_ACTIVITY_OPTIONS as the base layer so pre-baked defaults
+        // don't clobber the runner's defaultModelParams.
+        modelParams: configHeader.modelParams ?? {},
       };
       setPluginConfig(headerConfig);
     }

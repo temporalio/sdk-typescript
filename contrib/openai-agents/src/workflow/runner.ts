@@ -21,6 +21,7 @@ import {
   DEFAULT_MODEL_ACTIVITY_OPTIONS,
   STREAMING_TOPIC_NOT_CONFIGURED,
   type ModelActivityOptions,
+  type SerializableModelActivityOptions,
 } from '../common/model-activity-options';
 import { unwrapTemporalFailure } from '../common/errors';
 import { convertAgent } from './convert-agent';
@@ -46,9 +47,9 @@ export interface TemporalRunOptions<TContext = undefined> {
   /** Per-run tracing config override */
   tracing?: TracingConfig;
   /**
-   * Stream incremental events as the model responds. Requires
-   * `modelParams.streamingTopic` to be configured on the plugin and a hosted
-   * `WorkflowStream` in the Workflow.
+   * Stream incremental events as the model responds. Requires a `streamingTopic`
+   * (set via the plugin's `modelParams` or the runner's `defaultModelParams`) and a
+   * hosted `WorkflowStream` in the Workflow.
    *
    * @experimental Streaming support is experimental and may change without notice.
    */
@@ -82,21 +83,59 @@ export interface TemporalRunOptions<TContext = undefined> {
   };
 }
 
+export interface TemporalOpenAIRunnerOptions {
+  /**
+   * Workflow-authored default Model Activity options, layered UNDER the client's
+   * `modelParams` header: a client-set field wins, otherwise this default applies.
+   * Because these options are constructed in the Workflow (not JSON-propagated),
+   * they can carry the function form of `summary`. Use this to configure Workflows
+   * started without the client interceptor, e.g. by a Schedule or the Temporal UI/CLI.
+   */
+  defaultModelParams?: ModelActivityOptions;
+}
+
+/**
+ * Layers Model Activity options least→most significant:
+ * package `DEFAULT_MODEL_ACTIVITY_OPTIONS` < constructor `defaultModelParams` <
+ * client header `modelParams`. Undefined field values are dropped at each layer so
+ * an absent option never clobbers a value set by a lower layer.
+ */
+export function layerModelParams(
+  defaultModelParams: ModelActivityOptions | undefined,
+  headerModelParams: SerializableModelActivityOptions | undefined
+): ModelActivityOptions {
+  return {
+    ...DEFAULT_MODEL_ACTIVITY_OPTIONS,
+    ...definedFields(defaultModelParams),
+    ...definedFields(headerModelParams),
+  };
+}
+
+function definedFields<T extends object>(obj: T | undefined): Partial<T> {
+  if (obj === undefined) return {};
+  const result: Partial<T> = {};
+  for (const key of Object.keys(obj) as (keyof T)[]) {
+    if (obj[key] !== undefined) result[key] = obj[key];
+  }
+  return result;
+}
+
 /**
  * A Temporal-aware agent runner that delegates model calls to Activities.
  *
  * Use `run(agent, input)` for request-response runs. Pass `{ stream: true }` to
  * stream incremental events as the model responds — the returned
- * `StreamedRunResult` is async-iterable. Streaming requires
- * `modelParams.streamingTopic` and a hosted `WorkflowStream` in the Workflow.
+ * `StreamedRunResult` is async-iterable. Streaming requires a `streamingTopic`
+ * (set via the plugin's `modelParams` or the runner's `defaultModelParams`) and a
+ * hosted `WorkflowStream` in the Workflow.
  */
 export class TemporalOpenAIRunner {
   private readonly modelParams: ModelActivityOptions;
 
-  constructor() {
+  constructor(options?: TemporalOpenAIRunnerOptions) {
     ensureTracingProcessorRegistered();
     const fromHeader = getCurrentPluginConfig();
-    this.modelParams = fromHeader?.modelParams ?? DEFAULT_MODEL_ACTIVITY_OPTIONS;
+    this.modelParams = layerModelParams(options?.defaultModelParams, fromHeader?.modelParams);
   }
 
   /**

@@ -170,7 +170,18 @@ Pass `{ stream: true }` to `run()` to stream incremental events as the model res
 
 External consumers (UIs, tracing pipelines) observe events as they arrive by hosting a [`WorkflowStream`](../workflow-streams/README.md) in the Workflow and subscribing with `WorkflowStreamClient`. The streaming Activity publishes each event to the topic configured on `modelParams.streamingTopic`. The topic is required for streaming runs; calling `run(agent, input, { stream: true })` without a configured topic throws before any Activity is scheduled.
 
-Configure the topic on the plugin and host a `WorkflowStream` in the Workflow:
+Streaming requires a `streamingTopic`. Set it on the `modelParams` of the plugin registered on the **Client** — the Client interceptor injects the config header into every Workflow-starting call:
+
+```ts
+const plugin = new OpenAIAgentsPlugin({
+  modelProvider: new OpenAIProvider(),
+  modelParams: { streamingTopic: 'events', streamingBatchInterval: '100ms' },
+});
+
+const client = new Client({ connection, plugins: [plugin] });
+```
+
+Workflows started without that Client — by a Schedule or the Temporal UI/CLI — receive no config header. Supply Workflow-authored defaults through the runner's `defaultModelParams`; unlike the header, these can carry a function-form `summary`. Host a `WorkflowStream` in the Workflow to receive the publishes:
 
 ```ts
 import { Agent } from '@openai/agents-core';
@@ -180,7 +191,7 @@ import { WorkflowStream } from '@temporalio/workflow-streams/workflow';
 export async function streamingWorkflow(prompt: string): Promise<string> {
   new WorkflowStream();
   const agent = new Agent({ name: 'Assistant', instructions: '...' });
-  const runner = new TemporalOpenAIRunner();
+  const runner = new TemporalOpenAIRunner({ defaultModelParams: { streamingTopic: 'events' } });
   const result = await runner.run(agent, prompt, { stream: true });
   for await (const event of result) {
     if (event.type === 'raw_model_stream_event' && event.data.type === 'output_text_delta') {
@@ -191,12 +202,7 @@ export async function streamingWorkflow(prompt: string): Promise<string> {
 }
 ```
 
-```ts
-new OpenAIAgentsPlugin({
-  modelProvider,
-  modelParams: { streamingTopic: 'events', streamingBatchInterval: '100ms' },
-});
-```
+The two layers combine per field: the Client's `modelParams` overrides the runner's `defaultModelParams`.
 
 External subscribers receive the unwrapped native model events directly:
 
@@ -207,6 +213,8 @@ for await (const item of WorkflowStreamClient.create(client, workflowId).topic('
   // item.data — native model stream event
 }
 ```
+
+The hosted `WorkflowStream` retains every published event on the Workflow heap and in history until `truncate(upToOffset)` is called. A streaming agent publishes many events per run, so a long-running or high-volume Workflow that never truncates will eventually hit Temporal's Workflow history size limits. Call `truncate(upToOffset)` periodically to keep the heap and history bounded; see [`@temporalio/workflow-streams`](../workflow-streams/README.md) for the offset model and batching.
 
 Streaming is incompatible with `useLocalActivity`, which supports neither Activity heartbeats nor the Workflow Stream signal channel. See [`@temporalio/workflow-streams`](../workflow-streams/README.md) for the publisher/subscriber API and delivery semantics.
 

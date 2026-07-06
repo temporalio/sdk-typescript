@@ -147,9 +147,21 @@ export class ActivityBackedModel implements Model {
       }),
     };
 
+    const events = await withGenerationSpan(async (span) => {
+      span.spanData.model = this.modelName;
+
+      const modelSummary = this.modelParams.summary;
+      if (modelSummary && typeof modelSummary !== 'string') {
+        const provider = modelSummary as ModelSummaryProvider;
+        const summary = provider.provide(this.agent, request.systemInstructions, request.input);
+        return this.activities.invokeModelStreamActivity.executeWithOptions({ summary }, [input]);
+      }
+
+      return this.activities.invokeModelStreamActivity(input);
+    });
+
     // The Activity collects and returns the full event list; yielding from that
     // return value (rather than polling the live stream) keeps replay deterministic.
-    const events = await this.activities.invokeModelStreamActivity(input);
     for (const event of events) {
       yield fromSerializedStreamEvent(event);
     }

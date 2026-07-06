@@ -54,6 +54,7 @@ export const DEFAULT_MODEL_ACTIVITY_OPTIONS: SerializableModelActivityOptions = 
 export const STREAMING_TOPIC_NOT_CONFIGURED = {
   type: 'StreamingTopicNotConfigured',
   message:
-    'Streaming requires modelParams.streamingTopic to be set on OpenAIAgentsPlugin. ' +
-    'Host a WorkflowStream in your Workflow and configure the topic to use run(agent, input, { stream: true }).',
+    "Streaming requires a streamingTopic. Set it via the plugin's modelParams on the client, " +
+    "or via the runner's defaultModelParams (new TemporalOpenAIRunner({ defaultModelParams: { streamingTopic } })). " +
+    'Host a WorkflowStream in your Workflow to use run(agent, input, { stream: true }).',
 } as const;
