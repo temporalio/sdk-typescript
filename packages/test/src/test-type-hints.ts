@@ -100,6 +100,40 @@ test('workflow start and result use definition-supplied input and output type hi
   });
 });
 
+test('workflow execute uses call-site input and output type hints for string workflow type', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker({ dataConverter });
+
+  await worker.runUntil(async () => {
+    const result = await client.workflow.execute('workflowWithTypeHints', {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+      args: [new Order('order-1', 12345n)],
+      typeHints: workflowTypeHints,
+    });
+
+    assertReceipt(t, result);
+  });
+});
+
+test('workflow start and result use call-site input and output type hints for string workflow type', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker({ dataConverter });
+
+  await worker.runUntil(async () => {
+    const handle = await client.workflow.start('workflowWithTypeHints', {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+      args: [new Order('order-1', 12345n)],
+      typeHints: workflowTypeHints,
+    });
+
+    assertReceipt(t, await handle.result());
+  });
+});
+
 test('same-type continue-as-new reuses definition-supplied input and output type hints', async (t) => {
   const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
   const client = makeClient(t.context.env);

@@ -64,7 +64,7 @@ defineWorkflowOptions(workflowWithTypeHints, {
 export async function workflowWithTypeHints(order: Order): Promise<Receipt> {
   assertOrder(order);
   if (order.remainingRuns > 0) {
-    await continueAsNew<typeof workflowWithTypeHints>(new Order(order.id, order.totalCents, order.remainingRuns - 1));
+    await continueAsNew(new Order(order.id, order.totalCents, order.remainingRuns - 1));
   }
   return makeReceipt(order);
 }
