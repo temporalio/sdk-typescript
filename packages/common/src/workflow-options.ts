@@ -5,11 +5,7 @@ import type { Duration } from './time';
 import { makeProtoEnumConverters } from './internal-workflow';
 import type { SearchAttributePair, SearchAttributes, TypedSearchAttributes } from './search-attributes';
 import type { Priority } from './priority';
-import {
-  type WorkflowStaticOptions,
-  type WorkflowFunctionWithOptions,
-  isWorkflowFunctionWithStaticOptions,
-} from './workflow-definition-options';
+import { isWorkflowFunctionWithStaticOptions } from './workflow-definition-options';
 import { PayloadTypeHints } from './type-hints';
 /**
  * Defines what happens when trying to start a Workflow with the same ID as a *Closed* Workflow.
@@ -274,24 +270,26 @@ export type CommonWorkflowOptions = BaseWorkflowOptions & WorkflowDurationOption
 
 export interface WorkflowTypeOptions {
   type: string;
-  staticOptions?: WorkflowStaticOptions;
+  typeHints?: PayloadTypeHints;
 }
 
-// THOMAS - rename (function and return type)
-export function extractWorkflowTypeAndConfig<T extends Workflow>(workflowTypeOrFunc: string | T): WorkflowTypeOptions {
+export function extractWorkflowTypeAndConfig<T extends Workflow>(
+  workflowTypeOrFunc: string | T,
+  callSiteTypeHints?: PayloadTypeHints
+): WorkflowTypeOptions {
   if (typeof workflowTypeOrFunc === 'string') {
-    return { type: workflowTypeOrFunc };
+    return { type: workflowTypeOrFunc, typeHints: callSiteTypeHints };
   }
   if (typeof workflowTypeOrFunc === 'function') {
     if (!workflowTypeOrFunc.name) {
       throw new TypeError('Invalid workflow type: the workflow function is anonymous');
     }
-    const staticOptions = isWorkflowFunctionWithStaticOptions(workflowTypeOrFunc)
-      ? workflowTypeOrFunc.staticOptions
-      : undefined;
+    const resolvedTypeHints = isWorkflowFunctionWithStaticOptions(workflowTypeOrFunc)
+      ? workflowTypeOrFunc.staticOptions.typeHints
+      : callSiteTypeHints;
     return {
       type: workflowTypeOrFunc.name,
-      staticOptions,
+      typeHints: resolvedTypeHints,
     };
   }
   throw new TypeError(

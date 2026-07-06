@@ -876,9 +876,10 @@ export async function startChild<T extends Workflow>(
     'Workflow.startChild(...) may only be used from a Workflow Execution. Consider using Client.workflow.start(...) instead.)'
   );
   const optionsWithDefaults = addDefaultWorkflowOptions(options ?? ({} as any));
-  const workflowDefinitionConfig = extractWorkflowTypeAndConfig(workflowTypeOrFunc);
-  // Resolve type hints (type hints provided at call site take precedence)
-  const typeHints = optionsWithDefaults?.typeHints ?? workflowDefinitionConfig.staticOptions?.typeHints;
+  const { type: workflowType, typeHints } = extractWorkflowTypeAndConfig(
+    workflowTypeOrFunc,
+    optionsWithDefaults.typeHints
+  );
   const workflowOptions = {
     ...optionsWithDefaults,
     typeHints,
@@ -892,7 +893,7 @@ export async function startChild<T extends Workflow>(
     seq: activator.nextSeqs.childWorkflow++,
     options: workflowOptions,
     headers: {},
-    workflowType: workflowDefinitionConfig.type,
+    workflowType,
   });
   const firstExecutionRunId = await started;
 
@@ -983,9 +984,10 @@ export async function executeChild<T extends Workflow>(
     'Workflow.executeChild(...) may only be used from a Workflow Execution. Consider using Client.workflow.execute(...) instead.'
   );
   const optionsWithDefaults = addDefaultWorkflowOptions(options ?? ({} as any));
-  const workflowDefinitionConfig = extractWorkflowTypeAndConfig(workflowTypeOrFunc);
-  // Resolve type hints (type hints provided at call site take precedence)
-  const typeHints = optionsWithDefaults?.typeHints ?? workflowDefinitionConfig.staticOptions?.typeHints;
+  const { type: workflowType, typeHints } = extractWorkflowTypeAndConfig(
+    workflowTypeOrFunc,
+    optionsWithDefaults.typeHints
+  );
   const workflowOptions = {
     ...optionsWithDefaults,
     typeHints,
@@ -999,7 +1001,7 @@ export async function executeChild<T extends Workflow>(
     seq: activator.nextSeqs.childWorkflow++,
     options: workflowOptions,
     headers: {},
-    workflowType: workflowDefinitionConfig.type,
+    workflowType,
   });
   untrackPromise(execPromise);
   const completedPromise = execPromise.then(([_started, completed]) => completed);

@@ -198,16 +198,15 @@ export function decodeOptionalStructuredCalendarSpecs(
 }
 
 export function compileScheduleOptions(options: ScheduleOptions): CompiledScheduleOptions {
-  const workflowDefinitionConfig = extractWorkflowTypeAndConfig(options.action.workflowType);
-  // Resolve type hints (type hints provided at call site take precedence)
-  const typeHints = options?.action.typeHints ?? workflowDefinitionConfig.staticOptions?.typeHints;
+  const { action } = options;
+  const { type: workflowType, typeHints } = extractWorkflowTypeAndConfig(action.workflowType, action.typeHints);
   return {
     ...options,
     action: {
-      ...options.action,
-      workflowId: options.action.workflowId ?? `${options.scheduleId}-workflow`,
-      workflowType: workflowDefinitionConfig.type,
-      args: (options.action.args ?? []) as unknown[],
+      ...action,
+      workflowId: action.workflowId ?? `${options.scheduleId}-workflow`,
+      workflowType,
+      args: (action.args ?? []) as unknown[],
       typeHints,
     },
   };
@@ -217,17 +216,15 @@ export function compileUpdatedScheduleOptions(
   scheduleId: string,
   options: ScheduleUpdateOptions
 ): CompiledScheduleUpdateOptions {
-  const workflowTypeOrFunc = options.action.workflowType;
-  const workflowDefinitionConfig = extractWorkflowTypeAndConfig(workflowTypeOrFunc);
-  // Resolve type hints (type hints provided at call site take precedence)
-  const typeHints = options?.action.typeHints ?? workflowDefinitionConfig.staticOptions?.typeHints;
+  const { action } = options;
+  const { type: workflowType, typeHints } = extractWorkflowTypeAndConfig(action.workflowType, action.typeHints);
   return {
     ...options,
     action: {
-      ...options.action,
-      workflowId: options.action.workflowId ?? `${scheduleId}-workflow`,
-      workflowType: workflowDefinitionConfig.type,
-      args: (options.action.args ?? []) as unknown[],
+      ...action,
+      workflowId: action.workflowId ?? `${scheduleId}-workflow`,
+      workflowType,
+      args: (action.args ?? []) as unknown[],
       typeHints,
     },
   };

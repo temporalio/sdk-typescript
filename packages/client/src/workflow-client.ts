@@ -353,7 +353,7 @@ export interface WorkflowResultOptions {
    *
    * @experimental
    */
-  typeHint?: TypeHint
+  typeHint?: TypeHint;
 }
 
 /**
@@ -548,10 +548,8 @@ export class WorkflowClient extends BaseClient {
     options: WorkflowStartOptions<T>,
     interceptors: WorkflowClientInterceptor[]
   ): Promise<WorkflowStartOutput> {
-    const workflowDefinitionConfig = extractWorkflowTypeAndConfig(workflowTypeOrFunc);
+    const { type: workflowType, typeHints } = extractWorkflowTypeAndConfig(workflowTypeOrFunc, options.typeHints);
     assertRequiredWorkflowOptions(options);
-    // Resolve type hints (type hints provided at call site take precedence)
-    const typeHints = options.typeHints ?? workflowDefinitionConfig.staticOptions?.typeHints;
     const workflowOptions = {
       ...options,
       typeHints,
@@ -568,7 +566,7 @@ export class WorkflowClient extends BaseClient {
     return startWithDetails({
       options: compiledOptions,
       headers: {},
-      workflowType: workflowDefinitionConfig.type,
+      workflowType,
     });
   }
 
@@ -577,11 +575,9 @@ export class WorkflowClient extends BaseClient {
     options: WithWorkflowArgs<T, WorkflowSignalWithStartOptions<SA>>,
     interceptors: WorkflowClientInterceptor[]
   ): Promise<string> {
-    const workflowDefinitionConfig = extractWorkflowTypeAndConfig(workflowTypeOrFunc);
     const { signal, signalArgs, ...rest } = options;
+    const { type: workflowType, typeHints } = extractWorkflowTypeAndConfig(workflowTypeOrFunc, rest.typeHints);
     assertRequiredWorkflowOptions(rest);
-    // Resolve type hints (type hints provided at call site take precedence)
-    const typeHints = rest.typeHints ?? workflowDefinitionConfig.staticOptions?.typeHints;
     const workflowOptions = {
       ...rest,
       typeHints,
@@ -596,7 +592,7 @@ export class WorkflowClient extends BaseClient {
     return signalWithStart({
       options: compiledOptions,
       headers: {},
-      workflowType: workflowDefinitionConfig.type,
+      workflowType,
       signalName: typeof signal === 'string' ? signal : signal.name,
       signalArgs: signalArgs ?? [],
     });
@@ -742,17 +738,18 @@ export class WorkflowClient extends BaseClient {
       throw new Error('This WithStartWorkflowOperation instance has already been executed.');
     }
     startWorkflowOperation[withStartWorkflowOperationUsed] = true;
-    const workflowDefinitionConfig = extractWorkflowTypeAndConfig(workflowTypeOrFunc);
+    const { type: workflowType, typeHints } = extractWorkflowTypeAndConfig(
+      workflowTypeOrFunc,
+      workflowOptions.typeHints
+    );
     assertRequiredWorkflowOptions(workflowOptions);
 
-    // Resolve type hints (type hints provided at call site take precedence)
-    const typeHints = workflowOptions.typeHints ?? workflowDefinitionConfig.staticOptions?.typeHints;
     const resolvedWorkflowOptions = {
       ...workflowOptions,
       typeHints,
     };
     const startUpdateWithStartInput: WorkflowStartUpdateWithStartInput = {
-      workflowType: workflowDefinitionConfig.type,
+      workflowType,
       workflowStartOptions: compileWorkflowOptions(ensureArgs(resolvedWorkflowOptions)),
       workflowStartHeaders: {},
       updateName: typeof updateDef === 'string' ? updateDef : updateDef.name,
@@ -811,11 +808,12 @@ export class WorkflowClient extends BaseClient {
   ): Promise<WorkflowResultType<T>> {
     const { workflowId } = options;
     const interceptors = this.getOrMakeInterceptors(workflowId);
-    await this._start(workflowTypeOrFunc, options, interceptors);
+    const { typeHints } = extractWorkflowTypeAndConfig(workflowTypeOrFunc, options.typeHints);
+    await this._start(workflowTypeOrFunc, { ...options, typeHints }, interceptors);
     return await this.result(workflowId, undefined, {
       ...options,
       followRuns: options.followRuns ?? true,
-      typeHint: options.typeHints?.outputType
+      typeHint: typeHints?.outputType,
     });
   }
 
@@ -869,13 +867,14 @@ export class WorkflowClient extends BaseClient {
         }
         // Note that we can only return one value from our workflow function in JS.
         // Ignore any other payloads in result
-        const [result] = await decodeArrayFromPayloads(
+        const result = await decodeFromPayloadsAtIndex<WorkflowResultType<T>>(
           dataConverter,
+          0,
           ev.workflowExecutionCompletedEventAttributes.result?.payloads,
           context,
-          [opts?.typeHint]
+          opts?.typeHint
         );
-        return result as any;
+        return result;
       } else if (ev.workflowExecutionFailedEventAttributes) {
         if (followRuns && ev.workflowExecutionFailedEventAttributes.newExecutionRunId) {
           execution.runId = ev.workflowExecutionFailedEventAttributes.newExecutionRunId;
