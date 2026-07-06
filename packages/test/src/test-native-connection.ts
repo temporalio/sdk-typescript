@@ -69,6 +69,20 @@ async function bindLocalhostTls(server: grpc.Server): Promise<number> {
   return await util.promisify(server.bindAsync.bind(server))('127.0.0.1:0', credentials);
 }
 
+function addGetSystemInfoMock(server: grpc.Server): void {
+  server.addService(workflowServiceProtoDescriptor.temporal.api.workflowservice.v1.WorkflowService.service, {
+    getSystemInfo(
+      _call: grpc.ServerUnaryCall<
+        temporal.api.workflowservice.v1.IGetSystemInfoRequest,
+        temporal.api.workflowservice.v1.IGetSystemInfoResponse
+      >,
+      callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IGetSystemInfoResponse>
+    ) {
+      callback(null, {});
+    },
+  });
+}
+
 test('NativeConnection.connect() throws meaningful error when passed invalid address', async (t) => {
   await t.throwsAsync(NativeConnection.connect({ address: ':invalid' }), {
     instanceOf: TypeError,
@@ -270,6 +284,7 @@ test('all WorkflowService methods are implemented', async (t) => {
 
 test('all OperatorService methods are implemented', async (t) => {
   const server = new grpc.Server();
+  addGetSystemInfoMock(server);
   const calledMethods = new Set<string>();
   server.addService(
     operatorServiceProtoDescriptor.temporal.api.operatorservice.v1.OperatorService.service,
@@ -315,6 +330,7 @@ test('all OperatorService methods are implemented', async (t) => {
 
 test('all HealthService methods are implemented', async (t) => {
   const server = new grpc.Server();
+  addGetSystemInfoMock(server);
   const calledMethods = new Set<string>();
   server.addService(
     healthServiceProtoDescriptor.grpc.health.v1.Health.service,
@@ -364,6 +380,7 @@ test('all HealthService methods are implemented', async (t) => {
 
 test('all TestService methods are implemented', async (t) => {
   const server = new grpc.Server();
+  addGetSystemInfoMock(server);
   const calledMethods = new Set<string>();
   server.addService(
     testServiceProtoDescriptor.temporal.api.testservice.v1.TestService.service,
