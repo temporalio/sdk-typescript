@@ -111,7 +111,8 @@ export function fromPayloadsAtIndex<T>(
   converter: PayloadConverter,
   index: number,
   payloads?: Payload[] | null,
-  context?: SerializationContext
+  context?: SerializationContext,
+  typeHint?: TypeHint
 ): T {
   // To make adding arguments a backwards compatible change
   if (payloads === undefined || payloads === null || index >= payloads.length) {
@@ -121,7 +122,7 @@ export function fromPayloadsAtIndex<T>(
   if (!payload) {
     return undefined as any;
   }
-  return converter.fromPayload(payload, context);
+  return converter.fromPayload(payload, context, typeHint);
 }
 
 /**
