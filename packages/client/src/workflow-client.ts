@@ -620,6 +620,7 @@ export class WorkflowClient extends BaseClient {
       runIdForResult: wfStartOutput.runId,
       interceptors,
       followRuns: options.followRuns ?? true,
+      typeHint: workflowTypeOptions.typeHints?.outputType,
     });
     return {
       ...baseHandle,
@@ -1655,6 +1656,7 @@ export class WorkflowClient extends BaseClient {
       runIdForResult: runId ?? options?.firstExecutionRunId,
       interceptors,
       followRuns: options?.followRuns ?? true,
+      typeHint: options?.typeHint,
     });
   }
 
