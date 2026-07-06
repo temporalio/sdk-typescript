@@ -67,3 +67,10 @@ to docs, or any other relevant information.
 ### Changed
 
 - protobufjs bumped to ^7.6.4
+- Updated Core to `5df57f6d`. Package-visible changes from this update include:
+  - `NativeConnection` initialization now retries without gRPC gzip compression if the server
+    cannot decompress the eager `GetSystemInfo` call.
+  - Workflow replay now honors SDK flags already recorded in history even when the server does not
+    advertise SDK metadata support.
+  - OTLP metric export failures from Core's periodic metric reader are now logged through Core
+    telemetry.
