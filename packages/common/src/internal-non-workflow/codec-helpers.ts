@@ -131,10 +131,11 @@ export async function encodeToPayload(
 export async function decodeArrayFromPayloads(
   converter: LoadedDataConverter,
   payloads?: Payload[] | null,
-  context?: SerializationContext
+  context?: SerializationContext,
+  typeHints?: readonly TypeHint[]
 ): Promise<unknown[]> {
   const { payloadConverter, payloadCodecs } = converter;
-  return arrayFromPayloads(payloadConverter, await decodeOptional(payloadCodecs, payloads, context), context);
+  return arrayFromPayloads(payloadConverter, await decodeOptional(payloadCodecs, payloads, context), context, typeHints);
 }
 
 /**

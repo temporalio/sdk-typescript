@@ -11,6 +11,7 @@ import type {
   WorkflowResultType,
   WorkflowIdConflictPolicy,
   WorkflowSerializationContext,
+  TypeHint,
 } from '@temporalio/common';
 import {
   CancelledFailure,
@@ -343,6 +344,16 @@ export interface WorkflowResultOptions {
    * @default true
    */
   followRuns?: boolean;
+
+  /**
+   * Type hint used to decode the Workflow result.
+   *
+   * This is only needed when getting a result from an existing Workflow handle or
+   * when overriding definition-supplied hints.
+   *
+   * @experimental
+   */
+  typeHint?: TypeHint
 }
 
 /**
@@ -804,6 +815,7 @@ export class WorkflowClient extends BaseClient {
     return await this.result(workflowId, undefined, {
       ...options,
       followRuns: options.followRuns ?? true,
+      typeHint: options.typeHints?.outputType
     });
   }
 
@@ -860,7 +872,8 @@ export class WorkflowClient extends BaseClient {
         const [result] = await decodeArrayFromPayloads(
           dataConverter,
           ev.workflowExecutionCompletedEventAttributes.result?.payloads,
-          context
+          context,
+          [opts?.typeHint]
         );
         return result as any;
       } else if (ev.workflowExecutionFailedEventAttributes) {

@@ -1421,7 +1421,7 @@ export class Activator implements ActivationHandler {
     this.pushCommand(
       {
         completeWorkflowExecution: {
-          result: this.payloadConverter.toPayload(result, context),
+          result: this.payloadConverter.toPayload(result, context, this.typeHints?.outputType),
         },
       },
       true
