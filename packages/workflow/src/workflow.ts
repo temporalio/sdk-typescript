@@ -479,6 +479,7 @@ function startChildWorkflowExecutionNextHandler({
       resolve,
       reject,
       context,
+      typeHint: options.typeHints?.outputType,
     });
   });
   untrackPromise(startPromise);

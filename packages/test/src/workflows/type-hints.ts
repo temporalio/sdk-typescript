@@ -1,5 +1,5 @@
 import type { PayloadTypeHints } from '@temporalio/common';
-import { continueAsNew, defineWorkflowOptions } from '@temporalio/workflow';
+import { continueAsNew, defineWorkflowOptions, executeChild } from '@temporalio/workflow';
 
 export class Order {
   constructor(
@@ -53,9 +53,13 @@ function assertOrder(order: Order): void {
   }
 }
 
-function makeReceipt(order: Order): Receipt {
-  assertOrder(order);
-  return new Receipt(order.id, order.totalCents);
+function assertReceipt(receipt: Receipt): void {
+  if (!(receipt instanceof Receipt)) {
+    throw new Error('Expected Receipt result');
+  }
+  if (typeof receipt.totalCents !== 'bigint') {
+    throw new Error('Expected Receipt.totalCents to be a bigint');
+  }
 }
 
 defineWorkflowOptions(workflowWithTypeHints, {
@@ -66,5 +70,39 @@ export async function workflowWithTypeHints(order: Order): Promise<Receipt> {
   if (order.remainingRuns > 0) {
     await continueAsNew(new Order(order.id, order.totalCents, order.remainingRuns - 1));
   }
-  return makeReceipt(order);
+  return new Receipt(order.id, order.totalCents);
 }
+
+export async function parentWorkflowChildDefinition(order: Order): Promise<Receipt> {
+  assertOrder(order);
+  const receipt = await executeChild(workflowWithTypeHints, { args: [order] });
+  assertReceipt(receipt);
+  return receipt;
+}
+defineWorkflowOptions(parentWorkflowChildDefinition, {
+  staticOptions: { typeHints: workflowTypeHints },
+});
+
+export async function parentWorkflowChildString(order: Order): Promise<Receipt> {
+  assertOrder(order);
+  const receipt = await executeChild('workflowWithTypeHints', {
+    args: [order],
+    typeHints: workflowTypeHints,
+  });
+  assertReceipt(receipt);
+  return receipt;
+}
+defineWorkflowOptions(parentWorkflowChildString, {
+  staticOptions: { typeHints: workflowTypeHints },
+});
+
+export async function parentWorkflowChildDefinitionInvalidCallSiteHints(order: Order): Promise<void> {
+  await executeChild(workflowWithTypeHints, {
+    args: [order],
+    typeHints: workflowTypeHints,
+  });
+}
+defineWorkflowOptions(parentWorkflowChildDefinitionInvalidCallSiteHints, {
+  workflowDefinitionOptions: { failureExceptionTypes: [TypeError] },
+  staticOptions: { typeHints: workflowTypeHints },
+});
