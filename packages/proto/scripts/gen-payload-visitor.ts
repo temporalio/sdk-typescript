@@ -90,55 +90,52 @@ const hasPayload = (type: protobuf.Type): boolean => fqn(type) === PAYLOAD || re
 /** Every reachable message type that needs a walker (i.e. can contain a Payload), sorted by name. */
 const collectWalkers = (): protobuf.Type[] => [...types.values()].filter(hasPayload).sort(byFqn);
 
-/** Statements for one field's payload sites / recursion, or [] if the field reaches no payload. */
-function emitField(field: protobuf.Field): string[] {
+/** Statements for one field's payload sites / recursion, or '' if the field reaches no payload. */
+function emitField(field: protobuf.Field): string {
   const message = resolvedMessage(field);
-  if (!message || !hasPayload(message)) return [];
+  if (!message || !hasPayload(message)) return '';
 
   const access = `o.${field.name}`;
   const isPayload = fqn(message) === PAYLOAD;
 
-  let lines: string[];
+  let body: string;
   if (isPayload) {
-    // Singular and map-value sites must come back as exactly one payload (`one`) but a repeated site
-    // is replaced by whatever the visitor returns (any count, including empty).
+    // Singular and map-value sites use transformPayload (one payload in, one out). Repeated sites use
+    // transformPayloads and are replaced by whatever it returns (any count, including empty).
     if (field.map) {
-      lines = [
-        `const m = ${access};`,
-        `if (m) for (const [k, v] of Object.entries(m)) pending.push(env.transform([v], ctx).then((r) => { m[k] = one(r); }));`,
-      ];
+      body = `const m = ${access};
+if (m) for (const [k, v] of Object.entries(m)) pending.push(env.transformPayload(v, ctx).then((r) => { m[k] = r; }));`;
     } else if (field.repeated) {
-      lines = [
-        `const a = ${access};`,
-        `if (a && a.length) pending.push(env.transform(a, ctx).then((r) => { ${access} = r; }));`,
-      ];
+      body = `const a = ${access};
+if (a && a.length) pending.push(env.transformPayloads(a, ctx).then((r) => { ${access} = r; }));`;
     } else {
-      lines = [
-        `const p = ${access};`,
-        `if (p != null) pending.push(env.transform([p], ctx).then((r) => { ${access} = one(r); }));`,
-      ];
+      body = `const p = ${access};
+if (p != null) pending.push(env.transformPayload(p, ctx).then((r) => { ${access} = r; }));`;
     }
   } else {
     const walk = fnName(message);
     if (field.map) {
-      lines = [`const m = ${access};`, `if (m) for (const v of Object.values(m)) ${walk}(v, env, ctx, pending);`];
+      body = `const m = ${access};
+if (m) for (const v of Object.values(m)) ${walk}(v, env, ctx, pending);`;
     } else if (field.repeated) {
-      lines = [`const a = ${access};`, `if (a) for (const v of a) ${walk}(v, env, ctx, pending);`];
+      body = `const a = ${access};
+if (a) for (const v of a) ${walk}(v, env, ctx, pending);`;
     } else {
-      lines = [`const c = ${access};`, `if (c != null) ${walk}(c, env, ctx, pending);`];
+      body = `const c = ${access};
+if (c != null) ${walk}(c, env, ctx, pending);`;
     }
   }
 
-  if (field.name === 'headers') return [`if (!env.skipHeaders) {`, ...lines, `}`];
-  if (field.name === 'searchAttributes') return [`if (!env.skipSearchAttributes) {`, ...lines, `}`];
-  return lines;
+  if (field.name === 'headers') return `if (!env.skipHeaders) {\n${body}\n}`;
+  if (field.name === 'searchAttributes') return `if (!env.skipSearchAttributes) {\n${body}\n}`;
+  return body;
 }
 
 function emitWalker(type: protobuf.Type): string {
   const blocks = type.fieldsArray
     .map(emitField)
-    .filter((lines) => lines.length > 0)
-    .map((lines) => `{\n${lines.join('\n')}\n}`);
+    .filter((body) => body.length > 0)
+    .map((body) => `{\n${body}\n}`);
   return [
     `function ${fnName(type)}<Ctx>(o: ${tsType(
       type
@@ -148,16 +145,6 @@ function emitWalker(type: protobuf.Type): string {
     `}`,
   ].join('\n');
 }
-
-// Prepended to the generated file. `one` enforces that a single-payload
-// field must come back as exactly one payload.
-const RUNTIME_HELPERS = `
-function one(payloads: Payload[]): Payload {
-  if (payloads.length !== 1) {
-    throw new Error(\`payload visitor: a single-payload field requires exactly 1 payload, got \${payloads.length}\`);
-  }
-  return payloads[0]!;
-}`;
 
 function emit(): string {
   const walkers = collectWalkers();
@@ -182,12 +169,12 @@ function emit(): string {
     `type Payload = temporal.api.common.v1.IPayload;`,
     ``,
     `export interface WalkEnv<Ctx> {`,
-    `  transform(payloads: Payload[], context: Ctx): Promise<Payload[]>;`,
+    `  transformPayload(payload: Payload, context: Ctx): Promise<Payload>;`,
+    `  transformPayloads(payloads: Payload[], context: Ctx): Promise<Payload[]>;`,
     `  deriveContext?(message: object, typeName: string, context: Ctx): Ctx;`,
     `  skipHeaders: boolean;`,
     `  skipSearchAttributes: boolean;`,
     `}`,
-    RUNTIME_HELPERS,
     ``,
     entries.join('\n\n'),
     ``,

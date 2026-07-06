@@ -4,15 +4,25 @@ import {
   walkWorkflowActivationCompletion,
   type WalkEnv,
 } from '@temporalio/proto/lib/payload-visitor.generated';
+import type { Semaphore } from '../semaphore';
 import type { Payload } from '../interfaces';
 
 /**
- * Called for each payload-bearing field in a message.
+ * Called for each singular (or map-value) payload-bearing field. One payload in, one out.
  *
  * @internal
  * @experimental
  */
-export type PayloadTransform<Ctx> = (
+export type PayloadTransform<Ctx> = (payload: Payload, context: Ctx, abortSignal?: AbortSignal) => Promise<Payload>;
+
+/**
+ * Called for each payload-bearing field that may contain multiple payloads (e.g. Payloads or repeated fields).
+ * May return any number of payloads, including zero.
+ *
+ * @internal
+ * @experimental
+ */
+export type PayloadsTransform<Ctx> = (
   payloads: Payload[],
   context: Ctx,
   abortSignal?: AbortSignal
@@ -27,16 +37,25 @@ export type PayloadTransform<Ctx> = (
 export type ContextDeriver<Ctx> = (message: object, typeName: string, context: Ctx) => Ctx;
 
 /**
+ * Two transform functions are required because some fields require a single (non-null) payload while others
+ * are simply lists.
+ *
  * @internal
  * @experimental
  */
 export interface VisitOptions<Ctx> {
-  payloadTransform: PayloadTransform<Ctx>;
+  transformPayload: PayloadTransform<Ctx>;
+  transformPayloads: PayloadsTransform<Ctx>;
   deriveContext?: ContextDeriver<Ctx>;
   /** Context in scope before any message is entered. */
   initialContext?: Ctx;
-  /** Max payload-transform calls in flight at once, across all sites. Default 1 (sequential). */
-  concurrency?: number;
+  /**
+   * Optional semaphore bounding how many transform calls run at once. When set, both transforms are
+   * wrapped with it. Reuse one instance across visits for a global limit (e.g. a payload store's
+   * total budget). Omit for unbounded fan-out within the visit. Do not also pre-wrap the transforms
+   * with this same semaphore, as that double-acquires per call.
+   */
+  semaphore?: Semaphore;
   skipHeaders?: boolean;
   skipSearchAttributes?: boolean;
   /** Aborts the walk; composed with the internal cancel-on-error signal and handed to the transform. */
@@ -44,59 +63,21 @@ export interface VisitOptions<Ctx> {
 }
 
 /**
- * A simple counting semaphore.
- */
-class Semaphore {
-  private permits: number;
-  private readonly waiters: Array<() => void> = [];
-
-  constructor(permits: number) {
-    this.permits = permits;
-  }
-
-  async acquire(): Promise<void> {
-    if (this.permits > 0) {
-      this.permits -= 1;
-      return;
-    }
-    return new Promise<void>((resolve) => {
-      this.waiters.push(resolve);
-    });
-  }
-
-  release(): void {
-    const waiter = this.waiters.shift();
-    if (waiter !== undefined) {
-      waiter();
-    } else {
-      this.permits += 1;
-    }
-  }
-}
-
-/**
- * Wraps a {@link PayloadTransform} so at most `concurrency` calls run at once. The first rejection
- * aborts the rest via the `failure` controller.
+ * Wraps a payload transform so its calls acquire a permit from `semaphore` before running, bounding
+ * how many run at once. Reuse one `Semaphore` instance across visits for a global limit. The abort
+ * signal is forwarded so a visit's cancel-on-error still reaches the transform.
  *
  * @internal
  * @experimental
  */
-export function boundPayloadTransform<Ctx>(
-  transform: PayloadTransform<Ctx>,
-  concurrency: number,
-  failure: AbortController
-): (payloads: Payload[], context: Ctx) => Promise<Payload[]> {
-  const semaphore = new Semaphore(Math.max(1, concurrency));
-
-  return async (payloads, context) => {
-    failure.signal.throwIfAborted();
+export function boundPayloadTransform<In, Out, Ctx>(
+  transform: (input: In, context: Ctx, abortSignal?: AbortSignal) => Promise<Out>,
+  semaphore: Semaphore
+): (input: In, context: Ctx, abortSignal?: AbortSignal) => Promise<Out> {
+  return async (input, context, abortSignal) => {
     await semaphore.acquire();
     try {
-      failure.signal.throwIfAborted();
-      return await transform(payloads, context, failure.signal);
-    } catch (reason) {
-      failure.abort(reason);
-      throw reason;
+      return await transform(input, context, abortSignal);
     } finally {
       semaphore.release();
     }
@@ -120,8 +101,9 @@ export async function drain(pending: Promise<unknown>[]): Promise<void> {
 }
 
 /**
- * Runs a recursive walk using the VisitOptions. The transform in the VisitOptions is concurrency
- * bounded here and assigned to {@link WalkEnv}.
+ * Runs a recursive walk from the VisitOptions. Optionally bounds each transform with the supplied
+ * semaphore, then wraps them with the per-visit cancel-on-error signal and assigns them to
+ * {@link WalkEnv}.
  *
  * @internal
  * @experimental
@@ -131,10 +113,11 @@ async function runVisit<Ctx>(
   walk: (env: WalkEnv<Ctx>, context: Ctx) => Promise<unknown>[]
 ): Promise<void> {
   const {
-    payloadTransform,
+    transformPayload,
+    transformPayloads,
     deriveContext,
     initialContext,
-    concurrency = 1,
+    semaphore,
     skipHeaders = false,
     skipSearchAttributes = false,
     abortSignal,
@@ -152,8 +135,23 @@ async function runVisit<Ctx>(
     }
   }
 
+  const boundedPayload = semaphore ? boundPayloadTransform(transformPayload, semaphore) : transformPayload;
+  const boundedPayloads = semaphore ? boundPayloadTransform(transformPayloads, semaphore) : transformPayloads;
+
+  const abortSiblingsOnError = async <T>(call: (signal: AbortSignal) => Promise<T>): Promise<T> => {
+    failure.signal.throwIfAborted();
+    try {
+      return await call(failure.signal);
+    } catch (reason) {
+      failure.abort(reason);
+      throw reason;
+    }
+  };
+
   const env: WalkEnv<Ctx> = {
-    transform: boundPayloadTransform(payloadTransform, concurrency, failure),
+    transformPayload: (payload, context) => abortSiblingsOnError((signal) => boundedPayload(payload, context, signal)),
+    transformPayloads: (payloads, context) =>
+      abortSiblingsOnError((signal) => boundedPayloads(payloads, context, signal)),
     deriveContext,
     skipHeaders,
     skipSearchAttributes,
@@ -166,12 +164,12 @@ async function runVisit<Ctx>(
 }
 
 /**
- * Applies `payloadTransform` to every {@link Payload} in a `WorkflowActivation`, mutating it in place.
+ * Applies the payload transforms to every {@link Payload} in a `WorkflowActivation`, mutating it in place.
  *
  * @internal
  * @experimental
  */
-export function visitWorkflowActivation<Ctx = void>(
+export async function visitWorkflowActivation<Ctx = void>(
   root: coresdk.workflow_activation.IWorkflowActivation,
   options: VisitOptions<Ctx>
 ): Promise<void> {
@@ -179,13 +177,13 @@ export function visitWorkflowActivation<Ctx = void>(
 }
 
 /**
- * Applies `payloadTransform` to every {@link Payload} in a `WorkflowActivationCompletion`, mutating it
- * in place.
+ * Applies the payload transforms to every {@link Payload} in a `WorkflowActivationCompletion`, mutating
+ * it in place.
  *
  * @internal
  * @experimental
  */
-export function visitWorkflowActivationCompletion<Ctx = void>(
+export async function visitWorkflowActivationCompletion<Ctx = void>(
   root: coresdk.workflow_completion.IWorkflowActivationCompletion,
   options: VisitOptions<Ctx>
 ): Promise<void> {

@@ -5,17 +5,11 @@ import type { coresdk, temporal } from '../protos/root';
 type Payload = temporal.api.common.v1.IPayload;
 
 export interface WalkEnv<Ctx> {
-  transform(payloads: Payload[], context: Ctx): Promise<Payload[]>;
+  transformPayload(payload: Payload, context: Ctx): Promise<Payload>;
+  transformPayloads(payloads: Payload[], context: Ctx): Promise<Payload[]>;
   deriveContext?(message: object, typeName: string, context: Ctx): Ctx;
   skipHeaders: boolean;
   skipSearchAttributes: boolean;
-}
-
-function one(payloads: Payload[]): Payload {
-  if (payloads.length !== 1) {
-    throw new Error(`payload visitor: a single-payload field requires exactly 1 payload, got ${payloads.length}`);
-  }
-  return payloads[0]!;
 }
 
 export function walkWorkflowActivation<Ctx>(
@@ -96,8 +90,8 @@ function walk_coresdk_activity_result_Success<Ctx>(
     const p = o.result;
     if (p != null)
       pending.push(
-        env.transform([p], ctx).then((r) => {
-          o.result = one(r);
+        env.transformPayload(p, ctx).then((r) => {
+          o.result = r;
         })
       );
   }
@@ -161,8 +155,8 @@ function walk_coresdk_child_workflow_Success<Ctx>(
     const p = o.result;
     if (p != null)
       pending.push(
-        env.transform([p], ctx).then((r) => {
-          o.result = one(r);
+        env.transformPayload(p, ctx).then((r) => {
+          o.result = r;
         })
       );
   }
@@ -179,8 +173,8 @@ function walk_coresdk_nexus_NexusOperationResult<Ctx>(
     const p = o.completed;
     if (p != null)
       pending.push(
-        env.transform([p], ctx).then((r) => {
-          o.completed = one(r);
+        env.transformPayload(p, ctx).then((r) => {
+          o.completed = r;
         })
       );
   }
@@ -209,7 +203,7 @@ function walk_coresdk_workflow_activation_DoUpdate<Ctx>(
     const a = o.input;
     if (a && a.length)
       pending.push(
-        env.transform(a, ctx).then((r) => {
+        env.transformPayloads(a, ctx).then((r) => {
           o.input = r;
         })
       );
@@ -220,8 +214,8 @@ function walk_coresdk_workflow_activation_DoUpdate<Ctx>(
       if (m)
         for (const [k, v] of Object.entries(m))
           pending.push(
-            env.transform([v], ctx).then((r) => {
-              m[k] = one(r);
+            env.transformPayload(v, ctx).then((r) => {
+              m[k] = r;
             })
           );
     }
@@ -241,7 +235,7 @@ function walk_coresdk_workflow_activation_InitializeWorkflow<Ctx>(
     const a = o.arguments;
     if (a && a.length)
       pending.push(
-        env.transform(a, ctx).then((r) => {
+        env.transformPayloads(a, ctx).then((r) => {
           o.arguments = r;
         })
       );
@@ -252,8 +246,8 @@ function walk_coresdk_workflow_activation_InitializeWorkflow<Ctx>(
       if (m)
         for (const [k, v] of Object.entries(m))
           pending.push(
-            env.transform([v], ctx).then((r) => {
-              m[k] = one(r);
+            env.transformPayload(v, ctx).then((r) => {
+              m[k] = r;
             })
           );
     }
@@ -289,7 +283,7 @@ function walk_coresdk_workflow_activation_QueryWorkflow<Ctx>(
     const a = o.arguments;
     if (a && a.length)
       pending.push(
-        env.transform(a, ctx).then((r) => {
+        env.transformPayloads(a, ctx).then((r) => {
           o.arguments = r;
         })
       );
@@ -300,8 +294,8 @@ function walk_coresdk_workflow_activation_QueryWorkflow<Ctx>(
       if (m)
         for (const [k, v] of Object.entries(m))
           pending.push(
-            env.transform([v], ctx).then((r) => {
-              m[k] = one(r);
+            env.transformPayload(v, ctx).then((r) => {
+              m[k] = r;
             })
           );
     }
@@ -439,7 +433,7 @@ function walk_coresdk_workflow_activation_SignalWorkflow<Ctx>(
     const a = o.input;
     if (a && a.length)
       pending.push(
-        env.transform(a, ctx).then((r) => {
+        env.transformPayloads(a, ctx).then((r) => {
           o.input = r;
         })
       );
@@ -450,8 +444,8 @@ function walk_coresdk_workflow_activation_SignalWorkflow<Ctx>(
       if (m)
         for (const [k, v] of Object.entries(m))
           pending.push(
-            env.transform([v], ctx).then((r) => {
-              m[k] = one(r);
+            env.transformPayload(v, ctx).then((r) => {
+              m[k] = r;
             })
           );
     }
@@ -541,8 +535,8 @@ function walk_coresdk_workflow_commands_CompleteWorkflowExecution<Ctx>(
     const p = o.result;
     if (p != null)
       pending.push(
-        env.transform([p], ctx).then((r) => {
-          o.result = one(r);
+        env.transformPayload(p, ctx).then((r) => {
+          o.result = r;
         })
       );
   }
@@ -561,7 +555,7 @@ function walk_coresdk_workflow_commands_ContinueAsNewWorkflowExecution<Ctx>(
     const a = o.arguments;
     if (a && a.length)
       pending.push(
-        env.transform(a, ctx).then((r) => {
+        env.transformPayloads(a, ctx).then((r) => {
           o.arguments = r;
         })
       );
@@ -571,8 +565,8 @@ function walk_coresdk_workflow_commands_ContinueAsNewWorkflowExecution<Ctx>(
     if (m)
       for (const [k, v] of Object.entries(m))
         pending.push(
-          env.transform([v], ctx).then((r) => {
-            m[k] = one(r);
+          env.transformPayload(v, ctx).then((r) => {
+            m[k] = r;
           })
         );
   }
@@ -582,8 +576,8 @@ function walk_coresdk_workflow_commands_ContinueAsNewWorkflowExecution<Ctx>(
       if (m)
         for (const [k, v] of Object.entries(m))
           pending.push(
-            env.transform([v], ctx).then((r) => {
-              m[k] = one(r);
+            env.transformPayload(v, ctx).then((r) => {
+              m[k] = r;
             })
           );
     }
@@ -654,8 +648,8 @@ function walk_coresdk_workflow_commands_QuerySuccess<Ctx>(
     const p = o.response;
     if (p != null)
       pending.push(
-        env.transform([p], ctx).then((r) => {
-          o.response = one(r);
+        env.transformPayload(p, ctx).then((r) => {
+          o.response = r;
         })
       );
   }
@@ -674,8 +668,8 @@ function walk_coresdk_workflow_commands_ScheduleActivity<Ctx>(
       if (m)
         for (const [k, v] of Object.entries(m))
           pending.push(
-            env.transform([v], ctx).then((r) => {
-              m[k] = one(r);
+            env.transformPayload(v, ctx).then((r) => {
+              m[k] = r;
             })
           );
     }
@@ -684,7 +678,7 @@ function walk_coresdk_workflow_commands_ScheduleActivity<Ctx>(
     const a = o.arguments;
     if (a && a.length)
       pending.push(
-        env.transform(a, ctx).then((r) => {
+        env.transformPayloads(a, ctx).then((r) => {
           o.arguments = r;
         })
       );
@@ -706,8 +700,8 @@ function walk_coresdk_workflow_commands_ScheduleLocalActivity<Ctx>(
       if (m)
         for (const [k, v] of Object.entries(m))
           pending.push(
-            env.transform([v], ctx).then((r) => {
-              m[k] = one(r);
+            env.transformPayload(v, ctx).then((r) => {
+              m[k] = r;
             })
           );
     }
@@ -716,7 +710,7 @@ function walk_coresdk_workflow_commands_ScheduleLocalActivity<Ctx>(
     const a = o.arguments;
     if (a && a.length)
       pending.push(
-        env.transform(a, ctx).then((r) => {
+        env.transformPayloads(a, ctx).then((r) => {
           o.arguments = r;
         })
       );
@@ -736,8 +730,8 @@ function walk_coresdk_workflow_commands_ScheduleNexusOperation<Ctx>(
     const p = o.input;
     if (p != null)
       pending.push(
-        env.transform([p], ctx).then((r) => {
-          o.input = one(r);
+        env.transformPayload(p, ctx).then((r) => {
+          o.input = r;
         })
       );
   }
@@ -756,7 +750,7 @@ function walk_coresdk_workflow_commands_SignalExternalWorkflowExecution<Ctx>(
     const a = o.args;
     if (a && a.length)
       pending.push(
-        env.transform(a, ctx).then((r) => {
+        env.transformPayloads(a, ctx).then((r) => {
           o.args = r;
         })
       );
@@ -767,8 +761,8 @@ function walk_coresdk_workflow_commands_SignalExternalWorkflowExecution<Ctx>(
       if (m)
         for (const [k, v] of Object.entries(m))
           pending.push(
-            env.transform([v], ctx).then((r) => {
-              m[k] = one(r);
+            env.transformPayload(v, ctx).then((r) => {
+              m[k] = r;
             })
           );
     }
@@ -788,7 +782,7 @@ function walk_coresdk_workflow_commands_StartChildWorkflowExecution<Ctx>(
     const a = o.input;
     if (a && a.length)
       pending.push(
-        env.transform(a, ctx).then((r) => {
+        env.transformPayloads(a, ctx).then((r) => {
           o.input = r;
         })
       );
@@ -799,8 +793,8 @@ function walk_coresdk_workflow_commands_StartChildWorkflowExecution<Ctx>(
       if (m)
         for (const [k, v] of Object.entries(m))
           pending.push(
-            env.transform([v], ctx).then((r) => {
-              m[k] = one(r);
+            env.transformPayload(v, ctx).then((r) => {
+              m[k] = r;
             })
           );
     }
@@ -810,8 +804,8 @@ function walk_coresdk_workflow_commands_StartChildWorkflowExecution<Ctx>(
     if (m)
       for (const [k, v] of Object.entries(m))
         pending.push(
-          env.transform([v], ctx).then((r) => {
-            m[k] = one(r);
+          env.transformPayload(v, ctx).then((r) => {
+            m[k] = r;
           })
         );
   }
@@ -838,8 +832,8 @@ function walk_coresdk_workflow_commands_UpdateResponse<Ctx>(
     const p = o.completed;
     if (p != null)
       pending.push(
-        env.transform([p], ctx).then((r) => {
-          o.completed = one(r);
+        env.transformPayload(p, ctx).then((r) => {
+          o.completed = r;
         })
       );
   }
@@ -980,8 +974,8 @@ function walk_temporal_api_common_v1_Memo<Ctx>(
     if (m)
       for (const [k, v] of Object.entries(m))
         pending.push(
-          env.transform([v], ctx).then((r) => {
-            m[k] = one(r);
+          env.transformPayload(v, ctx).then((r) => {
+            m[k] = r;
           })
         );
   }
@@ -998,7 +992,7 @@ function walk_temporal_api_common_v1_Payloads<Ctx>(
     const a = o.payloads;
     if (a && a.length)
       pending.push(
-        env.transform(a, ctx).then((r) => {
+        env.transformPayloads(a, ctx).then((r) => {
           o.payloads = r;
         })
       );
@@ -1017,8 +1011,8 @@ function walk_temporal_api_common_v1_SearchAttributes<Ctx>(
     if (m)
       for (const [k, v] of Object.entries(m))
         pending.push(
-          env.transform([v], ctx).then((r) => {
-            m[k] = one(r);
+          env.transformPayload(v, ctx).then((r) => {
+            m[k] = r;
           })
         );
   }
@@ -1065,8 +1059,8 @@ function walk_temporal_api_failure_v1_Failure<Ctx>(
     const p = o.encodedAttributes;
     if (p != null)
       pending.push(
-        env.transform([p], ctx).then((r) => {
-          o.encodedAttributes = one(r);
+        env.transformPayload(p, ctx).then((r) => {
+          o.encodedAttributes = r;
         })
       );
   }
@@ -1131,8 +1125,8 @@ function walk_temporal_api_sdk_v1_UserMetadata<Ctx>(
     const p = o.summary;
     if (p != null)
       pending.push(
-        env.transform([p], ctx).then((r) => {
-          o.summary = one(r);
+        env.transformPayload(p, ctx).then((r) => {
+          o.summary = r;
         })
       );
   }
@@ -1140,8 +1134,8 @@ function walk_temporal_api_sdk_v1_UserMetadata<Ctx>(
     const p = o.details;
     if (p != null)
       pending.push(
-        env.transform([p], ctx).then((r) => {
-          o.details = one(r);
+        env.transformPayload(p, ctx).then((r) => {
+          o.details = r;
         })
       );
   }
