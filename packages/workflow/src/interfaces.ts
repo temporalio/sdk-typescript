@@ -16,6 +16,7 @@ import type {
   VersioningBehavior,
   InitialVersioningBehavior,
   SuggestContinueAsNewReason,
+  PayloadTypeHints,
 } from '@temporalio/common';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
@@ -364,6 +365,9 @@ export interface ContinueAsNewOptions {
    * @experimental Versioning semantics with continue-as-new are experimental and may change in the future.
    */
   initialVersioningBehavior?: InitialVersioningBehavior;
+
+  /** typeHints input in case you CAN to a different workflow */
+  typeHints?: PayloadTypeHints
 }
 
 /**

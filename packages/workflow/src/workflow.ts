@@ -1081,15 +1081,22 @@ export function makeContinueAsNewFunc<F extends Workflow>(
     ...rest,
   };
 
+  let resolvedTypeHints = options?.typeHints;
+  // If no hints were provided, reuse current workflow hints only for same-type continue-as-new.
+  if (resolvedTypeHints == null && requiredOptions.workflowType === info.workflowType) {
+    resolvedTypeHints = activator.typeHints;
+  }
+
   return (...args: Parameters<F>): Promise<never> => {
     const context = currentWorkflowSerializationContext(info);
     const fn = composeInterceptors(activator.interceptors.outbound, 'continueAsNew', async (input) => {
       const { headers, args, options } = input;
       throw new ContinueAsNew({
         workflowType: options.workflowType,
-        arguments: toPayloadsWithContext(activator.payloadConverter, context, args, activator.typeHints?.inputTypes),
+        arguments: toPayloadsWithContext(activator.payloadConverter, context, args, resolvedTypeHints?.inputTypes),
         headers,
         taskQueue: options.taskQueue,
+        // THOMAS - memo type hints not support yet
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo, context),
         searchAttributes:
           options.searchAttributes || options.typedSearchAttributes
