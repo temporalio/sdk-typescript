@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { Client } from '@temporalio/client';
+import { extractWorkflowTypeAndConfig } from '@temporalio/common';
 import type { PayloadTypeHints } from '@temporalio/common';
 import { workflowInterceptorModules } from '@temporalio/testing';
 import { bundleWorkflowCode } from '@temporalio/worker';
@@ -76,6 +77,54 @@ function makeClient(env: TestWorkflowEnvironment): Client {
     dataConverter,
   });
 }
+
+const inputHint = { kind: 'input' };
+const outputHint = { kind: 'output' };
+const callSiteTypeHints: PayloadTypeHints = { inputTypes: [inputHint], outputType: outputHint };
+
+async function workflowWithoutDefinitionHints(): Promise<void> {}
+
+async function workflowWithDefinitionHints(): Promise<void> {}
+Object.assign(workflowWithDefinitionHints, {
+  staticOptions: {
+    typeHints: callSiteTypeHints,
+  },
+});
+
+test('extractWorkflowTypeAndConfig allows call-site type hints for string workflow types', (t) => {
+  t.deepEqual(extractWorkflowTypeAndConfig('workflow', callSiteTypeHints), {
+    type: 'workflow',
+    typeHints: callSiteTypeHints,
+  });
+});
+
+test('extractWorkflowTypeAndConfig resolves definition type hints for workflow functions', (t) => {
+  t.deepEqual(extractWorkflowTypeAndConfig(workflowWithDefinitionHints), {
+    type: 'workflowWithDefinitionHints',
+    typeHints: callSiteTypeHints,
+  });
+});
+
+test('extractWorkflowTypeAndConfig allows workflow functions without type hints', (t) => {
+  t.deepEqual(extractWorkflowTypeAndConfig(workflowWithoutDefinitionHints), {
+    type: 'workflowWithoutDefinitionHints',
+    typeHints: undefined,
+  });
+});
+
+test('extractWorkflowTypeAndConfig rejects call-site type hints for workflow functions without definition hints', (t) => {
+  t.throws(() => extractWorkflowTypeAndConfig(workflowWithoutDefinitionHints, callSiteTypeHints), {
+    instanceOf: TypeError,
+    message: /Workflow type hints cannot be supplied at the call site when using a workflow function/,
+  });
+});
+
+test('extractWorkflowTypeAndConfig rejects call-site type hints for workflow functions with definition hints', (t) => {
+  t.throws(() => extractWorkflowTypeAndConfig(workflowWithDefinitionHints, callSiteTypeHints), {
+    instanceOf: TypeError,
+    message: /Workflow type hints cannot be supplied at the call site when using a workflow function/,
+  });
+});
 
 test('workflow start uses definition-supplied input type hints', async (t) => {
   const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
