@@ -11,6 +11,7 @@ import type {
   WorkflowResultType,
   WorkflowIdConflictPolicy,
   WorkflowSerializationContext,
+  WorkflowTypeOptions,
   TypeHint,
 } from '@temporalio/common';
 import {
@@ -544,15 +545,14 @@ export class WorkflowClient extends BaseClient {
   }
 
   protected async _start<T extends Workflow>(
-    workflowTypeOrFunc: string | T,
+    workflowTypeOptions: WorkflowTypeOptions,
     options: WorkflowStartOptions<T>,
     interceptors: WorkflowClientInterceptor[]
   ): Promise<WorkflowStartOutput> {
-    const { type: workflowType, typeHints } = extractWorkflowTypeAndConfig(workflowTypeOrFunc, options.typeHints);
     assertRequiredWorkflowOptions(options);
     const workflowOptions = {
       ...options,
-      typeHints,
+      typeHints: workflowTypeOptions.typeHints,
     };
     const compiledOptions = compileWorkflowOptions(ensureArgs(workflowOptions));
     const adaptedInterceptors = interceptors.map((i) => adaptWorkflowClientInterceptor(i));
@@ -566,7 +566,7 @@ export class WorkflowClient extends BaseClient {
     return startWithDetails({
       options: compiledOptions,
       headers: {},
-      workflowType,
+      workflowType: workflowTypeOptions.type,
     });
   }
 
@@ -609,7 +609,8 @@ export class WorkflowClient extends BaseClient {
   ): Promise<WorkflowHandleWithStartDetails<T>> {
     const { workflowId } = options;
     const interceptors = this.getOrMakeInterceptors(workflowId);
-    const wfStartOutput = await this._start(workflowTypeOrFunc, { ...options, workflowId }, interceptors);
+    const workflowTypeOptions = extractWorkflowTypeAndConfig(workflowTypeOrFunc, options.typeHints);
+    const wfStartOutput = await this._start(workflowTypeOptions, { ...options, workflowId }, interceptors);
     // runId is not used in handles created with `start*` calls because these
     // handles should allow interacting with the workflow if it continues as new.
     const baseHandle = this._createWorkflowHandle({
@@ -808,12 +809,12 @@ export class WorkflowClient extends BaseClient {
   ): Promise<WorkflowResultType<T>> {
     const { workflowId } = options;
     const interceptors = this.getOrMakeInterceptors(workflowId);
-    const { typeHints } = extractWorkflowTypeAndConfig(workflowTypeOrFunc, options.typeHints);
-    await this._start(workflowTypeOrFunc, { ...options, typeHints }, interceptors);
+    const workflowTypeOptions = extractWorkflowTypeAndConfig(workflowTypeOrFunc, options.typeHints);
+    await this._start(workflowTypeOptions, options, interceptors);
     return await this.result(workflowId, undefined, {
       ...options,
       followRuns: options.followRuns ?? true,
-      typeHint: typeHints?.outputType,
+      typeHint: workflowTypeOptions.typeHints?.outputType,
     });
   }
 

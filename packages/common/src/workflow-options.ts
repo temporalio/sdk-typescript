@@ -284,12 +284,19 @@ export function extractWorkflowTypeAndConfig<T extends Workflow>(
     if (!workflowTypeOrFunc.name) {
       throw new TypeError('Invalid workflow type: the workflow function is anonymous');
     }
-    const resolvedTypeHints = isWorkflowFunctionWithStaticOptions(workflowTypeOrFunc)
+    if (callSiteTypeHints !== undefined) {
+      throw new TypeError(
+        'Workflow type hints cannot be supplied at the call site when using a workflow function. ' +
+          'Use defineWorkflowOptions(..., { staticOptions: { typeHints } }) on the workflow function instead, ' +
+          'or pass the workflow type as a string.'
+      );
+    }
+    const definitionTypeHints = isWorkflowFunctionWithStaticOptions(workflowTypeOrFunc)
       ? workflowTypeOrFunc.staticOptions.typeHints
-      : callSiteTypeHints;
+      : undefined;
     return {
       type: workflowTypeOrFunc.name,
-      typeHints: resolvedTypeHints,
+      typeHints: definitionTypeHints,
     };
   }
   throw new TypeError(
