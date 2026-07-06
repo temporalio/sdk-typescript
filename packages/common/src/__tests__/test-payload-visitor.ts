@@ -1,13 +1,8 @@
 import test from 'ava';
 import { coresdk } from '@temporalio/proto';
-import { Semaphore } from '../semaphore';
+import { limit } from '../concurrency/limit';
 import type { Payload } from '../interfaces';
-import {
-  boundPayloadTransform,
-  drain,
-  visitWorkflowActivation,
-  visitWorkflowActivationCompletion,
-} from '../internal-non-workflow/payload-visitor';
+import { visitWorkflowActivation, visitWorkflowActivationCompletion } from '../internal-non-workflow/payload-visitor';
 
 // Lets the event loop run every async step that is currently ready
 const tick = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
@@ -56,45 +51,6 @@ const countingTransforms = () => {
   };
 };
 
-test('boundPayloadTransform caps the number of in-flight calls', async (t) => {
-  let active = 0;
-  let maxActive = 0;
-  const gate = createGate();
-  const bounded = boundPayloadTransform(async (p: Payload) => {
-    active += 1;
-    maxActive = Math.max(maxActive, active);
-    await gate.wait();
-    active -= 1;
-    return p;
-  }, new Semaphore(2));
-
-  const calls = Array.from({ length: 6 }, () => bounded(payload('x'), undefined));
-  await tick();
-  t.is(maxActive, 2);
-
-  gate.open();
-  await drain(calls);
-  t.is(maxActive, 2, 'never exceeded the limit as the queued calls drained');
-});
-
-test('boundPayloadTransform with a single permit runs calls one at a time, in launch order', async (t) => {
-  const order: string[] = [];
-  let active = 0;
-  let maxActive = 0;
-  const bounded = boundPayloadTransform(async (p: Payload) => {
-    active += 1;
-    maxActive = Math.max(maxActive, active);
-    await tick();
-    order.push(read(p));
-    active -= 1;
-    return p;
-  }, new Semaphore(1));
-
-  await drain(['a', 'b', 'c'].map((tag) => bounded(payload(tag), undefined)));
-  t.is(maxActive, 1);
-  t.deepEqual(order, ['a', 'b', 'c']);
-});
-
 test('a failing transform surfaces its error and aborts in-flight siblings', async (t) => {
   const aborted: string[] = [];
   const activityResult = (data: string): coresdk.workflow_activation.IWorkflowActivationJob => ({
@@ -121,6 +77,7 @@ test('a failing transform surfaces its error and aborts in-flight siblings', asy
         }
       },
       transformPayloads: async (ps) => ps,
+      limit: limit(3),
     })
   );
   t.is(error?.message, 'boom');
@@ -209,7 +166,7 @@ test('visits every payload site exactly once and writes back in place', async (t
       seen.push(read(p));
       return payload(`${read(p)}#`);
     }),
-    semaphore: new Semaphore(3),
+    limit: limit(3),
   });
   t.deepEqual(seen.slice().sort(), EVERY_SITE_PAYLOAD.slice().sort(), 'sees every site exactly once');
 
@@ -354,7 +311,7 @@ test('an identity transform leaves a real message byte-for-byte unchanged', asyn
   t.deepEqual(Buffer.from(Type.encode(decoded).finish()), Buffer.from(original));
 });
 
-test('a shared semaphore caps in-flight transforms across the whole activation', async (t) => {
+test('a concurrency limit caps in-flight transforms across the whole activation', async (t) => {
   const tracked = () => {
     let active = 0;
     let max = 0;
@@ -389,7 +346,7 @@ test('a shared semaphore caps in-flight transforms across the whole activation',
   const capped = tracked();
   const cappedVisit = visitWorkflowActivation(activationWithEveryPayloadSite(), {
     ...capped.transforms,
-    semaphore: new Semaphore(4),
+    limit: limit(4),
   });
   await tick();
   t.is(capped.max(), 4);
@@ -399,7 +356,7 @@ test('a shared semaphore caps in-flight transforms across the whole activation',
   const sequential = tracked();
   const sequentialVisit = visitWorkflowActivation(activationWithEveryPayloadSite(), {
     ...sequential.transforms,
-    semaphore: new Semaphore(1),
+    limit: limit(1),
   });
   await tick();
   t.is(sequential.max(), 1);
@@ -423,6 +380,7 @@ test('aborting mid-walk rejects and cancels in-flight transforms', async (t) => 
   const visiting = visitWorkflowActivation(activationWithEveryPayloadSite(), {
     transformPayload: (p, _context, signal) => waitThenAbort(p, signal),
     transformPayloads: (ps, _context, signal) => waitThenAbort(ps, signal),
+    limit: limit(16),
     abortSignal: controller.signal,
   });
   await tick();
