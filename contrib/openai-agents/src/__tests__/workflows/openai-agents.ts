@@ -1,6 +1,77 @@
 import { Agent } from '@openai/agents-core';
 import { ApplicationFailure } from '@temporalio/workflow';
+import { WorkflowStream } from '@temporalio/workflow-streams/workflow';
 import { TemporalOpenAIRunner, statelessMcpServer, statefulMcpServer } from '../../workflow';
+
+export interface StreamingAgentResult {
+  finalOutput: string;
+  /** `output_text_delta` deltas observed in-workflow, in order. */
+  deltas: string[];
+}
+
+export async function streamingAgentWorkflow(prompt: string): Promise<StreamingAgentResult> {
+  new WorkflowStream();
+  const agent = new Agent({
+    name: 'StreamingAgent',
+    instructions: 'You are a helpful assistant.',
+    model: 'gpt-4o-mini',
+  });
+  const runner = new TemporalOpenAIRunner();
+  const result = await runner.run(agent, prompt, { stream: true });
+
+  const deltas: string[] = [];
+  for await (const event of result) {
+    if (event.type === 'raw_model_stream_event' && event.data.type === 'output_text_delta') {
+      deltas.push(event.data.delta);
+    }
+  }
+  await result.completed;
+  return { finalOutput: result.finalOutput ?? '', deltas };
+}
+
+export async function streamingNoTopicWorkflow(prompt: string): Promise<string> {
+  new WorkflowStream();
+  const agent = new Agent({
+    name: 'StreamingAgent',
+    instructions: 'You are a helpful assistant.',
+    model: 'gpt-4o-mini',
+  });
+  const runner = new TemporalOpenAIRunner();
+  try {
+    const result = await runner.run(agent, prompt, { stream: true });
+    for await (const _event of result);
+    await result.completed;
+    return 'unexpected-success';
+  } catch (err: unknown) {
+    if (err instanceof ApplicationFailure) {
+      return `${err.type}`;
+    }
+    throw err;
+  }
+}
+
+export async function streamingLocalActivityWorkflow(prompt: string): Promise<string> {
+  new WorkflowStream();
+  const agent = new Agent({
+    name: 'StreamingAgent',
+    instructions: 'You are a helpful assistant.',
+    model: 'gpt-4o-mini',
+  });
+  const runner = new TemporalOpenAIRunner({
+    defaultModelParams: { streamingTopic: 'events', useLocalActivity: true },
+  });
+  try {
+    const result = await runner.run(agent, prompt, { stream: true });
+    for await (const _event of result);
+    await result.completed;
+    return 'unexpected-success';
+  } catch (err: unknown) {
+    if (err instanceof ApplicationFailure) {
+      return `${err.type}`;
+    }
+    throw err;
+  }
+}
 
 export async function localActivityAgentWorkflow(prompt: string): Promise<string> {
   const agent = new Agent({

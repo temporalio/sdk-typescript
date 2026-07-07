@@ -15,13 +15,20 @@ import {
   type ActivityInterfaceFor,
   type LocalActivityInterfaceFor,
 } from '@temporalio/workflow';
-import type { ActivityOptions, LocalActivityOptions } from '@temporalio/common';
-import type { ModelActivityOptions, ModelSummaryProvider } from '../common/model-activity-options';
+import { ApplicationFailure, type ActivityOptions, type LocalActivityOptions } from '@temporalio/common';
 import {
+  STREAMING_TOPIC_NOT_CONFIGURED,
+  type ModelActivityOptions,
+  type ModelSummaryProvider,
+} from '../common/model-activity-options';
+import {
+  fromSerializedStreamEvent,
   type InvokeModelActivityInput,
+  type InvokeModelStreamActivityInput,
   type JsonValue,
   type SerializedModelRequest,
   type SerializedModelResponse,
+  type SerializedStreamEvent,
 } from '../common/serialized-model';
 
 export function toSerializedModelRequest(request: ModelRequest): SerializedModelRequest {
@@ -52,6 +59,7 @@ function fromSerializedModelResponse(wire: SerializedModelResponse): ModelRespon
 
 interface ModelActivities {
   invokeModelActivity(input: InvokeModelActivityInput): Promise<SerializedModelResponse>;
+  invokeModelStreamActivity(input: InvokeModelStreamActivityInput): Promise<SerializedStreamEvent[]>;
 }
 
 /**
@@ -117,10 +125,45 @@ export class ActivityBackedModel implements Model {
     });
   }
 
-  // eslint-disable-next-line require-yield
-  async *getStreamedResponse(_request: ModelRequest): AsyncIterable<StreamEvent> {
-    throw new Error(
-      'Streaming is not supported in Temporal workflows. ' + 'Use non-streaming mode with TemporalOpenAIRunner.'
-    );
+  async *getStreamedResponse(request: ModelRequest): AsyncIterable<StreamEvent> {
+    const streamingTopic = this.modelParams.streamingTopic;
+    if (streamingTopic === undefined) {
+      throw ApplicationFailure.create({
+        message: STREAMING_TOPIC_NOT_CONFIGURED.message,
+        type: STREAMING_TOPIC_NOT_CONFIGURED.type,
+        nonRetryable: true,
+      });
+    }
+
+    const input: InvokeModelStreamActivityInput = {
+      modelName: this.modelName,
+      request: toSerializedModelRequest(request),
+      streamingTopic,
+      ...(this.modelParams.streamingBatchInterval !== undefined && {
+        streamingBatchInterval:
+          typeof this.modelParams.streamingBatchInterval === 'number'
+            ? `${this.modelParams.streamingBatchInterval}ms`
+            : this.modelParams.streamingBatchInterval,
+      }),
+    };
+
+    const events = await withGenerationSpan(async (span) => {
+      span.spanData.model = this.modelName;
+
+      const modelSummary = this.modelParams.summary;
+      if (modelSummary && typeof modelSummary !== 'string') {
+        const provider = modelSummary as ModelSummaryProvider;
+        const summary = provider.provide(this.agent, request.systemInstructions, request.input);
+        return this.activities.invokeModelStreamActivity.executeWithOptions({ summary }, [input]);
+      }
+
+      return this.activities.invokeModelStreamActivity(input);
+    });
+
+    // The Activity collects and returns the full event list; yielding from that
+    // return value (rather than polling the live stream) keeps replay deterministic.
+    for (const event of events) {
+      yield fromSerializedStreamEvent(event);
+    }
   }
 }
