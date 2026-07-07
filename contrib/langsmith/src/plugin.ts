@@ -91,11 +91,7 @@ export class LangSmithPlugin extends SimplePlugin {
   private readonly client: Client;
   private readonly emitter: EmitterConfig;
   private readonly workflowConfig: WorkflowLangSmithConfig;
-  // Absolute path to the workflow-side interceptors. The workflow bundler resolves
-  // interceptor modules relative to the generated workflow entrypoint, not this
-  // plugin's location, so a bare `@temporalio/langsmith/workflow-interceptors`
-  // specifier isn't reachable under strict/isolated pnpm. Resolving here roots the
-  // lookup in the plugin's own install tree, so it works under any layout.
+  // Absolute path so the workflow bundler resolves it under strict pnpm.
   private readonly workflowInterceptorModule = require.resolve('./workflow-interceptors');
 
   constructor(options: LangSmithPluginOptions = {}) {
