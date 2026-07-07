@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@temporalio/test-helpers",
-  "version": "1.20.0",
+  "version": "1.20.1",
   "description": "Temporal.io SDK Test Helpers - Internal shared test infrastructure",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
