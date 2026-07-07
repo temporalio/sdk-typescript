@@ -136,10 +136,21 @@ export class WorkflowCodeBundler {
     let code = memoryFs.readFileSync(bundleFilePath, 'utf8') as string;
     // Replace webpack's module cache with an object injected by the runtime.
     // This is the key to reusing a single v8 context.
-    code = code.replace(
-      'var __webpack_module_cache__ = {}',
-      'var __webpack_module_cache__ = globalThis.__webpack_module_cache__'
-    );
+    // Webpack may emit the declaration as `var`, `let`, or `const` depending on the
+    // configured output environment (webpack >= 5.108.0 defaults to `const`).
+    let cacheDeclarationsPatched = 0;
+    code = code.replace(/(^|\s)(var|let|const) __webpack_module_cache__ = \{\}/gm, (_match, prefix, keyword) => {
+      cacheDeclarationsPatched++;
+      return `${prefix}${keyword} __webpack_module_cache__ = globalThis.__webpack_module_cache__`;
+    });
+    if (cacheDeclarationsPatched !== 1) {
+      throw new Error(
+        `Failed to patch the Workflow bundle: expected to find exactly one __webpack_module_cache__ declaration ` +
+          `emitted by webpack, but found ${cacheDeclarationsPatched}. Without this patch, Workflow isolation ` +
+          `would be broken. This is likely due to a change in webpack output; please report this at ` +
+          `https://github.com/temporalio/sdk-typescript/issues`
+      );
+    }
 
     this.logger.info('Workflow bundle created', { size: `${toMB(code.length)}MB` });
 
