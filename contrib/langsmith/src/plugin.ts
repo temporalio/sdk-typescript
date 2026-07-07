@@ -34,11 +34,6 @@ import type { WorkflowLangSmithConfig } from './workflow-interceptors';
 // Derived: @temporalio/worker doesn't export WebpackConfiguration from its root.
 type WebpackConfiguration = Parameters<NonNullable<BundleOptions['webpackConfigHook']>>[0];
 
-/**
- * The module specifier for the workflow-side interceptors.
- */
-const WORKFLOW_INTERCEPTOR_MODULE = '@temporalio/langsmith/workflow-interceptors';
-
 // Bare identifier (not dotted) so DefinePlugin substitutes textually.
 const CONFIG_GLOBAL = '__TEMPORAL_LANGSMITH_CONFIG__';
 
@@ -96,6 +91,12 @@ export class LangSmithPlugin extends SimplePlugin {
   private readonly client: Client;
   private readonly emitter: EmitterConfig;
   private readonly workflowConfig: WorkflowLangSmithConfig;
+  // Absolute path to the workflow-side interceptors. The workflow bundler resolves
+  // interceptor modules relative to the generated workflow entrypoint, not this
+  // plugin's location, so a bare `@temporalio/langsmith/workflow-interceptors`
+  // specifier isn't reachable under strict/isolated pnpm. Resolving here roots the
+  // lookup in the plugin's own install tree, so it works under any layout.
+  private readonly workflowInterceptorModule = require.resolve('./workflow-interceptors');
 
   constructor(options: LangSmithPluginOptions = {}) {
     // super() reads options.name immediately
@@ -140,8 +141,8 @@ export class LangSmithPlugin extends SimplePlugin {
     activityInbound.push(createActivityInboundInterceptor(this.emitter));
 
     const workflowModules = [...(interceptors.workflowModules ?? [])];
-    if (!workflowModules.includes(WORKFLOW_INTERCEPTOR_MODULE)) {
-      workflowModules.push(WORKFLOW_INTERCEPTOR_MODULE);
+    if (!workflowModules.includes(this.workflowInterceptorModule)) {
+      workflowModules.push(this.workflowInterceptorModule);
     }
 
     const nexusInbound = createNexusInboundInterceptor(this.emitter);
@@ -161,8 +162,8 @@ export class LangSmithPlugin extends SimplePlugin {
   override configureBundler(options: BundleOptions): BundleOptions {
     const base = super.configureBundler(options);
     const workflowInterceptorModules = [...(base.workflowInterceptorModules ?? [])];
-    if (!workflowInterceptorModules.includes(WORKFLOW_INTERCEPTOR_MODULE)) {
-      workflowInterceptorModules.push(WORKFLOW_INTERCEPTOR_MODULE);
+    if (!workflowInterceptorModules.includes(this.workflowInterceptorModule)) {
+      workflowInterceptorModules.push(this.workflowInterceptorModule);
     }
     // Dismiss the SDK bundler's disallowed-builtin guard for `async_hooks` (see aliasAsyncHooks).
     const ignoreModules = [...(base.ignoreModules ?? [])];
@@ -175,7 +176,7 @@ export class LangSmithPlugin extends SimplePlugin {
       // Double-encode so the injected token is a string literal in the bundle.
       const definitions = { [CONFIG_GLOBAL]: JSON.stringify(JSON.stringify(this.workflowConfig)) };
       const withDefine = injectDefinePlugin(merged, definitions);
-      return aliasLangSmithNodeUtils(aliasAsyncHooks(withDefine));
+      return aliasLangSmithNodeUtils(aliasAsyncHooks(withDefine, this.workflowInterceptorModule));
     };
     return { ...base, workflowInterceptorModules, ignoreModules, webpackConfigHook };
   }
@@ -208,10 +209,10 @@ export class LangSmithPlugin extends SimplePlugin {
  * resolution, so `resolve.alias` cannot do this; `NormalModuleReplacementPlugin`
  * rewrites the request in `beforeResolve` instead. Must be paired with the
  * `ignoreModules` whitelist (see {@link LangSmithPlugin.configureBundler}). The
- * rewrite target is the package specifier so webpack dedupes to one isolate
- * instance regardless of issuer.
+ * rewrite target is the resolved absolute module path so webpack dedupes to one
+ * isolate instance regardless of issuer.
  */
-function aliasAsyncHooks(config: WebpackConfiguration): WebpackConfiguration {
+function aliasAsyncHooks(config: WebpackConfiguration, workflowInterceptorModule: string): WebpackConfiguration {
   const plugins = [...(config.plugins ?? [])];
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -220,7 +221,7 @@ function aliasAsyncHooks(config: WebpackConfiguration): WebpackConfiguration {
     };
     plugins.push(
       new webpack.NormalModuleReplacementPlugin(/^node:async_hooks$/, (resource) => {
-        resource.request = WORKFLOW_INTERCEPTOR_MODULE;
+        resource.request = workflowInterceptorModule;
       }) as (typeof plugins)[number]
     );
   } catch (err) {
