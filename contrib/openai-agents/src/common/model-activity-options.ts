@@ -58,3 +58,11 @@ export const STREAMING_TOPIC_NOT_CONFIGURED = {
     "or via the runner's defaultModelParams (new TemporalOpenAIRunner({ defaultModelParams: { streamingTopic } })). " +
     'Host a WorkflowStream in your Workflow to use run(agent, input, { stream: true }).',
 } as const;
+
+export const STREAMING_LOCAL_ACTIVITY_UNSUPPORTED = {
+  type: 'StreamingLocalActivityUnsupported',
+  message:
+    'Streaming is incompatible with useLocalActivity. Local Activities cannot heartbeat, so a ' +
+    'long-running streaming model call cannot extend past its startToCloseTimeout. ' +
+    'Set useLocalActivity: false (the default) for streaming runs.',
+} as const;

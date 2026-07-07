@@ -21,6 +21,7 @@ import {
   statefulMcpHeartbeatTimeoutWorkflow,
   statefulMcpSlowConnectHeartbeatWorkflow,
   streamingAgentWorkflow,
+  streamingLocalActivityWorkflow,
   streamingNoTopicWorkflow,
 } from './workflows/openai-agents';
 import { makeTestFunction } from './helpers/test-fn';
@@ -493,5 +494,33 @@ test('Streaming: missing streamingTopic fails fast before scheduling an Activity
           e.activityTaskScheduledEventAttributes?.activityType?.name === 'invokeModelStreamActivity'
       ) ?? [];
     t.is(modelStreamScheduled.length, 0, 'no streaming Activity should be scheduled when the topic is unset');
+  });
+});
+
+test('Streaming: useLocalActivity fails fast before scheduling an Activity', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+
+  const worker = await createWorker({
+    plugins: [
+      new OpenAIAgentsPlugin({
+        modelProvider: new StreamingFakeModelProvider(streamingTextEvents('unused')),
+      }),
+    ],
+  });
+
+  const wfClient = new WorkflowClient({
+    connection: (t.context as any).env.connection,
+  });
+
+  await worker.runUntil(async () => {
+    const handle = await wfClient.start(streamingLocalActivityWorkflow, {
+      taskQueue,
+      workflowId: `streaming-local-activity-${Date.now()}`,
+      args: ['Hi'],
+      workflowExecutionTimeout: '30 seconds',
+    });
+
+    const result = await handle.result();
+    t.is(result, 'StreamingLocalActivityUnsupported');
   });
 });

@@ -19,6 +19,7 @@ import {
 import { ApplicationFailure } from '@temporalio/common';
 import {
   DEFAULT_MODEL_ACTIVITY_OPTIONS,
+  STREAMING_LOCAL_ACTIVITY_UNSUPPORTED,
   STREAMING_TOPIC_NOT_CONFIGURED,
   type ModelActivityOptions,
   type SerializableModelActivityOptions,
@@ -174,6 +175,14 @@ export class TemporalOpenAIRunner {
       throw ApplicationFailure.create({
         message: STREAMING_TOPIC_NOT_CONFIGURED.message,
         type: STREAMING_TOPIC_NOT_CONFIGURED.type,
+        nonRetryable: true,
+      });
+    }
+
+    if (options?.stream === true && this.modelParams.useLocalActivity === true) {
+      throw ApplicationFailure.create({
+        message: STREAMING_LOCAL_ACTIVITY_UNSUPPORTED.message,
+        type: STREAMING_LOCAL_ACTIVITY_UNSUPPORTED.type,
         nonRetryable: true,
       });
     }
