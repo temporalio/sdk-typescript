@@ -229,7 +229,7 @@ exports.importInterceptors = function importInterceptors() {
       // Ignore the "node:" prefix if any.
       const module: string = data.request?.startsWith('node:')
         ? data.request.slice('node:'.length)
-        : (data.request ?? '');
+        : data.request ?? '';
 
       if (moduleMatches(module, disallowedModules) && !moduleMatches(module, this.ignoreModules)) {
         this.foundProblematicModules.add(module);
