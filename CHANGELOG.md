@@ -70,4 +70,16 @@ to docs, or any other relevant information.
   replay-safe random source instead of a private seeded PRNG. This removes the old seed-collision workaround
   and gives read-only handlers distinct, well-formed span IDs.
 
+## 1.20.1
+
+### Fixed
+
+- patch workflow bundles with const/let/var that are emitted by webpack 5.108.0 and above
+
+## 1.20.2
+
+### Fixed
+
+- fix(langsmith): resolve workflow interceptor module by absolute path
+
 ## [Unreleased]
