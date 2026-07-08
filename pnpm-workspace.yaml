@@ -19,8 +19,14 @@ packages:
   - packages/workflow
   - contrib/ai-sdk
   - contrib/interceptors-opentelemetry
+  - contrib/interceptors-opentelemetry-v2
+  - contrib/langsmith
   - contrib/openai-agents
   - contrib/strands
+  - contrib/external-storage-s3
+  - contrib/external-storage-s3-aws-sdk
+  - contrib/external-storage-gcs
+  - contrib/external-storage-gcs-google-sdk
   - contrib/workflow-streams
   - scripts
 
@@ -46,4 +52,4 @@ overrides:
   handlebars: '>=4.7.9'
 
 patchedDependencies:
-  protobufjs@7.6.2: patches/protobufjs@7.6.2.patch
+  protobufjs@^7.6.4: patches/protobufjs@7.6.2.patch

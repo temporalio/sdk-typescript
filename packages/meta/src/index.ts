@@ -10,6 +10,7 @@ export * as client from '@temporalio/client';
 export * as nexus from '@temporalio/nexus';
 export * as testing from '@temporalio/testing';
 export * as opentelemetry from '@temporalio/interceptors-opentelemetry';
+export * as opentelemetryV2 from '@temporalio/interceptors-opentelemetry-v2';
 export * as envconfig from '@temporalio/envconfig';
 export * as plugin from '@temporalio/plugin';
 export * as cloud from '@temporalio/cloud';

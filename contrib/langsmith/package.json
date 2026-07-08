@@ -1,0 +1,88 @@
+{
+  "name": "@temporalio/langsmith",
+  "version": "1.20.0",
+  "description": "Temporal LangSmith observability integration package",
+  "main": "lib/index.js",
+  "types": "./lib/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "workflow-interceptors": [
+        "./lib/workflow-interceptors.d.ts"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "test": "ava ./lib/__tests__/test-*.js"
+  },
+  "ava": {
+    "files": [
+      "./lib/__tests__/test-*.js"
+    ],
+    "timeout": "120s",
+    "concurrency": 1,
+    "workerThreads": false
+  },
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.js",
+      "require": "./lib/index.js",
+      "default": "./lib/index.js"
+    },
+    "./workflow-interceptors": {
+      "types": "./lib/workflow-interceptors.d.ts",
+      "import": "./lib/workflow-interceptors.js",
+      "require": "./lib/workflow-interceptors.js",
+      "default": "./lib/workflow-interceptors.js"
+    }
+  },
+  "keywords": [
+    "temporal",
+    "workflow",
+    "ai",
+    "langsmith",
+    "observability",
+    "tracing"
+  ],
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
+  "license": "MIT",
+  "dependencies": {
+    "@temporalio/activity": "workspace:*",
+    "@temporalio/client": "workspace:*",
+    "@temporalio/common": "workspace:*",
+    "@temporalio/plugin": "workspace:*",
+    "@temporalio/worker": "workspace:*",
+    "@temporalio/workflow": "workspace:*"
+  },
+  "peerDependencies": {
+    "langsmith": "^0.7.9"
+  },
+  "devDependencies": {
+    "@temporalio/testing": "workspace:*",
+    "ava": "^5.3.1",
+    "langsmith": "^0.7.9",
+    "nexus-rpc": "^0.0.2"
+  },
+  "engines": {
+    "node": ">= 20.0.0"
+  },
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-typescript/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/temporalio/sdk-typescript.git",
+    "directory": "contrib/langsmith"
+  },
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/contrib/langsmith",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src",
+    "lib",
+    "!src/__tests__",
+    "!lib/__tests__"
+  ]
+}

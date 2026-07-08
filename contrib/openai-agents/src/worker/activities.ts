@@ -1,11 +1,15 @@
-import type { AgentInputItem, ModelProvider, ModelRequest, ModelResponse } from '@openai/agents-core';
+import type { AgentInputItem, ModelProvider, ModelRequest, ModelResponse, StreamEvent } from '@openai/agents-core';
 import { APIError } from 'openai';
-import { ApplicationFailure } from '@temporalio/common';
+import { ApplicationFailure, type Duration } from '@temporalio/common';
+import { WorkflowStreamClient } from '@temporalio/workflow-streams/client';
 import {
+  toSerializedStreamEvent,
   type InvokeModelActivityInput,
+  type InvokeModelStreamActivityInput,
   type JsonValue,
   type SerializedModelRequest,
   type SerializedModelResponse,
+  type SerializedStreamEvent,
 } from '../common/serialized-model';
 import { startAdaptiveHeartbeat } from './heartbeat';
 
@@ -53,12 +57,76 @@ function fromSerializedModelRequest(wire: SerializedModelRequest): ModelRequest 
   };
 }
 
+function toModelInvocationFailure(error: unknown): ApplicationFailure {
+  if (error instanceof APIError) {
+    const status = error.status;
+    const headers = error.headers;
+
+    // Prefer retry-after-ms (ms precision) over Retry-After (seconds).
+    let nextRetryDelay: number | undefined;
+    if (headers) {
+      const ms = headers.get('retry-after-ms');
+      if (ms) {
+        const parsed = parseFloat(ms);
+        if (!Number.isNaN(parsed)) nextRetryDelay = parsed;
+      }
+      if (nextRetryDelay === undefined) {
+        const s = headers.get('retry-after');
+        if (s) {
+          const parsed = parseFloat(s);
+          if (!Number.isNaN(parsed)) nextRetryDelay = parsed * 1000;
+        }
+      }
+    }
+
+    // `x-should-retry` overrides status-based classification.
+    let nonRetryable: boolean;
+    const shouldRetry = headers?.get('x-should-retry');
+    if (shouldRetry === 'true') {
+      nonRetryable = false;
+    } else if (shouldRetry === 'false') {
+      nonRetryable = true;
+    } else if (status !== undefined && (status === 408 || status === 409 || status === 429 || status >= 500)) {
+      nonRetryable = false;
+    } else {
+      nonRetryable = true;
+    }
+
+    let type: string;
+    if (status === 429) type = 'ModelInvocationError.RateLimit';
+    else if (status === 401 || status === 403) type = 'ModelInvocationError.Authentication';
+    else if (status === 400 || status === 422) type = 'ModelInvocationError.BadRequest';
+    else if (status === 408) type = 'ModelInvocationError.Timeout';
+    else if (status === 409) type = 'ModelInvocationError.Conflict';
+    else if (status !== undefined && status >= 500) type = 'ModelInvocationError.ServerError';
+    else type = 'ModelInvocationError';
+
+    return ApplicationFailure.create({
+      message: `Model invocation failed: ${error.message}`,
+      type,
+      nonRetryable,
+      cause: error,
+      ...(nextRetryDelay !== undefined ? { nextRetryDelay } : {}),
+    });
+  }
+
+  // Non-APIError: wrap and let Temporal's retry policy decide.
+  const message = error instanceof Error ? error.message : String(error);
+  return ApplicationFailure.create({
+    message: `Model invocation failed: ${message}`,
+    type: 'ModelInvocationError',
+    nonRetryable: false,
+    cause: error instanceof Error ? error : new Error(String(error)),
+  });
+}
+
 /**
  * Creates the model Activity functions registered with the Worker. Activities
  * use the provided ModelProvider to resolve models and execute LLM calls.
  */
 export function createModelActivity(modelProvider: ModelProvider): {
   invokeModelActivity: (input: InvokeModelActivityInput) => Promise<SerializedModelResponse>;
+  invokeModelStreamActivity: (input: InvokeModelStreamActivityInput) => Promise<SerializedStreamEvent[]>;
 } {
   return {
     async invokeModelActivity(input: InvokeModelActivityInput): Promise<SerializedModelResponse> {
@@ -72,66 +140,48 @@ export function createModelActivity(modelProvider: ModelProvider): {
         const response = await model.getResponse(fromSerializedModelRequest(input.request));
         return toSerializedModelResponse(response);
       } catch (error) {
-        if (error instanceof APIError) {
-          const status = error.status;
-          const headers = error.headers;
+        throw toModelInvocationFailure(error);
+      } finally {
+        stopHeartbeat();
+      }
+    },
 
-          // Prefer retry-after-ms (ms precision) over Retry-After (seconds).
-          let nextRetryDelay: number | undefined;
-          if (headers) {
-            const ms = headers.get('retry-after-ms');
-            if (ms) {
-              const parsed = parseFloat(ms);
-              if (!Number.isNaN(parsed)) nextRetryDelay = parsed;
-            }
-            if (nextRetryDelay === undefined) {
-              const s = headers.get('retry-after');
-              if (s) {
-                const parsed = parseFloat(s);
-                if (!Number.isNaN(parsed)) nextRetryDelay = parsed * 1000;
-              }
-            }
+    async invokeModelStreamActivity(input: InvokeModelStreamActivityInput): Promise<SerializedStreamEvent[]> {
+      const stopHeartbeat = startAdaptiveHeartbeat();
+
+      try {
+        const model = await Promise.resolve(modelProvider.getModel(input.modelName));
+        const events: SerializedStreamEvent[] = [];
+        const stream = WorkflowStreamClient.fromWithinActivity(
+          input.streamingBatchInterval !== undefined
+            ? { batchInterval: input.streamingBatchInterval as Duration }
+            : undefined
+        );
+        const topic = stream.topic<StreamEvent>(input.streamingTopic);
+
+        // Drain the publisher explicitly rather than via `await using` so a model
+        // error always wins over a secondary flush failure: a model error rethrows
+        // even if the drain also throws; a clean run still surfaces drain failures.
+        let modelError: unknown;
+        try {
+          for await (const event of model.getStreamedResponse(fromSerializedModelRequest(input.request))) {
+            events.push(toSerializedStreamEvent(event));
+            topic.publish(event);
           }
-
-          // `x-should-retry` overrides status-based classification.
-          let nonRetryable: boolean;
-          const shouldRetry = headers?.get('x-should-retry');
-          if (shouldRetry === 'true') {
-            nonRetryable = false;
-          } else if (shouldRetry === 'false') {
-            nonRetryable = true;
-          } else if (status !== undefined && (status === 408 || status === 409 || status === 429 || status >= 500)) {
-            nonRetryable = false;
-          } else {
-            nonRetryable = true;
-          }
-
-          let type: string;
-          if (status === 429) type = 'ModelInvocationError.RateLimit';
-          else if (status === 401 || status === 403) type = 'ModelInvocationError.Authentication';
-          else if (status === 400 || status === 422) type = 'ModelInvocationError.BadRequest';
-          else if (status === 408) type = 'ModelInvocationError.Timeout';
-          else if (status === 409) type = 'ModelInvocationError.Conflict';
-          else if (status !== undefined && status >= 500) type = 'ModelInvocationError.ServerError';
-          else type = 'ModelInvocationError';
-
-          throw ApplicationFailure.create({
-            message: `Model invocation failed: ${error.message}`,
-            type,
-            nonRetryable,
-            cause: error,
-            ...(nextRetryDelay !== undefined ? { nextRetryDelay } : {}),
-          });
+        } catch (error) {
+          modelError = error;
         }
 
-        // Non-APIError: wrap and let Temporal's retry policy decide.
-        const message = error instanceof Error ? error.message : String(error);
-        throw ApplicationFailure.create({
-          message: `Model invocation failed: ${message}`,
-          type: 'ModelInvocationError',
-          nonRetryable: false,
-          cause: error instanceof Error ? error : new Error(String(error)),
-        });
+        try {
+          await stream[Symbol.asyncDispose]();
+        } catch (drainError) {
+          if (modelError === undefined) throw drainError;
+        }
+        if (modelError !== undefined) throw modelError;
+
+        return events;
+      } catch (error) {
+        throw toModelInvocationFailure(error);
       } finally {
         stopHeartbeat();
       }
