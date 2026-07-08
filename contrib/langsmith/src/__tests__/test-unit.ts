@@ -1,15 +1,20 @@
 /**
- * Pure-function unit tests. These run with no Temporal server and no LangSmith
- * backend — they exercise the propagation codec, query filter,
- * sensitive-key scrubbing, error rendering, run-name builders, and the test
- * harness's own collector / tree renderer.
+ * Unit tests that run with no Temporal server and no LangSmith backend. They
+ * cover pure functions (propagation codec, query filter, sensitive-key
+ * scrubbing, error rendering, run-name builders, the harness collector / tree
+ * renderer) and the plugin's static interceptor-module registration.
  *
  * @module
  */
 
+import { existsSync } from 'node:fs';
+import { isAbsolute } from 'node:path';
+
 import test from 'ava';
 
 import { ApplicationFailure, ApplicationFailureCategory } from '@temporalio/common';
+import type { BundleOptions, WorkerOptions } from '@temporalio/worker';
+import { LangSmithPlugin } from '../index';
 import {
   HEADER_KEY,
   decodeContextString,
@@ -133,6 +138,20 @@ test('run-name builders build the documented names', (t) => {
   t.is(signalChildWorkflowRunName('s'), 'SignalChildWorkflow:s');
   t.is(signalExternalWorkflowRunName('s'), 'SignalExternalWorkflow:s');
   t.is(startNexusOperationRunName('Svc', 'op'), 'StartNexusOperation:Svc/op');
+});
+
+test('plugin registers the workflow interceptor module as an absolute, resolvable path', (t) => {
+  const plugin = new LangSmithPlugin();
+
+  const worker = plugin.configureWorker({ taskQueue: 'tq' } as WorkerOptions);
+  const workflowModules = worker.interceptors?.workflowModules ?? [];
+  t.is(workflowModules.length, 1);
+  const workflowModule = workflowModules[0]!;
+  t.true(isAbsolute(workflowModule), `expected absolute path, got ${workflowModule}`);
+  t.true(existsSync(workflowModule));
+
+  const bundler = plugin.configureBundler({ workflowsPath: 'wf' } as BundleOptions);
+  t.deepEqual(bundler.workflowInterceptorModules, [workflowModule]);
 });
 
 const run = (id: string, name: string, parent?: string): CollectedRun => ({ id, name, parent_run_id: parent });
