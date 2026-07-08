@@ -22,6 +22,7 @@ packages:
   - contrib/interceptors-opentelemetry-v2
   - contrib/langsmith
   - contrib/openai-agents
+  - contrib/strands
   - contrib/external-storage-s3
   - contrib/external-storage-s3-aws-sdk
   - contrib/external-storage-gcs
