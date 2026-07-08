@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/openai-agents",
-  "version": "1.20.1",
+  "version": "1.20.2",
   "description": "Temporal OpenAI Agents SDK integration package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
