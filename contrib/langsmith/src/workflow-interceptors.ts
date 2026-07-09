@@ -401,7 +401,7 @@ class LangSmithWorkflowInbound implements WorkflowInboundCallsInterceptor {
       inputs,
       generateNewUuid4,
     });
-    await run.postRun();
+    void run.postRun();
     const body = async (): Promise<unknown> => {
       try {
         const result = await next();
