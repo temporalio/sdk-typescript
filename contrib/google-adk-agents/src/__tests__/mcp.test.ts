@@ -3,69 +3,48 @@
  * Copyright 2025 Temporal Technologies Inc.
  * SPDX-License-Identifier: MIT
  *
- * E2E tests for the `TemporalMcpToolSet` boundary: tool discovery and tool
+ * E2E tests for the `TemporalMCPToolset` boundary: tool discovery and tool
  * calls route through named Activities, the FULL `FunctionDeclaration` (incl.
  * parameter schema) round-trips, the named factory resolves on the worker, and
- * `toolFilter` is honored. Uses the in-memory `mockMcpToolset` test double.
+ * `toolFilter` is honored. Uses the in-memory `mockMCPToolset` test double.
  */
 
 import test from 'ava';
-import { Type } from '@google/genai';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { ApplicationFailure } from '@temporalio/common';
 
 import { GoogleAdkPlugin } from '../index.js';
-import { mockMcpToolset, type MockMcpToolDefinition } from '../testing.js';
-import { countScheduledActivities, findInCauseChain, withWorker } from './helpers.js';
-import { mcpCallTool, mcpCallUnknownTool, mcpFilteredTools, mcpListTools } from './workflows.js';
-
-const echoDef: MockMcpToolDefinition = {
-  declaration: {
-    name: 'echo',
-    description: 'Echoes the input value.',
-    parameters: {
-      type: Type.OBJECT,
-      properties: { value: { type: Type.STRING } },
-      required: ['value'],
-    },
-  },
-  handler: (args) => ({ echoed: args.value }),
-};
-
-const reverseDef: MockMcpToolDefinition = {
-  declaration: {
-    name: 'reverse',
-    description: 'Reverses a string.',
-    parameters: {
-      type: Type.OBJECT,
-      properties: { value: { type: Type.STRING } },
-    },
-  },
-  handler: (args) => ({ reversed: String(args.value).split('').reverse().join('') }),
-};
+import { TemporalMCPToolset } from '../workflow.js';
+import { mockMCPToolset } from '../testing.js';
+import {
+  countScheduledActivities,
+  echoDef,
+  findInCauseChain,
+  getScheduledActivitySummary,
+  reverseDef,
+  setupTestEnv,
+  uid,
+  withWorker,
+} from './helpers.js';
+import {
+  mcpCallTool,
+  mcpCallToolWithActivitySummary,
+  mcpCallUnknownTool,
+  mcpFilteredTools,
+  mcpListTools,
+  mcpPrefixedTools,
+} from './workflows.js';
 
 function makePlugin(): GoogleAdkPlugin {
   return new GoogleAdkPlugin({
-    mcpToolsets: { testServer: mockMcpToolset([echoDef, reverseDef]) },
+    mcpToolsets: { testServer: mockMCPToolset([echoDef, reverseDef]) },
   });
 }
 
-let env: TestWorkflowEnvironment;
+const getEnv = setupTestEnv(test);
 
-test.before(async () => {
-  env = await TestWorkflowEnvironment.createLocal();
-});
-
-test.after.always(async () => {
-  await env?.teardown();
-});
-
-function uid(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-}
-
-// TemporalMcpToolSet (E2E)
+// TemporalMCPToolset (E2E)
 test.serial('listToolsReturnsFullSchema', async (t) => {
+  const env = getEnv();
   const taskQueue = uid('adk-mcp-list');
   const result = await withWorker(env, { taskQueue, plugins: [makePlugin()] }, () =>
     env.client.workflow.execute(mcpListTools, {
@@ -80,6 +59,7 @@ test.serial('listToolsReturnsFullSchema', async (t) => {
 });
 
 test.serial('callToolRoutesToActivity', async (t) => {
+  const env = getEnv();
   const taskQueue = uid('adk-mcp-call');
   const result = await withWorker(env, { taskQueue, plugins: [makePlugin()] }, () =>
     env.client.workflow.execute(mcpCallTool, {
@@ -92,6 +72,7 @@ test.serial('callToolRoutesToActivity', async (t) => {
 });
 
 test.serial('resolvesNamedToolsetFactory', async (t) => {
+  const env = getEnv();
   const taskQueue = uid('adk-mcp-named');
   const workflowId = uid('wf-mcp-named');
   await withWorker(env, { taskQueue, plugins: [makePlugin()] }, () =>
@@ -104,6 +85,7 @@ test.serial('resolvesNamedToolsetFactory', async (t) => {
 });
 
 test.serial('unknownToolFailsNonRetryably', async (t) => {
+  const env = getEnv();
   const taskQueue = uid('adk-mcp-unknown');
   await withWorker(env, { taskQueue, plugins: [makePlugin()] }, async () => {
     const handle = await env.client.workflow.start(mcpCallUnknownTool, {
@@ -118,12 +100,33 @@ test.serial('unknownToolFailsNonRetryably', async (t) => {
     }
     const appFailure = findInCauseChain(caught, ApplicationFailure);
     t.not(appFailure, undefined);
-    t.is(appFailure?.type, 'GoogleAdkMcpToolNotFound');
+    t.is(appFailure?.type, 'GoogleAdkMCPToolNotFound');
     t.is(appFailure?.nonRetryable, true);
   });
 });
 
+test.serial('respectsCallerActivitySummary', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-mcp-summary');
+  const workflowId = uid('wf-mcp-summary');
+  const result = await withWorker(env, { taskQueue, plugins: [makePlugin()] }, () =>
+    env.client.workflow.execute(mcpCallToolWithActivitySummary, {
+      taskQueue,
+      workflowId,
+      args: ['hello'],
+    })
+  );
+  t.deepEqual(result, { echoed: 'hello' });
+
+  // A caller-supplied `activity.summary` must not be clobbered by the
+  // auto-generated per-activity labels on either MCP activity.
+  const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
+  t.is(getScheduledActivitySummary(events ?? [], 'testServer-listTools'), 'mcp-activity-summary');
+  t.is(getScheduledActivitySummary(events ?? [], 'testServer-callTool'), 'mcp-activity-summary');
+});
+
 test.serial('appliesToolFilter', async (t) => {
+  const env = getEnv();
   const taskQueue = uid('adk-mcp-filter');
   const result = await withWorker(env, { taskQueue, plugins: [makePlugin()] }, () =>
     env.client.workflow.execute(mcpFilteredTools, {
@@ -133,4 +136,25 @@ test.serial('appliesToolFilter', async (t) => {
   );
   // `toolFilter: ['echo']` drops `reverse`.
   t.deepEqual(result, ['echo']);
+});
+
+test.serial('appliesPrefixToAdvertisedToolNames', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-mcp-prefix');
+  const result = await withWorker(env, { taskQueue, plugins: [makePlugin()] }, () =>
+    env.client.workflow.execute(mcpPrefixedTools, {
+      taskQueue,
+      workflowId: uid('wf-mcp-prefix'),
+    })
+  );
+  t.deepEqual(result, ['srv_echo', 'srv_reverse']);
+});
+
+// TemporalMCPToolset outside a Workflow
+test('getToolsOutsideWorkflowRequiresConnectionParams', async (t) => {
+  const toolset = new TemporalMCPToolset({ name: 'noParams' });
+  const err = await t.throwsAsync(toolset.getTools());
+  t.true(err instanceof ApplicationFailure);
+  t.is((err as ApplicationFailure).type, 'GoogleAdkMCPToolsetOutsideWorkflow');
+  t.is((err as ApplicationFailure).nonRetryable, true);
 });

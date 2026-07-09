@@ -5,7 +5,7 @@
  *
  * Workflow-side MCP boundary for the Google ADK Temporal plugin.
  *
- * MCP is ADK's primary external-tool protocol. `TemporalMcpToolSet` is a
+ * MCP is ADK's primary external-tool protocol. `TemporalMCPToolset` is a
  * drop-in `BaseToolset` (from `@google/adk`) that, inside a Workflow, routes
  * tool discovery to a `<name>-listTools` Activity and each tool call to a
  * `<name>-callTool` Activity. The full `FunctionDeclaration` (name +
@@ -18,7 +18,7 @@
  * model below is complete, not a simplification.
  *
  * IMPORTANT: this module is part of the Workflow-sandbox import graph (the
- * public barrel re-exports it and user Workflows import `TemporalMcpToolSet`).
+ * public barrel re-exports it and user Workflows import `TemporalMCPToolset`).
  * It must therefore NOT import any worker-only module (`@temporalio/activity`,
  * `@temporalio/workflow-streams`). The Activity *implementations* that open
  * real MCP sessions live in `./activities.ts`, which only `plugin.ts` imports.
@@ -34,6 +34,7 @@ import {
   type RunAsyncToolRequest,
 } from '@google/adk';
 import type { ActivityOptions } from '@temporalio/common';
+import { ApplicationFailure } from '@temporalio/common';
 import { inWorkflowContext, proxyActivities } from '@temporalio/workflow';
 
 import { activityOptionsFrom } from './model.js';
@@ -47,12 +48,9 @@ import { activityOptionsFrom } from './model.js';
  * (including in-memory test doubles); returning {@link MCPConnectionParams}
  * lets the plugin construct an `MCPToolset` for you.
  */
-export type McpToolsetFactory = () => BaseToolset | MCPConnectionParams;
+export type MCPToolsetFactory = () => BaseToolset | MCPConnectionParams;
 
-/**
- * Options for {@link TemporalMcpToolSet}.
- */
-export interface TemporalMcpToolSetOptions {
+export interface TemporalMCPToolsetOptions {
   /**
    * Name selecting the worker-registered factory in
    * `GoogleAdkPluginOptions.mcpToolsets`. Also names the pair of Activities
@@ -72,8 +70,8 @@ export interface TemporalMcpToolSetOptions {
   connectionParams?: MCPConnectionParams;
 }
 
-/** Arguments for a `<name>-callTool` Activity. */
-export interface McpCallToolArgs {
+/** @internal */
+export interface MCPCallToolArgs {
   /** The underlying (un-prefixed) tool name on the MCP server. */
   toolName: string;
   /** JSON arguments for the tool call. */
@@ -81,21 +79,19 @@ export interface McpCallToolArgs {
 }
 
 /** The dynamic Activity surface proxied for a named MCP server. */
-type McpActivities = Record<string, (args: Record<string, unknown> | McpCallToolArgs) => Promise<unknown>>;
+type MCPActivities = Record<string, (args: Record<string, unknown> | MCPCallToolArgs) => Promise<unknown>>;
 
 /**
  * A {@link BaseToolset} whose MCP traffic is durable under Temporal.
- *
- * @experimental
  */
-export class TemporalMcpToolSet extends BaseToolset {
-  private readonly options: TemporalMcpToolSetOptions;
+export class TemporalMCPToolset extends BaseToolset {
+  private readonly options: TemporalMCPToolsetOptions;
 
   /**
    * @param options Toolset configuration. `name` selects the worker-side
    *                factory and names the backing Activities.
    */
-  constructor(options: TemporalMcpToolSetOptions) {
+  constructor(options: TemporalMCPToolsetOptions) {
     super(options.toolFilter ?? [], options.prefix);
     this.options = options;
   }
@@ -103,29 +99,32 @@ export class TemporalMcpToolSet extends BaseToolset {
   /**
    * Discovers the server's tools. Inside a Workflow this proxies the
    * `<name>-listTools` Activity and wraps each returned declaration in a
-   * workflow-side {@link TemporalMcpTool}; outside a Workflow it delegates to a
+   * workflow-side {@link TemporalMCPTool}; outside a Workflow it delegates to a
    * real `MCPToolset` built from `connectionParams`.
    */
   override async getTools(context?: ReadonlyContext): Promise<BaseTool[]> {
     if (!inWorkflowContext()) {
       if (!this.options.connectionParams) {
-        throw new Error(
-          `TemporalMcpToolSet('${this.options.name}').getTools() was called outside a ` +
+        throw ApplicationFailure.nonRetryable(
+          `TemporalMCPToolset('${this.options.name}').getTools() was called outside a ` +
             'Workflow without `connectionParams`. Provide connectionParams to use this ' +
-            'toolset directly with ADK (non-Temporal).'
+            'toolset directly with ADK (non-Temporal).',
+          'GoogleAdkMCPToolsetOutsideWorkflow'
         );
       }
       const real = new MCPToolset(this.options.connectionParams, this.options.toolFilter ?? [], this.options.prefix);
       return real.getTools(context);
     }
 
-    const activities = this.proxyActivities();
+    const activities = proxyActivities<MCPActivities>(
+      activityOptionsFrom(this.options.activity, `adk.mcp ${this.options.name}.listTools`)
+    );
     const listTools = activities[`${this.options.name}-listTools`] as (
       args: Record<string, unknown>
     ) => Promise<FunctionDeclaration[]>;
     const declarations = await listTools({});
 
-    const tools = declarations.map((declaration) => new TemporalMcpTool(declaration, this.options));
+    const tools = declarations.map((declaration) => new TemporalMCPTool(declaration, this.options));
 
     const filter = this.options.toolFilter;
     if (!filter || filter.length === 0) {
@@ -141,16 +140,7 @@ export class TemporalMcpToolSet extends BaseToolset {
    * worker (ADK MCP is session-per-call), so there is nothing to close on the
    * workflow side.
    */
-  override async close(): Promise<void> {
-    /* sessions are per-call inside the Activities */
-  }
-
-  /** @internal Proxy handle for this toolset's named Activities. */
-  private proxyActivities(): McpActivities {
-    return proxyActivities<McpActivities>(
-      activityOptionsFrom(this.options.activity, `adk.mcp ${this.options.name}.listTools`)
-    );
-  }
+  override async close(): Promise<void> {}
 }
 
 /**
@@ -159,16 +149,16 @@ export class TemporalMcpToolSet extends BaseToolset {
  * `runAsync` to the `<name>-callTool` Activity, stripping any advertised
  * prefix to recover the original server-side tool name.
  */
-class TemporalMcpTool extends BaseTool {
+class TemporalMCPTool extends BaseTool {
   private readonly declaration: FunctionDeclaration;
   private readonly originalName: string;
-  private readonly toolsetOptions: TemporalMcpToolSetOptions;
+  private readonly toolsetOptions: TemporalMCPToolsetOptions;
 
   /**
    * @param declaration     The full declaration returned by `<name>-listTools`.
    * @param toolsetOptions  The owning toolset's options (name, prefix, activity).
    */
-  constructor(declaration: FunctionDeclaration, toolsetOptions: TemporalMcpToolSetOptions) {
+  constructor(declaration: FunctionDeclaration, toolsetOptions: TemporalMCPToolsetOptions) {
     const originalName = declaration.name ?? '';
     const advertisedName = toolsetOptions.prefix ? `${toolsetOptions.prefix}_${originalName}` : originalName;
     super({ name: advertisedName, description: declaration.description ?? '' });
@@ -184,10 +174,10 @@ class TemporalMcpTool extends BaseTool {
 
   /** Routes the tool call to the `<name>-callTool` Activity. */
   override async runAsync(request: RunAsyncToolRequest): Promise<unknown> {
-    const activities = proxyActivities<McpActivities>(
+    const activities = proxyActivities<MCPActivities>(
       activityOptionsFrom(this.toolsetOptions.activity, `adk.mcp ${this.toolsetOptions.name}.${this.originalName}`)
     );
-    const callTool = activities[`${this.toolsetOptions.name}-callTool`] as (args: McpCallToolArgs) => Promise<unknown>;
+    const callTool = activities[`${this.toolsetOptions.name}-callTool`] as (args: MCPCallToolArgs) => Promise<unknown>;
     return callTool({ toolName: this.originalName, args: request.args });
   }
 }

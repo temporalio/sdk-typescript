@@ -5,13 +5,64 @@
 
 import path from 'node:path';
 
+import type { TestFn } from 'ava';
 import { BaseLlm, type BaseLlmConnection, type LlmRequest, type LlmResponse } from '@google/adk';
-import type { TestWorkflowEnvironment } from '@temporalio/testing';
+import { Type } from '@google/genai';
+import { defaultPayloadConverter } from '@temporalio/common';
+import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { Worker } from '@temporalio/worker';
 
-import { FakeLlm } from '../testing.js';
+import { FakeLlm, type MockMCPToolDefinition } from '../testing.js';
 
 const here = __dirname;
+
+/** A unique task-queue / workflow id. */
+export function uid(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+}
+
+/**
+ * Registers `test.before` / `test.after` hooks that boot and tear down a local
+ * Temporal test environment for the calling test file (ava is
+ * process-per-file). Returns an accessor for the booted environment.
+ */
+export function setupTestEnv(test: TestFn): () => TestWorkflowEnvironment {
+  let env: TestWorkflowEnvironment;
+  test.before(async () => {
+    env = await TestWorkflowEnvironment.createLocal();
+  });
+  test.after.always(async () => {
+    await env?.teardown();
+  });
+  return () => env;
+}
+
+/** An `echo` MCP tool double, with a full parameter schema. */
+export const echoDef: MockMCPToolDefinition = {
+  declaration: {
+    name: 'echo',
+    description: 'Echoes the input value.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: { value: { type: Type.STRING } },
+      required: ['value'],
+    },
+  },
+  handler: (args) => ({ echoed: args.value }),
+};
+
+/** A `reverse` MCP tool double. */
+export const reverseDef: MockMCPToolDefinition = {
+  declaration: {
+    name: 'reverse',
+    description: 'Reverses a string.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: { value: { type: Type.STRING } },
+    },
+  },
+  handler: (args) => ({ reversed: String(args.value).split('').reverse().join('') }),
+};
 
 // The Worker bundles the test workflows from their TypeScript source. `here` is
 // `lib/__tests__` at runtime, so resolve back to the `src/__tests__` source that
@@ -64,7 +115,7 @@ export function defaultTestProvider(responses?: LlmResponse[]): (model: string) 
   return (model: string): BaseLlm => {
     if (model === 'boom') return new ThrowingLlm({ model });
     if (model === 'slow-model') return new SlowLlm({ model });
-    return new FakeLlm({ model }, responses);
+    return new FakeLlm({ model, responses });
   };
 }
 
@@ -103,6 +154,23 @@ export function countScheduledActivities(
   activityTypeName: string
 ): number {
   return events.filter((e) => e.activityTaskScheduledEventAttributes?.activityType?.name === activityTypeName).length;
+}
+
+/**
+ * Reads the decoded `summary` of the first `ActivityTaskScheduled` event with
+ * the given activity type name, or `undefined` if none carries one.
+ */
+export function getScheduledActivitySummary(
+  events: Array<{
+    activityTaskScheduledEventAttributes?: { activityType?: { name?: string | null } | null } | null;
+    userMetadata?: { summary?: unknown } | null;
+  }>,
+  activityTypeName: string
+): string | undefined {
+  const scheduled = events.find((e) => e.activityTaskScheduledEventAttributes?.activityType?.name === activityTypeName);
+  const payload = scheduled?.userMetadata?.summary;
+  if (payload == null) return undefined;
+  return defaultPayloadConverter.fromPayload(payload as never);
 }
 
 /**

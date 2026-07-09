@@ -4,12 +4,28 @@
   "description": "Temporal plugin for the Google Agent Development Kit (@google/adk): run ADK agents as durable Temporal Workflows.",
   "main": "./lib/index.js",
   "types": "./lib/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "workflow": [
+        "./lib/workflow.d.ts"
+      ],
+      "testing": [
+        "./lib/testing.d.ts"
+      ]
+    }
+  },
   "exports": {
     ".": {
       "types": "./lib/index.d.ts",
       "import": "./lib/index.js",
       "require": "./lib/index.js",
       "default": "./lib/index.js"
+    },
+    "./workflow": {
+      "types": "./lib/workflow.d.ts",
+      "import": "./lib/workflow.js",
+      "require": "./lib/workflow.js",
+      "default": "./lib/workflow.js"
     },
     "./testing": {
       "types": "./lib/testing.d.ts",

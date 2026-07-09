@@ -2,14 +2,6 @@
  * @license
  * Copyright 2025 Temporal Technologies Inc.
  * SPDX-License-Identifier: MIT
- *
- * `activityAsTool` — wrap an existing Temporal Activity as an ADK tool.
- *
- * Users adopting Temporal already have Activity functions registered on their
- * worker. This helper exposes such an Activity to an ADK agent as a first-class
- * `BaseTool`: the model sees the supplied parameter schema, and a tool call
- * dispatches the named Activity (durable, retriable) instead of running I/O
- * inside the deterministic Workflow body.
  */
 
 import { type FunctionDeclaration, type Schema, Type } from '@google/genai';
@@ -47,9 +39,6 @@ class ActivityTool extends BaseTool {
   private readonly parameters?: Schema;
   private readonly activityOptions?: ActivityOptions;
 
-  /**
-   * @param options Tool configuration. `name` is the Activity to dispatch.
-   */
   constructor(options: ActivityAsToolOptions) {
     super({ name: options.name, description: options.description });
     this.parameters = options.parameters;
@@ -87,8 +76,6 @@ class ActivityTool extends BaseTool {
 /**
  * Wraps an existing Temporal Activity (by registered name) as an ADK
  * {@link BaseTool}. Add the returned tool to an agent's `tools[]`.
- *
- * @experimental
  */
 export function activityAsTool(options: ActivityAsToolOptions): BaseTool {
   return new ActivityTool(options);

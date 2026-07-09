@@ -24,16 +24,15 @@ import type { ActivityOptions, Duration } from '@temporalio/common';
 import { ApplicationFailure } from '@temporalio/common';
 import { inWorkflowContext, proxyActivities } from '@temporalio/workflow';
 
-/**
- * Options for {@link TemporalModel}.
- */
 export interface TemporalModelOptions {
   /** Per-call Temporal Activity configuration (timeouts, retry, task queue). */
   activity?: ActivityOptions;
   /**
    * A Temporal-UI summary for each model Activity. A function receives the
    * outgoing {@link LlmRequest} so callers can derive a label from it; keep
-   * it deterministic for replay safety.
+   * it deterministic for replay safety. Takes precedence over
+   * `activity.summary`; when neither is set, the request's `adk_agent_name`
+   * label is used, falling back to a generic auto-generated label.
    */
   summary?: string | ((req: LlmRequest) => string);
   /**
@@ -48,7 +47,7 @@ export interface TemporalModelOptions {
   streamingBatchInterval?: Duration;
 }
 
-/** Arguments for the `invokeModel` Activity. */
+/** @internal */
 export interface InvokeModelArgs {
   /** Registered model name; reconstructed on the worker. */
   model: string;
@@ -56,7 +55,7 @@ export interface InvokeModelArgs {
   request: WireLlmRequest;
 }
 
-/** Arguments for the `invokeModelStreaming` Activity. */
+/** @internal */
 export interface InvokeModelStreamingArgs extends InvokeModelArgs {
   /** Stream topic to publish chunks to. */
   streamingTopic: string;
@@ -69,11 +68,15 @@ export interface InvokeModelStreamingArgs extends InvokeModelArgs {
  * Activity boundary. ADK's `toolsDict` (live `BaseTool` objects) and
  * `liveConnectConfig` are stripped; the model still sees tool schemas via
  * `config.tools[].functionDeclarations`.
+ *
+ * @internal
  */
 export type WireLlmRequest = Omit<LlmRequest, 'toolsDict' | 'liveConnectConfig'>;
 
 /**
  * The Activity interface proxied by {@link TemporalModel} inside a Workflow.
+ *
+ * @internal
  */
 export interface ModelActivities {
   /** Non-streaming inference; returns the full response transcript. */
@@ -91,8 +94,6 @@ const DEFAULT_MODEL_START_TO_CLOSE: Duration = '1 minute';
  * `model: new TemporalModel('gemini-2.5-flash')` — every model call inside the
  * Workflow becomes a retriable, observable Activity, while the surrounding
  * ADK agent loop replays deterministically.
- *
- * @experimental
  */
 export class TemporalModel extends BaseLlm {
   private readonly options: TemporalModelOptions;
@@ -182,6 +183,9 @@ export class TemporalModel extends BaseLlm {
     if (typeof summary === 'string') {
       return summary;
     }
+    if (this.options.activity?.summary !== undefined) {
+      return this.options.activity.summary;
+    }
     const agentName = req.config?.labels?.['adk_agent_name'];
     if (agentName) {
       return agentName;
@@ -195,7 +199,7 @@ export class TemporalModel extends BaseLlm {
  * {@link LlmRequest} so it can cross the Activity boundary. Tool *schemas*
  * survive in `config.tools`.
  */
-export function toWireRequest(llmRequest: LlmRequest): WireLlmRequest {
+function toWireRequest(llmRequest: LlmRequest): WireLlmRequest {
   const { toolsDict: _toolsDict, liveConnectConfig: _liveConnectConfig, ...wire } = llmRequest;
   return wire;
 }
@@ -203,12 +207,15 @@ export function toWireRequest(llmRequest: LlmRequest): WireLlmRequest {
 /**
  * Builds {@link ActivityOptions} from per-call {@link ActivityOptions} plus a
  * UI summary, defaulting `startToCloseTimeout`. Shared by the MCP and
- * `activityAsTool` boundaries so every Activity carries a `summary`.
+ * `activityAsTool` boundaries so every Activity carries a `summary`; a
+ * caller-supplied `options.summary` takes precedence over `defaultSummary`.
+ *
+ * @internal
  */
-export function activityOptionsFrom(options: ActivityOptions | undefined, summary: string): ActivityOptions {
+export function activityOptionsFrom(options: ActivityOptions | undefined, defaultSummary: string): ActivityOptions {
   return {
     ...options,
-    startToCloseTimeout: options?.startToCloseTimeout ?? '1 minute',
-    summary,
+    startToCloseTimeout: options?.startToCloseTimeout ?? DEFAULT_MODEL_START_TO_CLOSE,
+    summary: options?.summary ?? defaultSummary,
   };
 }

@@ -2,12 +2,6 @@
  * @license
  * Copyright 2025 Temporal Technologies Inc.
  * SPDX-License-Identifier: MIT
- *
- * `GoogleAdkPlugin` — the Worker/Client plugin that makes `@google/adk`
- * durable under Temporal. Add it to `plugins: [...]` on your Client (it
- * auto-propagates to Workers) or directly on the Worker. It registers the
- * model Activities (`invokeModel`, `invokeModelStreaming`) and one
- * `<name>-listTools` / `<name>-callTool` pair per configured MCP toolset.
  */
 
 import { builtinModules } from 'node:module';
@@ -16,8 +10,8 @@ import type { BaseLlm } from '@google/adk';
 import { SimplePlugin } from '@temporalio/plugin';
 import type { BundleOptions } from '@temporalio/worker';
 
-import { createModelActivities, createMcpActivities } from './activities.js';
-import { type McpToolsetFactory } from './mcp.js';
+import { createModelActivities, createMCPActivities } from './activities.js';
+import { type MCPToolsetFactory } from './mcp.js';
 
 /** The webpack `Configuration` object the bundler hands to `webpackConfigHook`. */
 type WebpackConfig = Parameters<NonNullable<BundleOptions['webpackConfigHook']>>[0];
@@ -195,17 +189,6 @@ function disallowedBuiltins(): readonly string[] {
 }
 
 /**
- * `@temporalio/*` packages that are worker-only and must never execute in the
- * Workflow sandbox. They enter the Workflow bundle's import graph only
- * transitively (the public barrel value-exports {@link GoogleAdkPlugin}, which
- * imports the Activity implementations in `./activities.ts`); none of that code
- * path runs inside a Workflow. `ignoreModules` (the Worker bundler's own
- * remediation for this case) aliases them to `false` in the Workflow bundle;
- * they are defined but never dereferenced at Workflow runtime.
- */
-const WORKER_ONLY_TEMPORAL_PACKAGES: readonly string[] = ['@temporalio/activity', '@temporalio/client'];
-
-/**
  * `@google/adk`'s node-only **service** subtrees (telemetry, Cloud
  * SQL/Mongo session stores, stdio-MCP transport, GCS/Vertex artifact stores,
  * a2a HTTP) eagerly import these heavy third-party packages, which in turn
@@ -349,9 +332,9 @@ export interface GoogleAdkPluginOptions {
    * Named MCP toolset factories. Each key `name` becomes a
    * `<name>-listTools` / `<name>-callTool` Activity pair; the factory opens
    * the real MCP session on the worker. The matching workflow-side handle is
-   * `new TemporalMcpToolSet({ name })`.
+   * `new TemporalMCPToolset({ name })`.
    */
-  mcpToolsets?: Record<string, McpToolsetFactory>;
+  mcpToolsets?: Record<string, MCPToolsetFactory>;
 }
 
 /**
@@ -378,7 +361,7 @@ export class GoogleAdkPlugin extends SimplePlugin {
       // passed to both Client and Worker) is tolerated rather than a crash.
       activities: {
         ...createModelActivities(options),
-        ...createMcpActivities(options.mcpToolsets),
+        ...createMCPActivities(options.mcpToolsets),
       },
     });
   }
@@ -396,10 +379,9 @@ export class GoogleAdkPlugin extends SimplePlugin {
    *
    *  1. **`webpackConfigHook`** adds {@link googleAdkSandboxCompatPlugin} (the
    *     `node:` strip, shim redirects, and `process` provide).
-   *  2. **`ignoreModules`** stubs (`alias → false`) three groups: ADK's heavy
-   *     node-only *service* packages ({@link ADK_NODE_ONLY_SERVICE_PACKAGES});
-   *     the worker-only `@temporalio/*` packages
-   *     ({@link WORKER_ONLY_TEMPORAL_PACKAGES}); and every disallowed Node
+   *  2. **`ignoreModules`** stubs (`alias → false`) two groups: ADK's heavy
+   *     node-only *service* packages ({@link ADK_NODE_ONLY_SERVICE_PACKAGES})
+   *     and every disallowed Node
    *     builtin ({@link disallowedBuiltins}). The builtins are already aliased to
    *     `false` by the bundler — listing them additionally tells its determinism
    *     guard "expected, don't fail" for the few ADK *core* reaches on paths that
@@ -413,12 +395,7 @@ export class GoogleAdkPlugin extends SimplePlugin {
    */
   override configureBundler(options: BundleOptions): BundleOptions {
     const base = super.configureBundler(options);
-    const ignoreModules = [
-      ...(base.ignoreModules ?? []),
-      ...ADK_NODE_ONLY_SERVICE_PACKAGES,
-      ...WORKER_ONLY_TEMPORAL_PACKAGES,
-      ...disallowedBuiltins(),
-    ];
+    const ignoreModules = [...(base.ignoreModules ?? []), ...ADK_NODE_ONLY_SERVICE_PACKAGES, ...disallowedBuiltins()];
     return {
       ...base,
       ignoreModules,

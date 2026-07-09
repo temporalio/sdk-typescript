@@ -9,28 +9,18 @@
  */
 
 import test from 'ava';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
+import { ApplicationFailure } from '@temporalio/common';
 
 import { GoogleAdkPlugin } from '../index.js';
-import { withWorker } from './helpers.js';
+import { activityAsTool } from '../workflow.js';
+import { setupTestEnv, uid, withWorker } from './helpers.js';
 import { activityToolCall } from './workflows.js';
 
-let env: TestWorkflowEnvironment;
-
-test.before(async () => {
-  env = await TestWorkflowEnvironment.createLocal();
-});
-
-test.after.always(async () => {
-  await env?.teardown();
-});
-
-function uid(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-}
+const getEnv = setupTestEnv(test);
 
 // activityAsTool (E2E)
 test.serial('wrapsActivityAsTool', async (t) => {
+  const env = getEnv();
   const taskQueue = uid('adk-tool');
 
   // A user's existing Temporal Activity.
@@ -56,4 +46,13 @@ test.serial('wrapsActivityAsTool', async (t) => {
   );
 
   t.deepEqual(result, { orderId: 'order-42', status: 'shipped' });
+});
+
+// activityAsTool outside a Workflow
+test('activityAsToolOutsideWorkflowFails', async (t) => {
+  const tool = activityAsTool({ name: 'lookupOrder', description: 'Look up an order by id.' });
+  const err = await t.throwsAsync(tool.runAsync({ args: {}, toolContext: {} as never }));
+  t.true(err instanceof ApplicationFailure);
+  t.is((err as ApplicationFailure).type, 'GoogleAdkActivityToolOutsideWorkflow');
+  t.is((err as ApplicationFailure).nonRetryable, true);
 });

@@ -11,38 +11,38 @@
 
 import test from 'ava';
 import { LLMRegistry, type LlmRequest } from '@google/adk';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { ApplicationFailure, defaultPayloadConverter, TimeoutFailure } from '@temporalio/common';
 
-import { GoogleAdkPlugin, TemporalModel } from '../index.js';
+import { GoogleAdkPlugin } from '../index.js';
+import { TemporalModel } from '../workflow.js';
 import { FakeLlm, fakeModelProvider } from '../testing.js';
-import { countScheduledActivities, defaultTestProvider, findInCauseChain, withWorker } from './helpers.js';
+import {
+  countScheduledActivities,
+  defaultTestProvider,
+  findInCauseChain,
+  getScheduledActivitySummary,
+  setupTestEnv,
+  uid,
+  withWorker,
+} from './helpers.js';
 import {
   agentRunnerWorkflow,
   countModelCalls,
+  modelCallActivitySummary,
   modelCallError,
+  modelCallSummaryPrecedence,
   modelCallWithSummary,
   modelCallWithTimeout,
+  modelConnectInWorkflow,
   singleModelCall,
   streamingModelCallNoTopic,
 } from './workflows.js';
 
-let env: TestWorkflowEnvironment;
-
-test.before(async () => {
-  env = await TestWorkflowEnvironment.createLocal();
-});
-
-test.after.always(async () => {
-  await env?.teardown();
-});
-
-function uid(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-}
+const getEnv = setupTestEnv(test);
 
 // TemporalModel model boundary (E2E)
 test.serial('routesGenerateContentToActivity', async (t) => {
+  const env = getEnv();
   const taskQueue = uid('adk-route');
   const plugin = new GoogleAdkPlugin({ modelProvider: defaultTestProvider() });
   const result = await withWorker(env, { taskQueue, plugins: [plugin] }, () =>
@@ -58,6 +58,7 @@ test.serial('routesGenerateContentToActivity', async (t) => {
 });
 
 test.serial('sideEffectsActivityCount', async (t) => {
+  const env = getEnv();
   const taskQueue = uid('adk-count');
   const workflowId = uid('wf-count');
   const n = 3;
@@ -78,6 +79,7 @@ test.serial('sideEffectsActivityCount', async (t) => {
 });
 
 test.serial('usesCustomModelProvider', async (t) => {
+  const env = getEnv();
   const taskQueue = uid('adk-custom');
   const plugin = new GoogleAdkPlugin({
     modelProvider: fakeModelProvider([
@@ -99,6 +101,7 @@ test.serial('usesCustomModelProvider', async (t) => {
 });
 
 test.serial('appliesActivitySummary', async (t) => {
+  const env = getEnv();
   const taskQueue = uid('adk-summary');
   const workflowId = uid('wf-summary');
   const plugin = new GoogleAdkPlugin({ modelProvider: defaultTestProvider() });
@@ -120,7 +123,62 @@ test.serial('appliesActivitySummary', async (t) => {
   t.is(summary, 'custom-model-summary');
 });
 
+test.serial('topLevelSummaryWinsOverActivitySummary', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-summary-prec');
+  const workflowId = uid('wf-summary-prec');
+  const plugin = new GoogleAdkPlugin({ modelProvider: defaultTestProvider() });
+  await withWorker(env, { taskQueue, plugins: [plugin] }, () =>
+    env.client.workflow.execute(modelCallSummaryPrecedence, {
+      taskQueue,
+      workflowId,
+      args: ['hi'],
+    })
+  );
+
+  const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
+  t.is(getScheduledActivitySummary(events ?? [], 'invokeModel'), 'top-level-summary');
+});
+
+test.serial('respectsCallerActivitySummary', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-summary-act');
+  const workflowId = uid('wf-summary-act');
+  const plugin = new GoogleAdkPlugin({ modelProvider: defaultTestProvider() });
+  await withWorker(env, { taskQueue, plugins: [plugin] }, () =>
+    env.client.workflow.execute(modelCallActivitySummary, {
+      taskQueue,
+      workflowId,
+      args: ['hi'],
+    })
+  );
+
+  const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
+  // No top-level `summary`: the caller's `activity.summary` must not be
+  // clobbered by the auto-generated label.
+  t.is(getScheduledActivitySummary(events ?? [], 'invokeModel'), 'activity-summary');
+});
+
+test.serial('defaultsActivitySummaryToAutoLabel', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-summary-auto');
+  const workflowId = uid('wf-summary-auto');
+  const plugin = new GoogleAdkPlugin({ modelProvider: defaultTestProvider() });
+  await withWorker(env, { taskQueue, plugins: [plugin] }, () =>
+    env.client.workflow.execute(singleModelCall, {
+      taskQueue,
+      workflowId,
+      args: ['hi'],
+    })
+  );
+
+  const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
+  // Neither a top-level `summary` nor `activity.summary` (nor an agent name).
+  t.is(getScheduledActivitySummary(events ?? [], 'invokeModel'), 'adk.invokeModel fake-model');
+});
+
 test.serial('defaultsActivitySummaryToAgentName', async (t) => {
+  const env = getEnv();
   const taskQueue = uid('adk-summary-agent');
   const workflowId = uid('wf-summary-agent');
   const plugin = new GoogleAdkPlugin({ modelProvider: fakeModelProvider() });
@@ -144,6 +202,7 @@ test.serial('defaultsActivitySummaryToAgentName', async (t) => {
 });
 
 test.serial('modelErrorPropagatesAsApplicationFailure', async (t) => {
+  const env = getEnv();
   const taskQueue = uid('adk-error');
   const plugin = new GoogleAdkPlugin({ modelProvider: defaultTestProvider() });
   await withWorker(env, { taskQueue, plugins: [plugin] }, async () => {
@@ -166,6 +225,7 @@ test.serial('modelErrorPropagatesAsApplicationFailure', async (t) => {
 });
 
 test.serial('streamingWithoutTopicFails', async (t) => {
+  const env = getEnv();
   const taskQueue = uid('adk-stream-notopic');
   const plugin = new GoogleAdkPlugin({ modelProvider: defaultTestProvider() });
   await withWorker(env, { taskQueue, plugins: [plugin] }, async () => {
@@ -189,6 +249,7 @@ test.serial('streamingWithoutTopicFails', async (t) => {
 });
 
 test.serial('appliesActivityTimeout', async (t) => {
+  const env = getEnv();
   const taskQueue = uid('adk-timeout');
   const plugin = new GoogleAdkPlugin({ modelProvider: defaultTestProvider() });
   await withWorker(env, { taskQueue, plugins: [plugin] }, async () => {
@@ -206,6 +267,29 @@ test.serial('appliesActivityTimeout', async (t) => {
     // 1 the Workflow fails with a TimeoutFailure in the cause chain.
     const timeout = findInCauseChain(caught, TimeoutFailure);
     t.not(timeout, undefined);
+  });
+});
+
+test.serial('connectInWorkflowFailsAsUnsupported', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-connect');
+  const plugin = new GoogleAdkPlugin({ modelProvider: defaultTestProvider() });
+  await withWorker(env, { taskQueue, plugins: [plugin] }, async () => {
+    const handle = await env.client.workflow.start(modelConnectInWorkflow, {
+      taskQueue,
+      workflowId: uid('wf-connect'),
+    });
+    let caught: unknown;
+    try {
+      await handle.result();
+    } catch (err) {
+      caught = err;
+    }
+    // BIDI live connections don't map onto the Activity boundary.
+    const appFailure = findInCauseChain(caught, ApplicationFailure);
+    t.not(appFailure, undefined);
+    t.is(appFailure?.type, 'GoogleAdkUnsupported');
+    t.is(appFailure?.nonRetryable, true);
   });
 });
 
