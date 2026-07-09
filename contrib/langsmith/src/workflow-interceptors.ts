@@ -1,12 +1,10 @@
 /**
- * Workflow-isolate interceptors and the deterministic LangSmith context
- * provider. Loaded into the workflow bundle (via the plugin's `workflowModules`)
- * and runs entirely inside the V8 isolate, where `node:async_hooks` is
- * unavailable so a synchronous stack-based context provider stands in for
- * LangSmith's async-context store.
- *
- * Internal: the worker loads this module by specifier and the bundler aliases
- * `node:async_hooks` to it — it is not a hand-import API.
+ * Workflow-isolate interceptors and the LangSmith context provider. Loaded into
+ * the workflow bundle (via the plugin's `workflowModules`) and runs entirely
+ * inside the V8 isolate. Trace context propagates through the real,
+ * async-context-tracking `AsyncLocalStorage` the SDK worker injects onto the
+ * workflow-sandbox global; the plugin and LangSmith's own load-time init
+ * converge on one shared store (see {@link sharedStore}).
  *
  * @module
  * @internal
@@ -94,101 +92,26 @@ function readConfig(): WorkflowLangSmithConfig {
   return { addTemporalRuns: false };
 }
 
-/**
- * Synchronous, isolate-safe replacement for LangSmith's async-context store,
- * shared by the installed provider, the {@link AsyncLocalStorage} shim, and
- * every interceptor so they all read and write one store. `workflowAmbient`
- * persists across `await` boundaries; `stack` tracks synchronous `traceable`
- * nesting. Under `Promise.all` fan-out parenting falls back to the ambient —
- * trace-shape-only non-determinism, never workflow history.
- */
-class WorkflowContextManager {
-  private workflowAmbient: RunTree | undefined;
-  private readonly stack: (RunTree | undefined)[] = [];
-
-  getStore(): RunTree | undefined {
-    return this.stack.length > 0 ? this.stack[this.stack.length - 1] : this.workflowAmbient;
-  }
-
-  /**
-   * Push `context`, run `fn`, pop in `finally`, and return `fn`'s result — the
-   * `AsyncLocalStorage.run` contract langsmith relies on.
-   */
-  run<T>(context: RunTree | undefined, fn: () => T): T {
-    this.stack.push(context);
-    try {
-      return fn();
-    } finally {
-      this.stack.pop();
-    }
-  }
-
-  /** The ambient run an outbound interceptor should propagate / parent under. */
-  ambient(): RunTree | undefined {
-    return this.getStore();
-  }
-
-  /** Run an async scope with a dedicated ambient (workflow execute / handler). */
-  async withAmbient<T>(run: RunTree | undefined, fn: () => Promise<T>): Promise<T> {
-    const prev = this.workflowAmbient;
-    this.workflowAmbient = run;
-    try {
-      return await fn();
-    } finally {
-      this.workflowAmbient = prev;
-    }
-  }
+/** The `getStore`/`run` slice of `AsyncLocalStorage` the interceptors and LangSmith share. */
+interface RunTreeStore {
+  getStore(): RunTree | undefined;
+  run<T>(store: RunTree | undefined, fn: () => T): T;
 }
 
-let providerInstalled = false;
-function ensureProviderInstalled(manager: WorkflowContextManager): void {
-  if (providerInstalled) {
-    return;
-  }
-  providerInstalled = true;
-  // LangSmith's `AsyncLocalStorageInterface` requires exactly two members,
-  // `getStore` and `run` (it never calls `enterWith`), so we provide only those.
-  // The cast bridges the generic `run<T>` signature to the interface's
-  // `run: (ctx, () => void) => void`.
-  AsyncLocalStorageProviderSingleton.initializeGlobalInstance({
-    getStore: () => manager.getStore(),
-    run: <T>(context: RunTree | undefined, fn: () => T): T => manager.run(context as RunTree | undefined, fn),
-  } as Parameters<typeof AsyncLocalStorageProviderSingleton.initializeGlobalInstance>[0]);
-}
-
-const sharedManager = new WorkflowContextManager();
-ensureProviderInstalled(sharedManager);
-
-/**
- * Isolate-safe stand-in for Node's `AsyncLocalStorage`. The plugin's bundler
- * aliases `node:async_hooks` (absent in the isolate) to this module so
- * LangSmith's `import { AsyncLocalStorage } from "node:async_hooks"` resolves
- * here. Every instance delegates to {@link sharedManager}.
- *
- * @internal
- */
-export class AsyncLocalStorage<T = unknown> {
-  getStore(): T | undefined {
-    return sharedManager.getStore() as unknown as T | undefined;
-  }
-
-  run<R>(store: T, fn: (...args: never[]) => R): R {
-    return sharedManager.run(store as unknown as RunTree | undefined, fn as () => R);
-  }
-
-  enterWith(_store: T): void {
-    /* no-op: parenting inside the isolate is stack-scoped via run() */
-  }
-
-  /**
-   * Best-effort equivalent of `AsyncLocalStorage.snapshot()` (used only by
-   * LangSmith's async-generator streaming paths). Runs the callback in the
-   * current synchronous scope; the isolate has no async context to capture.
-   */
-  static snapshot(): (fn: (...args: unknown[]) => unknown, ...args: unknown[]) => unknown {
-    return (fn, ...args) => fn(...args);
-  }
-}
+// The SDK worker injects a real, async-context-tracking `AsyncLocalStorage` onto
+// the workflow-sandbox global before the bundle evaluates. Bundler aliases (see
+// plugin.ts) also route LangSmith's `new AsyncLocalStorage()` there, so both the
+// plugin and LangSmith's load-time `initializeGlobalInstance` compete for one
+// global slot (first writer wins). Install our instance, then read back whichever
+// won so interceptors and `traceable` read/write the same store regardless of
+// load order.
+declare const globalThis: { AsyncLocalStorage: new () => RunTreeStore };
+AsyncLocalStorageProviderSingleton.initializeGlobalInstance(
+  new globalThis.AsyncLocalStorage() as Parameters<
+    typeof AsyncLocalStorageProviderSingleton.initializeGlobalInstance
+  >[0]
+);
+const sharedStore = AsyncLocalStorageProviderSingleton.getInstance() as RunTreeStore;
 
 /** Reconstruct the propagated parent run from a Payload-keyed header map. */
 function reconstructParent(headers: Record<string, unknown> | undefined): RunTree | undefined {
@@ -269,10 +192,7 @@ function buildReplaySafeRunTree(
 }
 
 class LangSmithWorkflowInbound implements WorkflowInboundCallsInterceptor {
-  constructor(
-    private readonly ctx: WorkflowContextManager,
-    private readonly config: WorkflowLangSmithConfig
-  ) {}
+  constructor(private readonly config: WorkflowLangSmithConfig) {}
 
   async execute(input: WorkflowExecuteInput, next: Next<WorkflowInboundCallsInterceptor, 'execute'>): Promise<unknown> {
     const parent = reconstructParent(input.headers);
@@ -287,13 +207,8 @@ class LangSmithWorkflowInbound implements WorkflowInboundCallsInterceptor {
 
   async handleSignal(input: SignalInput, next: Next<WorkflowInboundCallsInterceptor, 'handleSignal'>): Promise<void> {
     const parent = reconstructParent(input.headers);
-    await this.runInbound(
-      handleSignalRunName(input.signalName),
-      RUN_TYPE.CHAIN,
-      parent,
-      { args: input.args },
-      () => next(input),
-      true
+    await this.runInbound(handleSignalRunName(input.signalName), RUN_TYPE.CHAIN, parent, { args: input.args }, () =>
+      next(input)
     );
   }
 
@@ -308,7 +223,6 @@ class LangSmithWorkflowInbound implements WorkflowInboundCallsInterceptor {
       parent,
       { args: input.args },
       () => next(input),
-      true,
       // Read-only: mint run ids from the nondeterministic unsafe random source so the
       // handler never draws from the Workflow main PRNG (which a clean replay would not advance).
       workflowInfo().unsafe.random.uuid4
@@ -320,13 +234,8 @@ class LangSmithWorkflowInbound implements WorkflowInboundCallsInterceptor {
     next: Next<WorkflowInboundCallsInterceptor, 'handleUpdate'>
   ): Promise<unknown> {
     const parent = reconstructParent(input.headers);
-    return this.runInbound(
-      handleUpdateRunName(input.name),
-      RUN_TYPE.CHAIN,
-      parent,
-      { args: input.args },
-      () => next(input),
-      true
+    return this.runInbound(handleUpdateRunName(input.name), RUN_TYPE.CHAIN, parent, { args: input.args }, () =>
+      next(input)
     );
   }
 
@@ -338,11 +247,10 @@ class LangSmithWorkflowInbound implements WorkflowInboundCallsInterceptor {
       // Propagation only: install the reconstructed parent (or a placeholder parent
       // when none was propagated, to keep a validator-body `traceable` off the
       // no-parent `crypto` path) so the validator body nests under the update's
-      // trace. Validators are synchronous, so install via the stack-based `run`,
-      // not the async `withAmbient`.
+      // trace.
       const ambient =
         asReplaySafeParent(reconstructParent(input.headers), generateNewUuid4) ?? placeholderRoot(generateNewUuid4);
-      this.ctx.run(ambient, () => next(input));
+      sharedStore.run(ambient, () => next(input));
       return;
     }
     const run = buildReplaySafeRunTree(this.config, {
@@ -353,11 +261,11 @@ class LangSmithWorkflowInbound implements WorkflowInboundCallsInterceptor {
       generateNewUuid4,
     });
     // Validators are synchronous and must not be made async; emit start/end
-    // around the synchronous call, with the run installed on the stack so a
-    // `traceable` in the validator body nests under it.
+    // around the synchronous call, with the run installed as the active store so
+    // a `traceable` in the validator body nests under it.
     void run.postRun();
     try {
-      this.ctx.run(run, () => next(input));
+      sharedStore.run(run, () => next(input));
       void run.end({});
     } catch (err) {
       void run.end(undefined, describeError(err));
@@ -368,12 +276,10 @@ class LangSmithWorkflowInbound implements WorkflowInboundCallsInterceptor {
   }
 
   /**
-   * Open the inbound run, install it as the active run for `next`, and close it.
-   *
-   * `scoped` handlers install the run on the synchronous stack so a handler running
-   * concurrently with the workflow body cannot leak its run into the body's ambient;
-   * `execute` (scoped: false) installs a persistent ambient that survives the body's
-   * awaits.
+   * Open the inbound run, install it as the active run for the whole `next`
+   * async scope, and close it. The real ALS scopes the run to this branch, so a
+   * handler running concurrently with the workflow body never leaks its run into
+   * the body's context.
    */
   private async runInbound(
     name: string,
@@ -381,7 +287,6 @@ class LangSmithWorkflowInbound implements WorkflowInboundCallsInterceptor {
     parent: RunTree | undefined,
     inputs: Record<string, unknown>,
     next: () => Promise<unknown>,
-    scoped = false,
     generateNewUuid4?: () => string
   ): Promise<unknown> {
     if (!this.config.addTemporalRuns) {
@@ -392,7 +297,7 @@ class LangSmithWorkflowInbound implements WorkflowInboundCallsInterceptor {
       // `createChild` branch (deterministic id) rather than the no-parent branch
       // that mints a uuid via `crypto`, which the isolate lacks.
       const ambient = asReplaySafeParent(parent, generateNewUuid4) ?? placeholderRoot(generateNewUuid4);
-      return scoped ? this.ctx.run(ambient, next) : this.ctx.withAmbient(ambient, next);
+      return sharedStore.run(ambient, next);
     }
     const run = buildReplaySafeRunTree(this.config, {
       name,
@@ -414,15 +319,12 @@ class LangSmithWorkflowInbound implements WorkflowInboundCallsInterceptor {
         throw err;
       }
     };
-    return scoped ? this.ctx.run(run, body) : this.ctx.withAmbient(run, body);
+    return sharedStore.run(run, body);
   }
 }
 
 class LangSmithWorkflowOutbound implements WorkflowOutboundCallsInterceptor {
-  constructor(
-    private readonly ctx: WorkflowContextManager,
-    private readonly config: WorkflowLangSmithConfig
-  ) {}
+  constructor(private readonly config: WorkflowLangSmithConfig) {}
 
   async scheduleActivity(
     input: ActivityInput,
@@ -457,7 +359,7 @@ class LangSmithWorkflowOutbound implements WorkflowOutboundCallsInterceptor {
   ): Promise<never> {
     // Don't propagate a placeholder root: it is never emitted, so the successor's
     // runs would dangle under a nonexistent parent. Let it install its own.
-    const ambient = this.ctx.ambient();
+    const ambient = sharedStore.getStore();
     const context = ambient instanceof _RootReplaySafeRunTreeFactory ? undefined : runHeaders(ambient);
     const headers = withContextHeader(input.headers, context);
     return next({ ...input, headers });
@@ -478,7 +380,7 @@ class LangSmithWorkflowOutbound implements WorkflowOutboundCallsInterceptor {
     input: StartNexusOperationInput,
     next: Next<WorkflowOutboundCallsInterceptor, 'startNexusOperation'>
   ): Promise<StartNexusOperationOutput> {
-    const ambient = this.ctx.ambient();
+    const ambient = sharedStore.getStore();
     if (this.config.addTemporalRuns && ambient instanceof ReplaySafeRunTree) {
       await emitMarker(ambient, startNexusOperationRunName(input.service, input.operation), {});
     }
@@ -493,7 +395,7 @@ class LangSmithWorkflowOutbound implements WorkflowOutboundCallsInterceptor {
     input: { headers: Headers; args?: unknown[] },
     next: (headers: Headers) => Promise<R>
   ): Promise<R> {
-    const ambient = this.ctx.ambient();
+    const ambient = sharedStore.getStore();
     if (this.config.addTemporalRuns && ambient instanceof ReplaySafeRunTree) {
       await emitMarker(ambient, name, { args: input.args ?? [] });
     }
@@ -507,7 +409,7 @@ class LangSmithWorkflowOutbound implements WorkflowOutboundCallsInterceptor {
     input: { headers: Headers; args?: unknown[] },
     next: (headers: Headers) => Promise<R>
   ): Promise<R> {
-    const ambient = this.ctx.ambient();
+    const ambient = sharedStore.getStore();
     let propagate: RunTree | undefined = ambient;
     if (this.config.addTemporalRuns && ambient instanceof ReplaySafeRunTree) {
       propagate = await emitMarker(ambient, name, { args: input.args ?? [] });
@@ -526,7 +428,7 @@ class LangSmithWorkflowOutbound implements WorkflowOutboundCallsInterceptor {
 export function interceptors(): WorkflowInterceptors {
   const config = readConfig();
   return {
-    inbound: [new LangSmithWorkflowInbound(sharedManager, config)],
-    outbound: [new LangSmithWorkflowOutbound(sharedManager, config)],
+    inbound: [new LangSmithWorkflowInbound(config)],
+    outbound: [new LangSmithWorkflowOutbound(config)],
   };
 }

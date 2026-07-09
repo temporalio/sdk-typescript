@@ -14,6 +14,7 @@ import {
   defineUpdate,
   proxyActivities,
   setHandler,
+  sleep,
   startChild,
   uuid4,
   workflowInfo,
@@ -40,6 +41,63 @@ export async function SimpleWorkflow(input: string): Promise<string> {
 /** Calls native `traceable` directly in the workflow body. */
 export async function WorkflowBodyTraceableWorkflow(input: string): Promise<string> {
   return workflowInnerCall(input);
+}
+
+/** Leaf `traceable` invoked by {@link parentTraceable} (nested-parenting fixture). */
+const leafTraceable = traceable(async (input: string): Promise<string> => `leaf:${input}`, { name: 'leaf' });
+
+/**
+ * Awaits, THEN calls {@link leafTraceable} — so the child is created after the
+ * parent's synchronous frame has unwound. Real async context still resolves the
+ * parent; a synchronous context stack would have lost it and parented `leaf`
+ * under the workflow run instead.
+ */
+const parentTraceable = traceable(
+  async (input: string): Promise<string> => {
+    await sleep(1);
+    return leafTraceable(input);
+  },
+  { name: 'parent' }
+);
+
+/** A `traceable` awaiting another after an `await`: asserts nested-parenting via real async context. */
+export async function NestedTraceableWorkflow(input: string): Promise<string> {
+  return parentTraceable(input);
+}
+
+/** A `traceable` fanned out under {@link ConcurrentTraceableWorkflow}; awaits so branches interleave. */
+const fanoutTraceable = traceable(
+  async (input: string): Promise<string> => {
+    await sleep(1);
+    return `fan:${input}`;
+  },
+  { name: 'fanout' }
+);
+
+/** `Promise.all` fan-out of `traceable` calls: each concurrent branch parents under the workflow run. */
+export async function ConcurrentTraceableWorkflow(input: string): Promise<string[]> {
+  return Promise.all([fanoutTraceable(`${input}-a`), fanoutTraceable(`${input}-b`), fanoutTraceable(`${input}-c`)]);
+}
+
+/** An async-generator `traceable`: exercises LangSmith's `AsyncLocalStorage.snapshot()` streaming path. */
+const streamingTraceable = traceable(
+  async function* streaming(input: string): AsyncGenerator<string> {
+    await sleep(1);
+    yield `${input}-1`;
+    await sleep(1);
+    yield `${input}-2`;
+    yield `${input}-3`;
+  },
+  { name: 'streaming' }
+);
+
+/** Drives an async-generator `traceable` to completion; the run must parent under the workflow run. */
+export async function StreamingTraceableWorkflow(input: string): Promise<string[]> {
+  const chunks: string[] = [];
+  for await (const chunk of streamingTraceable(input)) {
+    chunks.push(chunk);
+  }
+  return chunks;
 }
 
 /** No `traceable` anywhere. */
