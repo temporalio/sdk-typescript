@@ -82,4 +82,11 @@ to docs, or any other relevant information.
 
 - fix(langsmith): resolve workflow interceptor module by absolute path
 
+## 1.20.3
+
+### Fixed
+
+- `@temporalio/langsmith`: install Workflow-bundle rewrites via `compiler.webpack` so they work under non-hoisting `node_modules` layouts (e.g. pnpm `hoist=false`).
+- `@temporalio/langsmith`: emit the LangSmith run fire-and-forget rather than awaiting it, removing a yield point that reordered commands under `signalWithStart`.
+
 ## [Unreleased]

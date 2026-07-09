@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/langsmith",
-  "version": "1.20.2",
+  "version": "1.20.3",
   "description": "Temporal LangSmith observability integration package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
