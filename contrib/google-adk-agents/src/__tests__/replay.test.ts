@@ -12,58 +12,32 @@
  */
 
 import test from 'ava';
-import { Type } from '@google/genai';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { Worker, type ReplayWorkerOptions } from '@temporalio/worker';
 
 import { GoogleAdkPlugin } from '../index.js';
-import { mockMcpToolset, type MockMcpToolDefinition } from '../testing.js';
-import { defaultTestProvider, withWorker, workflowsPath } from './helpers.js';
+import { mockMCPToolset } from '../testing.js';
+import { defaultTestProvider, echoDef, setupTestEnv, uid, withWorker, workflowsPath } from './helpers.js';
 import { replayScenario } from './workflows.js';
-
-const echoDef: MockMcpToolDefinition = {
-  declaration: {
-    name: 'echo',
-    description: 'Echoes the input value.',
-    parameters: {
-      type: Type.OBJECT,
-      properties: { value: { type: Type.STRING } },
-      required: ['value'],
-    },
-  },
-  handler: (args) => ({ echoed: args.value }),
-};
 
 function makePlugin(): GoogleAdkPlugin {
   return new GoogleAdkPlugin({
     modelProvider: defaultTestProvider(),
-    mcpToolsets: { testServer: mockMcpToolset([echoDef]) },
+    mcpToolsets: { testServer: mockMCPToolset([echoDef]) },
   });
 }
 
-let env: TestWorkflowEnvironment;
-
-test.before(async () => {
-  env = await TestWorkflowEnvironment.createLocal();
-});
-
-test.after.always(async () => {
-  await env?.teardown();
-});
-
-function uid(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-}
+const getEnv = setupTestEnv(test);
 
 // Replay determinism with plugin (E2E)
 test.serial('replayWithPlugin', async (t) => {
+  const env = getEnv();
   const taskQueue = uid('adk-replay');
   const workflowId = uid('wf-replay');
 
-  const result = await withWorker(env, { taskQueue, plugins: [makePlugin()] }, () =>
+  const liveResult = await withWorker(env, { taskQueue, plugins: [makePlugin()] }, () =>
     env.client.workflow.execute(replayScenario, { taskQueue, workflowId })
   );
-  t.true(result.includes('world'));
+  t.true(liveResult.includes('world'));
 
   const history = await env.client.workflow.getHandle(workflowId).fetchHistory();
 
@@ -79,5 +53,20 @@ test.serial('replayWithPlugin', async (t) => {
     plugins: [makePlugin()],
   };
   await Worker.runReplayHistory(replayOptions, history);
-  t.pass();
+
+  // `runReplayHistory` only verifies the command stream, not the workflow's
+  // return value. Re-run the scenario with the workflow cache disabled
+  // (`maxCachedWorkflows: 0`) so every workflow task replays the full history;
+  // the result it produces must deep-equal the live run's.
+  const replayTaskQueue = uid('adk-replay-nocache');
+  const replayedResult = await withWorker(
+    env,
+    { taskQueue: replayTaskQueue, plugins: [makePlugin()], maxCachedWorkflows: 0 },
+    () =>
+      env.client.workflow.execute(replayScenario, {
+        taskQueue: replayTaskQueue,
+        workflowId: uid('wf-replay-nocache'),
+      })
+  );
+  t.deepEqual(replayedResult, liveResult);
 });

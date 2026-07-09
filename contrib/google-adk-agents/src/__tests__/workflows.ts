@@ -1,7 +1,7 @@
 /**
  * Workflow definitions used by the E2E tests. These run inside the Temporal
  * Workflow sandbox: they construct real `@google/adk` objects (the ADK
- * `BaseLlm` subclass `TemporalModel`, `BaseToolset` subclass `TemporalMcpToolSet`,
+ * `BaseLlm` subclass `TemporalModel`, `BaseToolset` subclass `TemporalMCPToolset`,
  * `LongRunningFunctionTool`) and invoke their native entry points. The plugin
  * routes the model/MCP I/O to Activities.
  */
@@ -16,8 +16,9 @@ import {
 } from '@google/adk';
 import type { Duration } from '@temporalio/common';
 import { condition, defineSignal, defineUpdate, proxyActivities, setHandler } from '@temporalio/workflow';
+import { WorkflowStream } from '@temporalio/workflow-streams/workflow';
 
-import { TemporalModel, TemporalMcpToolSet, activityAsTool } from '../index.js';
+import { TemporalModel, TemporalMCPToolset, activityAsTool } from '../workflow.js';
 
 /** Build a minimal, serializable LlmRequest for a single user turn. */
 function makeRequest(text: string): LlmRequest {
@@ -97,6 +98,29 @@ export async function modelCallWithSummary(prompt: string): Promise<string> {
   return text;
 }
 
+/** A model call with both a top-level summary and an `activity.summary`. */
+export async function modelCallSummaryPrecedence(prompt: string): Promise<string> {
+  const llm = new TemporalModel('fake-model', {
+    summary: 'top-level-summary',
+    activity: { summary: 'activity-summary' },
+  });
+  let text = '';
+  for await (const response of llm.generateContentAsync(makeRequest(prompt))) {
+    text += collectText(response.content?.parts);
+  }
+  return text;
+}
+
+/** A model call with only `activity.summary` set (no top-level summary). */
+export async function modelCallActivitySummary(prompt: string): Promise<string> {
+  const llm = new TemporalModel('fake-model', { activity: { summary: 'activity-summary' } });
+  let text = '';
+  for await (const response of llm.generateContentAsync(makeRequest(prompt))) {
+    text += collectText(response.content?.parts);
+  }
+  return text;
+}
+
 /** Streaming (SSE) model call; returns concatenated chunk text + chunk count. */
 export async function streamingModelCall(
   batchInterval: Duration = '50 milliseconds'
@@ -115,6 +139,25 @@ export async function streamingModelCall(
   return { text, chunks };
 }
 
+export const closeStream = defineSignal('closeStream');
+
+/**
+ * Streaming model call that hosts a `WorkflowStream` and stays alive until
+ * `closeStream`, so an external subscriber can drain the published chunks.
+ */
+export async function streamingModelCallSubscribed(
+  batchInterval?: Duration
+): Promise<{ text: string; chunks: number }> {
+  new WorkflowStream();
+  let closed = false;
+  setHandler(closeStream, () => {
+    closed = true;
+  });
+  const out = await streamingModelCall(batchInterval);
+  await condition(() => closed);
+  return out;
+}
+
 /** A streaming model call with no `streamingTopic` configured (must fail). */
 export async function streamingModelCallNoTopic(): Promise<string> {
   const llm = new TemporalModel('fake-model');
@@ -125,13 +168,20 @@ export async function streamingModelCallNoTopic(): Promise<string> {
   return text;
 }
 
+/** Attempt a BIDI live connection inside the Workflow (must fail). */
+export async function modelConnectInWorkflow(): Promise<string> {
+  const llm = new TemporalModel('fake-model');
+  await llm.connect(makeRequest('hi'));
+  return 'unreachable';
+}
+
 /** Discover MCP tools and assert the full schema crossed the boundary. */
 export async function mcpListTools(): Promise<{
   count: number;
   firstName: string;
   hasParameters: boolean;
 }> {
-  const toolset = new TemporalMcpToolSet({ name: 'testServer' });
+  const toolset = new TemporalMCPToolset({ name: 'testServer' });
   const tools = await toolset.getTools();
   const first = tools[0];
   const declaration = first?._getDeclaration();
@@ -144,7 +194,7 @@ export async function mcpListTools(): Promise<{
 
 /** Call an MCP tool through the plugin; returns the tool result. */
 export async function mcpCallTool(value: string): Promise<unknown> {
-  const toolset = new TemporalMcpToolSet({ name: 'testServer' });
+  const toolset = new TemporalMCPToolset({ name: 'testServer' });
   const tools = await toolset.getTools();
   const tool = tools.find((t) => t.name === 'echo');
   if (!tool) {
@@ -167,9 +217,30 @@ export async function mcpCallUnknownTool(): Promise<unknown> {
   return activities['testServer-callTool']({ toolName: 'does-not-exist', args: {} });
 }
 
+/** MCP discovery + tool call with a caller-supplied `activity.summary`. */
+export async function mcpCallToolWithActivitySummary(value: string): Promise<unknown> {
+  const toolset = new TemporalMCPToolset({
+    name: 'testServer',
+    activity: { summary: 'mcp-activity-summary' },
+  });
+  const tools = await toolset.getTools();
+  const tool = tools.find((t) => t.name === 'echo');
+  if (!tool) {
+    throw new Error('echo tool not found');
+  }
+  return tool.runAsync({ args: { value }, toolContext: {} as never });
+}
+
 /** MCP discovery with a toolFilter restricting to a subset of tools. */
 export async function mcpFilteredTools(): Promise<string[]> {
-  const toolset = new TemporalMcpToolSet({ name: 'testServer', toolFilter: ['echo'] });
+  const toolset = new TemporalMCPToolset({ name: 'testServer', toolFilter: ['echo'] });
+  const tools = await toolset.getTools();
+  return tools.map((t) => t.name);
+}
+
+/** MCP discovery with a prefix applied to the advertised tool names. */
+export async function mcpPrefixedTools(): Promise<string[]> {
+  const toolset = new TemporalMCPToolset({ name: 'testServer', prefix: 'srv' });
   const tools = await toolset.getTools();
   return tools.map((t) => t.name);
 }
@@ -228,7 +299,7 @@ export async function replayScenario(): Promise<string> {
     }
   }
 
-  const toolset = new TemporalMcpToolSet({ name: 'testServer' });
+  const toolset = new TemporalMCPToolset({ name: 'testServer' });
   const tools = await toolset.getTools();
   const echo = tools.find((t) => t.name === 'echo');
   if (echo) {

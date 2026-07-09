@@ -9,28 +9,16 @@
  */
 
 import test from 'ava';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
 
 import { GoogleAdkPlugin } from '../index.js';
-import { withWorker } from './helpers.js';
+import { setupTestEnv, uid, withWorker } from './helpers.js';
 import { approveSignal, approveUpdate, hitlWorkflow } from './workflows.js';
 
-let env: TestWorkflowEnvironment;
-
-test.before(async () => {
-  env = await TestWorkflowEnvironment.createLocal();
-});
-
-test.after.always(async () => {
-  await env?.teardown();
-});
-
-function uid(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-}
+const getEnv = setupTestEnv(test);
 
 // HITL long-running tool (E2E)
 test.serial('longRunningToolAwaitsSignal', async (t) => {
+  const env = getEnv();
   // --- Signal variant ---
   const tq1 = uid('adk-hitl-sig');
   await withWorker(env, { taskQueue: tq1, plugins: [new GoogleAdkPlugin()] }, async () => {

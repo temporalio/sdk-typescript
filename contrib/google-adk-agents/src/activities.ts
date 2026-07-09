@@ -8,9 +8,10 @@
  * This module is the **only** one that imports worker-runtime packages
  * (`@temporalio/activity`, `@temporalio/workflow-streams/client`) and runs the
  * real, non-deterministic I/O: model inference and MCP server calls. It is
- * imported solely by `plugin.ts` and is therefore tree-shaken out of the
- * Workflow sandbox bundle (the workflow-reachable modules — `model.ts`,
- * `mcp.ts`, `tools.ts`, `index.ts` — never import it).
+ * imported by `plugin.ts` (never by any workflow-reachable module) and is
+ * therefore tree-shaken out of the Workflow sandbox bundle (the
+ * workflow-reachable modules — `model.ts`, `mcp.ts`, `tools.ts`,
+ * `workflow.ts` — never import it).
  *
  * The reconstruction boundary: workflows pass only the model **name string**
  * (and the MCP toolset **name**); these activities rebuild the real `BaseLlm`
@@ -36,9 +37,8 @@ import { Context as ActivityContext } from '@temporalio/activity';
 import { WorkflowStreamClient } from '@temporalio/workflow-streams/client';
 
 import type { InvokeModelArgs, InvokeModelStreamingArgs, ModelActivities, WireLlmRequest } from './model.js';
-import type { McpCallToolArgs, McpToolsetFactory } from './mcp.js';
+import type { MCPCallToolArgs, MCPToolsetFactory } from './mcp.js';
 
-/** Default coalescing interval for streamed model chunks. */
 const DEFAULT_STREAM_BATCH_INTERVAL = '100 milliseconds';
 
 /** HTTP statuses that are retryable independent of the upstream's hints. */
@@ -48,6 +48,8 @@ const RETRYABLE_STATUS = new Set([408, 409, 429]);
  * Worker-side reconstruction options consumed by {@link createModelActivities}.
  * Structurally compatible with `GoogleAdkPluginOptions` so the plugin passes
  * its options straight through (kept local to avoid a `plugin.ts` import cycle).
+ *
+ * @internal
  */
 export interface ModelActivitiesOptions {
   /** Reconstructs a `BaseLlm` from a model name; defaults to the ADK registry. */
@@ -58,6 +60,8 @@ export interface ModelActivitiesOptions {
  * Builds the `invokeModel` / `invokeModelStreaming` Activities. Each call
  * reconstructs the real model from its name and runs inference on the worker;
  * the surrounding ADK agent loop stays in the (deterministic) Workflow.
+ *
+ * @internal
  */
 export function createModelActivities(options: ModelActivitiesOptions = {}): ModelActivities {
   const resolveModel = (model: string): BaseLlm => options.modelProvider?.(model) ?? LLMRegistry.newLlm(model);
@@ -120,6 +124,8 @@ export function createModelActivities(options: ModelActivitiesOptions = {}): Mod
       } finally {
         try {
           await stream?.[Symbol.asyncDispose]();
+        } catch {
+          /* a dispose failure must not mask the primary result/error */
         } finally {
           stopHeartbeat();
         }
@@ -132,9 +138,11 @@ export function createModelActivities(options: ModelActivitiesOptions = {}): Mod
  * Builds the `<name>-listTools` / `<name>-callTool` Activity pairs for every
  * registered MCP toolset factory. Each pair opens a real MCP session on the
  * worker (session-per-call), lists/executes, then closes it.
+ *
+ * @internal
  */
-export function createMcpActivities(
-  toolsets: Record<string, McpToolsetFactory> = {}
+export function createMCPActivities(
+  toolsets: Record<string, MCPToolsetFactory> = {}
 ): Record<string, (args: never) => Promise<unknown>> {
   const activities: Record<string, (args: never) => Promise<unknown>> = {};
   for (const [name, factory] of Object.entries(toolsets)) {
@@ -145,7 +153,7 @@ export function createMcpActivities(
 
 function mcpActivitiesForName(
   name: string,
-  factory: McpToolsetFactory
+  factory: MCPToolsetFactory
 ): Record<string, (args: never) => Promise<unknown>> {
   const resolveToolset = (): BaseToolset => {
     const produced = factory();
@@ -155,28 +163,34 @@ function mcpActivitiesForName(
   return {
     [`${name}-listTools`]: async (): Promise<FunctionDeclaration[]> => {
       const stopHeartbeat = startAdaptiveHeartbeat();
-      const toolset = resolveToolset();
+      let toolset: BaseToolset | undefined;
       try {
+        toolset = resolveToolset();
         const tools = await toolset.getTools();
         return tools.map((tool) => tool._getDeclaration()).filter((d): d is FunctionDeclaration => d !== undefined);
       } catch (err) {
         throw toApplicationFailure(err);
       } finally {
-        await toolset.close().catch(() => undefined);
+        try {
+          await toolset?.close();
+        } catch {
+          /* a close failure must not mask the primary result/error */
+        }
         stopHeartbeat();
       }
     },
 
-    [`${name}-callTool`]: async (args: McpCallToolArgs): Promise<unknown> => {
+    [`${name}-callTool`]: async (args: MCPCallToolArgs): Promise<unknown> => {
       const stopHeartbeat = startAdaptiveHeartbeat();
-      const toolset = resolveToolset();
+      let toolset: BaseToolset | undefined;
       try {
+        toolset = resolveToolset();
         const tools = await toolset.getTools();
         const tool = tools.find((t) => t.name === args.toolName);
         if (!tool) {
           throw ApplicationFailure.nonRetryable(
             `Tool '${args.toolName}' not found on MCP server '${name}'.`,
-            'GoogleAdkMcpToolNotFound'
+            'GoogleAdkMCPToolNotFound'
           );
         }
         // The MCP tool reads `toolContext.abortSignal`; supply the Activity's
@@ -188,7 +202,11 @@ function mcpActivitiesForName(
       } catch (err) {
         throw toApplicationFailure(err);
       } finally {
-        await toolset.close().catch(() => undefined);
+        try {
+          await toolset?.close();
+        } catch {
+          /* a close failure must not mask the primary result/error */
+        }
         stopHeartbeat();
       }
     },
@@ -272,6 +290,8 @@ function startAdaptiveHeartbeat(): () => void {
  *
  * Errors already shaped as {@link ApplicationFailure} (e.g. tool-not-found)
  * pass through unchanged.
+ *
+ * @internal
  */
 export function toApplicationFailure(err: unknown): ApplicationFailure {
   if (err instanceof ApplicationFailure) {
@@ -298,12 +318,10 @@ export function toApplicationFailure(err: unknown): ApplicationFailure {
   });
 }
 
-/** Extracts a numeric HTTP status from a GenAI / fetch-style error. */
 function readStatus(err: unknown): number | undefined {
   if (err && typeof err === 'object') {
     const e = err as Record<string, unknown>;
     if (typeof e.status === 'number') return e.status;
-    if (typeof e.code === 'number') return e.code;
     if (typeof e.status === 'string' && /^\d+$/.test(e.status)) return Number(e.status);
     const response = e.response as Record<string, unknown> | undefined;
     if (response && typeof response === 'object') {
@@ -314,7 +332,6 @@ function readStatus(err: unknown): number | undefined {
   return undefined;
 }
 
-/** Normalizes any headers carried by the error to a lower-cased record. */
 function readHeaders(err: unknown): Record<string, string> | undefined {
   if (!err || typeof err !== 'object') return undefined;
   const e = err as Record<string, unknown>;
@@ -334,12 +351,21 @@ function readHeaders(err: unknown): Record<string, string> | undefined {
   );
 }
 
-/** Reads `retry-after-ms` / `retry-after` into a Temporal `Duration`. */
+/**
+ * Reads `retry-after-ms` / `retry-after` into a Temporal `Duration`.
+ * `retry-after` accepts both RFC 7231 forms: delta-seconds and HTTP-date
+ * (converted to a delta from now — fine here, this runs in an Activity).
+ */
 function parseRetryAfter(headers: Record<string, string> | undefined): Duration | undefined {
   if (!headers) return undefined;
   const ms = headers['retry-after-ms'];
   if (ms && /^\d+$/.test(ms)) return `${Number(ms)} milliseconds` as Duration;
-  const seconds = headers['retry-after'];
-  if (seconds && /^\d+$/.test(seconds)) return `${Number(seconds)} seconds` as Duration;
+  const retryAfter = headers['retry-after'];
+  if (retryAfter) {
+    if (/^\d+$/.test(retryAfter)) return `${Number(retryAfter)} seconds` as Duration;
+    const dateMs = Date.parse(retryAfter);
+    const now = Date.now();
+    if (!Number.isNaN(dateMs) && dateMs > now) return `${dateMs - now} milliseconds` as Duration;
+  }
   return undefined;
 }

@@ -5,11 +5,11 @@
  *
  * Test helpers for users adopting the Google ADK Temporal plugin.
  *
- * These let you unit-test Workflows that use `TemporalModel` / `TemporalMcpToolSet`
+ * These let you unit-test Workflows that use `TemporalModel` / `TemporalMCPToolset`
  * without booting a worker against a real Gemini endpoint or a real MCP server.
  * Import from the `./testing` subpath:
  *
- *   import { FakeLlm, fakeModelProvider, mockMcpToolset } from
+ *   import { FakeLlm, fakeModelProvider, mockMCPToolset } from
  *     '@temporalio/google-adk-agents/testing';
  */
 
@@ -25,31 +25,27 @@ import {
   type RunAsyncToolRequest,
 } from '@google/adk';
 
-import type { McpToolsetFactory } from './mcp.js';
+import type { MCPToolsetFactory } from './mcp.js';
 
 /**
  * A deterministic {@link BaseLlm} test double. Yields the provided
  * `responses`, or a single canned text response if none are given. Registered
  * for model names matching `fake*` / `fake-model`.
- *
- * @experimental
  */
 export class FakeLlm extends BaseLlm {
-  /** Model-name patterns this fake resolves for in the ADK registry. */
   static override readonly supportedModels: Array<string | RegExp> = [/^fake.*/, 'fake-model'];
 
   private readonly responses?: LlmResponse[];
 
   /**
-   * @param params    `{ model }` — the model name (default `'fake-model'`).
-   * @param responses Optional canned responses to yield in order.
+   * @param options `model` — the model name (default `'fake-model'`) — and
+   *                optional canned `responses` to yield in order.
    */
-  constructor(params: { model: string } = { model: 'fake-model' }, responses?: LlmResponse[]) {
-    super({ model: params.model });
-    this.responses = responses;
+  constructor(options: { model?: string; responses?: LlmResponse[] } = {}) {
+    super({ model: options.model ?? 'fake-model' });
+    this.responses = options.responses;
   }
 
-  /** Yields the canned responses (or a default text response). */
   override async *generateContentAsync(
     _llmRequest: LlmRequest,
     _stream = false,
@@ -66,7 +62,6 @@ export class FakeLlm extends BaseLlm {
     }
   }
 
-  /** Not supported by the fake. */
   override async connect(_llmRequest: LlmRequest): Promise<BaseLlmConnection> {
     throw new Error('FakeLlm does not support connect().');
   }
@@ -75,15 +70,13 @@ export class FakeLlm extends BaseLlm {
 /**
  * Returns a `modelProvider` (for `GoogleAdkPluginOptions.modelProvider`) that
  * resolves every model name to a {@link FakeLlm} yielding `responses`.
- *
- * @experimental
  */
 export function fakeModelProvider(responses?: LlmResponse[]): (model: string) => BaseLlm {
-  return (model: string) => new FakeLlm({ model }, responses);
+  return (model: string) => new FakeLlm({ model, responses });
 }
 
-/** A single tool definition for {@link mockMcpToolset}. @experimental */
-export interface MockMcpToolDefinition {
+/** A single tool definition for {@link mockMCPToolset}. */
+export interface MockMCPToolDefinition {
   /** The tool's full declaration (name + description + parameter schema). */
   declaration: FunctionDeclaration;
   /** Handler invoked for a tool call; receives the call arguments. */
@@ -92,33 +85,28 @@ export interface MockMcpToolDefinition {
 
 /**
  * An in-memory {@link BaseToolset} test double for MCP. Use via
- * {@link mockMcpToolset} as a `GoogleAdkPluginOptions.mcpToolsets` factory.
+ * {@link mockMCPToolset} as a `GoogleAdkPluginOptions.mcpToolsets` factory.
  */
-class MockMcpToolset extends BaseToolset {
-  private readonly definitions: MockMcpToolDefinition[];
+class MockMCPToolset extends BaseToolset {
+  private readonly definitions: MockMCPToolDefinition[];
 
-  /** @param definitions The tools this mock server exposes. */
-  constructor(definitions: MockMcpToolDefinition[]) {
+  constructor(definitions: MockMCPToolDefinition[]) {
     super([]);
     this.definitions = definitions;
   }
 
-  /** Returns the in-memory tools. */
   override async getTools(_context?: ReadonlyContext): Promise<BaseTool[]> {
-    return this.definitions.map((def) => new MockMcpTool(def));
+    return this.definitions.map((def) => new MockMCPTool(def));
   }
 
-  /** No-op. */
-  override async close(): Promise<void> {
-    /* nothing to close */
-  }
+  override async close(): Promise<void> {}
 }
 
-class MockMcpTool extends BaseTool {
+class MockMCPTool extends BaseTool {
   private readonly declaration: FunctionDeclaration;
   private readonly handler: (args: Record<string, unknown>) => unknown | Promise<unknown>;
 
-  constructor(def: MockMcpToolDefinition) {
+  constructor(def: MockMCPToolDefinition) {
     super({ name: def.declaration.name ?? 'mock', description: def.declaration.description ?? '' });
     this.declaration = def.declaration;
     this.handler = def.handler;
@@ -134,12 +122,10 @@ class MockMcpTool extends BaseTool {
 }
 
 /**
- * Returns an {@link McpToolsetFactory} that produces a {@link MockMcpToolset}
+ * Returns an {@link MCPToolsetFactory} that produces a {@link MockMCPToolset}
  * — drop into `GoogleAdkPluginOptions.mcpToolsets` to test MCP routing without
  * a real server.
- *
- * @experimental
  */
-export function mockMcpToolset(definitions: MockMcpToolDefinition[]): McpToolsetFactory {
-  return () => new MockMcpToolset(definitions);
+export function mockMCPToolset(definitions: MockMCPToolDefinition[]): MCPToolsetFactory {
+  return () => new MockMCPToolset(definitions);
 }

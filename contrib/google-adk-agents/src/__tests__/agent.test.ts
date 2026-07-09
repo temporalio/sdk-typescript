@@ -12,29 +12,17 @@
  */
 
 import test from 'ava';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
 
 import { GoogleAdkPlugin } from '../index.js';
 import { fakeModelProvider } from '../testing.js';
-import { countScheduledActivities, withWorker } from './helpers.js';
+import { countScheduledActivities, setupTestEnv, uid, withWorker } from './helpers.js';
 import { agentRunnerWorkflow } from './workflows.js';
 
-let env: TestWorkflowEnvironment;
-
-test.before(async () => {
-  env = await TestWorkflowEnvironment.createLocal();
-});
-
-test.after.always(async () => {
-  await env?.teardown();
-});
-
-function uid(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-}
+const getEnv = setupTestEnv(test);
 
 // Native ADK Runner integration (E2E)
 test.serial('runsLlmAgentThroughRunnerWithDurableModelCalls', async (t) => {
+  const env = getEnv();
   const taskQueue = uid('adk-agent');
   const workflowId = uid('wf-agent');
   const plugin = new GoogleAdkPlugin({ modelProvider: fakeModelProvider() });

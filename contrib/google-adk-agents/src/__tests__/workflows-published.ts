@@ -1,12 +1,12 @@
 /**
- * A Workflow fixture that imports the plugin barrel BY PACKAGE NAME
- * (`@temporalio/google-adk-agents`) rather than via a relative source path.
- * When the Worker bundles this file, webpack resolves the by-name import to the
- * compiled `lib` (the published artifact), so a successful bundle + run proves
- * the lib bundles into a Workflow with no webpack error and executes.
+ * A Workflow fixture that imports the workflow entry BY PACKAGE NAME
+ * (`@temporalio/google-adk-agents/workflow`) rather than via a relative source
+ * path. When the Worker bundles this file, webpack resolves the by-name import
+ * to the compiled `lib` (the published artifact), so a successful bundle + run
+ * proves the lib bundles into a Workflow with no webpack error and executes.
  */
 
-import { TemporalModel } from '@temporalio/google-adk-agents';
+import { TemporalModel } from '@temporalio/google-adk-agents/workflow';
 import type { LlmRequest } from '@google/adk';
 
 /** One model call through the lib-resolved `TemporalModel`; returns its text. */
