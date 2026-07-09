@@ -263,6 +263,7 @@ async fn client_invoke_workflow_service(
     match call.rpc.as_str() {
         "CountActivityExecutions" => rpc_call!(connection, call, count_activity_executions),
         "CountSchedules" => rpc_call!(connection, call, count_schedules),
+        "CountWorkers" => rpc_call!(connection, call, count_workers),
         "CountWorkflowExecutions" => rpc_call!(connection, call, count_workflow_executions),
         "CountNexusOperationExecutions" => {
             rpc_call!(connection, call, count_nexus_operation_executions)
