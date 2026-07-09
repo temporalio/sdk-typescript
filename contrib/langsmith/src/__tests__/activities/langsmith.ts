@@ -10,6 +10,18 @@ export async function simpleActivity(input: string): Promise<string> {
   return `did:${input}`;
 }
 
+export async function a(): Promise<string> {
+  return 'a';
+}
+
+export async function b(): Promise<string> {
+  return 'b';
+}
+
+export async function c(): Promise<string> {
+  return 'c';
+}
+
 /** A plain activity with no `traceable` in its body. */
 export async function plainActivity(input: string): Promise<string> {
   return `plain:${input}`;
