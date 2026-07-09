@@ -412,11 +412,11 @@ importers:
         version: 4.2.0
     devDependencies:
       '@openai/agents-core':
-        specifier: ~0.11.6
-        version: 0.11.6(zod@4.4.3)
+        specifier: ~0.13.0
+        version: 0.13.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.4.6)(zod@4.4.3)
       '@openai/agents-openai':
-        specifier: ~0.11.6
-        version: 0.11.6(zod@4.4.3)
+        specifier: ~0.13.0
+        version: 0.13.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.4.6)(zod@4.4.3)
       '@opentelemetry/core':
         specifier: ^1.25.1
         version: 1.25.1(@opentelemetry/api@1.9.1)
@@ -1926,16 +1926,16 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@openai/agents-core@0.11.6':
-    resolution: {integrity: sha512-jWeo4mF+zjp9R80OPg+9prAnwF53dIpok2ymp9OkC3DpK2qcqBO8CfoEgocNp+E5HXXFW4uvCaY0olNCCcmTFw==}
+  '@openai/agents-core@0.13.0':
+    resolution: {integrity: sha512-Y1ld/hKE1wa9UqII6fcN7FbPxUhAeREndX76xMfFj6cAJWMl8LkwV6cyNuq3rXuWr1h7YkVCPhK4Do4VoVKwCw==}
     peerDependencies:
       zod: ^4.0.0
     peerDependenciesMeta:
       zod:
         optional: true
 
-  '@openai/agents-openai@0.11.6':
-    resolution: {integrity: sha512-63zXy+EPmg3WErLO12jLEjCTqGBZ/f0ApsW/t5wpccqUYCtImIT6IYZDgGM+zSEafHNGJmNOwGtEqHjz/Pyl+A==}
+  '@openai/agents-openai@0.13.0':
+    resolution: {integrity: sha512-cKlRgXnIOpJtDiI0l4JGp4SX9eQj6H2UPVKZNGH1ERJI3HG5TBmhxVIOm+XBKtiKyg4jEd0ES9LFSvy2Tygmxg==}
     peerDependencies:
       zod: ^4.0.0
 
@@ -5040,6 +5040,26 @@ packages:
       zod:
         optional: true
 
+  openai@6.45.0:
+    resolution: {integrity: sha512-5DQVNErssk0afNpTTHUm/qZPU4iKR9OYdNid8Ib4puq4gHNNvGWZht2zY4h9a8JMF949Ik6m8gQutllVPbjdnw==}
+    peerDependencies:
+      '@aws-sdk/credential-provider-node': '>=3.972.0 <4'
+      '@smithy/hash-node': '>=4.3.0 <5'
+      '@smithy/signature-v4': '>=5.4.0 <6'
+      ws: ^8.18.0
+      zod: ^3.25 || ^4.0
+    peerDependenciesMeta:
+      '@aws-sdk/credential-provider-node':
+        optional: true
+      '@smithy/hash-node':
+        optional: true
+      '@smithy/signature-v4':
+        optional: true
+      ws:
+        optional: true
+      zod:
+        optional: true
+
   optionator@0.8.3:
     resolution: {integrity: sha512-+IW9pACdk3XWmmTXG8m3upGUJst5XRGzxMRjXzAuJ1XnIFNvfhjjIuYkDvysnPQ7qzqVzLt78BCruntqRhWQbA==}
     engines: {node: '>= 0.8.0'}
@@ -7203,26 +7223,32 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.16.0
 
-  '@openai/agents-core@0.11.6(zod@4.4.3)':
+  '@openai/agents-core@0.13.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.4.6)(zod@4.4.3)':
     dependencies:
       debug: 4.4.3
-      openai: 6.36.0(zod@4.4.3)
+      openai: 6.45.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.4.6)(zod@4.4.3)
     optionalDependencies:
       '@modelcontextprotocol/sdk': 1.26.0(zod@4.4.3)
       zod: 4.4.3
     transitivePeerDependencies:
+      - '@aws-sdk/credential-provider-node'
       - '@cfworker/json-schema'
+      - '@smithy/hash-node'
+      - '@smithy/signature-v4'
       - supports-color
       - ws
 
-  '@openai/agents-openai@0.11.6(zod@4.4.3)':
+  '@openai/agents-openai@0.13.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.4.6)(zod@4.4.3)':
     dependencies:
-      '@openai/agents-core': 0.11.6(zod@4.4.3)
+      '@openai/agents-core': 0.13.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.4.6)(zod@4.4.3)
       debug: 4.4.3
-      openai: 6.36.0(zod@4.4.3)
+      openai: 6.45.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.4.6)(zod@4.4.3)
       zod: 4.4.3
     transitivePeerDependencies:
+      - '@aws-sdk/credential-provider-node'
       - '@cfworker/json-schema'
+      - '@smithy/hash-node'
+      - '@smithy/signature-v4'
       - supports-color
       - ws
 
@@ -7743,7 +7769,7 @@ snapshots:
       '@opentelemetry/sdk-trace-node': 2.7.1(@opentelemetry/api@1.9.1)
       '@smithy/types': 4.14.3
       express: 5.2.1
-      openai: 6.36.0(zod@4.4.3)
+      openai: 6.45.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.4.6)(zod@4.4.3)
 
   '@swc/core-darwin-arm64@1.3.102':
     optional: true
@@ -10671,6 +10697,12 @@ snapshots:
 
   openai@6.36.0(zod@4.4.3):
     optionalDependencies:
+      zod: 4.4.3
+
+  openai@6.45.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.4.6)(zod@4.4.3):
+    optionalDependencies:
+      '@aws-sdk/credential-provider-node': 3.972.58
+      '@smithy/signature-v4': 5.4.6
       zod: 4.4.3
 
   optionator@0.8.3:
