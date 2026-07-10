@@ -1,9 +1,9 @@
+import type { Type as ProtobufType } from 'protobufjs';
 import { defaultPayloadConverter } from '@temporalio/common';
 import type { Payload, PayloadCodec, SerializationContext } from '@temporalio/common';
 import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
 import { decode, encode } from '@temporalio/common/lib/internal-non-workflow';
 import * as protoRoot from '@temporalio/proto';
-import type { Type as ProtobufType } from 'protobufjs';
 import { operationRegistry } from '@temporalio/workflow/lib/nexus/system/generated/service';
 import { visitSystemNexusPayloads } from './system-nexus-payload-visitor';
 import type { SystemNexusMessage, SystemNexusMessageByType } from './system-nexus-payload-visitor';
