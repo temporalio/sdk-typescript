@@ -51,6 +51,7 @@ export {
   RootWorkflowInfo,
   StackTraceSDKInfo,
   StackTrace,
+  UnsafeRandomSource,
   UnsafeWorkflowInfo,
   WorkflowInfo,
 } from '../../../interfaces';

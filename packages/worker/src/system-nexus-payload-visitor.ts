@@ -14,20 +14,21 @@ type PayloadVisitor = (payload: Payload) => Promise<Payload>;
 type PayloadsVisitor = (payloads: Payload[]) => Promise<Payload[]>;
 
 export async function visitSystemNexusPayloads(
+  messageType: keyof SystemNexusMessageByType,
   message: SystemNexusMessage,
   visitPayload: PayloadVisitor,
   visitPayloads: PayloadsVisitor
 ): Promise<void> {
-  if (message instanceof temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionRequest) {
+  if (messageType === 'temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionRequest') {
     await visit_temporal_api_workflowservice_v1_SignalWithStartWorkflowExecutionRequest(
-      message,
+      message as SystemNexusMessageByType['temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionRequest'],
       visitPayload,
       visitPayloads
     );
     return;
-  } else if (message instanceof temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionResponse) {
+  } else if (messageType === 'temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionResponse') {
     await visit_temporal_api_workflowservice_v1_SignalWithStartWorkflowExecutionResponse(
-      message,
+      message as SystemNexusMessageByType['temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionResponse'],
       visitPayload,
       visitPayloads
     );

@@ -39,6 +39,7 @@ export async function tryConvertSystemNexusInputJsonToProtoBinaryPayload(
   // objects/arrays, so restore them before protobuf binary encoding.
   normalizePayloadBytes(message);
   await visitSystemNexusPayloads(
+    op.inputType,
     message,
     (single) => encode(codecs, [single], context).then(([encoded]) => encoded!),
     (payloads) => encode(codecs, payloads, context)
@@ -63,6 +64,7 @@ export async function tryConvertSystemNexusOutputProtoBinaryToJsonPayload(
 
   const message = protobufPayloadConverter.fromPayload<SystemNexusMessage>(payload);
   await visitSystemNexusPayloads(
+    op.outputType,
     message,
     (single) => decode(codecs, [single], context).then(([decoded]) => decoded!),
     (payloads) => decode(codecs, payloads, context)

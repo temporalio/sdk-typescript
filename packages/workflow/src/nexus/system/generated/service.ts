@@ -6,7 +6,7 @@ import type { temporal } from '@temporalio/proto';
 /**
  * @experimental This API is experimental and subject to change.
  */
-export const WorkflowService = nexus.service('temporal.api.workflowservice.v1.WorkflowService', {
+export const workflowService = nexus.service('temporal.api.workflowservice.v1.WorkflowService', {
   /**
    * @experimental This API is experimental and subject to change.
    */

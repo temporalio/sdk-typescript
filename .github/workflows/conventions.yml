@@ -48,7 +48,7 @@ jobs:
           save-if: false
 
       - name: Install nex-gen
-        run: cargo install --force --locked nex-gen --version 0.1.4
+        run: cargo install --force --locked nex-gen --version 0.1.5
 
       - name: Generate code
         run: |

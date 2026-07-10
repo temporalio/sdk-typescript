@@ -7,11 +7,12 @@ import * as ts from 'typescript';
 
 const repoRoot = resolve(__dirname, '..');
 const protoBaseDir = resolve(repoRoot, 'packages/core-bridge/sdk-core/crates/protos/protos');
+const nexusWitDir = resolve(protoBaseDir, 'api_upstream/nexus');
 const workflowSrcDir = resolve(repoRoot, 'packages/workflow/src');
 const workflowIndexPath = resolve(workflowSrcDir, 'index.ts');
 const workflowSystemNexusDir = resolve(repoRoot, 'packages/workflow/system-nexus');
-const witPath = resolve(workflowSystemNexusDir, 'wit/workflow-service.wit');
-const witDepsPath = resolve(workflowSystemNexusDir, 'wit/deps');
+const witPath = resolve(nexusWitDir, 'workflow-service.wit');
+const witDepsPath = resolve(nexusWitDir, 'deps');
 const supportPath = resolve(workflowSystemNexusDir, 'typescript/temporal_model_converters.ts');
 const workflowOutputDir = resolve(workflowSrcDir, 'nexus/system/generated');
 const workerVisitorPath = resolve(repoRoot, 'packages/worker/src/system-nexus-payload-visitor.ts');
@@ -470,13 +471,16 @@ function generateWorkerVisitor(operations: OperationInfo[], messages: Map<string
       'type PayloadsVisitor = (payloads: Payload[]) => Promise<Payload[]>;',
       '',
       'export async function visitSystemNexusPayloads(',
+      '  messageType: keyof SystemNexusMessageByType,',
       '  message: SystemNexusMessage,',
       '  visitPayload: PayloadVisitor,',
       '  visitPayloads: PayloadsVisitor',
       '): Promise<void> {',
       ...operationMessageTypes.flatMap((message, index) => [
-        `  ${index === 0 ? 'if' : 'else if'} (message instanceof ${protoClassName(message)}) {`,
-        `    await ${visitMethodName(message)}(message, visitPayload, visitPayloads);`,
+        `  ${index === 0 ? 'if' : 'else if'} (messageType === ${JSON.stringify(message.fullName)}) {`,
+        `    await ${visitMethodName(message)}(message as SystemNexusMessageByType[${JSON.stringify(
+          message.fullName
+        )}], visitPayload, visitPayloads);`,
         '    return;',
         '  }',
       ]),

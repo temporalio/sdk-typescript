@@ -6,7 +6,7 @@ import type { temporal } from '@temporalio/proto';
 import {
   retryPolicyToProto,
   workflowTypeToProto,
-  signalFunctionToProto,
+  signalFunctionName,
   taskQueueToProto,
   workflowNamespace,
   payloadFromProto,
@@ -234,7 +234,7 @@ export function signalWithStartWorkflowRequestToProto<
     input: requestArgsToPayloads(model.args),
     workflowId: requiredField(model.id, 'SignalWithStartWorkflowRequest', 'id'),
     taskQueue: taskQueueToProto(requiredField(model.taskQueue, 'SignalWithStartWorkflowRequest', 'taskQueue')),
-    signalName: signalFunctionToProto(requiredField(model.signal, 'SignalWithStartWorkflowRequest', 'signal')),
+    signalName: signalFunctionName(requiredField(model.signal, 'SignalWithStartWorkflowRequest', 'signal')),
     signalInput: requestArgsToPayloads(model.signalArgs),
     workflowExecutionTimeout: model.executionTimeout == null ? undefined : durationToProto(model.executionTimeout),
     workflowRunTimeout: model.runTimeout == null ? undefined : durationToProto(model.runTimeout),
