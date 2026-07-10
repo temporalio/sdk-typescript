@@ -1,4 +1,4 @@
-import type { ProviderV3 } from '@ai-sdk/provider';
+import type { ProviderV4 } from '@ai-sdk/provider';
 import { SimplePlugin } from '@temporalio/plugin';
 import { createActivities } from './activities';
 import type { McpClientFactories } from './mcp';
@@ -9,7 +9,7 @@ import type { McpClientFactories } from './mcp';
  * @experimental The AI SDK plugin is an experimental feature; APIs may change without notice.
  */
 export interface AiSdkPluginOptions {
-  modelProvider: ProviderV3;
+  modelProvider: ProviderV4;
 
   /**
    * This object contains a mapping of server names to functions which create MCP clients.
@@ -21,6 +21,9 @@ export interface AiSdkPluginOptions {
 /**
  * A Temporal plugin that integrates AI SDK providers for use in workflows.
  * This plugin creates activities that allow workflows to invoke AI models.
+ *
+ * Workflow code should import from `@temporalio/ai-sdk/workflow` (not the package root) so the
+ * workflow bundle doesn't pull in the worker-side activities and their disallowed imports.
  *
  * @experimental The AI SDK plugin is an experimental feature; APIs may change without notice.
  */

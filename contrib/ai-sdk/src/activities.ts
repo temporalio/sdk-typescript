@@ -1,14 +1,14 @@
 import type {
-  LanguageModelV3CallOptions,
-  LanguageModelV3Content,
-  LanguageModelV3FinishReason,
-  LanguageModelV3GenerateResult,
-  LanguageModelV3Usage,
-  EmbeddingModelV3Result,
-  SharedV3ProviderOptions,
-  SharedV3Headers,
-  SharedV3Warning,
-  ProviderV3,
+  LanguageModelV4CallOptions,
+  LanguageModelV4Content,
+  LanguageModelV4FinishReason,
+  LanguageModelV4GenerateResult,
+  LanguageModelV4Usage,
+  EmbeddingModelV4Result,
+  SharedV4ProviderOptions,
+  SharedV4Headers,
+  SharedV4Warning,
+  ProviderV4,
 } from '@ai-sdk/provider';
 import { asSchema, type Schema, type ToolExecutionOptions } from 'ai';
 import { ApplicationFailure } from '@temporalio/common';
@@ -24,7 +24,7 @@ const encoder = new TextEncoder();
  */
 export interface InvokeModelArgs {
   modelId: string;
-  options: LanguageModelV3CallOptions;
+  options: LanguageModelV4CallOptions;
 }
 
 /**
@@ -32,16 +32,16 @@ export interface InvokeModelArgs {
  */
 export interface InvokeModelStreamingArgs extends InvokeModelArgs {
   modelId: string;
-  options: LanguageModelV3CallOptions;
+  options: LanguageModelV4CallOptions;
   streamingTopic: string;
   streamingBatchInterval?: Duration;
 }
 
 /**
  * Result from a language model invocation.
- * This is an alias to the AI SDK's LanguageModelV3GenerateResult for type safety.
+ * This is an alias to the AI SDK's LanguageModelV4GenerateResult for type safety.
  */
-export type InvokeModelResult = LanguageModelV3GenerateResult;
+export type InvokeModelResult = LanguageModelV4GenerateResult;
 
 /**
  * Arguments for invoking an embedding model activity.
@@ -51,15 +51,15 @@ export type InvokeModelResult = LanguageModelV3GenerateResult;
 export interface InvokeEmbeddingModelArgs {
   modelId: string;
   values: string[];
-  providerOptions?: SharedV3ProviderOptions;
-  headers?: SharedV3Headers;
+  providerOptions?: SharedV4ProviderOptions;
+  headers?: SharedV4Headers;
 }
 
 /**
  * Result from an embedding model invocation.
- * This is an alias to the AI SDK's EmbeddingModelV3Result for type safety.
+ * This is an alias to the AI SDK's EmbeddingModelV4Result for type safety.
  */
-export type InvokeEmbeddingModelResult = EmbeddingModelV3Result;
+export type InvokeEmbeddingModelResult = EmbeddingModelV4Result;
 
 export interface ListToolResult {
   description?: string;
@@ -74,7 +74,7 @@ export interface CallToolArgs {
   clientArgs?: unknown;
   name: string;
   input: unknown;
-  options: ToolExecutionOptions;
+  options: ToolExecutionOptions<unknown>;
 }
 
 /**
@@ -88,7 +88,7 @@ export interface CallToolArgs {
  *
  * @experimental The AI SDK integration is an experimental feature; APIs may change without notice.
  */
-export function createActivities(provider: ProviderV3, mcpClientFactories?: McpClientFactories): object {
+export function createActivities(provider: ProviderV4, mcpClientFactories?: McpClientFactories): object {
   let activities = {
     async invokeModel(args: InvokeModelArgs): Promise<InvokeModelResult> {
       const model = provider.languageModel(args.modelId);
@@ -100,9 +100,10 @@ export function createActivities(provider: ProviderV3, mcpClientFactories?: McpC
      *
      * Calls `model.doStream()`, publishes each yielded AI SDK stream part
      * as JSON to the stream side channel, and returns the assembled
-     * `LanguageModelV3GenerateResult`. Consumers receive native AI SDK
+     * `LanguageModelV4GenerateResult`. Consumers receive native AI SDK
      * stream-part types (text-delta, reasoning-delta, tool-input-delta,
-     * response-metadata, finish, ...); no normalization happens here.
+     * response-metadata, finish, ...) and must tolerate part types they
+     * don't recognize; no normalization happens here.
      */
     async invokeModelStreaming(args: InvokeModelStreamingArgs): Promise<InvokeModelResult> {
       await using stream = WorkflowStreamClient.fromWithinActivity({
@@ -113,14 +114,16 @@ export function createActivities(provider: ProviderV3, mcpClientFactories?: McpC
       const model = provider.languageModel(args.modelId);
       const streamResult = await model.doStream(args.options);
 
-      const content: LanguageModelV3Content[] = [];
-      let finishReason: LanguageModelV3FinishReason = { unified: 'other', raw: undefined };
-      let usage: LanguageModelV3Usage = {
+      const content: LanguageModelV4Content[] = [];
+      let finishReason: LanguageModelV4FinishReason = { unified: 'other', raw: undefined };
+      let usage: LanguageModelV4Usage = {
         inputTokens: { total: undefined, noCache: undefined, cacheRead: undefined, cacheWrite: undefined },
         outputTokens: { total: undefined, text: undefined, reasoning: undefined },
       };
-      const warnings: SharedV3Warning[] = [];
+      const warnings: SharedV4Warning[] = [];
       let responseMetadata: Record<string, unknown> | undefined;
+      let sawFinish = false;
+      let streamError: unknown;
 
       const textBlocks = new Map<string, string>();
       const reasoningBlocks = new Map<string, string>();
@@ -180,20 +183,38 @@ export function createActivities(provider: ProviderV3, mcpClientFactories?: McpC
           case 'finish':
             finishReason = part.finishReason;
             usage = part.usage;
+            sawFinish = true;
+            break;
+          case 'raw':
+            // Provider-specific raw chunks are published above but not part of the assembled result.
+            break;
+          case 'error':
+            streamError = part.error;
             break;
           default:
-            // tool-call, tool-result, file, source — collect as content
+            // tool-call, tool-result, file, source, reasoning-file, custom,
+            // tool-approval-request — collect as content (stream-part and
+            // content shapes are identical for these types)
             if (
               'type' in part &&
               (part.type === 'tool-call' ||
                 part.type === 'tool-result' ||
                 part.type === 'file' ||
-                part.type === 'source')
+                part.type === 'source' ||
+                part.type === 'reasoning-file' ||
+                part.type === 'custom' ||
+                part.type === 'tool-approval-request')
             ) {
               content.push(part);
             }
             break;
         }
+      }
+
+      if (streamError !== undefined && !sawFinish) {
+        throw ApplicationFailure.retryable(
+          `Model stream emitted an error and ended without a finish part: ${streamError}`
+        );
       }
 
       return {
@@ -235,7 +256,9 @@ function activitiesForName(name: string, mcpClientFactory: McpClientFactory): ob
         Object.entries(tools).map(([k, v]) => [
           k,
           {
-            description: v.description,
+            // Function-valued descriptions (resolved per tool context) cannot cross the
+            // activity boundary; only plain strings are preserved.
+            description: typeof v.description === 'string' ? v.description : undefined,
             // Convert the FlexibleSchema to a Schema so that the shape is known outside the activity
             inputSchema: asSchema(v.inputSchema),
           },

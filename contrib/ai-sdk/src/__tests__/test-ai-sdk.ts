@@ -3,19 +3,18 @@
  */
 import { randomUUID } from 'crypto';
 import type {
-  EmbeddingModelV3,
-  EmbeddingModelV3CallOptions,
-  EmbeddingModelV3Result,
-  ImageModelV3,
-  LanguageModelV3,
-  LanguageModelV3CallOptions,
-  LanguageModelV3Content,
-  LanguageModelV3FinishReason,
-  LanguageModelV3GenerateResult,
-  LanguageModelV3StreamResult,
-  LanguageModelV3Usage,
-  ProviderV3,
-  TranscriptionModelV3,
+  EmbeddingModelV4,
+  EmbeddingModelV4CallOptions,
+  EmbeddingModelV4Result,
+  ImageModelV4,
+  LanguageModelV4,
+  LanguageModelV4CallOptions,
+  LanguageModelV4Content,
+  LanguageModelV4FinishReason,
+  LanguageModelV4GenerateResult,
+  LanguageModelV4StreamResult,
+  LanguageModelV4Usage,
+  ProviderV4,
 } from '@ai-sdk/provider';
 import { openai } from '@ai-sdk/openai';
 import type { TestFn } from 'ava';
@@ -26,7 +25,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp';
+import { createMCPClient } from '@ai-sdk/mcp';
 import { temporal } from '@temporalio/proto';
 import { WorkflowClient } from '@temporalio/client';
 import type { OpenTelemetrySinks } from '@temporalio/interceptors-opentelemetry';
@@ -64,10 +63,10 @@ import EventType = temporal.api.enums.v1.EventType;
 
 const remoteTests = ['1', 't', 'true'].includes((process.env.AI_SDK_REMOTE_TESTS ?? 'false').toLowerCase());
 
-export type ModelResponse = LanguageModelV3GenerateResult;
+export type ModelResponse = LanguageModelV4GenerateResult;
 
-export class TestModel implements LanguageModelV3 {
-  readonly specificationVersion = 'v3';
+export class TestModel implements LanguageModelV4 {
+  readonly specificationVersion = 'v4';
   readonly provider = 'temporal';
   readonly modelId = 'TestModel';
   private generator: Generator<ModelResponse>;
@@ -81,7 +80,7 @@ export class TestModel implements LanguageModelV3 {
     return {};
   }
 
-  async doGenerate(_: LanguageModelV3CallOptions): Promise<LanguageModelV3GenerateResult> {
+  async doGenerate(_: LanguageModelV4CallOptions): Promise<LanguageModelV4GenerateResult> {
     if (this.done) {
       throw new Error('Called generate more times than responses given to the test generator');
     }
@@ -91,15 +90,15 @@ export class TestModel implements LanguageModelV3 {
     return result.value;
   }
 
-  doStream(_options: LanguageModelV3CallOptions): PromiseLike<LanguageModelV3StreamResult> {
+  doStream(_options: LanguageModelV4CallOptions): PromiseLike<LanguageModelV4StreamResult> {
     throw new Error('Streaming not supported.');
   }
 }
 
-export type EmbeddingResponse = EmbeddingModelV3Result;
+export type EmbeddingResponse = EmbeddingModelV4Result;
 
-export class TestEmbeddingModel implements EmbeddingModelV3 {
-  readonly specificationVersion = 'v3';
+export class TestEmbeddingModel implements EmbeddingModelV4 {
+  readonly specificationVersion = 'v4';
   readonly provider = 'temporal';
   readonly modelId = 'TestEmbeddingModel';
   readonly maxEmbeddingsPerCall = undefined;
@@ -111,7 +110,7 @@ export class TestEmbeddingModel implements EmbeddingModelV3 {
     this.generator = generator;
   }
 
-  async doEmbed(_options: EmbeddingModelV3CallOptions): Promise<EmbeddingModelV3Result> {
+  async doEmbed(_options: EmbeddingModelV4CallOptions): Promise<EmbeddingModelV4Result> {
     if (this.done) {
       throw new Error('Called embed more times than responses given to the test generator');
     }
@@ -122,8 +121,8 @@ export class TestEmbeddingModel implements EmbeddingModelV3 {
   }
 }
 
-export class TestProvider implements ProviderV3 {
-  readonly specificationVersion = 'v3';
+export class TestProvider implements ProviderV4 {
+  readonly specificationVersion = 'v4';
   private languageModelGenerator: Generator<ModelResponse>;
   private embeddingModelGenerator?: Generator<EmbeddingResponse>;
 
@@ -135,33 +134,29 @@ export class TestProvider implements ProviderV3 {
     this.embeddingModelGenerator = embeddingModelGenerator;
   }
 
-  imageModel(_modelId: string): ImageModelV3 {
+  imageModel(_modelId: string): ImageModelV4 {
     throw new Error('Not implemented');
   }
 
-  languageModel(_modelId: string): LanguageModelV3 {
+  languageModel(_modelId: string): LanguageModelV4 {
     return new TestModel(this.languageModelGenerator);
   }
 
-  embeddingModel(_modelId: string): EmbeddingModelV3 {
+  embeddingModel(_modelId: string): EmbeddingModelV4 {
     if (!this.embeddingModelGenerator) {
       throw new Error('Embedding model generator not provided');
     }
     return new TestEmbeddingModel(this.embeddingModelGenerator);
   }
-
-  transcriptionModel(_modelId: string): TranscriptionModelV3 {
-    throw new Error('Not implemented');
-  }
 }
 
 function createFinishReason(
   unified: 'stop' | 'length' | 'content-filter' | 'tool-calls' | 'error' | 'other'
-): LanguageModelV3FinishReason {
+): LanguageModelV4FinishReason {
   return { unified, raw: undefined };
 }
 
-function createUsage(inputTokens: number = 10, outputTokens: number = 20): LanguageModelV3Usage {
+function createUsage(inputTokens: number = 10, outputTokens: number = 20): LanguageModelV4Usage {
   return {
     inputTokens: {
       total: inputTokens,
@@ -178,8 +173,8 @@ function createUsage(inputTokens: number = 10, outputTokens: number = 20): Langu
 }
 
 function contentResponse(
-  content: LanguageModelV3Content[],
-  finishReason: LanguageModelV3FinishReason = createFinishReason('stop')
+  content: LanguageModelV4Content[],
+  finishReason: LanguageModelV4FinishReason = createFinishReason('stop')
 ): ModelResponse {
   return {
     content,
@@ -500,7 +495,13 @@ test('Telemetry', async (t) => {
       });
     });
     await otel.shutdown();
-    const generateSpan = spans.find(({ name }) => name === `ai.generateText`);
+    t.log(
+      'exported spans:',
+      spans.map(({ name }) => name)
+    );
+    // @ai-sdk/otel's OpenTelemetry integration names spans `${operationName} ${modelId}`
+    // following the GenAI semantic conventions; generateText maps to `invoke_agent`.
+    const generateSpan = spans.find(({ name }) => name === `invoke_agent gpt-4o-mini`);
     t.true(generateSpan !== undefined);
   } finally {
     // Cleanup the runtime so that it doesn't interfere with other tests
