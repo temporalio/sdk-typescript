@@ -39,8 +39,26 @@ export interface WorkflowRunOperationToken extends OperationToken {
 }
 
 /**
- * OperationTokenType is used to identify the type of Operation token.
- * Currently, we only have one type of Operation token: WorkflowRun.
+ * An OperationToken that identifies an UpdateWorkflow operation.
+ *
+ * Unlike {@link WorkflowRunOperationToken}, it carries the run and update IDs so the update can be
+ * addressed for cancellation.
+ *
+ * @internal
+ * @hidden
+ */
+export interface UpdateWorkflowOperationToken extends OperationToken {
+  t: typeof OperationTokenType.UPDATE_WORKFLOW;
+  wid: string;
+  /** Run ID of the workflow being updated. Omitted from the token when the run was not pinned. */
+  rid?: string;
+  /** ID of the update. */
+  uid: string;
+}
+
+/**
+ * OperationTokenType is used to identify the type of Operation token, following the Nexus Operation
+ * Token Format: Reserved = 0, WorkflowRun = 1, Activity = 2, UpdateWorkflow = 3.
  *
  * @internal
  * @hidden
@@ -48,11 +66,17 @@ export interface WorkflowRunOperationToken extends OperationToken {
 export type OperationTokenType = (typeof OperationTokenType)[keyof typeof OperationTokenType];
 
 /**
+ * Known, currently-supported Operation token types.
+ *
+ * Activity (2) is intentionally omitted: it is a reserved value in the token format spec but is not
+ * yet supported by this SDK, so tokens carrying that type are rejected as unknown.
+ *
  * @internal
  * @hidden
  */
 export const OperationTokenType = {
   WORKFLOW_RUN: 1,
+  UPDATE_WORKFLOW: 3,
 } as const;
 
 /**
@@ -63,6 +87,38 @@ export function generateWorkflowRunOperationToken(namespace: string, workflowId:
     t: OperationTokenType.WORKFLOW_RUN,
     ns: namespace,
     wid: workflowId,
+  };
+  return base64URLEncodeNoPadding(JSON.stringify(token));
+}
+
+/**
+ * Generate an update workflow Operation token.
+ *
+ * @throws {TypeError} if `namespace`, `workflowId`, or `updateId` is empty.
+ */
+export function generateUpdateWorkflowOperationToken(
+  namespace: string,
+  workflowId: string,
+  runId: string,
+  updateId: string
+): string {
+  if (!namespace) {
+    throw new TypeError('invalid update workflow token: missing namespace');
+  }
+  if (!workflowId) {
+    throw new TypeError('invalid update workflow token: missing workflow ID (wid)');
+  }
+  if (!updateId) {
+    throw new TypeError('invalid update workflow token: missing update ID (uid)');
+  }
+
+  const token: UpdateWorkflowOperationToken = {
+    t: OperationTokenType.UPDATE_WORKFLOW,
+    ns: namespace,
+    wid: workflowId,
+    // `rid` is optional, so omit it if not present
+    ...(runId ? { rid: runId } : {}),
+    uid: updateId,
   };
   return base64URLEncodeNoPadding(JSON.stringify(token));
 }
@@ -126,6 +182,35 @@ export function assertWorkflowRunOperationToken(token: OperationToken): asserts 
   }
   if (!token.wid || typeof token.wid !== 'string') {
     throw new TypeError('invalid workflow run token: missing workflow ID (wid)');
+  }
+}
+
+/**
+ * Load and validate an update workflow Operation token.
+ */
+export function loadUpdateWorkflowOperationToken(data: string): UpdateWorkflowOperationToken {
+  const token = loadOperationToken(data);
+  assertUpdateWorkflowOperationToken(token);
+  return token;
+}
+
+/**
+ * Assert that an OperationToken identifies an update workflow.
+ */
+export function assertUpdateWorkflowOperationToken(
+  token: OperationToken
+): asserts token is UpdateWorkflowOperationToken {
+  if (token.t !== OperationTokenType.UPDATE_WORKFLOW) {
+    throw new TypeError(
+      `invalid update workflow token type: ${token.t}, expected: ${OperationTokenType.UPDATE_WORKFLOW}`
+    );
+  }
+  if (!token.wid || typeof token.wid !== 'string') {
+    throw new TypeError('invalid update workflow token: missing workflow ID (wid)');
+  }
+  const uid = (token as UpdateWorkflowOperationToken).uid;
+  if (!uid || typeof uid !== 'string') {
+    throw new TypeError('invalid update workflow token: missing update ID (uid)');
   }
 }
 

@@ -5,6 +5,7 @@ import { temporal } from '@temporalio/proto';
 const { EventType } = temporal.api.enums.v1;
 type TemporalLink = temporal.api.common.v1.ILink;
 type WorkflowEventLink = temporal.api.common.v1.Link.IWorkflowEvent;
+type WorkflowLink = temporal.api.common.v1.Link.IWorkflow;
 type NexusOperationLink = temporal.api.common.v1.Link.INexusOperation;
 type EventReference = temporal.api.common.v1.Link.WorkflowEvent.IEventReference;
 type RequestIdReference = temporal.api.common.v1.Link.WorkflowEvent.IRequestIdReference;
@@ -20,6 +21,7 @@ const REQUEST_ID_REFERENCE_TYPE = 'RequestIdReference';
 // fullName isn't part of the generated typed unfortunately.
 const WORKFLOW_EVENT_TYPE: string = (temporal.api.common.v1.Link.WorkflowEvent as any).fullName.slice(1);
 const NEXUS_OPERATION_TYPE: string = (temporal.api.common.v1.Link.NexusOperation as any).fullName.slice(1);
+const WORKFLOW_TYPE: string = (temporal.api.common.v1.Link.Workflow as any).fullName.slice(1);
 
 export function convertTemporalLinkToNexusLink(link: TemporalLink): NexusLink {
   if (link.workflowEvent != null) {
@@ -73,6 +75,48 @@ export function convertWorkflowEventLinkToNexusLink(we: WorkflowEventLink): Nexu
     url,
     type: WORKFLOW_EVENT_TYPE,
   };
+}
+
+/**
+ * Converts a plain Workflow link (as opposed to a {@link WorkflowEventLink}) to a Nexus link.
+ *
+ * Used to point at a Workflow when there is no specific history event to reference, e.g. when an
+ * UpdateWorkflow-backed Nexus operation fails validation and no Update Accepted event exists. The
+ * resulting URL is the workflow history URL without a reference query; the link is distinguished
+ * from a workflow event link by its {@link NexusLink.type}.
+ */
+export function convertWorkflowLinkToNexusLink(wl: WorkflowLink): NexusLink {
+  if (!wl.namespace || !wl.workflowId) {
+    throw new TypeError(
+      `Missing required fields: namespace or workflowId (namespace=${wl.namespace}, workflowId=${wl.workflowId})`
+    );
+  }
+  const url = new URL(
+    `temporal:///namespaces/${encodeURIComponent(wl.namespace)}/workflows/${encodeURIComponent(
+      wl.workflowId
+    )}/${encodeURIComponent(wl.runId ?? '')}/history`
+  );
+
+  return {
+    url,
+    type: WORKFLOW_TYPE,
+  };
+}
+
+/**
+ * Converts a Temporal common Link into a Nexus link, preferring a {@link WorkflowEventLink} when
+ * present and falling back to a plain {@link WorkflowLink}. The fallback safely points at a workflow
+ * for cases where a Nexus operation fails before a history event exists (e.g. UpdateWorkflow
+ * validation failure).
+ */
+export function convertCommonLinkToNexusLink(link: TemporalLink): NexusLink {
+  if (link.workflowEvent != null) {
+    return convertWorkflowEventLinkToNexusLink(link.workflowEvent);
+  }
+  if (link.workflow != null) {
+    return convertWorkflowLinkToNexusLink(link.workflow);
+  }
+  throw new TypeError('Invalid Temporal link - workflow and workflowEvent fields were null');
 }
 
 export function convertNexusOperationLinkToNexusLink(opLink: NexusOperationLink): NexusLink {
