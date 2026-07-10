@@ -78,7 +78,7 @@
   },
   "pnpm": {
     "patchedDependencies": {
-      "protobufjs@7.6.2": "patches/protobufjs@7.6.2.patch"
+      "protobufjs@^7.6.4": "patches/protobufjs@7.6.2.patch"
     }
   }
 }

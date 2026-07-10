@@ -15,6 +15,7 @@
     "@temporalio/openai-agents": "workspace:*",
     "@temporalio/plugin": "workspace:*",
     "@temporalio/proto": "workspace:*",
+    "@temporalio/strands-agents": "workspace:*",
     "@temporalio/testing": "workspace:*",
     "@temporalio/worker": "workspace:*",
     "@temporalio/workflow": "workspace:*",
@@ -45,5 +46,5 @@
     "src",
     "lib"
   ],
-  "version": "1.18.1"
+  "version": "1.20.0"
 }

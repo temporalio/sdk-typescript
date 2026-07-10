@@ -17,18 +17,10 @@ export function isFireAndForgetActivity(activityType: string): boolean {
   return FIRE_AND_FORGET_ACTIVITY_SUFFIXES.some((s) => activityType.endsWith(s));
 }
 
-// `spanId` is required for read-only handlers — their PRNG consumption isn't
-// persisted to history, so generated IDs can collide with body spans.
-export function maybeTemporalSpan<T>(
-  spanName: string,
-  fn: () => T,
-  data?: Record<string, unknown>,
-  spanId?: string
-): T {
+export function maybeTemporalSpan<T>(spanName: string, fn: () => T, data?: Record<string, unknown>): T {
   if (shouldAddTemporalSpans() && getCurrentTrace()) {
     const span = createCustomSpan({
       data: { name: spanName, data: data ?? {} },
-      ...(spanId !== undefined ? { spanId } : {}),
     });
     return withScopedSpan(span, fn);
   }

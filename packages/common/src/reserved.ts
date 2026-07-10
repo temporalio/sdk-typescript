@@ -20,6 +20,8 @@ const INTERNAL_RESERVED_NAME_ALLOWLIST: ReadonlyMap<string, ReservedNameEntityTy
   ['__temporal_workflow_stream_offset', 'query'],
   // @temporalio/openai-agents
   ['__temporal_openai_agents_tracing', 'sink'],
+  // @temporalio/langsmith
+  ['__temporal_langsmith', 'sink'],
 ]);
 
 /**

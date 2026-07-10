@@ -99,7 +99,6 @@ Differences from the upstream runner:
 
 - `runConfig.model` must be a model name string. The Worker's `modelProvider` resolves it inside the model Activity.
 - `signal` is not supported. Use Temporal cancellation APIs, such as `CancellationScope`, to cancel Workflow work.
-- `runStreamed()` is not currently supported.
 
 ### Run state and approvals
 
@@ -162,6 +161,62 @@ export async function approvalWorkflow(input: ApprovalInput = {}): Promise<strin
 ```
 
 The agent passed to `RunState.fromString` must define the same tool names, handoff graph, and MCP servers as the run that produced the serialized state.
+
+### Streaming
+
+> **Experimental** — streaming support is subject to change prior to General Availability.
+
+Pass `{ stream: true }` to `run()` to stream incremental events as the model responds. The call returns the upstream `StreamedRunResult`, an async-iterable of agent-SDK stream events. Inside a Workflow, each model call executes as a streaming Activity (`invokeModelStreamActivity`) that consumes `Model.getStreamedResponse` and returns the collected list of native model events. The Workflow yields those events deterministically from the Activity's return value — it never polls the live stream, so replay stays deterministic.
+
+External consumers (UIs, tracing pipelines) observe events as they arrive by hosting a [`WorkflowStream`](../workflow-streams/README.md) in the Workflow and subscribing with `WorkflowStreamClient`. The streaming Activity publishes each event to the topic configured on `modelParams.streamingTopic`. The topic is required for streaming runs; calling `run(agent, input, { stream: true })` without a configured topic throws before any Activity is scheduled.
+
+Streaming requires a `streamingTopic`. Set it on the `modelParams` of the plugin registered on the **Client** — the Client interceptor injects the config header into every Workflow-starting call:
+
+```ts
+const plugin = new OpenAIAgentsPlugin({
+  modelProvider: new OpenAIProvider(),
+  modelParams: { streamingTopic: 'events', streamingBatchInterval: '100ms' },
+});
+
+const client = new Client({ connection, plugins: [plugin] });
+```
+
+Workflows started without that Client — by a Schedule or the Temporal UI/CLI — receive no config header. Supply Workflow-authored defaults through the runner's `defaultModelParams`; unlike the header, these can carry a function-form `summary`. Host a `WorkflowStream` in the Workflow to receive the publishes:
+
+```ts
+import { Agent } from '@openai/agents-core';
+import { TemporalOpenAIRunner } from '@temporalio/openai-agents/workflow';
+import { WorkflowStream } from '@temporalio/workflow-streams/workflow';
+
+export async function streamingWorkflow(prompt: string): Promise<string> {
+  new WorkflowStream();
+  const agent = new Agent({ name: 'Assistant', instructions: '...' });
+  const runner = new TemporalOpenAIRunner({ defaultModelParams: { streamingTopic: 'events' } });
+  const result = await runner.run(agent, prompt, { stream: true });
+  for await (const event of result) {
+    if (event.type === 'raw_model_stream_event' && event.data.type === 'output_text_delta') {
+      // event.data.delta — incremental text
+    }
+  }
+  return result.finalOutput ?? '';
+}
+```
+
+The two layers combine per field: the Client's `modelParams` overrides the runner's `defaultModelParams`.
+
+External subscribers receive the unwrapped native model events directly:
+
+```ts
+import { WorkflowStreamClient } from '@temporalio/workflow-streams/client';
+
+for await (const item of WorkflowStreamClient.create(client, workflowId).topic('events').subscribe()) {
+  // item.data — native model stream event
+}
+```
+
+The hosted `WorkflowStream` retains every published event on the Workflow heap and in history until `truncate(upToOffset)` is called. A streaming agent publishes many events per run, so a long-running or high-volume Workflow that never truncates will eventually hit Temporal's Workflow history size limits. Call `truncate(upToOffset)` periodically to keep the heap and history bounded; see [`@temporalio/workflow-streams`](../workflow-streams/README.md) for the offset model and batching.
+
+Streaming is incompatible with `useLocalActivity`, which supports neither Activity heartbeats nor the Workflow Stream signal channel. See [`@temporalio/workflow-streams`](../workflow-streams/README.md) for the publisher/subscriber API and delivery semantics.
 
 ### Sessions
 
@@ -569,25 +624,25 @@ There is no public TypeScript testing subpath.
 
 Any OpenAI Agents SDK `ModelProvider` can be passed as `modelProvider`. The provider runs in the model Activity, never inside the Workflow sandbox.
 
-| Feature                 | Status        | Notes                                                                                   |
-| :---------------------- | :------------ | :-------------------------------------------------------------------------------------- |
-| Multi-turn agents       | Supported     | Agent loop runs durably in the Workflow                                                 |
-| Handoffs                | Supported     | `Agent` and `handoff()` forms                                                           |
-| Inline function tools   | Supported     | Must be deterministic                                                                   |
-| Activity-backed tools   | Supported     | Via `activityAsTool()`                                                                  |
-| Nexus operation tools   | Supported     | Via `nexusOperationAsTool()`                                                            |
-| Nested agent tools      | Supported     | Via `agentAsTool()`                                                                     |
-| Hosted tools            | Supported     | Executed server-side by the model provider                                              |
-| Stateless MCP servers   | Supported     | Via `StatelessMCPServerProvider` and `statelessMcpServer()`                             |
-| Stateful MCP servers    | Supported     | Via `StatefulMCPServerProvider` and `statefulMcpServer()`                               |
-| Sessions                | Supported     | Via `WorkflowSafeMemorySession`; upstream `MemorySession` is rejected                   |
-| Run state and approvals | Supported     | Serialize with `result.state.toString()` and rehydrate with `RunState.fromString`       |
-| Guardrails              | Supported     | Guardrail callbacks must be deterministic                                               |
-| Tracing                 | Supported     | OpenAI hosted traces, custom `TracingProcessor`s, OTel, and optional `temporal:*` spans |
-| Agent context           | Supported     | Activity tools receive a copy                                                           |
-| `continueAsNew`         | Supported     | Plugin config propagates to the continuation                                            |
-| Child Workflows         | Supported     | Plugin config propagates to children                                                    |
-| Local Activities        | Supported     | Set `useLocalActivity: true` in `modelParams`                                           |
-| Model override per run  | Supported     | `runConfig.model` accepts a string model name                                           |
-| Streaming               | Not supported | Use `runner.run()`                                                                      |
-| Voice agents            | Not supported |                                                                                         |
+| Feature                 | Status                   | Notes                                                                                          |
+| :---------------------- | :----------------------- | :--------------------------------------------------------------------------------------------- |
+| Multi-turn agents       | Supported                | Agent loop runs durably in the Workflow                                                        |
+| Handoffs                | Supported                | `Agent` and `handoff()` forms                                                                  |
+| Inline function tools   | Supported                | Must be deterministic                                                                          |
+| Activity-backed tools   | Supported                | Via `activityAsTool()`                                                                         |
+| Nexus operation tools   | Supported                | Via `nexusOperationAsTool()`                                                                   |
+| Nested agent tools      | Supported                | Via `agentAsTool()`                                                                            |
+| Hosted tools            | Supported                | Executed server-side by the model provider                                                     |
+| Stateless MCP servers   | Supported                | Via `StatelessMCPServerProvider` and `statelessMcpServer()`                                    |
+| Stateful MCP servers    | Supported                | Via `StatefulMCPServerProvider` and `statefulMcpServer()`                                      |
+| Sessions                | Supported                | Via `WorkflowSafeMemorySession`; upstream `MemorySession` is rejected                          |
+| Run state and approvals | Supported                | Serialize with `result.state.toString()` and rehydrate with `RunState.fromString`              |
+| Guardrails              | Supported                | Guardrail callbacks must be deterministic                                                      |
+| Tracing                 | Supported                | OpenAI hosted traces, custom `TracingProcessor`s, OTel, and optional `temporal:*` spans        |
+| Agent context           | Supported                | Activity tools receive a copy                                                                  |
+| `continueAsNew`         | Supported                | Plugin config propagates to the continuation                                                   |
+| Child Workflows         | Supported                | Plugin config propagates to children                                                           |
+| Local Activities        | Supported                | Set `useLocalActivity: true` in `modelParams`                                                  |
+| Model override per run  | Supported                | `runConfig.model` accepts a string model name                                                  |
+| Streaming               | Supported (experimental) | `run(agent, input, { stream: true })`; requires `streamingTopic` and a hosted `WorkflowStream` |
+| Voice agents            | Not supported            |                                                                                                |

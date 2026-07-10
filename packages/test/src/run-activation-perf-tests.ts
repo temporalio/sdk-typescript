@@ -8,6 +8,7 @@ import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import type { VMWorkflow } from '@temporalio/worker/lib/workflow/vm';
 import { VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
 import * as wf from '@temporalio/workflow';
+import { createUnsafeRandomSource } from '@temporalio/workflow/lib/random-helpers';
 import { TypedSearchAttributes } from '@temporalio/common';
 
 // WARNING: This file is a quick and dirty utility to run Workflow Activation performance testing
@@ -86,7 +87,12 @@ if (!wf.inWorkflowContext()) {
         historySize: 300,
         continueAsNewSuggested: false,
         targetWorkerDeploymentVersionChanged: false,
-        unsafe: { isReplaying: false, isReplayingHistoryEvents: false, now: Date.now },
+        unsafe: {
+          isReplaying: false,
+          isReplayingHistoryEvents: false,
+          now: Date.now,
+          random: createUnsafeRandomSource(Math.random),
+        },
         startTime: new Date(),
         runStartTime: new Date(),
       };

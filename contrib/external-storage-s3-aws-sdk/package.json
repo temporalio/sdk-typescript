@@ -1,0 +1,56 @@
+{
+  "name": "@temporalio/external-storage-s3-aws-sdk",
+  "version": "1.20.0",
+  "private": true,
+  "description": "AWS SDK (@aws-sdk/client-s3) client for the Temporal S3 external storage driver",
+  "main": "lib/index.js",
+  "types": "./lib/index.d.ts",
+  "keywords": [
+    "temporal",
+    "workflow",
+    "external storage",
+    "payload",
+    "s3",
+    "aws"
+  ],
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc --build",
+    "test": "ava ./lib/__tests__/test-*.js"
+  },
+  "ava": {
+    "timeout": "60s"
+  },
+  "dependencies": {
+    "@temporalio/external-storage-s3": "workspace:*"
+  },
+  "peerDependencies": {
+    "@aws-sdk/client-s3": "^3.0.0"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-s3": "^3.0.0",
+    "ava": "^5.3.1"
+  },
+  "engines": {
+    "node": ">= 20.3.0"
+  },
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-typescript/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/temporalio/sdk-typescript.git",
+    "directory": "contrib/external-storage-s3-aws-sdk"
+  },
+  "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/contrib/external-storage-s3-aws-sdk",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src",
+    "lib",
+    "!src/__tests__",
+    "!lib/__tests__"
+  ]
+}

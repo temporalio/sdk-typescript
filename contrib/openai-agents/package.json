@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/openai-agents",
-  "version": "1.18.1",
+  "version": "1.20.0",
   "description": "Temporal OpenAI Agents SDK integration package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -74,6 +74,7 @@
     "@temporalio/plugin": "workspace:*",
     "@temporalio/worker": "workspace:*",
     "@temporalio/workflow": "workspace:*",
+    "@temporalio/workflow-streams": "workspace:*",
     "@ungap/structured-clone": "^1.3.1",
     "headers-polyfill": "^4.0.3",
     "web-streams-polyfill": "^4.2.0"
