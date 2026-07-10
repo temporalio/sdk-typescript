@@ -1,8 +1,10 @@
 import test from 'ava';
 import {
   base64URLEncodeNoPadding,
+  generateUpdateWorkflowOperationToken,
   generateWorkflowRunOperationToken,
   loadOperationToken,
+  loadUpdateWorkflowOperationToken,
   loadWorkflowRunOperationToken,
 } from '../token';
 
@@ -45,5 +47,71 @@ test('decode workflow run Operation token errors', (t) => {
   const missingWIDToken = base64URLEncodeNoPadding('{"t":1,"ns":"ns"}');
   t.throws(() => loadWorkflowRunOperationToken(missingWIDToken), {
     message: /invalid workflow run token: missing workflow ID \(wid\)/,
+  });
+});
+
+test('encode and decode update workflow Operation token', (t) => {
+  const expected = {
+    t: 3,
+    ns: 'ns',
+    wid: 'w',
+    rid: 'r',
+    uid: 'u',
+  };
+  const token = generateUpdateWorkflowOperationToken('ns', 'w', 'r', 'u');
+  const decoded = loadUpdateWorkflowOperationToken(token);
+  t.deepEqual(decoded, expected);
+});
+
+test('update workflow Operation token matches Go wire format byte-for-byte', (t) => {
+  // Field order and names must match the Go SDK's json.Marshal output: t, ns, wid, rid, uid.
+  // The version field ("v") must be absent.
+  const token = generateUpdateWorkflowOperationToken('ns', 'w', 'r', 'u');
+  const decodedJSON = Buffer.from(token, 'base64url').toString('utf-8');
+  t.is(decodedJSON, '{"t":3,"ns":"ns","wid":"w","rid":"r","uid":"u"}');
+});
+
+test('encode update workflow Operation token with empty runId omits rid', (t) => {
+  const token = generateUpdateWorkflowOperationToken('ns', 'w', '', 'u');
+  const decodedJSON = Buffer.from(token, 'base64url').toString('utf-8');
+  // `rid` is optional: it must be omitted entirely rather than emitted as an empty string.
+  t.is(decodedJSON, '{"t":3,"ns":"ns","wid":"w","uid":"u"}');
+
+  const parsed = JSON.parse(decodedJSON);
+  t.false('rid' in parsed);
+
+  // Round-trips: the load side tolerates an absent rid, yielding no pinned run.
+  const decoded = loadUpdateWorkflowOperationToken(token);
+  t.deepEqual(decoded, { t: 3, ns: 'ns', wid: 'w', uid: 'u' });
+  t.is(decoded.rid, undefined);
+});
+
+test('load update workflow Operation token tolerates legacy empty rid', (t) => {
+  // Legacy tokens may carry rid:"" explicitly; it must be accepted and treated as no pinned run.
+  const legacyToken = base64URLEncodeNoPadding('{"t":3,"ns":"ns","wid":"w","rid":"","uid":"u"}');
+  const decoded = loadUpdateWorkflowOperationToken(legacyToken);
+  t.deepEqual(decoded, { t: 3, ns: 'ns', wid: 'w', rid: '', uid: 'u' });
+});
+
+test('generate update workflow Operation token validates required params', (t) => {
+  t.throws(() => generateUpdateWorkflowOperationToken('', 'w', 'r', 'u'), { message: /namespace/ });
+  t.throws(() => generateUpdateWorkflowOperationToken('ns', '', 'r', 'u'), { message: /workflow ID/ });
+  t.throws(() => generateUpdateWorkflowOperationToken('ns', 'w', 'r', ''), { message: /update ID/ });
+});
+
+test('decode update workflow Operation token errors', (t) => {
+  const wrongTypeToken = base64URLEncodeNoPadding('{"t":1,"ns":"ns","wid":"w"}');
+  t.throws(() => loadUpdateWorkflowOperationToken(wrongTypeToken), {
+    message: /invalid update workflow token type: 1, expected: 3/,
+  });
+
+  const missingWIDToken = base64URLEncodeNoPadding('{"t":3,"ns":"ns","uid":"u"}');
+  t.throws(() => loadUpdateWorkflowOperationToken(missingWIDToken), {
+    message: /invalid update workflow token: missing workflow ID \(wid\)/,
+  });
+
+  const missingUIDToken = base64URLEncodeNoPadding('{"t":3,"ns":"ns","wid":"w"}');
+  t.throws(() => loadUpdateWorkflowOperationToken(missingUIDToken), {
+    message: /invalid update workflow token: missing update ID \(uid\)/,
   });
 });

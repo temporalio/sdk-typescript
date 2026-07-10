@@ -50,6 +50,51 @@ export interface InternalWorkflowStartOptions extends WorkflowOptions {
 }
 
 /**
+ * A symbol used to attach extra, SDK-internal options to a `WorkflowHandle.startUpdate()` /
+ * `executeUpdate()` call.
+ *
+ * Used by the Temporal Nexus helpers to attach a completion callback, request ID, and request links
+ * onto the UpdateWorkflowExecution request, and to capture the response link the server returns.
+ *
+ * @internal
+ * @hidden
+ */
+export const InternalWorkflowUpdateOptionsSymbol = Symbol.for('__temporal_internal_client_workflow_update_options');
+export interface InternalWorkflowUpdateOptions {
+  [InternalWorkflowUpdateOptionsSymbol]?: {
+    /**
+     * Request ID used for server-side deduplication of the Update request.
+     */
+    requestId?: string;
+
+    /**
+     * Callbacks to be invoked by the server when the Update reaches a terminal state.
+     * Callback addresses must be whitelisted in the server's dynamic configuration.
+     */
+    completionCallbacks?: temporal.api.common.v1.ICallback[];
+
+    /**
+     * Links to be associated with the Update.
+     */
+    links?: temporal.api.common.v1.ILink[];
+
+    /**
+     * Response link copied by the client from the UpdateWorkflowExecutionResponse. On success it
+     * points at the Update Accepted event; on validation failure it may be a plain Workflow link.
+     * Only populated by servers that return an update response link; left unset otherwise.
+     */
+    responseLink?: temporal.api.common.v1.ILink;
+
+    /**
+     * Terminal outcome of the Update, copied by the client from the UpdateWorkflowExecutionResponse
+     * when the Update already reached a completed state (e.g. a retried request with the same update
+     * ID, or an Update that completes immediately). Left unset while the Update is only accepted.
+     */
+    outcome?: temporal.api.update.v1.IOutcome;
+  };
+}
+
+/**
  * A symbol used to attach extra, SDK-internal options to a `WorkflowHandle.signal()` call.
  *
  * Used by the Temporal Nexus helpers to forward request links onto the signal request
