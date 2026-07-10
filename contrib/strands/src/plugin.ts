@@ -158,27 +158,58 @@ export class StrandsPlugin extends SimplePlugin {
         (config.output ??= {}).asyncChunks = false;
         (config.optimization ??= {}).splitChunks = false;
 
-        // Reach webpack via the constructor of an existing plugin instance —
-        // the strands plugin doesn't list webpack as a direct dependency.
-        const existing = (config.plugins ?? [])[0] as
-          | { constructor: new (regex: RegExp, replacement: (data: { request: string }) => void) => unknown }
-          | undefined;
-        if (existing) {
-          const NormalModuleReplacementPlugin = existing.constructor;
-          const empty = require.resolve('./empty-module');
-          const ignorePattern =
-            /^(?:node:(?:fs\/promises|os|path|process|stream)|@modelcontextprotocol\/sdk\/client\/(?:stdio|sse|streamableHttp)\.js|eventsource-parser\/stream)$/;
-          // Cast through `unknown` because the strands plugin doesn't list
-          // webpack as a dependency and therefore lacks its types.
-          config.plugins = (config.plugins ?? []).concat(
-            new NormalModuleReplacementPlugin(ignorePattern, (data: { request: string }) => {
-              data.request = empty;
-            }) as unknown as never
-          );
-        }
+        const plugins = [...(config.plugins ?? [])];
+        plugins.push(emptyModuleRewritesPlugin() as (typeof plugins)[number]);
+        const merged = { ...config, plugins };
 
-        return prevHook ? prevHook(config) : config;
+        return prevHook ? prevHook(merged) : merged;
       },
     };
   }
+}
+
+/**
+ * The slice of webpack's runtime API these rewrites use, read off the running
+ * compiler (see {@link emptyModuleRewritesPlugin}).
+ */
+interface WebpackApi {
+  NormalModuleReplacementPlugin: new (
+    resourceRegExp: RegExp,
+    newResource: (resource: { request: string }) => void
+  ) => WebpackPlugin;
+}
+
+interface WebpackPlugin {
+  apply(compiler: WebpackCompiler): void;
+}
+
+interface WebpackCompiler {
+  /** webpack 5 exposes its own runtime API on the compiler. */
+  webpack: WebpackApi;
+}
+
+/**
+ * A webpack plugin that stubs out `@strands-agents/sdk`'s worker-only static and
+ * dynamic imports — `node:*` builtins and the MCP client transports — with an
+ * empty module, so they never reach the Workflow isolate. Paired with the
+ * `ignoreModules` whitelist (see {@link StrandsPlugin.configureBundler}).
+ *
+ * webpack is taken from `compiler.webpack` rather than imported or borrowed off
+ * another plugin's constructor: `@temporalio/strands-agents` doesn't depend on
+ * webpack directly, and using the compiler's own webpack guarantees the exact
+ * instance running the bundle regardless of how the SDK orders its own bundler
+ * plugins — never a second copy.
+ */
+function emptyModuleRewritesPlugin(): WebpackPlugin {
+  const empty = require.resolve('./empty-module');
+  const ignorePattern =
+    /^(?:node:(?:fs\/promises|os|path|process|stream)|@modelcontextprotocol\/sdk\/client\/(?:stdio|sse|streamableHttp)\.js|eventsource-parser\/stream)$/;
+  return {
+    apply(compiler) {
+      const { NormalModuleReplacementPlugin } = compiler.webpack;
+      new NormalModuleReplacementPlugin(ignorePattern, (resource) => {
+        resource.request = empty;
+      }).apply(compiler);
+    },
+  };
 }
