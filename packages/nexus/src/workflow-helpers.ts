@@ -12,8 +12,7 @@ import type {
   WorkflowStartOptions as ClientWorkflowStartOptions,
   WorkflowSignalWithStartOptions as ClientWorkflowSignalWithStartOptions,
 } from '@temporalio/client';
-import { WorkflowUpdateStage } from '@temporalio/client';
-import type { WorkflowUpdateHandle, WorkflowUpdateOptions } from '@temporalio/client';
+import { WorkflowUpdateStage, type WorkflowUpdateHandle, type WorkflowUpdateOptions } from '@temporalio/client';
 import { type temporal } from '@temporalio/proto';
 import type {
   InternalWorkflowHandle,
