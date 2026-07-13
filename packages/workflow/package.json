@@ -21,9 +21,7 @@
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "scripts": {
-    "build": "pnpm run build:system-nexus && pnpm run build:ts",
-    "build:ts": "tsc --build",
-    "build:system-nexus": "pnpm --workspace-root run build:system-nexus",
+    "build": "tsc --build",
     "test": "ava ./lib/__tests__/test-*.js"
   },
   "ava": {
