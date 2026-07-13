@@ -71,3 +71,7 @@ to docs, or any other relevant information.
   and gives read-only handlers distinct, well-formed span IDs.
 
 ## [Unreleased]
+
+### Added
+
+- Experimental `signalWithStartWorkflow` API for Workflows.
