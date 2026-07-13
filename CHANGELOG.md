@@ -17,7 +17,19 @@ to docs, or any other relevant information.
 
 # Changelog
 
-## [1.19.0]
+## [Unreleased]
+
+### Fixed
+
+- Workflow Bundler: further strengthening of the `__webpack_module_cache__` replacement logic, addressing regressions introduced by the fix in 1.19.1.
+
+## [1.19.1] - 2026-07-07
+
+### Fixed
+
+- Workflow Bundler: fix a bug in our replacement of `__webpack_module_cache__` logic introduced by webpack 5.108.0, resulting in breaking workflow context isolation (fix #2170).
+
+## [1.19.0] - 2026-07-01
 
 ### Added
 
@@ -47,5 +59,3 @@ to docs, or any other relevant information.
 
 - fix(openai-agents): correct misleading legacy-query comment in resolveQueryKey
 - avoid logging `NativeConnection` on worker startup
-
-## [Unreleased]
