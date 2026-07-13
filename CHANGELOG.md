@@ -31,6 +31,10 @@ to docs, or any other relevant information.
   alters the size of payloads (e.g. compression, encryption, external storage), it is advised that
   you disable size enforcement by setting `disablePayloadErrorLimit: true` on the worker.
 
+### Fixed
+
+- `WorkflowExecutionAlreadyStartedError` now exposes the `runId` of the already-running Workflow Execution when the server provides it in the error details (#1838).
+
 ## [1.20.3] - 2026-07-13
 
 ### Fixed
