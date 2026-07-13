@@ -31,6 +31,8 @@ import {
   decodeFromPayloadsAtIndex,
   encodeErrorToFailure,
   encodeToPayload,
+  retrieveWorkflowActivation,
+  storeWorkflowActivationCompletion,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 import type { Duration } from '@temporalio/common/lib/time';
@@ -1441,6 +1443,10 @@ export class Worker {
           workflowId,
         });
       }
+      const { externalStorage } = this.options.loadedDataConverter;
+      if (externalStorage) {
+        await retrieveWorkflowActivation(externalStorage, activation);
+      }
       const decodedActivation = await workflowCodecRunner.decodeActivation(activation);
 
       if (workflow === undefined) {
@@ -1456,7 +1462,19 @@ export class Worker {
       let isFatalError = false;
       try {
         const unencodedCompletion = await workflow.workflow.activate(decodedActivation);
-        const completion = await workflowCodecRunner.encodeCompletion(unencodedCompletion);
+        const encodedCompletion = await workflowCodecRunner.encodeCompletion(unencodedCompletion);
+        if (externalStorage) {
+          await storeWorkflowActivationCompletion(externalStorage, encodedCompletion, {
+            target: {
+              kind: 'workflow',
+              namespace: workflowCodecRunner.workflowContext.namespace,
+              id: workflowCodecRunner.workflowContext.workflowId,
+              runId: activation.runId,
+            },
+          });
+        }
+        const completion =
+          coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited(encodedCompletion).finish();
 
         return { state: workflow, output: { close, completion } };
       } catch (err) {

@@ -1,3 +1,4 @@
+import type { ExternalStorage } from './extstore';
 import type { FailureConverter } from './failure-converter';
 import { DefaultFailureConverter } from './failure-converter';
 import type { PayloadCodec } from './payload-codec';
@@ -60,6 +61,12 @@ export interface LoadedDataConverter {
   payloadConverter: PayloadConverter;
   failureConverter: FailureConverter;
   payloadCodecs: PayloadCodec[];
+  
+  /**
+   * @internal
+   * @experimental
+   */
+  externalStorage?: ExternalStorage;
 }
 
 /**
