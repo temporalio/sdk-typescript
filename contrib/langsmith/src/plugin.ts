@@ -37,7 +37,7 @@ type WebpackConfiguration = Parameters<NonNullable<BundleOptions['webpackConfigH
 // Bare identifier (not dotted) so DefinePlugin substitutes textually.
 const CONFIG_GLOBAL = '__TEMPORAL_LANGSMITH_CONFIG__';
 
-// Bare builtin name added to `ignoreModules`; see {@link aliasAsyncHooks}.
+// Bare builtin name added to `ignoreModules`; see {@link bundleRewritesPlugin}.
 const ASYNC_HOOKS_MODULE = 'async_hooks';
 
 /**
@@ -161,7 +161,7 @@ export class LangSmithPlugin extends SimplePlugin {
     if (!workflowInterceptorModules.includes(this.workflowInterceptorModule)) {
       workflowInterceptorModules.push(this.workflowInterceptorModule);
     }
-    // Dismiss the SDK bundler's disallowed-builtin guard for `async_hooks` (see aliasAsyncHooks).
+    // Dismiss the SDK bundler's disallowed-builtin guard for `async_hooks` (see bundleRewritesPlugin).
     const ignoreModules = [...(base.ignoreModules ?? [])];
     if (!ignoreModules.includes(ASYNC_HOOKS_MODULE)) {
       ignoreModules.push(ASYNC_HOOKS_MODULE);
@@ -171,8 +171,9 @@ export class LangSmithPlugin extends SimplePlugin {
       const merged = prevHook ? prevHook(config) : config;
       // Double-encode so the injected token is a string literal in the bundle.
       const definitions = { [CONFIG_GLOBAL]: JSON.stringify(JSON.stringify(this.workflowConfig)) };
-      const withDefine = injectDefinePlugin(merged, definitions);
-      return aliasLangSmithNodeUtils(aliasAsyncHooks(withDefine, this.workflowInterceptorModule));
+      const plugins = [...(merged.plugins ?? [])];
+      plugins.push(bundleRewritesPlugin(this.workflowInterceptorModule, definitions) as (typeof plugins)[number]);
+      return { ...merged, plugins };
     };
     return { ...base, workflowInterceptorModules, ignoreModules, webpackConfigHook };
   }
@@ -200,55 +201,62 @@ export class LangSmithPlugin extends SimplePlugin {
 }
 
 /**
- * Redirect `node:async_hooks` to the workflow interceptor module's isolate-safe
- * shim. webpack routes `node:` requests through a scheme handler before alias
- * resolution, so `resolve.alias` cannot do this; `NormalModuleReplacementPlugin`
- * rewrites the request in `beforeResolve` instead. Must be paired with the
- * `ignoreModules` whitelist (see {@link LangSmithPlugin.configureBundler}). The
- * rewrite target is the resolved absolute module path so webpack dedupes to one
- * isolate instance regardless of issuer.
+ * The slice of webpack's runtime API these rewrites use, read off the running
+ * compiler (see {@link bundleRewritesPlugin}).
  */
-function aliasAsyncHooks(config: WebpackConfiguration, workflowInterceptorModule: string): WebpackConfiguration {
-  const plugins = [...(config.plugins ?? [])];
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const webpack = require('webpack') as {
-      NormalModuleReplacementPlugin: new (re: RegExp, cb: (resource: { request: string }) => void) => unknown;
-    };
-    plugins.push(
-      new webpack.NormalModuleReplacementPlugin(/^node:async_hooks$/, (resource) => {
-        resource.request = workflowInterceptorModule;
-      }) as (typeof plugins)[number]
-    );
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException)?.code !== 'MODULE_NOT_FOUND') throw err;
-    /* webpack genuinely absent (MODULE_NOT_FOUND): leave plugins untouched; any other failure rethrows. */
-  }
-  return { ...config, plugins };
+interface WebpackApi {
+  NormalModuleReplacementPlugin: new (
+    resourceRegExp: RegExp,
+    newResource: (resource: {
+      request: string;
+      context?: string;
+      createData?: { resource?: string; userRequest?: string; request?: string };
+    }) => void
+  ) => WebpackPlugin;
+  DefinePlugin: new (definitions: Record<string, string>) => WebpackPlugin;
+}
+
+interface WebpackPlugin {
+  apply(compiler: WebpackCompiler): void;
+}
+
+interface WebpackCompiler {
+  /** webpack 5 exposes its own runtime API on the compiler. */
+  webpack: WebpackApi;
 }
 
 /**
- * Redirect langsmith's node-only CJS utilities to its `.browser.cjs` siblings so
- * the workflow bundle keeps node builtins out of the isolate. Scoped to langsmith
- * so a user's own `fs.cjs` is never rewritten.
+ * A webpack plugin that installs the three Workflow-bundle rewrites LangSmith needs:
+ *
+ *  - redirect `node:async_hooks` to the isolate-safe workflow-interceptor shim.
+ *    webpack routes `node:` requests through a scheme handler before alias
+ *    resolution, so `resolve.alias` can't do this; `NormalModuleReplacementPlugin`
+ *    rewrites the request in `beforeResolve`. Paired with the `ignoreModules`
+ *    whitelist (see {@link LangSmithPlugin.configureBundler}). The rewrite target
+ *    is the resolved absolute module path so webpack dedupes to one isolate
+ *    instance regardless of issuer.
+ *  - redirect langsmith's node-only `utils/{fs,worker_threads}.cjs` to their
+ *    `.browser.cjs` siblings so node builtins stay out of the isolate. Scoped to
+ *    langsmith so a user's own `fs.cjs` is never rewritten.
+ *  - a `DefinePlugin` carrying the plugin config as a bundle-time literal.
+ *
+ * webpack is taken from `compiler.webpack` rather than imported: it backs the
+ * SDK's Workflow bundler but is a dependency of `@temporalio/worker`, not of this
+ * plugin, so a bare `require('webpack')` is unresolvable under non-hoisting
+ * installers (e.g. pnpm with `hoist=false`). Using the compiler's own webpack
+ * also guarantees the exact instance running the bundle — never a second copy.
  */
-function aliasLangSmithNodeUtils(config: WebpackConfiguration): WebpackConfiguration {
-  const plugins = [...(config.plugins ?? [])];
+function bundleRewritesPlugin(workflowInterceptorModule: string, definitions: Record<string, string>): WebpackPlugin {
   const swap = (s: string): string => s.replace(/\.cjs$/, '.browser.cjs');
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const webpack = require('webpack') as {
-      NormalModuleReplacementPlugin: new (
-        re: RegExp,
-        cb: (resource: {
-          request: string;
-          context?: string;
-          createData?: { resource?: string; userRequest?: string; request?: string };
-        }) => void
-      ) => unknown;
-    };
-    plugins.push(
-      new webpack.NormalModuleReplacementPlugin(/[/\\]utils[/\\](?:fs|worker_threads)\.cjs$/, (resource) => {
+  return {
+    apply(compiler) {
+      const { NormalModuleReplacementPlugin, DefinePlugin } = compiler.webpack;
+
+      new NormalModuleReplacementPlugin(/^node:async_hooks$/, (resource) => {
+        resource.request = workflowInterceptorModule;
+      }).apply(compiler);
+
+      new NormalModuleReplacementPlugin(/[/\\]utils[/\\](?:fs|worker_threads)\.cjs$/, (resource) => {
         // Resolved sibling-relative requires (`./fs.cjs`) carry the absolute
         // path on `createData.resource`; raw `beforeResolve` requests carry it
         // on `request`.
@@ -270,28 +278,9 @@ function aliasLangSmithNodeUtils(config: WebpackConfiguration): WebpackConfigura
           return;
         }
         resource.request = swap(resource.request);
-      }) as (typeof plugins)[number]
-    );
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException)?.code !== 'MODULE_NOT_FOUND') throw err;
-    /* webpack genuinely absent (MODULE_NOT_FOUND): leave plugins untouched; any other failure rethrows. */
-  }
-  return { ...config, plugins };
-}
+      }).apply(compiler);
 
-/**
- * Append a `DefinePlugin`-equivalent to a webpack config without a static
- * `webpack` import (webpack is provided transitively by the worker).
- */
-function injectDefinePlugin(config: WebpackConfiguration, definitions: Record<string, string>): WebpackConfiguration {
-  const plugins = [...(config.plugins ?? [])];
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const webpack = require('webpack') as { DefinePlugin: new (d: Record<string, string>) => unknown };
-    plugins.push(new webpack.DefinePlugin(definitions) as (typeof plugins)[number]);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException)?.code !== 'MODULE_NOT_FOUND') throw err;
-    /* webpack genuinely absent (MODULE_NOT_FOUND): leave plugins untouched, workflow uses defaults; any other failure rethrows. */
-  }
-  return { ...config, plugins };
+      new DefinePlugin(definitions).apply(compiler);
+    },
+  };
 }
