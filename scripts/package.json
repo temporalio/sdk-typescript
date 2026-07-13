@@ -12,6 +12,9 @@
     "core",
     "worker"
   ],
+  "dependencies": {
+    "protobufjs": "^7.6.4"
+  },
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT"
 }
