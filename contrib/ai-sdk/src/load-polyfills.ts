@@ -10,10 +10,8 @@ import * as webStreamsPolyfill from 'web-streams-polyfill';
  * Idempotent, and never overwrites globals that already exist — calling it outside the sandbox
  * (where Node.js provides all of these natively) is a no-op.
  *
- * Called by the `@temporalio/ai-sdk/workflow` entry point when it is loaded; workflow code that
- * imports from that entry point does not need to call this directly.
- *
- * @experimental The AI SDK integration is an experimental feature; APIs may change without notice.
+ * Internal: called only by `preload-polyfills`, which AiSdkPlugin.configureBundler prepends to
+ * the workflow bundle's webpack entry so it runs before any other workflow module.
  */
 export function installPolyfills(): void {
   if (typeof globalThis.Headers === 'undefined') {

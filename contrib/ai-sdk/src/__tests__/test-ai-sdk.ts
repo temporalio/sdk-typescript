@@ -37,7 +37,7 @@ import {
   OpenTelemetryWorkflowClientInterceptor,
 } from '@temporalio/interceptors-opentelemetry';
 import { workflowInterceptorModules } from '@temporalio/testing';
-import { bundleWorkflowCode, DefaultLogger, Runtime } from '@temporalio/worker';
+import { bundleWorkflowCode, DefaultLogger, Runtime, Worker as CoreWorker } from '@temporalio/worker';
 import type { InjectedSinks } from '@temporalio/worker';
 import type { BaseContext } from '@temporalio/test-helpers';
 import {
@@ -239,6 +239,9 @@ test.before(async (t) => {
     workflowsPath: require.resolve('./workflows/ai-sdk'),
     workflowInterceptorModules,
     logger: new DefaultLogger('WARN'),
+    // The plugin's configureBundler prepends the polyfill installer to the bundle entry;
+    // the test workflows import `ai` before the workflow entry point and rely on it.
+    plugins: [new AiSdkPlugin({ modelProvider: new TestProvider(helloWorkflowGenerator()) })],
   });
   t.context = { env, workflowBundle };
 });
@@ -572,43 +575,43 @@ test('callToolActivity awaits tool.execute before closing MCP client', async (t)
   );
 });
 
+// Create in-memory MCP server with test tool
+const createTestMcpClient = async () => {
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
+  const server = new Server({ name: 'test-server', version: '1.0.0' }, { capabilities: { tools: {} } });
+
+  // Register tools/list handler
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: [
+      {
+        name: 'testTool',
+        description: 'A test tool',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            testParam: { type: 'string', description: 'Test parameter' },
+          },
+          required: ['testParam'],
+        },
+      },
+    ],
+  }));
+
+  // Register tools/call handler
+  server.setRequestHandler(CallToolRequestSchema, async () => ({
+    content: [{ type: 'text', text: 'ok' }],
+  }));
+
+  // Create linked in-memory transports
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await server.connect(serverTransport);
+
+  // Return real AI SDK MCP client connected to in-memory server
+  return createMCPClient({ transport: clientTransport });
+};
+
 test('MCP tool schema survives activity serialization', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
-
-  // Create in-memory MCP server with test tool
-  const createTestMcpClient = async () => {
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    const server = new Server({ name: 'test-server', version: '1.0.0' }, { capabilities: { tools: {} } });
-
-    // Register tools/list handler
-    server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [
-        {
-          name: 'testTool',
-          description: 'A test tool',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              testParam: { type: 'string', description: 'Test parameter' },
-            },
-            required: ['testParam'],
-          },
-        },
-      ],
-    }));
-
-    // Register tools/call handler
-    server.setRequestHandler(CallToolRequestSchema, async () => ({
-      content: [{ type: 'text', text: 'ok' }],
-    }));
-
-    // Create linked in-memory transports
-    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-    await server.connect(serverTransport);
-
-    // Return real AI SDK MCP client connected to in-memory server
-    return createMCPClient({ transport: clientTransport });
-  };
 
   const worker = await createWorker({
     plugins: [
@@ -664,4 +667,58 @@ test.skip('MCP Use', async (t) => {
       t.is('Some files', result);
     }
   });
+});
+
+test('Captured multi-step tools history replays deterministically', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+
+  const plugin = () => new AiSdkPlugin({ modelProvider: new TestProvider(toolsWorkflowGenerator()) });
+
+  const worker = await createWorker({ plugins: [plugin()], activities: { getWeather } });
+
+  let history;
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(toolsWorkflow, {
+      args: ['What is the weather in Tokyo?'],
+      workflowExecutionTimeout: '30 seconds',
+    });
+    t.is(await handle.result(), 'Test weather result');
+    history = await handle.fetchHistory();
+  });
+
+  // Replay the captured history with a fresh plugin instance. Any non-determinism
+  // in the ai@7 agent loop or the sandbox polyfills would surface as
+  // DeterminismViolationError.
+  await CoreWorker.runReplayHistory({ workflowBundle: t.context.workflowBundle, plugins: [plugin()] }, history!);
+  t.pass();
+});
+
+function* mcpReplayGenerator(): Generator<ModelResponse> {
+  yield toolCallResponse('testTool', '{"testParam":"hello"}');
+  yield textResponse('Done');
+}
+
+test('Captured multi-step MCP history replays deterministically', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+
+  const plugin = () =>
+    new AiSdkPlugin({
+      modelProvider: new TestProvider(mcpReplayGenerator()),
+      mcpClientFactories: { testServer: createTestMcpClient },
+    });
+
+  const worker = await createWorker({ plugins: [plugin()] });
+
+  let history;
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(mcpWorkflow, {
+      args: ['What files do you have? Use your tools.'],
+      workflowExecutionTimeout: '30 seconds',
+    });
+    t.is(await handle.result(), 'Done');
+    history = await handle.fetchHistory();
+  });
+
+  await CoreWorker.runReplayHistory({ workflowBundle: t.context.workflowBundle, plugins: [plugin()] }, history!);
+  t.pass();
 });

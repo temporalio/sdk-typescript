@@ -1,5 +1,6 @@
 import type { ProviderV4 } from '@ai-sdk/provider';
 import { SimplePlugin } from '@temporalio/plugin';
+import type { BundleOptions } from '@temporalio/worker';
 import { createActivities } from './activities';
 import type { McpClientFactories } from './mcp';
 
@@ -33,5 +34,31 @@ export class AiSdkPlugin extends SimplePlugin {
       name: 'AiSDKPlugin',
       activities: createActivities(options.modelProvider, options.mcpClientFactories),
     });
+  }
+
+  override configureBundler(options: BundleOptions): BundleOptions {
+    // Prepend a polyfill-installer module to the webpack `entry` array so it
+    // evaluates before any other module in the Workflow bundle. Webpack 5
+    // emits multi-entry scripts that execute in array order at script-load,
+    // so this guarantees the Web-API globals (`TransformStream`, `Headers`,
+    // ...) exist before `ai` is evaluated (it defines `class ... extends
+    // TransformStream` at module scope), making the relative import order of
+    // `@temporalio/ai-sdk/workflow` and `ai` in workflow code irrelevant.
+    const polyfillPath = require.resolve('./preload-polyfills');
+    const baseOptions = super.configureBundler(options);
+    const existingHook = baseOptions.webpackConfigHook;
+    return {
+      ...baseOptions,
+      webpackConfigHook: (config) => {
+        const cfg = existingHook ? existingHook(config) : config;
+        const existingEntry = cfg.entry;
+        const entries = Array.isArray(existingEntry)
+          ? existingEntry
+          : existingEntry !== undefined
+            ? [existingEntry as string]
+            : [];
+        return { ...cfg, entry: [polyfillPath, ...entries] };
+      },
+    };
   }
 }

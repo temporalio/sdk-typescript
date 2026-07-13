@@ -123,6 +123,7 @@ export function createActivities(provider: ProviderV4, mcpClientFactories?: McpC
       const warnings: SharedV4Warning[] = [];
       let responseMetadata: Record<string, unknown> | undefined;
       let sawFinish = false;
+      let sawError = false;
       let streamError: unknown;
 
       const textBlocks = new Map<string, string>();
@@ -189,6 +190,7 @@ export function createActivities(provider: ProviderV4, mcpClientFactories?: McpC
             // Provider-specific raw chunks are published above but not part of the assembled result.
             break;
           case 'error':
+            sawError = true;
             streamError = part.error;
             break;
           default:
@@ -211,9 +213,14 @@ export function createActivities(provider: ProviderV4, mcpClientFactories?: McpC
         }
       }
 
-      if (streamError !== undefined && !sawFinish) {
+      // An `error` part signals a provider failure even when the stream still delivers a
+      // `finish` part afterwards — fail the activity rather than return a partial result as
+      // success. `part.error` is untyped, so it cannot be classified as deterministic here;
+      // surface it as retryable and let the activity retry policy govern, matching how a
+      // provider error thrown from `doGenerate` behaves in the non-streaming activity.
+      if (sawError) {
         throw ApplicationFailure.retryable(
-          `Model stream emitted an error and ended without a finish part: ${streamError}`
+          `Model stream emitted an error part${sawFinish ? '' : ' and ended without a finish part'}: ${streamError}`
         );
       }
 

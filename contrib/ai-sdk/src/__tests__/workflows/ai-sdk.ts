@@ -1,13 +1,13 @@
 // Test workflow using AI model
-// The workflow entry point must be imported first: it installs the Web-API polyfills that the
-// `ai` package needs inside the workflow sandbox.
-// eslint-disable-next-line import/order
-import { TemporalMCPClient, temporalProvider } from '../../workflow';
+// `ai` is deliberately imported before the workflow entry point: the bundle for these tests is
+// built through AiSdkPlugin, whose `configureBundler` prepends the polyfill installer to the
+// webpack entry, so import order must not matter.
 import { embedMany, generateText, isStepCount, Output, tool, wrapLanguageModel } from 'ai';
 import type { LanguageModelMiddleware } from 'ai';
 import { OpenTelemetry } from '@ai-sdk/otel';
 import { z } from 'zod';
 import { proxyActivities } from '@temporalio/workflow';
+import { TemporalMCPClient, temporalProvider } from '../../workflow';
 import type * as activities from '../activities/ai-sdk';
 
 const { getWeather } = proxyActivities<typeof activities>({
