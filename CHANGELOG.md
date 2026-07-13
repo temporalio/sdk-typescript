@@ -19,25 +19,25 @@ to docs, or any other relevant information.
 
 ## [Unreleased]
 
-## [1.20.3]
+## [1.20.3] - 2026-07-13
 
 ### Fixed
 
 - langsmith: resolve workflow interceptor module by absolute path
 
-## [1.20.2]
+## [1.20.2] - 2026-07-08
 
 ### Fixed
 
 - Workflow Bundler: further strengthening of the `__webpack_module_cache__` replacement logic, addressing regressions introduced by the fix in 1.20.1.
 
-## [1.20.1]
+## [1.20.1] - 2026-07-07
 
 ### Fixed
 
 - Workflow Bundler: fix a bug in our replacement of `__webpack_module_cache__` logic introduced by webpack 5.108.0, resulting in breaking workflow context isolation (fix #2170).
 
-## [1.20.0]
+## [1.20.0] - 2026-07-07
 
 ### Added
 
@@ -59,19 +59,19 @@ to docs, or any other relevant information.
   replay-safe random source instead of a private seeded PRNG. This removes the old seed-collision workaround
   and gives read-only handlers distinct, well-formed span IDs.
 
-## [1.19.2]
+## [1.19.2] - 2026-07-13
 
 ### Fixed
 
 - Workflow Bundler: further strengthening of the `__webpack_module_cache__` replacement logic, addressing regressions introduced by the fix in 1.19.1.
 
-## [1.19.1]
+## [1.19.1] - 2026-07-07
 
 ### Fixed
 
 - Workflow Bundler: fix a bug in our replacement of `__webpack_module_cache__` logic introduced by webpack 5.108.0, resulting in breaking workflow context isolation (fix #2170).
 
-## [1.19.0]
+## [1.19.0] - 2026-07-01
 
 ### Added
 
