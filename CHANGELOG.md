@@ -23,13 +23,13 @@ to docs, or any other relevant information.
 
 ### Fixed
 
-- langsmith: resolve workflow interceptor module by absolute path
+- Workflow Bundler: further strengthening of the `__webpack_module_cache__` replacement logic, addressing regressions introduced by the fix in 1.20.1.
 
 ## [1.20.2] - 2026-07-08
 
 ### Fixed
 
-- Workflow Bundler: further strengthening of the `__webpack_module_cache__` replacement logic, addressing regressions introduced by the fix in 1.20.1.
+- langsmith: resolve workflow interceptor module by absolute path
 
 ## [1.20.1] - 2026-07-07
 
