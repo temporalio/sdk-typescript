@@ -45,6 +45,29 @@ export interface NoneGrpcCompressionConfig {
 export type GrpcCompressionConfig = GzipGrpcCompressionConfig | NoneGrpcCompressionConfig;
 
 /**
+ * Payload size-limit configuration for a connection.
+ *
+ * @experimental Payload size-limit enforcement is an experimental feature; APIs may change without notice.
+ */
+export interface PayloadLimitsConfig {
+  /**
+   * Warning threshold, in bytes, for the size of an outbound payload-bearing field. Over-threshold
+   * fields are logged but still sent to the server. Set to `0` to disable.
+   *
+   * @default 512KiB
+   */
+  payloadsWarnSize?: number;
+
+  /**
+   * Warning threshold, in bytes, for outbound memo size. Over-threshold memos are logged but still
+   * sent to the server. Set to `0` to disable.
+   *
+   * @default 2KiB
+   */
+  memoWarnSize?: number;
+}
+
+/**
  * The default Temporal Server's TCP port for public gRPC connections.
  */
 const DEFAULT_TEMPORAL_GRPC_PORT = 7233;
@@ -111,6 +134,14 @@ export interface NativeConnectionOptions {
    * @default false
    */
   disableErrorCodeMetricTags?: boolean;
+
+  /**
+   * Payload size-limit options for this connection. If unset, defaults of 512KiB (payloads) and
+   * 2KiB (memo) are used.
+   *
+   * @experimental Payload size-limit enforcement is an experimental feature; APIs may change without notice.
+   */
+  payloadLimits?: PayloadLimitsConfig;
 
   /**
    * List of plugins to register with the native connection.
@@ -203,5 +234,7 @@ export function toNativeClientOptions(options: NativeConnectionOptions): native.
     headers,
     apiKey: options.apiKey ?? null,
     disableErrorCodeMetricTags: options.disableErrorCodeMetricTags ?? false,
+    payloadsWarnSize: options.payloadLimits?.payloadsWarnSize ?? 512 * 1024,
+    memoWarnSize: options.payloadLimits?.memoWarnSize ?? 2 * 1024,
   };
 }

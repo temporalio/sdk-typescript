@@ -226,6 +226,15 @@ export interface WorkerOptions {
   enableNonLocalActivities?: boolean;
 
   /**
+   * If set to `true`, the Worker will not proactively fail Workflow/Activity tasks whose payloads
+   * exceed the namespace error limits; oversized payloads are sent to the server, which enforces the
+   * limit. Defaults to `false` (the Worker fails such tasks before sending).
+   *
+   * @experimental Payload size-limit enforcement is an experimental feature; APIs may change without notice.
+   */
+  disablePayloadErrorLimit?: boolean;
+
+  /**
    * Limits the number of Activities per second that this Worker will process. (Does not limit the number of Local
    * Activities.) The Worker will not poll for new Activities if by doing so it might receive and execute an Activity
    * which would cause it to exceed this limit. Must be a positive number.
@@ -1181,6 +1190,7 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
     plugins: opts.plugins?.map((p) => p.name) ?? [],
     workflowFailureErrors,
     workflowTypesToFailureErrors,
+    disablePayloadErrorLimit: opts.disablePayloadErrorLimit ?? false,
   };
 }
 

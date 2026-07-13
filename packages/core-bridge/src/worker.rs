@@ -541,6 +541,7 @@ mod config {
         plugins: Vec<String>,
         workflow_failure_errors: HashSet<WorkflowErrorType>,
         workflow_types_to_failure_errors: HashMap<String, HashSet<WorkflowErrorType>>,
+        disable_payload_error_limit: bool,
     }
 
     #[derive(TryFromJs)]
@@ -642,6 +643,7 @@ mod config {
                 .workflow_types_to_failure_errors(into_core_workflow_error_map_of_sets(
                     self.workflow_types_to_failure_errors,
                 ))
+                .disable_payload_error_limit(self.disable_payload_error_limit)
                 .build()
                 .map_err(|err| BridgeError::TypeError {
                     message: format!("Failed to convert WorkerOptions to CoreWorkerConfig: {err}"),
