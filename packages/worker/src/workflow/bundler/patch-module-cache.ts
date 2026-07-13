@@ -120,7 +120,7 @@ export class InjectWorkflowModuleCacheGlobalPlugin {
     // Note that `ReplaceSource.replace()` takes character indices from the
     // _original_ source; there's thereforre no need to adjust the indices to
     // account for the replacement we just performed (`= {}` => MODULE_CACHE_GLOBAL).
-    let markerEndInclusive = markerIndex + MARKER_COMMENT.length - 1;
+    const markerEndInclusive = markerIndex + MARKER_COMMENT.length - 1;
     replaced.replace(markerIndex, markerEndInclusive, '');
 
     return replaced;
