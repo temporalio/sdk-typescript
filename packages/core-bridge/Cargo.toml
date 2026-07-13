@@ -13,6 +13,11 @@ exclude = ["index.node", "sdk-core"]
 name = "temporal_sdk_typescript_bridge"
 crate-type = ["cdylib"]
 
+[profile.dev]
+opt-level = 1
+debug = false
+incremental = true
+
 [profile.release]
 opt-level = 3
 debug = false

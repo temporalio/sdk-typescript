@@ -5,15 +5,15 @@
  */
 
 import type {
-  ActivityOptions,
   Duration,
-  LocalActivityOptions,
   MetricTags,
   Timestamp,
   WorkflowExecution,
 } from '@temporalio/common';
 import { Headers, Next } from '@temporalio/common';
 import type { coresdk } from '@temporalio/proto';
+import type { ActivityOptions, LocalActivityOptions } from './activities';
+import type { EventGroupMarker } from './event-groups';
 import type { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interfaces';
 import type { NexusOperationCancellationType } from './nexus';
 
@@ -234,6 +234,15 @@ export interface TimerOptions {
    * @experimental User metadata is a new API and susceptible to change.
    */
   readonly summary?: string;
+
+  /**
+   * Event group markers to attach to the timer command. The markers will be reflected on the
+   * corresponding workflow history events, and may be used by tooling (UI/CLI) to group
+   * related events together. See {@link EventGroupMarker} and `createGroup`.
+   *
+   * @experimental Event Groups is a new API and may change without notice.
+   */
+  readonly groups?: EventGroupMarker[];
 }
 
 /**
@@ -327,6 +336,15 @@ export interface StartNexusOperationOptions {
    * @experimental User metadata is a new API and susceptible to change.
    */
   readonly summary?: string;
+
+  /**
+   * Event group markers to attach to the schedule-Nexus-operation command. The markers will be
+   * reflected on the corresponding workflow history events, and may be used by tooling
+   * (UI/CLI) to group related events together. See {@link EventGroupMarker} and `createGroup`.
+   *
+   * @experimental Event Groups is a new API and may change without notice.
+   */
+  readonly groups?: EventGroupMarker[];
 }
 
 /**
@@ -369,14 +387,14 @@ export interface SignalWorkflowInput {
   readonly args: unknown[];
   readonly headers: Headers;
   readonly target:
-    | {
-        readonly type: 'external';
-        readonly workflowExecution: WorkflowExecution;
-      }
-    | {
-        readonly type: 'child';
-        readonly childWorkflowId: string;
-      };
+  | {
+    readonly type: 'external';
+    readonly workflowExecution: WorkflowExecution;
+  }
+  | {
+    readonly type: 'child';
+    readonly childWorkflowId: string;
+  };
 }
 
 /**
@@ -445,7 +463,7 @@ export interface ActivateInput {
  * Input for {@link WorkflowInternalsInterceptor.dispose}
  */
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface DisposeInput {}
+export interface DisposeInput { }
 
 /**
  * Input for {@link WorkflowInternalsInterceptor.concludeActivation}

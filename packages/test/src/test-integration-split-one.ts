@@ -726,8 +726,8 @@ test.serial('Workflow can upsert Search Attributes', configMacro, async (t, conf
   }
   t.true(
     typeof checksum === 'string' &&
-      checksum.includes(`@temporalio/worker@${pkg.version}+`) &&
-      /\+[a-f0-9]{64}$/.test(checksum) // bundle checksum
+    checksum.includes(`@temporalio/worker@${pkg.version}+`) &&
+    /\+[a-f0-9]{64}$/.test(checksum) // bundle checksum
   );
 });
 

@@ -3,6 +3,7 @@ import { msOptionalToTs } from '@temporalio/common/lib/time';
 import { userMetadataToPayload } from '@temporalio/common/lib/user-metadata';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
 import type { coresdk } from '@temporalio/proto';
+import { eventGroupMarkersToProto } from './event-groups';
 import { CancellationScope } from './cancellation-scope';
 import { getActivator } from './global-attributes';
 import { composeInterceptors } from './interceptor-composition';
@@ -137,8 +138,8 @@ export function createNexusServiceClient<T extends nexus.ServiceDefinition>(
       const opName =
         typeof operation === 'string'
           ? // Casting as string to cover up the fact that `opName` might be undefined.
-            // If this happens, then `execute` will produce a `NexusOperationFailure.NOT_FOUND`.
-            (options.service.operations[operation]?.name as string)
+          // If this happens, then `execute` will produce a `NexusOperationFailure.NOT_FOUND`.
+          (options.service.operations[operation]?.name as string)
           : operation.name;
 
       const activator = getActivator();
@@ -235,6 +236,7 @@ function startNexusOperationNextHandler({
         cancellationType: encodeNexusOperationCancellationType(options?.cancellationType),
       },
       userMetadata: userMetadataToPayload(activator.payloadConverter, options?.summary, undefined, context),
+      eventGroupMarkers: eventGroupMarkersToProto(options?.groups, context),
     });
 
     activator.completions.nexusOperationStart.set(seq, {

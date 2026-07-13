@@ -20,6 +20,7 @@ import type {
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
 import type { coresdk } from '@temporalio/proto';
+import type { EventGroupMarker } from './event-groups';
 
 /**
  * Workflow Execution information
@@ -156,6 +157,12 @@ export interface WorkflowInfo {
    * Run Id of the first Run in this Execution Chain
    */
   readonly firstExecutionRunId: string;
+
+  /**
+   * The Run Id recorded on the `WorkflowExecutionStarted` event. Unlike {@link runId}, this value is
+   * preserved across Workflow resets (a reset changes the execution's Run Id but keeps this one).
+   */
+  readonly originalExecutionRunId: string;
 
   /**
    * The last Run Id in this Execution Chain
@@ -331,7 +338,18 @@ export interface RootWorkflowInfo {
  */
 @SymbolBasedInstanceOfError('ContinueAsNew')
 export class ContinueAsNew extends Error {
-  constructor(public readonly command: coresdk.workflow_commands.IContinueAsNewWorkflowExecution) {
+  /**
+   * The class is exported so that user code can perform `instanceof ContinueAsNew` checks, but this
+   * constructor is a runtime-internal mechanism and is not part of the public API. User code should
+   * trigger continue-as-new through {@link continueAsNew} / {@link makeContinueAsNewFunc}, never by
+   * constructing this error directly.
+   *
+   * @internal
+   */
+  constructor(
+    public readonly command: coresdk.workflow_commands.IContinueAsNewWorkflowExecution,
+    public readonly groupMarkers?: NonNullable<coresdk.workflow_commands.IWorkflowCommand['eventGroupMarkers']>
+  ) {
     super('Workflow continued as new');
   }
 }
@@ -398,6 +416,17 @@ export interface ContinueAsNewOptions {
    * @experimental Versioning semantics with continue-as-new are experimental and may change in the future.
    */
   initialVersioningBehavior?: InitialVersioningBehavior;
+
+  /**
+   * Event group markers to attach to the continue-as-new command. The markers will be reflected
+   * on the corresponding workflow history events, and may be used by tooling (UI/CLI) to group
+   * related events together. See {@link EventGroupMarker} and `createGroup`.
+   *
+   * Note that event group markers are never propagated across workflow executions.
+   * 
+   * @experimental Event Groups is a new API and may change without notice.
+   */
+  groups?: EventGroupMarker[];
 }
 
 /**
@@ -602,6 +631,17 @@ export interface ChildWorkflowOptions extends Omit<CommonWorkflowOptions, 'workf
    * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
    */
   versioningIntent?: VersioningIntent;
+
+  /**
+   * Event group markers to attach to the child workflow start command. The markers will be
+   * reflected on the corresponding workflow history events, and may be used by tooling
+   * (UI/CLI) to group related events together. See {@link EventGroupMarker} and `createGroup`.
+   * 
+   * Note that event group markers are never propagated across workflow executions.
+   *
+   * @experimental Event Groups is a new API and may change without notice.
+   */
+  groups?: EventGroupMarker[];
 }
 
 export type RequiredChildWorkflowOptions = Required<Pick<ChildWorkflowOptions, 'workflowId' | 'cancellationType'>> & {
@@ -700,10 +740,10 @@ export type Handler<
 > = T extends UpdateDefinition<infer R, infer A>
   ? (...args: A) => R | Promise<R>
   : T extends SignalDefinition<infer A>
-    ? (...args: A) => void | Promise<void>
-    : T extends QueryDefinition<infer R, infer A>
-      ? (...args: A) => R
-      : never;
+  ? (...args: A) => void | Promise<void>
+  : T extends QueryDefinition<infer R, infer A>
+  ? (...args: A) => R
+  : never;
 
 /**
  * A handler function accepting signal calls for non-registered signal names.
@@ -749,3 +789,4 @@ export interface ActivationCompletion {
   usedInternalFlags: number[];
   versioningBehavior?: VersioningBehavior;
 }
+

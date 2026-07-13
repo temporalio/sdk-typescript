@@ -1,8 +1,6 @@
 import type {
   ActivityFunction,
   ActivitySerializationContext,
-  ActivityOptions,
-  LocalActivityOptions,
   QueryDefinition,
   SearchAttributes,
   SearchAttributeValue,
@@ -21,7 +19,6 @@ import type {
 import {
   compileRetryPolicy,
   compilePriority,
-  encodeActivityCancellationType,
   encodeWorkflowIdReusePolicy,
   extractWorkflowType,
   HandlerUnfinishedPolicy,
@@ -41,9 +38,11 @@ import { msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/
 import type { temporal } from '@temporalio/proto';
 import { deepMerge } from '@temporalio/common/lib/internal-workflow';
 import { throwIfReservedName } from '@temporalio/common/lib/reserved';
+import { eventGroupMarkersToProto } from './event-groups';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import { composeInterceptors } from './interceptor-composition';
 import { UpdateScope } from './update-scope';
+import type { ActivityOptions, LocalActivityOptions } from './activities';
 import type {
   ActivityInput,
   LocalActivityInput,
@@ -78,6 +77,7 @@ import { assertInWorkflowContext, getActivator, maybeGetActivator } from './glob
 import { uuid4FromRandom } from './random-helpers';
 import { untrackPromise } from './stack-helpers';
 import type { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
+import { encodeActivityCancellationType } from './activities';
 
 // Avoid a circular dependency
 registerSleepImplementation(sleep);
@@ -149,6 +149,7 @@ function timerNextHandler({ seq, durationMs, options }: TimerInput) {
             cancelTimer: {
               seq,
             },
+            eventGroupMarkers: eventGroupMarkersToProto(options?.groups, context),
           });
           reject(err);
         })
@@ -160,6 +161,7 @@ function timerNextHandler({ seq, durationMs, options }: TimerInput) {
         startToFireTimeout: msToTs(durationMs),
       },
       userMetadata: userMetadataToPayload(activator.payloadConverter, options?.summary, undefined, context),
+      eventGroupMarkers: eventGroupMarkersToProto(options?.groups, context),
     });
     activator.completions.timer.set(seq, {
       resolve,
@@ -248,6 +250,7 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
         priority: options.priority ? compilePriority(options.priority) : undefined,
       },
       userMetadata: userMetadataToPayload(activator.payloadConverter, options.summary, undefined, context),
+      eventGroupMarkers: eventGroupMarkersToProto(options.eventGroups, context),
     });
     activator.completions.activity.set(seq, {
       resolve,
@@ -316,6 +319,7 @@ async function scheduleLocalActivityNextHandler({
         cancellationType: encodeActivityCancellationType(options.cancellationType),
       },
       userMetadata: userMetadataToPayload(activator.payloadConverter, options.summary, undefined, context),
+      eventGroupMarkers: eventGroupMarkersToProto(options.eventGroups, context),
     });
     activator.completions.activity.set(seq, {
       resolve,
@@ -367,7 +371,7 @@ export async function scheduleLocalActivity<R>(
   let attempt = 1;
   let originalScheduleTime = undefined;
 
-  for (;;) {
+  for (; ;) {
     const seq = activator.nextSeqs.activity++;
     const execute = composeInterceptors(
       activator.interceptors.outbound,
@@ -460,6 +464,7 @@ function startChildWorkflowExecutionNextHandler({
         options?.staticDetails,
         context
       ),
+      eventGroupMarkers: eventGroupMarkersToProto(options?.groups, context),
     });
     activator.completions.childWorkflowStart.set(seq, {
       resolve,
@@ -517,14 +522,14 @@ function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: S
         signalName,
         ...(target.type === 'external'
           ? {
-              workflowExecution: {
-                namespace: activator.info.namespace,
-                ...target.workflowExecution,
-              },
-            }
+            workflowExecution: {
+              namespace: activator.info.namespace,
+              ...target.workflowExecution,
+            },
+          }
           : {
-              childWorkflowId: target.childWorkflowId,
-            }),
+            childWorkflowId: target.childWorkflowId,
+          }),
       },
     });
 
@@ -1071,22 +1076,27 @@ export function makeContinueAsNewFunc<F extends Workflow>(
     const context = currentWorkflowSerializationContext(info);
     const fn = composeInterceptors(activator.interceptors.outbound, 'continueAsNew', async (input) => {
       const { headers, args, options } = input;
-      throw new ContinueAsNew({
-        workflowType: options.workflowType,
-        arguments: toPayloadsWithContext(activator.payloadConverter, context, args),
-        headers,
-        taskQueue: options.taskQueue,
-        memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo, context),
-        searchAttributes:
-          options.searchAttributes || options.typedSearchAttributes
-            ? { indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes) }
-            : undefined,
-        workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
-        workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
-        backoffStartInterval: msOptionalToTs(options.backoffStartInterval),
-        versioningIntent: versioningIntentToProto(options.versioningIntent),
-        initialVersioningBehavior: encodeInitialVersioningBehavior(options.initialVersioningBehavior),
-      });
+      throw new ContinueAsNew(
+        {
+          workflowType: options.workflowType,
+          arguments: toPayloadsWithContext(activator.payloadConverter, context, args),
+          headers,
+          taskQueue: options.taskQueue,
+          memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo, context),
+          searchAttributes:
+            options.searchAttributes || options.typedSearchAttributes
+              ? {
+                indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes),
+              }
+              : undefined,
+          workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
+          workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
+          backoffStartInterval: msOptionalToTs(options.backoffStartInterval),
+          versioningIntent: versioningIntentToProto(options.versioningIntent),
+          initialVersioningBehavior: encodeInitialVersioningBehavior(options.initialVersioningBehavior),
+        },
+        eventGroupMarkersToProto(options.groups, context)
+      );
     });
     return fn({
       args,
