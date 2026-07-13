@@ -34,9 +34,7 @@ test('updateWorkflow rejects a non-ACCEPTED waitForStage as a failed operation',
   });
 
   // A callback URL is present so the failure is attributable to the wait stage, not the missing URL.
-  const err = await t.throwsAsync(() =>
-    handler.start(makeStartContext({ callbackUrl: 'http://callback' }), undefined)
-  );
+  const err = await t.throwsAsync(() => handler.start(makeStartContext({ callbackUrl: 'http://callback' }), undefined));
   t.true(err instanceof nexus.OperationError);
   t.is((err as nexus.OperationError).state, 'failed');
   t.regex(err?.message ?? '', /ACCEPTED wait stage/);
