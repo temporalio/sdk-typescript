@@ -200,9 +200,32 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
     isolateExecutionTimeoutMs: number,
     registeredActivityNames: Set<string>
   ): Promise<InstanceType<T>> {
+    // The Reusable V8 Context executor needs to take control of Webpack's require
+    // cache in order to provide per-Workflow isolation of non-shared modules.
+    // In order to achieve that, the Workflow Bundler must rewrites webpack's module
+    // cache declaration to initilize it with `globalThis.__webpack_module_cache__`
+    // instead of an empty object.
+    //
+    // Loading a bundle that does not correctly rewrite the webpack's module cache to
+    // `globalThis.__webpack_module_cache__` in the Reusable V8 Context executor will
+    // result in silent breakage of Workflow isolation. See #2170 and #2188 for details.
+    //
+    // The following is a sanity check to catch eventual regressions, or attempts by
+    // users to use the Reusable V8 Context executor with bundles that were not produced
+    // with a compatible Workflow Bundler.
+    if (!workflowBundle.code.includes('globalThis.__webpack_module_cache__')) {
+      throw new Error(
+        `The provided Workflow Bundle is not compatible with the Reusable V8 Context executor: it does ` +
+          `not route its module cache through 'globalThis.__webpack_module_cache__', which is required to ` +
+          `keep module state isolated across Workflow executions. Make sure the bundle was produced by a ` +
+          `compatible version of the Temporal SDK, or disable the Reusable V8 Context executor by setting ` +
+          `'WorkerOptions.reuseV8Context' to false.`
+      );
+    }
+
+    const script = new vm.Script(workflowBundle.code, { filename: workflowBundle.filename });
     globalHandlers.install(); // Call is idempotent
     await globalHandlers.addWorkflowBundle(workflowBundle);
-    const script = new vm.Script(workflowBundle.code, { filename: workflowBundle.filename });
     return new this(script, workflowBundle, isolateExecutionTimeoutMs, registeredActivityNames) as InstanceType<T>;
   }
 
