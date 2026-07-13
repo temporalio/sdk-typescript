@@ -1,209 +1,122 @@
-# How to Contribute
+# Contributing to Temporal SDKs
 
-<!-- START doctoc generated TOC please keep comment here to allow auto update -->
-<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+Thanks for your interest in contributing to Temporal SDKs.
 
-**Table of Contents**
+This guide describes expectations that apply across Temporal SDK repositories. Each
+repository may have additional local conventions, but the guidance below should help
+you open issues and pull requests that maintainers can evaluate efficiently.
 
-- [Maintenance](#maintenance)
-- [Getting started](#getting-started)
-  - [Contributor License Agreement (CLA)](#contributor-license-agreement-cla)
-  - [Environment setup](#environment-setup)
-- [Development](#development)
-  - [Working with Individual Packages](#working-with-individual-packages)
-  - [Testing](#testing)
-    - [Testing local changes to core](#testing-local-changes-to-core)
-      - [Integration tests](#integration-tests)
-    - [test-npm-init](#test-npm-init)
-  - [Style Guide](#style-guide)
-- [Updating and pruning dependencies](#updating-and-pruning-dependencies)
+## Before You Open an Issue
 
-<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+Search the existing issues first. If you find an issue that describes the same bug,
+feature request, or design topic, add any relevant details there instead of opening a
+duplicate. Use an upvote on the issue to show that it affects you too.
 
-The Temporal TypeScript SDK (as well as the rest of the Temporal codebase) is open sourced under the MIT license.
+Issues are assigned to people when they are actively working on them. Before taking
+on an issue, check whether it is already assigned so you do not duplicate someone
+else's work.
 
-We welcome contributions from the community. To contribute, please start by opening an [issue](https://github.com/temporalio/sdk-typescript/issues) and discussing the proposed change. Once a change has been agreed upon, development may start and be submitted via a [pull request](https://github.com/temporalio/sdk-typescript/pulls).
+Use GitHub issues for actionable bugs and feature work. For usage questions, help
+debugging an application, or general discussion, join the relevant
+language-specific channel in the
+[Temporal community Slack](https://temporal.io/slack) or use the support channel
+available to you.
 
-## Maintenance
+## Bug Reports
 
-If you'd like to give a hand, please reach us on our [community Slack workspace](https://temporalio.slack.com/channels/typescript-sdk). We'd be happy to have help with any of these things:
+When reporting a bug, include enough detail for someone else to reproduce or
+understand the problem:
 
-- Triaging issues
-- Reviewing PRs
-- Submitting PRs to close issues
+* A short summary of the problem.
+* A minimal reproduction, preferably as code that can be copied into a small
+  project or test.
+* What you expected to happen and what actually happened.
+* The SDK version.
+* The language runtime version.
+* The operating system and architecture.
+* Temporal Server or Temporal Cloud details, if the issue depends on service
+  behavior.
+* Logs, stack traces, workflow histories, or other diagnostics that show the
+  failure.
+* Whether the behavior is a regression, and the last version where it worked if
+  known.
 
-## Getting started
+## Feature Requests and Design Changes
 
-### Contributor License Agreement (CLA)
+Open or join a GitHub issue before starting substantial feature work, behavior
+changes, or API design changes. This gives maintainers and other SDK users a chance
+to discuss the approach before you invest in a larger implementation.
 
-Contributors must agree to the CLA before their PR can be merged. You only have to do this once. Follow [this link](https://cla-assistant.io/temporalio/sdk-typescript) and sign in with your GitHub account.
+The relevant language-specific channel in Temporal community Slack is also a good
+place for early discussion, but important decisions should still be captured in a
+GitHub issue so they are visible and searchable.
 
-### Environment setup
+Small bug fixes, documentation fixes, and narrowly scoped maintenance changes can go
+straight to a pull request.
 
-The Temporal TypeScript SDK is officially supported on Node 20, 22, or 24.
-However, we recommend using the [Active LTS](https://nodejs.org/en/about/previous-releases#nodejs-releases)
-for SDK development. For easier testing during development, you may want to use
-a version manager, such as [fnm](https://github.com/Schniz/fnm) or [nvm](https://github.com/nvm-sh/nvm/blob/master/README.md).
+## Pull Requests
 
-1. To run tests, you will need access to a local Temporal server, e.g. using the
-   [Temporal CLI's integrated dev server](https://docs.temporal.io/cli).
-2. Install the [Rust toolchain](https://rustup.rs/).
-3. Install [Protocol Buffers](https://protobuf.dev/installation/).
-4. Clone the [sdk-typescript](https://github.com/temporalio/sdk-typescript) repo:
+Good pull requests are focused and easy to review:
 
-   ```sh
-   git clone https://github.com/temporalio/sdk-typescript.git
-   cd sdk-typescript
-   ```
+* Keep each pull request scoped to one logical change.
+* Include tests for behavior changes.
+* Update public API documentation or doc comments when public behavior changes.
+* Add a high-level changelog entry for user-facing changes according to the
+  repository's local changelog convention.
+* Describe what changed, why it changed, and what validation you ran.
 
-5. Initialize the Core SDK submodule:
+Run the relevant local checks when practical. CI must pass before a pull request can
+be merged.
 
-   ```sh
-   git submodule update --init --recursive
-   ```
+## Things to Avoid
 
-   > If you get a `The authenticity of host 'github.com (192.30.252.123)' can't be established.`
-   > error, run `ssh-keyscan github.com >> ~/.ssh/known_hosts` and retry.
+Avoid changes that make review harder without improving the contribution:
 
-6. Install `pnpm`
-   TS SDK uses PNPM to manage dependencies. Corepack is the recommend way to install `pnpm` and is included in Node 14+
+* Unrelated refactors mixed into a behavior change.
+* Style-only churn.
+* Large feature pull requests that were not discussed first.
+* License, copyright, or other legal changes without maintainer discussion.
 
-```sh
-corepack enable
-```
+## AI-Generated Contributions
 
-7. Install the dependencies:
+Using AI tools while contributing is acceptable. You are responsible for the
+correctness, quality, and maintainability of everything you submit.
 
-   ```sh
-   pnpm install --frozen-lockfile
-   ```
+Thoroughly self-review AI-generated code and documentation before opening a pull
+request. Make sure it is correct, tested where appropriate, and consistent with the
+style and patterns of the codebase.
 
-   This may take a few minutes, as it involves downloading and compiling Rust dependencies.
+Keep AI-assisted changes concise and scoped. Avoid verbose generated prose,
+unnecessary comments, or broad rewrites that make the change harder to review.
 
-You should now be able to build:
+## Contributor License Agreement
 
-```sh
-pnpm build
-```
+All contributors must complete the Temporal Contributor License Agreement (CLA)
+before changes can be merged. A link to the CLA will be posted in the pull request.
 
-If building fails, resetting your environment may help:
+## Security Issues
 
-```
-pnpm clean
-pnpm install --frozen-lockfile
-```
+Do not open public GitHub issues for suspected security vulnerabilities. Report them
+to security@temporal.io instead.
 
-If `pnpm install` fails in `@temporalio/core-bridge` on the command `pnpm tsx ./scripts/build.ts`, you may
-need to do `rustup update`.
+## Review and CI
 
-To update to the latest version of the Core SDK, run `git submodule update` followed by `pnpm build` to recompile.
+Maintainers review pull requests for correctness, compatibility, test coverage,
+documentation, and long-term maintainability. Review may require changes before a
+pull request can be merged, and it may take maintainers some time to review a
+contribution.
 
-## Development
+CI is the final validation gate. If CI fails, update the pull request or ask for help
+if the failure appears unrelated to your change. Some CI gates may wait for a
+maintainer to approve or run them.
 
-After your environment is set up, you can run these commands:
+## Inactive Pull Requests
 
-- `pnpm build` compiles protobuf definitions, Rust bridge, C++ isolate extension, and Typescript.
-- `pnpm run rebuild` deletes all generated files in the project and reruns build.
-- `pnpm build:watch` watches filesystem for changes and incrementally compiles Typescript on change.
-- `pnpm test` runs the test suite. Tests assume you have a [Temporal server running locally](https://docs.temporal.io/cli#start-dev-server).
-- `pnpm test:watch` runs the test suite on each change to Typescript files.
-- `pnpm format` formats code with prettier.
-- `pnpm lint` verifies code style with prettier and ES lint.
-- `pnpm commitlint` validates [commit messages](#style-guide).
+Maintainers may close inactive pull requests after follow-up if they are no longer
+moving forward. If that happens, you are welcome to reopen the pull request or open a
+new one when you are ready to continue.
 
-### Working with Individual Packages
+## Community Conduct
 
-You can build or test a single package using pnpm's filter flag:
-
-```sh
-# Build a single package and all its dependencies explicitly
-pnpm -F @temporalio/worker... run build
-
-# Run tests for a single package
-pnpm -F @temporalio/common run test
-```
-
-The `...` suffix includes all dependencies of the specified package.
-
-### Testing
-
-#### Testing local changes to core
-
-Create a `.cargo/config.toml` file and override the path to sdk-core and/or sdk-core-protos as
-described [here](https://doc.rust-lang.org/cargo/reference/overriding-dependencies.html#paths-overrides)
-
-##### Integration tests
-
-In order to run integration tests:
-
-1. Run the Temporal server, e.g. using the [Temporal CLI's integrated dev server](https://github.com/temporalio/cli#start-the-server)
-1. Export `RUN_INTEGRATION_TESTS=true`
-
-#### test-npm-init
-
-To replicate the `test-npm-init` CI test locally, you can start with the below steps:
-
-> If you've run `npx @temporalio/create` before, you may need to delete the version of the package that's stored in `~/.npm/_npx/`.
-
-```
-pnpm install --frozen-lockfile
-pnpm run rebuild
-
-TMP_DIR=$( mktemp -d )
-
-pnpm tsx scripts/publish-to-verdaccio.ts --registry-dir "$TMP_DIR"
-pnpm tsx scripts/init-from-verdaccio.ts --registry-dir "$TMP_DIR" --target-dir "./example" --sample hello-world
-pnpm tsx scripts/test-example.ts --work-dir "./example"
-
-rm -rf ./example "$TMP_DIR"
-```
-
-### Style Guide
-
-- Typescript code is linted with [eslint](https://eslint.org/)
-- Files in this repo are formatted with [prettier](https://prettier.io/)
-- Prefer explicit named re-exports and avoid wildcard re-exports where possible (`export * from ...`) in public entrypoint / barrel files.
-- Use `@experimental` and `@internal` to manage API stability and visibility. Mark new or work-in-progress exported APIs `@experimental` to signal their shape may still change. Mark a symbol `@internal` to keep it out of the generated public docs. The two are independent and may be combined. It is fine to ship something `@internal` now and promote it to public later, by removing `@internal` and adding a named re-export, once it is actually usable. The reverse is a breaking change, so prefer starting narrow.
-- Pull request titles SHOULD adhere to the [Conventional Commits specification](https://conventionalcommits.org/), for example:
-
-```
-<type>(optional scope): <description>
-
-chore(samples): upgrade commander module
-```
-
-The `scope` options are listed in [commitlint.config.js](./commitlint.config.js).
-
-## Updating and pruning dependencies
-
-There are various tools out there to help with updating and pruning NPM dependencies.
-
-I personally use the following commands to find NPM packages that needs to be updated. It runs
-interactively on each package of the repo, making it easy to select and apply packages to be updated.
-
-```
-for i in ./package.json packages/*/package.json contrib/*/package.json ; do
-  (
-    cd "${i%%package.json}"
-    pwd
-    npm-check-updates -i
-  )
-done
-```
-
-To identify unused dependencies, I run the following script. Note that `npm-check` may report
-false-positive. Search the code before actually deleting any dependency. Also note that runtime
-dependencies MUST be added on the actual packages that use them to ensure proper execution in PNPM
-and YARN 2+ setups.
-
-```
-for i in ./package.json packages/*/package.json contrib/*/package.json ; do
-  (
-    cd "${i%%package.json}"
-    pwd
-    npm-check
-  )
-done
-```
-
-To install both tools: `npm i -g npm-check npm-check-updates`.
+Keep discussions respectful, constructive, and focused on the work. Clear context,
+specific examples, and patience with review feedback help everyone move faster.
