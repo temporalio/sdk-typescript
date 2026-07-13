@@ -30,7 +30,7 @@ const MODULE_CACHE_GLOBAL = 'globalThis.__webpack_module_cache__';
  * otherwise-identical builds.
  */
 const MODULE_CACHE_MARKER = '__temporal_module_cache_marker_5f2e9c8a1b7d4e60a3__';
-const MARKER_COMMENT = `/* ${MODULE_CACHE_MARKER} */`;
+const MARKER_COMMENT = `/* ${MODULE_CACHE_MARKER} */\n`;
 
 // Matches webpack's top-level module-cache initializer, regardless of the declaration
 // keyword used (webpack < 5.108 emits `var`; >= 5.108 may emit `const`, 'let' or `var`).
@@ -58,7 +58,7 @@ export class InjectWorkflowModuleCacheGlobalPlugin {
       const hooks = javascript.JavascriptModulesPlugin.getCompilationHooks(compilation);
 
       hooks.renderRequire.tap(PLUGIN_NAME, (code: string) => {
-        return `${MARKER_COMMENT}\n${code}`;
+        return `${MARKER_COMMENT}${code}`;
       });
 
       hooks.renderMain.tap(PLUGIN_NAME, (source: Source) => {
@@ -76,7 +76,8 @@ export class InjectWorkflowModuleCacheGlobalPlugin {
       return source;
     }
 
-    // The marker is injected exactly once, into the single top-level require function.
+    // The marker is injected exactly once, into the single top-level
+    // require function. Confirm there isn't another marker in the code.
     if (code.indexOf(MARKER_COMMENT, markerIndex + MARKER_COMMENT.length) !== -1) {
       throw new WebpackError(
         `Failed to patch the Workflow bundle: expected exactly one module-cache marker, but found more than one. ` +
@@ -90,6 +91,9 @@ export class InjectWorkflowModuleCacheGlobalPlugin {
     // nested, pre-bundled dependencies and appear earlier in the emitted module content, so
     // the nearest match before the marker is always the real one.
     let declaration: RegExpExecArray | null = null;
+    // Because of the `/g` flag, the regexp is stateful. We must reset the regexp's
+    // lastIndex to 0 to make sure it starts from the beginning of the code, rather
+    // than continuing from the last match position of a previous iteration.
     MODULE_CACHE_DECLARATION.lastIndex = 0;
     for (let match = MODULE_CACHE_DECLARATION.exec(code); match !== null; match = MODULE_CACHE_DECLARATION.exec(code)) {
       if (match.index >= markerIndex) break;
@@ -112,11 +116,11 @@ export class InjectWorkflowModuleCacheGlobalPlugin {
     const declEndInclusive = declStart + declaration[0].length - 1;
     replaced.replace(declStart, declEndInclusive, declaration[0].replace('= {}', `= ${MODULE_CACHE_GLOBAL}`));
 
-    // Strip the marker (and its trailing newline, if present) so it never ships.
+    // Strip the marker so it never ships.
+    // Note that `ReplaceSource.replace()` takes character indices from the
+    // _original_ source; there's thereforre no need to adjust the indices to
+    // account for the replacement we just performed (`= {}` => MODULE_CACHE_GLOBAL).
     let markerEndInclusive = markerIndex + MARKER_COMMENT.length - 1;
-    if (code[markerEndInclusive + 1] === '\n') {
-      markerEndInclusive += 1;
-    }
     replaced.replace(markerIndex, markerEndInclusive, '');
 
     return replaced;

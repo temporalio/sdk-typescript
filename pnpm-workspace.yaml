@@ -40,7 +40,7 @@ minimumReleaseAgeExclude:
   - '@temporalio/*'
   - nexus-rpc
 
-  # Pin as part of #2170 mitigation to make sure our tests confirm validity
+  # Allow as part of #2170 mitigation to make sure our tests confirm validity
   # of our fix against the behavior change introduced by webpack@5.108.0
   - webpack@5.108.4
 
