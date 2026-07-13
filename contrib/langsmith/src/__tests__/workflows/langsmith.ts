@@ -13,6 +13,7 @@ import {
   defineSignal,
   defineUpdate,
   proxyActivities,
+  proxyLocalActivities,
   setHandler,
   startChild,
   uuid4,
@@ -23,6 +24,11 @@ import { ApplicationFailureCategory } from '@temporalio/common';
 import type * as activities from '../activities/langsmith';
 
 const { simpleActivity, plainActivity, failingActivity, benignFailingActivity } = proxyActivities<typeof activities>({
+  startToCloseTimeout: '1 minute',
+  retry: { maximumAttempts: 1 },
+});
+
+const { a, b, c } = proxyLocalActivities<typeof activities>({
   startToCloseTimeout: '1 minute',
   retry: { maximumAttempts: 1 },
 });
@@ -50,6 +56,7 @@ export async function PlainWorkflow(input: string): Promise<string> {
 export const mySignal = defineSignal<[string]>('my_signal');
 export const completeSignal = defineSignal('complete');
 export const myQuery = defineQuery<string>('my_query');
+export const startSignal = defineSignal('startSignal');
 
 /** Sets a query handler and a releasing signal, then waits. */
 export async function HandlersWorkflow(): Promise<string> {
@@ -81,6 +88,17 @@ export async function SignalChildWorkflow(input: string): Promise<string> {
   });
   await child.signal(mySignal, input);
   return child.result();
+}
+
+/** Start-with-signal ordering reproducer for async signal inbound interceptors. */
+export async function SignalStartOrderingWorkflow(): Promise<string> {
+  const order: string[] = [];
+  order.push(await a());
+  setHandler(startSignal, async () => {
+    order.push(await b());
+  });
+  order.push(await c());
+  return order.join('');
 }
 
 /** Calls an activity that fails with a non-benign error. */
