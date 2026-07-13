@@ -17,7 +17,59 @@ to docs, or any other relevant information.
 
 # Changelog
 
-## [1.19.0]
+## [Unreleased]
+
+### Fixed
+
+- Workflow Bundler: further strengthening of the `__webpack_module_cache__` replacement logic, addressing regressions introduced by the fix in 1.20.1.
+
+## [1.20.2] - 2026-07-08
+
+### Fixed
+
+- langsmith: resolve workflow interceptor module by absolute path
+
+## [1.20.1] - 2026-07-07
+
+### Fixed
+
+- Workflow Bundler: fix a bug in our replacement of `__webpack_module_cache__` logic introduced by webpack 5.108.0, resulting in breaking workflow context isolation (fix #2170).
+
+## [1.20.0] - 2026-07-07
+
+### Added
+
+- New `@temporalio/langsmith` package for tracing Temporal apps to [LangSmith](https://smith.langchain.com/).
+  It hooks the client, Workflow, and Activity interceptors so a Workflow and the Activities it runs show up
+  as a single LangSmith run tree.
+
+### Changed
+
+- protobufjs bumped to ^7.6.4
+- Updated Core to `5df57f6d`. Package-visible changes from this update include:
+  - `NativeConnection` initialization now retries without gRPC gzip compression if the server
+    cannot decompress the eager `GetSystemInfo` call.
+  - Workflow replay now honors SDK flags already recorded in history even when the server does not
+    advertise SDK metadata support.
+  - OTLP metric export failures from Core's periodic metric reader are now logged through Core
+    telemetry.
+- `@temporalio/openai-agents`: Query handlers and update validators now derive trace span IDs from the SDK's
+  replay-safe random source instead of a private seeded PRNG. This removes the old seed-collision workaround
+  and gives read-only handlers distinct, well-formed span IDs.
+
+## [1.19.2] - 2026-07-13
+
+### Fixed
+
+- Workflow Bundler: further strengthening of the `__webpack_module_cache__` replacement logic, addressing regressions introduced by the fix in 1.19.1.
+
+## [1.19.1] - 2026-07-07
+
+### Fixed
+
+- Workflow Bundler: fix a bug in our replacement of `__webpack_module_cache__` logic introduced by webpack 5.108.0, resulting in breaking workflow context isolation (fix #2170).
+
+## [1.19.0] - 2026-07-01
 
 ### Added
 
@@ -47,39 +99,3 @@ to docs, or any other relevant information.
 
 - fix(openai-agents): correct misleading legacy-query comment in resolveQueryKey
 - avoid logging `NativeConnection` on worker startup
-
-## [1.20.0]
-
-### Added
-
-- New `@temporalio/langsmith` package for tracing Temporal apps to [LangSmith](https://smith.langchain.com/).
-  It hooks the client, Workflow, and Activity interceptors so a Workflow and the Activities it runs show up
-  as a single LangSmith run tree.
-
-### Changed
-
-- protobufjs bumped to ^7.6.4
-- Updated Core to `5df57f6d`. Package-visible changes from this update include:
-  - `NativeConnection` initialization now retries without gRPC gzip compression if the server
-    cannot decompress the eager `GetSystemInfo` call.
-  - Workflow replay now honors SDK flags already recorded in history even when the server does not
-    advertise SDK metadata support.
-  - OTLP metric export failures from Core's periodic metric reader are now logged through Core
-    telemetry.
-- `@temporalio/openai-agents`: Query handlers and update validators now derive trace span IDs from the SDK's
-  replay-safe random source instead of a private seeded PRNG. This removes the old seed-collision workaround
-  and gives read-only handlers distinct, well-formed span IDs.
-
-## 1.20.1
-
-### Fixed
-
-- patch workflow bundles with const/let/var that are emitted by webpack 5.108.0 and above
-
-## 1.20.2
-
-### Fixed
-
-- fix(langsmith): resolve workflow interceptor module by absolute path
-
-## [Unreleased]
