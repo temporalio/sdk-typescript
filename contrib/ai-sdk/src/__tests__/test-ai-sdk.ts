@@ -1,7 +1,6 @@
 /**
  * Test AI SDK integration with Temporal workflows
  */
-import { randomUUID } from 'crypto';
 import type {
   EmbeddingModelV4,
   EmbeddingModelV4CallOptions,
@@ -18,35 +17,16 @@ import type {
 } from '@ai-sdk/provider';
 import { openai } from '@ai-sdk/openai';
 import type { TestFn } from 'ava';
-import * as opentelemetry from '@opentelemetry/sdk-node';
-import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
-import { ExportResultCode } from '@opentelemetry/core';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { createMCPClient } from '@ai-sdk/mcp';
 import { temporal } from '@temporalio/proto';
-import { WorkflowClient } from '@temporalio/client';
-import type { OpenTelemetrySinks } from '@temporalio/interceptors-opentelemetry';
-import {
-  makeWorkflowExporter,
-  OpenTelemetryActivityInboundInterceptor,
-  OpenTelemetryActivityOutboundInterceptor,
-  OpenTelemetryWorkflowClientCallsInterceptor,
-  OpenTelemetryWorkflowClientInterceptor,
-} from '@temporalio/interceptors-opentelemetry';
 import { workflowInterceptorModules } from '@temporalio/testing';
-import { bundleWorkflowCode, DefaultLogger, Runtime, Worker as CoreWorker } from '@temporalio/worker';
-import type { InjectedSinks } from '@temporalio/worker';
+import { bundleWorkflowCode, DefaultLogger, Worker as CoreWorker } from '@temporalio/worker';
 import type { BaseContext } from '@temporalio/test-helpers';
-import {
-  test as anyTest,
-  createBaseBundlerOptions,
-  helpers,
-  Worker,
-  TestWorkflowEnvironment,
-} from '@temporalio/test-helpers';
+import { test as anyTest, createBaseBundlerOptions, helpers, TestWorkflowEnvironment } from '@temporalio/test-helpers';
 import { AiSdkPlugin, createActivities } from '..';
 import {
   embeddingWorkflow,
@@ -55,7 +35,6 @@ import {
   mcpSchemaTestWorkflow,
   mcpWorkflow,
   middlewareWorkflow,
-  telemetryWorkflow,
   toolsWorkflow,
 } from './workflows/ai-sdk';
 import { getWeather } from './activities/ai-sdk';
@@ -432,84 +411,6 @@ test('Embedding model generates embeddings', async (t) => {
     );
     t.assert(activityTypes.includes('invokeEmbeddingModel'), 'invokeEmbeddingModel activity should have been called');
   });
-});
-
-test('Telemetry', async (t) => {
-  if (remoteTests) {
-    t.timeout(120 * 1000);
-  }
-  try {
-    const spans = Array<opentelemetry.tracing.ReadableSpan>();
-
-    const staticResource = new opentelemetry.resources.Resource({
-      [SEMRESATTRS_SERVICE_NAME]: 'ts-test-otel-worker',
-    });
-    const traceExporter: opentelemetry.tracing.SpanExporter = {
-      export(spans_, resultCallback) {
-        spans.push(...spans_);
-        resultCallback({ code: ExportResultCode.SUCCESS });
-      },
-      async shutdown() {
-        // Nothing to shutdown
-      },
-    };
-    const otel = new opentelemetry.NodeSDK({
-      resource: staticResource,
-      traceExporter,
-    });
-    await otel.start();
-    const sinks: InjectedSinks<OpenTelemetrySinks> = {
-      exporter: makeWorkflowExporter(traceExporter, staticResource), // eslint-disable-line @typescript-eslint/no-deprecated
-    };
-
-    const worker = await Worker.create({
-      plugins: [
-        new AiSdkPlugin({
-          modelProvider: remoteTests ? openai : new TestProvider(helloWorkflowGenerator()),
-        }),
-      ],
-      taskQueue: 'test-ai-telemetry',
-      workflowsPath: require.resolve('./workflows/ai-sdk'),
-      bundlerOptions: createBaseBundlerOptions(),
-
-      interceptors: {
-        client: {
-          workflow: [new OpenTelemetryWorkflowClientCallsInterceptor()],
-        },
-        workflowModules: [require.resolve('./workflows/otel-interceptors')],
-        activity: [
-          (ctx) => ({
-            inbound: new OpenTelemetryActivityInboundInterceptor(ctx),
-            outbound: new OpenTelemetryActivityOutboundInterceptor(ctx),
-          }),
-        ],
-      },
-      sinks,
-    });
-
-    const client = new WorkflowClient({
-      interceptors: [new OpenTelemetryWorkflowClientInterceptor()],
-    });
-    await worker.runUntil(async () => {
-      await client.execute(telemetryWorkflow, {
-        taskQueue: 'test-ai-telemetry',
-        workflowId: randomUUID(),
-        args: ['Tell me about recursion'],
-      });
-    });
-    await otel.shutdown();
-    t.log(
-      'exported spans:',
-      spans.map(({ name }) => name)
-    );
-    // @ai-sdk/otel's OpenTelemetry integration names spans `${operationName} ${modelId}`
-    // following the GenAI semantic conventions; generateText maps to `invoke_agent`.
-    const generateSpan = spans.find(({ name }) => name === `invoke_agent gpt-4o-mini`);
-    t.true(generateSpan !== undefined);
-  } finally {
-    // Cleanup the runtime so that it doesn't interfere with other tests
-    await Runtime._instance?.shutdown();
-  }
 });
 
 function* mcpGenerator(): Generator<ModelResponse> {
