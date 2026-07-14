@@ -1,4 +1,9 @@
 import * as common from "@temporalio/common";
+import { typedSearchAttributePayloadConverter } from "@temporalio/common/lib/converter/payload-search-attributes";
+import {
+  TypedSearchAttributeUpdateValue,
+  type TypedSearchAttributeValue,
+} from "@temporalio/common/lib/search-attributes";
 import type { google, temporal } from "@temporalio/proto";
 import * as workflow from "@temporalio/workflow";
 
@@ -137,72 +142,24 @@ function typedSearchAttributePayload(
   value: unknown,
   type: common.SearchAttributeType,
 ): common.Payload {
-  const payload = configuredPayloadConverter().toPayload(value);
-  payload.metadata ??= {};
-  payload.metadata.type = common.u8(
-    common.TypedSearchAttributes.toMetadataType(type),
+  return typedSearchAttributePayloadConverter.toPayload(
+    new TypedSearchAttributeUpdateValue(type, value as never),
   );
-  return payload;
-}
-
-function isValidSearchAttributeValue(
-  type: common.SearchAttributeType,
-  value: unknown,
-): boolean {
-  switch (type) {
-    case common.SearchAttributeType.TEXT:
-    case common.SearchAttributeType.KEYWORD:
-      return typeof value === "string";
-    case common.SearchAttributeType.INT:
-      return Number.isInteger(value);
-    case common.SearchAttributeType.DOUBLE:
-      return typeof value === "number";
-    case common.SearchAttributeType.BOOL:
-      return typeof value === "boolean";
-    case common.SearchAttributeType.DATETIME:
-      return value instanceof Date;
-    case common.SearchAttributeType.KEYWORD_LIST:
-      return (
-        Array.isArray(value) && value.every((item) => typeof item === "string")
-      );
-    default:
-      return false;
-  }
 }
 
 function typedSearchAttributePairFromPayload(
   name: string,
   payload: common.Payload,
 ): common.SearchAttributePair | undefined {
-  const metadataType = payload.metadata?.type;
-  if (metadataType == null) {
-    return undefined;
-  }
-  const type = common.TypedSearchAttributes.toSearchAttributeType(
-    common.str(metadataType),
-  );
-  if (type == null) {
-    return undefined;
-  }
-  let value: unknown = configuredPayloadConverter().fromPayload(payload);
-  if (
-    type !== common.SearchAttributeType.KEYWORD_LIST &&
-    Array.isArray(value)
-  ) {
-    if (value.length !== 1) {
-      return undefined;
-    }
-    value = value[0];
-  }
-  if (type === common.SearchAttributeType.DATETIME && value != null) {
-    value = new Date(value as string);
-  }
-  if (!isValidSearchAttributeValue(type, value)) {
+  const attr = typedSearchAttributePayloadConverter.fromPayload<
+    TypedSearchAttributeValue<common.SearchAttributeType> | undefined
+  >(payload);
+  if (attr == null) {
     return undefined;
   }
   return {
-    key: { name, type },
-    value,
+    key: { name, type: attr.type },
+    value: attr.value,
   } as common.SearchAttributePair;
 }
 

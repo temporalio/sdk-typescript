@@ -2,6 +2,7 @@ import type { Payload, PayloadCodec, PayloadConverter, SerializationContext } fr
 import { decode, encode } from '@temporalio/common/lib/encoding';
 
 const ENCODING = 'json/system-nexus-test';
+export const SYSTEM_NEXUS_SEARCH_ATTRIBUTE_VALUE = 'system-nexus-search-attribute-value';
 
 export interface SystemNexusTestTrace<T = string> {
   label: T;
@@ -43,6 +44,9 @@ function encodedJsonPayload(value: unknown): Payload {
 
 export class SystemNexusTestPayloadConverter implements PayloadConverter {
   toPayload<T>(value: T, _context?: SerializationContext): Payload {
+    if (value === SYSTEM_NEXUS_SEARCH_ATTRIBUTE_VALUE) {
+      throw new Error('Search attributes should not use the configured payload converter');
+    }
     if (isTrace(value)) {
       value.trace.push(`payload.encode|${String(value.label)}`);
     }
@@ -76,6 +80,7 @@ export class SystemNexusTestPayloadCodec implements PayloadCodec {
 
 function visitPayload(payload: Payload, operation: 'codec.encode' | 'codec.decode'): Payload {
   assertNotSystemNexusEnvelope(payload);
+  assertNotSearchAttributePayload(payload);
   if (encoding(payload) !== ENCODING) {
     return payload;
   }
@@ -105,5 +110,20 @@ function assertNotSystemNexusEnvelope(payload: Payload): void {
     'signalName' in maybeEnvelope
   ) {
     throw new Error('Codec was applied to system Nexus JSON envelope');
+  }
+}
+
+function assertNotSearchAttributePayload(payload: Payload): void {
+  if (encoding(payload) !== 'json/plain') {
+    return;
+  }
+
+  const metadataType = payload.metadata?.type == null ? undefined : decode(payload.metadata.type);
+  if (metadataType !== 'Keyword') {
+    return;
+  }
+
+  if (jsonData(payload) === SYSTEM_NEXUS_SEARCH_ATTRIBUTE_VALUE) {
+    throw new Error('Codec was applied to system Nexus search attributes');
   }
 }

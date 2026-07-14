@@ -1,7 +1,8 @@
-import * as workflow from '@temporalio/workflow';
 import { Client } from '@temporalio/client';
+import { SearchAttributeType, TypedSearchAttributes, defineSearchAttributeKey } from '@temporalio/common';
 import { workflowInterceptorModules } from '@temporalio/testing';
 import { bundleWorkflowCode } from '@temporalio/worker';
+import * as workflow from '@temporalio/workflow';
 import type { TestWorkflowEnvironment } from './helpers';
 import { bundlerOptions } from './helpers';
 import type { Context } from './helpers-integration';
@@ -12,6 +13,7 @@ import {
 } from './helpers-integration';
 import {
   makeSystemNexusTestTrace,
+  SYSTEM_NEXUS_SEARCH_ATTRIBUTE_VALUE,
   SystemNexusTestPayloadCodec,
   type SystemNexusTestTrace,
 } from './payload-converters/system-nexus-payload-converter';
@@ -23,6 +25,7 @@ const dataConverter = {
   payloadCodecs: [new SystemNexusTestPayloadCodec()],
 };
 const testSignal = workflow.defineSignal<[SystemNexusTestTrace]>('test-signal');
+const testSearchAttribute = defineSearchAttributeKey('CustomKeywordField', SearchAttributeType.KEYWORD);
 
 const test = makeConfigurableEnvironmentTestFn<Context>({
   createTestContext: async () => {
@@ -51,6 +54,7 @@ export interface SystemNexusTargetResult {
   input: SystemNexusTestTrace;
   memo: SystemNexusTestTrace;
   signalInput: SystemNexusTestTrace;
+  searchAttribute: string | undefined;
 }
 
 export async function systemNexusTargetWorkflow(input: SystemNexusTestTrace): Promise<SystemNexusTargetResult> {
@@ -63,6 +67,7 @@ export async function systemNexusTargetWorkflow(input: SystemNexusTestTrace): Pr
     input,
     memo: workflow.workflowInfo().memo?.memoKey as SystemNexusTestTrace,
     signalInput: signalInput!,
+    searchAttribute: workflow.workflowInfo().typedSearchAttributes.get(testSearchAttribute),
   };
 }
 
@@ -75,6 +80,9 @@ export async function signalWithStartWorkflowCaller(taskQueue: string, workflowI
     signal: testSignal,
     signalArgs: [makeSystemNexusTestTrace('signal-input')],
     memo: { memoKey: makeSystemNexusTestTrace('memo-value') },
+    searchAttributes: new TypedSearchAttributes([
+      { key: testSearchAttribute, value: SYSTEM_NEXUS_SEARCH_ATTRIBUTE_VALUE },
+    ]),
     staticSummary: 'summary-value',
     staticDetails: 'details-value',
   });
@@ -131,5 +139,6 @@ test('signalWithStartWorkflow starts and signals a workflow through system Nexus
         'payload.decode|memo-value',
       ],
     });
+    t.is(result.searchAttribute, SYSTEM_NEXUS_SEARCH_ATTRIBUTE_VALUE);
   });
 });
