@@ -51,16 +51,14 @@ jobs:
         run: cargo install --force --locked nex-gen --version 0.1.5
 
       - name: Generate code
-        run: |
-          pnpm run build:protos
-          pnpm run build:system-nexus
+        run: pnpm run gen
 
       # eslint-import-resolver-typescript requires packages to be built
       - name: Compile all non-rust code
         run: pnpm --recursive --stream --filter '!@temporalio/core-bridge' --filter '!typescript-sdk' run build
 
       - name: Validate generated code
-        run: git diff --exit-code -- packages/workflow/src/nexus/system/generated packages/worker/src/system-nexus-payload-visitor.ts
+        run: git diff --exit-code -- packages/proto/src/payload-visitor.generated.ts packages/workflow/src/nexus/system/generated packages/worker/src/system-nexus-payload-visitor.ts
 
       - run: pnpm run lint:check
       - run: pnpm run lint:prune
