@@ -45,11 +45,11 @@ export interface ScheduleOptions<A extends ScheduleOptionsAction = ScheduleOptio
     /**
      * The Temporal Server might be down or unavailable at the time when a Schedule should take an Action. When the Server
      * comes back up, `catchupWindow` controls which missed Actions should be taken at that point. The default is one
-     * minute, which means that the Schedule attempts to take any Actions that wouldn't be more than one minute late. It
+     * year, which means that the Schedule attempts to take any Actions that wouldn't be more than one year late. It
      * takes those Actions according to the {@link ScheduleOverlapPolicy}. An outage that lasts longer than the Catchup
      * Window could lead to missed Actions. (But you can always {@link ScheduleHandle.backfill}.)
      *
-     * @default 1 year
+     * When unset, this field is omitted so the Temporal Server applies its default (currently one year).
      * @format number of milliseconds or {@link https://www.npmjs.com/package/ms | ms-formatted string}
      */
     catchupWindow?: Duration;
