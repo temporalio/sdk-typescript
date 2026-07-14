@@ -10,9 +10,11 @@
     "lib/"
   ],
   "scripts": {
-    "build": "pnpm run build:protos && pnpm run build:ts",
+    "build": "pnpm run gen && pnpm run build:ts",
     "build:ts": "tsc --build",
-    "build:protos": "tsx ./scripts/compile-proto.ts"
+    "gen": "pnpm run gen:protos && pnpm run gen:payload-visitor",
+    "gen:protos": "tsx ./scripts/compile-proto.ts",
+    "gen:payload-visitor": "tsx ./scripts/gen-payload-visitor.ts"
   },
   "keywords": [
     "temporal",

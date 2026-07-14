@@ -23,8 +23,10 @@
   "scripts": {
     "rebuild": "pnpm run clean && pnpm run build",
     "build": "pnpm --recursive --stream run build",
-    "build:watch": "pnpm run build:protos && tsc --build --watch packages/*/tsconfig.json",
-    "build:protos": "tsx ./packages/proto/scripts/compile-proto.ts",
+    "build:watch": "pnpm run gen && tsc --build --watch packages/*/tsconfig.json",
+    "gen": "pnpm run gen:protos && pnpm run gen:payload-visitor",
+    "gen:protos": "tsx ./packages/proto/scripts/compile-proto.ts",
+    "gen:payload-visitor": "pnpm --filter @temporalio/proto run gen:payload-visitor",
     "test": "pnpm --recursive --parallel --workspace-concurrency=1 --stream run test",
     "test:watch": "pnpm --recursive --stream run test:watch",
     "ci-stress": "node ./packages/test/lib/load/run-all-stress-ci-scenarios.js",
