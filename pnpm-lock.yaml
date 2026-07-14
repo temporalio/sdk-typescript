@@ -128,7 +128,7 @@ importers:
         specifier: ^1.25.2
         version: 1.26.0(zod@3.25.76)
       '@opentelemetry/api':
-        specifier: ^1.9.1
+        specifier: ^1.9.0
         version: 1.9.1
       '@opentelemetry/core':
         specifier: ^1.25.1
@@ -222,7 +222,7 @@ importers:
   contrib/interceptors-opentelemetry:
     dependencies:
       '@opentelemetry/api':
-        specifier: ^1.9.1
+        specifier: ^1.9.0
         version: 1.9.1
       '@opentelemetry/core':
         specifier: ^1.25.1
@@ -283,7 +283,7 @@ importers:
   contrib/interceptors-opentelemetry-v2:
     dependencies:
       '@opentelemetry/api':
-        specifier: ^1.9.1
+        specifier: ^1.9.0
         version: 1.9.1
       '@opentelemetry/core':
         specifier: ^2.2.0
@@ -381,7 +381,7 @@ importers:
   contrib/openai-agents:
     dependencies:
       '@opentelemetry/api':
-        specifier: ^1.9.1
+        specifier: ^1.9.0
         version: 1.9.1
       '@temporalio/activity':
         specifier: workspace:*
@@ -904,7 +904,7 @@ importers:
         specifier: ^0.7.10
         version: 0.7.13
       '@opentelemetry/api':
-        specifier: ^1.9.1
+        specifier: ^1.9.0
         version: 1.9.1
       '@opentelemetry/core':
         specifier: ^1.25.1
