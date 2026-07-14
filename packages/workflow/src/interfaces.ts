@@ -423,7 +423,7 @@ export interface ContinueAsNewOptions {
    * related events together. See {@link EventGroupMarker} and `createGroup`.
    *
    * Note that event group markers are never propagated across workflow executions.
-   * 
+   *
    * @experimental Event Groups is a new API and may change without notice.
    */
   groups?: EventGroupMarker[];
@@ -636,7 +636,7 @@ export interface ChildWorkflowOptions extends Omit<CommonWorkflowOptions, 'workf
    * Event group markers to attach to the child workflow start command. The markers will be
    * reflected on the corresponding workflow history events, and may be used by tooling
    * (UI/CLI) to group related events together. See {@link EventGroupMarker} and `createGroup`.
-   * 
+   *
    * Note that event group markers are never propagated across workflow executions.
    *
    * @experimental Event Groups is a new API and may change without notice.
@@ -740,10 +740,10 @@ export type Handler<
 > = T extends UpdateDefinition<infer R, infer A>
   ? (...args: A) => R | Promise<R>
   : T extends SignalDefinition<infer A>
-  ? (...args: A) => void | Promise<void>
-  : T extends QueryDefinition<infer R, infer A>
-  ? (...args: A) => R
-  : never;
+    ? (...args: A) => void | Promise<void>
+    : T extends QueryDefinition<infer R, infer A>
+      ? (...args: A) => R
+      : never;
 
 /**
  * A handler function accepting signal calls for non-registered signal names.
@@ -789,4 +789,3 @@ export interface ActivationCompletion {
   usedInternalFlags: number[];
   versioningBehavior?: VersioningBehavior;
 }
-

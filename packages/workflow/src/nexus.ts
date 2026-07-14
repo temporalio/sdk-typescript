@@ -138,8 +138,8 @@ export function createNexusServiceClient<T extends nexus.ServiceDefinition>(
       const opName =
         typeof operation === 'string'
           ? // Casting as string to cover up the fact that `opName` might be undefined.
-          // If this happens, then `execute` will produce a `NexusOperationFailure.NOT_FOUND`.
-          (options.service.operations[operation]?.name as string)
+            // If this happens, then `execute` will produce a `NexusOperationFailure.NOT_FOUND`.
+            (options.service.operations[operation]?.name as string)
           : operation.name;
 
       const activator = getActivator();

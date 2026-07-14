@@ -82,11 +82,7 @@ export async function sampleWorkflow(): Promise<string> {
  * @module
  */
 
-export {
-  type ActivityOptions,
-  type LocalActivityOptions,
-  ActivityCancellationType,
-} from './activities';
+export { type ActivityOptions, type LocalActivityOptions, ActivityCancellationType } from './activities';
 export {
   ActivityFailure,
   ApplicationFailure,

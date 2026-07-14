@@ -1,10 +1,10 @@
-import type { temporal, coresdk } from '@temporalio/proto';
 import type { AsyncLocalStorage as ALS } from 'node:async_hooks';
+import type { temporal, coresdk } from '@temporalio/proto';
+import { convertOptionalToPayload } from '@temporalio/common/lib/converter/payload-converter';
+import type { SerializationContext } from '@temporalio/common/lib/converter/serialization-context';
 import { AsyncLocalStorage } from './cancellation-scope';
 import { assertInWorkflowContext, getActivator } from './global-attributes';
 import { sha1Hex } from './sha1';
-import { convertOptionalToPayload } from '@temporalio/common/lib/converter/payload-converter';
-import type { SerializationContext } from '@temporalio/common/lib/converter/serialization-context';
 
 // FIXME(JWH): Will these survive V8 serialization?
 // FIXME(JWH): Alternatively, we could add a dev dependency to the 'long' package...

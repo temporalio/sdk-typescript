@@ -225,7 +225,10 @@ export const interceptors = (): WorkflowInterceptors => ({
                   return out;
                 }
                 if (m.inboundUpdate?.inboundUpdateId) {
-                  return { id: `u${m.inboundUpdate.inboundUpdateId}`, inboundUpdateId: m.inboundUpdate.inboundUpdateId };
+                  return {
+                    id: `u${m.inboundUpdate.inboundUpdateId}`,
+                    inboundUpdateId: m.inboundUpdate.inboundUpdateId,
+                  };
                 }
                 return { id: '' };
               }),
@@ -287,11 +290,7 @@ test('direct marker attachment populates groupMarkers on every supported command
   t.deepEqual(byKind.startChildWorkflowExecution, [
     {
       kind: 'startChildWorkflowExecution',
-      groups: [
-        WORKFLOW_START_MARKER,
-        { id: paymentId, label: 'payment' },
-        { id: auditId, label: 'audit' },
-      ],
+      groups: [WORKFLOW_START_MARKER, { id: paymentId, label: 'payment' }, { id: auditId, label: 'audit' }],
     },
   ]);
   t.deepEqual(byKind.startTimer, [
@@ -357,19 +356,11 @@ test('marker.run(...) propagates active markers, merges with explicit ones, and 
   });
   t.deepEqual(captured[1], {
     kind: 'scheduleActivity',
-    groups: [
-      WORKFLOW_START_MARKER,
-      { id: orderId, label: 'order' },
-      { id: paymentId, label: 'payment' },
-    ],
+    groups: [WORKFLOW_START_MARKER, { id: orderId, label: 'order' }, { id: paymentId, label: 'payment' }],
   });
   t.deepEqual(captured[2], {
     kind: 'scheduleActivity',
-    groups: [
-      WORKFLOW_START_MARKER,
-      { id: orderId, label: 'order' },
-      { id: paymentId, label: 'payment' },
-    ],
+    groups: [WORKFLOW_START_MARKER, { id: orderId, label: 'order' }, { id: paymentId, label: 'payment' }],
   });
   t.deepEqual(captured[3], {
     kind: 'startTimer',

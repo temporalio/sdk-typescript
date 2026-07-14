@@ -40,11 +40,7 @@ export function sha1Hex(input: string): string {
     for (let i = 0; i < 16; i++) {
       const j = chunk + i * 4;
       w[i] =
-        (((data[j] ?? 0) << 24) |
-          ((data[j + 1] ?? 0) << 16) |
-          ((data[j + 2] ?? 0) << 8) |
-          (data[j + 3] ?? 0)) >>>
-        0;
+        (((data[j] ?? 0) << 24) | ((data[j + 1] ?? 0) << 16) | ((data[j + 2] ?? 0) << 8) | (data[j + 3] ?? 0)) >>> 0;
     }
     for (let i = 16; i < 80; i++) {
       w[i] = rotl((w[i - 3] ?? 0) ^ (w[i - 8] ?? 0) ^ (w[i - 14] ?? 0) ^ (w[i - 16] ?? 0), 1);

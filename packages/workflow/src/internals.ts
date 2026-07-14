@@ -920,11 +920,11 @@ export class Activator implements ActivationHandler {
       this.updateHandlers.get(name) ??
       (this.defaultUpdateHandler
         ? {
-          handler: this.defaultUpdateHandler.bind(undefined, name),
-          validator: undefined,
-          // Default to a warning policy.
-          unfinishedPolicy: HandlerUnfinishedPolicy.WARN_AND_ABANDON,
-        }
+            handler: this.defaultUpdateHandler.bind(undefined, name),
+            validator: undefined,
+            // Default to a warning policy.
+            unfinishedPolicy: HandlerUnfinishedPolicy.WARN_AND_ABANDON,
+          }
         : null);
 
     // If we don't have an entry from either source, buffer and return

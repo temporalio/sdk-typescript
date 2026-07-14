@@ -4,12 +4,7 @@
  * @module
  */
 
-import type {
-  Duration,
-  MetricTags,
-  Timestamp,
-  WorkflowExecution,
-} from '@temporalio/common';
+import type { Duration, MetricTags, Timestamp, WorkflowExecution } from '@temporalio/common';
 import { Headers, Next } from '@temporalio/common';
 import type { coresdk } from '@temporalio/proto';
 import type { ActivityOptions, LocalActivityOptions } from './activities';
@@ -387,14 +382,14 @@ export interface SignalWorkflowInput {
   readonly args: unknown[];
   readonly headers: Headers;
   readonly target:
-  | {
-    readonly type: 'external';
-    readonly workflowExecution: WorkflowExecution;
-  }
-  | {
-    readonly type: 'child';
-    readonly childWorkflowId: string;
-  };
+    | {
+        readonly type: 'external';
+        readonly workflowExecution: WorkflowExecution;
+      }
+    | {
+        readonly type: 'child';
+        readonly childWorkflowId: string;
+      };
 }
 
 /**
@@ -463,7 +458,7 @@ export interface ActivateInput {
  * Input for {@link WorkflowInternalsInterceptor.dispose}
  */
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface DisposeInput { }
+export interface DisposeInput {}
 
 /**
  * Input for {@link WorkflowInternalsInterceptor.concludeActivation}
