@@ -43,13 +43,20 @@ export class WorkflowCodecRunner {
     private readonly workflowContext: WorkflowSerializationContext
   ) {}
 
-  private consumeContext<TContext>(map: Map<number, TContext>, seq: number | null | undefined): TContext | undefined {
+  private consumePendingValue<TValue>(map: Map<number, TValue>, seq: number | null | undefined): TValue | undefined {
     if (seq == null) return undefined;
-    const context = map.get(seq);
-    if (context !== undefined) {
+    const value = map.get(seq);
+    if (value !== undefined) {
       map.delete(seq);
     }
-    return context;
+    return value;
+  }
+
+  private consumeContext<TContext extends SerializationContext>(
+    map: Map<number, TContext>,
+    seq: number | null | undefined
+  ): TContext | undefined {
+    return this.consumePendingValue(map, seq);
   }
 
   private activityContext(
@@ -146,7 +153,7 @@ export class WorkflowCodecRunner {
                   )
                 : undefined;
               const resolveNexusOperationContext = job.resolveNexusOperation
-                ? this.consumeContext(this.pendingCompletionContexts.nexusOperation, job.resolveNexusOperation.seq)
+                ? this.consumePendingValue(this.pendingCompletionContexts.nexusOperation, job.resolveNexusOperation.seq)
                 : undefined;
 
               return {
