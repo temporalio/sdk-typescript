@@ -4,6 +4,7 @@
 // webpack entry, so import order must not matter.
 import { embedMany, generateText, isStepCount, Output, tool, wrapLanguageModel } from 'ai';
 import type { LanguageModelMiddleware } from 'ai';
+import { OpenTelemetry } from '@ai-sdk/otel';
 import { z } from 'zod';
 import { proxyActivities } from '@temporalio/workflow';
 import { TemporalMCPClient, temporalProvider } from '../../workflow';
@@ -85,6 +86,19 @@ export async function middlewareWorkflow(prompt: string): Promise<string> {
     model,
     prompt,
     instructions: 'You only respond in haikus.',
+  });
+  return result.text;
+}
+
+export async function telemetryWorkflow(prompt: string): Promise<string> {
+  const result = await generateText({
+    model: temporalProvider.languageModel('gpt-4o-mini'),
+    prompt,
+    instructions: 'You only respond in haikus.',
+    telemetry: {
+      isEnabled: true,
+      integrations: new OpenTelemetry(),
+    },
   });
   return result.text;
 }
