@@ -7,6 +7,10 @@ import * as memfs from 'memfs';
 import { Configuration, webpack, NormalModuleReplacementPlugin } from 'webpack';
 import { DefaultLogger, Logger, hasColorSupport } from '../logger';
 import { toMB } from '../utils';
+import {
+  InjectWorkflowModuleCacheGlobalPlugin,
+  assertWorkflowModuleCacheGlobalApplied,
+} from './bundler/patch-module-cache';
 
 export const defaultWorkflowInterceptorModules = [require.resolve('../workflow-log-interceptor')];
 
@@ -117,24 +121,9 @@ export class WorkflowCodeBundler {
 
     this.genEntrypoint(vol, entrypointPath);
     const bundleFilePath = await this.bundle(ufs, memoryFs, entrypointPath, distDir);
-    let code = memoryFs.readFileSync(bundleFilePath, 'utf8') as string;
-    // Replace webpack's module cache with an object injected by the runtime.
-    // This is the key to reusing a single v8 context.
-    // Webpack may emit the declaration as `var`, `let`, or `const` depending on the
-    // configured output environment (webpack >= 5.108.0 defaults to `const`).
-    let cacheDeclarationsPatched = 0;
-    code = code.replace(/(^|\s)(var|let|const) __webpack_module_cache__ = \{\}/gm, (_match, prefix, keyword) => {
-      cacheDeclarationsPatched++;
-      return `${prefix}${keyword} __webpack_module_cache__ = globalThis.__webpack_module_cache__`;
-    });
-    if (cacheDeclarationsPatched !== 1) {
-      throw new Error(
-        `Failed to patch the Workflow bundle: expected to find exactly one __webpack_module_cache__ declaration ` +
-          `emitted by webpack, but found ${cacheDeclarationsPatched}. Without this patch, Workflow isolation ` +
-          `would be broken. This is likely due to a change in webpack output; please report this at ` +
-          `https://github.com/temporalio/sdk-typescript/issues`
-      );
-    }
+
+    const code = memoryFs.readFileSync(bundleFilePath, 'utf8') as string;
+    assertWorkflowModuleCacheGlobalApplied(code);
 
     this.logger.info('Workflow bundle created', { size: `${toMB(code.length)}MB` });
 
@@ -228,6 +217,9 @@ exports.importInterceptors = function importInterceptors() {
         },
       },
       plugins: [
+        // Redirect webpack's module cache to a runtime-injected global so that a single V8
+        // context can be reused across Workflow executions while keeping module state isolated.
+        new InjectWorkflowModuleCacheGlobalPlugin(),
         // `@temporalio/interceptors-opentelemetry` only requires `@temporalio/workflow` for interceptors that run in workflow context.
         // In order to keep `@temporalio/workflow` as an optional peer dependency for `@temporalio/interceptors-opentelemetry`
         // we use `workflow-imports` to reexport all required imports from `@temporalio/workflow`.
