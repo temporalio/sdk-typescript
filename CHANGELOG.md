@@ -19,9 +19,13 @@ to docs, or any other relevant information.
 
 ## [Unreleased]
 
+## [1.20.3] - 2026-07-15
+
 ### Fixed
 
 - Workflow Bundler: further strengthening of the `__webpack_module_cache__` replacement logic, addressing regressions introduced by the fix in 1.20.1.
+- `@temporalio/langsmith`: install Workflow-bundle rewrites via `compiler.webpack` so they work under non-hoisting `node_modules` layouts (e.g. pnpm `hoist=false`).
+- `@temporalio/langsmith`: emit the LangSmith run fire-and-forget rather than awaiting it, removing a yield point that reordered commands under `signalWithStart`.
 
 ## [1.20.2] - 2026-07-08
 
