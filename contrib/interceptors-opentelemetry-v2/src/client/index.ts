@@ -13,13 +13,18 @@ import type {
   WorkflowTerminateInput,
   WorkflowCancelInput,
   WorkflowDescribeInput,
+  WorkflowFetchHistoryInput,
+  WorkflowListInput,
   WorkflowClientInterceptor,
   TerminateWorkflowExecutionResponse,
   RequestCancelWorkflowExecutionResponse,
   DescribeWorkflowExecutionResponse,
+  WorkflowExecutionInfo,
 } from '@temporalio/client';
+import type { History } from '@temporalio/common/lib/proto-utils';
 import {
   instrument,
+  instrumentSync,
   headersWithContext,
   RUN_ID_ATTR_KEY,
   WORKFLOW_ID_ATTR_KEY,
@@ -215,6 +220,31 @@ export class OpenTelemetryWorkflowClientInterceptor implements WorkflowClientInt
         }
         return await next(input);
       },
+    });
+  }
+
+  async fetchHistory(
+    input: WorkflowFetchHistoryInput,
+    next: Next<WorkflowClientInterceptor, 'fetchHistory'>
+  ): Promise<History> {
+    return await instrument({
+      tracer: this.tracer,
+      spanName: SpanName.WORKFLOW_FETCH_HISTORY,
+      fn: async (span) => {
+        span.setAttribute(WORKFLOW_ID_ATTR_KEY, input.workflowExecution.workflowId);
+        if (input.workflowExecution.runId) {
+          span.setAttribute(RUN_ID_ATTR_KEY, input.workflowExecution.runId);
+        }
+        return await next(input);
+      },
+    });
+  }
+
+  list(input: WorkflowListInput, next: Next<WorkflowClientInterceptor, 'list'>): AsyncIterable<WorkflowExecutionInfo> {
+    return instrumentSync({
+      tracer: this.tracer,
+      spanName: SpanName.WORKFLOW_LIST,
+      fn: () => next(input),
     });
   }
 }
