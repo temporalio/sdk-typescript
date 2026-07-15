@@ -17,6 +17,8 @@ to docs, or any other relevant information.
 
 # Changelog
 
+## [Unreleased]
+
 ## [1.20.3] - 2026-07-15
 
 ### Fixed
