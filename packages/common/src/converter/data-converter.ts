@@ -61,7 +61,7 @@ export interface LoadedDataConverter {
   payloadConverter: PayloadConverter;
   failureConverter: FailureConverter;
   payloadCodecs: PayloadCodec[];
-  
+
   /**
    * @internal
    * @experimental

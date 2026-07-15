@@ -9,7 +9,7 @@ import {
 } from '@temporalio/common/lib/internal-non-workflow';
 import { encode } from '@temporalio/common/lib/encoding';
 import { METADATA_ENCODING_KEY } from '@temporalio/common/lib/converter/types';
-import { coresdk } from '@temporalio/proto';
+import type { coresdk } from '@temporalio/proto';
 import { makeFakeDriver } from './extstore-fake-driver';
 
 /** Build a Payload whose proto-encoded size is at least `bodyBytes`, filled with `fill`. */
