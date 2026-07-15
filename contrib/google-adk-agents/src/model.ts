@@ -92,7 +92,7 @@ const DEFAULT_MODEL_START_TO_CLOSE: Duration = '1 minute';
  *
  * Swap a user's `model: 'gemini-2.5-flash'` for
  * `model: new TemporalModel('gemini-2.5-flash')` — every model call inside the
- * Workflow becomes a retriable, observable Activity, while the surrounding
+ * Workflow becomes a retryable, observable Activity, while the surrounding
  * ADK agent loop replays deterministically.
  */
 export class TemporalModel extends BaseLlm {

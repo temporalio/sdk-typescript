@@ -8,9 +8,12 @@ Your ADK agent graph — `LlmAgent`, `SequentialAgent`/`ParallelAgent`/`LoopAgen
 and replays deterministically. Only the non-deterministic I/O boundaries are
 routed out to Activities:
 
-- every **model call** (`generateContentAsync`) becomes a retriable, observable
+- every **model call** (`generateContentAsync`) becomes a retryable, observable
   Activity, and
 - every **MCP tool call** (list-tools / call-tool) becomes an Activity.
+
+Regular `FunctionTool`s run in the Workflow; to have a tool run as an Activity
+instead, expose an existing Temporal Activity to the agent with `activityAsTool`.
 
 Temporal then gives you automatic retries, timeouts, heartbeating, and
 crash-safe replay for the whole run.
@@ -34,7 +37,7 @@ Take an agent you already have and change **one line** — wrap its model in
 
 ```typescript
 import { InMemoryRunner, LlmAgent, isFinalResponse, stringifyContent } from '@google/adk';
-import { TemporalModel } from '@temporalio/google-adk-agents';
+import { TemporalModel } from '@temporalio/google-adk-agents/workflow';
 
 export async function askAgent(prompt: string): Promise<string> {
   const agent = new LlmAgent({
@@ -98,7 +101,7 @@ console.log(result);
   Temporal Activity with a per-model `RetryPolicy`, `startToCloseTimeout`, and
   auto-heartbeat for slow / thinking-mode calls. Upstream `429`/`5xx` and
   `retry-after` headers are honored; non-retryable `4xx` fail fast.
-- **Durable MCP tools.** `new TemporalMcpToolSet({ name })` routes tool
+- **Durable MCP tools.** `new TemporalMCPToolset({ name })` routes tool
   discovery and tool calls through Activities. The full tool schema (name,
   description, **parameters**) round-trips, so the model still sees argument
   schemas. MCP connection params stay on the worker:
@@ -118,7 +121,7 @@ console.log(result);
   const agent = new LlmAgent({
     name: 'fs',
     model: new TemporalModel('gemini-2.5-flash'),
-    tools: [new TemporalMcpToolSet({ name: 'filesystem' })],
+    tools: [new TemporalMCPToolset({ name: 'filesystem' })],
   });
   ```
 
@@ -126,7 +129,7 @@ console.log(result);
   to the agent with `activityAsTool` instead of re-declaring it:
 
   ```typescript
-  import { activityAsTool } from '@temporalio/google-adk-agents';
+  import { activityAsTool } from '@temporalio/google-adk-agents/workflow';
   import { Type } from '@google/genai';
 
   const lookupTool = activityAsTool({
@@ -154,12 +157,12 @@ Import test doubles from the `./testing` entry point to unit-test agents
 without a live model or MCP server:
 
 ```typescript
-import { fakeModelProvider, mockMcpToolset } from '@temporalio/google-adk-agents/testing';
+import { fakeModelProvider, mockMCPToolset } from '@temporalio/google-adk-agents/testing';
 
 const plugin = new GoogleAdkPlugin({
   modelProvider: fakeModelProvider(),
   mcpToolsets: {
-    weather: mockMcpToolset([
+    weather: mockMCPToolset([
       /* tool defs */
     ]),
   },
@@ -167,29 +170,6 @@ const plugin = new GoogleAdkPlugin({
 ```
 
 ## Under the hood
-
-### Workflow bundling
-
-Because the native ADK `Runner`/`LlmAgent` runs _inside_ the Workflow, the
-Workflow bundle imports `@google/adk`. The ADK barrel eagerly pulls in node-only
-service code (DB session services, stdio MCP transport, google-cloud telemetry)
-that imports `node:`-prefixed builtins — which the Workflow sandbox bundler does
-not handle out of the box (it would fail with `UnhandledSchemeError` for
-`node:url` / `node:util` / `node:zlib`). `GoogleAdkPlugin.configureBundler`
-— the single canonical bundling hook the Worker runs for both live execution
-and replay — transparently augments `bundlerOptions.webpackConfigHook`
-to strip the `node:` scheme **before** webpack's scheme detection, after which
-the sandbox's normal builtin policy applies (the three polyfilled builtins
-`assert`/`url`/`util` resolve to the sandbox overrides; all others alias to
-`false`). The model/MCP code paths that would actually _use_ those builtins
-never run in the Workflow — they run worker-side in Activities — so stripping the
-scheme is safe. The sandbox's determinism guard is preserved for **your** code:
-if your own Workflow imports a `node:` builtin, the build still fails with the
-usual "disallowed modules" error (only `node_modules`-originated imports are
-exempted).
-
-You don't configure any of this — registering the plugin is enough. Any
-`webpackConfigHook` you already pass is preserved and runs first.
 
 ### Retries
 
