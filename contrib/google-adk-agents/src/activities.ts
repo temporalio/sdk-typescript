@@ -3,21 +3,11 @@
  * Copyright 2025 Temporal Technologies Inc.
  * SPDX-License-Identifier: MIT
  *
- * Worker-side Activity implementations for the Google ADK Temporal plugin.
- *
- * This module is the **only** one that imports worker-runtime packages
- * (`@temporalio/activity`, `@temporalio/workflow-streams/client`) and runs the
- * real, non-deterministic I/O: model inference and MCP server calls. It is
- * imported by `plugin.ts` (never by any workflow-reachable module) and is
- * therefore tree-shaken out of the Workflow sandbox bundle (the
- * workflow-reachable modules — `model.ts`, `mcp.ts`, `tools.ts`,
- * `workflow.ts` — never import it).
- *
- * The reconstruction boundary: workflows pass only the model **name string**
- * (and the MCP toolset **name**); these activities rebuild the real `BaseLlm`
- * via `modelProvider ?? LLMRegistry.newLlm` and the MCP session via the
- * worker-registered factory. API keys are read from the worker environment by
- * the reconstructed objects and never travel in activity inputs.
+ * Worker-side Activity implementations — the only module importing worker-runtime
+ * packages (`@temporalio/activity`, `@temporalio/workflow-streams/client`), so it
+ * is tree-shaken out of the Workflow bundle. Workflows pass only the model/toolset
+ * name; the real `BaseLlm`/MCP session is rebuilt here and API keys stay
+ * worker-side, never in activity inputs.
  */
 
 import {
@@ -44,25 +34,13 @@ const DEFAULT_STREAM_BATCH_INTERVAL = '100 milliseconds';
 /** HTTP statuses that are retryable independent of the upstream's hints. */
 const RETRYABLE_STATUS = new Set([408, 409, 429]);
 
-/**
- * Worker-side reconstruction options consumed by {@link createModelActivities}.
- * Structurally compatible with `GoogleAdkPluginOptions` so the plugin passes
- * its options straight through (kept local to avoid a `plugin.ts` import cycle).
- *
- * @internal
- */
+/** Kept local (not imported from `plugin.ts`) to avoid an import cycle. @internal */
 export interface ModelActivitiesOptions {
   /** Reconstructs a `BaseLlm` from a model name; defaults to the ADK registry. */
   modelProvider?: (model: string) => BaseLlm;
 }
 
-/**
- * Builds the `invokeModel` / `invokeModelStreaming` Activities. Each call
- * reconstructs the real model from its name and runs inference on the worker;
- * the surrounding ADK agent loop stays in the (deterministic) Workflow.
- *
- * @internal
- */
+/** @internal */
 export function createModelActivities(options: ModelActivitiesOptions = {}): ModelActivities {
   const resolveModel = (model: string): BaseLlm => options.modelProvider?.(model) ?? LLMRegistry.newLlm(model);
 
@@ -86,20 +64,9 @@ export function createModelActivities(options: ModelActivitiesOptions = {}): Mod
     },
 
     async invokeModelStreaming(args: InvokeModelStreamingArgs): Promise<LlmResponse[]> {
-      // The stream client is an explicit async resource — disposing it flushes
-      // any buffered items. We dispose it in `finally` rather than via the TC39
-      // `await using` declaration: `await using` is not parseable on this
-      // package's Node floor (`engines.node >= 20`), so it would throw a
-      // load-time `SyntaxError` and break every module import. Manual disposal
-      // is the documented fallback (`await client[Symbol.asyncDispose]()`).
-      // Chunks are published for external observers; the full, ordered
-      // transcript is still returned to the Workflow (the deterministic,
-      // replay-safe channel).
-      //
-      // Install the adaptive heartbeat (as `invokeModel`/`listTools`/`callTool`
-      // do) so a slow first token or a between-chunk stall does not exceed the
-      // `heartbeatTimeout` and get the Activity cancelled; the explicit
-      // per-chunk heartbeat below still fires promptly while chunks flow.
+      // Dispose the stream client in `finally`, not via `await using` — the
+      // latter isn't parseable on this package's Node 20 floor and would
+      // SyntaxError at module load.
       const stopHeartbeat = startAdaptiveHeartbeat();
       let stream: ReturnType<typeof WorkflowStreamClient.fromWithinActivity> | undefined;
       try {
@@ -112,8 +79,7 @@ export function createModelActivities(options: ModelActivitiesOptions = {}): Mod
         const abortSignal = ActivityContext.current().cancellationSignal;
         const responses: LlmResponse[] = [];
         for await (const response of model.generateContentAsync(request, true, abortSignal)) {
-          // Heartbeat per chunk so a slow stream is never mistaken for a stuck
-          // worker, and publish the chunk to the stream side-channel.
+          // Heartbeat per chunk so a slow stream isn't mistaken for a stuck worker.
           ActivityContext.current().heartbeat();
           events.publish(response);
           responses.push(response);
@@ -134,13 +100,7 @@ export function createModelActivities(options: ModelActivitiesOptions = {}): Mod
   };
 }
 
-/**
- * Builds the `<name>-listTools` / `<name>-callTool` Activity pairs for every
- * registered MCP toolset factory. Each pair opens a real MCP session on the
- * worker (session-per-call), lists/executes, then closes it.
- *
- * @internal
- */
+/** Builds the per-server `<name>-listTools` / `<name>-callTool` pairs; MCP is session-per-call. @internal */
 export function createMCPActivities(
   toolsets: Record<string, MCPToolsetFactory> = {}
 ): Record<string, (args: never) => Promise<unknown>> {
@@ -214,14 +174,9 @@ function mcpActivitiesForName(
 }
 
 /**
- * Re-hydrates a {@link LlmRequest} from its wire shape by restoring the
- * stripped live-object fields as empty containers. The worker-side model
- * re-derives callable tools from `config.tools`, so empty `toolsDict` /
- * `liveConnectConfig` are sufficient.
- *
- * Also forces the reconstructed model's own HTTP retries off (see
- * {@link disableSdkRetries}) so Temporal's `RetryPolicy` is the *sole* retry
- * authority for the model call.
+ * Rebuilds an {@link LlmRequest} from its wire shape (stripped live-object fields
+ * restored as empty containers; tools re-derived from `config.tools`) and disables
+ * the model's own HTTP retries so Temporal is the sole retry authority.
  */
 function fromWireRequest(wire: WireLlmRequest): LlmRequest {
   const request = { ...wire, toolsDict: {}, liveConnectConfig: {} } as LlmRequest;
@@ -230,18 +185,9 @@ function fromWireRequest(wire: WireLlmRequest): LlmRequest {
 }
 
 /**
- * Disables the underlying `@google/genai` client's internal HTTP retries by
- * pinning `config.httpOptions.retryOptions.attempts = 1` (1 = the original
- * attempt only, no retries). ADK's `Gemini` model forwards `llmRequest.config`
- * (a `GenerateContentConfig`, which carries `httpOptions`) to the genai client,
- * so this travels with the request.
- *
- * Rationale: Temporal's `RetryPolicy` already governs Activity retries with
- * backoff and `nextRetryDelay` derived from the upstream's `retry-after`
- * headers ({@link toApplicationFailure}). Leaving the SDK's own retries enabled
- * would nest a second retry loop *inside* each Activity attempt — a retry storm
- * that multiplies latency and request volume and hides the real failure from
- * Temporal. One Activity attempt == one model request; Temporal owns the rest.
+ * Pins the genai client to a single attempt (`config.httpOptions.retryOptions.attempts = 1`)
+ * so Temporal's `RetryPolicy` is the sole retry authority — otherwise the SDK's own
+ * retries nest a second loop inside each Activity attempt (a retry storm).
  */
 function disableSdkRetries(request: LlmRequest): void {
   const config = (request.config ?? {}) as {
@@ -278,19 +224,10 @@ function startAdaptiveHeartbeat(): () => void {
 }
 
 /**
- * Translates an error from the Google GenAI SDK (or any error raised while
- * driving the model / MCP) into Temporal's retry contract.
- *
- * - `408` / `409` / `429` / `5xx` → retryable.
- * - `x-should-retry: true` header → retryable on any status.
- * - `x-should-retry: false` header → non-retryable on any status.
- * - other `4xx` → non-retryable.
- * - `retry-after-ms` / `retry-after` headers → `nextRetryDelay` so Temporal
- *   honors the upstream's backoff.
- *
- * Errors already shaped as {@link ApplicationFailure} (e.g. tool-not-found)
- * pass through unchanged.
- *
+ * Maps a GenAI/MCP error into Temporal's retry contract: 408/409/429/5xx (or
+ * `x-should-retry: true`) → retryable, other 4xx (or `x-should-retry: false`) →
+ * non-retryable; `retry-after[-ms]` → `nextRetryDelay`. Existing
+ * `ApplicationFailure`s pass through unchanged.
  * @internal
  */
 export function toApplicationFailure(err: unknown): ApplicationFailure {
