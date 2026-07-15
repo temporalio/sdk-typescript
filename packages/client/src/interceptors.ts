@@ -6,6 +6,7 @@
 
 import type { Duration, SearchAttributePair, TypedSearchAttributes } from '@temporalio/common';
 import { Headers, Next } from '@temporalio/common';
+import type { History } from '@temporalio/common/lib/proto-utils';
 import type { temporal } from '@temporalio/proto';
 import type { NexusOperationHandle } from './nexus-client';
 import type {
@@ -24,6 +25,7 @@ import type {
   RequestCancelWorkflowExecutionResponse,
   TerminateWorkflowExecutionResponse,
   WorkflowExecution,
+  WorkflowExecutionInfo,
 } from './types';
 import type { CompiledWorkflowOptions, WorkflowUpdateOptions } from './workflow-options';
 import type { ActivityHandle, ActivityOptions } from './activity-client';
@@ -128,6 +130,17 @@ export interface WorkflowDescribeInput {
   readonly workflowExecution: WorkflowExecution;
 }
 
+/** Input for WorkflowClientInterceptor.fetchHistory */
+export interface WorkflowFetchHistoryInput {
+  readonly workflowExecution: WorkflowExecution;
+}
+
+/** Input for WorkflowClientInterceptor.list */
+export interface WorkflowListInput {
+  readonly query?: string;
+  readonly pageSize?: number;
+}
+
 /**
  * Implement any of these methods to intercept {@link WorkflowClient} outbound calls
  *
@@ -198,6 +211,14 @@ export interface WorkflowClientInterceptor {
    * Intercept a service call to describeWorkflowExecution
    */
   describe?: (input: WorkflowDescribeInput, next: Next<this, 'describe'>) => Promise<DescribeWorkflowExecutionResponse>;
+  /**
+   * Intercept a service call to getWorkflowExecutionHistory
+   */
+  fetchHistory?: (input: WorkflowFetchHistoryInput, next: Next<this, 'fetchHistory'>) => Promise<History>;
+  /**
+   * Intercept a service call to listWorkflowExecutions
+   */
+  list?: (input: WorkflowListInput, next: Next<this, 'list'>) => AsyncIterable<WorkflowExecutionInfo>;
 }
 
 /** @deprecated: Use {@link WorkflowClientInterceptor} instead */

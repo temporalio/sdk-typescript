@@ -55,6 +55,8 @@ import type {
   WorkflowClientInterceptor,
   WorkflowClientInterceptors,
   WorkflowDescribeInput,
+  WorkflowFetchHistoryInput,
+  WorkflowListInput,
   WorkflowQueryInput,
   WorkflowSignalInput,
   WorkflowSignalWithStartInput,
@@ -1443,6 +1445,28 @@ export class WorkflowClient extends BaseClient {
   }
 
   /**
+   * Uses given input to make getWorkflowExecutionHistory call(s) to the service
+   *
+   * Used as the final function of the fetchHistory interceptor chain
+   */
+  protected async _fetchHistoryHandler(input: WorkflowFetchHistoryInput): Promise<History> {
+    let nextPageToken: Uint8Array | undefined = undefined;
+    const events = Array<temporal.api.history.v1.IHistoryEvent>();
+    for (;;) {
+      const response: temporal.api.workflowservice.v1.GetWorkflowExecutionHistoryResponse =
+        await this.workflowService.getWorkflowExecutionHistory({
+          nextPageToken,
+          namespace: this.options.namespace,
+          execution: input.workflowExecution,
+        });
+      events.push(...(response.history?.events ?? []));
+      nextPageToken = response.nextPageToken;
+      if (nextPageToken == null || nextPageToken.length === 0) break;
+    }
+    return temporal.api.history.v1.History.create({ events });
+  }
+
+  /**
    * Create a new workflow handle for new or existing Workflow execution
    */
   protected _createWorkflowHandle<T extends Workflow>({
@@ -1530,20 +1554,11 @@ export class WorkflowClient extends BaseClient {
         };
       },
       async fetchHistory() {
-        let nextPageToken: Uint8Array | undefined = undefined;
-        const events = Array<temporal.api.history.v1.IHistoryEvent>();
-        for (;;) {
-          const response: temporal.api.workflowservice.v1.GetWorkflowExecutionHistoryResponse =
-            await this.client.workflowService.getWorkflowExecutionHistory({
-              nextPageToken,
-              namespace: this.client.options.namespace,
-              execution: { workflowId, runId },
-            });
-          events.push(...(response.history?.events ?? []));
-          nextPageToken = response.nextPageToken;
-          if (nextPageToken == null || nextPageToken.length === 0) break;
-        }
-        return temporal.api.history.v1.History.create({ events });
+        const next = this.client._fetchHistoryHandler.bind(this.client);
+        const fn = composeInterceptors(interceptors, 'fetchHistory', next);
+        return await fn({
+          workflowExecution: { workflowId, runId },
+        });
       },
       async startUpdate<Ret, Args extends any[]>(
         def: UpdateDefinition<Ret, Args> | string,
@@ -1627,16 +1642,16 @@ export class WorkflowClient extends BaseClient {
     });
   }
 
-  protected async *_list(options?: ListOptions): AsyncIterable<WorkflowExecutionInfo> {
+  protected async *_list(input: WorkflowListInput): AsyncIterable<WorkflowExecutionInfo> {
     let nextPageToken: Uint8Array = Buffer.alloc(0);
     for (;;) {
       let response: temporal.api.workflowservice.v1.ListWorkflowExecutionsResponse;
       try {
         response = await this.workflowService.listWorkflowExecutions({
           namespace: this.options.namespace,
-          query: options?.query,
+          query: input.query,
           nextPageToken,
-          pageSize: options?.pageSize,
+          pageSize: input.pageSize,
         });
       } catch (e) {
         this.rethrowGrpcError(e, 'Failed to list workflows', undefined);
@@ -1661,11 +1676,20 @@ export class WorkflowClient extends BaseClient {
    * https://docs.temporal.io/visibility
    */
   public list(options?: ListOptions): AsyncWorkflowListIterable {
+    const input: WorkflowListInput = {
+      query: options?.query,
+      pageSize: options?.pageSize,
+    };
+    // Deprecated interceptor factories require a workflowId and are skipped for client-level list.
+    const interceptors = Array.isArray(this.options.interceptors)
+      ? (this.options.interceptors as WorkflowClientInterceptor[])
+      : [];
+    const list = composeInterceptors(interceptors, 'list', this._list.bind(this));
     return {
-      [Symbol.asyncIterator]: () => this._list(options)[Symbol.asyncIterator](),
+      [Symbol.asyncIterator]: () => list(input)[Symbol.asyncIterator](),
       intoHistories: (intoHistoriesOptions?: IntoHistoriesOptions) => {
         return mapAsyncIterable(
-          this._list(options),
+          list(input),
           async ({ workflowId, runId }) => ({
             workflowId,
             history: await this.getHandle(workflowId, runId).fetchHistory(),
