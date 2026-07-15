@@ -499,7 +499,7 @@ impl MutableFinalize for HistoryForReplayTunnelHandle {}
 mod config {
     use std::collections::{HashMap, HashSet};
     use std::{sync::Arc, time::Duration};
-    use temporalio_common::protos::temporal::api::worker::v1::PluginInfo;
+    use temporalio_common::protos::temporal::api::worker::v1::{PluginInfo, StorageDriverInfo};
     use temporalio_common::worker::{
         VersioningBehavior as CoreVersioningBehavior,
         WorkerDeploymentOptions as CoreWorkerDeploymentOptions,
@@ -548,6 +548,7 @@ mod config {
         max_task_queue_activities_per_second: Option<f64>,
         shutdown_grace_time: Option<Duration>,
         plugins: Vec<String>,
+        storage_drivers: Vec<String>,
         workflow_failure_errors: HashSet<WorkflowErrorType>,
         workflow_types_to_failure_errors: HashMap<String, HashSet<WorkflowErrorType>>,
         disable_payload_error_limit: bool,
@@ -646,6 +647,12 @@ mod config {
                             name,
                             version: String::new(),
                         })
+                        .collect::<HashSet<_>>(),
+                )
+                .storage_drivers(
+                    self.storage_drivers
+                        .into_iter()
+                        .map(|r#type| StorageDriverInfo { r#type })
                         .collect::<HashSet<_>>(),
                 )
                 .workflow_failure_errors(into_core_workflow_error_set(self.workflow_failure_errors))
