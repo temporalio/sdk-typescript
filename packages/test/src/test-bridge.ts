@@ -318,6 +318,7 @@ const GenericConfigs = {
       maxActivitiesPerSecond: null,
       shutdownGraceTime: 1000,
       plugins: [],
+      storageDrivers: [],
       workflowFailureErrors: [],
       workflowTypesToFailureErrors: {},
       disablePayloadErrorLimit: false,
