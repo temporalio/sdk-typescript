@@ -108,21 +108,22 @@ async function runVisit<Ctx>(
     }
   }
 
-  const abortSiblingsOnError = async <T>(call: (signal: AbortSignal) => Promise<T>): Promise<T> => {
+  const runTransform = <T>(call: (signal: AbortSignal) => Promise<T>): Promise<T> => {
     failure.signal.throwIfAborted();
-    try {
-      return await call(failure.signal);
-    } catch (reason) {
-      failure.abort(reason);
-      throw reason;
-    }
+    return limit(async () => {
+      failure.signal.throwIfAborted();
+      try {
+        return await call(failure.signal);
+      } catch (reason) {
+        failure.abort(reason);
+        throw reason;
+      }
+    });
   };
 
   const env: WalkEnv<Ctx> = {
-    transformPayload: (payload, context) =>
-      abortSiblingsOnError((signal) => limit(() => transformPayload(payload, context, signal))),
-    transformPayloads: (payloads, context) =>
-      abortSiblingsOnError((signal) => limit(() => transformPayloads(payloads, context, signal))),
+    transformPayload: (payload, context) => runTransform((signal) => transformPayload(payload, context, signal)),
+    transformPayloads: (payloads, context) => runTransform((signal) => transformPayloads(payloads, context, signal)),
     deriveContext,
     skipHeaders,
     skipSearchAttributes,
