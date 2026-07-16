@@ -12,6 +12,56 @@ export interface WalkEnv<Ctx> {
   skipSearchAttributes: boolean;
 }
 
+export function walkActivityTask<Ctx>(
+  root: coresdk.activity_task.IActivityTask,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_activity_task_ActivityTask(root, env, context, pending);
+  return pending;
+}
+
+export function walkActivityHeartbeat<Ctx>(
+  root: coresdk.IActivityHeartbeat,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_ActivityHeartbeat(root, env, context, pending);
+  return pending;
+}
+
+export function walkActivityTaskCompletion<Ctx>(
+  root: coresdk.IActivityTaskCompletion,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_ActivityTaskCompletion(root, env, context, pending);
+  return pending;
+}
+
+export function walkNexusTask<Ctx>(
+  root: coresdk.nexus.INexusTask,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_nexus_NexusTask(root, env, context, pending);
+  return pending;
+}
+
+export function walkNexusTaskCompletion<Ctx>(
+  root: coresdk.nexus.INexusTaskCompletion,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_nexus_NexusTaskCompletion(root, env, context, pending);
+  return pending;
+}
+
 export function walkWorkflowActivation<Ctx>(
   root: coresdk.workflow_activation.IWorkflowActivation,
   env: WalkEnv<Ctx>,
@@ -30,6 +80,29 @@ export function walkWorkflowActivationCompletion<Ctx>(
   const pending: Promise<unknown>[] = [];
   walk_coresdk_workflow_completion_WorkflowActivationCompletion(root, env, context, pending);
   return pending;
+}
+
+function walk_coresdk_activity_result_ActivityExecutionResult<Ctx>(
+  o: coresdk.activity_result.IActivityExecutionResult,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'coresdk.activity_result.ActivityExecutionResult', context)
+    : context;
+  {
+    const c = o.completed;
+    if (c != null) walk_coresdk_activity_result_Success(c, env, ctx, pending);
+  }
+  {
+    const c = o.failed;
+    if (c != null) walk_coresdk_activity_result_Failure(c, env, ctx, pending);
+  }
+  {
+    const c = o.cancelled;
+    if (c != null) walk_coresdk_activity_result_Cancellation(c, env, ctx, pending);
+  }
 }
 
 function walk_coresdk_activity_result_ActivityResolution<Ctx>(
@@ -94,6 +167,87 @@ function walk_coresdk_activity_result_Success<Ctx>(
           o.result = r;
         })
       );
+  }
+}
+
+function walk_coresdk_activity_task_ActivityTask<Ctx>(
+  o: coresdk.activity_task.IActivityTask,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.activity_task.ActivityTask', context) : context;
+  {
+    const c = o.start;
+    if (c != null) walk_coresdk_activity_task_Start(c, env, ctx, pending);
+  }
+}
+
+function walk_coresdk_activity_task_Start<Ctx>(
+  o: coresdk.activity_task.IStart,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.activity_task.Start', context) : context;
+  {
+    const m = o.headerFields;
+    if (m)
+      for (const [k, v] of Object.entries(m))
+        pending.push(
+          env.transformPayload(v, ctx).then((r) => {
+            m[k] = r;
+          })
+        );
+  }
+  {
+    const a = o.input;
+    if (a && a.length)
+      pending.push(
+        env.transformPayloads(a, ctx).then((r) => {
+          o.input = r;
+        })
+      );
+  }
+  {
+    const a = o.heartbeatDetails;
+    if (a && a.length)
+      pending.push(
+        env.transformPayloads(a, ctx).then((r) => {
+          o.heartbeatDetails = r;
+        })
+      );
+  }
+}
+
+function walk_coresdk_ActivityHeartbeat<Ctx>(
+  o: coresdk.IActivityHeartbeat,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.ActivityHeartbeat', context) : context;
+  {
+    const a = o.details;
+    if (a && a.length)
+      pending.push(
+        env.transformPayloads(a, ctx).then((r) => {
+          o.details = r;
+        })
+      );
+  }
+}
+
+function walk_coresdk_ActivityTaskCompletion<Ctx>(
+  o: coresdk.IActivityTaskCompletion,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.ActivityTaskCompletion', context) : context;
+  {
+    const c = o.result;
+    if (c != null) walk_coresdk_activity_result_ActivityExecutionResult(c, env, ctx, pending);
   }
 }
 
@@ -188,6 +342,36 @@ function walk_coresdk_nexus_NexusOperationResult<Ctx>(
   }
   {
     const c = o.timedOut;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_coresdk_nexus_NexusTask<Ctx>(
+  o: coresdk.nexus.INexusTask,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.nexus.NexusTask', context) : context;
+  {
+    const c = o.task;
+    if (c != null) walk_temporal_api_workflowservice_v1_PollNexusTaskQueueResponse(c, env, ctx, pending);
+  }
+}
+
+function walk_coresdk_nexus_NexusTaskCompletion<Ctx>(
+  o: coresdk.nexus.INexusTaskCompletion,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.nexus.NexusTaskCompletion', context) : context;
+  {
+    const c = o.completed;
+    if (c != null) walk_temporal_api_nexus_v1_Response(c, env, ctx, pending);
+  }
+  {
+    const c = o.failure;
     if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
   }
 }
@@ -1114,6 +1298,91 @@ function walk_temporal_api_failure_v1_TimeoutFailureInfo<Ctx>(
   }
 }
 
+function walk_temporal_api_nexus_v1_Request<Ctx>(
+  o: temporal.api.nexus.v1.IRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.nexus.v1.Request', context) : context;
+  {
+    const c = o.startOperation;
+    if (c != null) walk_temporal_api_nexus_v1_StartOperationRequest(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_nexus_v1_Response<Ctx>(
+  o: temporal.api.nexus.v1.IResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.nexus.v1.Response', context) : context;
+  {
+    const c = o.startOperation;
+    if (c != null) walk_temporal_api_nexus_v1_StartOperationResponse(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_nexus_v1_StartOperationRequest<Ctx>(
+  o: temporal.api.nexus.v1.IStartOperationRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.nexus.v1.StartOperationRequest', context)
+    : context;
+  {
+    const p = o.payload;
+    if (p != null)
+      pending.push(
+        env.transformPayload(p, ctx).then((r) => {
+          o.payload = r;
+        })
+      );
+  }
+}
+
+function walk_temporal_api_nexus_v1_StartOperationResponse<Ctx>(
+  o: temporal.api.nexus.v1.IStartOperationResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.nexus.v1.StartOperationResponse', context)
+    : context;
+  {
+    const c = o.syncSuccess;
+    if (c != null) walk_temporal_api_nexus_v1_StartOperationResponse_Sync(c, env, ctx, pending);
+  }
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_nexus_v1_StartOperationResponse_Sync<Ctx>(
+  o: temporal.api.nexus.v1.StartOperationResponse.ISync,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.nexus.v1.StartOperationResponse.Sync', context)
+    : context;
+  {
+    const p = o.payload;
+    if (p != null)
+      pending.push(
+        env.transformPayload(p, ctx).then((r) => {
+          o.payload = r;
+        })
+      );
+  }
+}
+
 function walk_temporal_api_sdk_v1_UserMetadata<Ctx>(
   o: temporal.api.sdk.v1.IUserMetadata,
   env: WalkEnv<Ctx>,
@@ -1138,5 +1407,20 @@ function walk_temporal_api_sdk_v1_UserMetadata<Ctx>(
           o.details = r;
         })
       );
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_PollNexusTaskQueueResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IPollNexusTaskQueueResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.PollNexusTaskQueueResponse', context)
+    : context;
+  {
+    const c = o.request;
+    if (c != null) walk_temporal_api_nexus_v1_Request(c, env, ctx, pending);
   }
 }
