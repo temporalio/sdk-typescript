@@ -1890,6 +1890,7 @@ interface RunPatchedWorkflowWithCallbackOptions {
   initialActivation?: coresdk.workflow_activation.IWorkflowActivation;
   workflowType?: string;
   logger?: Logger;
+  isolateExecutionTimeoutMs?: number;
 }
 
 async function runPatchedWorkflowWithCallback(
@@ -1900,6 +1901,7 @@ async function runPatchedWorkflowWithCallback(
     initialActivation,
     workflowType = 'patchedWorkflow',
     logger = new DefaultLogger('ERROR'),
+    isolateExecutionTimeoutMs = 400,
   }: RunPatchedWorkflowWithCallbackOptions = {}
 ): Promise<{ first: coresdk.workflow_completion.IWorkflowActivationCompletion; calls: PatchActivationInput[] }> {
   const calls: PatchActivationInput[] = [];
@@ -1918,7 +1920,7 @@ async function runPatchedWorkflowWithCallback(
     creator = await ThreadedVMWorkflowCreator.create({
       workflowBundle,
       threadPoolSize: 1,
-      isolateExecutionTimeoutMs: 400,
+      isolateExecutionTimeoutMs,
       reuseV8Context: REUSE_V8_CONTEXT,
       registeredActivityNames: new Set(),
       logger,
@@ -1928,9 +1930,19 @@ async function runPatchedWorkflowWithCallback(
     const internalCallback = (info: WorkflowInfo, patchId: string) =>
       invokePatchActivationCallback(recordingCallback, info, patchId);
     if (REUSE_V8_CONTEXT) {
-      creator = await TestReusableVMWorkflowCreator.create(workflowBundle, 400, new Set(), internalCallback);
+      creator = await TestReusableVMWorkflowCreator.create(
+        workflowBundle,
+        isolateExecutionTimeoutMs,
+        new Set(),
+        internalCallback
+      );
     } else {
-      creator = await TestVMWorkflowCreator.create(workflowBundle, 400, new Set(), internalCallback);
+      creator = await TestVMWorkflowCreator.create(
+        workflowBundle,
+        isolateExecutionTimeoutMs,
+        new Set(),
+        internalCallback
+      );
     }
   }
   const runId = t.context.runId;
@@ -2042,6 +2054,46 @@ test('threaded patch activation callback preserves closures patchedWorkflow', as
   t.is(invoked, 1);
   t.is(calls.length, 1);
 });
+
+test.serial(
+  'slow patch activation callback blocks the Worker and counts toward isolate timeout patchedWorkflow',
+  async (t) => {
+    const isolateExecutionTimeoutMs = 100;
+    const delayMs = 200;
+    const waitBuffer = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT));
+    let callbackDurationMs = 0;
+    let mainThreadTimerFired = false;
+    let mainThreadTimerFiredBeforeCallbackReturned = false;
+    let mainThreadTimer: Promise<void> | undefined;
+    const { first, calls } = await runPatchedWorkflowWithCallback(
+      t,
+      () => {
+        mainThreadTimer = new Promise((resolve) => {
+          setTimeout(() => {
+            mainThreadTimerFired = true;
+            resolve();
+          }, 0);
+        });
+        const startedAt = Date.now();
+        Atomics.wait(waitBuffer, 0, 0, delayMs);
+        callbackDurationMs = Date.now() - startedAt;
+        mainThreadTimerFiredBeforeCallbackReturned = mainThreadTimerFired;
+        return false;
+      },
+      { threaded: true, isolateExecutionTimeoutMs }
+    );
+
+    await mainThreadTimer;
+    t.true(callbackDurationMs > isolateExecutionTimeoutMs);
+    t.false(mainThreadTimerFiredBeforeCallbackReturned);
+    t.true(mainThreadTimerFired);
+    t.regex(
+      first.failed?.failure?.message ?? '',
+      new RegExp(`Script execution timed out after ${isolateExecutionTimeoutMs}ms`)
+    );
+    t.is(calls.length, 1);
+  }
+);
 
 test('history patch marker bypasses patch activation callback patchedWorkflow', async (t) => {
   const initialActivation: coresdk.workflow_activation.IWorkflowActivation = {

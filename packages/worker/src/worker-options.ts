@@ -116,8 +116,10 @@ export interface WorkerOptions {
    * memoized for the lifetime of the Workflow Execution.
    *
    * The callback runs synchronously in the Worker context, where it may use normal time, randomness, and other
-   * side effects. Workflow APIs are unavailable. It must return an actual boolean and should return promptly to
-   * avoid blocking the Worker.
+   * side effects. Workflow APIs are unavailable. It must return an actual boolean and should return promptly because
+   * it blocks the Worker main thread. Time spent in the callback counts toward the Workflow isolate execution timeout
+   * (5 seconds by default). A callback that never returns cannot be interrupted locally and will continue blocking the
+   * Worker even after the server times out the Workflow Task.
    *
    * @experimental
    */
