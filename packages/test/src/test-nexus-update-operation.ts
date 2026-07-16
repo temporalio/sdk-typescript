@@ -14,6 +14,7 @@
  */
 import { randomUUID } from 'crypto';
 import * as nexus from 'nexus-rpc';
+import type { Duration } from '@temporalio/common';
 import * as temporalnexus from '@temporalio/nexus';
 import { WorkflowUpdateStage } from '@temporalio/client';
 import * as workflow from '@temporalio/workflow';
@@ -34,11 +35,16 @@ const test = makeTestFunction({
   workflowsPath: __filename,
   workflowEnvironmentOpts: {
     server: {
+      // The default dev server (Temporal 1.31.2) does not deliver Workflow Update completion
+      // callbacks to Nexus. Pin a server build that does (server 1.32.0-157.0).
+      executable: { type: 'cached-download', version: 'v1.7.2-standalone-nexus-operations' },
       extraArgs: [
         '--dynamic-config-value',
         'system.refreshNexusEndpointsMinWait="0s"',
         '--dynamic-config-value',
         'history.enableChasmCallbacks=true',
+        '--dynamic-config-value',
+        'history.enableUpdateCallbacks=true',
       ],
     },
   },
@@ -114,9 +120,15 @@ export async function counterWorkflow(): Promise<number> {
   return counter;
 }
 
-export async function callerWorkflow(endpoint: string, input: UpdateAddInput): Promise<UpdateAddOutput> {
+export async function callerWorkflow(
+  endpoint: string,
+  input: UpdateAddInput,
+  // Optional bound on the Nexus operation. Used by the completed-workflow test to cap an operation
+  // whose start would otherwise retry forever (see that test for details).
+  operationOptions?: { scheduleToCloseTimeout?: Duration }
+): Promise<UpdateAddOutput> {
   const client = workflow.createNexusServiceClient({ endpoint, service: updateOpService });
-  return await client.executeOperation('addOperation', input);
+  return await client.executeOperation('addOperation', input, operationOptions);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -149,9 +161,8 @@ test('UpdateWorkflow Nexus operation - valid update succeeds and returns the upd
 // An Update that has not yet completed when it is accepted returns asynchronously; its result is
 // delivered to the caller via the Nexus completion callback attached to the Update request. This
 // requires server-side support for delivering Workflow Update completion callbacks to Nexus, which
-// the bundled ephemeral server (Temporal 1.31.2) does not yet provide (workflow-run completion
-// callbacks do work there). Enable once the test server delivers Update completion callbacks.
-test.skip('UpdateWorkflow Nexus operation - pending update completes asynchronously via callback', async (t) => {
+// the pinned test server (server 1.32.0-157.0) provides with history.enableUpdateCallbacks=true.
+test('UpdateWorkflow Nexus operation - pending update completes asynchronously via callback', async (t) => {
   const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
   const { client } = t.context.env;
   const { endpointName } = await registerNexusEndpoint();
@@ -268,11 +279,12 @@ test('UpdateWorkflow Nexus operation - same Update ID is idempotent', async (t) 
   });
 });
 
-// Updating a completed workflow should surface as a failed operation. Whether it fails (vs. retries
+// Updating a completed workflow does not succeed. Whether the backing Update fails fast (vs. retries
 // forever) depends on the server classifying the "workflow already completed" error as
-// non-retryable for the backing Update; the bundled ephemeral server (Temporal 1.31.2) retries it,
-// so the caller operation never resolves here. Enable once that error is non-retryable.
-test.skip('UpdateWorkflow Nexus operation - update against a completed workflow fails', async (t) => {
+// non-retryable. Both the default dev server (Temporal 1.31.2) and the pinned build
+// (server 1.32.0-157.0) still return NOT_FOUND (WorkflowNotFoundError) and treat it as RETRYABLE, so
+// the Nexus operation start is retried indefinitely and, without a bound, the caller never resolves.
+test('UpdateWorkflow Nexus operation - update against a completed workflow does not succeed', async (t) => {
   const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
   const { client } = t.context.env;
   const { endpointName } = await registerNexusEndpoint();
@@ -290,9 +302,11 @@ test.skip('UpdateWorkflow Nexus operation - update against a completed workflow 
     await handle.signal(doneSignal);
     await handle.result();
 
+    // The backing Update start retries forever against the completed workflow, so bound the operation
+    // with a scheduleToCloseTimeout; the operation must error (not succeed) within that window.
     const err = await t.throwsAsync(() =>
       executeWorkflow(callerWorkflow, {
-        args: [endpointName, { workflowId: counterWorkflowId, amount: 5 }],
+        args: [endpointName, { workflowId: counterWorkflowId, amount: 5 }, { scheduleToCloseTimeout: '5s' }],
       })
     );
     t.truthy(err);
