@@ -16,6 +16,18 @@ import type { NativeConnectionPlugin } from './connection';
 export { TLSConfig, ProxyConfig };
 
 /**
+ * Default warning threshold, in bytes, for outbound payload-bearing field size.
+ * Mirrors the Temporal server's `limit.blobSize.warn` dynamic-config default.
+ */
+const DEFAULT_PAYLOADS_WARN_SIZE = 512 * 1024;
+
+/**
+ * Default warning threshold, in bytes, for outbound memo size.
+ * Mirrors the Temporal server's `limit.memoSize.warn` dynamic-config default.
+ */
+const DEFAULT_MEMO_WARN_SIZE = 2 * 1024;
+
+/**
  * DNS load balancing configuration.
  */
 export interface DNSLoadBalancingConfig {
@@ -234,7 +246,7 @@ export function toNativeClientOptions(options: NativeConnectionOptions): native.
     headers,
     apiKey: options.apiKey ?? null,
     disableErrorCodeMetricTags: options.disableErrorCodeMetricTags ?? false,
-    payloadsWarnSize: options.payloadLimits?.payloadsWarnSize ?? 512 * 1024,
-    memoWarnSize: options.payloadLimits?.memoWarnSize ?? 2 * 1024,
+    payloadsWarnSize: options.payloadLimits?.payloadsWarnSize ?? DEFAULT_PAYLOADS_WARN_SIZE,
+    memoWarnSize: options.payloadLimits?.memoWarnSize ?? DEFAULT_MEMO_WARN_SIZE,
   };
 }
