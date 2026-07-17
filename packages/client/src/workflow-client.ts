@@ -1035,7 +1035,7 @@ export class WorkflowClient extends BaseClient {
     const dataConverter = this.dataConverter;
     const context = this.workflowSerializationContext(input.workflowExecution.workflowId!);
     const updateId = input.options?.updateId ?? randomUUID();
-    const internalOptions = (input.options as InternalWorkflowUpdateOptions | undefined)?.[
+    const internalOptions = (input.options as InternalWorkflowUpdateOptions)[
       InternalWorkflowUpdateOptionsSymbol
     ];
     return {
