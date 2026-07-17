@@ -1112,7 +1112,7 @@ export class WorkflowClient extends BaseClient {
     if (externalStorage) {
       await visit(response, walkUpdateWorkflowExecutionResponse, extstoreRetrieveOptions(externalStorage));
     }
-    const internalOptions = (input.options as InternalWorkflowUpdateOptions | undefined)?.[
+    const internalOptions = (input.options as InternalWorkflowUpdateOptions)[
       InternalWorkflowUpdateOptionsSymbol
     ];
     if (internalOptions != null) {
