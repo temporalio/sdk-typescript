@@ -8,6 +8,7 @@ import {
   extstoreStoreOptions,
   isReferencePayload,
   visit,
+  walkActivityHeartbeat,
   walkActivityTask,
   walkActivityTaskCompletion,
   walkNexusTask,
@@ -106,6 +107,34 @@ test('workflow store applies a per-command derived target', async (t) => {
   t.true(targets.includes('child-1'), 'child input stored against the child workflow');
 });
 
+test('workflow store leaves search attributes inline while offloading siblings', async (t) => {
+  const { externalStorage } = externalStorageWith();
+  const searchAttr = makePayload(256, 8);
+  const completion: coresdk.workflow_completion.IWorkflowActivationCompletion = {
+    successful: {
+      commands: [
+        {
+          startChildWorkflowExecution: {
+            workflowId: 'child-1',
+            input: [makePayload(256, 1)],
+            searchAttributes: { indexedFields: { CustomKey: searchAttr } },
+          },
+        },
+      ],
+    },
+  };
+
+  await visit(
+    completion,
+    walkWorkflowActivationCompletion,
+    extstoreStoreOptions(externalStorage, { initialTarget: WORKFLOW_TARGET })
+  );
+
+  const command = completion.successful!.commands![0]!.startChildWorkflowExecution!;
+  t.true(isReferencePayload(command.input![0]!), 'input is offloaded');
+  t.deepEqual(command.searchAttributes!.indexedFields!.CustomKey, searchAttr, 'search attribute left untouched');
+});
+
 test('workflow store then retrieve round-trips the original payload bytes', async (t) => {
   const { externalStorage } = externalStorageWith();
   const original = makePayload(256, 7);
@@ -142,6 +171,15 @@ test('activity task completion store offloads the result payload', async (t) => 
 
   t.true(isReferencePayload(completion.result!.completed!.result!));
   t.is(driver.storeCalls.length, 1);
+});
+
+test('activity heartbeat store offloads the details payload', async (t) => {
+  const { externalStorage } = externalStorageWith();
+  const heartbeat: coresdk.IActivityHeartbeat = { taskToken: new Uint8Array([1]), details: [makePayload(256)] };
+
+  await visit(heartbeat, walkActivityHeartbeat, extstoreStoreOptions(externalStorage));
+
+  t.true(isReferencePayload(heartbeat.details![0]!));
 });
 
 test('activity task retrieve resolves the activity input', async (t) => {

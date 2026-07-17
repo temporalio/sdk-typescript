@@ -1,5 +1,5 @@
 /**
- * Visits payloads for External Storage and applies payload transformations via                                                                                                                                                             ║
+ * Visits payloads for External Storage and applies payload transformations via
  * {@link ExternalStorageRunner}.
  *
  * @module
@@ -43,6 +43,8 @@ export function extstoreStoreOptions(
       runner.store([payload], { target, abortSignal: signal }).then((stored) => stored[0]!),
     deriveContext,
     initialContext: initialTarget,
+    // Search attributes must keep their literal values so the server can index/search on them.
+    skipSearchAttributes: true,
     limit,
     abortSignal,
   };
@@ -61,6 +63,7 @@ export function extstoreRetrieveOptions(
     transformPayloads: (payloads, _context, signal) => runner.retrieve(payloads, { abortSignal: signal }),
     transformPayload: (payload, _context, signal) =>
       runner.retrieve([payload], { abortSignal: signal }).then((retrieved) => retrieved[0]!),
+    skipSearchAttributes: true,
     limit,
     abortSignal,
   };

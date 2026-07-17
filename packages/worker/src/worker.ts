@@ -34,6 +34,7 @@ import {
   extstoreRetrieveOptions,
   extstoreStoreOptions,
   visit,
+  walkActivityHeartbeat,
   walkActivityTask,
   walkActivityTaskCompletion,
   walkNexusTask,
@@ -1827,10 +1828,12 @@ export class Worker {
                 onError();
                 return;
               }
-              const arr = coresdk.ActivityHeartbeat.encodeDelimited({
-                taskToken,
-                details: [payload],
-              }).finish();
+              const heartbeat: coresdk.IActivityHeartbeat = { taskToken, details: [payload] };
+              const { externalStorage } = this.options.loadedDataConverter;
+              if (externalStorage) {
+                await visit(heartbeat, walkActivityHeartbeat, extstoreStoreOptions(externalStorage));
+              }
+              const arr = coresdk.ActivityHeartbeat.encodeDelimited(heartbeat).finish();
               this.nativeWorker.recordActivityHeartbeat(byteArrayToBuffer(arr));
             } finally {
               this.activityHeartbeatSubject.next({
