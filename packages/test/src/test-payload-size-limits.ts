@@ -84,7 +84,10 @@ test.serial('oversized worker completion is failed by core with a [TMPRL1103] er
       { instanceOf: WorkflowFailedError }
     );
 
-    t.true(hasLog('ERROR', '[TMPRL1103] Attempted to upload payloads with size that exceeded the error limit.'));
+    // Core forwards logs on a buffered interval, so wait for the error log to arrive.
+    const errorMessage = '[TMPRL1103] Attempted to upload payloads with size that exceeded the error limit.';
+    await waitUntil(async () => hasLog('ERROR', errorMessage), 10_000);
+    t.true(hasLog('ERROR', errorMessage));
 
     // Failure mechanism: worker reported a WorkflowTaskFailed with PAYLOADS_TOO_LARGE.
     const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
