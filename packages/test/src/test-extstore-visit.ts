@@ -7,16 +7,19 @@ import {
   extstoreRetrieveOptions,
   extstoreStoreOptions,
   isReferencePayload,
-  visitActivityTask,
-  visitActivityTaskCompletion,
-  visitNexusTask,
-  visitNexusTaskCompletion,
-  visitWorkflowActivation,
-  visitWorkflowActivationCompletion,
+  visit,
+  walkActivityTask,
+  walkActivityTaskCompletion,
+  walkNexusTask,
+  walkNexusTaskCompletion,
+  walkQueryWorkflowResponse,
+  walkStartWorkflowExecutionRequest,
+  walkWorkflowActivation,
+  walkWorkflowActivationCompletion,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { encode } from '@temporalio/common/lib/encoding';
 import { METADATA_ENCODING_KEY } from '@temporalio/common/lib/converter/types';
-import type { coresdk } from '@temporalio/proto';
+import type { coresdk, temporal } from '@temporalio/proto';
 import { makeFakeDriver } from './extstore-fake-driver';
 
 /** Build a Payload whose proto-encoded size is at least `bodyBytes`, filled with `fill`. */
@@ -45,8 +48,9 @@ test('workflow store offloads a large payload and threads the target to the driv
     successful: { commands: [{ completeWorkflowExecution: { result: makePayload(256) } }] },
   };
 
-  await visitWorkflowActivationCompletion(
+  await visit(
     completion,
+    walkWorkflowActivationCompletion,
     extstoreStoreOptions(externalStorage, { initialTarget: WORKFLOW_TARGET })
   );
 
@@ -63,8 +67,9 @@ test('workflow store offloads only above-threshold payloads at a repeated site',
     successful: { commands: [{ scheduleActivity: { arguments: [makePayload(256), small] } }] },
   };
 
-  await visitWorkflowActivationCompletion(
+  await visit(
     completion,
+    walkWorkflowActivationCompletion,
     extstoreStoreOptions(externalStorage, { initialTarget: WORKFLOW_TARGET })
   );
 
@@ -85,8 +90,9 @@ test('workflow store applies a per-command derived target', async (t) => {
     },
   };
 
-  await visitWorkflowActivationCompletion(
+  await visit(
     completion,
+    walkWorkflowActivationCompletion,
     extstoreStoreOptions(externalStorage, {
       initialTarget: WORKFLOW_TARGET,
       // Stand-in for the worker's command→target mapping: the child command retargets its payloads.
@@ -107,8 +113,9 @@ test('workflow store then retrieve round-trips the original payload bytes', asyn
     successful: { commands: [{ completeWorkflowExecution: { result: original } }] },
   };
 
-  await visitWorkflowActivationCompletion(
+  await visit(
     completion,
+    walkWorkflowActivationCompletion,
     extstoreStoreOptions(externalStorage, { initialTarget: WORKFLOW_TARGET })
   );
   const reference = completion.successful!.commands![0]!.completeWorkflowExecution!.result!;
@@ -117,7 +124,7 @@ test('workflow store then retrieve round-trips the original payload bytes', asyn
   const activation: coresdk.workflow_activation.IWorkflowActivation = {
     jobs: [{ resolveActivity: { result: { completed: { result: reference } } } }],
   };
-  await visitWorkflowActivation(activation, extstoreRetrieveOptions(externalStorage));
+  await visit(activation, walkWorkflowActivation, extstoreRetrieveOptions(externalStorage));
 
   const retrieved = activation.jobs![0]!.resolveActivity!.result!.completed!.result!;
   t.false(isReferencePayload(retrieved));
@@ -131,7 +138,7 @@ test('activity task completion store offloads the result payload', async (t) => 
     result: { completed: { result: makePayload(256) } },
   };
 
-  await visitActivityTaskCompletion(completion, extstoreStoreOptions(externalStorage));
+  await visit(completion, walkActivityTaskCompletion, extstoreStoreOptions(externalStorage));
 
   t.true(isReferencePayload(completion.result!.completed!.result!));
   t.is(driver.storeCalls.length, 1);
@@ -144,7 +151,7 @@ test('activity task retrieve resolves the activity input', async (t) => {
     start: { input: [await toReference(externalStorage, input)] },
   };
 
-  await visitActivityTask(task, extstoreRetrieveOptions(externalStorage));
+  await visit(task, walkActivityTask, extstoreRetrieveOptions(externalStorage));
 
   t.deepEqual(task.start!.input![0], input);
 });
@@ -155,7 +162,7 @@ test('nexus task completion store offloads the sync result payload', async (t) =
     completed: { startOperation: { syncSuccess: { payload: makePayload(256) } } },
   };
 
-  await visitNexusTaskCompletion(completion, extstoreStoreOptions(externalStorage));
+  await visit(completion, walkNexusTaskCompletion, extstoreStoreOptions(externalStorage));
 
   t.true(isReferencePayload(completion.completed!.startOperation!.syncSuccess!.payload!));
 });
@@ -167,7 +174,35 @@ test('nexus task retrieve resolves the request payload', async (t) => {
     task: { request: { startOperation: { payload: await toReference(externalStorage, requestPayload) } } },
   };
 
-  await visitNexusTask(task, extstoreRetrieveOptions(externalStorage));
+  await visit(task, walkNexusTask, extstoreRetrieveOptions(externalStorage));
 
   t.deepEqual(task.task!.request!.startOperation!.payload, requestPayload);
+});
+
+test('client request store offloads the workflow input (via generic visit)', async (t) => {
+  const { externalStorage } = externalStorageWith();
+  const request: temporal.api.workflowservice.v1.IStartWorkflowExecutionRequest = {
+    workflowId: 'wf-1',
+    input: { payloads: [makePayload(256)] },
+  };
+
+  await visit(
+    request,
+    walkStartWorkflowExecutionRequest,
+    extstoreStoreOptions(externalStorage, { initialTarget: WORKFLOW_TARGET })
+  );
+
+  t.true(isReferencePayload(request.input!.payloads![0]!));
+});
+
+test('client response retrieve resolves the query result (via generic visit)', async (t) => {
+  const { externalStorage } = externalStorageWith();
+  const queryResult = makePayload(256, 9);
+  const response: temporal.api.workflowservice.v1.IQueryWorkflowResponse = {
+    queryResult: { payloads: [await toReference(externalStorage, queryResult)] },
+  };
+
+  await visit(response, walkQueryWorkflowResponse, extstoreRetrieveOptions(externalStorage));
+
+  t.deepEqual(response.queryResult!.payloads![0], queryResult);
 });
