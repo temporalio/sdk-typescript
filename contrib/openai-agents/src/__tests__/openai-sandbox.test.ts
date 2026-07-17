@@ -8,12 +8,13 @@ import {
   type SandboxSession,
   type SandboxSessionState,
 } from '@openai/agents-core/sandbox';
-import { deserializeManifest } from '@openai/agents-core/sandbox/internal';
+import { deserializeManifest, serializeManifestRecord } from '@openai/agents-core/sandbox/internal';
 import { ApplicationFailure } from '@temporalio/common';
 import {
   SANDBOX_ACTIVITY_SUFFIXES,
   SANDBOX_CLIENT_CREATE_SUFFIX,
   SANDBOX_CLIENT_DELETE_SUFFIX,
+  SANDBOX_CLIENT_RESUME_SUFFIX,
   SANDBOX_CLIENT_SERIALIZE_SESSION_STATE_SUFFIX,
   SANDBOX_EDITOR_UPDATE_FILE_SUFFIX,
   SANDBOX_SESSION_APPLY_MANIFEST_SUFFIX,
@@ -116,7 +117,7 @@ test('temporalSandboxClient returns a TemporalSandboxClient with backendId = nam
 });
 
 test('temporalSandboxClient honors activity config overrides', (t) => {
-  const client = temporalSandboxClient('my-backend', { config: { startToCloseTimeout: '10 minutes' } });
+  const client = temporalSandboxClient('my-backend', { startToCloseTimeout: '10 minutes' });
   t.is((client as any)._config.startToCloseTimeout, '10 minutes');
 });
 
@@ -195,7 +196,7 @@ test('create delegates to the real client and returns a serializable state handl
   t.true(client.createCalls[0]!.manifest instanceof Manifest);
   t.is(typeof result.state.sessionId, 'string');
   t.is(decodeManifest(result.state.manifest).environment.FOO!.value, 'bar');
-  t.deepEqual(result.state.providerState, { workspacePath: '/tmp/fake-workspace' });
+  t.deepEqual(result.state.providerState, { workspacePath: '/tmp/fake-workspace', environment: { FOO: 'bar' } });
   t.false(result.supportsPty);
 });
 
@@ -207,6 +208,30 @@ test('resume delegates to the real client', async (t) => {
   const result: SandboxSessionResult = await acts[`fake-sandbox-client-resume`]!({ state });
   t.is(client.resumeCalls, 1);
   t.is(result.state.sessionId, state.sessionId);
+});
+
+test('ephemeral mount and env reach the backend on create; only the mount survives resume', async (t) => {
+  const manifest = new Manifest({
+    entries: { 'secret-mount': { type: 'mount', source: '/host/secret', mountPath: '/secret' } },
+    environment: { SECRET: { value: 'topsecret', ephemeral: true } },
+  });
+
+  const client = new FakeSandboxClient();
+  const acts = activityMap(new SandboxClientProvider('fake', client));
+  const { state } = await acts[`fake${SANDBOX_CLIENT_CREATE_SUFFIX}`]!({ manifest: encodeManifest(manifest) });
+
+  // Both reach the backend on create; the ephemeral env is resolved into the session.
+  t.true('secret-mount' in (client.createCalls[0]!.manifest as Manifest).entries);
+  t.is(client.session.state.environment!.SECRET, 'topsecret');
+
+  // Fresh provider (empty cache, new backend instance) resuming from the handle.
+  const freshClient = new FakeSandboxClient();
+  const freshActs = activityMap(new SandboxClientProvider('fake', freshClient));
+  await freshActs[`fake${SANDBOX_CLIENT_RESUME_SUFFIX}`]!({ state });
+
+  // The mount is re-materialized from the manifest; ephemeral env is create-only because the SDK does not persist ephemeral env (matching the standalone SDK / Python contrib).
+  t.true('secret-mount' in freshClient.session.state.manifest.entries);
+  t.is(freshClient.session.state.environment?.SECRET, undefined);
 });
 
 test('exec delegates to the real session', async (t) => {
@@ -230,7 +255,10 @@ test('execCommand, writeStdin, readFile, listDir, and pathExists delegate', asyn
   const { state } = await createSession(acts);
 
   t.is(await acts[`fake${SANDBOX_SESSION_EXEC_COMMAND_SUFFIX}`]!({ state, args: { cmd: 'ls' } }), 'ran:ls');
-  t.is(await acts[`fake${SANDBOX_SESSION_WRITE_STDIN_SUFFIX}`]!({ state, args: { sessionId: 1, chars: 'y' } }), 'stdin:y');
+  t.is(
+    await acts[`fake${SANDBOX_SESSION_WRITE_STDIN_SUFFIX}`]!({ state, args: { sessionId: 1, chars: 'y' } }),
+    'stdin:y'
+  );
   t.deepEqual(
     await acts[`fake${SANDBOX_SESSION_READ_FILE_SUFFIX}`]!({ state, args: { path: '/workspace/f' } }),
     new TextEncoder().encode('file-content')
@@ -286,6 +314,33 @@ test('applyManifest falls back to materializeEntry when the real session lacks i
 
   t.is(session.materializedEntries.length, 1);
   t.is(session.materializedEntries[0]!.path, 'a.txt');
+});
+
+test('applyManifest returns the backend-merged manifest', async (t) => {
+  const client = new FakeSandboxClient();
+  const acts = activityMap(new SandboxClientProvider('fake', client));
+  const { state } = await createSession(acts);
+
+  const updated = await acts[`fake${SANDBOX_SESSION_APPLY_MANIFEST_SUFFIX}`]!({
+    state,
+    manifest: encodeManifest(new Manifest({ entries: { 'added.txt': { type: 'file', content: 'added' } } })),
+  });
+
+  t.true('added.txt' in decodeManifest(updated).entries);
+});
+
+test('materializeEntry returns the backend-merged manifest', async (t) => {
+  const client = new FakeSandboxClient();
+  const acts = activityMap(new SandboxClientProvider('fake', client));
+  const { state } = await createSession(acts);
+
+  const updated = await acts[`fake${SANDBOX_SESSION_MATERIALIZE_ENTRY_SUFFIX}`]!({
+    state,
+    path: 'made.txt',
+    entry: { type: 'file', content: { type: 'base64', data: bytesToBase64(new TextEncoder().encode('x')) } },
+  });
+
+  t.true('made.txt' in decodeManifest(updated).entries);
 });
 
 test('persistWorkspace applies archive limits and returns bytes', async (t) => {
@@ -399,10 +454,10 @@ test('serializeSessionState round-trips through deserializeSessionState', async 
   t.deepEqual(restored.providerState, { workspacePath: '/tmp/fake-workspace' });
 });
 
-test('providerState fallback (no serializeSessionState) omits environment secrets and envelope fields', async (t) => {
+test('providerState fallback (no serializeSessionState) preserves environment, dropping only duplicated envelope fields', async (t) => {
   class NoSerializeClient extends FakeSandboxClient {
     // Inherits create/resume; deliberately drops the custom (de)serializers so
-    // the provider falls back to its own state stripping.
+    // the provider falls back to its own state handling.
     serializeSessionState = undefined as any;
     deserializeSessionState = undefined as any;
   }
@@ -423,26 +478,25 @@ test('providerState fallback (no serializeSessionState) omits environment secret
   const result = await createSession(acts);
   const ps = result.state.providerState;
 
-  // No resolved env / secrets and no duplicated envelope fields in providerState.
-  t.is(ps.environment, undefined);
+  // The resolved environment and provider-specific keys are preserved; only the
+  // envelope-owned fields (duplicated at the handle's top level) are dropped.
+  t.deepEqual(ps.environment, { SECRET: 'topsecret' });
+  t.is(ps.workspaceId, 'abc-123');
   t.is(ps.manifest, undefined);
   t.is(ps.snapshot, undefined);
   t.is(ps.snapshotFingerprint, undefined);
   t.is(ps.snapshotFingerprintVersion, undefined);
   t.is(ps.workspaceReady, undefined);
   t.is(ps.exposedPorts, undefined);
-  // The provider-specific key survives.
-  t.is(ps.workspaceId, 'abc-123');
-  // The secret must appear nowhere in the transported handle.
-  t.false(JSON.stringify(result.state).includes('topsecret'));
+  t.true(JSON.stringify(result.state).includes('topsecret'));
 
-  // The matching rehydrate fallback reconstructs the session correctly.
+  // The matching rehydrate fallback reconstructs the session with its environment intact.
   const fresh = activityMap(new SandboxClientProvider('fake', client));
   await fresh[`fake${SANDBOX_SESSION_EXEC_SUFFIX}`]!({ state: result.state, args: { cmd: 'x' } });
   t.is(client.resumeCalls, 1);
   t.true(client.session.state.manifest instanceof Manifest);
   t.is((client.session.state as { workspaceId?: string }).workspaceId, 'abc-123');
-  t.is(client.session.state.environment, undefined);
+  t.deepEqual(client.session.state.environment, { SECRET: 'topsecret' });
 });
 
 test('deserializeSessionState rejects records without a sessionId', async (t) => {
@@ -452,6 +506,45 @@ test('deserializeSessionState rejects records without a sessionId', async (t) =>
     { instanceOf: ApplicationFailure }
   );
   t.is(err?.type, 'SandboxSessionStateInvalid');
+});
+
+test('deserializeSessionState rejects records without a manifest', async (t) => {
+  const client = temporalSandboxClient('fake');
+  const err = await t.throwsAsync(client.deserializeSessionState({ sessionId: 'abc', providerState: {} }), {
+    instanceOf: ApplicationFailure,
+  });
+  t.is(err?.type, 'SandboxSessionStateInvalid');
+});
+
+test("deserializeSessionState decodes the SDK's real serialized manifest record", async (t) => {
+  const content = new Uint8Array([0, 1, 2, 253, 254, 255]);
+  const manifest = new Manifest({
+    root: '/workspace',
+    entries: {
+      'bin/blob': { type: 'file', content },
+      'tmp/scratch': { type: 'file', content: 'scratch', ephemeral: true },
+    },
+    environment: { API_KEY: { value: 'secret', ephemeral: true }, PLAIN: 'value' },
+  });
+
+  // The exact record the SDK hands to deserializeSessionState on resume: the
+  // client's providerState merged with the SDK envelope fields, where `manifest`
+  // is the SDK's own serializeManifestRecord output (not contrib's encodeManifest).
+  const record = {
+    sessionId: 'sess-1',
+    providerState: { workspacePath: '/tmp/w' },
+    manifest: JSON.parse(JSON.stringify(serializeManifestRecord(manifest))),
+    workspaceReady: true,
+  };
+
+  const restored = await temporalSandboxClient('fake').deserializeSessionState(record);
+  t.is(restored.sessionId, 'sess-1');
+  t.true(restored.manifest instanceof Manifest);
+  t.deepEqual((restored.manifest.entries['bin/blob'] as { content: Uint8Array }).content, content);
+  t.is(restored.manifest.entries['tmp/scratch'], undefined);
+  t.is(restored.manifest.environment.API_KEY, undefined);
+  t.is(restored.manifest.environment.PLAIN!.value, 'value');
+  t.deepEqual(restored.providerState, { workspacePath: '/tmp/w' });
 });
 
 // ── Session caching and resume-based self-heal ──
@@ -699,7 +792,7 @@ test('base64 helpers round-trip binary payloads and match Buffer', (t) => {
   }
 });
 
-test('encodeManifest keeps binary content, drops ephemeral entries/env, and is SDK-decodable', (t) => {
+test('encodeManifest keeps binary content and all ephemeral entries/env, and is SDK-decodable', (t) => {
   const content = new Uint8Array([0, 1, 2, 253, 254, 255]);
   const manifest = new Manifest({
     root: '/workspace',
@@ -722,9 +815,12 @@ test('encodeManifest keeps binary content, drops ephemeral entries/env, and is S
   t.deepEqual((decoded.entries['bin/blob'] as { content: Uint8Array }).content, content);
   const nested = decoded.entries['nested'] as { children: Record<string, { content: Uint8Array }> };
   t.deepEqual(nested.children['inner.bin']!.content, content);
-  // Ephemeral entries and env values (secrets) are dropped from the persisted form.
-  t.is(decoded.entries['tmp/scratch'], undefined);
-  t.is(decoded.environment.API_KEY, undefined);
+  // Ephemeral entries and env values are preserved, not stripped.
+  const scratch = decoded.entries['tmp/scratch'] as { content: string; ephemeral?: boolean };
+  t.is(scratch.content, 'scratch');
+  t.is(scratch.ephemeral, true);
+  t.is(decoded.environment.API_KEY!.value, 'secret');
+  t.is(decoded.environment.API_KEY!.ephemeral, true);
   t.is(decoded.environment.PLAIN!.value, 'value');
   t.deepEqual(decoded.users, [{ name: 'alice' }]);
 });

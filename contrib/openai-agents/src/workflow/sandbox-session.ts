@@ -1,4 +1,10 @@
-import type { ApplyPatchOperation, ApplyPatchResult, Editor, EditorInvocationContext, ToolOutputImage } from '@openai/agents-core';
+import type {
+  ApplyPatchOperation,
+  ApplyPatchResult,
+  Editor,
+  EditorInvocationContext,
+  ToolOutputImage,
+} from '@openai/agents-core';
 import type {
   ExecCommandArgs,
   ExposedPortEndpoint,
@@ -40,10 +46,12 @@ import {
   SANDBOX_SESSION_STOP_SUFFIX,
   SANDBOX_SESSION_VIEW_IMAGE_SUFFIX,
   SANDBOX_SESSION_WRITE_STDIN_SUFFIX,
+  decodeManifest,
   decodeToolOutputImage,
   encodeEntry,
   encodeManifest,
   serializeSessionEnvelope,
+  type EncodedManifest,
   type SerializedSandboxSessionState,
   type SerializedToolOutputImage,
   type TemporalSandboxSessionState,
@@ -54,8 +62,8 @@ import {
  * every real sandbox operation is dispatched as an Activity to the
  * `SandboxClientProvider` registered under the same name on the Worker.
  *
- * `registerPreStopHook` is intentionally not implemented, so the SDK installs
- * its managed pre-stop-hook fallback (registerSandboxPreStopHook) instead.
+ * `registerPreStopHook` is intentionally not implemented so the SDK runs its
+ * managed pre-stop-hook fallback instead.
  */
 export class TemporalSandboxSession implements SandboxSession<TemporalSandboxSessionState> {
   state: TemporalSandboxSessionState;
@@ -76,7 +84,11 @@ export class TemporalSandboxSession implements SandboxSession<TemporalSandboxSes
   }
 
   private dispatch<T>(suffix: string, input: Record<string, unknown>, extraArgs: unknown[] = []): Promise<T> {
-    return scheduleActivity<T>(`${this._name}${suffix}`, [{ state: this.stateInput(), ...input }, ...extraArgs], this._config);
+    return scheduleActivity<T>(
+      `${this._name}${suffix}`,
+      [{ state: this.stateInput(), ...input }, ...extraArgs],
+      this._config
+    );
   }
 
   async start(options?: SandboxSessionLifecycleOptions): Promise<void> {
@@ -133,15 +145,20 @@ export class TemporalSandboxSession implements SandboxSession<TemporalSandboxSes
   }
 
   async materializeEntry(args: MaterializeEntryArgs): Promise<void> {
-    await this.dispatch(SANDBOX_SESSION_MATERIALIZE_ENTRY_SUFFIX, {
+    const updated = await this.dispatch<EncodedManifest>(SANDBOX_SESSION_MATERIALIZE_ENTRY_SUFFIX, {
       path: args.path,
       entry: encodeEntry(args.entry),
       runAs: args.runAs,
     });
+    this.state.manifest = decodeManifest(updated);
   }
 
   async applyManifest(manifest: Manifest, runAs?: string): Promise<void> {
-    await this.dispatch(SANDBOX_SESSION_APPLY_MANIFEST_SUFFIX, { manifest: encodeManifest(manifest), runAs });
+    const updated = await this.dispatch<EncodedManifest>(SANDBOX_SESSION_APPLY_MANIFEST_SUFFIX, {
+      manifest: encodeManifest(manifest),
+      runAs,
+    });
+    this.state.manifest = decodeManifest(updated);
   }
 
   async persistWorkspace(): Promise<Uint8Array> {

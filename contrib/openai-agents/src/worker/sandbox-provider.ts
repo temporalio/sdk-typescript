@@ -1,9 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type {
-  ApplyPatchOperation,
-  ApplyPatchResult,
-  Editor,
-} from '@openai/agents-core';
+import type { ApplyPatchOperation, ApplyPatchResult, Editor } from '@openai/agents-core';
 import type {
   SandboxClient,
   SandboxClientOptions,
@@ -39,9 +35,11 @@ import {
   SANDBOX_SESSION_WRITE_STDIN_SUFFIX,
   decodeEntry,
   decodeManifest,
+  encodeManifest,
   encodeToolOutputImage,
   serializeSessionEnvelope,
   toSdkStateRecord,
+  type EncodedManifest,
   type SandboxApplyManifestInput,
   type SandboxCreateSessionInput,
   type SandboxEditorInput,
@@ -110,7 +108,7 @@ function unsupportedOperation(name: string, operation: string): never {
  * ```ts
  * const plugin = new OpenAIAgentsPlugin({
  *   modelProvider,
- *   sandboxClients: [new SandboxClientProvider('local', new UnixLocalSandboxClient())],
+ *   sandboxClientProviders: [new SandboxClientProvider('local', new UnixLocalSandboxClient())],
  * });
  * ```
  *
@@ -173,12 +171,11 @@ export class SandboxClientProvider {
     if (this.client.serializeSessionState) {
       return await this.client.serializeSessionState(state);
     }
-    // Without a real serializer, keep only genuinely provider-specific keys:
-    // drop `environment` (resolved runtime secrets) and the envelope-owned
-    // fields already serialized at the top level of the session handle.
+    // Without a real serializer, drop only the envelope-owned fields already
+    // serialized at the session handle's top level; keep everything else —
+    // including the resolved `environment` — so a resumed session is complete.
     const {
       manifest: _manifest,
-      environment: _environment,
       snapshot: _snapshot,
       snapshotFingerprint: _snapshotFingerprint,
       snapshotFingerprintVersion: _snapshotFingerprintVersion,
@@ -206,7 +203,9 @@ export class SandboxClientProvider {
     const n = this.name;
 
     const activities: Record<string, ActivityFunction> = {
-      [`${n}${SANDBOX_CLIENT_CREATE_SUFFIX}`]: async (input: SandboxCreateSessionInput): Promise<SandboxSessionResult> => {
+      [`${n}${SANDBOX_CLIENT_CREATE_SUFFIX}`]: async (
+        input: SandboxCreateSessionInput
+      ): Promise<SandboxSessionResult> => {
         if (!this.client.create) unsupportedOperation(n, 'create');
         const session = await this.client.create({
           manifest: input.manifest && decodeManifest(input.manifest),
@@ -215,12 +214,17 @@ export class SandboxClientProvider {
           concurrencyLimits: input.concurrencyLimits,
           archiveLimits: input.archiveLimits,
         });
+        // At-least-once Activity execution: `SandboxClient.create` takes no
+        // idempotency key, so a retry after the backend session is created but
+        // before this result is recorded leaks that first session.
         const sessionId = randomUUID();
         this._sessions.set(sessionId, session);
         return this.sessionResult(sessionId, session);
       },
 
-      [`${n}${SANDBOX_CLIENT_RESUME_SUFFIX}`]: async (input: SandboxResumeSessionInput): Promise<SandboxSessionResult> => {
+      [`${n}${SANDBOX_CLIENT_RESUME_SUFFIX}`]: async (
+        input: SandboxResumeSessionInput
+      ): Promise<SandboxSessionResult> => {
         if (!this.client.resume) unsupportedOperation(n, 'resume');
         const session = await this.client.resume(
           await this.rehydrateState(input.state),
@@ -306,7 +310,9 @@ export class SandboxClientProvider {
         return encodeToolOutputImage(await session.viewImage(input.args));
       },
 
-      [`${n}${SANDBOX_SESSION_READ_FILE_SUFFIX}`]: async (input: SandboxReadFileInput): Promise<string | Uint8Array> => {
+      [`${n}${SANDBOX_SESSION_READ_FILE_SUFFIX}`]: async (
+        input: SandboxReadFileInput
+      ): Promise<string | Uint8Array> => {
         const session = await this.session(input.state);
         if (!session.readFile) unsupportedOperation(n, 'readFile');
         return session.readFile(input.args);
@@ -324,26 +330,35 @@ export class SandboxClientProvider {
         return session.pathExists(input.path, input.runAs);
       },
 
-      [`${n}${SANDBOX_SESSION_MATERIALIZE_ENTRY_SUFFIX}`]: async (input: SandboxMaterializeEntryInput): Promise<void> => {
+      [`${n}${SANDBOX_SESSION_MATERIALIZE_ENTRY_SUFFIX}`]: async (
+        input: SandboxMaterializeEntryInput
+      ): Promise<EncodedManifest> => {
         const session = await this.session(input.state);
         if (!session.materializeEntry) unsupportedOperation(n, 'materializeEntry');
         await session.materializeEntry({ path: input.path, entry: decodeEntry(input.entry), runAs: input.runAs });
+        return encodeManifest(session.state.manifest);
       },
 
-      [`${n}${SANDBOX_SESSION_APPLY_MANIFEST_SUFFIX}`]: async (input: SandboxApplyManifestInput): Promise<void> => {
+      [`${n}${SANDBOX_SESSION_APPLY_MANIFEST_SUFFIX}`]: async (
+        input: SandboxApplyManifestInput
+      ): Promise<EncodedManifest> => {
         const session = await this.session(input.state);
         const manifest = decodeManifest(input.manifest);
         if (session.applyManifest) {
           await session.applyManifest(manifest, input.runAs);
-          return;
+        } else if (session.materializeEntry) {
+          for (const [path, entry] of Object.entries(manifest.entries)) {
+            await session.materializeEntry({ path, entry, runAs: input.runAs });
+          }
+        } else {
+          unsupportedOperation(n, 'applyManifest');
         }
-        if (!session.materializeEntry) unsupportedOperation(n, 'applyManifest');
-        for (const [path, entry] of Object.entries(manifest.entries)) {
-          await session.materializeEntry({ path, entry, runAs: input.runAs });
-        }
+        return encodeManifest(session.state.manifest);
       },
 
-      [`${n}${SANDBOX_SESSION_PERSIST_WORKSPACE_SUFFIX}`]: async (input: SandboxPersistWorkspaceInput): Promise<Uint8Array> => {
+      [`${n}${SANDBOX_SESSION_PERSIST_WORKSPACE_SUFFIX}`]: async (
+        input: SandboxPersistWorkspaceInput
+      ): Promise<Uint8Array> => {
         const session = await this.session(input.state);
         if (!session.persistWorkspace) unsupportedOperation(n, 'persistWorkspace');
         if (input.archiveLimits !== undefined) session.setArchiveLimits?.(input.archiveLimits);
@@ -368,17 +383,23 @@ export class SandboxClientProvider {
         return session.resolveExposedPort(input.port);
       },
 
-      [`${n}${SANDBOX_EDITOR_CREATE_FILE_SUFFIX}`]: async (input: SandboxEditorInput): Promise<ApplyPatchResult | void> => {
+      [`${n}${SANDBOX_EDITOR_CREATE_FILE_SUFFIX}`]: async (
+        input: SandboxEditorInput
+      ): Promise<ApplyPatchResult | void> => {
         const editor = await this.editor(input);
         return editor.createFile(input.operation as Extract<ApplyPatchOperation, { type: 'create_file' }>);
       },
 
-      [`${n}${SANDBOX_EDITOR_UPDATE_FILE_SUFFIX}`]: async (input: SandboxEditorInput): Promise<ApplyPatchResult | void> => {
+      [`${n}${SANDBOX_EDITOR_UPDATE_FILE_SUFFIX}`]: async (
+        input: SandboxEditorInput
+      ): Promise<ApplyPatchResult | void> => {
         const editor = await this.editor(input);
         return editor.updateFile(input.operation as Extract<ApplyPatchOperation, { type: 'update_file' }>);
       },
 
-      [`${n}${SANDBOX_EDITOR_DELETE_FILE_SUFFIX}`]: async (input: SandboxEditorInput): Promise<ApplyPatchResult | void> => {
+      [`${n}${SANDBOX_EDITOR_DELETE_FILE_SUFFIX}`]: async (
+        input: SandboxEditorInput
+      ): Promise<ApplyPatchResult | void> => {
         const editor = await this.editor(input);
         return editor.deleteFile(input.operation as Extract<ApplyPatchOperation, { type: 'delete_file' }>);
       },

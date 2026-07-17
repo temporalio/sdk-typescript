@@ -73,10 +73,11 @@ export const SANDBOX_ACTIVITY_SUFFIXES = [
 ] as const;
 
 /**
- * JSON-safe manifest matching the SDK persistence record shape: binary file
- * contents are base64-encoded with the `{ type: 'base64', data }` marker, and
- * ephemeral entries and ephemeral environment values (secrets) are dropped so
- * they never reach Temporal history.
+ * JSON-safe representation of the full manifest: binary file contents are
+ * base64-encoded with the `{ type: 'base64', data }` marker. The entire manifest
+ * is preserved — including ephemeral files, dirs, mounts, and ephemeral
+ * environment values — so it reaches the backend unchanged and appears in
+ * Temporal history.
  */
 export interface EncodedManifest {
   version: number;
@@ -91,6 +92,7 @@ export interface EncodedManifest {
 
 export interface EncodedEnvValue {
   value: string;
+  ephemeral?: boolean;
   description?: string;
 }
 
@@ -283,40 +285,25 @@ function decodeEntries(entries: Record<string, unknown>): Record<string, Entry> 
   return Object.fromEntries(Object.entries(entries).map(([path, entry]) => [path, decodeEntry(entry)]));
 }
 
-function encodeManifestEntries(entries: Record<string, Entry>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [path, entry] of Object.entries(entries)) {
-    if (entry.ephemeral) continue;
-    if (entry.type === 'dir' && entry.children) {
-      out[path] = { ...entry, children: encodeManifestEntries(entry.children) };
-    } else {
-      out[path] = encodeEntry(entry);
-    }
-  }
-  return out;
-}
-
 /**
- * Serializes a manifest to a JSON-safe, SDK-compatible record. Ephemeral entries
- * and ephemeral environment values are dropped so secrets never reach Temporal
- * history; binary file contents are base64-encoded. This is used instead of the
- * SDK's own serializer because the SDK's `@openai/agents-core/sandbox/internal`
- * barrel imports Node built-ins and cannot be bundled into the Workflow isolate.
+ * Used instead of the SDK's own serializer because the SDK's
+ * `@openai/agents-core/sandbox/internal` barrel imports Node built-ins and
+ * cannot be bundled into the Workflow isolate.
  */
 export function encodeManifest(manifest: Manifest): EncodedManifest {
   const environment: Record<string, EncodedEnvValue> = {};
   for (const [key, env] of Object.entries(manifest.environment)) {
     const normalized = env.normalized();
-    if (normalized.ephemeral) continue;
     environment[key] = {
       value: normalized.value,
+      ...(normalized.ephemeral ? { ephemeral: true } : {}),
       ...(normalized.description !== undefined ? { description: normalized.description } : {}),
     };
   }
   return {
     version: manifest.version,
     root: manifest.root,
-    entries: encodeManifestEntries(manifest.entries),
+    entries: encodeEntries(manifest.entries),
     environment,
     users: manifest.users,
     groups: manifest.groups,

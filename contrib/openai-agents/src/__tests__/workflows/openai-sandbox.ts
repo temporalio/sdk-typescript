@@ -36,11 +36,16 @@ class TestSandboxCapability extends Capability {
         const data = await this.session().readFile!({ path });
         return typeof data === 'string' ? data : new TextDecoder().decode(data);
       }),
-      makeTool('write_file', { path: { type: 'string' }, diff: { type: 'string' } }, ['path', 'diff'], async ({ path, diff }) => {
-        const editor = this.session().createEditor!();
-        const result = await editor.createFile({ type: 'create_file', path, diff });
-        return result?.output ?? 'ok';
-      }),
+      makeTool(
+        'write_file',
+        { path: { type: 'string' }, diff: { type: 'string' } },
+        ['path', 'diff'],
+        async ({ path, diff }) => {
+          const editor = this.session().createEditor!();
+          const result = await editor.createFile({ type: 'create_file', path, diff });
+          return result?.output ?? 'ok';
+        }
+      ),
     ];
   }
 }
@@ -50,15 +55,34 @@ export async function sandboxAgentWorkflow(): Promise<string> {
     name: 'sandbox-e2e',
     model: 'gpt-4o-mini',
     capabilities: [new TestSandboxCapability()],
-    // Binary file content forces the Workflow-side manifest revive to decode
-    // base64 in the isolate, exercising the atob polyfill.
-    defaultManifest: new Manifest({ entries: { 'data.bin': { type: 'file', content: new Uint8Array([0, 1, 2, 253, 254, 255]) } } }),
+    defaultManifest: new Manifest({
+      entries: { 'data.bin': { type: 'file', content: new Uint8Array([0, 1, 2, 253, 254, 255]) } },
+    }),
   });
   const runner = new TemporalOpenAIRunner();
   const result = await runner.run(agent, 'run a command', {
     runConfig: { sandbox: { client: temporalSandboxClient('fake') } },
   });
   return `${result.finalOutput}`;
+}
+
+export async function sandboxManifestResumeWorkflow(): Promise<string> {
+  const client = temporalSandboxClient('fake');
+  const session = await client.create(new Manifest({ entries: { 'base.txt': { type: 'file', content: 'base' } } }));
+  await session.applyManifest!(new Manifest({ entries: { 'added.txt': { type: 'file', content: 'added' } } }));
+  const live = 'added.txt' in session.state.manifest.entries;
+  const resumed = await client.resume(session.state);
+  const persisted = 'added.txt' in resumed.state.manifest.entries;
+  return `live=${live} persisted=${persisted}`;
+}
+
+export async function sandboxArchiveLimitsWorkflow(): Promise<string> {
+  const client = temporalSandboxClient('fake');
+  const session = await client.create();
+  session.setArchiveLimits!({ maxInputBytes: 42 });
+  await session.persistWorkspace!();
+  await session.hydrateWorkspace!(new Uint8Array([1, 2, 3]));
+  return 'ok';
 }
 
 export async function sandboxValidationWorkflow(): Promise<string> {

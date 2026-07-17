@@ -1,13 +1,15 @@
-// Integration tests for SandboxAgent support: the agent run loop drives the
-// Workflow-side sandbox proxies, and every sandbox operation crosses the
-// Workflow/Activity boundary to the fake backend registered on the Worker.
 import { setTracingDisabled } from '@openai/agents-core';
 import { helpers } from '@temporalio/test-helpers';
 import { OpenAIAgentsPlugin, SandboxClientProvider } from '..';
 import { makeTestFunction } from './helpers/test-fn';
 import { FakeModelProvider, textResponse, toolCallResponse } from './stubs/openai-agents';
 import { FakeSandboxClient, FakeSandboxSession } from './stubs/sandbox-fakes';
-import { sandboxAgentWorkflow, sandboxValidationWorkflow } from './workflows/openai-sandbox';
+import {
+  sandboxAgentWorkflow,
+  sandboxArchiveLimitsWorkflow,
+  sandboxManifestResumeWorkflow,
+  sandboxValidationWorkflow,
+} from './workflows/openai-sandbox';
 
 setTracingDisabled(false);
 
@@ -32,7 +34,7 @@ test('SandboxAgent run exercises the full sandbox lifecycle through Activities',
           textResponse('Done.'),
         ]),
         modelParams: { startToCloseTimeout: '30s' },
-        sandboxClients: [new SandboxClientProvider('fake', client)],
+        sandboxClientProviders: [new SandboxClientProvider('fake', client)],
       }),
     ],
   });
@@ -53,6 +55,45 @@ test('SandboxAgent run exercises the full sandbox lifecycle through Activities',
   t.true(session.deleteCalls >= 1, 'session.delete() not called');
 });
 
+test('applyManifest updates the Workflow-side manifest and survives resume', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+
+  const worker = await createWorker({
+    plugins: [
+      new OpenAIAgentsPlugin({
+        modelProvider: new FakeModelProvider([]),
+        sandboxClientProviders: [new SandboxClientProvider('fake', new FakeSandboxClient())],
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const result = await executeWorkflow(sandboxManifestResumeWorkflow);
+    t.is(result, 'live=true persisted=true');
+  });
+});
+
+test('setArchiveLimits is forwarded to the persistWorkspace and hydrateWorkspace Activities', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+
+  const client = new FakeSandboxClient();
+  const worker = await createWorker({
+    plugins: [
+      new OpenAIAgentsPlugin({
+        modelProvider: new FakeModelProvider([]),
+        sandboxClientProviders: [new SandboxClientProvider('fake', client)],
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    t.is(await executeWorkflow(sandboxArchiveLimitsWorkflow), 'ok');
+  });
+
+  t.deepEqual(client.session.archiveLimits, { maxInputBytes: 42 });
+  t.deepEqual(client.session.hydrateCalls[0]!.archiveLimits, { maxInputBytes: 42 });
+});
+
 test('Sandbox configuration errors are raised inside the Workflow', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
 
@@ -60,7 +101,7 @@ test('Sandbox configuration errors are raised inside the Workflow', async (t) =>
     plugins: [
       new OpenAIAgentsPlugin({
         modelProvider: new FakeModelProvider([]),
-        sandboxClients: [new SandboxClientProvider('fake', new FakeSandboxClient())],
+        sandboxClientProviders: [new SandboxClientProvider('fake', new FakeSandboxClient())],
       }),
     ],
   });

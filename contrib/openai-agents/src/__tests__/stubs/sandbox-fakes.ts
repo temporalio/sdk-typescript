@@ -15,7 +15,7 @@ import {
   type ViewImageArgs,
   type WriteStdinArgs,
 } from '@openai/agents-core/sandbox';
-import { deserializeManifest } from '@openai/agents-core/sandbox/internal';
+import { deserializeManifest, mergeManifestDelta, mergeManifestEntryDelta } from '@openai/agents-core/sandbox/internal';
 
 export class FakeSandboxSession implements SandboxSession {
   state: SandboxSessionState;
@@ -105,10 +105,12 @@ export class FakeSandboxSession implements SandboxSession {
 
   async materializeEntry(args: MaterializeEntryArgs): Promise<void> {
     this.materializedEntries.push(args);
+    this.state.manifest = mergeManifestEntryDelta(this.state.manifest, args.path, args.entry);
   }
 
   async applyManifest(manifest: Manifest): Promise<void> {
     this.appliedManifests.push(manifest);
+    this.state.manifest = mergeManifestDelta(this.state.manifest, manifest);
   }
 
   async persistWorkspace(): Promise<Uint8Array> {
@@ -144,10 +146,14 @@ export class FakeSandboxClient implements SandboxClient {
   }
 
   async create(args?: SandboxClientCreateArgs | Manifest): Promise<SandboxSession> {
-    const createArgs = args instanceof Manifest ? { manifest: args } : (args ?? {});
+    const createArgs = args instanceof Manifest ? { manifest: args } : args ?? {};
     this.createCalls.push(createArgs);
     if (createArgs.manifest instanceof Manifest) {
       this.session.state.manifest = createArgs.manifest;
+      // create resolves the manifest's environment, ephemeral values included.
+      this.session.state.environment = Object.fromEntries(
+        Object.entries(createArgs.manifest.environment).map(([key, env]) => [key, env.value])
+      );
     }
     return this.session;
   }
@@ -163,10 +169,20 @@ export class FakeSandboxClient implements SandboxClient {
   }
 
   async serializeSessionState(state: SandboxSessionState): Promise<Record<string, unknown>> {
-    return { workspacePath: state.workspacePath };
+    // Persist non-ephemeral env only, mirroring serializeEnvironmentForPersistence.
+    const environment = Object.fromEntries(
+      Object.entries(state.environment ?? {}).filter(([key]) => !state.manifest.environment[key]?.ephemeral)
+    );
+    return Object.keys(environment).length > 0
+      ? { workspacePath: state.workspacePath, environment }
+      : { workspacePath: state.workspacePath };
   }
 
   async deserializeSessionState(state: Record<string, unknown>): Promise<SandboxSessionState> {
-    return { ...state, manifest: deserializeManifest(state.manifest as Record<string, unknown>) } as SandboxSessionState;
+    // Env comes from the persisted (stripped) state — never re-resolved from the manifest.
+    return {
+      ...state,
+      manifest: deserializeManifest(state.manifest as Record<string, unknown>),
+    } as SandboxSessionState;
   }
 }

@@ -144,10 +144,8 @@ export function hasSandboxAgent(agent: Agent<any, any>, seen: Set<Agent<any, any
 }
 
 /**
- * Rejects sandbox configurations that would run sandbox operations inline in
- * the Workflow: whenever a `SandboxAgent` is reachable or `runConfig.sandbox`
- * is set, `runConfig.sandbox.client` must be a `TemporalSandboxClient` so
- * every sandbox operation is dispatched as an Activity.
+ * `runConfig.sandbox.client` must be a `TemporalSandboxClient` so every sandbox
+ * operation is dispatched as an Activity rather than run inline in the Workflow.
  */
 export function validateSandboxRunConfig(agent: Agent<any, any>, sandbox: SandboxRunConfig | undefined): void {
   if (!hasSandboxAgent(agent) && sandbox === undefined) return;

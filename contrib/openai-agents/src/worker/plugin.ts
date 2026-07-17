@@ -49,7 +49,7 @@ export interface OpenAIAgentsPluginOptions {
    *
    * @experimental Sandbox support is experimental and may change without notice.
    */
-  sandboxClients?: SandboxClientProvider[];
+  sandboxClientProviders?: SandboxClientProvider[];
   /**
    * Default Model Activity options (timeouts, retry, Task Queue, etc.).
    * Propagated to the Workflow via the `__openai_agents_config` header.
@@ -77,7 +77,7 @@ export class OpenAIAgentsPlugin extends SimplePlugin {
 
     const providers: Array<{ name: string; _getActivities(): Record<string, (...args: any[]) => Promise<any>> }> = [
       ...(options.mcpServerProviders ?? []),
-      ...(options.sandboxClients ?? []),
+      ...(options.sandboxClientProviders ?? []),
     ];
     const seenNames = new Set<string>();
     for (const provider of providers) {

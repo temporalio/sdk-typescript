@@ -24,15 +24,13 @@ import {
 } from '../common/sandbox-activity-types';
 import { TemporalSandboxSession } from './sandbox-session';
 
+/** Activity options for sandbox operations dispatched by this client's sessions. */
 export interface TemporalSandboxClientOptions {
-  /** Activity options for sandbox operations dispatched by this client's sessions. */
-  config?: {
-    startToCloseTimeout?: Duration;
-    scheduleToStartTimeout?: Duration;
-    heartbeatTimeout?: Duration;
-    taskQueue?: string;
-    retryPolicy?: RetryPolicy;
-  };
+  startToCloseTimeout?: Duration;
+  scheduleToStartTimeout?: Duration;
+  heartbeatTimeout?: Duration;
+  taskQueue?: string;
+  retryPolicy?: RetryPolicy;
 }
 
 /**
@@ -52,11 +50,11 @@ export class TemporalSandboxClient implements SandboxClient<SandboxClientOptions
     this._name = name;
     this.backendId = name;
     this._config = {
-      startToCloseTimeout: options?.config?.startToCloseTimeout ?? '5 minutes',
-      scheduleToStartTimeout: options?.config?.scheduleToStartTimeout,
-      heartbeatTimeout: options?.config?.heartbeatTimeout,
-      taskQueue: options?.config?.taskQueue,
-      retry: options?.config?.retryPolicy,
+      startToCloseTimeout: options?.startToCloseTimeout ?? '5 minutes',
+      scheduleToStartTimeout: options?.scheduleToStartTimeout,
+      heartbeatTimeout: options?.heartbeatTimeout,
+      taskQueue: options?.taskQueue,
+      retry: options?.retryPolicy,
     };
   }
 
@@ -67,7 +65,7 @@ export class TemporalSandboxClient implements SandboxClient<SandboxClientOptions
     const args: SandboxClientCreateArgs =
       argsOrManifest instanceof Manifest
         ? { manifest: argsOrManifest, options: manifestOptions }
-        : (argsOrManifest ?? {});
+        : argsOrManifest ?? {};
     let manifest: EncodedManifest | undefined;
     if (args.manifest !== undefined) {
       manifest = encodeManifest(args.manifest instanceof Manifest ? args.manifest : new Manifest(args.manifest));
@@ -134,6 +132,14 @@ export class TemporalSandboxClient implements SandboxClient<SandboxClientOptions
         nonRetryable: true,
       });
     }
+    if (manifest == null) {
+      throw ApplicationFailure.create({
+        message:
+          'Serialized sandbox session state is missing a manifest — it was not produced by a Temporal sandbox client.',
+        type: 'SandboxSessionStateInvalid',
+        nonRetryable: true,
+      });
+    }
     return {
       ...rest,
       sessionId,
@@ -143,7 +149,12 @@ export class TemporalSandboxClient implements SandboxClient<SandboxClientOptions
   }
 
   private wrapSession(result: SandboxSessionResult): TemporalSandboxSession {
-    return new TemporalSandboxSession(this._name, this._config, reviveWorkflowSessionState(result.state), result.supportsPty);
+    return new TemporalSandboxSession(
+      this._name,
+      this._config,
+      reviveWorkflowSessionState(result.state),
+      result.supportsPty
+    );
   }
 }
 
