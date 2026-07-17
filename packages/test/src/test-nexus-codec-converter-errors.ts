@@ -116,3 +116,104 @@ test('Nexus operation converter failure is not retried', async (t) => {
     t.regex(converterError.message, /Intentional payload converter failure for testing/);
   });
 });
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+test('Nexus operation codec HandlerError is propagated as-is', async (t) => {
+  const { createWorker, registerNexusEndpoint, taskQueue } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+
+  // Only fail when decoding the Nexus operation input ('hello'), so that the caller workflow's
+  // own activation payloads still decode successfully and the operation is actually reached.
+  const handlerErrorCodec: PayloadCodec = {
+    async encode(payloads: Payload[]): Promise<Payload[]> {
+      return payloads;
+    },
+    async decode(payloads: Payload[]): Promise<Payload[]> {
+      for (const payload of payloads) {
+        if (payload.data != null && Buffer.from(payload.data).toString() === '"hello"') {
+          throw new nexus.HandlerError('NOT_FOUND', 'Intentional codec HandlerError for testing', {
+            retryableOverride: false,
+          });
+        }
+      }
+      return payloads;
+    },
+  };
+
+  const worker = await createWorker({
+    dataConverter: { payloadCodecs: [handlerErrorCodec] },
+    nexusServices: [
+      nexus.serviceHandler(testService, {
+        async echoOp(_ctx, input) {
+          return input;
+        },
+      }),
+    ],
+  });
+
+  const customClient = new Client({
+    connection: t.context.env.connection,
+    dataConverter: { payloadCodecs: [handlerErrorCodec] },
+  });
+
+  await worker.runUntil(async () => {
+    const err = await t.throwsAsync(
+      () =>
+        customClient.workflow.execute(nexusEchoCaller, {
+          taskQueue,
+          workflowId: randomUUID(),
+          args: [endpointName],
+        }),
+      {
+        instanceOf: WorkflowFailedError,
+      }
+    );
+    t.true(err!.cause instanceof NexusOperationFailure);
+    const nexusFailure = err!.cause as NexusOperationFailure;
+    t.true(nexusFailure.cause instanceof nexus.HandlerError);
+    const handlerError = innermostHandlerError(nexusFailure.cause as nexus.HandlerError);
+    t.is(handlerError.type, 'NOT_FOUND');
+    t.false(handlerError.retryable);
+    t.regex(handlerError.message, /Intentional codec HandlerError for testing/);
+  });
+});
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+test('Nexus operation converter HandlerError is propagated as-is', async (t) => {
+  const { createWorker, registerNexusEndpoint, taskQueue } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+
+  const worker = await createWorker({
+    dataConverter: { payloadConverterPath: require.resolve('./failing-handler-error-payload-converter') },
+    nexusServices: [
+      nexus.serviceHandler(testService, {
+        async echoOp(_ctx, input) {
+          return input;
+        },
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const err = await t.throwsAsync(
+      () =>
+        t.context.env.client.workflow.execute(nexusEchoCaller, {
+          taskQueue,
+          workflowId: randomUUID(),
+          args: [endpointName],
+        }),
+      {
+        instanceOf: WorkflowFailedError,
+      }
+    );
+    t.true(err!.cause instanceof NexusOperationFailure);
+    const nexusFailure = err!.cause as NexusOperationFailure;
+    t.true(nexusFailure.cause instanceof nexus.HandlerError);
+    const handlerError = innermostHandlerError(nexusFailure.cause as nexus.HandlerError);
+    t.is(handlerError.type, 'NOT_FOUND');
+    t.false(handlerError.retryable);
+    t.regex(handlerError.message, /Intentional payload converter HandlerError for testing/);
+  });
+});

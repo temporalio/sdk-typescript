@@ -1,15 +1,14 @@
 import type { ReadableStreamDefaultController } from 'node:stream/web';
 import type {
-  EmbeddingModelV3,
-  EmbeddingModelV3CallOptions,
-  EmbeddingModelV3Result,
-  ImageModelV3,
-  LanguageModelV3,
-  LanguageModelV3CallOptions,
-  LanguageModelV3GenerateResult,
-  LanguageModelV3StreamResult,
-  ProviderV3,
-  TranscriptionModelV3,
+  EmbeddingModelV4,
+  EmbeddingModelV4CallOptions,
+  EmbeddingModelV4Result,
+  ImageModelV4,
+  LanguageModelV4,
+  LanguageModelV4CallOptions,
+  LanguageModelV4GenerateResult,
+  LanguageModelV4StreamResult,
+  ProviderV4,
 } from '@ai-sdk/provider';
 import * as workflow from '@temporalio/workflow';
 import type { ActivityOptions } from '@temporalio/workflow';
@@ -64,8 +63,8 @@ export interface TemporalProviderOptions {
  *
  * @experimental The AI SDK integration is an experimental feature; APIs may change without notice.
  */
-export class TemporalLanguageModel implements LanguageModelV3 {
-  readonly specificationVersion = 'v3';
+export class TemporalLanguageModel implements LanguageModelV4 {
+  readonly specificationVersion = 'v4';
   readonly provider = 'temporal';
   private readonly streamingTopic: string | undefined;
   private readonly streamingBatchInterval: Duration | undefined;
@@ -82,7 +81,7 @@ export class TemporalLanguageModel implements LanguageModelV3 {
     return {};
   }
 
-  async doGenerate(options: LanguageModelV3CallOptions): Promise<LanguageModelV3GenerateResult> {
+  async doGenerate(options: LanguageModelV4CallOptions): Promise<LanguageModelV4GenerateResult> {
     const activities = workflow.proxyActivities({
       startToCloseTimeout: '10 minutes',
       ...this.options,
@@ -101,7 +100,7 @@ export class TemporalLanguageModel implements LanguageModelV3 {
     return result;
   }
 
-  async doStream(options: LanguageModelV3CallOptions): Promise<LanguageModelV3StreamResult> {
+  async doStream(options: LanguageModelV4CallOptions): Promise<LanguageModelV4StreamResult> {
     if (this.streamingTopic === undefined) {
       throw ApplicationFailure.nonRetryable(
         'Streaming not enabled. Set streamingTopic in languageModel provider options.'
@@ -163,8 +162,8 @@ export class TemporalLanguageModel implements LanguageModelV3 {
  *
  * @experimental The AI SDK integration is an experimental feature; APIs may change without notice.
  */
-export class TemporalEmbeddingModel implements EmbeddingModelV3 {
-  readonly specificationVersion = 'v3';
+export class TemporalEmbeddingModel implements EmbeddingModelV4 {
+  readonly specificationVersion = 'v4';
   readonly provider = 'temporal';
   /**
    * Undefined to let the underlying provider handle chunking, as it knows its own limits.
@@ -181,7 +180,7 @@ export class TemporalEmbeddingModel implements EmbeddingModelV3 {
     readonly options?: ActivityOptions
   ) {}
 
-  async doEmbed(options: EmbeddingModelV3CallOptions): Promise<EmbeddingModelV3Result> {
+  async doEmbed(options: EmbeddingModelV4CallOptions): Promise<EmbeddingModelV4Result> {
     const activities = workflow.proxyActivities({
       startToCloseTimeout: '10 minutes',
       ...this.options,
@@ -207,31 +206,27 @@ export class TemporalEmbeddingModel implements EmbeddingModelV3 {
  *
  * @experimental The AI SDK integration is an experimental feature; APIs may change without notice.
  */
-export class TemporalProvider implements ProviderV3 {
-  readonly specificationVersion = 'v3';
+export class TemporalProvider implements ProviderV4 {
+  readonly specificationVersion = 'v4';
 
   constructor(readonly options?: TemporalProviderOptions) {}
 
-  imageModel(_modelId: string): ImageModelV3 {
+  imageModel(_modelId: string): ImageModelV4 {
     throw new Error('Not implemented');
   }
 
-  languageModel(modelId: string): LanguageModelV3 {
+  languageModel(modelId: string): LanguageModelV4 {
     return new TemporalLanguageModel(modelId, {
       ...this.options?.default,
       ...this.options?.languageModel,
     });
   }
 
-  embeddingModel(modelId: string): EmbeddingModelV3 {
+  embeddingModel(modelId: string): EmbeddingModelV4 {
     return new TemporalEmbeddingModel(modelId, {
       ...this.options?.default,
       ...this.options?.embeddingModel,
     });
-  }
-
-  transcriptionModel(_modelId: string): TranscriptionModelV3 {
-    throw new Error('Not implemented');
   }
 }
 
