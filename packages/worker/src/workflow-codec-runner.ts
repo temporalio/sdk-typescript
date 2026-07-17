@@ -102,6 +102,30 @@ export class WorkflowCodecRunner {
     };
   }
 
+  private async encodeGroupMarkers(
+    context: SerializationContext,
+    eventGroupMarkers: coresdk.workflow_commands.IWorkflowCommand['eventGroupMarkers']
+  ): Promise<Encoded<NonNullable<coresdk.workflow_commands.IWorkflowCommand['eventGroupMarkers']>> | undefined> {
+    if (!eventGroupMarkers || eventGroupMarkers.length === 0) return undefined;
+
+    type EncodedMarker = Encoded<NonNullable<coresdk.workflow_commands.IWorkflowCommand['eventGroupMarkers']>>[number];
+    return await Promise.all(
+      eventGroupMarkers.map(async (marker): Promise<EncodedMarker> => {
+        if (marker.label?.label) {
+          return {
+            ...marker,
+            label: {
+              ...marker.label,
+              label: await encodeOptionalSingle(this.codecs, marker.label.label, context),
+            },
+          };
+        }
+        // No payload to encode for the inbound_event / inbound_update variants.
+        return marker as EncodedMarker;
+      })
+    );
+  }
+
   /**
    * Run codec.decode on the Payloads in the Activation message.
    */
@@ -600,6 +624,7 @@ export class WorkflowCodecRunner {
                           }
                         : undefined,
                       userMetadata: await this.encodeUserMetadata(userMetadataContext, command.userMetadata),
+                      eventGroupMarkers: await this.encodeGroupMarkers(userMetadataContext, command.eventGroupMarkers),
                     };
                   })
                 )

@@ -7,7 +7,6 @@
 import * as encoding from './encoding';
 import * as helpers from './type-helpers';
 
-export * from './activity-options';
 export { ActivityCancellationDetailsOptions, ActivityCancellationDetails } from './activity-cancellation-details';
 export { SuggestContinueAsNewReason } from './continue-as-new';
 export * from './converter/data-converter';
@@ -44,6 +43,28 @@ export {
   TypedSearchAttributes,
   defineSearchAttributeKey,
 } from './search-attributes';
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Deprecated APIs
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export {
+  /**
+   * @deprecated Import from `@temporalio/workflow` instead.
+   * @hidden
+   */
+  type ActivityOptions,
+  /**
+   * @deprecated Import from `@temporalio/workflow` instead.
+   * @hidden
+   */
+  type LocalActivityOptions,
+  /**
+   * @deprecated Import from `@temporalio/workflow` instead.
+   * @hidden
+   */
+  ActivityCancellationType,
+} from './activity-options';
 
 /**
  * Encode a UTF-8 string into a Uint8Array

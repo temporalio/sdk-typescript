@@ -82,10 +82,9 @@ export async function sampleWorkflow(): Promise<string> {
  * @module
  */
 
+export { type ActivityOptions, type LocalActivityOptions, ActivityCancellationType } from './activities';
 export {
-  ActivityCancellationType,
   ActivityFailure,
-  ActivityOptions,
   ApplicationFailure,
   CancelledFailure,
   ChildWorkflowFailure,
@@ -141,6 +140,7 @@ export type { WorkflowRandomStream } from './random-streams';
 export { getRandomStream, workflowRandom } from './random-streams';
 export { log } from './logs';
 export { Trigger } from './trigger';
+export { type EventGroupMarker as GroupMarker, createEventGroup } from './event-groups';
 export * from './workflow';
 export { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
 export { metricMeter } from './metrics';
