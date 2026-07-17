@@ -229,8 +229,6 @@ export interface WorkerOptions {
    * If set to `true`, the Worker will not proactively fail Workflow/Activity tasks whose payloads
    * exceed the namespace error limits; oversized payloads are sent to the server, which enforces the
    * limit. Defaults to `false` (the Worker fails such tasks before sending).
-   *
-   * @experimental Payload size-limit enforcement is an experimental feature; APIs may change without notice.
    */
   disablePayloadErrorLimit?: boolean;
 

@@ -21,8 +21,8 @@ to docs, or any other relevant information.
 
 ### Breaking Changes
 
-- Payload/memo size-limit enforcement (experimental) is now on by default. Workers proactively
-  validate outbound payload/memo sizes before sending: a field over the warn threshold is logged
+- By default, workers now proactively validate outbound payload/memo sizes before sending: a field
+  over the warn threshold is logged
   (`[TMPRL1103]` at `WARN`) but still sent, while a task completion over the error limit is failed
   retryably (`[TMPRL1103]` at `ERROR`) instead of sent. Previously these reached the server, which
   terminated the workflow or failed the activity non-retryably; failing retryably instead lets a
