@@ -10,12 +10,15 @@
 import test from 'ava';
 import { DefaultLogger, NativeConnection, Runtime, makeTelemetryFilterString } from '@temporalio/worker';
 import type { LogEntry } from '@temporalio/worker';
-import { WorkflowFailedError } from '@temporalio/client';
+import { Client, WorkflowFailedError } from '@temporalio/client';
+import proto from '@temporalio/proto'; // eslint-disable-line import/default
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { waitUntil } from '@temporalio/test-helpers';
 import { Worker } from './helpers';
 import * as activities from './activities';
 import { payloadSizeLimitsWorkflow } from './workflows/payload-size-limits';
+
+const { EventType, WorkflowTaskFailedCause } = proto.temporal.api.enums.v1;
 
 const PAYLOAD_ERROR_LIMIT = 10 * 1024;
 const PAYLOAD_LIMITS_EXTRA_ARGS = [
@@ -67,12 +70,13 @@ test.serial('oversized worker completion is failed by core with a [TMPRL1103] er
 
     // Core repeatedly fails the workflow task (PAYLOADS_TOO_LARGE) for the oversized result, so the
     // workflow never completes and hits its execution timeout.
+    const workflowId = `wf-${Date.now()}`;
     await t.throwsAsync(
       worker.runUntil(
         env.client.workflow.execute(payloadSizeLimitsWorkflow, {
           args: [{ activityInputDataSize: 0, workflowOutputDataSize: PAYLOAD_ERROR_LIMIT + 1024 }],
           taskQueue: 'payload-size-limits',
-          workflowId: `wf-${Date.now()}`,
+          workflowId,
           workflowExecutionTimeout: '5s',
         })
       ),
@@ -80,6 +84,17 @@ test.serial('oversized worker completion is failed by core with a [TMPRL1103] er
     );
 
     t.true(hasLog('ERROR', '[TMPRL1103] Attempted to upload payloads with size that exceeded the error limit.'));
+
+    // Failure mechanism: worker reported a WorkflowTaskFailed with PAYLOADS_TOO_LARGE.
+    const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
+    t.true(
+      (events ?? []).some(
+        (e) =>
+          e.eventType === EventType.EVENT_TYPE_WORKFLOW_TASK_FAILED &&
+          e.workflowTaskFailedEventAttributes?.cause ===
+            WorkflowTaskFailedCause.WORKFLOW_TASK_FAILED_CAUSE_PAYLOADS_TOO_LARGE
+      )
+    );
   });
 });
 
@@ -141,6 +156,45 @@ test.serial('connection payloadsWarnSize produces a forwarded [TMPRL1103] warnin
       // Core forwards logs on a buffered interval, so the warning may not be visible the instant
       // `runUntil` resolves for this short-lived workflow; wait for it to arrive.
       const warnMessage = '[TMPRL1103] Attempted to upload payloads with size that exceeded the warning limit.';
+      await waitUntil(async () => hasLog('WARN', warnMessage), 10_000);
+      t.true(hasLog('WARN', warnMessage));
+    } finally {
+      await connection.close();
+    }
+  });
+});
+
+test.serial('connection memoWarnSize produces a forwarded [TMPRL1103] warning', async (t) => {
+  capturedLogs.length = 0;
+  await withLocalEnv(async (env) => {
+    const connection = await NativeConnection.connect({
+      address: env.address,
+      payloadLimits: { memoWarnSize: 1024 },
+    });
+    try {
+      const worker = await Worker.create({
+        connection,
+        namespace: env.namespace,
+        taskQueue: 'payload-size-limits-memo-warn',
+        workflowsPath: require.resolve('./workflows'),
+        activities,
+      });
+
+      const client = new Client({ connection, namespace: env.namespace }).workflow;
+
+      // 2KiB memo is above the 1KiB memo warn threshold; input/output stay empty so only the memo warns.
+      await worker.runUntil(
+        client.execute(payloadSizeLimitsWorkflow, {
+          args: [{ activityInputDataSize: 0, workflowOutputDataSize: 0 }],
+          taskQueue: 'payload-size-limits-memo-warn',
+          workflowId: `wf-${Date.now()}`,
+          workflowExecutionTimeout: '10s',
+          memo: { key: 'a'.repeat(2048) },
+        })
+      );
+
+      // Core forwards logs on a buffered interval, so wait for the warning to arrive.
+      const warnMessage = '[TMPRL1103] Attempted to upload memo with size that exceeded the warning limit.';
       await waitUntil(async () => hasLog('WARN', warnMessage), 10_000);
       t.true(hasLog('WARN', warnMessage));
     } finally {
