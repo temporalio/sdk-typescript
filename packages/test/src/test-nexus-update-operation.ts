@@ -1,6 +1,6 @@
 /**
  * Integration tests for UpdateWorkflow-backed Nexus operations
- * ({@link TemporalNexusClient.updateWorkflow}).
+ * ({@link WorkflowHandle.update}).
  *
  * These mirror the acceptance criteria of the Go SDK's TestNexusUpdateWorkflowOperation suite:
  * validation failures surface as failed operations, valid updates succeed, updates sharing an
@@ -16,7 +16,6 @@ import { randomUUID } from 'crypto';
 import * as nexus from 'nexus-rpc';
 import type { Duration } from '@temporalio/common';
 import * as temporalnexus from '@temporalio/nexus';
-import { WorkflowUpdateStage } from '@temporalio/client';
 import * as workflow from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
 
@@ -75,12 +74,9 @@ const updateOpService = nexus.service('counterUpdateService', {
 function makeAddOperationHandler() {
   return new temporalnexus.TemporalOperationHandler<UpdateAddInput, UpdateAddOutput>({
     async start(_ctx, client, input) {
-      return await client.updateWorkflow<UpdateAddOutput, [number, number]>({
-        workflowId: input.workflowId,
-        update: addUpdateName,
+      return await client.getWorkflowHandle(input.workflowId).update<UpdateAddOutput, [number, number]>(addUpdateName, {
         updateId: input.updateId,
         args: [input.amount, input.sleepMs ?? 0],
-        waitForStage: WorkflowUpdateStage.ACCEPTED,
       });
     },
   });
@@ -98,6 +94,12 @@ export async function counterWorkflow(): Promise<number> {
     async (amount: number, sleepMs: number): Promise<UpdateAddOutput> => {
       counter += amount;
       const snapshot = counter;
+      // A positive sleepMs makes the handler suspend on a timer after being accepted, so the Update
+      // is "accepted but not yet completed" when the server returns the ACCEPTED response — the
+      // condition that routes the Nexus operation down the async completion-callback path. Any
+      // positive duration works (the timer guarantees suspension into a later workflow task); with
+      // sleepMs 0 the handler completes in the acceptance task and the operation resolves
+      // synchronously instead.
       if (sleepMs > 0) {
         await workflow.sleep(sleepMs);
       }
@@ -177,6 +179,8 @@ test('UpdateWorkflow Nexus operation - pending update completes asynchronously v
       workflowId: counterWorkflowId,
       taskQueue: worker.options.taskQueue,
     });
+    // sleepMs > 0 forces the Update handler to suspend after acceptance (see counterWorkflow), which
+    // deterministically drives the async completion-callback path exercised by this test.
     const result = await executeWorkflow(callerWorkflow, {
       args: [endpointName, { workflowId: counterWorkflowId, amount: 5, updateId: 'async-success', sleepMs: 500 }],
     });
@@ -208,44 +212,6 @@ test('UpdateWorkflow Nexus operation - validation failure surfaces as a failed o
     // The validation rejection propagates as a failed operation (not a retry-forever); the
     // "invalid increment" message appears nested in the caller workflow failure's cause chain.
     t.regex(causeChainMessages(err), /invalid increment/);
-  });
-});
-
-test('UpdateWorkflow Nexus operation - non-ACCEPTED waitForStage surfaces as a failed operation', async (t) => {
-  const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
-  const { client } = t.context.env;
-  const { endpointName } = await registerNexusEndpoint();
-  const counterWorkflowId = 'counter-' + randomUUID();
-
-  // Only ACCEPTED is supported for async Nexus Update operations; requesting COMPLETED is a
-  // non-retryable misconfiguration that must surface as a failed operation rather than retry forever.
-  const badWaitStageHandler = new temporalnexus.TemporalOperationHandler<UpdateAddInput, UpdateAddOutput>({
-    async start(_ctx, client, input) {
-      return await client.updateWorkflow<UpdateAddOutput, [number, number]>({
-        workflowId: input.workflowId,
-        update: addUpdateName,
-        updateId: input.updateId,
-        args: [input.amount, input.sleepMs ?? 0],
-        waitForStage: WorkflowUpdateStage.COMPLETED,
-      });
-    },
-  });
-
-  const worker = await createWorker({
-    nexusServices: [nexus.serviceHandler(updateOpService, { addOperation: badWaitStageHandler })],
-  });
-
-  await worker.runUntil(async () => {
-    await client.workflow.start(counterWorkflow, {
-      workflowId: counterWorkflowId,
-      taskQueue: worker.options.taskQueue,
-    });
-    const err = await t.throwsAsync(() =>
-      executeWorkflow(callerWorkflow, {
-        args: [endpointName, { workflowId: counterWorkflowId, amount: 5 }],
-      })
-    );
-    t.regex(causeChainMessages(err), /ACCEPTED wait stage/);
   });
 });
 

@@ -31,11 +31,11 @@ import {
   convertTemporalLinkToNexusLink,
 } from './link-converter';
 import {
+  assertUpdateWorkflowOperationToken,
   assertWorkflowRunOperationToken,
   generateUpdateWorkflowOperationToken,
   generateWorkflowRunOperationToken,
   loadOperationToken,
-  loadUpdateWorkflowOperationToken,
   loadWorkflowRunOperationToken,
   OperationTokenType,
 } from './token';
@@ -68,6 +68,27 @@ export interface WorkflowHandle<T> {
     def: SignalDefinition<Args, Name> | string,
     ...args: Args
   ): Promise<void>;
+
+  /**
+   * Sends an Update to this Workflow as the backing operation for the current Nexus Operation.
+   *
+   * The Update request is augmented with the Nexus Operation's request ID (for deduplication), its
+   * request links, and a completion callback carrying the operation token, so the Update's
+   * completion is delivered back to the Nexus caller.
+   *
+   * Only asynchronous, `ACCEPTED`-stage Updates are supported: this method returns once the Update
+   * is accepted, yielding an asynchronous {@link TemporalOperationResult} whose completion is
+   * delivered via the callback. If the Update has already completed by the time it is accepted (for
+   * example a retried request with the same Update ID, or an Update that completes immediately), a
+   * synchronous result is returned instead; if that completed Update failed (e.g. validation
+   * rejection, which is non-retryable), it surfaces as a failed Nexus Operation.
+   *
+   * @experimental Nexus support in Temporal SDK is experimental.
+   */
+  update<Ret, Args extends any[] = [], Name extends string = string>(
+    def: UpdateDefinition<Ret, Args, Name> | string,
+    options?: NexusUpdateWorkflowOptions<Args>
+  ): Promise<TemporalOperationResult<Ret>>;
 
   /**
    * Virtual type brand to maintain a distinction between {@link WorkflowHandle} provided by the
@@ -223,6 +244,13 @@ function createWorkflowHandle<T extends Workflow>(
         pushResponseLink(ctx, internalOptions.responseLink);
       }
     },
+
+    update<Ret, Args extends any[] = [], Name extends string = string>(
+      def: UpdateDefinition<Ret, Args, Name> | string,
+      options?: NexusUpdateWorkflowOptions<Args>
+    ): Promise<TemporalOperationResult<Ret>> {
+      return updateWorkflowOperation<Ret, Args>(ctx, this.workflowId, this.runId, def, options);
+    },
   } as WorkflowHandle<WorkflowResultType<T>>;
 }
 
@@ -331,27 +359,13 @@ export const TemporalOperationResult = {
 };
 
 /**
- * Options for {@link TemporalNexusClient.updateWorkflow}.
+ * Options for {@link WorkflowHandle.update}. The target Workflow (workflow and run IDs) is carried by
+ * the {@link WorkflowHandle}, and the Update definition or name is passed as the method's first
+ * argument, so only the Update ID and arguments are supplied here.
  *
  * @experimental Nexus support in Temporal SDK is experimental.
  */
-export interface NexusUpdateWorkflowOptions<Ret, Args extends any[]> {
-  /**
-   * ID of the Workflow to send the Update to.
-   */
-  readonly workflowId: string;
-
-  /**
-   * Run ID of the Workflow to send the Update to. If unset, the Update is sent to the most recent
-   * run of the Workflow.
-   */
-  readonly runId?: string;
-
-  /**
-   * The Update definition (as returned by `defineUpdate`) or the Update name.
-   */
-  readonly update: UpdateDefinition<Ret, Args> | string;
-
+export interface NexusUpdateWorkflowOptions<Args extends any[] = []> {
   /**
    * The Update ID, a unique-per-Workflow-Execution identifier for this Update.
    *
@@ -364,13 +378,6 @@ export interface NexusUpdateWorkflowOptions<Ret, Args extends any[]> {
    * Arguments to pass to the Update handler.
    */
   readonly args?: Args;
-
-  /**
-   * The Update lifecycle stage to wait for. Only {@link WorkflowUpdateStage.ACCEPTED} is supported
-   * for Nexus operations; any other value is rejected. Defaults to
-   * {@link WorkflowUpdateStage.ACCEPTED}.
-   */
-  readonly waitForStage?: WorkflowUpdateStage;
 }
 
 /**
@@ -421,31 +428,9 @@ export interface TemporalNexusClient {
     workflowTypeOrFunc: string | T,
     workflowOptions: WithWorkflowArgs<T, WorkflowSignalWithStartOptions<SignalArgs>>
   ): Promise<void>;
-
-  /**
-   * Sends an Update to a Workflow as the backing operation for the current Nexus Operation.
-   *
-   * The Update request is augmented with the Nexus Operation's request ID (for deduplication), its
-   * request links, and a completion callback carrying the operation token, so the Update's
-   * completion is delivered back to the Nexus caller.
-   *
-   * Only asynchronous, `ACCEPTED`-stage Updates are supported: this method returns once the Update
-   * is accepted, yielding an asynchronous {@link TemporalOperationResult} whose completion is
-   * delivered via the callback. If the Update has already completed by the time it is accepted (for
-   * example a retried request with the same Update ID, or an Update that completes immediately), a
-   * synchronous result is returned instead; if that completed Update failed (e.g. validation
-   * rejection, which is non-retryable), it surfaces as a failed Nexus Operation.
-   *
-   * @experimental Nexus support in Temporal SDK is experimental.
-   */
-  updateWorkflow<Ret, Args extends any[] = []>(
-    options: NexusUpdateWorkflowOptions<Ret, Args>
-  ): Promise<TemporalOperationResult<Ret>>;
 }
 
 class TemporalNexusClientImpl implements TemporalNexusClient {
-  private asyncOperationStarted = false;
-
   constructor(private readonly startOperationContext: TemporalStartOperationContext) {}
 
   /**
@@ -486,7 +471,7 @@ class TemporalNexusClientImpl implements TemporalNexusClient {
     workflowTypeOrFunc: string | T,
     workflowOptions: WorkflowStartOptions<T>
   ): Promise<TemporalOperationResult<WorkflowResultType<T>>> {
-    return await this.withAsyncOperationStartReservation(async () => {
+    return await withAsyncOperationStartReservation(this.startOperationContext, async () => {
       const handle = await startWorkflow(this.startOperationContext, workflowTypeOrFunc, workflowOptions);
       const { namespace } = getHandlerContext();
       return TemporalOperationResult.async(generateWorkflowRunOperationToken(namespace, handle.workflowId));
@@ -504,130 +489,157 @@ class TemporalNexusClientImpl implements TemporalNexusClient {
   ): Promise<void> {
     await signalWithStartWorkflow(this.startOperationContext, workflowTypeOrFunc, workflowOptions);
   }
+}
 
-  /**
-   * Sends an Update to a Workflow as the backing operation for the current Nexus Operation.
-   *
-   * @experimental Nexus support in Temporal SDK is experimental.
-   */
-  public async updateWorkflow<Ret, Args extends any[] = []>(
-    options: NexusUpdateWorkflowOptions<Ret, Args>
-  ): Promise<TemporalOperationResult<Ret>> {
-    const ctx = this.startOperationContext;
+/**
+ * Tracks whether an async backing operation has already been started for a given Nexus Operation
+ * invocation, keyed by its {@link nexus.StartOperationContext}. The guard is shared between
+ * {@link TemporalNexusClient.startWorkflow} and {@link WorkflowHandle.update} (which lives on the
+ * handle rather than the client) because at most one async operation may back a single handler
+ * invocation, and both capture the same context object.
+ */
+const asyncOperationStartedByContext = new WeakMap<nexus.StartOperationContext, boolean>();
 
-    const waitForStage = options.waitForStage ?? WorkflowUpdateStage.ACCEPTED;
-    if (waitForStage !== WorkflowUpdateStage.ACCEPTED) {
-      // Non-retryable misconfiguration: surface as a failed operation rather than retrying forever.
-      throw new nexus.OperationError(
-        'failed',
-        'Nexus operation Workflow Updates only support the ACCEPTED wait stage for async updates'
-      );
-    }
-
-    if (!ctx.callbackUrl) {
-      throw new nexus.HandlerError(
-        nexus.HandlerErrorType.BAD_REQUEST,
-        'A callback URL is required for async UpdateWorkflow operation invocations'
-      );
-    }
-
-    // If no Update ID is provided, use the Nexus request ID. This protects against a retried Nexus
-    // request (same request ID) spawning a duplicate Update.
-    const updateId = options.updateId || ctx.requestId;
-
-    return await this.withAsyncOperationStartReservation(async () => {
-      const { client, namespace } = getHandlerContext();
-      const token = generateUpdateWorkflowOperationToken(namespace, options.workflowId, options.runId ?? '', updateId);
-
-      const links = requestLinksToTemporalLinks(ctx);
-      const callbackHeaders = {
-        ...ctx.callbackHeaders,
-        'nexus-operation-token': token,
-      };
-      const internalOptions: NonNullable<InternalWorkflowUpdateOptions[typeof InternalWorkflowUpdateOptionsSymbol]> = {
-        requestId: ctx.requestId,
-        links,
-        completionCallbacks: [
-          {
-            nexus: { url: ctx.callbackUrl, header: callbackHeaders },
-            links, // included for older servers; newer servers dedupe them.
-          },
-        ],
-      };
-
-      // Typed as a local variable rather than an inline literal so the SDK-internal symbol can be
-      // attached: excess-property checks don't apply to variables, so the symbol is accepted without
-      // an `any` cast while `args` stays type-checked against the Update definition.
-      const startUpdateOptions: WorkflowUpdateOptions & {
-        args?: Args;
-        waitForStage: typeof WorkflowUpdateStage.ACCEPTED;
-      } & InternalWorkflowUpdateOptions = {
-        args: options.args,
-        updateId,
-        waitForStage: WorkflowUpdateStage.ACCEPTED,
-        [InternalWorkflowUpdateOptionsSymbol]: internalOptions,
-      };
-
-      // `WorkflowHandle.startUpdate` is overloaded to discriminate empty vs non-empty argument
-      // tuples, and a generic `Args extends any[]` satisfies neither overload. View the handle
-      // through a single, non-overloaded signature so the call type-checks against `startUpdateOptions`
-      // (in particular its `args`) without an `any` cast; `startUpdate` is still invoked on the handle,
-      // so `this` remains bound.
-      const wfHandle = client.workflow.getHandle(options.workflowId, options.runId) as unknown as {
-        startUpdate(
-          def: UpdateDefinition<Ret, Args> | string,
-          startUpdateOptions: WorkflowUpdateOptions & {
-            args?: Args;
-            waitForStage: typeof WorkflowUpdateStage.ACCEPTED;
-          } & InternalWorkflowUpdateOptions
-        ): Promise<WorkflowUpdateHandle<Ret>>;
-      };
-      const handle = await wfHandle.startUpdate(options.update, startUpdateOptions);
-
-      if (internalOptions.responseLink != null) {
-        // Attach the link the server returned (a WorkflowEvent link on success, or a Workflow link
-        // when there is no history event, e.g. validation failure) as a handler link.
-        try {
-          ctx.outboundLinks.push(convertCommonLinkToNexusLink(internalOptions.responseLink));
-        } catch (err) {
-          log.warn('failed to convert UpdateWorkflow response link to Nexus link', { error: err });
-        }
-      }
-
-      if (internalOptions.outcome != null) {
-        // The Update already reached a terminal outcome (e.g. a retried request with the same Update
-        // ID, or an immediate completion). Return a synchronous result; if it failed (validation
-        // rejection is non-retryable), surface it as a failed Nexus operation.
-        try {
-          const result = (await handle.result()) as Ret;
-          this.asyncOperationStarted = false;
-          return TemporalOperationResult.sync(result);
-        } catch (err) {
-          this.asyncOperationStarted = false;
-          throw new nexus.OperationError('failed', (err as Error).message, { cause: err as Error });
-        }
-      }
-
-      return TemporalOperationResult.async<Ret>(token);
-    });
+/**
+ * Reserves the single async-backing-operation slot for the given operation invocation, runs `fn`,
+ * and releases the reservation if `fn` throws. A successful `fn` keeps the reservation; callers that
+ * resolve synchronously (no async operation was actually started) must release it via
+ * {@link releaseAsyncOperationReservation}.
+ */
+async function withAsyncOperationStartReservation<T>(
+  ctx: nexus.StartOperationContext,
+  fn: () => Promise<T>
+): Promise<T> {
+  if (asyncOperationStartedByContext.get(ctx)) {
+    throw new nexus.HandlerError(
+      'BAD_REQUEST',
+      'Only one async operation can be started per operation handler invocation. Use TemporalNexusClient.client for additional workflow interactions'
+    );
   }
 
-  private async withAsyncOperationStartReservation<T>(fn: () => Promise<T>): Promise<T> {
-    if (this.asyncOperationStarted) {
-      throw new nexus.HandlerError(
-        'BAD_REQUEST',
-        'Only one async operation can be started per operation handler invocation. Use TemporalNexusClient.client for additional workflow interactions'
-      );
+  asyncOperationStartedByContext.set(ctx, true);
+  try {
+    return await fn();
+  } catch (err) {
+    asyncOperationStartedByContext.set(ctx, false);
+    throw err;
+  }
+}
+
+/** Releases the async-backing-operation reservation for `ctx` (used when resolving synchronously). */
+function releaseAsyncOperationReservation(ctx: nexus.StartOperationContext): void {
+  asyncOperationStartedByContext.set(ctx, false);
+}
+
+/**
+ * Sends an Update to a Workflow as the async backing operation for the current Nexus Operation.
+ * Shared implementation behind {@link WorkflowHandle.update}; the target Workflow's `workflowId` and
+ * `runId` are supplied by the handle.
+ */
+async function updateWorkflowOperation<Ret, Args extends any[]>(
+  ctx: nexus.StartOperationContext,
+  workflowId: string,
+  runId: string | undefined,
+  def: UpdateDefinition<Ret, Args> | string,
+  options?: NexusUpdateWorkflowOptions<Args>
+): Promise<TemporalOperationResult<Ret>> {
+  if (!ctx.callbackUrl) {
+    throw new nexus.HandlerError(
+      nexus.HandlerErrorType.BAD_REQUEST,
+      'A callback URL is required for async UpdateWorkflow operation invocations'
+    );
+  }
+
+  // If no Update ID is provided, use the Nexus request ID. This protects against a retried Nexus
+  // request (same request ID) spawning a duplicate Update.
+  const updateId = options?.updateId || ctx.requestId;
+
+  return await withAsyncOperationStartReservation(ctx, async () => {
+    const { client, namespace } = getHandlerContext();
+    // Token attached to the completion callback so the server can correlate the Update's
+    // completion back to this operation even if it races the operation-start recording. The run ID
+    // is not yet resolved at this point (the Update may target the latest run); the operation token
+    // returned to the caller is regenerated below with the run ID the server resolves.
+    const callbackToken = generateUpdateWorkflowOperationToken(namespace, workflowId, runId ?? '', updateId);
+
+    const links = requestLinksToTemporalLinks(ctx);
+    const callbackHeaders = {
+      ...ctx.callbackHeaders,
+      'nexus-operation-token': callbackToken,
+    };
+    const internalOptions: NonNullable<InternalWorkflowUpdateOptions[typeof InternalWorkflowUpdateOptionsSymbol]> = {
+      requestId: ctx.requestId,
+      links,
+      completionCallbacks: [
+        {
+          nexus: { url: ctx.callbackUrl, header: callbackHeaders },
+          links, // included for older servers; newer servers dedupe them.
+        },
+      ],
+    };
+
+    // Typed as a local variable rather than an inline literal so the SDK-internal symbol can be
+    // attached: excess-property checks don't apply to variables, so the symbol is accepted without
+    // an `any` cast while `args` stays type-checked against the Update definition.
+    const startUpdateOptions: WorkflowUpdateOptions & {
+      args?: Args;
+      waitForStage: typeof WorkflowUpdateStage.ACCEPTED;
+    } & InternalWorkflowUpdateOptions = {
+      args: options?.args,
+      updateId,
+      waitForStage: WorkflowUpdateStage.ACCEPTED,
+      [InternalWorkflowUpdateOptionsSymbol]: internalOptions,
+    };
+
+    // `WorkflowHandle.startUpdate` is overloaded to discriminate empty vs non-empty argument
+    // tuples, and a generic `Args extends any[]` satisfies neither overload. View the handle
+    // through a single, non-overloaded signature so the call type-checks against `startUpdateOptions`
+    // (in particular its `args`) without an `any` cast; `startUpdate` is still invoked on the handle,
+    // so `this` remains bound.
+    const wfHandle = client.workflow.getHandle(workflowId, runId) as unknown as {
+      startUpdate(
+        def: UpdateDefinition<Ret, Args> | string,
+        startUpdateOptions: WorkflowUpdateOptions & {
+          args?: Args;
+          waitForStage: typeof WorkflowUpdateStage.ACCEPTED;
+        } & InternalWorkflowUpdateOptions
+      ): Promise<WorkflowUpdateHandle<Ret>>;
+    };
+    const handle = await wfHandle.startUpdate(def, startUpdateOptions);
+
+    // The server resolves the Update against a concrete run (the requested run, or the latest run
+    // when none was pinned) and returns its ID. Use that resolved run ID in the operation token so
+    // the token — and any cancellation later addressed through it — targets the actual run.
+    const resolvedRunId = handle.workflowRunId ?? runId ?? '';
+
+    if (internalOptions.responseLink != null) {
+      // Attach the link the server returned (a WorkflowEvent link on success, or a Workflow link
+      // when there is no history event, e.g. validation failure) as a handler link.
+      try {
+        ctx.outboundLinks.push(convertCommonLinkToNexusLink(internalOptions.responseLink));
+      } catch (err) {
+        log.warn('failed to convert UpdateWorkflow response link to Nexus link', { error: err });
+      }
     }
 
-    this.asyncOperationStarted = true;
-    try {
-      return await fn();
-    } catch (err) {
-      this.asyncOperationStarted = false;
-      throw err;
+    if (internalOptions.outcome != null) {
+      // The Update already reached a terminal outcome (e.g. a retried request with the same Update
+      // ID, or an immediate completion). Return a synchronous result; if it failed (validation
+      // rejection is non-retryable), surface it as a failed Nexus operation.
+      try {
+        const result = (await handle.result()) as Ret;
+        releaseAsyncOperationReservation(ctx);
+        return TemporalOperationResult.sync(result);
+      } catch (err) {
+        releaseAsyncOperationReservation(ctx);
+        throw new nexus.OperationError('failed', (err as Error).message, { cause: err as Error });
+      }
     }
-  }
+
+    return TemporalOperationResult.async<Ret>(
+      generateUpdateWorkflowOperationToken(namespace, workflowId, resolvedRunId, updateId)
+    );
+  });
 }
 
 /**
@@ -737,22 +749,20 @@ export class TemporalOperationHandler<I, O> implements nexus.OperationHandler<I,
         }
         await this.cancelWorkflowRunHandler(ctx, { workflowId: opToken.wid });
         return;
-      case OperationTokenType.UPDATE_WORKFLOW: {
-        let updateToken;
+      case OperationTokenType.UPDATE_WORKFLOW:
         try {
-          updateToken = loadUpdateWorkflowOperationToken(token);
+          assertUpdateWorkflowOperationToken(opToken);
         } catch (err) {
           throw new nexus.HandlerError(nexus.HandlerErrorType.BAD_REQUEST, 'invalid update workflow operation token', {
             cause: err,
           });
         }
         await this.cancelWorkflowUpdateHandler(ctx, {
-          workflowId: updateToken.wid,
-          runId: updateToken.rid ?? '',
-          updateId: updateToken.uid,
+          workflowId: opToken.wid,
+          runId: opToken.rid ?? '',
+          updateId: opToken.uid,
         });
         return;
-      }
       default:
         throw new nexus.HandlerError(
           nexus.HandlerErrorType.BAD_REQUEST,
