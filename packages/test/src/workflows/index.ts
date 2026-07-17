@@ -86,6 +86,7 @@ export * from './throw-async';
 export * from './trailing-timer';
 export * from './try-to-continue-after-completion';
 export * from './two-strings';
+export * from './payload-size-limits';
 // unblockSignal is already defined in ./definitions, don't re-export it.
 // The reason it is redefined is for completeness of the snippet.
 export { isBlockedQuery, unblockOrCancel } from './unblock-or-cancel';

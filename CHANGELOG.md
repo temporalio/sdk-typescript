@@ -19,6 +19,18 @@ to docs, or any other relevant information.
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- By default, workers now proactively validate outbound payload/memo sizes before sending: a field
+  over the warn threshold is logged
+  (`[TMPRL1103]` at `WARN`) but still sent, while a task completion over the error limit is failed
+  retryably (`[TMPRL1103]` at `ERROR`) instead of sent. Previously these reached the server, which
+  terminated the workflow or failed the activity non-retryably; failing retryably instead lets a
+  corrected workflow or activity be redeployed and recover. Tune warn thresholds via
+  `NativeConnectionOptions.payloadLimits`. If you use a proxy between the worker and server that
+  alters the size of payloads (e.g. compression, encryption, external storage), it is advised that
+  you disable size enforcement by setting `disablePayloadErrorLimit: true` on the worker.
+
 ## [1.20.3] - 2026-07-13
 
 ### Fixed

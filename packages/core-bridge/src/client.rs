@@ -622,7 +622,7 @@ mod config {
 
     use temporalio_client::{
         ClientTlsOptions as CoreClientTlsOptions, ConnectionOptions, DnsLoadBalancingOptions,
-        GrpcCompression as CoreGrpcCompression, HttpConnectProxyOptions,
+        GrpcCompression as CoreGrpcCompression, HttpConnectProxyOptions, PayloadLimitsOptions,
         TlsOptions as CoreTlsOptions,
     };
     use temporalio_common::telemetry::metrics::TemporalMeter;
@@ -648,6 +648,8 @@ mod config {
         headers: Option<HashMap<String, MetadataValue>>,
         api_key: Option<String>,
         disable_error_code_metric_tags: bool,
+        payloads_warn_size: u64,
+        memo_warn_size: u64,
     }
 
     #[derive(Debug, Clone, TryFromJs)]
@@ -721,6 +723,10 @@ mod config {
                 .maybe_api_key(self.api_key)
                 .maybe_metrics_meter(metrics_meter)
                 .disable_error_code_metric_tags(self.disable_error_code_metric_tags)
+                .payload_limits(PayloadLimitsOptions {
+                    payloads_warn_size: self.payloads_warn_size,
+                    memo_warn_size: self.memo_warn_size,
+                })
                 // identity -- skipped: will be set on worker
                 // retry_config -- skipped: worker overrides anyway
                 // override_origin -- skipped: will default to tls_cfg.domain
