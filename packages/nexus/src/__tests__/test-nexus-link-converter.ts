@@ -136,6 +136,11 @@ test('convertWorkflowLinkToNexusLink throws on missing required fields', (t) => 
   t.throws(() => convertWorkflowLinkToNexusLink({ namespace: 'ns', workflowId: '', runId: 'rid' }), {
     instanceOf: TypeError,
   });
+  // An empty run ID would produce `.../workflows/wid//history`, whose double slash does not resolve
+  // to a valid UI page, so the converter rejects it rather than emit a malformed URL.
+  t.throws(() => convertWorkflowLinkToNexusLink({ namespace: 'ns', workflowId: 'wid', runId: '' }), {
+    instanceOf: TypeError,
+  });
 });
 
 test('convertCommonLinkToNexusLink dispatches by variant, preferring workflowEvent', (t) => {

@@ -84,17 +84,23 @@ export function convertWorkflowEventLinkToNexusLink(we: WorkflowEventLink): Nexu
  * UpdateWorkflow-backed Nexus operation fails validation and no Update Accepted event exists. The
  * resulting URL is the workflow history URL without a reference query; the link is distinguished
  * from a workflow event link by its {@link NexusLink.type}.
+ *
+ * `runId` is required: an empty run segment produces `.../workflows/<wid>//history`, whose
+ * double slash does not resolve to a valid Temporal UI workflow page. The server populates the
+ * resolved run ID even on the plain Workflow link it returns for a validation failure, so a missing
+ * run ID is unexpected; throwing (rather than coalescing to '') lets callers drop the link instead
+ * of attaching a malformed URL.
  */
 export function convertWorkflowLinkToNexusLink(wl: WorkflowLink): NexusLink {
-  if (!wl.namespace || !wl.workflowId) {
+  if (!wl.namespace || !wl.workflowId || !wl.runId) {
     throw new TypeError(
-      `Missing required fields: namespace or workflowId (namespace=${wl.namespace}, workflowId=${wl.workflowId})`
+      `Missing required fields: namespace, workflowId, or runId (namespace=${wl.namespace}, workflowId=${wl.workflowId}, runId=${wl.runId})`
     );
   }
   const url = new URL(
     `temporal:///namespaces/${encodeURIComponent(wl.namespace)}/workflows/${encodeURIComponent(
       wl.workflowId
-    )}/${encodeURIComponent(wl.runId ?? '')}/history`
+    )}/${encodeURIComponent(wl.runId)}/history`
   );
 
   return {
