@@ -1,5 +1,9 @@
 import type { coresdk } from '@temporalio/proto';
 import {
+  walkActivityTask,
+  walkActivityTaskCompletion,
+  walkNexusTask,
+  walkNexusTaskCompletion,
   walkWorkflowActivation,
   walkWorkflowActivationCompletion,
   type WalkEnv,
@@ -159,4 +163,59 @@ export async function visitWorkflowActivationCompletion<Ctx = void>(
   options: VisitOptions<Ctx>
 ): Promise<void> {
   return runVisit(options, (env, context) => walkWorkflowActivationCompletion(root, env, context));
+}
+
+/**
+ * Applies the payload transforms to every {@link Payload} in an `ActivityTask` (activity input and
+ * last-recorded heartbeat details), mutating it in place.
+ *
+ * @internal
+ * @experimental
+ */
+export async function visitActivityTask<Ctx = void>(
+  root: coresdk.activity_task.IActivityTask,
+  options: VisitOptions<Ctx>
+): Promise<void> {
+  return runVisit(options, (env, context) => walkActivityTask(root, env, context));
+}
+
+/**
+ * Applies the payload transforms to every {@link Payload} in an `ActivityTaskCompletion` (the activity
+ * result / failure), mutating it in place.
+ *
+ * @internal
+ * @experimental
+ */
+export async function visitActivityTaskCompletion<Ctx = void>(
+  root: coresdk.IActivityTaskCompletion,
+  options: VisitOptions<Ctx>
+): Promise<void> {
+  return runVisit(options, (env, context) => walkActivityTaskCompletion(root, env, context));
+}
+
+/**
+ * Applies the payload transforms to every {@link Payload} in a `NexusTask`, mutating it in place.
+ *
+ * @internal
+ * @experimental
+ */
+export async function visitNexusTask<Ctx = void>(
+  root: coresdk.nexus.INexusTask,
+  options: VisitOptions<Ctx>
+): Promise<void> {
+  return runVisit(options, (env, context) => walkNexusTask(root, env, context));
+}
+
+/**
+ * Applies the payload transforms to every {@link Payload} in a `NexusTaskCompletion`, mutating it in
+ * place.
+ *
+ * @internal
+ * @experimental
+ */
+export async function visitNexusTaskCompletion<Ctx = void>(
+  root: coresdk.nexus.INexusTaskCompletion,
+  options: VisitOptions<Ctx>
+): Promise<void> {
+  return runVisit(options, (env, context) => walkNexusTaskCompletion(root, env, context));
 }
