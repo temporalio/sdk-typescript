@@ -117,7 +117,7 @@ export function generateUpdateWorkflowOperationToken(
     ns: namespace,
     wid: workflowId,
     // `rid` is optional, so omit it if not present
-    ...(runId ? { rid: runId } : {}),
+    rid: runId ? runId : undefined,
     uid: updateId,
   };
   return base64URLEncodeNoPadding(JSON.stringify(token));
