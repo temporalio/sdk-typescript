@@ -24,7 +24,8 @@ const PAYLOAD_ERROR_LIMIT = 10 * 1024;
 const PAYLOAD_LIMITS_EXTRA_ARGS = [
   '--dynamic-config-value',
   `limit.blobSize.error=${PAYLOAD_ERROR_LIMIT}`,
-  // Warn limit must be specified to have the server enforce the error limit.
+  // The server only enforces the error limit for payloads that also exceed the warn limit, so the
+  // warn limit must be below the error limit.
   '--dynamic-config-value',
   `limit.blobSize.warn=${2 * 1024}`,
 ];
