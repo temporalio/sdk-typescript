@@ -2,9 +2,6 @@
  * Integration tests for UpdateWorkflow-backed Nexus operations
  * ({@link WorkflowHandle.update}).
  *
- * These mirror the acceptance criteria of the Go SDK's TestNexusUpdateWorkflowOperation suite:
- * validation failures surface as failed operations, valid updates succeed, updates sharing an
- * Update ID are idempotent, and updates against a completed workflow fail.
  *
  * Operations are driven through a caller workflow (as in the Go suite) so the Nexus machinery
  * supplies a completion callback URL, which UpdateWorkflow operations require.
