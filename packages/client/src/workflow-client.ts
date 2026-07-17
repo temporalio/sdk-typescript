@@ -1108,7 +1108,7 @@ export class WorkflowClient extends BaseClient {
       this.rethrowUpdateGrpcError(err, 'Workflow Update failed', input.workflowExecution);
     }
     await visit(response, walkUpdateWorkflowExecutionResponse, extstoreInboundOptions(externalStorage));
-    const internalOptions = (input.options as InternalWorkflowUpdateOptions | undefined)?.[
+    const internalOptions = (input.options as InternalWorkflowUpdateOptions)[
       InternalWorkflowUpdateOptionsSymbol
     ];
     if (internalOptions != null) {
