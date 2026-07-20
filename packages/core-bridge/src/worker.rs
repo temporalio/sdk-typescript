@@ -495,18 +495,18 @@ impl MutableFinalize for HistoryForReplayTunnelHandle {}
 mod config {
     use std::collections::{HashMap, HashSet};
     use std::{sync::Arc, time::Duration};
-    use temporalio_common::protos::temporal::api::enums::v1::VersioningBehavior as CoreVersioningBehavior;
     use temporalio_common::protos::temporal::api::worker::v1::PluginInfo;
     use temporalio_common::worker::{
+        VersioningBehavior as CoreVersioningBehavior,
         WorkerDeploymentOptions as CoreWorkerDeploymentOptions,
         WorkerDeploymentVersion as CoreWorkerDeploymentVersion,
     };
     use temporalio_sdk_core::{
         ActivitySlotKind, LocalActivitySlotKind, NexusSlotKind,
-        PollerBehavior as CorePollerBehavior, ResourceBasedSlotsOptions, ResourceSlotOptions,
-        SlotKind, SlotSupplierOptions as CoreSlotSupplierOptions, TunerHolder, TunerHolderOptions,
-        WorkerConfig, WorkerVersioningStrategy, WorkflowErrorType as CoreWorkflowErrorType,
-        WorkflowSlotKind,
+        PollerBehavior as CorePollerBehavior, ResourceBasedSlotsOptions, ResourceBasedTunerConfig,
+        ResourceSlotOptions, SlotKind, SlotSupplierOptions as CoreSlotSupplierOptions, TunerHolder,
+        TunerHolderOptions, WorkerConfig, WorkerVersioningStrategy,
+        WorkflowErrorType as CoreWorkflowErrorType, WorkflowSlotKind,
     };
 
     use super::custom_slot_supplier::CustomSlotSupplierOptions;
@@ -541,6 +541,7 @@ mod config {
         plugins: Vec<String>,
         workflow_failure_errors: HashSet<WorkflowErrorType>,
         workflow_types_to_failure_errors: HashMap<String, HashSet<WorkflowErrorType>>,
+        disable_payload_error_limit: bool,
     }
 
     #[derive(TryFromJs)]
@@ -642,6 +643,7 @@ mod config {
                 .workflow_types_to_failure_errors(into_core_workflow_error_map_of_sets(
                     self.workflow_types_to_failure_errors,
                 ))
+                .disable_payload_error_limit(self.disable_payload_error_limit)
                 .build()
                 .map_err(|err| BridgeError::TypeError {
                     message: format!("Failed to convert WorkerOptions to CoreWorkerConfig: {err}"),
@@ -770,7 +772,7 @@ mod config {
                         .into_slot_supplier(&mut rbo),
                 )
                 .nexus_slot_options(self.nexus_task_slot_supplier.into_slot_supplier(&mut rbo))
-                .maybe_resource_based_options(rbo)
+                .maybe_resource_based_config(rbo.map(ResourceBasedTunerConfig::Options))
                 .build_tuner_holder()
                 .map(Arc::new)
                 .map_err(|err| BridgeError::TypeError {

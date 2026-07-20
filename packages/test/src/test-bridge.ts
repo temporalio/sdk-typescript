@@ -256,6 +256,8 @@ const GenericConfigs = {
       headers: null,
       apiKey: null,
       disableErrorCodeMetricTags: false,
+      payloadsWarnSize: 512 * 1024,
+      memoWarnSize: 2 * 1024,
     } satisfies native.ClientOptions,
   },
   worker: {
@@ -317,6 +319,7 @@ const GenericConfigs = {
       plugins: [],
       workflowFailureErrors: [],
       workflowTypesToFailureErrors: {},
+      disablePayloadErrorLimit: false,
     } satisfies native.WorkerOptions,
   },
   ephemeralServer: {

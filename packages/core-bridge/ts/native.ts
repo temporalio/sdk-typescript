@@ -140,6 +140,8 @@ export interface ClientOptions {
   headers: Option<Record<string, MetadataValue>>;
   apiKey: Option<string>;
   disableErrorCodeMetricTags: boolean;
+  payloadsWarnSize: number;
+  memoWarnSize: number;
 }
 
 export interface TlsOptions {
@@ -258,6 +260,7 @@ export interface WorkerOptions {
   plugins: string[];
   workflowFailureErrors: WorkflowErrorType[];
   workflowTypesToFailureErrors: Record<string, WorkflowErrorType[]>;
+  disablePayloadErrorLimit: boolean;
 }
 
 export type PollerBehavior =

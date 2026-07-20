@@ -18,7 +18,7 @@ export async function decodePayload(
   try {
     decoded = await decodeOptionalSingle(dataConverter.payloadCodecs, payload);
   } catch (err) {
-    if (err instanceof ApplicationFailure) {
+    if (err instanceof ApplicationFailure || err instanceof nexus.HandlerError) {
       throw err;
     }
     throw new nexus.HandlerError('INTERNAL', `Payload codec failed to decode Nexus operation input`, { cause: err });
@@ -31,7 +31,7 @@ export async function decodePayload(
   try {
     return dataConverter.payloadConverter.fromPayload(decoded);
   } catch (err) {
-    if (err instanceof ApplicationFailure) {
+    if (err instanceof ApplicationFailure || err instanceof nexus.HandlerError) {
       throw err;
     }
     throw new nexus.HandlerError('BAD_REQUEST', `Payload converter failed to decode Nexus operation input`, {
