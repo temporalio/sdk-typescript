@@ -2055,12 +2055,12 @@ test('threaded patch activation callback preserves closures patchedWorkflow', as
   t.is(calls.length, 1);
 });
 
-test.serial(
+// Bun does not count time spent waiting for a main-thread callback toward the Workflow VM timeout.
+(isBun ? test.skip : test.serial)(
   'slow patch activation callback blocks the Worker and counts toward isolate timeout patchedWorkflow',
   async (t) => {
     const isolateExecutionTimeoutMs = 100;
     const delayMs = 200;
-    const waitBuffer = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT));
     let callbackDurationMs = 0;
     let mainThreadTimerFired = false;
     let mainThreadTimerFiredBeforeCallbackReturned = false;
@@ -2075,8 +2075,9 @@ test.serial(
           }, 0);
         });
         const startedAt = Date.now();
-        Atomics.wait(waitBuffer, 0, 0, delayMs);
-        callbackDurationMs = Date.now() - startedAt;
+        do {
+          callbackDurationMs = Date.now() - startedAt;
+        } while (callbackDurationMs <= delayMs);
         mainThreadTimerFiredBeforeCallbackReturned = mainThreadTimerFired;
         return false;
       },

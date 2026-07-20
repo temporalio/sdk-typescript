@@ -115,11 +115,13 @@ export interface WorkerOptions {
    * Returning `false` leaves the patch inactive and does not record a patch marker. The decision is
    * memoized for the lifetime of the Workflow Execution.
    *
-   * The callback runs synchronously in the Worker context, where it may use normal time, randomness, and other
-   * side effects. Workflow APIs are unavailable. It must return an actual boolean and should return promptly because
-   * it blocks the Worker main thread. Time spent in the callback counts toward the Workflow isolate execution timeout
-   * (5 seconds by default). A callback that never returns cannot be interrupted locally and will continue blocking the
-   * Worker even after the server times out the Workflow Task.
+   * The callback runs synchronously in the Worker context, where it may use normal time,
+   * randomness, and other side effects. Workflow APIs are unavailable. It must return an actual
+   * boolean and should return promptly because it blocks the Worker main thread. Time spent in the
+   * callback counts toward the Workflow isolate execution timeout (5 seconds by default), except in
+   * Bun which does not currently count time spent waiting for a callback running on the Worker main
+   * thread toward this timeout. A callback that never returns cannot be interrupted locally and
+   * will continue blocking the Worker even after the server times out the Workflow Task.
    *
    * @experimental
    */
@@ -556,26 +558,26 @@ export interface WorkerOptions {
    * The types of errors that, if thrown by a Workflow function, a signal handler, or an update
    * handler, will cause the Workflow Execution or the Update to fail instead of failing the
    * Workflow Task (which would result in retrying the Workflow Task until it eventually succeeds).
-   * 
+   *
    * This property expects a record of Workflow-type names to the list of error types that will
    * cause that type of Workflow to fail. Uses the `'*'` key to specify a list of error types that
    * applies to all Workflow types. This is a worker-level equivalent of
    * {@link WorkflowDefinitionOptions.failureExceptionTypes}. Both settings are evaluated; an error
    * matching either will cause Workflow failure.
-   * 
+   *
    * Unlike {@link WorkflowDefinitionOptions.failureExceptionTypes}, this setting requires error
    * types to be specified as string names, not actual class references, and consequently, doesn't
    * support subclass matching via `instanceof`. It however allows failing the workflow execution
    * on _non-determinism errors_, by including the `NondeterminismError` type to the list of error
    * types, either globally (via the `'*'` key) or per-Workflow-type.
-   * 
+   *
    * Passing the `'Error'` error type string here will result in failing the Workflow on any error,
    * including non-determinism errors.
 
    * Note that {@link TemporalFailure} subclasses (with the exception of {@link ApplicationFailure})
    * and cancellation errors that bubbles out of the Workflow always fail the Workflow Execution,
    * regardless of either this and the {@link WorkflowDefinitionOptions.failureExceptionTypes} settings.
-   * 
+   *
    * @experimental
    */
   workflowFailureErrorTypes?: Record<
