@@ -25,7 +25,7 @@ import {
   type RunAsyncToolRequest,
 } from '@google/adk';
 
-import type { MCPToolsetFactory } from './mcp.js';
+import type { MCPToolsetFactory } from './mcp';
 
 /**
  * A deterministic {@link BaseLlm} test double. Yields the provided

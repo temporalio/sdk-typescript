@@ -10,8 +10,8 @@ import type { BaseLlm } from '@google/adk';
 import { SimplePlugin } from '@temporalio/plugin';
 import type { BundleOptions } from '@temporalio/worker';
 
-import { createModelActivities, createMCPActivities } from './activities.js';
-import { type MCPToolsetFactory } from './mcp.js';
+import { createModelActivities, createMCPActivities } from './activities';
+import { type MCPToolsetFactory } from './mcp';
 
 /** The webpack `Configuration` object the bundler hands to `webpackConfigHook`. */
 type WebpackConfig = Parameters<NonNullable<BundleOptions['webpackConfigHook']>>[0];

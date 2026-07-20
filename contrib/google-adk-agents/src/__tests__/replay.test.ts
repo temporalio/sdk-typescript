@@ -14,10 +14,10 @@
 import test from 'ava';
 import { Worker, type ReplayWorkerOptions } from '@temporalio/worker';
 
-import { GoogleAdkPlugin } from '../index.js';
-import { mockMCPToolset } from '../testing.js';
-import { defaultTestProvider, echoDef, setupTestEnv, uid, withWorker, workflowsPath } from './helpers.js';
-import { replayScenario } from './workflows.js';
+import { GoogleAdkPlugin } from '../index';
+import { mockMCPToolset } from '../testing';
+import { defaultTestProvider, echoDef, setupTestEnv, uid, withWorker, workflowsPath } from './helpers';
+import { replayScenario } from './workflows';
 
 function makePlugin(): GoogleAdkPlugin {
   return new GoogleAdkPlugin({

@@ -12,7 +12,7 @@ import { defaultPayloadConverter } from '@temporalio/common';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { Worker } from '@temporalio/worker';
 
-import { FakeLlm, type MockMCPToolDefinition } from '../testing.js';
+import { FakeLlm, type MockMCPToolDefinition } from '../testing';
 
 const here = __dirname;
 

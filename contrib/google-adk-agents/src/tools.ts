@@ -9,7 +9,7 @@ import { BaseTool, type RunAsyncToolRequest } from '@google/adk';
 import { ApplicationFailure, type ActivityOptions } from '@temporalio/common';
 import { inWorkflowContext, proxyActivities } from '@temporalio/workflow';
 
-import { activityOptionsFrom } from './model.js';
+import { activityOptionsFrom } from './model';
 
 /**
  * Options for {@link activityAsTool}.

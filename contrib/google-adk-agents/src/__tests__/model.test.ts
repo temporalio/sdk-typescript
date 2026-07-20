@@ -13,9 +13,9 @@ import test from 'ava';
 import { LLMRegistry, type LlmRequest } from '@google/adk';
 import { ApplicationFailure, defaultPayloadConverter, TimeoutFailure } from '@temporalio/common';
 
-import { GoogleAdkPlugin } from '../index.js';
-import { TemporalModel } from '../workflow.js';
-import { FakeLlm, fakeModelProvider } from '../testing.js';
+import { GoogleAdkPlugin } from '../index';
+import { TemporalModel } from '../workflow';
+import { FakeLlm, fakeModelProvider } from '../testing';
 import {
   countScheduledActivities,
   defaultTestProvider,
@@ -24,7 +24,7 @@ import {
   setupTestEnv,
   uid,
   withWorker,
-} from './helpers.js';
+} from './helpers';
 import {
   agentRunnerWorkflow,
   countModelCalls,
@@ -36,7 +36,7 @@ import {
   modelConnectInWorkflow,
   singleModelCall,
   streamingModelCallNoTopic,
-} from './workflows.js';
+} from './workflows';
 
 const getEnv = setupTestEnv(test);
 

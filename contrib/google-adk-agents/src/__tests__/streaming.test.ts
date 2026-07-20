@@ -15,11 +15,11 @@ import { ApplicationFailure } from '@temporalio/common';
 import { MockActivityEnvironment } from '@temporalio/testing';
 import { WorkflowStreamClient } from '@temporalio/workflow-streams/client';
 
-import { createModelActivities } from '../activities.js';
-import { GoogleAdkPlugin } from '../index.js';
-import { fakeModelProvider } from '../testing.js';
-import { setupTestEnv, uid, withWorker } from './helpers.js';
-import { closeStream, streamingModelCall, streamingModelCallSubscribed } from './workflows.js';
+import { createModelActivities } from '../activities';
+import { GoogleAdkPlugin } from '../index';
+import { fakeModelProvider } from '../testing';
+import { setupTestEnv, uid, withWorker } from './helpers';
+import { closeStream, streamingModelCall, streamingModelCallSubscribed } from './workflows';
 
 const chunks: LlmResponse[] = [
   { content: { role: 'model', parts: [{ text: 'Hello ' }] }, partial: true },

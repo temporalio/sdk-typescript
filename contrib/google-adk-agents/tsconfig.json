@@ -18,6 +18,5 @@
     { "path": "../../packages/testing" },
     { "path": "../workflow-streams" }
   ],
-  "include": ["./src/**/*.ts"],
-  "exclude": ["./src/__tests__/workflows-published.ts"]
+  "include": ["./src/**/*.ts"]
 }

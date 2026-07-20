@@ -10,9 +10,9 @@
 
 import test from 'ava';
 
-import { GoogleAdkPlugin } from '../index.js';
-import { setupTestEnv, uid, withWorker } from './helpers.js';
-import { approveSignal, approveUpdate, hitlWorkflow } from './workflows.js';
+import { GoogleAdkPlugin } from '../index';
+import { setupTestEnv, uid, withWorker } from './helpers';
+import { approveSignal, approveUpdate, hitlWorkflow } from './workflows';
 
 const getEnv = setupTestEnv(test);
 

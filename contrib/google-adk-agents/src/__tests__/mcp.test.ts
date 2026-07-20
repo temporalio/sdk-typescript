@@ -12,9 +12,9 @@
 import test from 'ava';
 import { ApplicationFailure } from '@temporalio/common';
 
-import { GoogleAdkPlugin } from '../index.js';
-import { TemporalMCPToolset } from '../workflow.js';
-import { mockMCPToolset } from '../testing.js';
+import { GoogleAdkPlugin } from '../index';
+import { TemporalMCPToolset } from '../workflow';
+import { mockMCPToolset } from '../testing';
 import {
   countScheduledActivities,
   echoDef,
@@ -24,7 +24,7 @@ import {
   setupTestEnv,
   uid,
   withWorker,
-} from './helpers.js';
+} from './helpers';
 import {
   mcpCallTool,
   mcpCallToolWithActivitySummary,
@@ -32,7 +32,7 @@ import {
   mcpFilteredTools,
   mcpListTools,
   mcpPrefixedTools,
-} from './workflows.js';
+} from './workflows';
 
 function makePlugin(): GoogleAdkPlugin {
   return new GoogleAdkPlugin({
