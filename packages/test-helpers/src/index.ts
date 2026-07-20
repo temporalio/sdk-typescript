@@ -1,5 +1,5 @@
 // Utilities
-export { sleep, waitUntil, u8, approximatelyEqual } from './utilities';
+export { sleep, waitUntil, assertEventually, u8, approximatelyEqual } from './utilities';
 
 // Flags
 export {
