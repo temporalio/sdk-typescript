@@ -1,6 +1,7 @@
 import { decode, encode } from '../encoding';
 import { PayloadConverterError, ValueError } from '../errors';
 import type { Payload } from '../interfaces';
+import { PayloadTypeHints, TypeHint } from '../type-hints';
 import type { SerializationContext } from './serialization-context';
 import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY } from './types';
 
@@ -20,12 +21,17 @@ export interface PayloadConverter {
    *
    * Should throw {@link ValueError} if unable to convert.
    */
-  toPayload<T>(value: T, context?: SerializationContext): Payload;
+  toPayload<T>(value: T, context?: SerializationContext, typeHint?: TypeHint): Payload;
 
   /**
    * Converts a {@link Payload} back to a value.
    */
-  fromPayload<T>(payload: Payload, context?: SerializationContext): T;
+  fromPayload<T>(payload: Payload, context?: SerializationContext, typeHint?: TypeHint): T;
+
+  /**
+   * Optional method to validate a type hint for the converter
+   */
+  validateTypeHint?: (typeHint: TypeHint) => boolean;
 }
 
 /**
@@ -49,13 +55,17 @@ export function toPayloads(converter: PayloadConverter, ...values: unknown[]): P
 export function toPayloadsWithContext(
   converter: PayloadConverter,
   context: SerializationContext | undefined,
-  values: unknown[]
+  values: unknown[],
+  typeHints?: readonly TypeHint[]
 ): Payload[] | undefined {
   if (values.length === 0) {
     return undefined;
   }
+  if (typeHints && typeHints.length !== values.length) {
+    throw new ValueError(`Got ${typeHints.length} type hints for ${values.length} values`);
+  }
 
-  return values.map((value) => converter.toPayload(value, context));
+  return values.map((value, index) => converter.toPayload(value, context, typeHints?.[index]));
 }
 
 /**
@@ -101,7 +111,8 @@ export function fromPayloadsAtIndex<T>(
   converter: PayloadConverter,
   index: number,
   payloads?: Payload[] | null,
-  context?: SerializationContext
+  context?: SerializationContext,
+  typeHint?: TypeHint
 ): T {
   // To make adding arguments a backwards compatible change
   if (payloads === undefined || payloads === null || index >= payloads.length) {
@@ -111,7 +122,7 @@ export function fromPayloadsAtIndex<T>(
   if (!payload) {
     return undefined as any;
   }
-  return converter.fromPayload(payload, context);
+  return converter.fromPayload(payload, context, typeHint);
 }
 
 /**
@@ -120,12 +131,17 @@ export function fromPayloadsAtIndex<T>(
 export function arrayFromPayloads(
   converter: PayloadConverter,
   payloads?: Payload[] | null,
-  context?: SerializationContext
+  context?: SerializationContext,
+  typeHints?: readonly TypeHint[]
 ): unknown[] {
   if (!payloads) {
     return [];
   }
-  return payloads.map((payload: Payload) => converter.fromPayload(payload, context));
+  if (typeHints && typeHints.length !== payloads.length) {
+    throw new ValueError(`Got ${typeHints.length} type hints for ${payloads.length} values`);
+  }
+
+  return payloads.map((payload: Payload, index) => converter.fromPayload(payload, context, typeHints?.[index]));
 }
 
 export function mapFromPayloads<K extends string, T = unknown>(
@@ -172,14 +188,19 @@ export interface PayloadConverterWithEncoding {
    * @param value The value to convert. Example values include the Workflow args sent from the Client and the values returned by a Workflow or Activity.
    * @returns The {@link Payload}, or `undefined` if unable to convert.
    */
-  toPayload<T>(value: T, context?: SerializationContext): Payload | undefined;
+  toPayload<T>(value: T, context?: SerializationContext, typeHint?: TypeHint): Payload | undefined;
 
   /**
    * Converts a {@link Payload} back to a value.
    */
-  fromPayload<T>(payload: Payload, context?: SerializationContext): T;
+  fromPayload<T>(payload: Payload, context?: SerializationContext, typeHint?: TypeHint): T;
 
   readonly encodingType: string;
+
+  /**
+   * Optional method to validate a type hint for the converter
+   */
+  validateTypeHint?: (typeHint: TypeHint) => boolean;
 }
 
 /**
@@ -207,12 +228,12 @@ export class CompositePayloadConverter implements PayloadConverter {
    * Tries to run `.toPayload(value)` on each converter in the order provided at construction.
    * Returns the first successful result, throws {@link ValueError} if there is no converter that can handle the value.
    */
-  public toPayload<T>(value: T, context?: SerializationContext): Payload {
+  public toPayload<T>(value: T, context?: SerializationContext, typeHint?: TypeHint): Payload {
     if (value instanceof RawValue) {
       return value.payload;
     }
     for (const converter of this.converters) {
-      const result = converter.toPayload(value, context);
+      const result = converter.toPayload(value, context, typeHint);
       if (result !== undefined) {
         return result;
       }
@@ -224,7 +245,7 @@ export class CompositePayloadConverter implements PayloadConverter {
   /**
    * Run {@link PayloadConverterWithEncoding.fromPayload} based on the `encoding` metadata of the {@link Payload}.
    */
-  public fromPayload<T>(payload: Payload, context?: SerializationContext): T {
+  public fromPayload<T>(payload: Payload, context?: SerializationContext, typeHint?: TypeHint): T {
     if (payload.metadata === undefined || payload.metadata === null) {
       throw new ValueError('Missing payload metadata');
     }
@@ -234,7 +255,7 @@ export class CompositePayloadConverter implements PayloadConverter {
     if (converter === undefined) {
       throw new ValueError(`Unknown encoding: ${encoding}`);
     }
-    return converter.fromPayload(payload, context);
+    return converter.fromPayload(payload, context, typeHint);
   }
 }
 

@@ -5,7 +5,7 @@ import {
   compileRetryPolicy,
   decodePriority,
   decompileRetryPolicy,
-  extractWorkflowType,
+  extractWorkflowTypeAndConfig,
 } from '@temporalio/common';
 import { encodeUserMetadata, decodeUserMetadata } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
 import {
@@ -198,14 +198,16 @@ export function decodeOptionalStructuredCalendarSpecs(
 }
 
 export function compileScheduleOptions(options: ScheduleOptions): CompiledScheduleOptions {
-  const workflowType = extractWorkflowType(options.action.workflowType);
+  const { action } = options;
+  const { type: workflowType, typeHints } = extractWorkflowTypeAndConfig(action.workflowType, action.typeHints);
   return {
     ...options,
     action: {
-      ...options.action,
-      workflowId: options.action.workflowId ?? `${options.scheduleId}-workflow`,
+      ...action,
+      workflowId: action.workflowId ?? `${options.scheduleId}-workflow`,
       workflowType,
-      args: (options.action.args ?? []) as unknown[],
+      args: (action.args ?? []) as unknown[],
+      typeHints,
     },
   };
 }
@@ -214,15 +216,16 @@ export function compileUpdatedScheduleOptions(
   scheduleId: string,
   options: ScheduleUpdateOptions
 ): CompiledScheduleUpdateOptions {
-  const workflowTypeOrFunc = options.action.workflowType;
-  const workflowType = extractWorkflowType(workflowTypeOrFunc);
+  const { action } = options;
+  const { type: workflowType, typeHints } = extractWorkflowTypeAndConfig(action.workflowType, action.typeHints);
   return {
     ...options,
     action: {
-      ...options.action,
-      workflowId: options.action.workflowId ?? `${scheduleId}-workflow`,
+      ...action,
+      workflowId: action.workflowId ?? `${scheduleId}-workflow`,
       workflowType,
-      args: (options.action.args ?? []) as unknown[],
+      args: (action.args ?? []) as unknown[],
+      typeHints,
     },
   };
 }
@@ -264,7 +267,7 @@ export async function encodeScheduleAction(
       workflowType: {
         name: action.workflowType,
       },
-      input: { payloads: await encodeToPayloadsWithContext(dataConverter, context, action.args) },
+      input: { payloads: await encodeToPayloadsWithContext(dataConverter, context, action.args, action.typeHints?.inputTypes) },
       taskQueue: {
         kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_NORMAL,
         name: action.taskQueue,
@@ -273,6 +276,7 @@ export async function encodeScheduleAction(
       workflowRunTimeout: msOptionalToTs(action.workflowRunTimeout),
       workflowTaskTimeout: msOptionalToTs(action.workflowTaskTimeout),
       retryPolicy: action.retry ? compileRetryPolicy(action.retry) : undefined,
+      // THOMAS - no support for memo yet
       memo: action.memo ? { fields: await encodeMapToPayloads(dataConverter, action.memo, context) } : undefined,
       searchAttributes:
         action.searchAttributes || action.typedSearchAttributes

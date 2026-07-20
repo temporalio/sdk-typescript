@@ -5,8 +5,8 @@ import type { Duration } from './time';
 import { makeProtoEnumConverters } from './internal-workflow';
 import type { SearchAttributePair, SearchAttributes, TypedSearchAttributes } from './search-attributes';
 import type { Priority } from './priority';
-import type { WorkflowFunctionWithOptions } from './workflow-definition-options';
-
+import { isWorkflowFunctionWithStaticOptions } from './workflow-definition-options';
+import { PayloadTypeHints } from './type-hints';
 /**
  * Defines what happens when trying to start a Workflow with the same ID as a *Closed* Workflow.
  *
@@ -212,6 +212,15 @@ export interface BaseWorkflowOptions {
    * Priority of a workflow
    */
   priority?: Priority;
+
+  /**
+   * Type hints! For workflow input/output.
+   *
+   * Validated at runtime.
+   *
+   * @experimental
+   */
+  typeHints?: PayloadTypeHints;
 }
 
 export type WithWorkflowArgs<W extends Workflow, T> = T &
@@ -259,13 +268,36 @@ export interface WorkflowDurationOptions {
 
 export type CommonWorkflowOptions = BaseWorkflowOptions & WorkflowDurationOptions;
 
-export function extractWorkflowType<T extends Workflow>(
-  workflowTypeOrFunc: string | T | WorkflowFunctionWithOptions<any[], any>
-): string {
-  if (typeof workflowTypeOrFunc === 'string') return workflowTypeOrFunc as string;
+export interface WorkflowTypeOptions {
+  type: string;
+  typeHints?: PayloadTypeHints;
+}
+
+export function extractWorkflowTypeAndConfig<T extends Workflow>(
+  workflowTypeOrFunc: string | T,
+  callSiteTypeHints?: PayloadTypeHints
+): WorkflowTypeOptions {
+  if (typeof workflowTypeOrFunc === 'string') {
+    return { type: workflowTypeOrFunc, typeHints: callSiteTypeHints };
+  }
   if (typeof workflowTypeOrFunc === 'function') {
-    if (workflowTypeOrFunc?.name) return workflowTypeOrFunc.name;
-    throw new TypeError('Invalid workflow type: the workflow function is anonymous');
+    if (!workflowTypeOrFunc.name) {
+      throw new TypeError('Invalid workflow type: the workflow function is anonymous');
+    }
+    if (callSiteTypeHints !== undefined) {
+      throw new TypeError(
+        'Workflow type hints cannot be supplied at the call site when using a workflow function. ' +
+          'Use defineWorkflowOptions(..., { staticOptions: { typeHints } }) on the workflow function instead, ' +
+          'or pass the workflow type as a string.'
+      );
+    }
+    const definitionTypeHints = isWorkflowFunctionWithStaticOptions(workflowTypeOrFunc)
+      ? workflowTypeOrFunc.staticOptions.typeHints
+      : undefined;
+    return {
+      type: workflowTypeOrFunc.name,
+      typeHints: definitionTypeHints,
+    };
   }
   throw new TypeError(
     `Invalid workflow type: expected either a string or a function, got '${typeof workflowTypeOrFunc}'`

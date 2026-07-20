@@ -11,6 +11,8 @@ import type {
   WorkflowResultType,
   WorkflowIdConflictPolicy,
   WorkflowSerializationContext,
+  WorkflowTypeOptions,
+  TypeHint,
 } from '@temporalio/common';
 import {
   CancelledFailure,
@@ -21,11 +23,11 @@ import {
   TimeoutType,
   WorkflowExecutionAlreadyStartedError,
   WorkflowNotFoundError,
-  extractWorkflowType,
   encodeWorkflowIdReusePolicy,
   decodeRetryState,
   encodeWorkflowIdConflictPolicy,
   compilePriority,
+  extractWorkflowTypeAndConfig,
 } from '@temporalio/common';
 import { encodeUserMetadata } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
 import { encodeUnifiedSearchAttributes } from '@temporalio/common/lib/converter/payload-search-attributes';
@@ -343,6 +345,16 @@ export interface WorkflowResultOptions {
    * @default true
    */
   followRuns?: boolean;
+
+  /**
+   * Type hint used to decode the Workflow result.
+   *
+   * This is only needed when getting a result from an existing Workflow handle or
+   * when overriding definition-supplied hints.
+   *
+   * @experimental
+   */
+  typeHint?: TypeHint;
 }
 
 /**
@@ -533,13 +545,16 @@ export class WorkflowClient extends BaseClient {
   }
 
   protected async _start<T extends Workflow>(
-    workflowTypeOrFunc: string | T,
+    workflowTypeOptions: WorkflowTypeOptions,
     options: WorkflowStartOptions<T>,
     interceptors: WorkflowClientInterceptor[]
   ): Promise<WorkflowStartOutput> {
-    const workflowType = extractWorkflowType(workflowTypeOrFunc);
     assertRequiredWorkflowOptions(options);
-    const compiledOptions = compileWorkflowOptions(ensureArgs(options));
+    const workflowOptions = {
+      ...options,
+      typeHints: workflowTypeOptions.typeHints,
+    };
+    const compiledOptions = compileWorkflowOptions(ensureArgs(workflowOptions));
     const adaptedInterceptors = interceptors.map((i) => adaptWorkflowClientInterceptor(i));
 
     const startWithDetails = composeInterceptors(
@@ -551,7 +566,7 @@ export class WorkflowClient extends BaseClient {
     return startWithDetails({
       options: compiledOptions,
       headers: {},
-      workflowType,
+      workflowType: workflowTypeOptions.type,
     });
   }
 
@@ -560,10 +575,14 @@ export class WorkflowClient extends BaseClient {
     options: WithWorkflowArgs<T, WorkflowSignalWithStartOptions<SA>>,
     interceptors: WorkflowClientInterceptor[]
   ): Promise<string> {
-    const workflowType = extractWorkflowType(workflowTypeOrFunc);
     const { signal, signalArgs, ...rest } = options;
+    const { type: workflowType, typeHints } = extractWorkflowTypeAndConfig(workflowTypeOrFunc, rest.typeHints);
     assertRequiredWorkflowOptions(rest);
-    const compiledOptions = compileWorkflowOptions(ensureArgs(rest));
+    const workflowOptions = {
+      ...rest,
+      typeHints,
+    };
+    const compiledOptions = compileWorkflowOptions(ensureArgs(workflowOptions));
     const signalWithStart = composeInterceptors(
       interceptors,
       'signalWithStart',
@@ -590,7 +609,8 @@ export class WorkflowClient extends BaseClient {
   ): Promise<WorkflowHandleWithStartDetails<T>> {
     const { workflowId } = options;
     const interceptors = this.getOrMakeInterceptors(workflowId);
-    const wfStartOutput = await this._start(workflowTypeOrFunc, { ...options, workflowId }, interceptors);
+    const workflowTypeOptions = extractWorkflowTypeAndConfig(workflowTypeOrFunc, options.typeHints);
+    const wfStartOutput = await this._start(workflowTypeOptions, { ...options, workflowId }, interceptors);
     // runId is not used in handles created with `start*` calls because these
     // handles should allow interacting with the workflow if it continues as new.
     const baseHandle = this._createWorkflowHandle({
@@ -600,6 +620,7 @@ export class WorkflowClient extends BaseClient {
       runIdForResult: wfStartOutput.runId,
       interceptors,
       followRuns: options.followRuns ?? true,
+      typeHint: workflowTypeOptions.typeHints?.outputType,
     });
     return {
       ...baseHandle,
@@ -719,11 +740,19 @@ export class WorkflowClient extends BaseClient {
       throw new Error('This WithStartWorkflowOperation instance has already been executed.');
     }
     startWorkflowOperation[withStartWorkflowOperationUsed] = true;
+    const { type: workflowType, typeHints } = extractWorkflowTypeAndConfig(
+      workflowTypeOrFunc,
+      workflowOptions.typeHints
+    );
     assertRequiredWorkflowOptions(workflowOptions);
 
+    const resolvedWorkflowOptions = {
+      ...workflowOptions,
+      typeHints,
+    };
     const startUpdateWithStartInput: WorkflowStartUpdateWithStartInput = {
-      workflowType: extractWorkflowType(workflowTypeOrFunc),
-      workflowStartOptions: compileWorkflowOptions(ensureArgs(workflowOptions)),
+      workflowType,
+      workflowStartOptions: compileWorkflowOptions(ensureArgs(resolvedWorkflowOptions)),
       workflowStartHeaders: {},
       updateName: typeof updateDef === 'string' ? updateDef : updateDef.name,
       updateArgs: args ?? [],
@@ -781,10 +810,12 @@ export class WorkflowClient extends BaseClient {
   ): Promise<WorkflowResultType<T>> {
     const { workflowId } = options;
     const interceptors = this.getOrMakeInterceptors(workflowId);
-    await this._start(workflowTypeOrFunc, options, interceptors);
+    const workflowTypeOptions = extractWorkflowTypeAndConfig(workflowTypeOrFunc, options.typeHints);
+    await this._start(workflowTypeOptions, options, interceptors);
     return await this.result(workflowId, undefined, {
       ...options,
       followRuns: options.followRuns ?? true,
+      typeHint: workflowTypeOptions.typeHints?.outputType,
     });
   }
 
@@ -838,12 +869,14 @@ export class WorkflowClient extends BaseClient {
         }
         // Note that we can only return one value from our workflow function in JS.
         // Ignore any other payloads in result
-        const [result] = await decodeArrayFromPayloads(
+        const result = await decodeFromPayloadsAtIndex<WorkflowResultType<T>>(
           dataConverter,
+          0,
           ev.workflowExecutionCompletedEventAttributes.result?.payloads,
-          context
+          context,
+          opts?.typeHint
         );
-        return result as any;
+        return result;
       } else if (ev.workflowExecutionFailedEventAttributes) {
         if (followRuns && ev.workflowExecutionFailedEventAttributes.newExecutionRunId) {
           execution.runId = ev.workflowExecutionFailedEventAttributes.newExecutionRunId;
@@ -1254,7 +1287,7 @@ export class WorkflowClient extends BaseClient {
       workflowIdReusePolicy: encodeWorkflowIdReusePolicy(options.workflowIdReusePolicy),
       workflowIdConflictPolicy: encodeWorkflowIdConflictPolicy(options.workflowIdConflictPolicy),
       workflowType: { name: workflowType },
-      input: { payloads: await encodeToPayloadsWithContext(dataConverter, context, options.args) },
+      input: { payloads: await encodeToPayloadsWithContext(dataConverter, context, options.args, options.typeHints?.inputTypes) },
       signalName,
       signalInput: { payloads: await encodeToPayloadsWithContext(dataConverter, context, signalArgs) },
       taskQueue: {
@@ -1266,6 +1299,7 @@ export class WorkflowClient extends BaseClient {
       workflowTaskTimeout: options.workflowTaskTimeout,
       workflowStartDelay: options.startDelay,
       retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
+      // THOMAS - memo type hints not supported yet
       memo: options.memo ? { fields: await encodeMapToPayloads(dataConverter, options.memo, context) } : undefined,
       searchAttributes:
         options.searchAttributes || options.typedSearchAttributes
@@ -1354,7 +1388,9 @@ export class WorkflowClient extends BaseClient {
       workflowIdReusePolicy: encodeWorkflowIdReusePolicy(opts.workflowIdReusePolicy),
       workflowIdConflictPolicy: encodeWorkflowIdConflictPolicy(opts.workflowIdConflictPolicy),
       workflowType: { name: workflowType },
-      input: { payloads: await encodeToPayloadsWithContext(dataConverter, context, opts.args) },
+      input: {
+        payloads: await encodeToPayloadsWithContext(dataConverter, context, opts.args, opts.typeHints?.inputTypes),
+      },
       taskQueue: {
         kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_NORMAL,
         name: opts.taskQueue,
@@ -1364,6 +1400,8 @@ export class WorkflowClient extends BaseClient {
       workflowTaskTimeout: opts.workflowTaskTimeout,
       workflowStartDelay: opts.startDelay,
       retryPolicy: opts.retry ? compileRetryPolicy(opts.retry) : undefined,
+      // TYPE HINTS: skipping memo for now
+      // (can support by adjusting typeHints field in BaseWorkflowOptions and WorkflowDefinitionConfig)
       memo: opts.memo ? { fields: await encodeMapToPayloads(dataConverter, opts.memo, context) } : undefined,
       searchAttributes:
         opts.searchAttributes || opts.typedSearchAttributes
@@ -1624,6 +1662,7 @@ export class WorkflowClient extends BaseClient {
       runIdForResult: runId ?? options?.firstExecutionRunId,
       interceptors,
       followRuns: options?.followRuns ?? true,
+      typeHint: options?.typeHint,
     });
   }
 

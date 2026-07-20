@@ -1,4 +1,14 @@
+import { PayloadTypeHints } from './type-hints';
 import type { VersioningBehavior } from './worker-deployments';
+
+/** NEEDS REAL DOCSTRINGS */
+export interface WorkflowDefinitionConfig {
+  // Options that can be set per workflow execution
+  // THOMAS - i'd like to rename this to instanceOptions
+  workflowDefinitionOptions?: WorkflowDefinitionOptionsOrGetter;
+  // Options that are set once at workflow definition (static)
+  staticOptions?: WorkflowStaticOptions;
+}
 
 /**
  * Options that can be used when defining a workflow via {@link setWorkflowOptions}.
@@ -30,6 +40,17 @@ export interface WorkflowDefinitionOptions {
   failureExceptionTypes?: Array<new (...args: any[]) => Error>;
 }
 
+export interface WorkflowStaticOptions {
+  /**
+   * Type hints! For workflow input/output.
+   *
+   * Validated at compile-time (can we do this?)
+   *
+   * @experimental
+   */
+  typeHints?: PayloadTypeHints;
+}
+
 type AsyncFunction<Args extends any[], ReturnType> = (...args: Args) => Promise<ReturnType>;
 export type WorkflowDefinitionOptionsOrGetter = WorkflowDefinitionOptions | (() => WorkflowDefinitionOptions);
 
@@ -38,6 +59,27 @@ export type WorkflowDefinitionOptionsOrGetter = WorkflowDefinitionOptions | (() 
  * @hidden
  * A workflow function that has been defined with options from {@link WorkflowDefinitionOptions}.
  */
-export interface WorkflowFunctionWithOptions<Args extends any[], ReturnType> extends AsyncFunction<Args, ReturnType> {
-  workflowDefinitionOptions: WorkflowDefinitionOptionsOrGetter;
+export type WorkflowFunctionWithOptions<Args extends any[], ReturnType> = AsyncFunction<Args, ReturnType> &
+  Required<Pick<WorkflowDefinitionConfig, 'workflowDefinitionOptions'>>;
+
+/** @internal */
+export type WorkflowFunctionWithStaticOptions<Args extends any[], ReturnType> = AsyncFunction<Args, ReturnType> &
+  Required<Pick<WorkflowDefinitionConfig, 'staticOptions'>>;
+
+const workflowDefinitionOptionsProperty = 'workflowDefinitionOptions' satisfies keyof WorkflowFunctionWithOptions<
+  any[],
+  any
+>;
+const workflowStaticOptionsProperty = 'staticOptions' satisfies keyof WorkflowFunctionWithStaticOptions<any[], any>;
+
+/** @internal */
+export function isWorkflowFunctionWithOptions(obj: unknown): obj is WorkflowFunctionWithOptions<any[], any> {
+  return typeof obj === 'function' && Object.hasOwn(obj, workflowDefinitionOptionsProperty);
+}
+
+/** @internal */
+export function isWorkflowFunctionWithStaticOptions(
+  obj: unknown
+): obj is WorkflowFunctionWithStaticOptions<any[], any> {
+  return typeof obj === 'function' && Object.hasOwn(obj, workflowStaticOptionsProperty);
 }
