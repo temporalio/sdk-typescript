@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import test from 'ava';
 import { Runtime, Worker } from '@temporalio/worker';
-import { getRandomPort, TestWorkflowEnvironment } from './helpers';
+import { getRandomPort, TestWorkflowEnvironment, assertEventually } from './helpers';
 import * as activities from './activities';
 import * as workflows from './workflows';
 
@@ -36,30 +36,30 @@ test.serial('Can run autoscaling polling worker', async (t) => {
     });
     const workerPromise = worker.run();
 
-    // Give pollers a beat to start
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    // Pollers start asynchronously and their counts are exported to the Prometheus endpoint on a
+    // delay, so retry the assertions until they hold rather than sleeping for a fixed duration and
+    // hoping the pollers have stabilized.
+    await assertEventually(t, async (tt) => {
+      const metricsText = await (await fetch(`http://127.0.0.1:${port}/metrics`)).text();
+      const matches = metricsText.split('\n').filter((l) => l.includes('temporal_num_pollers'));
+      const activity_pollers = matches.filter((l) => l.includes('activity_task'));
+      const workflow_pollers = matches.filter((l) => l.includes('workflow_task') && l.includes(taskQueue));
 
-    const resp = await fetch(`http://127.0.0.1:${port}/metrics`);
-    const metricsText = await resp.text();
-    const metricsLines = metricsText.split('\n');
+      tt.is(activity_pollers.length, 1, 'Should have exactly one activity poller metric');
+      tt.true(activity_pollers[0].endsWith('2'), 'Activity poller count should be 2');
+      tt.is(workflow_pollers.length, 2, 'Should have exactly two workflow poller metrics (sticky and non-sticky)');
 
-    const matches = metricsLines.filter((l) => l.includes('temporal_num_pollers'));
-    const activity_pollers = matches.filter((l) => l.includes('activity_task'));
-    t.is(activity_pollers.length, 1, 'Should have exactly one activity poller metric');
-    t.true(activity_pollers[0].endsWith('2'), 'Activity poller count should be 2');
-    const workflow_pollers = matches.filter((l) => l.includes('workflow_task') && l.includes(taskQueue));
-    t.is(workflow_pollers.length, 2, 'Should have exactly two workflow poller metrics (sticky and non-sticky)');
-
-    // There's sticky & non-sticky pollers, and they may have a count of 1 or 2 depending on
-    // initialization timing.
-    t.true(
-      workflow_pollers[0].endsWith('2') || workflow_pollers[0].endsWith('1'),
-      'First workflow poller count should be 1 or 2'
-    );
-    t.true(
-      workflow_pollers[1].endsWith('2') || workflow_pollers[1].endsWith('1'),
-      'Second workflow poller count should be 1 or 2'
-    );
+      // There's sticky & non-sticky pollers, and they may have a count of 1 or 2 depending on
+      // initialization timing.
+      tt.true(
+        workflow_pollers[0].endsWith('2') || workflow_pollers[0].endsWith('1'),
+        'First workflow poller count should be 1 or 2'
+      );
+      tt.true(
+        workflow_pollers[1].endsWith('2') || workflow_pollers[1].endsWith('1'),
+        'Second workflow poller count should be 1 or 2'
+      );
+    });
 
     const workflowPromises = Array(20)
       .fill(0)

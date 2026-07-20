@@ -1,9 +1,4 @@
-import type { coresdk } from '@temporalio/proto';
-import {
-  walkWorkflowActivation,
-  walkWorkflowActivationCompletion,
-  type WalkEnv,
-} from '@temporalio/proto/lib/payload-visitor.generated';
+import type { WalkEnv } from '@temporalio/proto/lib/payload-visitor.generated';
 import { sequential, type ConcurrencyLimit } from '../concurrency/limit';
 import type { Payload } from '../interfaces';
 
@@ -135,28 +130,20 @@ async function runVisit<Ctx>(
 }
 
 /**
- * Applies the payload transforms to every {@link Payload} in a `WorkflowActivation`, mutating it in place.
+ * Applies the payload transforms to every {@link Payload} in `root`, mutating it in place. Pass the
+ * generated `walk*` function for the root's message type (all are re-exported below).
  *
  * @internal
  * @experimental
  */
-export async function visitWorkflowActivation<Ctx = void>(
-  root: coresdk.workflow_activation.IWorkflowActivation,
+export async function visit<Root, Ctx = void>(
+  root: Root,
+  walk: (root: Root, env: WalkEnv<Ctx>, context: Ctx) => Promise<unknown>[],
   options: VisitOptions<Ctx>
 ): Promise<void> {
-  return runVisit(options, (env, context) => walkWorkflowActivation(root, env, context));
+  return runVisit(options, (env, context) => walk(root, env, context));
 }
 
-/**
- * Applies the payload transforms to every {@link Payload} in a `WorkflowActivationCompletion`, mutating
- * it in place.
- *
- * @internal
- * @experimental
- */
-export async function visitWorkflowActivationCompletion<Ctx = void>(
-  root: coresdk.workflow_completion.IWorkflowActivationCompletion,
-  options: VisitOptions<Ctx>
-): Promise<void> {
-  return runVisit(options, (env, context) => walkWorkflowActivationCompletion(root, env, context));
-}
+// Re-export every generated walker so consumers pair any of them with `visit` without a deep import
+// into the generated file.
+export * from '@temporalio/proto/lib/payload-visitor.generated';
