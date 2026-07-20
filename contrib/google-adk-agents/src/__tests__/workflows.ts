@@ -18,7 +18,7 @@ import type { Duration } from '@temporalio/common';
 import { condition, defineSignal, defineUpdate, proxyActivities, setHandler } from '@temporalio/workflow';
 import { WorkflowStream } from '@temporalio/workflow-streams/workflow';
 
-import { TemporalModel, TemporalMCPToolset, activityAsTool } from '../workflow.js';
+import { TemporalModel, TemporalMCPToolset, activityAsTool } from '../workflow';
 
 /** Build a minimal, serializable LlmRequest for a single user turn. */
 function makeRequest(text: string): LlmRequest {

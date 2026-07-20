@@ -11,10 +11,10 @@
 import test from 'ava';
 import { ApplicationFailure } from '@temporalio/common';
 
-import { GoogleAdkPlugin } from '../index.js';
-import { activityAsTool } from '../workflow.js';
-import { setupTestEnv, uid, withWorker } from './helpers.js';
-import { activityToolCall } from './workflows.js';
+import { GoogleAdkPlugin } from '../index';
+import { activityAsTool } from '../workflow';
+import { setupTestEnv, uid, withWorker } from './helpers';
+import { activityToolCall } from './workflows';
 
 const getEnv = setupTestEnv(test);
 

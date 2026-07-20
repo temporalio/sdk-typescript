@@ -13,10 +13,10 @@
 
 import test from 'ava';
 
-import { GoogleAdkPlugin } from '../index.js';
-import { fakeModelProvider } from '../testing.js';
-import { countScheduledActivities, setupTestEnv, uid, withWorker } from './helpers.js';
-import { agentRunnerWorkflow } from './workflows.js';
+import { GoogleAdkPlugin } from '../index';
+import { fakeModelProvider } from '../testing';
+import { countScheduledActivities, setupTestEnv, uid, withWorker } from './helpers';
+import { agentRunnerWorkflow } from './workflows';
 
 const getEnv = setupTestEnv(test);
 

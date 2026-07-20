@@ -37,7 +37,7 @@ import type { ActivityOptions } from '@temporalio/common';
 import { ApplicationFailure } from '@temporalio/common';
 import { inWorkflowContext, proxyActivities } from '@temporalio/workflow';
 
-import { activityOptionsFrom } from './model.js';
+import { activityOptionsFrom } from './model';
 
 /**
  * A worker-side factory that produces a real MCP toolset (or connection

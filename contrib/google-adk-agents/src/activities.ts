@@ -26,8 +26,8 @@ import { ApplicationFailure } from '@temporalio/common';
 import { Context as ActivityContext } from '@temporalio/activity';
 import { WorkflowStreamClient } from '@temporalio/workflow-streams/client';
 
-import type { InvokeModelArgs, InvokeModelStreamingArgs, ModelActivities, WireLlmRequest } from './model.js';
-import type { MCPCallToolArgs, MCPToolsetFactory } from './mcp.js';
+import type { InvokeModelArgs, InvokeModelStreamingArgs, ModelActivities, WireLlmRequest } from './model';
+import type { MCPCallToolArgs, MCPToolsetFactory } from './mcp';
 
 const DEFAULT_STREAM_BATCH_INTERVAL = '100 milliseconds';
 

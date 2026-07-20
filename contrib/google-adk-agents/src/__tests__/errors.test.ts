@@ -13,7 +13,7 @@ import test from 'ava';
 import { ApplicationFailure } from '@temporalio/common';
 import { MockActivityEnvironment } from '@temporalio/testing';
 
-import { createMCPActivities, toApplicationFailure } from '../activities.js';
+import { createMCPActivities, toApplicationFailure } from '../activities';
 
 test('classifiesResponseStatus404AsNonRetryable', (t) => {
   const failure = toApplicationFailure({ response: { status: 404 } });
