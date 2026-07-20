@@ -88,6 +88,33 @@ test('a failing transform surfaces its error and aborts in-flight siblings', asy
   t.deepEqual(aborted.sort(), ['slow1', 'slow2']);
 });
 
+test('a transform still waiting on the concurrency limit is skipped once a sibling fails', async (t) => {
+  const started: string[] = [];
+  const activityResult = (data: string): coresdk.workflow_activation.IWorkflowActivationJob => ({
+    resolveActivity: { result: { completed: { result: payload(data) } } },
+  });
+  // Three payloads through a limit of 1: 'boom' runs first and fails, so 'a' and 'b' are still
+  // queued on the permit when the failure lands and must never invoke their transform.
+  const activation: coresdk.workflow_activation.IWorkflowActivation = {
+    jobs: [activityResult('boom'), activityResult('a'), activityResult('b')],
+  };
+
+  const error = await t.throwsAsync(
+    visitWorkflowActivation(activation, {
+      transformPayload: async (p) => {
+        const tag = read(p);
+        started.push(tag);
+        if (tag === 'boom') throw new Error('boom');
+        return p;
+      },
+      transformPayloads: async (ps) => ps,
+      limit: limit(1),
+    })
+  );
+  t.is(error?.message, 'boom');
+  t.deepEqual(started, ['boom'], 'only the failing transform ran; queued siblings were skipped');
+});
+
 const completionWith = (...results: string[]): coresdk.workflow_completion.IWorkflowActivationCompletion => ({
   successful: {
     commands: results.map((r) => ({ completeWorkflowExecution: { result: payload(r) } })),
