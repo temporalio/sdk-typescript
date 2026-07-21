@@ -94,6 +94,7 @@ import type { Workflow, WorkflowCreator } from './workflow/interface';
 import { ReusableVMWorkflowCreator } from './workflow/reusable-vm';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
 import { VMWorkflowCreator } from './workflow/vm';
+import { invokePatchActivationCallback } from './workflow/patch-activation-callback';
 import type { WorkflowBundleWithSourceMapAndFilename } from './workflow/workflow-worker-thread/input';
 import {
   CombinedWorkerRunError,
@@ -575,6 +576,11 @@ export class Worker {
     logger: Logger
   ): Promise<WorkflowCreator> {
     const registeredActivityNames = new Set(compiledOptions.activities.keys());
+    const patchActivationCallback =
+      compiledOptions.patchActivationCallback === undefined
+        ? undefined
+        : (info: WorkflowInfo, patchId: string) =>
+            invokePatchActivationCallback(compiledOptions.patchActivationCallback!, info, patchId);
     // This isn't required for vscode, only for Chrome Dev Tools which doesn't support debugging worker threads.
     // We also rely on this in debug-replayer where we inject a global variable to be read from workflow context.
     if (compiledOptions.debugMode) {
@@ -582,13 +588,15 @@ export class Worker {
         return await ReusableVMWorkflowCreator.create(
           workflowBundle,
           compiledOptions.isolateExecutionTimeoutMs,
-          registeredActivityNames
+          registeredActivityNames,
+          patchActivationCallback
         );
       }
       return await VMWorkflowCreator.create(
         workflowBundle,
         compiledOptions.isolateExecutionTimeoutMs,
-        registeredActivityNames
+        registeredActivityNames,
+        patchActivationCallback
       );
     } else {
       return await ThreadedVMWorkflowCreator.create({
@@ -598,6 +606,7 @@ export class Worker {
         reuseV8Context: compiledOptions.reuseV8Context ?? true,
         registeredActivityNames,
         logger,
+        patchActivationCallback: compiledOptions.patchActivationCallback,
       });
     }
   }
