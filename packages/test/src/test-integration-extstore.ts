@@ -1,9 +1,5 @@
 /**
- * Integration tests for the external storage (preview) feature.
- *
- * These run a real Worker + Client against a local test environment and exercise the
- * public `DataConverter.externalStorage` configuration end to end. New external-storage
- * integration tests should be added to this suite.
+ * Integration tests for the external storage feature.
  */
 import { ExternalStorage } from '@temporalio/common';
 import * as activities from './activities';
