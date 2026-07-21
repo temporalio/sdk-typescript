@@ -222,6 +222,12 @@ export interface Worker {
   type: 'worker';
 }
 
+export declare function newResourceBasedController(options: ResourceBasedTunerOptions): ResourceBasedController;
+
+export interface ResourceBasedController {
+  type: 'resource-based-controller';
+}
+
 export type MetadataValue =
   | {
       type: 'ascii';
@@ -299,6 +305,7 @@ export interface WorkerTunerOptions {
   activityTaskSlotSupplier: SlotSupplierOptions;
   localActivityTaskSlotSupplier: SlotSupplierOptions;
   nexusTaskSlotSupplier: SlotSupplierOptions;
+  resourceBasedTunerConfig: Option<ResourceBasedTunerConfig>;
 }
 
 export type SlotSupplierOptions =
@@ -316,10 +323,16 @@ interface ResourceBasedSlotSupplierOptions {
   minimumSlots: number;
   maximumSlots: number;
   rampThrottle: number;
-  tunerOptions: ResourceBasedTunerOptions;
 }
 
-interface ResourceBasedTunerOptions {
+export type ResourceBasedTunerConfig =
+  | ({ type: 'options' } & ResourceBasedTunerOptions)
+  | {
+      type: 'controller';
+      controller: ResourceBasedController;
+    };
+
+export interface ResourceBasedTunerOptions {
   targetMemoryUsage: number;
   targetCpuUsage: number;
 }
