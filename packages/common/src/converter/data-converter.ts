@@ -60,7 +60,6 @@ export interface DataConverter {
    * configured {@link StorageDriver}s and replaced on the wire by a small reference; they are transparently retrieved
    * again on the receiving side.
    *
-   * @internal
    * @experimental
    */
   externalStorage?: ExternalStorage;
@@ -80,7 +79,6 @@ export interface LoadedDataConverter {
    * configured. Consumed by the Worker and Client runtime to store/retrieve offloaded payloads. See
    * {@link DataConverter.externalStorage} for details.
    *
-   * @internal
    * @experimental
    */
   externalStorage?: ExternalStorage;
