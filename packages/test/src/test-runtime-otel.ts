@@ -139,7 +139,7 @@ test.serial('Exporting OTEL metrics from Core works', async (t) => {
           });
           const req = await Promise.race([
             capturedRequest,
-            new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 10000)),
+            new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 5000)),
           ]);
           t.truthy(req);
           t.is(req?.url, '/opentelemetry.proto.collector.metrics.v1.MetricsService/Export');
@@ -192,7 +192,7 @@ test.serial('Exporting OTEL metrics using OTLP/HTTP from Core works', async (t) 
           });
           const req = await Promise.race([
             capturedRequest,
-            new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 10000)),
+            new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 5000)),
           ]);
           t.truthy(req);
           t.is(req?.url, '/v1/metrics');

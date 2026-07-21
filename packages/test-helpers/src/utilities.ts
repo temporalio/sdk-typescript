@@ -22,7 +22,7 @@ export async function sleep(ms: number): Promise<void> {
 export async function assertEventually<Context = unknown>(
   t: ExecutionContext<Context>,
   assertion: (t: ExecutionContext<Context>) => void | Promise<void>,
-  timeoutMs = 10000,
+  timeoutMs = 3000,
   intervalMs = 100
 ): Promise<void> {
   const endTime = Date.now() + timeoutMs;
