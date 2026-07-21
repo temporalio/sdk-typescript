@@ -41,7 +41,7 @@ export interface WorkflowRunOperationToken extends OperationToken {
 /**
  * An OperationToken that identifies an UpdateWorkflow operation.
  *
- * Unlike {@link WorkflowRunOperationToken}, it carries the run and update IDs so the update can be
+ * It carries the run and update IDs so the update can be
  * addressed for cancellation.
  *
  * @internal
