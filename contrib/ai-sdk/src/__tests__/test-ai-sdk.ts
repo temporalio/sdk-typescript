@@ -548,10 +548,13 @@ test('callToolActivity awaits tool.execute before closing MCP client', async (t)
 
   const mockMcpClientFactory = async () => mockMcpClient as any;
 
-  // Create activities with the mock MCP client factory
-  const activities = createActivities(new TestProvider(helloWorkflowGenerator()), {
-    testServer: mockMcpClientFactory,
-  }) as Record<string, (args: unknown) => Promise<unknown>>;
+  // Create activities with the mock MCP client factory. mcpConnectionIdleTimeout: 0 opts out of
+  // connection reuse so this test's create-then-close-per-call assertion still holds.
+  const activities = createActivities(
+    new TestProvider(helloWorkflowGenerator()),
+    { testServer: mockMcpClientFactory },
+    { mcpConnectionIdleTimeout: 0 }
+  ) as Record<string, (args: unknown) => Promise<unknown>>;
 
   // Get the callTool activity
   const callToolActivity = activities['testServer-callTool']!;
@@ -573,6 +576,130 @@ test('callToolActivity awaits tool.execute before closing MCP client', async (t)
     ['execute-start', 'execute-end', 'close'],
     'close() should be called after execute() completes, not before'
   );
+});
+
+test('MCP client connection is reused across repeated tools()/callTool invocations within the idle window', async (t) => {
+  let factoryCalls = 0;
+  const closeCalls: string[] = [];
+
+  const mockMcpClientFactory = async () => {
+    factoryCalls++;
+    const clientId = `client-${factoryCalls}`;
+    return {
+      async tools() {
+        return {
+          testTool: {
+            description: 'A test tool',
+            inputSchema: { type: 'object' },
+            execute: async () => ({ result: clientId }),
+          },
+        };
+      },
+      async close() {
+        closeCalls.push(clientId);
+      },
+    } as any;
+  };
+
+  const activities = createActivities(
+    new TestProvider(helloWorkflowGenerator()),
+    { reuseServer: mockMcpClientFactory },
+    { mcpConnectionIdleTimeout: '1 minute' }
+  ) as Record<string, (args: unknown) => Promise<unknown>>;
+
+  const listToolsActivity = activities['reuseServer-listTools']!;
+  const callToolActivity = activities['reuseServer-callTool']!;
+
+  await listToolsActivity({});
+  const firstResult = await callToolActivity({ name: 'testTool', input: {}, options: {} });
+  const secondResult = await callToolActivity({ name: 'testTool', input: {}, options: {} });
+
+  t.is(factoryCalls, 1, 'mcpClientFactory should only be called once while the connection is reused');
+  t.deepEqual(firstResult, { result: 'client-1' });
+  t.deepEqual(secondResult, { result: 'client-1' });
+  t.deepEqual(closeCalls, [], 'the connection should not be closed while still within the idle window');
+});
+
+test('idle MCP client connection is closed and evicted after the idle timeout elapses', async (t) => {
+  let factoryCalls = 0;
+  const closeCalls: string[] = [];
+
+  const mockMcpClientFactory = async () => {
+    factoryCalls++;
+    const clientId = `client-${factoryCalls}`;
+    return {
+      async tools() {
+        return {
+          testTool: {
+            description: 'A test tool',
+            inputSchema: { type: 'object' },
+            execute: async () => ({ result: clientId }),
+          },
+        };
+      },
+      async close() {
+        closeCalls.push(clientId);
+      },
+    } as any;
+  };
+
+  const activities = createActivities(
+    new TestProvider(helloWorkflowGenerator()),
+    { idleEvictServer: mockMcpClientFactory },
+    { mcpConnectionIdleTimeout: 20 }
+  ) as Record<string, (args: unknown) => Promise<unknown>>;
+
+  const callToolActivity = activities['idleEvictServer-callTool']!;
+
+  await callToolActivity({ name: 'testTool', input: {}, options: {} });
+  t.is(factoryCalls, 1);
+  t.deepEqual(closeCalls, [], 'connection should still be open immediately after the call');
+
+  // Wait past the idle timeout for the eviction timer to fire.
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  t.deepEqual(closeCalls, ['client-1'], 'connection should be closed once the idle timeout elapses');
+
+  // A subsequent call should reconnect via a fresh factory call.
+  await callToolActivity({ name: 'testTool', input: {}, options: {} });
+  t.is(factoryCalls, 2, 'a new connection should be created after eviction');
+});
+
+test('mcpConnectionIdleTimeout: 0 opts out of connection reuse (create-then-close every call)', async (t) => {
+  let factoryCalls = 0;
+  const closeCalls: string[] = [];
+
+  const mockMcpClientFactory = async () => {
+    factoryCalls++;
+    const clientId = `client-${factoryCalls}`;
+    return {
+      async tools() {
+        return {
+          testTool: {
+            description: 'A test tool',
+            inputSchema: { type: 'object' },
+            execute: async () => ({ result: clientId }),
+          },
+        };
+      },
+      async close() {
+        closeCalls.push(clientId);
+      },
+    } as any;
+  };
+
+  const activities = createActivities(
+    new TestProvider(helloWorkflowGenerator()),
+    { optOutServer: mockMcpClientFactory },
+    { mcpConnectionIdleTimeout: 0 }
+  ) as Record<string, (args: unknown) => Promise<unknown>>;
+
+  const callToolActivity = activities['optOutServer-callTool']!;
+
+  await callToolActivity({ name: 'testTool', input: {}, options: {} });
+  await callToolActivity({ name: 'testTool', input: {}, options: {} });
+
+  t.is(factoryCalls, 2, 'a fresh client should be created for every call when reuse is disabled');
+  t.deepEqual(closeCalls, ['client-1', 'client-2'], 'each client should be closed immediately after its call');
 });
 
 // Create in-memory MCP server with test tool
