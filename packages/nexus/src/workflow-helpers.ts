@@ -12,7 +12,7 @@ import type {
   WorkflowStartOptions as ClientWorkflowStartOptions,
   WorkflowSignalWithStartOptions as ClientWorkflowSignalWithStartOptions,
 } from '@temporalio/client';
-import { WorkflowUpdateStage, type WorkflowUpdateHandle, type WorkflowUpdateOptions } from '@temporalio/client';
+import { WorkflowUpdateStage, type WorkflowUpdateOptions } from '@temporalio/client';
 import { type temporal } from '@temporalio/proto';
 import type {
   InternalWorkflowHandle,
@@ -502,9 +502,9 @@ const asyncOperationStartedByContext = new WeakMap<nexus.StartOperationContext, 
 
 /**
  * Reserves the single async-backing-operation slot for the given operation invocation, runs `fn`,
- * and releases the reservation if `fn` throws. A successful `fn` keeps the reservation; callers that
- * resolve synchronously (no async operation was actually started) must release it via
- * {@link releaseAsyncOperationReservation}.
+ * and releases the reservation only if `fn` throws. A successful `fn` keeps the reservation set for
+ * the rest of the handler invocation — including when a Workflow Update resolves synchronously — so
+ * the flag is predictably set after any successful backing-operation attempt (matching sdk-python).
  */
 async function withAsyncOperationStartReservation<T>(
   ctx: nexus.StartOperationContext,
@@ -524,11 +524,6 @@ async function withAsyncOperationStartReservation<T>(
     asyncOperationStartedByContext.set(ctx, false);
     throw err;
   }
-}
-
-/** Releases the async-backing-operation reservation for `ctx` (used when resolving synchronously). */
-function releaseAsyncOperationReservation(ctx: nexus.StartOperationContext): void {
-  asyncOperationStartedByContext.set(ctx, false);
 }
 
 /**
@@ -591,21 +586,11 @@ async function updateWorkflowOperation<Ret, Args extends any[]>(
       [InternalWorkflowUpdateOptionsSymbol]: internalOptions,
     };
 
-    // `WorkflowHandle.startUpdate` is overloaded to discriminate empty vs non-empty argument
-    // tuples, and a generic `Args extends any[]` satisfies neither overload. View the handle
-    // through a single, non-overloaded signature so the call type-checks against `startUpdateOptions`
-    // (in particular its `args`) without an `any` cast; `startUpdate` is still invoked on the handle,
-    // so `this` remains bound.
-    const wfHandle = client.workflow.getHandle(workflowId, runId) as unknown as {
-      startUpdate(
-        def: UpdateDefinition<Ret, Args> | string,
-        startUpdateOptions: WorkflowUpdateOptions & {
-          args?: Args;
-          waitForStage: typeof WorkflowUpdateStage.ACCEPTED;
-        } & InternalWorkflowUpdateOptions
-      ): Promise<WorkflowUpdateHandle<Ret>>;
-    };
-    const handle = await wfHandle.startUpdate(def, startUpdateOptions);
+    // `InternalWorkflowHandle` exposes a single, non-overloaded `startUpdate` (the public one is
+    // overloaded to discriminate empty vs non-empty argument tuples, which a generic
+    // `Args extends any[]` satisfies neither of) that also accepts the internal update options.
+    const wfHandle = client.workflow.getHandle(workflowId, runId) as InternalWorkflowHandle;
+    const handle = await wfHandle.startUpdate<Ret, Args>(def, startUpdateOptions);
 
     // The server resolves the Update against a concrete run (the requested run, or the latest run
     // when none was pinned) and returns its ID. Use that resolved run ID in the operation token so
@@ -628,10 +613,10 @@ async function updateWorkflowOperation<Ret, Args extends any[]>(
       // rejection is non-retryable), surface it as a failed Nexus operation.
       try {
         const result = (await handle.result()) as Ret;
-        releaseAsyncOperationReservation(ctx);
         return TemporalOperationResult.sync(result);
       } catch (err) {
-        releaseAsyncOperationReservation(ctx);
+        // Throwing releases the reservation via withAsyncOperationStartReservation; on a synchronous
+        // success the reservation is intentionally kept set for the rest of the handler invocation.
         throw new nexus.OperationError('failed', (err as Error).message, { cause: err as Error });
       }
     }
