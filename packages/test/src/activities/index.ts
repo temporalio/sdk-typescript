@@ -79,6 +79,14 @@ export async function cancellableFetch(url: string, signalWorkflowOnCheckpoint =
   return await cancellableFetchInner(url);
 }
 
+/**
+ * Returns a deterministic `Uint8Array` of the requested size. Used by external-storage
+ * tests to produce a payload large enough to be offloaded.
+ */
+export async function produceLargePayload(sizeBytes: number): Promise<Uint8Array> {
+  return new Uint8Array(sizeBytes);
+}
+
 export async function progressiveSleep(): Promise<void> {
   const cx = Context.current();
   // Use ms formatted string once to test this is supported

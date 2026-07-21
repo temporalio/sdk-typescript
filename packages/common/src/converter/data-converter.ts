@@ -52,6 +52,18 @@ export interface DataConverter {
    * you'd do `payloadCodecs: [compressionCodec, encryptionCodec]`.
    */
   payloadCodecs?: PayloadCodec[];
+
+  /**
+   * Configuration for offloading {@link Payload}s to external storage instead of sending them inline to Temporal Server.
+   *
+   * When set, {@link Payload}s whose size exceeds {@link ExternalStorage.payloadSizeThreshold} are written to one of the
+   * configured {@link StorageDriver}s and replaced on the wire by a small reference; they are transparently retrieved
+   * again on the receiving side.
+   *
+   * @internal
+   * @experimental
+   */
+  externalStorage?: ExternalStorage;
 }
 
 /**
@@ -63,6 +75,11 @@ export interface LoadedDataConverter {
   payloadCodecs: PayloadCodec[];
 
   /**
+   * Configuration for offloading {@link Payload}s to external storage, carried through unchanged from
+   * {@link DataConverter.externalStorage} by {@link loadDataConverter}. `undefined` when external storage is not
+   * configured. Consumed by the Worker and Client runtime to store/retrieve offloaded payloads. See
+   * {@link DataConverter.externalStorage} for details.
+   *
    * @internal
    * @experimental
    */
