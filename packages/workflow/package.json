@@ -36,6 +36,7 @@
   },
   "devDependencies": {
     "ava": "^5.3.1",
+    "long": "^5.2.3",
     "source-map": "^0.7.4"
   },
   "publishConfig": {

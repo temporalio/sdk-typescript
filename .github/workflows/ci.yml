@@ -206,7 +206,8 @@ jobs:
             --dynamic-config-value activity.startDelayEnabled=true \
             --dynamic-config-value 'activity.longPollTimeout="5000ms"' \
             --dynamic-config-value history.enableChasm=true \
-            --dynamic-config-value history.enableTransitionHistory=true &
+            --dynamic-config-value history.enableTransitionHistory=true \
+            --dynamic-config-value history.enableSignalWithStartFromWorkflow=true &
 
       - name: Run Tests (Node)
         if: matrix.node != 'bun'

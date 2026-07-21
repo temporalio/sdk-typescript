@@ -1,9 +1,14 @@
 import test from 'ava';
 import type { Payload, PayloadCodec } from '@temporalio/common';
-import { ApplicationFailure, defaultFailureConverter, defaultPayloadConverter } from '@temporalio/common';
-import { coresdk } from '@temporalio/proto';
+import { ApplicationFailure, defaultFailureConverter, defaultPayloadConverter, u8 } from '@temporalio/common';
+import { coresdk, temporal } from '@temporalio/proto';
 import { WorkflowCodecRunner } from '@temporalio/worker/lib/workflow-codec-runner';
 import { FreePayloadCodec, makeContextTrace } from './payload-converters/serialization-context-converter';
+
+const SYSTEM_NEXUS_SERVICE = 'temporal.api.workflowservice.v1.WorkflowService';
+const SIGNAL_WITH_START_OPERATION = 'SignalWithStartWorkflowExecution';
+const SIGNAL_WITH_START_REQUEST_TYPE = 'temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionRequest';
+const SIGNAL_WITH_START_RESPONSE_TYPE = 'temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionResponse';
 
 function payload(label: string): Payload {
   return defaultPayloadConverter.toPayload(makeContextTrace(label));
@@ -25,6 +30,24 @@ function decodeCompletion(
 ): coresdk.workflow_completion.WorkflowActivationCompletion {
   const bytes = coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited(completion).finish();
   return coresdk.workflow_completion.WorkflowActivationCompletion.decodeDelimited(bytes);
+}
+
+function systemNexusPayload(
+  messageTypeName: string,
+  messageType: {
+    create(properties?: any): any;
+    encode(message: any): { finish(): Uint8Array };
+  },
+  properties: any
+): Payload {
+  return {
+    metadata: { encoding: u8('binary/protobuf'), messageType: u8(messageTypeName) },
+    data: messageType.encode(messageType.create(properties)).finish(),
+  };
+}
+
+function utf8(bytes: Uint8Array | null | undefined): string | undefined {
+  return bytes == null ? undefined : new TextDecoder().decode(bytes);
 }
 
 test('decodeActivation binds workflow codec context for initializeWorkflow payloads', async (t) => {
@@ -309,6 +332,90 @@ test('nexus operation paths use workflow context', async (t) => {
     ),
     ['codec.decode.bound|nexus-failure|workflow.default.wf-1']
   );
+});
+
+test('system Nexus operation envelopes visit nested payloads with workflow context', async (t) => {
+  const runner = new WorkflowCodecRunner([new FreePayloadCodec()], {
+    type: 'workflow',
+    namespace: 'default',
+    workflowId: 'wf-1',
+  });
+
+  const input = defaultPayloadConverter.toPayload({
+    input: { payloads: [payload('workflow-arg')] },
+    signalInput: { payloads: [payload('signal-arg')] },
+    memo: { fields: { memo: payload('memo') } },
+    searchAttributes: { indexedFields: { search: payload('search-attribute') } },
+    header: { fields: { header: payload('header') } },
+    userMetadata: {
+      summary: payload('summary'),
+      details: payload('details'),
+    },
+  })!;
+
+  const encoded = decodeCompletion(
+    await runner.encodeCompletion({
+      successful: {
+        commands: [
+          {
+            scheduleNexusOperation: {
+              seq: 8,
+              service: SYSTEM_NEXUS_SERVICE,
+              operation: SIGNAL_WITH_START_OPERATION,
+              input,
+            },
+          },
+        ],
+      },
+    })
+  );
+
+  const encodedInput = encoded.successful?.commands?.[0]?.scheduleNexusOperation?.input as Payload;
+  t.is(utf8(encodedInput.metadata?.encoding), 'binary/protobuf');
+  t.is(utf8(encodedInput.metadata?.messageType), SIGNAL_WITH_START_REQUEST_TYPE);
+  const request = temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionRequest.decode(encodedInput.data!);
+
+  t.deepEqual(traceFromPayload(request.input?.payloads?.[0] as Payload), [
+    'codec.encode.bound|workflow-arg|workflow.default.wf-1',
+  ]);
+  t.deepEqual(traceFromPayload(request.signalInput?.payloads?.[0] as Payload), [
+    'codec.encode.bound|signal-arg|workflow.default.wf-1',
+  ]);
+  t.deepEqual(traceFromPayload(request.memo?.fields?.memo as Payload), [
+    'codec.encode.bound|memo|workflow.default.wf-1',
+  ]);
+  t.deepEqual(traceFromPayload(request.header?.fields?.header as Payload), [
+    'codec.encode.bound|header|workflow.default.wf-1',
+  ]);
+  t.deepEqual(traceFromPayload(request.userMetadata?.summary as Payload), [
+    'codec.encode.bound|summary|workflow.default.wf-1',
+  ]);
+  t.deepEqual(traceFromPayload(request.userMetadata?.details as Payload), [
+    'codec.encode.bound|details|workflow.default.wf-1',
+  ]);
+  t.deepEqual(traceFromPayload(request.searchAttributes?.indexedFields?.search as Payload), []);
+
+  const decoded = await runner.decodeActivation({
+    runId: 'run-1',
+    jobs: [
+      {
+        resolveNexusOperation: {
+          seq: 8,
+          result: {
+            completed: systemNexusPayload(
+              SIGNAL_WITH_START_RESPONSE_TYPE,
+              temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionResponse,
+              { runId: 'started-run-id' }
+            ),
+          },
+        },
+      },
+    ],
+  });
+
+  const decodedOutput = decoded.jobs?.[0]?.resolveNexusOperation?.result?.completed as Payload;
+  t.is(utf8(decodedOutput.metadata?.encoding), 'json/plain');
+  t.deepEqual(defaultPayloadConverter.fromPayload(decodedOutput), { runId: 'started-run-id' });
 });
 
 test('runner remains compatible with codecs that ignore context', async (t) => {

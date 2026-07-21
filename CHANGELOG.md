@@ -19,6 +19,10 @@ to docs, or any other relevant information.
 
 ## [Unreleased]
 
+### Added
+
+- Experimental `signalWithStartWorkflow` API for Workflows.
+
 ### Breaking Changes
 
 - By default, workers now proactively validate outbound payload/memo sizes before sending: a field
