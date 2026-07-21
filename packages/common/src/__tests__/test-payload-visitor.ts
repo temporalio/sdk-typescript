@@ -100,7 +100,7 @@ test('a transform still waiting on the concurrency limit is skipped once a sibli
   };
 
   const error = await t.throwsAsync(
-    visitWorkflowActivation(activation, {
+    visit(activation, walkWorkflowActivation, {
       transformPayload: async (p) => {
         const tag = read(p);
         started.push(tag);
