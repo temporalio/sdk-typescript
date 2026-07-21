@@ -1,7 +1,8 @@
 import type { ProviderV4 } from '@ai-sdk/provider';
 import { SimplePlugin } from '@temporalio/plugin';
 import type { BundleOptions } from '@temporalio/worker';
-import { createActivities } from './activities';
+import type { Duration } from '@temporalio/common/lib/time';
+import { createActivities, _evictMcpConnectionsForServer } from './activities';
 import type { McpClientFactories } from './mcp';
 
 /**
@@ -17,6 +18,16 @@ export interface AiSdkPluginOptions {
    * Any TemporalMCPClient used in a workflow should have its associated servername listed in this object.
    */
   mcpClientFactories?: McpClientFactories;
+
+  /**
+   * How long an idle worker-process MCP connection is kept open (and reused across `listTools`/`callTool`
+   * activity invocations) before it's closed. Accepts a millisecond number or duration string (e.g.
+   * `'5 minutes'`), like `startToCloseTimeout`. Defaults to 5 minutes.
+   *
+   * Pass `0` to disable connection reuse and restore the original create-then-close-per-call behavior,
+   * for MCP servers/transports that don't tolerate a reused or concurrent session.
+   */
+  mcpConnectionIdleTimeout?: Duration;
 }
 
 /**
@@ -30,9 +41,22 @@ export interface AiSdkPluginOptions {
  */
 export class AiSdkPlugin extends SimplePlugin {
   constructor(options: AiSdkPluginOptions) {
+    const mcpServerNames = Object.keys(options.mcpClientFactories ?? {});
     super({
       name: 'AiSDKPlugin',
-      activities: createActivities(options.modelProvider, options.mcpClientFactories),
+      activities: createActivities(options.modelProvider, options.mcpClientFactories, {
+        mcpConnectionIdleTimeout: options.mcpConnectionIdleTimeout,
+      }),
+      runContext: async (next) => {
+        try {
+          await next();
+        } finally {
+          // Close any worker-process MCP connections opened lazily by the listTools/callTool activities.
+          for (const name of mcpServerNames) {
+            await _evictMcpConnectionsForServer(name);
+          }
+        }
+      },
     });
   }
 
