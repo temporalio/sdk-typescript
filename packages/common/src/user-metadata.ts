@@ -7,9 +7,9 @@ import type { SerializationContext } from './converter/serialization-context';
  * User metadata that can be attached to workflow commands.
  */
 export interface UserMetadata {
-  /** @experimental A fixed, single line summary of the command's purpose */
+  /** A fixed, single line summary of the command's purpose */
   staticSummary?: string;
-  /** @experimental Fixed additional details about the command for longer-text description, can span multiple lines */
+  /** Fixed additional details about the command for longer-text description, can span multiple lines */
   staticDetails?: string;
 }
 
