@@ -1,6 +1,8 @@
 import type { temporal } from '@temporalio/proto';
-import type { WorkflowOptions } from './workflow-options';
-import type { WorkflowHandle } from './workflow-client';
+import type { UpdateDefinition } from '@temporalio/common';
+import type { WorkflowOptions, WorkflowUpdateOptions } from './workflow-options';
+import type { WorkflowHandle, WorkflowUpdateHandle } from './workflow-client';
+import type { WorkflowUpdateStage } from './workflow-update-stage';
 import type { WorkflowSignalInput } from './interceptors';
 
 /**
@@ -143,4 +145,20 @@ export type InternalWorkflowSignalInput = WorkflowSignalInput & InternalWorkflow
  * @internal
  * @hidden
  */
-export type InternalWorkflowHandle = WorkflowHandle & InternalWorkflowSignalOptions;
+export type InternalWorkflowHandle = WorkflowHandle &
+  InternalWorkflowSignalOptions & {
+    /**
+     * A single, non-overloaded view of {@link WorkflowHandle.startUpdate} used by the Temporal Nexus
+     * helpers to start an Update-backed operation. The public `startUpdate` is overloaded to
+     * discriminate empty vs non-empty argument tuples, which a generic `Args extends any[]` satisfies
+     * neither of; this added call signature accepts the generic form and carries the
+     * {@link InternalWorkflowUpdateOptionsSymbol} payload (request ID, completion callbacks, links).
+     */
+    startUpdate<Ret, Args extends any[]>(
+      def: UpdateDefinition<Ret, Args> | string,
+      options: WorkflowUpdateOptions & {
+        args?: Args;
+        waitForStage: typeof WorkflowUpdateStage.ACCEPTED;
+      } & InternalWorkflowUpdateOptions
+    ): Promise<WorkflowUpdateHandle<Ret>>;
+  };
