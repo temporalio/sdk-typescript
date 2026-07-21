@@ -230,8 +230,6 @@ export interface TimerInput {
 export interface TimerOptions {
   /**
    * A fixed, single line summary of the command's purpose
-   *
-   * @experimental User metadata is a new API and susceptible to change.
    */
   readonly summary?: string;
 }
@@ -323,8 +321,6 @@ export interface StartNexusOperationOptions {
   /**
    * A fixed, single-line summary for this Nexus Operation that may appear in the UI/CLI.
    * This can be in single-line Temporal markdown format.
-   *
-   * @experimental User metadata is a new API and susceptible to change.
    */
   readonly summary?: string;
 }
