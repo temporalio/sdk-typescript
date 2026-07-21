@@ -18,6 +18,7 @@ import {
 export {
   sleep,
   waitUntil,
+  assertEventually,
   u8,
   approximatelyEqual,
   RUN_INTEGRATION_TESTS,

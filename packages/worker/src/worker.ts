@@ -31,7 +31,18 @@ import {
   decodeFromPayloadsAtIndex,
   encodeErrorToFailure,
   encodeToPayload,
+  extstoreRetrieveOptions,
+  extstoreStoreOptions,
+  visit,
+  walkActivityHeartbeat,
+  walkActivityTask,
+  walkActivityTaskCompletion,
+  walkNexusTask,
+  walkNexusTaskCompletion,
+  walkWorkflowActivation,
+  walkWorkflowActivationCompletion,
 } from '@temporalio/common/lib/internal-non-workflow';
+import type { StorageDriverTargetInfo } from '@temporalio/common/lib/converter/extstore';
 import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 import type { Duration } from '@temporalio/common/lib/time';
 import {
@@ -83,6 +94,7 @@ import type { Workflow, WorkflowCreator } from './workflow/interface';
 import { ReusableVMWorkflowCreator } from './workflow/reusable-vm';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
 import { VMWorkflowCreator } from './workflow/vm';
+import { invokePatchActivationCallback } from './workflow/patch-activation-callback';
 import type { WorkflowBundleWithSourceMapAndFilename } from './workflow/workflow-worker-thread/input';
 import {
   CombinedWorkerRunError,
@@ -564,6 +576,11 @@ export class Worker {
     logger: Logger
   ): Promise<WorkflowCreator> {
     const registeredActivityNames = new Set(compiledOptions.activities.keys());
+    const patchActivationCallback =
+      compiledOptions.patchActivationCallback === undefined
+        ? undefined
+        : (info: WorkflowInfo, patchId: string) =>
+            invokePatchActivationCallback(compiledOptions.patchActivationCallback!, info, patchId);
     // This isn't required for vscode, only for Chrome Dev Tools which doesn't support debugging worker threads.
     // We also rely on this in debug-replayer where we inject a global variable to be read from workflow context.
     if (compiledOptions.debugMode) {
@@ -571,13 +588,15 @@ export class Worker {
         return await ReusableVMWorkflowCreator.create(
           workflowBundle,
           compiledOptions.isolateExecutionTimeoutMs,
-          registeredActivityNames
+          registeredActivityNames,
+          patchActivationCallback
         );
       }
       return await VMWorkflowCreator.create(
         workflowBundle,
         compiledOptions.isolateExecutionTimeoutMs,
-        registeredActivityNames
+        registeredActivityNames,
+        patchActivationCallback
       );
     } else {
       return await ThreadedVMWorkflowCreator.create({
@@ -587,6 +606,7 @@ export class Worker {
         reuseV8Context: compiledOptions.reuseV8Context ?? true,
         registeredActivityNames,
         logger,
+        patchActivationCallback: compiledOptions.patchActivationCallback,
       });
     }
   }
@@ -1238,7 +1258,13 @@ export class Worker {
             return { taskToken, result };
           }),
           filter(<T>(result: T): result is Exclude<T, undefined> => result !== undefined),
-          map((rest) => coresdk.ActivityTaskCompletion.encodeDelimited(rest).finish()),
+          mergeMap(async (rest) => {
+            const { externalStorage } = this.options.loadedDataConverter;
+            if (externalStorage) {
+              await visit(rest, walkActivityTaskCompletion, extstoreStoreOptions(externalStorage));
+            }
+            return coresdk.ActivityTaskCompletion.encodeDelimited(rest).finish();
+          }),
           tap({
             next: () => {
               group$.close();
@@ -1294,7 +1320,13 @@ export class Worker {
         }
       ),
       filter(<T>(result: T): result is Exclude<T, undefined> => result !== undefined),
-      map((result) => coresdk.nexus.NexusTaskCompletion.encodeDelimited(result).finish())
+      mergeMap(async (result) => {
+        const { externalStorage } = this.options.loadedDataConverter;
+        if (externalStorage) {
+          await visit(result, walkNexusTaskCompletion, extstoreStoreOptions(externalStorage));
+        }
+        return coresdk.nexus.NexusTaskCompletion.encodeDelimited(result).finish();
+      })
     );
   }
 
@@ -1441,6 +1473,10 @@ export class Worker {
           workflowId,
         });
       }
+      const { externalStorage } = this.options.loadedDataConverter;
+      if (externalStorage) {
+        await visit(activation, walkWorkflowActivation, extstoreRetrieveOptions(externalStorage));
+      }
       const decodedActivation = await workflowCodecRunner.decodeActivation(activation);
 
       if (workflow === undefined) {
@@ -1456,7 +1492,25 @@ export class Worker {
       let isFatalError = false;
       try {
         const unencodedCompletion = await workflow.workflow.activate(decodedActivation);
-        const completion = await workflowCodecRunner.encodeCompletion(unencodedCompletion);
+        const encodedCompletion = await workflowCodecRunner.encodeCompletion(unencodedCompletion);
+        if (externalStorage) {
+          const namespace = workflowCodecRunner.workflowContext.namespace;
+          await visit(
+            encodedCompletion,
+            walkWorkflowActivationCompletion,
+            extstoreStoreOptions(externalStorage, {
+              initialTarget: {
+                kind: 'workflow',
+                namespace,
+                id: workflowCodecRunner.workflowContext.workflowId,
+                runId: activation.runId,
+              },
+              deriveContext: workflowCommandStoreTarget(namespace),
+            })
+          );
+        }
+        const completion =
+          coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited(encodedCompletion).finish();
 
         return { state: workflow, output: { close, completion } };
       } catch (err) {
@@ -1783,10 +1837,12 @@ export class Worker {
                 onError();
                 return;
               }
-              const arr = coresdk.ActivityHeartbeat.encodeDelimited({
-                taskToken,
-                details: [payload],
-              }).finish();
+              const heartbeat: coresdk.IActivityHeartbeat = { taskToken, details: [payload] };
+              const { externalStorage } = this.options.loadedDataConverter;
+              if (externalStorage) {
+                await visit(heartbeat, walkActivityHeartbeat, extstoreStoreOptions(externalStorage));
+              }
+              const arr = coresdk.ActivityHeartbeat.encodeDelimited(heartbeat).finish();
               this.nativeWorker.recordActivityHeartbeat(byteArrayToBuffer(arr));
             } finally {
               this.activityHeartbeatSubject.next({
@@ -1875,6 +1931,10 @@ export class Worker {
         this.hasOutstandingActivityPoll = false;
       }
       const task = coresdk.activity_task.ActivityTask.decode(new Uint8Array(buffer));
+      const { externalStorage } = this.options.loadedDataConverter;
+      if (externalStorage) {
+        await visit(task, walkActivityTask, extstoreRetrieveOptions(externalStorage));
+      }
       const { taskToken, ...rest } = task;
       const base64TaskToken = formatTaskToken(taskToken);
       this.logger.trace('Got activity task', {
@@ -1924,6 +1984,10 @@ export class Worker {
         this.hasOutstandingNexusPoll = false;
       }
       const task = coresdk.nexus.NexusTask.decode(new Uint8Array(buffer));
+      const { externalStorage } = this.options.loadedDataConverter;
+      if (externalStorage) {
+        await visit(task, walkNexusTask, extstoreRetrieveOptions(externalStorage));
+      }
       const taskToken = task.task?.taskToken || task.cancelTask?.taskToken;
       if (taskToken == null) {
         throw new TypeError('Got a Nexus task without a task token');
@@ -2264,6 +2328,35 @@ async function extractActivityInfo({
     namespace: start.workflowNamespace || activityNamespace,
     activityRunId: !inWorkflow ? start.runId : undefined,
     inWorkflow,
+  };
+}
+
+function workflowCommandStoreTarget(
+  namespace: string
+): (
+  message: object,
+  typeName: string,
+  context: StorageDriverTargetInfo | undefined
+) => StorageDriverTargetInfo | undefined {
+  return (message, typeName, context) => {
+    switch (typeName) {
+      case 'coresdk.workflow_commands.StartChildWorkflowExecution': {
+        const command = message as coresdk.workflow_commands.IStartChildWorkflowExecution;
+        return { kind: 'workflow', namespace: command.namespace || namespace, id: command.workflowId ?? undefined };
+      }
+      case 'coresdk.workflow_commands.SignalExternalWorkflowExecution':
+      case 'coresdk.workflow_commands.RequestCancelExternalWorkflowExecution': {
+        const command = message as coresdk.workflow_commands.ISignalExternalWorkflowExecution & {
+          childWorkflowId?: string | null;
+        };
+        const workflowId = command.workflowExecution?.workflowId ?? command.childWorkflowId ?? undefined;
+        return { kind: 'workflow', namespace: command.workflowExecution?.namespace || namespace, id: workflowId };
+      }
+      case 'coresdk.workflow_commands.ContinueAsNewWorkflowExecution':
+        return context ? { ...context, runId: undefined } : context;
+      default:
+        return context;
+    }
   };
 }
 

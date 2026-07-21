@@ -25,7 +25,10 @@ function failureWithDetail(label: string) {
   );
 }
 
-function decodeCompletion(bytes: Uint8Array): coresdk.workflow_completion.WorkflowActivationCompletion {
+function decodeCompletion(
+  completion: coresdk.workflow_completion.IWorkflowActivationCompletion
+): coresdk.workflow_completion.WorkflowActivationCompletion {
+  const bytes = coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited(completion).finish();
   return coresdk.workflow_completion.WorkflowActivationCompletion.decodeDelimited(bytes);
 }
 

@@ -11,8 +11,10 @@ import * as prettier from 'prettier';
 const PAYLOAD = 'temporal.api.common.v1.Payload';
 const ANY = 'google.protobuf.Any';
 
-// Namespaces scanned for root messages.
-const ROOT_NAMESPACES = ['coresdk'] as const;
+// Namespaces scanned for root messages. Every payload-bearing message declared under these gets an
+// exported entry point, so any message can be walked and new messages are covered automatically on
+// regen.
+const ROOT_NAMESPACES = ['coresdk', 'temporal.api.workflowservice.v1'] as const;
 
 const jsonModule = require(resolve(__dirname, '../protos/json-module.js'));
 const root = protobuf.Root.fromJSON(jsonModule);
@@ -72,8 +74,8 @@ const reachableTypes = (): Map<string, protobuf.Type> => {
 
 const types = reachableTypes();
 
-// Reverse reference index: `referrers.get(X)` is every type that has a field of type X. A type absent
-// from this map is embedded by nothing — that is the "is a root" test below.
+// Reverse reference index: `referrers.get(X)` is every type that has a field of type X. Used to walk
+// back from Payload and mark every type that can transitively contain one.
 const referrers = new Map<string, string[]>();
 for (const type of types.values()) {
   for (const field of type.fieldsArray) {
@@ -100,11 +102,18 @@ while (toVisit.length > 0) {
 // A message contains a Payload if it is one, or if it was marked above.
 const hasPayload = (type: protobuf.Type): boolean => fqn(type) === PAYLOAD || reachesPayload.has(fqn(type));
 
-// Roots: candidate messages that carry a payload and are embedded by no other message.
-const roots = candidates.filter((type) => hasPayload(type) && !referrers.has(fqn(type))).sort(byFqn);
+// Roots: every payload-bearing message declared in the scanned namespaces.
+const roots = candidates.filter((type) => hasPayload(type)).sort(byFqn);
 
-// Public entry-point name for a root, derived from its message name (e.g. `walkWorkflowActivation`).
-const entryName = (type: protobuf.Type): string => `walk${type.name}`;
+const simpleNameCounts = new Map<string, number>();
+for (const type of roots) simpleNameCounts.set(type.name, (simpleNameCounts.get(type.name) ?? 0) + 1);
+const entryName = (type: protobuf.Type): string =>
+  (simpleNameCounts.get(type.name) ?? 0) > 1
+    ? `walk${fqn(type)
+        .split(/[._]/)
+        .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+        .join('')}`
+    : `walk${type.name}`;
 
 // Guard: two roots that share a simple name would collide as exported entry points.
 const seenEntries = new Set<string>();

@@ -29,6 +29,10 @@ use crate::{
 };
 
 pub fn init(cx: &mut ModuleContext) -> NeonResult<()> {
+    cx.export_function(
+        "newResourceBasedController",
+        config::resource_based_controller_new,
+    )?;
     cx.export_function("newWorker", worker_new)?;
     cx.export_function("workerValidate", worker_validate)?;
     cx.export_function("workerReplaceClient", worker_replace_client)?;
@@ -503,18 +507,23 @@ mod config {
     };
     use temporalio_sdk_core::{
         ActivitySlotKind, LocalActivitySlotKind, NexusSlotKind,
-        PollerBehavior as CorePollerBehavior, ResourceBasedSlotsOptions, ResourceBasedTunerConfig,
-        ResourceSlotOptions, SlotKind, SlotSupplierOptions as CoreSlotSupplierOptions, TunerHolder,
-        TunerHolderOptions, WorkerConfig, WorkerVersioningStrategy,
-        WorkflowErrorType as CoreWorkflowErrorType, WorkflowSlotKind,
+        PollerBehavior as CorePollerBehavior, ResourceBasedSlotsOptions,
+        ResourceBasedTunerConfig as CoreResourceBasedTunerConfig,
+        ResourceController as CoreResourceController, ResourceSlotOptions, SlotKind,
+        SlotSupplierOptions as CoreSlotSupplierOptions, TunerHolder, TunerHolderOptions,
+        WorkerConfig, WorkerVersioningStrategy, WorkflowErrorType as CoreWorkflowErrorType,
+        WorkflowSlotKind,
     };
 
     use super::custom_slot_supplier::CustomSlotSupplierOptions;
-    use crate::helpers::{BridgeError, TryIntoJs};
-    use bridge_macros::TryFromJs;
+    use crate::helpers::{
+        BridgeError, BridgeResult, MutableFinalize, OpaqueInboundHandle, OpaqueOutboundHandle,
+        TryIntoJs,
+    };
+    use bridge_macros::{TryFromJs, js_function};
     use neon::context::Context;
     use neon::object::Object;
-    use neon::prelude::JsResult;
+    use neon::prelude::{FunctionContext, JsResult};
     use neon::types::JsObject;
 
     #[derive(TryFromJs)]
@@ -753,26 +762,23 @@ mod config {
         activity_task_slot_supplier: SlotSupplier<ActivitySlotKind>,
         local_activity_task_slot_supplier: SlotSupplier<LocalActivitySlotKind>,
         nexus_task_slot_supplier: SlotSupplier<NexusSlotKind>,
+        resource_based_tuner_config: Option<ResourceBasedTunerConfig>,
     }
 
     impl WorkerTuner {
         fn into_core_config(self) -> Result<Arc<TunerHolder>, BridgeError> {
-            let mut rbo = None;
+            let resource_based_config = self
+                .resource_based_tuner_config
+                .map(ResourceBasedTunerConfig::into_core)
+                .transpose()?;
             TunerHolderOptions::builder()
-                .workflow_slot_options(
-                    self.workflow_task_slot_supplier
-                        .into_slot_supplier(&mut rbo),
-                )
-                .activity_slot_options(
-                    self.activity_task_slot_supplier
-                        .into_slot_supplier(&mut rbo),
-                )
+                .workflow_slot_options(self.workflow_task_slot_supplier.into_slot_supplier())
+                .activity_slot_options(self.activity_task_slot_supplier.into_slot_supplier())
                 .local_activity_slot_options(
-                    self.local_activity_task_slot_supplier
-                        .into_slot_supplier(&mut rbo),
+                    self.local_activity_task_slot_supplier.into_slot_supplier(),
                 )
-                .nexus_slot_options(self.nexus_task_slot_supplier.into_slot_supplier(&mut rbo))
-                .maybe_resource_based_config(rbo.map(ResourceBasedTunerConfig::Options))
+                .nexus_slot_options(self.nexus_task_slot_supplier.into_slot_supplier())
+                .maybe_resource_based_config(resource_based_config)
                 .build_tuner_holder()
                 .map(Arc::new)
                 .map_err(|err| BridgeError::TypeError {
@@ -799,7 +805,6 @@ mod config {
         minimum_slots: usize,
         maximum_slots: usize,
         ramp_throttle: Duration,
-        tuner_options: ResourceBasedTunerOptions,
     }
 
     #[derive(TryFromJs)]
@@ -808,22 +813,52 @@ mod config {
         target_cpu_usage: f64,
     }
 
+    impl From<ResourceBasedTunerOptions> for ResourceBasedSlotsOptions {
+        fn from(options: ResourceBasedTunerOptions) -> Self {
+            Self::builder()
+                .target_cpu_usage(options.target_cpu_usage)
+                .target_mem_usage(options.target_memory_usage)
+                .build()
+        }
+    }
+
+    impl MutableFinalize for Arc<CoreResourceController> {}
+
+    #[js_function]
+    pub(super) fn resource_based_controller_new(
+        options: ResourceBasedTunerOptions,
+    ) -> BridgeResult<OpaqueOutboundHandle<Arc<CoreResourceController>>> {
+        Ok(OpaqueOutboundHandle::new(Arc::new(
+            CoreResourceController::new(options.into()),
+        )))
+    }
+
+    #[derive(TryFromJs)]
+    pub(super) enum ResourceBasedTunerConfig {
+        Options(ResourceBasedTunerOptions),
+        Controller {
+            controller: OpaqueInboundHandle<Arc<CoreResourceController>>,
+        },
+    }
+
+    impl ResourceBasedTunerConfig {
+        fn into_core(self) -> Result<CoreResourceBasedTunerConfig, BridgeError> {
+            match self {
+                Self::Options(options) => Ok(CoreResourceBasedTunerConfig::Options(options.into())),
+                Self::Controller { controller } => controller.map(|controller| {
+                    CoreResourceBasedTunerConfig::Controller(Arc::clone(controller))
+                }),
+            }
+        }
+    }
+
     impl<SK: SlotKind + Send + Sync + 'static> SlotSupplier<SK> {
-        fn into_slot_supplier(
-            self,
-            rbo: &mut Option<ResourceBasedSlotsOptions>,
-        ) -> CoreSlotSupplierOptions<SK> {
+        fn into_slot_supplier(self) -> CoreSlotSupplierOptions<SK> {
             match self {
                 Self::FixedSize(opts) => CoreSlotSupplierOptions::FixedSize {
                     slots: opts.num_slots,
                 },
                 Self::ResourceBased(opts) => {
-                    *rbo = Some(
-                        ResourceBasedSlotsOptions::builder()
-                            .target_cpu_usage(opts.tuner_options.target_cpu_usage)
-                            .target_mem_usage(opts.tuner_options.target_memory_usage)
-                            .build(),
-                    );
                     CoreSlotSupplierOptions::ResourceBased(ResourceSlotOptions::new(
                         opts.minimum_slots,
                         opts.maximum_slots,

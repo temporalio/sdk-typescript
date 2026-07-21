@@ -285,6 +285,7 @@ const GenericConfigs = {
           type: 'fixed-size',
           numSlots: 1,
         },
+        resourceBasedTunerConfig: null,
       },
       nonStickyToStickyPollRatio: 0.5,
       workflowTaskPollerBehavior: {

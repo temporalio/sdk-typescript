@@ -6,6 +6,7 @@ import type { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interfa
 import type { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
 import { BaseVMWorkflow, globalHandlers, injectGlobals, setUnhandledRejectionHandler } from './vm-shared';
 import { isBun } from './bun';
+import type { WorkflowPatchActivationCallback } from './patch-activation-callback';
 
 interface BagHolder {
   bag: any;
@@ -129,7 +130,8 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
     protected readonly workflowBundle: WorkflowBundleWithSourceMapAndFilename,
     protected readonly isolateExecutionTimeoutMs: number,
     /** Known activity names registered on the executing worker */
-    protected readonly registeredActivityNames: Set<string>
+    protected readonly registeredActivityNames: Set<string>,
+    protected readonly patchActivationCallback?: WorkflowPatchActivationCallback
   ) {
     if (!ReusableVMWorkflowCreator.unhandledRejectionHandlerHasBeenSet) {
       setUnhandledRejectionHandler((runId) => ReusableVMWorkflowCreator.workflowByRunId.get(runId));
@@ -249,6 +251,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
       getTimeOfDay: native.getTimeOfDay,
       registeredActivityNames: this.registeredActivityNames,
       stackTracesEnabled: globalHandlers.promiseHookInstalled,
+      patchActivationCallback: this.patchActivationCallback,
     });
     const activator = context.__TEMPORAL_ACTIVATOR__!;
     const newVM = new ReusableVMWorkflow(options.info.runId, context, activator, workflowModule);
@@ -265,7 +268,8 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
     this: T,
     workflowBundle: WorkflowBundleWithSourceMapAndFilename,
     isolateExecutionTimeoutMs: number,
-    registeredActivityNames: Set<string>
+    registeredActivityNames: Set<string>,
+    patchActivationCallback?: WorkflowPatchActivationCallback
   ): Promise<InstanceType<T>> {
     // The Reusable V8 Context executor needs to take control of Webpack's require
     // cache in order to provide per-Workflow isolation of non-shared modules.
@@ -293,7 +297,13 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
     const script = new vm.Script(workflowBundle.code, { filename: workflowBundle.filename });
     globalHandlers.install(); // Call is idempotent
     await globalHandlers.addWorkflowBundle(workflowBundle);
-    return new this(script, workflowBundle, isolateExecutionTimeoutMs, registeredActivityNames) as InstanceType<T>;
+    return new this(
+      script,
+      workflowBundle,
+      isolateExecutionTimeoutMs,
+      registeredActivityNames,
+      patchActivationCallback
+    ) as InstanceType<T>;
   }
 
   /**
