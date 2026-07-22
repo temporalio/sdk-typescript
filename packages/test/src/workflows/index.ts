@@ -30,6 +30,7 @@ export * from './date';
 export * from './deferred-resolve';
 export * from './definitions';
 export * from './deprecate-patch';
+export * from './external-storage-offload';
 export * from './fail-signal';
 export * from './fail-unless-signaled-before-start';
 export * from './fails-workflow-task';

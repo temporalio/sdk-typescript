@@ -19,6 +19,15 @@ to docs, or any other relevant information.
 
 ## [Unreleased]
 
+### Added
+
+- **Experimental**: You can now configure external storage on your `DataConverter` via the new
+  `externalStorage` option to offload large payloads out of Temporal Server. When set, payloads larger
+  than the configured `payloadSizeThreshold` are stored via your `StorageDriver`(s) and retrieved
+  transparently, keeping large arguments, return values, and heartbeat details out of the Temporal Server
+  database. `ExternalStorage` and the `StorageDriver` types are exported from `@temporalio/common`.
+  This feature is experimental and its API may change.
+
 ### Breaking Changes
 
 - By default, workers now proactively validate outbound payload/memo sizes before sending: a field
