@@ -169,7 +169,7 @@ export class FakeSandboxClient implements SandboxClient {
   }
 
   async serializeSessionState(state: SandboxSessionState): Promise<Record<string, unknown>> {
-    // Persist non-ephemeral env only, mirroring serializeEnvironmentForPersistence.
+    // Persist non-ephemeral env only.
     const environment = Object.fromEntries(
       Object.entries(state.environment ?? {}).filter(([key]) => !state.manifest.environment[key]?.ephemeral)
     );

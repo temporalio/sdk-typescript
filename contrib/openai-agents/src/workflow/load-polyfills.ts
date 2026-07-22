@@ -3,8 +3,6 @@
 import { Headers } from 'headers-polyfill';
 import { uuid4 } from '@temporalio/workflow';
 
-const BASE64_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-
 export class EventTargetPolyfill {
   private _listeners: Record<string, Array<(event: any) => void>> = {};
 
@@ -54,40 +52,6 @@ export function installPolyfills(): void {
   }
   if (!(globalThis as any).crypto.randomUUID) {
     (globalThis as any).crypto.randomUUID = (): string => uuid4();
-  }
-
-  // agents-core's base64 codec (encodeUint8ArrayToBase64/decodeBase64ToUint8Array)
-  // falls back to `btoa`/`atob` when `Buffer` is absent, as it is in the isolate.
-  if (typeof (globalThis as any).atob === 'undefined') {
-    (globalThis as any).atob = (data: string): string => {
-      let binary = '';
-      const clean = data.replace(/[^A-Za-z0-9+/]/g, '');
-      for (let i = 0; i < clean.length; i += 4) {
-        const e1 = BASE64_CHARS.indexOf(clean[i]!);
-        const e2 = BASE64_CHARS.indexOf(clean[i + 1] ?? 'A');
-        const e3 = clean[i + 2] === undefined ? -1 : BASE64_CHARS.indexOf(clean[i + 2]!);
-        const e4 = clean[i + 3] === undefined ? -1 : BASE64_CHARS.indexOf(clean[i + 3]!);
-        binary += String.fromCharCode((e1 << 2) | (e2 >> 4));
-        if (e3 >= 0) binary += String.fromCharCode(((e2 & 0xf) << 4) | (e3 >> 2));
-        if (e4 >= 0) binary += String.fromCharCode(((e3 & 0x3) << 6) | e4);
-      }
-      return binary;
-    };
-  }
-  if (typeof (globalThis as any).btoa === 'undefined') {
-    (globalThis as any).btoa = (binary: string): string => {
-      let result = '';
-      for (let i = 0; i < binary.length; i += 3) {
-        const c1 = binary.charCodeAt(i);
-        const c2 = i + 1 < binary.length ? binary.charCodeAt(i + 1) : NaN;
-        const c3 = i + 2 < binary.length ? binary.charCodeAt(i + 2) : NaN;
-        result += BASE64_CHARS[c1 >> 2]!;
-        result += BASE64_CHARS[((c1 & 0x3) << 4) | (Number.isNaN(c2) ? 0 : c2 >> 4)]!;
-        result += Number.isNaN(c2) ? '=' : BASE64_CHARS[((c2 & 0xf) << 2) | (Number.isNaN(c3) ? 0 : c3 >> 6)]!;
-        result += Number.isNaN(c3) ? '=' : BASE64_CHARS[c3 & 0x3f]!;
-      }
-      return result;
-    };
   }
 
   // The sandbox exposes AbortController but not the AbortSignal global; agents-core's

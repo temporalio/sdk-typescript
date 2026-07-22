@@ -11,11 +11,12 @@ import {
 import { deserializeManifest, serializeManifestRecord } from '@openai/agents-core/sandbox/internal';
 import { ApplicationFailure } from '@temporalio/common';
 import {
-  SANDBOX_ACTIVITY_SUFFIXES,
   SANDBOX_CLIENT_CREATE_SUFFIX,
   SANDBOX_CLIENT_DELETE_SUFFIX,
   SANDBOX_CLIENT_RESUME_SUFFIX,
   SANDBOX_CLIENT_SERIALIZE_SESSION_STATE_SUFFIX,
+  SANDBOX_EDITOR_CREATE_FILE_SUFFIX,
+  SANDBOX_EDITOR_DELETE_FILE_SUFFIX,
   SANDBOX_EDITOR_UPDATE_FILE_SUFFIX,
   SANDBOX_SESSION_APPLY_MANIFEST_SUFFIX,
   SANDBOX_SESSION_DELETE_SUFFIX,
@@ -27,6 +28,7 @@ import {
   SANDBOX_SESSION_PATH_EXISTS_SUFFIX,
   SANDBOX_SESSION_PERSIST_WORKSPACE_SUFFIX,
   SANDBOX_SESSION_READ_FILE_SUFFIX,
+  SANDBOX_SESSION_RESOLVE_EXPOSED_PORT_SUFFIX,
   SANDBOX_SESSION_RUNNING_SUFFIX,
   SANDBOX_SESSION_SHUTDOWN_SUFFIX,
   SANDBOX_SESSION_START_SUFFIX,
@@ -164,17 +166,44 @@ test('validation: temporal sandbox client passes', (t) => {
 
 // ── Provider activity registration ──
 
+const sandboxActivitySuffixes = [
+  SANDBOX_CLIENT_CREATE_SUFFIX,
+  SANDBOX_CLIENT_RESUME_SUFFIX,
+  SANDBOX_CLIENT_DELETE_SUFFIX,
+  SANDBOX_CLIENT_SERIALIZE_SESSION_STATE_SUFFIX,
+  SANDBOX_SESSION_START_SUFFIX,
+  SANDBOX_SESSION_RUNNING_SUFFIX,
+  SANDBOX_SESSION_STOP_SUFFIX,
+  SANDBOX_SESSION_SHUTDOWN_SUFFIX,
+  SANDBOX_SESSION_DELETE_SUFFIX,
+  SANDBOX_SESSION_EXEC_SUFFIX,
+  SANDBOX_SESSION_EXEC_COMMAND_SUFFIX,
+  SANDBOX_SESSION_WRITE_STDIN_SUFFIX,
+  SANDBOX_SESSION_VIEW_IMAGE_SUFFIX,
+  SANDBOX_SESSION_READ_FILE_SUFFIX,
+  SANDBOX_SESSION_LIST_DIR_SUFFIX,
+  SANDBOX_SESSION_PATH_EXISTS_SUFFIX,
+  SANDBOX_SESSION_MATERIALIZE_ENTRY_SUFFIX,
+  SANDBOX_SESSION_APPLY_MANIFEST_SUFFIX,
+  SANDBOX_SESSION_PERSIST_WORKSPACE_SUFFIX,
+  SANDBOX_SESSION_HYDRATE_WORKSPACE_SUFFIX,
+  SANDBOX_SESSION_RESOLVE_EXPOSED_PORT_SUFFIX,
+  SANDBOX_EDITOR_CREATE_FILE_SUFFIX,
+  SANDBOX_EDITOR_UPDATE_FILE_SUFFIX,
+  SANDBOX_EDITOR_DELETE_FILE_SUFFIX,
+];
+
 test('provider registers all prefixed activities', (t) => {
   const provider = new SandboxClientProvider('fake', new FakeSandboxClient());
   const names = Object.keys(provider._getActivities());
-  t.deepEqual(new Set(names), new Set(SANDBOX_ACTIVITY_SUFFIXES.map((suffix) => `fake${suffix}`)));
+  t.deepEqual(new Set(names), new Set(sandboxActivitySuffixes.map((suffix) => `fake${suffix}`)));
 });
 
 test('multiple providers register disjoint activity sets', (t) => {
   const names1 = new Set(Object.keys(new SandboxClientProvider('daytona', new FakeSandboxClient())._getActivities()));
   const names2 = new Set(Object.keys(new SandboxClientProvider('local', new FakeSandboxClient())._getActivities()));
-  t.is(names1.size, SANDBOX_ACTIVITY_SUFFIXES.length);
-  t.is(names2.size, SANDBOX_ACTIVITY_SUFFIXES.length);
+  t.is(names1.size, sandboxActivitySuffixes.length);
+  t.is(names2.size, sandboxActivitySuffixes.length);
   for (const name of names1) {
     t.false(names2.has(name));
     t.true(name.startsWith('daytona-sandbox-'));
@@ -229,7 +258,7 @@ test('ephemeral mount and env reach the backend on create; only the mount surviv
   const freshActs = activityMap(new SandboxClientProvider('fake', freshClient));
   await freshActs[`fake${SANDBOX_CLIENT_RESUME_SUFFIX}`]!({ state });
 
-  // The mount is re-materialized from the manifest; ephemeral env is create-only because the SDK does not persist ephemeral env (matching the standalone SDK / Python contrib).
+  // The mount is re-materialized from the manifest; ephemeral env is create-only because the SDK does not persist ephemeral env.
   t.true('secret-mount' in freshClient.session.state.manifest.entries);
   t.is(freshClient.session.state.environment?.SECRET, undefined);
 });
@@ -469,7 +498,7 @@ test('providerState fallback (no serializeSessionState) preserves environment, d
     snapshot: { id: 'snap', type: 'local' },
     workspaceReady: true,
     exposedPorts: { 'port:8080': { host: 'h', port: 8080 } },
-    // The genuinely provider-specific key that must survive.
+    // The provider-specific key that must survive.
     workspaceId: 'abc-123',
   } as unknown as SandboxSessionState;
   const client = new NoSerializeClient(session);
@@ -527,9 +556,7 @@ test("deserializeSessionState decodes the SDK's real serialized manifest record"
     environment: { API_KEY: { value: 'secret', ephemeral: true }, PLAIN: 'value' },
   });
 
-  // The exact record the SDK hands to deserializeSessionState on resume: the
-  // client's providerState merged with the SDK envelope fields, where `manifest`
-  // is the SDK's own serializeManifestRecord output (not contrib's encodeManifest).
+  // `manifest` here is the SDK's own serializeManifestRecord output.
   const record = {
     sessionId: 'sess-1',
     providerState: { workspacePath: '/tmp/w' },
@@ -578,7 +605,6 @@ test('a fresh provider (worker restart) self-heals via client.resume', async (t)
   t.is(client.resumeCalls, 1);
   t.true(client.session.state.manifest instanceof Manifest);
 
-  // Subsequent operations reuse the resumed session.
   await freshActs[`fake${SANDBOX_SESSION_EXEC_SUFFIX}`]!({ state, args: { cmd: 'again' } });
   t.is(client.resumeCalls, 1);
 });
