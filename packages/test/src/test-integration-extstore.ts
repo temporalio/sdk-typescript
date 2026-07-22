@@ -401,28 +401,47 @@ test('client offloads a large workflow memo and retrieves it via describe', asyn
   t.deepEqual(description.memo?.blob, memoBlob);
 });
 
-test('client offloads a large schedule memo and retrieves it via describe', async (t) => {
-  const { taskQueue } = helpers(t);
-
+// Driven through a mock connection rather than the ephemeral server: describing a just-created
+// schedule against `TestWorkflowEnvironment` times out on slower CI runners (schedules need the
+// real server, see test-schedules.ts). The mock keeps store+retrieve fully deterministic.
+test('schedule create offloads a large memo and describe retrieves it', async (t) => {
   const driver = makeFakeDriver();
   const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
   const memoBlob = new Uint8Array(4096).fill(6);
 
-  const client = new Client({ connection: t.context.env.connection, dataConverter: { externalStorage } });
+  let createReq: temporal.api.workflowservice.v1.ICreateScheduleRequest | undefined;
+  const connection = {
+    workflowService: {
+      createSchedule: async (req: temporal.api.workflowservice.v1.ICreateScheduleRequest) => {
+        createReq = req;
+        return {};
+      },
+      // Echo the reference the client offloaded on create, so describe must retrieve it back.
+      describeSchedule: async () => ({
+        schedule: {
+          spec: {},
+          action: { startWorkflow: { workflowType: { name: 'w' }, taskQueue: { name: 'q' } } },
+        },
+        info: { createTime: { seconds: 0, nanos: 0 } },
+        memo: { fields: { blob: createReq!.memo!.fields!.blob } },
+      }),
+    },
+    plugins: [],
+  } as unknown as ConnectionLike;
+  const client = new Client({ connection, dataConverter: { externalStorage } });
 
-  const scheduleId = randomUUID();
-  // `spec: {}` never fires, so no worker is needed; the action is inert.
   const handle = await client.schedule.create({
-    scheduleId,
+    scheduleId: 'sched-1',
     spec: {},
-    action: { type: 'startWorkflow', workflowType: 'externalStorageEcho', taskQueue },
+    action: { type: 'startWorkflow', workflowType: 'w', taskQueue: 'q' },
     memo: { blob: memoBlob },
   });
-  try {
-    t.true(driver.storeCalls.length >= 1, 'the large schedule memo should have been offloaded on create');
-    const description = await handle.describe();
-    t.deepEqual(description.memo?.blob, memoBlob);
-  } finally {
-    await handle.delete();
-  }
+
+  // Store: the memo exceeded the threshold and was offloaded on create.
+  t.is(driver.storeCalls.length, 1);
+  t.true(isReferencePayload(createReq!.memo!.fields!.blob), 'schedule memo should be offloaded on create');
+
+  // Retrieve: describe converts the reference back to the original bytes.
+  const description = await handle.describe();
+  t.deepEqual(description.memo?.blob, memoBlob);
 });
