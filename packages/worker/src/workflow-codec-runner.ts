@@ -34,7 +34,7 @@ export class WorkflowCodecRunner {
 
   constructor(
     private readonly codecs: PayloadCodec[],
-    private readonly workflowContext: WorkflowSerializationContext
+    public readonly workflowContext: WorkflowSerializationContext
   ) {}
 
   private consumeContext<TContext extends SerializationContext>(
@@ -368,7 +368,7 @@ export class WorkflowCodecRunner {
    */
   public async encodeCompletion(
     completion: coresdk.workflow_completion.IWorkflowActivationCompletion
-  ): Promise<Uint8Array> {
+  ): Promise<Encoded<coresdk.workflow_completion.IWorkflowActivationCompletion>> {
     const encodedCompletion: Encoded<coresdk.workflow_completion.IWorkflowActivationCompletion> = {
       ...completion,
       failed: completion.failed
@@ -608,6 +608,6 @@ export class WorkflowCodecRunner {
         : null,
     };
 
-    return coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited(encodedCompletion).finish();
+    return encodedCompletion;
   }
 }

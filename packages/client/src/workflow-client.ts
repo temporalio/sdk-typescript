@@ -39,6 +39,21 @@ import {
   decodeOptionalSinglePayload,
   encodeMapToPayloads,
   encodeToPayloadsWithContext,
+  extstoreRetrieveOptions,
+  extstoreStoreOptions,
+  visit,
+  walkExecuteMultiOperationRequest,
+  walkExecuteMultiOperationResponse,
+  walkGetWorkflowExecutionHistoryResponse,
+  walkPollWorkflowExecutionUpdateResponse,
+  walkQueryWorkflowRequest,
+  walkQueryWorkflowResponse,
+  walkSignalWithStartWorkflowExecutionRequest,
+  walkSignalWorkflowExecutionRequest,
+  walkStartWorkflowExecutionRequest,
+  walkTerminateWorkflowExecutionRequest,
+  walkUpdateWorkflowExecutionRequest,
+  walkUpdateWorkflowExecutionResponse,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import { temporal } from '@temporalio/proto';
@@ -820,6 +835,10 @@ export class WorkflowClient extends BaseClient {
       } catch (err) {
         this.rethrowGrpcError(err, 'Failed to get Workflow execution history', { workflowId, runId });
       }
+      const externalStorage = this.dataConverter.externalStorage;
+      if (externalStorage) {
+        await visit(res, walkGetWorkflowExecutionHistoryResponse, extstoreRetrieveOptions(externalStorage));
+      }
       const events = res.history?.events;
 
       if (events == null || events.length === 0) {
@@ -964,6 +983,20 @@ export class WorkflowClient extends BaseClient {
         header: { fields: input.headers },
       },
     };
+    const externalStorage = this.dataConverter.externalStorage;
+    if (externalStorage) {
+      await visit(
+        req,
+        walkQueryWorkflowRequest,
+        extstoreStoreOptions(externalStorage, {
+          initialTarget: {
+            kind: 'workflow',
+            namespace: this.options.namespace,
+            id: input.workflowExecution.workflowId ?? undefined,
+          },
+        })
+      );
+    }
     let response: temporal.api.workflowservice.v1.QueryWorkflowResponse;
     try {
       response = await this.workflowService.queryWorkflow(req);
@@ -975,6 +1008,9 @@ export class WorkflowClient extends BaseClient {
         }
       }
       this.rethrowGrpcError(err, 'Failed to query Workflow', input.workflowExecution);
+    }
+    if (externalStorage) {
+      await visit(response, walkQueryWorkflowResponse, extstoreRetrieveOptions(externalStorage));
     }
     if (response.queryRejected) {
       if (response.queryRejected.status === undefined || response.queryRejected.status === null) {
@@ -1036,6 +1072,20 @@ export class WorkflowClient extends BaseClient {
         : UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED;
 
     const request = await this._createUpdateWorkflowRequest(waitForStageProto, input);
+    const externalStorage = this.dataConverter.externalStorage;
+    if (externalStorage) {
+      await visit(
+        request,
+        walkUpdateWorkflowExecutionRequest,
+        extstoreStoreOptions(externalStorage, {
+          initialTarget: {
+            kind: 'workflow',
+            namespace: this.options.namespace,
+            id: input.workflowExecution.workflowId ?? undefined,
+          },
+        })
+      );
+    }
 
     // Repeatedly send UpdateWorkflowExecution until update is durable (if the server receives a request with
     // an update ID that already exists, it responds with information for the existing update). If the
@@ -1049,6 +1099,9 @@ export class WorkflowClient extends BaseClient {
       );
     } catch (err) {
       this.rethrowUpdateGrpcError(err, 'Workflow Update failed', input.workflowExecution);
+    }
+    if (externalStorage) {
+      await visit(response, walkUpdateWorkflowExecutionResponse, extstoreRetrieveOptions(externalStorage));
     }
     return {
       updateId: request.request!.meta!.updateId!,
@@ -1108,8 +1161,25 @@ export class WorkflowClient extends BaseClient {
       // Repeatedly send ExecuteMultiOperation until update is durable (if the server receives a request with
       // an update ID that already exists, it responds with information for the existing update). If the
       // requested wait stage is COMPLETED, further polling is done before returning the UpdateHandle.
+      const externalStorage = this.dataConverter.externalStorage;
+      if (externalStorage) {
+        await visit(
+          multiOpReq,
+          walkExecuteMultiOperationRequest,
+          extstoreStoreOptions(externalStorage, {
+            initialTarget: {
+              kind: 'workflow',
+              namespace: this.options.namespace,
+              id: input.workflowStartOptions.workflowId,
+            },
+          })
+        );
+      }
       do {
         multiOpResp = await this.workflowService.executeMultiOperation(multiOpReq);
+        if (externalStorage) {
+          await visit(multiOpResp, walkExecuteMultiOperationResponse, extstoreRetrieveOptions(externalStorage));
+        }
         startResp = multiOpResp.responses?.[0]
           ?.startWorkflow as temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse;
         if (!seenStart) {
@@ -1195,6 +1265,10 @@ export class WorkflowClient extends BaseClient {
     for (;;) {
       try {
         const response = await this.workflowService.pollWorkflowExecutionUpdate(req);
+        const externalStorage = this.dataConverter.externalStorage;
+        if (externalStorage) {
+          await visit(response, walkPollWorkflowExecutionUpdateResponse, extstoreRetrieveOptions(externalStorage));
+        }
         if (response.outcome) {
           return response.outcome;
         }
@@ -1226,6 +1300,20 @@ export class WorkflowClient extends BaseClient {
       links: internalOptions?.links,
     };
     try {
+      const externalStorage = this.dataConverter.externalStorage;
+      if (externalStorage) {
+        await visit(
+          req,
+          walkSignalWorkflowExecutionRequest,
+          extstoreStoreOptions(externalStorage, {
+            initialTarget: {
+              kind: 'workflow',
+              namespace: this.options.namespace,
+              id: input.workflowExecution.workflowId,
+            },
+          })
+        );
+      }
       const response = await this.workflowService.signalWorkflowExecution(req);
       if (internalOptions != null) {
         // Servers that support CHASM signal response links (1.31 and up) return a response link
@@ -1283,6 +1371,16 @@ export class WorkflowClient extends BaseClient {
       links: internalOptions?.links,
     };
     try {
+      const externalStorage = this.dataConverter.externalStorage;
+      if (externalStorage) {
+        await visit(
+          req,
+          walkSignalWithStartWorkflowExecutionRequest,
+          extstoreStoreOptions(externalStorage, {
+            initialTarget: { kind: 'workflow', namespace: this.options.namespace, id: req.workflowId ?? undefined },
+          })
+        );
+      }
       const response = await this.workflowService.signalWithStartWorkflowExecution(req);
       if (internalOptions != null) {
         // Servers that support CHASM signal response links (1.31 and up) return a response link
@@ -1312,6 +1410,20 @@ export class WorkflowClient extends BaseClient {
     const { options: opts, workflowType } = input;
     const internalOptions = (opts as InternalWorkflowStartOptions)[InternalWorkflowStartOptionsSymbol];
     try {
+      const externalStorage = this.dataConverter.externalStorage;
+      if (externalStorage) {
+        await visit(
+          req,
+          walkStartWorkflowExecutionRequest,
+          extstoreStoreOptions(externalStorage, {
+            initialTarget: {
+              kind: 'workflow',
+              namespace: req.namespace ?? this.options.namespace,
+              id: req.workflowId ?? undefined,
+            },
+          })
+        );
+      }
       const response = await this.workflowService.startWorkflowExecution(req);
       if (internalOptions != null) {
         internalOptions.responseLink = response.link ?? undefined;
@@ -1403,6 +1515,20 @@ export class WorkflowClient extends BaseClient {
       firstExecutionRunId: input.firstExecutionRunId,
     };
     try {
+      const externalStorage = this.dataConverter.externalStorage;
+      if (externalStorage) {
+        await visit(
+          req,
+          walkTerminateWorkflowExecutionRequest,
+          extstoreStoreOptions(externalStorage, {
+            initialTarget: {
+              kind: 'workflow',
+              namespace: this.options.namespace,
+              id: input.workflowExecution.workflowId ?? undefined,
+            },
+          })
+        );
+      }
       return await this.workflowService.terminateWorkflowExecution(req);
     } catch (err) {
       this.rethrowGrpcError(err, 'Failed to terminate Workflow', input.workflowExecution);

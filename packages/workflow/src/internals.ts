@@ -475,6 +475,9 @@ export class Activator implements ActivationHandler {
    */
   private readonly sentPatches = new Set<string>();
 
+  /** Resolved patch activation decisions, including callback decisions that leave a patch inactive. */
+  private readonly patchDecisions = new Map<string, boolean>();
+
   private readonly knownFlags = new Set<number>();
 
   sdkVersion?: string;
@@ -502,6 +505,8 @@ export class Activator implements ActivationHandler {
 
   protected readonly stackTracesEnabled: boolean;
 
+  private readonly patchActivationCallback?: (workflowInfo: WorkflowInfo, patchId: string) => boolean;
+
   constructor({
     info,
     now,
@@ -512,6 +517,7 @@ export class Activator implements ActivationHandler {
     registeredActivityNames,
     stackTracesEnabled,
     failureExceptionTypeNames,
+    patchActivationCallback,
   }: WorkflowCreateOptionsInternal) {
     this.getTimeOfDay = getTimeOfDay;
     this.info = info;
@@ -523,6 +529,7 @@ export class Activator implements ActivationHandler {
     this.registeredActivityNames = registeredActivityNames;
     this.stackTracesEnabled = stackTracesEnabled;
     this.failureExceptionTypeNames = failureExceptionTypeNames ?? [];
+    this.patchActivationCallback = patchActivationCallback;
   }
 
   protected setRandomnessSeed(randomnessSeed: number[]): void {
@@ -1199,7 +1206,24 @@ export class Activator implements ActivationHandler {
     if (this.workflow === undefined) {
       throw new IllegalStateError('Patches cannot be used before Workflow starts');
     }
-    const usePatch = !this.info.unsafe.isReplaying || this.knownPresentPatches.has(patchId);
+    const previousDecision = this.patchDecisions.get(patchId);
+    if (previousDecision !== undefined) {
+      return previousDecision;
+    }
+
+    const knownPresent = this.knownPresentPatches.has(patchId);
+    // A missing marker during replay is not a final decision because this cached Workflow may
+    // subsequently reach live execution, where the patch can activate and record its marker.
+    if (this.info.unsafe.isReplaying && !knownPresent) {
+      return false;
+    }
+
+    const usePatch =
+      !knownPresent && !deprecated && this.patchActivationCallback !== undefined
+        ? this.patchActivationCallback(this.info, patchId)
+        : true;
+    this.patchDecisions.set(patchId, usePatch);
+
     // Avoid sending commands for patches core already knows about.
     // This optimization enables development of automatic patching tools.
     if (usePatch && !this.sentPatches.has(patchId)) {

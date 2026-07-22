@@ -688,6 +688,7 @@ export interface WorkflowCreateOptionsInternal extends WorkflowCreateOptions {
   registeredActivityNames: Set<string>;
   getTimeOfDay(): bigint;
   stackTracesEnabled: boolean;
+  patchActivationCallback?(workflowInfo: WorkflowInfo, patchId: string): boolean;
 }
 
 /**

@@ -30,6 +30,7 @@ export * from './date';
 export * from './deferred-resolve';
 export * from './definitions';
 export * from './deprecate-patch';
+export * from './external-storage-offload';
 export * from './fail-signal';
 export * from './fail-unless-signaled-before-start';
 export * from './fails-workflow-task';
@@ -86,6 +87,7 @@ export * from './throw-async';
 export * from './trailing-timer';
 export * from './try-to-continue-after-completion';
 export * from './two-strings';
+export * from './payload-size-limits';
 // unblockSignal is already defined in ./definitions, don't re-export it.
 // The reason it is redefined is for completeness of the snippet.
 export { isBlockedQuery, unblockOrCancel } from './unblock-or-cancel';

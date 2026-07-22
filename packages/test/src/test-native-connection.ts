@@ -537,3 +537,27 @@ test('NativeConnection: gRPC compression can be disabled', (t) => {
   const options = toNativeClientOptions({ grpcCompression: { codec: 'none' } });
   t.deepEqual(options.grpcCompression, { codec: 'none' });
 });
+
+test('NativeConnection: payload/memo warn sizes default when payloadLimits is unset', (t) => {
+  const options = toNativeClientOptions({});
+  t.is(options.payloadsWarnSize, 512 * 1024);
+  t.is(options.memoWarnSize, 2 * 1024);
+});
+
+test('NativeConnection: setting payloadsWarnSize leaves memoWarnSize at its default', (t) => {
+  const options = toNativeClientOptions({ payloadLimits: { payloadsWarnSize: 1024 } });
+  t.is(options.payloadsWarnSize, 1024);
+  t.is(options.memoWarnSize, 2 * 1024);
+});
+
+test('NativeConnection: setting memoWarnSize leaves payloadsWarnSize at its default', (t) => {
+  const options = toNativeClientOptions({ payloadLimits: { memoWarnSize: 1024 } });
+  t.is(options.memoWarnSize, 1024);
+  t.is(options.payloadsWarnSize, 512 * 1024);
+});
+
+test('NativeConnection: a 0 warn size disables the warning instead of falling back to the default', (t) => {
+  const options = toNativeClientOptions({ payloadLimits: { payloadsWarnSize: 0, memoWarnSize: 0 } });
+  t.is(options.payloadsWarnSize, 0);
+  t.is(options.memoWarnSize, 0);
+});

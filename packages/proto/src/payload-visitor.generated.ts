@@ -12,6 +12,286 @@ export interface WalkEnv<Ctx> {
   skipSearchAttributes: boolean;
 }
 
+export function walkActivityExecutionResult<Ctx>(
+  root: coresdk.activity_result.IActivityExecutionResult,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_activity_result_ActivityExecutionResult(root, env, context, pending);
+  return pending;
+}
+
+export function walkActivityResolution<Ctx>(
+  root: coresdk.activity_result.IActivityResolution,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_activity_result_ActivityResolution(root, env, context, pending);
+  return pending;
+}
+
+export function walkCoresdkActivityResultCancellation<Ctx>(
+  root: coresdk.activity_result.ICancellation,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_activity_result_Cancellation(root, env, context, pending);
+  return pending;
+}
+
+export function walkCoresdkActivityResultFailure<Ctx>(
+  root: coresdk.activity_result.IFailure,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_activity_result_Failure(root, env, context, pending);
+  return pending;
+}
+
+export function walkCoresdkActivityResultSuccess<Ctx>(
+  root: coresdk.activity_result.ISuccess,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_activity_result_Success(root, env, context, pending);
+  return pending;
+}
+
+export function walkActivityTask<Ctx>(
+  root: coresdk.activity_task.IActivityTask,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_activity_task_ActivityTask(root, env, context, pending);
+  return pending;
+}
+
+export function walkStart<Ctx>(
+  root: coresdk.activity_task.IStart,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_activity_task_Start(root, env, context, pending);
+  return pending;
+}
+
+export function walkActivityHeartbeat<Ctx>(
+  root: coresdk.IActivityHeartbeat,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_ActivityHeartbeat(root, env, context, pending);
+  return pending;
+}
+
+export function walkActivityTaskCompletion<Ctx>(
+  root: coresdk.IActivityTaskCompletion,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_ActivityTaskCompletion(root, env, context, pending);
+  return pending;
+}
+
+export function walkCoresdkChildWorkflowCancellation<Ctx>(
+  root: coresdk.child_workflow.ICancellation,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_child_workflow_Cancellation(root, env, context, pending);
+  return pending;
+}
+
+export function walkChildWorkflowResult<Ctx>(
+  root: coresdk.child_workflow.IChildWorkflowResult,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_child_workflow_ChildWorkflowResult(root, env, context, pending);
+  return pending;
+}
+
+export function walkCoresdkChildWorkflowFailure<Ctx>(
+  root: coresdk.child_workflow.IFailure,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_child_workflow_Failure(root, env, context, pending);
+  return pending;
+}
+
+export function walkCoresdkChildWorkflowSuccess<Ctx>(
+  root: coresdk.child_workflow.ISuccess,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_child_workflow_Success(root, env, context, pending);
+  return pending;
+}
+
+export function walkNexusOperationResult<Ctx>(
+  root: coresdk.nexus.INexusOperationResult,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_nexus_NexusOperationResult(root, env, context, pending);
+  return pending;
+}
+
+export function walkNexusTask<Ctx>(
+  root: coresdk.nexus.INexusTask,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_nexus_NexusTask(root, env, context, pending);
+  return pending;
+}
+
+export function walkNexusTaskCompletion<Ctx>(
+  root: coresdk.nexus.INexusTaskCompletion,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_nexus_NexusTaskCompletion(root, env, context, pending);
+  return pending;
+}
+
+export function walkDoUpdate<Ctx>(
+  root: coresdk.workflow_activation.IDoUpdate,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_activation_DoUpdate(root, env, context, pending);
+  return pending;
+}
+
+export function walkInitializeWorkflow<Ctx>(
+  root: coresdk.workflow_activation.IInitializeWorkflow,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_activation_InitializeWorkflow(root, env, context, pending);
+  return pending;
+}
+
+export function walkQueryWorkflow<Ctx>(
+  root: coresdk.workflow_activation.IQueryWorkflow,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_activation_QueryWorkflow(root, env, context, pending);
+  return pending;
+}
+
+export function walkResolveActivity<Ctx>(
+  root: coresdk.workflow_activation.IResolveActivity,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_activation_ResolveActivity(root, env, context, pending);
+  return pending;
+}
+
+export function walkResolveChildWorkflowExecution<Ctx>(
+  root: coresdk.workflow_activation.IResolveChildWorkflowExecution,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_activation_ResolveChildWorkflowExecution(root, env, context, pending);
+  return pending;
+}
+
+export function walkResolveChildWorkflowExecutionStart<Ctx>(
+  root: coresdk.workflow_activation.IResolveChildWorkflowExecutionStart,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_activation_ResolveChildWorkflowExecutionStart(root, env, context, pending);
+  return pending;
+}
+
+export function walkResolveChildWorkflowExecutionStartCancelled<Ctx>(
+  root: coresdk.workflow_activation.IResolveChildWorkflowExecutionStartCancelled,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_activation_ResolveChildWorkflowExecutionStartCancelled(root, env, context, pending);
+  return pending;
+}
+
+export function walkResolveNexusOperation<Ctx>(
+  root: coresdk.workflow_activation.IResolveNexusOperation,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_activation_ResolveNexusOperation(root, env, context, pending);
+  return pending;
+}
+
+export function walkResolveNexusOperationStart<Ctx>(
+  root: coresdk.workflow_activation.IResolveNexusOperationStart,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_activation_ResolveNexusOperationStart(root, env, context, pending);
+  return pending;
+}
+
+export function walkResolveRequestCancelExternalWorkflow<Ctx>(
+  root: coresdk.workflow_activation.IResolveRequestCancelExternalWorkflow,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_activation_ResolveRequestCancelExternalWorkflow(root, env, context, pending);
+  return pending;
+}
+
+export function walkResolveSignalExternalWorkflow<Ctx>(
+  root: coresdk.workflow_activation.IResolveSignalExternalWorkflow,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_activation_ResolveSignalExternalWorkflow(root, env, context, pending);
+  return pending;
+}
+
+export function walkSignalWorkflow<Ctx>(
+  root: coresdk.workflow_activation.ISignalWorkflow,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_activation_SignalWorkflow(root, env, context, pending);
+  return pending;
+}
+
 export function walkWorkflowActivation<Ctx>(
   root: coresdk.workflow_activation.IWorkflowActivation,
   env: WalkEnv<Ctx>,
@@ -19,6 +299,176 @@ export function walkWorkflowActivation<Ctx>(
 ): Promise<unknown>[] {
   const pending: Promise<unknown>[] = [];
   walk_coresdk_workflow_activation_WorkflowActivation(root, env, context, pending);
+  return pending;
+}
+
+export function walkWorkflowActivationJob<Ctx>(
+  root: coresdk.workflow_activation.IWorkflowActivationJob,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_activation_WorkflowActivationJob(root, env, context, pending);
+  return pending;
+}
+
+export function walkCompleteWorkflowExecution<Ctx>(
+  root: coresdk.workflow_commands.ICompleteWorkflowExecution,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_commands_CompleteWorkflowExecution(root, env, context, pending);
+  return pending;
+}
+
+export function walkContinueAsNewWorkflowExecution<Ctx>(
+  root: coresdk.workflow_commands.IContinueAsNewWorkflowExecution,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_commands_ContinueAsNewWorkflowExecution(root, env, context, pending);
+  return pending;
+}
+
+export function walkFailWorkflowExecution<Ctx>(
+  root: coresdk.workflow_commands.IFailWorkflowExecution,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_commands_FailWorkflowExecution(root, env, context, pending);
+  return pending;
+}
+
+export function walkModifyWorkflowProperties<Ctx>(
+  root: coresdk.workflow_commands.IModifyWorkflowProperties,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_commands_ModifyWorkflowProperties(root, env, context, pending);
+  return pending;
+}
+
+export function walkQueryResult<Ctx>(
+  root: coresdk.workflow_commands.IQueryResult,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_commands_QueryResult(root, env, context, pending);
+  return pending;
+}
+
+export function walkQuerySuccess<Ctx>(
+  root: coresdk.workflow_commands.IQuerySuccess,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_commands_QuerySuccess(root, env, context, pending);
+  return pending;
+}
+
+export function walkScheduleActivity<Ctx>(
+  root: coresdk.workflow_commands.IScheduleActivity,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_commands_ScheduleActivity(root, env, context, pending);
+  return pending;
+}
+
+export function walkScheduleLocalActivity<Ctx>(
+  root: coresdk.workflow_commands.IScheduleLocalActivity,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_commands_ScheduleLocalActivity(root, env, context, pending);
+  return pending;
+}
+
+export function walkScheduleNexusOperation<Ctx>(
+  root: coresdk.workflow_commands.IScheduleNexusOperation,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_commands_ScheduleNexusOperation(root, env, context, pending);
+  return pending;
+}
+
+export function walkSignalExternalWorkflowExecution<Ctx>(
+  root: coresdk.workflow_commands.ISignalExternalWorkflowExecution,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_commands_SignalExternalWorkflowExecution(root, env, context, pending);
+  return pending;
+}
+
+export function walkStartChildWorkflowExecution<Ctx>(
+  root: coresdk.workflow_commands.IStartChildWorkflowExecution,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_commands_StartChildWorkflowExecution(root, env, context, pending);
+  return pending;
+}
+
+export function walkUpdateResponse<Ctx>(
+  root: coresdk.workflow_commands.IUpdateResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_commands_UpdateResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkUpsertWorkflowSearchAttributes<Ctx>(
+  root: coresdk.workflow_commands.IUpsertWorkflowSearchAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_commands_UpsertWorkflowSearchAttributes(root, env, context, pending);
+  return pending;
+}
+
+export function walkWorkflowCommand<Ctx>(
+  root: coresdk.workflow_commands.IWorkflowCommand,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_commands_WorkflowCommand(root, env, context, pending);
+  return pending;
+}
+
+export function walkCoresdkWorkflowCompletionFailure<Ctx>(
+  root: coresdk.workflow_completion.IFailure,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_completion_Failure(root, env, context, pending);
+  return pending;
+}
+
+export function walkCoresdkWorkflowCompletionSuccess<Ctx>(
+  root: coresdk.workflow_completion.ISuccess,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_completion_Success(root, env, context, pending);
   return pending;
 }
 
@@ -30,6 +480,774 @@ export function walkWorkflowActivationCompletion<Ctx>(
   const pending: Promise<unknown>[] = [];
   walk_coresdk_workflow_completion_WorkflowActivationCompletion(root, env, context, pending);
   return pending;
+}
+
+export function walkCountActivityExecutionsResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.ICountActivityExecutionsResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_CountActivityExecutionsResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkTemporalApiWorkflowserviceV1CountActivityExecutionsResponseAggregationGroup<Ctx>(
+  root: temporal.api.workflowservice.v1.CountActivityExecutionsResponse.IAggregationGroup,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_CountActivityExecutionsResponse_AggregationGroup(root, env, context, pending);
+  return pending;
+}
+
+export function walkCountNexusOperationExecutionsResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.ICountNexusOperationExecutionsResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_CountNexusOperationExecutionsResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkTemporalApiWorkflowserviceV1CountNexusOperationExecutionsResponseAggregationGroup<Ctx>(
+  root: temporal.api.workflowservice.v1.CountNexusOperationExecutionsResponse.IAggregationGroup,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_CountNexusOperationExecutionsResponse_AggregationGroup(
+    root,
+    env,
+    context,
+    pending
+  );
+  return pending;
+}
+
+export function walkCountSchedulesResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.ICountSchedulesResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_CountSchedulesResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkTemporalApiWorkflowserviceV1CountSchedulesResponseAggregationGroup<Ctx>(
+  root: temporal.api.workflowservice.v1.CountSchedulesResponse.IAggregationGroup,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_CountSchedulesResponse_AggregationGroup(root, env, context, pending);
+  return pending;
+}
+
+export function walkCountWorkflowExecutionsResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.ICountWorkflowExecutionsResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_CountWorkflowExecutionsResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkTemporalApiWorkflowserviceV1CountWorkflowExecutionsResponseAggregationGroup<Ctx>(
+  root: temporal.api.workflowservice.v1.CountWorkflowExecutionsResponse.IAggregationGroup,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_CountWorkflowExecutionsResponse_AggregationGroup(root, env, context, pending);
+  return pending;
+}
+
+export function walkCreateScheduleRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.ICreateScheduleRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_CreateScheduleRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkCreateWorkerDeploymentVersionRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.ICreateWorkerDeploymentVersionRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_CreateWorkerDeploymentVersionRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkDescribeActivityExecutionResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IDescribeActivityExecutionResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_DescribeActivityExecutionResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkDescribeDeploymentResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IDescribeDeploymentResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_DescribeDeploymentResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkDescribeNexusOperationExecutionResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IDescribeNexusOperationExecutionResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_DescribeNexusOperationExecutionResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkDescribeScheduleResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IDescribeScheduleResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_DescribeScheduleResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkDescribeWorkerDeploymentVersionResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IDescribeWorkerDeploymentVersionResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_DescribeWorkerDeploymentVersionResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkDescribeWorkflowExecutionResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_DescribeWorkflowExecutionResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkExecuteMultiOperationRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.IExecuteMultiOperationRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_ExecuteMultiOperationRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkOperation<Ctx>(
+  root: temporal.api.workflowservice.v1.ExecuteMultiOperationRequest.IOperation,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_ExecuteMultiOperationRequest_Operation(root, env, context, pending);
+  return pending;
+}
+
+export function walkExecuteMultiOperationResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IExecuteMultiOperationResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_ExecuteMultiOperationResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.ExecuteMultiOperationResponse.IResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_ExecuteMultiOperationResponse_Response(root, env, context, pending);
+  return pending;
+}
+
+export function walkGetCurrentDeploymentResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IGetCurrentDeploymentResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_GetCurrentDeploymentResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkGetDeploymentReachabilityResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IGetDeploymentReachabilityResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_GetDeploymentReachabilityResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkGetWorkflowExecutionHistoryResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IGetWorkflowExecutionHistoryResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_GetWorkflowExecutionHistoryResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkGetWorkflowExecutionHistoryReverseResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IGetWorkflowExecutionHistoryReverseResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_GetWorkflowExecutionHistoryReverseResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkListActivityExecutionsResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IListActivityExecutionsResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_ListActivityExecutionsResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkListArchivedWorkflowExecutionsResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IListArchivedWorkflowExecutionsResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_ListArchivedWorkflowExecutionsResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkListClosedWorkflowExecutionsResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IListClosedWorkflowExecutionsResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_ListClosedWorkflowExecutionsResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkListNexusOperationExecutionsResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IListNexusOperationExecutionsResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_ListNexusOperationExecutionsResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkListOpenWorkflowExecutionsResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IListOpenWorkflowExecutionsResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_ListOpenWorkflowExecutionsResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkListSchedulesResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IListSchedulesResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_ListSchedulesResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkListWorkflowExecutionsResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IListWorkflowExecutionsResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_ListWorkflowExecutionsResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkPollActivityExecutionResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IPollActivityExecutionResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_PollActivityExecutionResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkPollActivityTaskQueueResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IPollActivityTaskQueueResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_PollActivityTaskQueueResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkPollNexusOperationExecutionResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IPollNexusOperationExecutionResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_PollNexusOperationExecutionResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkPollNexusTaskQueueResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IPollNexusTaskQueueResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_PollNexusTaskQueueResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkPollWorkflowExecutionUpdateResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IPollWorkflowExecutionUpdateResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_PollWorkflowExecutionUpdateResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkPollWorkflowTaskQueueResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IPollWorkflowTaskQueueResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_PollWorkflowTaskQueueResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkQueryWorkflowRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.IQueryWorkflowRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_QueryWorkflowRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkQueryWorkflowResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IQueryWorkflowResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_QueryWorkflowResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkRecordActivityTaskHeartbeatByIdRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.IRecordActivityTaskHeartbeatByIdRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_RecordActivityTaskHeartbeatByIdRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkRecordActivityTaskHeartbeatRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.IRecordActivityTaskHeartbeatRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_RecordActivityTaskHeartbeatRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkResetWorkflowExecutionRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.IResetWorkflowExecutionRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_ResetWorkflowExecutionRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkRespondActivityTaskCanceledByIdRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.IRespondActivityTaskCanceledByIdRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_RespondActivityTaskCanceledByIdRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkRespondActivityTaskCanceledRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.IRespondActivityTaskCanceledRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_RespondActivityTaskCanceledRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkRespondActivityTaskCompletedByIdRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.IRespondActivityTaskCompletedByIdRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_RespondActivityTaskCompletedByIdRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkRespondActivityTaskCompletedRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.IRespondActivityTaskCompletedRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_RespondActivityTaskCompletedRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkRespondActivityTaskFailedByIdRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.IRespondActivityTaskFailedByIdRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_RespondActivityTaskFailedByIdRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkRespondActivityTaskFailedByIdResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IRespondActivityTaskFailedByIdResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_RespondActivityTaskFailedByIdResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkRespondActivityTaskFailedRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.IRespondActivityTaskFailedRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_RespondActivityTaskFailedRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkRespondActivityTaskFailedResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IRespondActivityTaskFailedResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_RespondActivityTaskFailedResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkRespondNexusTaskCompletedRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.IRespondNexusTaskCompletedRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_RespondNexusTaskCompletedRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkRespondNexusTaskFailedRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.IRespondNexusTaskFailedRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_RespondNexusTaskFailedRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkRespondQueryTaskCompletedRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.IRespondQueryTaskCompletedRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_RespondQueryTaskCompletedRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkRespondWorkflowTaskCompletedRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.IRespondWorkflowTaskCompletedRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_RespondWorkflowTaskCompletedRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkRespondWorkflowTaskCompletedResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IRespondWorkflowTaskCompletedResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_RespondWorkflowTaskCompletedResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkRespondWorkflowTaskFailedRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.IRespondWorkflowTaskFailedRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_RespondWorkflowTaskFailedRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkScanWorkflowExecutionsResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IScanWorkflowExecutionsResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_ScanWorkflowExecutionsResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkSetCurrentDeploymentRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.ISetCurrentDeploymentRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_SetCurrentDeploymentRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkSetCurrentDeploymentResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.ISetCurrentDeploymentResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_SetCurrentDeploymentResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkSignalWithStartWorkflowExecutionRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.ISignalWithStartWorkflowExecutionRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_SignalWithStartWorkflowExecutionRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkSignalWorkflowExecutionRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.ISignalWorkflowExecutionRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_SignalWorkflowExecutionRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkStartActivityExecutionRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.IStartActivityExecutionRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_StartActivityExecutionRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkStartBatchOperationRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.IStartBatchOperationRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_StartBatchOperationRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkStartNexusOperationExecutionRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.IStartNexusOperationExecutionRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_StartNexusOperationExecutionRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkStartWorkflowExecutionRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.IStartWorkflowExecutionRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_StartWorkflowExecutionRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkStartWorkflowExecutionResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_StartWorkflowExecutionResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkTerminateWorkflowExecutionRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.ITerminateWorkflowExecutionRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_TerminateWorkflowExecutionRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkUpdateScheduleRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.IUpdateScheduleRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_UpdateScheduleRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkUpdateWorkerDeploymentVersionComputeConfigRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.IUpdateWorkerDeploymentVersionComputeConfigRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_UpdateWorkerDeploymentVersionComputeConfigRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkUpdateWorkerDeploymentVersionMetadataRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.IUpdateWorkerDeploymentVersionMetadataRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_UpdateWorkerDeploymentVersionMetadataRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkUpdateWorkerDeploymentVersionMetadataResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IUpdateWorkerDeploymentVersionMetadataResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_UpdateWorkerDeploymentVersionMetadataResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkUpdateWorkflowExecutionRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.IUpdateWorkflowExecutionRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_UpdateWorkflowExecutionRequest(root, env, context, pending);
+  return pending;
+}
+
+export function walkUpdateWorkflowExecutionResponse<Ctx>(
+  root: temporal.api.workflowservice.v1.IUpdateWorkflowExecutionResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_UpdateWorkflowExecutionResponse(root, env, context, pending);
+  return pending;
+}
+
+export function walkValidateWorkerDeploymentVersionComputeConfigRequest<Ctx>(
+  root: temporal.api.workflowservice.v1.IValidateWorkerDeploymentVersionComputeConfigRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_workflowservice_v1_ValidateWorkerDeploymentVersionComputeConfigRequest(root, env, context, pending);
+  return pending;
+}
+
+function walk_coresdk_activity_result_ActivityExecutionResult<Ctx>(
+  o: coresdk.activity_result.IActivityExecutionResult,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'coresdk.activity_result.ActivityExecutionResult', context)
+    : context;
+  {
+    const c = o.completed;
+    if (c != null) walk_coresdk_activity_result_Success(c, env, ctx, pending);
+  }
+  {
+    const c = o.failed;
+    if (c != null) walk_coresdk_activity_result_Failure(c, env, ctx, pending);
+  }
+  {
+    const c = o.cancelled;
+    if (c != null) walk_coresdk_activity_result_Cancellation(c, env, ctx, pending);
+  }
 }
 
 function walk_coresdk_activity_result_ActivityResolution<Ctx>(
@@ -94,6 +1312,87 @@ function walk_coresdk_activity_result_Success<Ctx>(
           o.result = r;
         })
       );
+  }
+}
+
+function walk_coresdk_activity_task_ActivityTask<Ctx>(
+  o: coresdk.activity_task.IActivityTask,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.activity_task.ActivityTask', context) : context;
+  {
+    const c = o.start;
+    if (c != null) walk_coresdk_activity_task_Start(c, env, ctx, pending);
+  }
+}
+
+function walk_coresdk_activity_task_Start<Ctx>(
+  o: coresdk.activity_task.IStart,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.activity_task.Start', context) : context;
+  {
+    const m = o.headerFields;
+    if (m)
+      for (const [k, v] of Object.entries(m))
+        pending.push(
+          env.transformPayload(v, ctx).then((r) => {
+            m[k] = r;
+          })
+        );
+  }
+  {
+    const a = o.input;
+    if (a && a.length)
+      pending.push(
+        env.transformPayloads(a, ctx).then((r) => {
+          o.input = r;
+        })
+      );
+  }
+  {
+    const a = o.heartbeatDetails;
+    if (a && a.length)
+      pending.push(
+        env.transformPayloads(a, ctx).then((r) => {
+          o.heartbeatDetails = r;
+        })
+      );
+  }
+}
+
+function walk_coresdk_ActivityHeartbeat<Ctx>(
+  o: coresdk.IActivityHeartbeat,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.ActivityHeartbeat', context) : context;
+  {
+    const a = o.details;
+    if (a && a.length)
+      pending.push(
+        env.transformPayloads(a, ctx).then((r) => {
+          o.details = r;
+        })
+      );
+  }
+}
+
+function walk_coresdk_ActivityTaskCompletion<Ctx>(
+  o: coresdk.IActivityTaskCompletion,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.ActivityTaskCompletion', context) : context;
+  {
+    const c = o.result;
+    if (c != null) walk_coresdk_activity_result_ActivityExecutionResult(c, env, ctx, pending);
   }
 }
 
@@ -188,6 +1487,36 @@ function walk_coresdk_nexus_NexusOperationResult<Ctx>(
   }
   {
     const c = o.timedOut;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_coresdk_nexus_NexusTask<Ctx>(
+  o: coresdk.nexus.INexusTask,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.nexus.NexusTask', context) : context;
+  {
+    const c = o.task;
+    if (c != null) walk_temporal_api_workflowservice_v1_PollNexusTaskQueueResponse(c, env, ctx, pending);
+  }
+}
+
+function walk_coresdk_nexus_NexusTaskCompletion<Ctx>(
+  o: coresdk.nexus.INexusTaskCompletion,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.nexus.NexusTaskCompletion', context) : context;
+  {
+    const c = o.completed;
+    if (c != null) walk_temporal_api_nexus_v1_Response(c, env, ctx, pending);
+  }
+  {
+    const c = o.failure;
     if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
   }
 }
@@ -962,6 +2291,450 @@ function walk_coresdk_workflow_completion_WorkflowActivationCompletion<Ctx>(
   }
 }
 
+function walk_temporal_api_activity_v1_ActivityExecutionInfo<Ctx>(
+  o: temporal.api.activity.v1.IActivityExecutionInfo,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.activity.v1.ActivityExecutionInfo', context)
+    : context;
+  {
+    const c = o.heartbeatDetails;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.lastFailure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+  {
+    if (!env.skipSearchAttributes) {
+      const c = o.searchAttributes;
+      if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, env, ctx, pending);
+    }
+  }
+  {
+    const c = o.header;
+    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+  }
+  {
+    const c = o.userMetadata;
+    if (c != null) walk_temporal_api_sdk_v1_UserMetadata(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_activity_v1_ActivityExecutionListInfo<Ctx>(
+  o: temporal.api.activity.v1.IActivityExecutionListInfo,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.activity.v1.ActivityExecutionListInfo', context)
+    : context;
+  {
+    if (!env.skipSearchAttributes) {
+      const c = o.searchAttributes;
+      if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, env, ctx, pending);
+    }
+  }
+}
+
+function walk_temporal_api_activity_v1_ActivityExecutionOutcome<Ctx>(
+  o: temporal.api.activity.v1.IActivityExecutionOutcome,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.activity.v1.ActivityExecutionOutcome', context)
+    : context;
+  {
+    const c = o.result;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_activity_v1_CallbackInfo<Ctx>(
+  o: temporal.api.activity.v1.ICallbackInfo,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.activity.v1.CallbackInfo', context) : context;
+  {
+    const c = o.info;
+    if (c != null) walk_temporal_api_callback_v1_CallbackInfo(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_batch_v1_BatchOperationReset<Ctx>(
+  o: temporal.api.batch.v1.IBatchOperationReset,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.batch.v1.BatchOperationReset', context) : context;
+  {
+    const a = o.postResetOperations;
+    if (a) for (const v of a) walk_temporal_api_workflow_v1_PostResetOperation(v, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_batch_v1_BatchOperationSignal<Ctx>(
+  o: temporal.api.batch.v1.IBatchOperationSignal,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.batch.v1.BatchOperationSignal', context) : context;
+  {
+    const c = o.input;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.header;
+    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_batch_v1_BatchOperationTermination<Ctx>(
+  o: temporal.api.batch.v1.IBatchOperationTermination,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.batch.v1.BatchOperationTermination', context)
+    : context;
+  {
+    const c = o.details;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_callback_v1_CallbackInfo<Ctx>(
+  o: temporal.api.callback.v1.ICallbackInfo,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.callback.v1.CallbackInfo', context) : context;
+  {
+    const c = o.lastAttemptFailure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_command_v1_CancelWorkflowExecutionCommandAttributes<Ctx>(
+  o: temporal.api.command.v1.ICancelWorkflowExecutionCommandAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.command.v1.CancelWorkflowExecutionCommandAttributes', context)
+    : context;
+  {
+    const c = o.details;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_command_v1_Command<Ctx>(
+  o: temporal.api.command.v1.ICommand,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.command.v1.Command', context) : context;
+  {
+    const c = o.userMetadata;
+    if (c != null) walk_temporal_api_sdk_v1_UserMetadata(c, env, ctx, pending);
+  }
+  {
+    const a = o.eventGroupMarkers;
+    if (a) for (const v of a) walk_temporal_api_sdk_v1_EventGroupMarker(v, env, ctx, pending);
+  }
+  {
+    const c = o.scheduleActivityTaskCommandAttributes;
+    if (c != null) walk_temporal_api_command_v1_ScheduleActivityTaskCommandAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.completeWorkflowExecutionCommandAttributes;
+    if (c != null) walk_temporal_api_command_v1_CompleteWorkflowExecutionCommandAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.failWorkflowExecutionCommandAttributes;
+    if (c != null) walk_temporal_api_command_v1_FailWorkflowExecutionCommandAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.cancelWorkflowExecutionCommandAttributes;
+    if (c != null) walk_temporal_api_command_v1_CancelWorkflowExecutionCommandAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.recordMarkerCommandAttributes;
+    if (c != null) walk_temporal_api_command_v1_RecordMarkerCommandAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.continueAsNewWorkflowExecutionCommandAttributes;
+    if (c != null) walk_temporal_api_command_v1_ContinueAsNewWorkflowExecutionCommandAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.startChildWorkflowExecutionCommandAttributes;
+    if (c != null) walk_temporal_api_command_v1_StartChildWorkflowExecutionCommandAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.signalExternalWorkflowExecutionCommandAttributes;
+    if (c != null) walk_temporal_api_command_v1_SignalExternalWorkflowExecutionCommandAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.upsertWorkflowSearchAttributesCommandAttributes;
+    if (c != null) walk_temporal_api_command_v1_UpsertWorkflowSearchAttributesCommandAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.modifyWorkflowPropertiesCommandAttributes;
+    if (c != null) walk_temporal_api_command_v1_ModifyWorkflowPropertiesCommandAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.scheduleNexusOperationCommandAttributes;
+    if (c != null) walk_temporal_api_command_v1_ScheduleNexusOperationCommandAttributes(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_command_v1_CompleteWorkflowExecutionCommandAttributes<Ctx>(
+  o: temporal.api.command.v1.ICompleteWorkflowExecutionCommandAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.command.v1.CompleteWorkflowExecutionCommandAttributes', context)
+    : context;
+  {
+    const c = o.result;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_command_v1_ContinueAsNewWorkflowExecutionCommandAttributes<Ctx>(
+  o: temporal.api.command.v1.IContinueAsNewWorkflowExecutionCommandAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.command.v1.ContinueAsNewWorkflowExecutionCommandAttributes', context)
+    : context;
+  {
+    const c = o.input;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+  {
+    const c = o.lastCompletionResult;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.header;
+    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+  }
+  {
+    const c = o.memo;
+    if (c != null) walk_temporal_api_common_v1_Memo(c, env, ctx, pending);
+  }
+  {
+    if (!env.skipSearchAttributes) {
+      const c = o.searchAttributes;
+      if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, env, ctx, pending);
+    }
+  }
+}
+
+function walk_temporal_api_command_v1_FailWorkflowExecutionCommandAttributes<Ctx>(
+  o: temporal.api.command.v1.IFailWorkflowExecutionCommandAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.command.v1.FailWorkflowExecutionCommandAttributes', context)
+    : context;
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_command_v1_ModifyWorkflowPropertiesCommandAttributes<Ctx>(
+  o: temporal.api.command.v1.IModifyWorkflowPropertiesCommandAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.command.v1.ModifyWorkflowPropertiesCommandAttributes', context)
+    : context;
+  {
+    const c = o.upsertedMemo;
+    if (c != null) walk_temporal_api_common_v1_Memo(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_command_v1_RecordMarkerCommandAttributes<Ctx>(
+  o: temporal.api.command.v1.IRecordMarkerCommandAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.command.v1.RecordMarkerCommandAttributes', context)
+    : context;
+  {
+    const m = o.details;
+    if (m) for (const v of Object.values(m)) walk_temporal_api_common_v1_Payloads(v, env, ctx, pending);
+  }
+  {
+    const c = o.header;
+    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+  }
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_command_v1_ScheduleActivityTaskCommandAttributes<Ctx>(
+  o: temporal.api.command.v1.IScheduleActivityTaskCommandAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.command.v1.ScheduleActivityTaskCommandAttributes', context)
+    : context;
+  {
+    const c = o.header;
+    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+  }
+  {
+    const c = o.input;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_command_v1_ScheduleNexusOperationCommandAttributes<Ctx>(
+  o: temporal.api.command.v1.IScheduleNexusOperationCommandAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.command.v1.ScheduleNexusOperationCommandAttributes', context)
+    : context;
+  {
+    const p = o.input;
+    if (p != null)
+      pending.push(
+        env.transformPayload(p, ctx).then((r) => {
+          o.input = r;
+        })
+      );
+  }
+}
+
+function walk_temporal_api_command_v1_SignalExternalWorkflowExecutionCommandAttributes<Ctx>(
+  o: temporal.api.command.v1.ISignalExternalWorkflowExecutionCommandAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.command.v1.SignalExternalWorkflowExecutionCommandAttributes', context)
+    : context;
+  {
+    const c = o.input;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.header;
+    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_command_v1_StartChildWorkflowExecutionCommandAttributes<Ctx>(
+  o: temporal.api.command.v1.IStartChildWorkflowExecutionCommandAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.command.v1.StartChildWorkflowExecutionCommandAttributes', context)
+    : context;
+  {
+    const c = o.input;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.header;
+    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+  }
+  {
+    const c = o.memo;
+    if (c != null) walk_temporal_api_common_v1_Memo(c, env, ctx, pending);
+  }
+  {
+    if (!env.skipSearchAttributes) {
+      const c = o.searchAttributes;
+      if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, env, ctx, pending);
+    }
+  }
+}
+
+function walk_temporal_api_command_v1_UpsertWorkflowSearchAttributesCommandAttributes<Ctx>(
+  o: temporal.api.command.v1.IUpsertWorkflowSearchAttributesCommandAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.command.v1.UpsertWorkflowSearchAttributesCommandAttributes', context)
+    : context;
+  {
+    if (!env.skipSearchAttributes) {
+      const c = o.searchAttributes;
+      if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, env, ctx, pending);
+    }
+  }
+}
+
+function walk_temporal_api_common_v1_Header<Ctx>(
+  o: temporal.api.common.v1.IHeader,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.common.v1.Header', context) : context;
+  {
+    const m = o.fields;
+    if (m)
+      for (const [k, v] of Object.entries(m))
+        pending.push(
+          env.transformPayload(v, ctx).then((r) => {
+            m[k] = r;
+          })
+        );
+  }
+}
+
 function walk_temporal_api_common_v1_Memo<Ctx>(
   o: temporal.api.common.v1.IMemo,
   env: WalkEnv<Ctx>,
@@ -1015,6 +2788,168 @@ function walk_temporal_api_common_v1_SearchAttributes<Ctx>(
             m[k] = r;
           })
         );
+  }
+}
+
+function walk_temporal_api_compute_v1_ComputeConfig<Ctx>(
+  o: temporal.api.compute.v1.IComputeConfig,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.compute.v1.ComputeConfig', context) : context;
+  {
+    const m = o.scalingGroups;
+    if (m)
+      for (const v of Object.values(m)) walk_temporal_api_compute_v1_ComputeConfigScalingGroup(v, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_compute_v1_ComputeConfigScalingGroup<Ctx>(
+  o: temporal.api.compute.v1.IComputeConfigScalingGroup,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.compute.v1.ComputeConfigScalingGroup', context)
+    : context;
+  {
+    const c = o.provider;
+    if (c != null) walk_temporal_api_compute_v1_ComputeProvider(c, env, ctx, pending);
+  }
+  {
+    const c = o.scaler;
+    if (c != null) walk_temporal_api_compute_v1_ComputeScaler(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_compute_v1_ComputeConfigScalingGroupUpdate<Ctx>(
+  o: temporal.api.compute.v1.IComputeConfigScalingGroupUpdate,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.compute.v1.ComputeConfigScalingGroupUpdate', context)
+    : context;
+  {
+    const c = o.scalingGroup;
+    if (c != null) walk_temporal_api_compute_v1_ComputeConfigScalingGroup(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_compute_v1_ComputeProvider<Ctx>(
+  o: temporal.api.compute.v1.IComputeProvider,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.compute.v1.ComputeProvider', context) : context;
+  {
+    const p = o.details;
+    if (p != null)
+      pending.push(
+        env.transformPayload(p, ctx).then((r) => {
+          o.details = r;
+        })
+      );
+  }
+}
+
+function walk_temporal_api_compute_v1_ComputeScaler<Ctx>(
+  o: temporal.api.compute.v1.IComputeScaler,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.compute.v1.ComputeScaler', context) : context;
+  {
+    const p = o.details;
+    if (p != null)
+      pending.push(
+        env.transformPayload(p, ctx).then((r) => {
+          o.details = r;
+        })
+      );
+  }
+}
+
+function walk_temporal_api_deployment_v1_DeploymentInfo<Ctx>(
+  o: temporal.api.deployment.v1.IDeploymentInfo,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.deployment.v1.DeploymentInfo', context) : context;
+  {
+    const m = o.metadata;
+    if (m)
+      for (const [k, v] of Object.entries(m))
+        pending.push(
+          env.transformPayload(v, ctx).then((r) => {
+            m[k] = r;
+          })
+        );
+  }
+}
+
+function walk_temporal_api_deployment_v1_UpdateDeploymentMetadata<Ctx>(
+  o: temporal.api.deployment.v1.IUpdateDeploymentMetadata,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.deployment.v1.UpdateDeploymentMetadata', context)
+    : context;
+  {
+    const m = o.upsertEntries;
+    if (m)
+      for (const [k, v] of Object.entries(m))
+        pending.push(
+          env.transformPayload(v, ctx).then((r) => {
+            m[k] = r;
+          })
+        );
+  }
+}
+
+function walk_temporal_api_deployment_v1_VersionMetadata<Ctx>(
+  o: temporal.api.deployment.v1.IVersionMetadata,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.deployment.v1.VersionMetadata', context) : context;
+  {
+    const m = o.entries;
+    if (m)
+      for (const [k, v] of Object.entries(m))
+        pending.push(
+          env.transformPayload(v, ctx).then((r) => {
+            m[k] = r;
+          })
+        );
+  }
+}
+
+function walk_temporal_api_deployment_v1_WorkerDeploymentVersionInfo<Ctx>(
+  o: temporal.api.deployment.v1.IWorkerDeploymentVersionInfo,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.deployment.v1.WorkerDeploymentVersionInfo', context)
+    : context;
+  {
+    const c = o.metadata;
+    if (c != null) walk_temporal_api_deployment_v1_VersionMetadata(c, env, ctx, pending);
+  }
+  {
+    const c = o.computeConfig;
+    if (c != null) walk_temporal_api_compute_v1_ComputeConfig(c, env, ctx, pending);
   }
 }
 
@@ -1114,6 +3049,1035 @@ function walk_temporal_api_failure_v1_TimeoutFailureInfo<Ctx>(
   }
 }
 
+function walk_temporal_api_history_v1_ActivityTaskCanceledEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IActivityTaskCanceledEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.ActivityTaskCanceledEventAttributes', context)
+    : context;
+  {
+    const c = o.details;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_ActivityTaskCompletedEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IActivityTaskCompletedEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.ActivityTaskCompletedEventAttributes', context)
+    : context;
+  {
+    const c = o.result;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_ActivityTaskFailedEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IActivityTaskFailedEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.ActivityTaskFailedEventAttributes', context)
+    : context;
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_ActivityTaskScheduledEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IActivityTaskScheduledEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.ActivityTaskScheduledEventAttributes', context)
+    : context;
+  {
+    const c = o.header;
+    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+  }
+  {
+    const c = o.input;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_ActivityTaskStartedEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IActivityTaskStartedEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.ActivityTaskStartedEventAttributes', context)
+    : context;
+  {
+    const c = o.lastFailure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_ActivityTaskTimedOutEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IActivityTaskTimedOutEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.ActivityTaskTimedOutEventAttributes', context)
+    : context;
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_ChildWorkflowExecutionCanceledEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IChildWorkflowExecutionCanceledEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.ChildWorkflowExecutionCanceledEventAttributes', context)
+    : context;
+  {
+    const c = o.details;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_ChildWorkflowExecutionCompletedEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IChildWorkflowExecutionCompletedEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.ChildWorkflowExecutionCompletedEventAttributes', context)
+    : context;
+  {
+    const c = o.result;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_ChildWorkflowExecutionFailedEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IChildWorkflowExecutionFailedEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.ChildWorkflowExecutionFailedEventAttributes', context)
+    : context;
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_ChildWorkflowExecutionStartedEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IChildWorkflowExecutionStartedEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.ChildWorkflowExecutionStartedEventAttributes', context)
+    : context;
+  {
+    const c = o.header;
+    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_History<Ctx>(
+  o: temporal.api.history.v1.IHistory,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.history.v1.History', context) : context;
+  {
+    const a = o.events;
+    if (a) for (const v of a) walk_temporal_api_history_v1_HistoryEvent(v, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_HistoryEvent<Ctx>(
+  o: temporal.api.history.v1.IHistoryEvent,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.history.v1.HistoryEvent', context) : context;
+  {
+    const c = o.userMetadata;
+    if (c != null) walk_temporal_api_sdk_v1_UserMetadata(c, env, ctx, pending);
+  }
+  {
+    const a = o.eventGroupMarkers;
+    if (a) for (const v of a) walk_temporal_api_sdk_v1_EventGroupMarker(v, env, ctx, pending);
+  }
+  {
+    const c = o.workflowExecutionStartedEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_WorkflowExecutionStartedEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.workflowExecutionCompletedEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_WorkflowExecutionCompletedEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.workflowExecutionFailedEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_WorkflowExecutionFailedEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.workflowTaskFailedEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_WorkflowTaskFailedEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.activityTaskScheduledEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_ActivityTaskScheduledEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.activityTaskStartedEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_ActivityTaskStartedEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.activityTaskCompletedEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_ActivityTaskCompletedEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.activityTaskFailedEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_ActivityTaskFailedEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.activityTaskTimedOutEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_ActivityTaskTimedOutEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.activityTaskCanceledEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_ActivityTaskCanceledEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.markerRecordedEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_MarkerRecordedEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.workflowExecutionSignaledEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_WorkflowExecutionSignaledEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.workflowExecutionTerminatedEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_WorkflowExecutionTerminatedEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.workflowExecutionCanceledEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_WorkflowExecutionCanceledEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.workflowExecutionContinuedAsNewEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_WorkflowExecutionContinuedAsNewEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.startChildWorkflowExecutionInitiatedEventAttributes;
+    if (c != null)
+      walk_temporal_api_history_v1_StartChildWorkflowExecutionInitiatedEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.childWorkflowExecutionStartedEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_ChildWorkflowExecutionStartedEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.childWorkflowExecutionCompletedEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_ChildWorkflowExecutionCompletedEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.childWorkflowExecutionFailedEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_ChildWorkflowExecutionFailedEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.childWorkflowExecutionCanceledEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_ChildWorkflowExecutionCanceledEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.signalExternalWorkflowExecutionInitiatedEventAttributes;
+    if (c != null)
+      walk_temporal_api_history_v1_SignalExternalWorkflowExecutionInitiatedEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.upsertWorkflowSearchAttributesEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_UpsertWorkflowSearchAttributesEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.workflowExecutionUpdateAcceptedEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_WorkflowExecutionUpdateAcceptedEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.workflowExecutionUpdateRejectedEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_WorkflowExecutionUpdateRejectedEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.workflowExecutionUpdateCompletedEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_WorkflowExecutionUpdateCompletedEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.workflowPropertiesModifiedExternallyEventAttributes;
+    if (c != null)
+      walk_temporal_api_history_v1_WorkflowPropertiesModifiedExternallyEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.workflowPropertiesModifiedEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_WorkflowPropertiesModifiedEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.workflowExecutionUpdateAdmittedEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_WorkflowExecutionUpdateAdmittedEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.nexusOperationScheduledEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_NexusOperationScheduledEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.nexusOperationCompletedEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_NexusOperationCompletedEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.nexusOperationFailedEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_NexusOperationFailedEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.nexusOperationCanceledEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_NexusOperationCanceledEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.nexusOperationTimedOutEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_NexusOperationTimedOutEventAttributes(c, env, ctx, pending);
+  }
+  {
+    const c = o.nexusOperationCancelRequestFailedEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_NexusOperationCancelRequestFailedEventAttributes(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_MarkerRecordedEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IMarkerRecordedEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.MarkerRecordedEventAttributes', context)
+    : context;
+  {
+    const m = o.details;
+    if (m) for (const v of Object.values(m)) walk_temporal_api_common_v1_Payloads(v, env, ctx, pending);
+  }
+  {
+    const c = o.header;
+    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+  }
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_NexusOperationCanceledEventAttributes<Ctx>(
+  o: temporal.api.history.v1.INexusOperationCanceledEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.NexusOperationCanceledEventAttributes', context)
+    : context;
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_NexusOperationCancelRequestFailedEventAttributes<Ctx>(
+  o: temporal.api.history.v1.INexusOperationCancelRequestFailedEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.NexusOperationCancelRequestFailedEventAttributes', context)
+    : context;
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_NexusOperationCompletedEventAttributes<Ctx>(
+  o: temporal.api.history.v1.INexusOperationCompletedEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.NexusOperationCompletedEventAttributes', context)
+    : context;
+  {
+    const p = o.result;
+    if (p != null)
+      pending.push(
+        env.transformPayload(p, ctx).then((r) => {
+          o.result = r;
+        })
+      );
+  }
+}
+
+function walk_temporal_api_history_v1_NexusOperationFailedEventAttributes<Ctx>(
+  o: temporal.api.history.v1.INexusOperationFailedEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.NexusOperationFailedEventAttributes', context)
+    : context;
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_NexusOperationScheduledEventAttributes<Ctx>(
+  o: temporal.api.history.v1.INexusOperationScheduledEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.NexusOperationScheduledEventAttributes', context)
+    : context;
+  {
+    const p = o.input;
+    if (p != null)
+      pending.push(
+        env.transformPayload(p, ctx).then((r) => {
+          o.input = r;
+        })
+      );
+  }
+}
+
+function walk_temporal_api_history_v1_NexusOperationTimedOutEventAttributes<Ctx>(
+  o: temporal.api.history.v1.INexusOperationTimedOutEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.NexusOperationTimedOutEventAttributes', context)
+    : context;
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_SignalExternalWorkflowExecutionInitiatedEventAttributes<Ctx>(
+  o: temporal.api.history.v1.ISignalExternalWorkflowExecutionInitiatedEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.SignalExternalWorkflowExecutionInitiatedEventAttributes', context)
+    : context;
+  {
+    const c = o.input;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.header;
+    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_StartChildWorkflowExecutionInitiatedEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IStartChildWorkflowExecutionInitiatedEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.StartChildWorkflowExecutionInitiatedEventAttributes', context)
+    : context;
+  {
+    const c = o.input;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.header;
+    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+  }
+  {
+    const c = o.memo;
+    if (c != null) walk_temporal_api_common_v1_Memo(c, env, ctx, pending);
+  }
+  {
+    if (!env.skipSearchAttributes) {
+      const c = o.searchAttributes;
+      if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, env, ctx, pending);
+    }
+  }
+}
+
+function walk_temporal_api_history_v1_UpsertWorkflowSearchAttributesEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IUpsertWorkflowSearchAttributesEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.UpsertWorkflowSearchAttributesEventAttributes', context)
+    : context;
+  {
+    if (!env.skipSearchAttributes) {
+      const c = o.searchAttributes;
+      if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, env, ctx, pending);
+    }
+  }
+}
+
+function walk_temporal_api_history_v1_WorkflowExecutionCanceledEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IWorkflowExecutionCanceledEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.WorkflowExecutionCanceledEventAttributes', context)
+    : context;
+  {
+    const c = o.details;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_WorkflowExecutionCompletedEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IWorkflowExecutionCompletedEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.WorkflowExecutionCompletedEventAttributes', context)
+    : context;
+  {
+    const c = o.result;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_WorkflowExecutionContinuedAsNewEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IWorkflowExecutionContinuedAsNewEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.WorkflowExecutionContinuedAsNewEventAttributes', context)
+    : context;
+  {
+    const c = o.input;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+  {
+    const c = o.lastCompletionResult;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.header;
+    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+  }
+  {
+    const c = o.memo;
+    if (c != null) walk_temporal_api_common_v1_Memo(c, env, ctx, pending);
+  }
+  {
+    if (!env.skipSearchAttributes) {
+      const c = o.searchAttributes;
+      if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, env, ctx, pending);
+    }
+  }
+}
+
+function walk_temporal_api_history_v1_WorkflowExecutionFailedEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IWorkflowExecutionFailedEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.WorkflowExecutionFailedEventAttributes', context)
+    : context;
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_WorkflowExecutionSignaledEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IWorkflowExecutionSignaledEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.WorkflowExecutionSignaledEventAttributes', context)
+    : context;
+  {
+    const c = o.input;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.header;
+    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_WorkflowExecutionStartedEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IWorkflowExecutionStartedEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.WorkflowExecutionStartedEventAttributes', context)
+    : context;
+  {
+    const c = o.input;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.continuedFailure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+  {
+    const c = o.lastCompletionResult;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.memo;
+    if (c != null) walk_temporal_api_common_v1_Memo(c, env, ctx, pending);
+  }
+  {
+    if (!env.skipSearchAttributes) {
+      const c = o.searchAttributes;
+      if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, env, ctx, pending);
+    }
+  }
+  {
+    const c = o.header;
+    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_WorkflowExecutionTerminatedEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IWorkflowExecutionTerminatedEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.WorkflowExecutionTerminatedEventAttributes', context)
+    : context;
+  {
+    const c = o.details;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_WorkflowExecutionUpdateAcceptedEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IWorkflowExecutionUpdateAcceptedEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.WorkflowExecutionUpdateAcceptedEventAttributes', context)
+    : context;
+  {
+    const c = o.acceptedRequest;
+    if (c != null) walk_temporal_api_update_v1_Request(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_WorkflowExecutionUpdateAdmittedEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IWorkflowExecutionUpdateAdmittedEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.WorkflowExecutionUpdateAdmittedEventAttributes', context)
+    : context;
+  {
+    const c = o.request;
+    if (c != null) walk_temporal_api_update_v1_Request(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_WorkflowExecutionUpdateCompletedEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IWorkflowExecutionUpdateCompletedEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.WorkflowExecutionUpdateCompletedEventAttributes', context)
+    : context;
+  {
+    const c = o.outcome;
+    if (c != null) walk_temporal_api_update_v1_Outcome(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_WorkflowExecutionUpdateRejectedEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IWorkflowExecutionUpdateRejectedEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.WorkflowExecutionUpdateRejectedEventAttributes', context)
+    : context;
+  {
+    const c = o.rejectedRequest;
+    if (c != null) walk_temporal_api_update_v1_Request(c, env, ctx, pending);
+  }
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_WorkflowPropertiesModifiedEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IWorkflowPropertiesModifiedEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.WorkflowPropertiesModifiedEventAttributes', context)
+    : context;
+  {
+    const c = o.upsertedMemo;
+    if (c != null) walk_temporal_api_common_v1_Memo(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_WorkflowPropertiesModifiedExternallyEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IWorkflowPropertiesModifiedExternallyEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.WorkflowPropertiesModifiedExternallyEventAttributes', context)
+    : context;
+  {
+    const c = o.upsertedMemo;
+    if (c != null) walk_temporal_api_common_v1_Memo(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_history_v1_WorkflowTaskFailedEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IWorkflowTaskFailedEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.WorkflowTaskFailedEventAttributes', context)
+    : context;
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_nexus_v1_NexusOperationExecutionCancellationInfo<Ctx>(
+  o: temporal.api.nexus.v1.INexusOperationExecutionCancellationInfo,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.nexus.v1.NexusOperationExecutionCancellationInfo', context)
+    : context;
+  {
+    const c = o.lastAttemptFailure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_nexus_v1_NexusOperationExecutionInfo<Ctx>(
+  o: temporal.api.nexus.v1.INexusOperationExecutionInfo,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.nexus.v1.NexusOperationExecutionInfo', context)
+    : context;
+  {
+    const c = o.lastAttemptFailure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+  {
+    const c = o.cancellationInfo;
+    if (c != null) walk_temporal_api_nexus_v1_NexusOperationExecutionCancellationInfo(c, env, ctx, pending);
+  }
+  {
+    if (!env.skipSearchAttributes) {
+      const c = o.searchAttributes;
+      if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, env, ctx, pending);
+    }
+  }
+  {
+    const c = o.userMetadata;
+    if (c != null) walk_temporal_api_sdk_v1_UserMetadata(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_nexus_v1_NexusOperationExecutionListInfo<Ctx>(
+  o: temporal.api.nexus.v1.INexusOperationExecutionListInfo,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.nexus.v1.NexusOperationExecutionListInfo', context)
+    : context;
+  {
+    if (!env.skipSearchAttributes) {
+      const c = o.searchAttributes;
+      if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, env, ctx, pending);
+    }
+  }
+}
+
+function walk_temporal_api_nexus_v1_Request<Ctx>(
+  o: temporal.api.nexus.v1.IRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.nexus.v1.Request', context) : context;
+  {
+    const c = o.startOperation;
+    if (c != null) walk_temporal_api_nexus_v1_StartOperationRequest(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_nexus_v1_Response<Ctx>(
+  o: temporal.api.nexus.v1.IResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.nexus.v1.Response', context) : context;
+  {
+    const c = o.startOperation;
+    if (c != null) walk_temporal_api_nexus_v1_StartOperationResponse(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_nexus_v1_StartOperationRequest<Ctx>(
+  o: temporal.api.nexus.v1.IStartOperationRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.nexus.v1.StartOperationRequest', context)
+    : context;
+  {
+    const p = o.payload;
+    if (p != null)
+      pending.push(
+        env.transformPayload(p, ctx).then((r) => {
+          o.payload = r;
+        })
+      );
+  }
+}
+
+function walk_temporal_api_nexus_v1_StartOperationResponse<Ctx>(
+  o: temporal.api.nexus.v1.IStartOperationResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.nexus.v1.StartOperationResponse', context)
+    : context;
+  {
+    const c = o.syncSuccess;
+    if (c != null) walk_temporal_api_nexus_v1_StartOperationResponse_Sync(c, env, ctx, pending);
+  }
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_nexus_v1_StartOperationResponse_Sync<Ctx>(
+  o: temporal.api.nexus.v1.StartOperationResponse.ISync,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.nexus.v1.StartOperationResponse.Sync', context)
+    : context;
+  {
+    const p = o.payload;
+    if (p != null)
+      pending.push(
+        env.transformPayload(p, ctx).then((r) => {
+          o.payload = r;
+        })
+      );
+  }
+}
+
+function walk_temporal_api_query_v1_WorkflowQuery<Ctx>(
+  o: temporal.api.query.v1.IWorkflowQuery,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.query.v1.WorkflowQuery', context) : context;
+  {
+    const c = o.queryArgs;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.header;
+    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_query_v1_WorkflowQueryResult<Ctx>(
+  o: temporal.api.query.v1.IWorkflowQueryResult,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.query.v1.WorkflowQueryResult', context) : context;
+  {
+    const c = o.answer;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_schedule_v1_Schedule<Ctx>(
+  o: temporal.api.schedule.v1.ISchedule,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.schedule.v1.Schedule', context) : context;
+  {
+    const c = o.action;
+    if (c != null) walk_temporal_api_schedule_v1_ScheduleAction(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_schedule_v1_ScheduleAction<Ctx>(
+  o: temporal.api.schedule.v1.IScheduleAction,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.schedule.v1.ScheduleAction', context) : context;
+  {
+    const c = o.startWorkflow;
+    if (c != null) walk_temporal_api_workflow_v1_NewWorkflowExecutionInfo(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_schedule_v1_ScheduleListEntry<Ctx>(
+  o: temporal.api.schedule.v1.IScheduleListEntry,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.schedule.v1.ScheduleListEntry', context) : context;
+  {
+    const c = o.memo;
+    if (c != null) walk_temporal_api_common_v1_Memo(c, env, ctx, pending);
+  }
+  {
+    if (!env.skipSearchAttributes) {
+      const c = o.searchAttributes;
+      if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, env, ctx, pending);
+    }
+  }
+}
+
+function walk_temporal_api_sdk_v1_EventGroupMarker<Ctx>(
+  o: temporal.api.sdk.v1.IEventGroupMarker,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.sdk.v1.EventGroupMarker', context) : context;
+  {
+    const c = o.label;
+    if (c != null) walk_temporal_api_sdk_v1_EventGroupMarker_Label(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_sdk_v1_EventGroupMarker_Label<Ctx>(
+  o: temporal.api.sdk.v1.EventGroupMarker.ILabel,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.sdk.v1.EventGroupMarker.Label', context) : context;
+  {
+    const p = o.label;
+    if (p != null)
+      pending.push(
+        env.transformPayload(p, ctx).then((r) => {
+          o.label = r;
+        })
+      );
+  }
+}
+
 function walk_temporal_api_sdk_v1_UserMetadata<Ctx>(
   o: temporal.api.sdk.v1.IUserMetadata,
   env: WalkEnv<Ctx>,
@@ -1138,5 +4102,1612 @@ function walk_temporal_api_sdk_v1_UserMetadata<Ctx>(
           o.details = r;
         })
       );
+  }
+}
+
+function walk_temporal_api_update_v1_Input<Ctx>(
+  o: temporal.api.update.v1.IInput,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.update.v1.Input', context) : context;
+  {
+    const c = o.header;
+    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+  }
+  {
+    const c = o.args;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_update_v1_Outcome<Ctx>(
+  o: temporal.api.update.v1.IOutcome,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.update.v1.Outcome', context) : context;
+  {
+    const c = o.success;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_update_v1_Request<Ctx>(
+  o: temporal.api.update.v1.IRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.update.v1.Request', context) : context;
+  {
+    const c = o.input;
+    if (c != null) walk_temporal_api_update_v1_Input(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflow_v1_CallbackInfo<Ctx>(
+  o: temporal.api.workflow.v1.ICallbackInfo,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.workflow.v1.CallbackInfo', context) : context;
+  {
+    const c = o.lastAttemptFailure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflow_v1_NewWorkflowExecutionInfo<Ctx>(
+  o: temporal.api.workflow.v1.INewWorkflowExecutionInfo,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflow.v1.NewWorkflowExecutionInfo', context)
+    : context;
+  {
+    const c = o.input;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.memo;
+    if (c != null) walk_temporal_api_common_v1_Memo(c, env, ctx, pending);
+  }
+  {
+    if (!env.skipSearchAttributes) {
+      const c = o.searchAttributes;
+      if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, env, ctx, pending);
+    }
+  }
+  {
+    const c = o.header;
+    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+  }
+  {
+    const c = o.userMetadata;
+    if (c != null) walk_temporal_api_sdk_v1_UserMetadata(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflow_v1_NexusOperationCancellationInfo<Ctx>(
+  o: temporal.api.workflow.v1.INexusOperationCancellationInfo,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflow.v1.NexusOperationCancellationInfo', context)
+    : context;
+  {
+    const c = o.lastAttemptFailure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflow_v1_PendingActivityInfo<Ctx>(
+  o: temporal.api.workflow.v1.IPendingActivityInfo,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflow.v1.PendingActivityInfo', context)
+    : context;
+  {
+    const c = o.heartbeatDetails;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.lastFailure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflow_v1_PendingNexusOperationInfo<Ctx>(
+  o: temporal.api.workflow.v1.IPendingNexusOperationInfo,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflow.v1.PendingNexusOperationInfo', context)
+    : context;
+  {
+    const c = o.lastAttemptFailure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+  {
+    const c = o.cancellationInfo;
+    if (c != null) walk_temporal_api_workflow_v1_NexusOperationCancellationInfo(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflow_v1_PostResetOperation<Ctx>(
+  o: temporal.api.workflow.v1.IPostResetOperation,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflow.v1.PostResetOperation', context)
+    : context;
+  {
+    const c = o.signalWorkflow;
+    if (c != null) walk_temporal_api_workflow_v1_PostResetOperation_SignalWorkflow(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflow_v1_PostResetOperation_SignalWorkflow<Ctx>(
+  o: temporal.api.workflow.v1.PostResetOperation.ISignalWorkflow,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflow.v1.PostResetOperation.SignalWorkflow', context)
+    : context;
+  {
+    const c = o.input;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.header;
+    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflow_v1_WorkflowExecutionConfig<Ctx>(
+  o: temporal.api.workflow.v1.IWorkflowExecutionConfig,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflow.v1.WorkflowExecutionConfig', context)
+    : context;
+  {
+    const c = o.userMetadata;
+    if (c != null) walk_temporal_api_sdk_v1_UserMetadata(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflow_v1_WorkflowExecutionInfo<Ctx>(
+  o: temporal.api.workflow.v1.IWorkflowExecutionInfo,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflow.v1.WorkflowExecutionInfo', context)
+    : context;
+  {
+    const c = o.memo;
+    if (c != null) walk_temporal_api_common_v1_Memo(c, env, ctx, pending);
+  }
+  {
+    if (!env.skipSearchAttributes) {
+      const c = o.searchAttributes;
+      if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, env, ctx, pending);
+    }
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_CountActivityExecutionsResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.ICountActivityExecutionsResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.CountActivityExecutionsResponse', context)
+    : context;
+  {
+    const a = o.groups;
+    if (a)
+      for (const v of a)
+        walk_temporal_api_workflowservice_v1_CountActivityExecutionsResponse_AggregationGroup(v, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_CountActivityExecutionsResponse_AggregationGroup<Ctx>(
+  o: temporal.api.workflowservice.v1.CountActivityExecutionsResponse.IAggregationGroup,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.CountActivityExecutionsResponse.AggregationGroup', context)
+    : context;
+  {
+    const a = o.groupValues;
+    if (a && a.length)
+      pending.push(
+        env.transformPayloads(a, ctx).then((r) => {
+          o.groupValues = r;
+        })
+      );
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_CountNexusOperationExecutionsResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.ICountNexusOperationExecutionsResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.CountNexusOperationExecutionsResponse', context)
+    : context;
+  {
+    const a = o.groups;
+    if (a)
+      for (const v of a)
+        walk_temporal_api_workflowservice_v1_CountNexusOperationExecutionsResponse_AggregationGroup(
+          v,
+          env,
+          ctx,
+          pending
+        );
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_CountNexusOperationExecutionsResponse_AggregationGroup<Ctx>(
+  o: temporal.api.workflowservice.v1.CountNexusOperationExecutionsResponse.IAggregationGroup,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(
+        o,
+        'temporal.api.workflowservice.v1.CountNexusOperationExecutionsResponse.AggregationGroup',
+        context
+      )
+    : context;
+  {
+    const a = o.groupValues;
+    if (a && a.length)
+      pending.push(
+        env.transformPayloads(a, ctx).then((r) => {
+          o.groupValues = r;
+        })
+      );
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_CountSchedulesResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.ICountSchedulesResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.CountSchedulesResponse', context)
+    : context;
+  {
+    const a = o.groups;
+    if (a)
+      for (const v of a)
+        walk_temporal_api_workflowservice_v1_CountSchedulesResponse_AggregationGroup(v, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_CountSchedulesResponse_AggregationGroup<Ctx>(
+  o: temporal.api.workflowservice.v1.CountSchedulesResponse.IAggregationGroup,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.CountSchedulesResponse.AggregationGroup', context)
+    : context;
+  {
+    const a = o.groupValues;
+    if (a && a.length)
+      pending.push(
+        env.transformPayloads(a, ctx).then((r) => {
+          o.groupValues = r;
+        })
+      );
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_CountWorkflowExecutionsResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.ICountWorkflowExecutionsResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.CountWorkflowExecutionsResponse', context)
+    : context;
+  {
+    const a = o.groups;
+    if (a)
+      for (const v of a)
+        walk_temporal_api_workflowservice_v1_CountWorkflowExecutionsResponse_AggregationGroup(v, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_CountWorkflowExecutionsResponse_AggregationGroup<Ctx>(
+  o: temporal.api.workflowservice.v1.CountWorkflowExecutionsResponse.IAggregationGroup,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.CountWorkflowExecutionsResponse.AggregationGroup', context)
+    : context;
+  {
+    const a = o.groupValues;
+    if (a && a.length)
+      pending.push(
+        env.transformPayloads(a, ctx).then((r) => {
+          o.groupValues = r;
+        })
+      );
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_CreateScheduleRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.ICreateScheduleRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.CreateScheduleRequest', context)
+    : context;
+  {
+    const c = o.schedule;
+    if (c != null) walk_temporal_api_schedule_v1_Schedule(c, env, ctx, pending);
+  }
+  {
+    const c = o.memo;
+    if (c != null) walk_temporal_api_common_v1_Memo(c, env, ctx, pending);
+  }
+  {
+    if (!env.skipSearchAttributes) {
+      const c = o.searchAttributes;
+      if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, env, ctx, pending);
+    }
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_CreateWorkerDeploymentVersionRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.ICreateWorkerDeploymentVersionRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.CreateWorkerDeploymentVersionRequest', context)
+    : context;
+  {
+    const c = o.computeConfig;
+    if (c != null) walk_temporal_api_compute_v1_ComputeConfig(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_DescribeActivityExecutionResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IDescribeActivityExecutionResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.DescribeActivityExecutionResponse', context)
+    : context;
+  {
+    const c = o.info;
+    if (c != null) walk_temporal_api_activity_v1_ActivityExecutionInfo(c, env, ctx, pending);
+  }
+  {
+    const c = o.input;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.outcome;
+    if (c != null) walk_temporal_api_activity_v1_ActivityExecutionOutcome(c, env, ctx, pending);
+  }
+  {
+    const a = o.callbacks;
+    if (a) for (const v of a) walk_temporal_api_activity_v1_CallbackInfo(v, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_DescribeDeploymentResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IDescribeDeploymentResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.DescribeDeploymentResponse', context)
+    : context;
+  {
+    const c = o.deploymentInfo;
+    if (c != null) walk_temporal_api_deployment_v1_DeploymentInfo(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_DescribeNexusOperationExecutionResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IDescribeNexusOperationExecutionResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.DescribeNexusOperationExecutionResponse', context)
+    : context;
+  {
+    const c = o.info;
+    if (c != null) walk_temporal_api_nexus_v1_NexusOperationExecutionInfo(c, env, ctx, pending);
+  }
+  {
+    const p = o.input;
+    if (p != null)
+      pending.push(
+        env.transformPayload(p, ctx).then((r) => {
+          o.input = r;
+        })
+      );
+  }
+  {
+    const p = o.result;
+    if (p != null)
+      pending.push(
+        env.transformPayload(p, ctx).then((r) => {
+          o.result = r;
+        })
+      );
+  }
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_DescribeScheduleResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IDescribeScheduleResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.DescribeScheduleResponse', context)
+    : context;
+  {
+    const c = o.schedule;
+    if (c != null) walk_temporal_api_schedule_v1_Schedule(c, env, ctx, pending);
+  }
+  {
+    const c = o.memo;
+    if (c != null) walk_temporal_api_common_v1_Memo(c, env, ctx, pending);
+  }
+  {
+    if (!env.skipSearchAttributes) {
+      const c = o.searchAttributes;
+      if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, env, ctx, pending);
+    }
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_DescribeWorkerDeploymentVersionResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IDescribeWorkerDeploymentVersionResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.DescribeWorkerDeploymentVersionResponse', context)
+    : context;
+  {
+    const c = o.workerDeploymentVersionInfo;
+    if (c != null) walk_temporal_api_deployment_v1_WorkerDeploymentVersionInfo(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_DescribeWorkflowExecutionResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.DescribeWorkflowExecutionResponse', context)
+    : context;
+  {
+    const c = o.executionConfig;
+    if (c != null) walk_temporal_api_workflow_v1_WorkflowExecutionConfig(c, env, ctx, pending);
+  }
+  {
+    const c = o.workflowExecutionInfo;
+    if (c != null) walk_temporal_api_workflow_v1_WorkflowExecutionInfo(c, env, ctx, pending);
+  }
+  {
+    const a = o.pendingActivities;
+    if (a) for (const v of a) walk_temporal_api_workflow_v1_PendingActivityInfo(v, env, ctx, pending);
+  }
+  {
+    const a = o.callbacks;
+    if (a) for (const v of a) walk_temporal_api_workflow_v1_CallbackInfo(v, env, ctx, pending);
+  }
+  {
+    const a = o.pendingNexusOperations;
+    if (a) for (const v of a) walk_temporal_api_workflow_v1_PendingNexusOperationInfo(v, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_ExecuteMultiOperationRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.IExecuteMultiOperationRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.ExecuteMultiOperationRequest', context)
+    : context;
+  {
+    const a = o.operations;
+    if (a)
+      for (const v of a)
+        walk_temporal_api_workflowservice_v1_ExecuteMultiOperationRequest_Operation(v, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_ExecuteMultiOperationRequest_Operation<Ctx>(
+  o: temporal.api.workflowservice.v1.ExecuteMultiOperationRequest.IOperation,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.ExecuteMultiOperationRequest.Operation', context)
+    : context;
+  {
+    const c = o.startWorkflow;
+    if (c != null) walk_temporal_api_workflowservice_v1_StartWorkflowExecutionRequest(c, env, ctx, pending);
+  }
+  {
+    const c = o.updateWorkflow;
+    if (c != null) walk_temporal_api_workflowservice_v1_UpdateWorkflowExecutionRequest(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_ExecuteMultiOperationResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IExecuteMultiOperationResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.ExecuteMultiOperationResponse', context)
+    : context;
+  {
+    const a = o.responses;
+    if (a)
+      for (const v of a)
+        walk_temporal_api_workflowservice_v1_ExecuteMultiOperationResponse_Response(v, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_ExecuteMultiOperationResponse_Response<Ctx>(
+  o: temporal.api.workflowservice.v1.ExecuteMultiOperationResponse.IResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.ExecuteMultiOperationResponse.Response', context)
+    : context;
+  {
+    const c = o.startWorkflow;
+    if (c != null) walk_temporal_api_workflowservice_v1_StartWorkflowExecutionResponse(c, env, ctx, pending);
+  }
+  {
+    const c = o.updateWorkflow;
+    if (c != null) walk_temporal_api_workflowservice_v1_UpdateWorkflowExecutionResponse(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_GetCurrentDeploymentResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IGetCurrentDeploymentResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.GetCurrentDeploymentResponse', context)
+    : context;
+  {
+    const c = o.currentDeploymentInfo;
+    if (c != null) walk_temporal_api_deployment_v1_DeploymentInfo(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_GetDeploymentReachabilityResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IGetDeploymentReachabilityResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.GetDeploymentReachabilityResponse', context)
+    : context;
+  {
+    const c = o.deploymentInfo;
+    if (c != null) walk_temporal_api_deployment_v1_DeploymentInfo(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_GetWorkflowExecutionHistoryResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IGetWorkflowExecutionHistoryResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.GetWorkflowExecutionHistoryResponse', context)
+    : context;
+  {
+    const c = o.history;
+    if (c != null) walk_temporal_api_history_v1_History(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_GetWorkflowExecutionHistoryReverseResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IGetWorkflowExecutionHistoryReverseResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.GetWorkflowExecutionHistoryReverseResponse', context)
+    : context;
+  {
+    const c = o.history;
+    if (c != null) walk_temporal_api_history_v1_History(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_ListActivityExecutionsResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IListActivityExecutionsResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.ListActivityExecutionsResponse', context)
+    : context;
+  {
+    const a = o.executions;
+    if (a) for (const v of a) walk_temporal_api_activity_v1_ActivityExecutionListInfo(v, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_ListArchivedWorkflowExecutionsResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IListArchivedWorkflowExecutionsResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.ListArchivedWorkflowExecutionsResponse', context)
+    : context;
+  {
+    const a = o.executions;
+    if (a) for (const v of a) walk_temporal_api_workflow_v1_WorkflowExecutionInfo(v, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_ListClosedWorkflowExecutionsResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IListClosedWorkflowExecutionsResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.ListClosedWorkflowExecutionsResponse', context)
+    : context;
+  {
+    const a = o.executions;
+    if (a) for (const v of a) walk_temporal_api_workflow_v1_WorkflowExecutionInfo(v, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_ListNexusOperationExecutionsResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IListNexusOperationExecutionsResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.ListNexusOperationExecutionsResponse', context)
+    : context;
+  {
+    const a = o.operations;
+    if (a) for (const v of a) walk_temporal_api_nexus_v1_NexusOperationExecutionListInfo(v, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_ListOpenWorkflowExecutionsResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IListOpenWorkflowExecutionsResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.ListOpenWorkflowExecutionsResponse', context)
+    : context;
+  {
+    const a = o.executions;
+    if (a) for (const v of a) walk_temporal_api_workflow_v1_WorkflowExecutionInfo(v, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_ListSchedulesResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IListSchedulesResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.ListSchedulesResponse', context)
+    : context;
+  {
+    const a = o.schedules;
+    if (a) for (const v of a) walk_temporal_api_schedule_v1_ScheduleListEntry(v, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_ListWorkflowExecutionsResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IListWorkflowExecutionsResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.ListWorkflowExecutionsResponse', context)
+    : context;
+  {
+    const a = o.executions;
+    if (a) for (const v of a) walk_temporal_api_workflow_v1_WorkflowExecutionInfo(v, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_PollActivityExecutionResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IPollActivityExecutionResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.PollActivityExecutionResponse', context)
+    : context;
+  {
+    const c = o.outcome;
+    if (c != null) walk_temporal_api_activity_v1_ActivityExecutionOutcome(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_PollActivityTaskQueueResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IPollActivityTaskQueueResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.PollActivityTaskQueueResponse', context)
+    : context;
+  {
+    const c = o.header;
+    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+  }
+  {
+    const c = o.input;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.heartbeatDetails;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_PollNexusOperationExecutionResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IPollNexusOperationExecutionResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.PollNexusOperationExecutionResponse', context)
+    : context;
+  {
+    const p = o.result;
+    if (p != null)
+      pending.push(
+        env.transformPayload(p, ctx).then((r) => {
+          o.result = r;
+        })
+      );
+  }
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_PollNexusTaskQueueResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IPollNexusTaskQueueResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.PollNexusTaskQueueResponse', context)
+    : context;
+  {
+    const c = o.request;
+    if (c != null) walk_temporal_api_nexus_v1_Request(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_PollWorkflowExecutionUpdateResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IPollWorkflowExecutionUpdateResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.PollWorkflowExecutionUpdateResponse', context)
+    : context;
+  {
+    const c = o.outcome;
+    if (c != null) walk_temporal_api_update_v1_Outcome(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_PollWorkflowTaskQueueResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IPollWorkflowTaskQueueResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.PollWorkflowTaskQueueResponse', context)
+    : context;
+  {
+    const c = o.history;
+    if (c != null) walk_temporal_api_history_v1_History(c, env, ctx, pending);
+  }
+  {
+    const c = o.query;
+    if (c != null) walk_temporal_api_query_v1_WorkflowQuery(c, env, ctx, pending);
+  }
+  {
+    const m = o.queries;
+    if (m) for (const v of Object.values(m)) walk_temporal_api_query_v1_WorkflowQuery(v, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_QueryWorkflowRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.IQueryWorkflowRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.QueryWorkflowRequest', context)
+    : context;
+  {
+    const c = o.query;
+    if (c != null) walk_temporal_api_query_v1_WorkflowQuery(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_QueryWorkflowResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IQueryWorkflowResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.QueryWorkflowResponse', context)
+    : context;
+  {
+    const c = o.queryResult;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_RecordActivityTaskHeartbeatByIdRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.IRecordActivityTaskHeartbeatByIdRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.RecordActivityTaskHeartbeatByIdRequest', context)
+    : context;
+  {
+    const c = o.details;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_RecordActivityTaskHeartbeatRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.IRecordActivityTaskHeartbeatRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.RecordActivityTaskHeartbeatRequest', context)
+    : context;
+  {
+    const c = o.details;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_ResetWorkflowExecutionRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.IResetWorkflowExecutionRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.ResetWorkflowExecutionRequest', context)
+    : context;
+  {
+    const a = o.postResetOperations;
+    if (a) for (const v of a) walk_temporal_api_workflow_v1_PostResetOperation(v, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_RespondActivityTaskCanceledByIdRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.IRespondActivityTaskCanceledByIdRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.RespondActivityTaskCanceledByIdRequest', context)
+    : context;
+  {
+    const c = o.details;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_RespondActivityTaskCanceledRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.IRespondActivityTaskCanceledRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.RespondActivityTaskCanceledRequest', context)
+    : context;
+  {
+    const c = o.details;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_RespondActivityTaskCompletedByIdRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.IRespondActivityTaskCompletedByIdRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.RespondActivityTaskCompletedByIdRequest', context)
+    : context;
+  {
+    const c = o.result;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_RespondActivityTaskCompletedRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.IRespondActivityTaskCompletedRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.RespondActivityTaskCompletedRequest', context)
+    : context;
+  {
+    const c = o.result;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_RespondActivityTaskFailedByIdRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.IRespondActivityTaskFailedByIdRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.RespondActivityTaskFailedByIdRequest', context)
+    : context;
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+  {
+    const c = o.lastHeartbeatDetails;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_RespondActivityTaskFailedByIdResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IRespondActivityTaskFailedByIdResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.RespondActivityTaskFailedByIdResponse', context)
+    : context;
+  {
+    const a = o.failures;
+    if (a) for (const v of a) walk_temporal_api_failure_v1_Failure(v, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_RespondActivityTaskFailedRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.IRespondActivityTaskFailedRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.RespondActivityTaskFailedRequest', context)
+    : context;
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+  {
+    const c = o.lastHeartbeatDetails;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_RespondActivityTaskFailedResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IRespondActivityTaskFailedResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.RespondActivityTaskFailedResponse', context)
+    : context;
+  {
+    const a = o.failures;
+    if (a) for (const v of a) walk_temporal_api_failure_v1_Failure(v, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_RespondNexusTaskCompletedRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.IRespondNexusTaskCompletedRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.RespondNexusTaskCompletedRequest', context)
+    : context;
+  {
+    const c = o.response;
+    if (c != null) walk_temporal_api_nexus_v1_Response(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_RespondNexusTaskFailedRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.IRespondNexusTaskFailedRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.RespondNexusTaskFailedRequest', context)
+    : context;
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_RespondQueryTaskCompletedRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.IRespondQueryTaskCompletedRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.RespondQueryTaskCompletedRequest', context)
+    : context;
+  {
+    const c = o.queryResult;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_RespondWorkflowTaskCompletedRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.IRespondWorkflowTaskCompletedRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.RespondWorkflowTaskCompletedRequest', context)
+    : context;
+  {
+    const a = o.commands;
+    if (a) for (const v of a) walk_temporal_api_command_v1_Command(v, env, ctx, pending);
+  }
+  {
+    const m = o.queryResults;
+    if (m) for (const v of Object.values(m)) walk_temporal_api_query_v1_WorkflowQueryResult(v, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_RespondWorkflowTaskCompletedResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IRespondWorkflowTaskCompletedResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.RespondWorkflowTaskCompletedResponse', context)
+    : context;
+  {
+    const c = o.workflowTask;
+    if (c != null) walk_temporal_api_workflowservice_v1_PollWorkflowTaskQueueResponse(c, env, ctx, pending);
+  }
+  {
+    const a = o.activityTasks;
+    if (a) for (const v of a) walk_temporal_api_workflowservice_v1_PollActivityTaskQueueResponse(v, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_RespondWorkflowTaskFailedRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.IRespondWorkflowTaskFailedRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.RespondWorkflowTaskFailedRequest', context)
+    : context;
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_ScanWorkflowExecutionsResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IScanWorkflowExecutionsResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.ScanWorkflowExecutionsResponse', context)
+    : context;
+  {
+    const a = o.executions;
+    if (a) for (const v of a) walk_temporal_api_workflow_v1_WorkflowExecutionInfo(v, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_SetCurrentDeploymentRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.ISetCurrentDeploymentRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.SetCurrentDeploymentRequest', context)
+    : context;
+  {
+    const c = o.updateMetadata;
+    if (c != null) walk_temporal_api_deployment_v1_UpdateDeploymentMetadata(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_SetCurrentDeploymentResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.ISetCurrentDeploymentResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.SetCurrentDeploymentResponse', context)
+    : context;
+  {
+    const c = o.currentDeploymentInfo;
+    if (c != null) walk_temporal_api_deployment_v1_DeploymentInfo(c, env, ctx, pending);
+  }
+  {
+    const c = o.previousDeploymentInfo;
+    if (c != null) walk_temporal_api_deployment_v1_DeploymentInfo(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_SignalWithStartWorkflowExecutionRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.ISignalWithStartWorkflowExecutionRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionRequest', context)
+    : context;
+  {
+    const c = o.input;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.signalInput;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.memo;
+    if (c != null) walk_temporal_api_common_v1_Memo(c, env, ctx, pending);
+  }
+  {
+    if (!env.skipSearchAttributes) {
+      const c = o.searchAttributes;
+      if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, env, ctx, pending);
+    }
+  }
+  {
+    const c = o.header;
+    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+  }
+  {
+    const c = o.userMetadata;
+    if (c != null) walk_temporal_api_sdk_v1_UserMetadata(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_SignalWorkflowExecutionRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.ISignalWorkflowExecutionRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.SignalWorkflowExecutionRequest', context)
+    : context;
+  {
+    const c = o.input;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.header;
+    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_StartActivityExecutionRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.IStartActivityExecutionRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.StartActivityExecutionRequest', context)
+    : context;
+  {
+    const c = o.input;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    if (!env.skipSearchAttributes) {
+      const c = o.searchAttributes;
+      if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, env, ctx, pending);
+    }
+  }
+  {
+    const c = o.header;
+    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+  }
+  {
+    const c = o.userMetadata;
+    if (c != null) walk_temporal_api_sdk_v1_UserMetadata(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_StartBatchOperationRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.IStartBatchOperationRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.StartBatchOperationRequest', context)
+    : context;
+  {
+    const c = o.terminationOperation;
+    if (c != null) walk_temporal_api_batch_v1_BatchOperationTermination(c, env, ctx, pending);
+  }
+  {
+    const c = o.signalOperation;
+    if (c != null) walk_temporal_api_batch_v1_BatchOperationSignal(c, env, ctx, pending);
+  }
+  {
+    const c = o.resetOperation;
+    if (c != null) walk_temporal_api_batch_v1_BatchOperationReset(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_StartNexusOperationExecutionRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.IStartNexusOperationExecutionRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.StartNexusOperationExecutionRequest', context)
+    : context;
+  {
+    const p = o.input;
+    if (p != null)
+      pending.push(
+        env.transformPayload(p, ctx).then((r) => {
+          o.input = r;
+        })
+      );
+  }
+  {
+    if (!env.skipSearchAttributes) {
+      const c = o.searchAttributes;
+      if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, env, ctx, pending);
+    }
+  }
+  {
+    const c = o.userMetadata;
+    if (c != null) walk_temporal_api_sdk_v1_UserMetadata(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_StartWorkflowExecutionRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.IStartWorkflowExecutionRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.StartWorkflowExecutionRequest', context)
+    : context;
+  {
+    const c = o.input;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.memo;
+    if (c != null) walk_temporal_api_common_v1_Memo(c, env, ctx, pending);
+  }
+  {
+    if (!env.skipSearchAttributes) {
+      const c = o.searchAttributes;
+      if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, env, ctx, pending);
+    }
+  }
+  {
+    const c = o.header;
+    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+  }
+  {
+    const c = o.continuedFailure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+  {
+    const c = o.lastCompletionResult;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const c = o.userMetadata;
+    if (c != null) walk_temporal_api_sdk_v1_UserMetadata(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_StartWorkflowExecutionResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.StartWorkflowExecutionResponse', context)
+    : context;
+  {
+    const c = o.eagerWorkflowTask;
+    if (c != null) walk_temporal_api_workflowservice_v1_PollWorkflowTaskQueueResponse(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_TerminateWorkflowExecutionRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.ITerminateWorkflowExecutionRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.TerminateWorkflowExecutionRequest', context)
+    : context;
+  {
+    const c = o.details;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_UpdateScheduleRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.IUpdateScheduleRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.UpdateScheduleRequest', context)
+    : context;
+  {
+    const c = o.schedule;
+    if (c != null) walk_temporal_api_schedule_v1_Schedule(c, env, ctx, pending);
+  }
+  {
+    if (!env.skipSearchAttributes) {
+      const c = o.searchAttributes;
+      if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, env, ctx, pending);
+    }
+  }
+  {
+    const c = o.memo;
+    if (c != null) walk_temporal_api_common_v1_Memo(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_UpdateWorkerDeploymentVersionComputeConfigRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.IUpdateWorkerDeploymentVersionComputeConfigRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.UpdateWorkerDeploymentVersionComputeConfigRequest', context)
+    : context;
+  {
+    const m = o.computeConfigScalingGroups;
+    if (m)
+      for (const v of Object.values(m))
+        walk_temporal_api_compute_v1_ComputeConfigScalingGroupUpdate(v, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_UpdateWorkerDeploymentVersionMetadataRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.IUpdateWorkerDeploymentVersionMetadataRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.UpdateWorkerDeploymentVersionMetadataRequest', context)
+    : context;
+  {
+    const m = o.upsertEntries;
+    if (m)
+      for (const [k, v] of Object.entries(m))
+        pending.push(
+          env.transformPayload(v, ctx).then((r) => {
+            m[k] = r;
+          })
+        );
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_UpdateWorkerDeploymentVersionMetadataResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IUpdateWorkerDeploymentVersionMetadataResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.UpdateWorkerDeploymentVersionMetadataResponse', context)
+    : context;
+  {
+    const c = o.metadata;
+    if (c != null) walk_temporal_api_deployment_v1_VersionMetadata(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_UpdateWorkflowExecutionRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.IUpdateWorkflowExecutionRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.UpdateWorkflowExecutionRequest', context)
+    : context;
+  {
+    const c = o.request;
+    if (c != null) walk_temporal_api_update_v1_Request(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_UpdateWorkflowExecutionResponse<Ctx>(
+  o: temporal.api.workflowservice.v1.IUpdateWorkflowExecutionResponse,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.workflowservice.v1.UpdateWorkflowExecutionResponse', context)
+    : context;
+  {
+    const c = o.outcome;
+    if (c != null) walk_temporal_api_update_v1_Outcome(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_workflowservice_v1_ValidateWorkerDeploymentVersionComputeConfigRequest<Ctx>(
+  o: temporal.api.workflowservice.v1.IValidateWorkerDeploymentVersionComputeConfigRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(
+        o,
+        'temporal.api.workflowservice.v1.ValidateWorkerDeploymentVersionComputeConfigRequest',
+        context
+      )
+    : context;
+  {
+    const m = o.computeConfigScalingGroups;
+    if (m)
+      for (const v of Object.values(m))
+        walk_temporal_api_compute_v1_ComputeConfigScalingGroupUpdate(v, env, ctx, pending);
   }
 }

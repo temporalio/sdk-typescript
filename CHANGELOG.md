@@ -19,6 +19,27 @@ to docs, or any other relevant information.
 
 ## [Unreleased]
 
+### Added
+
+- **Experimental**: You can now configure external storage on your `DataConverter` via the new
+  `externalStorage` option to offload large payloads out of Temporal Server. When set, payloads larger
+  than the configured `payloadSizeThreshold` are stored via your `StorageDriver`(s) and retrieved
+  transparently, keeping large arguments, return values, and heartbeat details out of the Temporal Server
+  database. `ExternalStorage` and the `StorageDriver` types are exported from `@temporalio/common`.
+  This feature is experimental and its API may change.
+
+### Breaking Changes
+
+- By default, workers now proactively validate outbound payload/memo sizes before sending: a field
+  over the warn threshold is logged
+  (`[TMPRL1103]` at `WARN`) but still sent, while a task completion over the error limit is failed
+  retryably (`[TMPRL1103]` at `ERROR`) instead of sent. Previously these reached the server, which
+  terminated the workflow or failed the activity non-retryably; failing retryably instead lets a
+  corrected workflow or activity be redeployed and recover. Tune warn thresholds via
+  `NativeConnectionOptions.payloadLimits`. If you use a proxy between the worker and server that
+  alters the size of payloads (e.g. compression, encryption, external storage), it is advised that
+  you disable size enforcement by setting `disablePayloadErrorLimit: true` on the worker.
+
 ## [1.20.3] - 2026-07-13
 
 ### Fixed
@@ -75,6 +96,8 @@ to docs, or any other relevant information.
 
 ### Added
 
+- Added experimental `WorkerOptions.patchActivationCallback` to control whether newly encountered Workflow patches
+  activate and write a patch marker.
 - Nexus operation link propagation for signals. When a Nexus operation handler signals a workflow
   (including signal-with-start), the inbound Nexus request links are now forwarded onto the signaled
   workflow so its history events link back to the caller, and the link the server returns for the
