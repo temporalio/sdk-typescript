@@ -581,7 +581,7 @@ export class ScheduleClient extends BaseClient {
 
       throw new ServiceError(fallbackMessage, { cause: err });
     }
-    throw err;
+    throw new ServiceError('Unexpected error while making gRPC request', { cause: err as Error });
   }
 }
 

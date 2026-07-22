@@ -164,7 +164,7 @@ export class AsyncCompletionClient extends BaseClient {
 
       throw new ActivityCompletionError(err.details || err.message);
     }
-    throw err;
+    throw new ActivityCompletionError('Unexpected failure');
   }
 
   /**
