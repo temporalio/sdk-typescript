@@ -1,4 +1,4 @@
-import { executeChild, proxyActivities } from '@temporalio/workflow';
+import { condition, defineQuery, defineSignal, executeChild, proxyActivities, setHandler } from '@temporalio/workflow';
 import type * as activities from '../activities';
 
 // Allow a few attempts so the driver-failure tests can assert that a driver failure is
@@ -74,4 +74,26 @@ export async function externalStorageChildEcho(payload: Uint8Array): Promise<Uin
 export async function externalStorageParentChildOffload(sizeBytes: number): Promise<number> {
   const result = await executeChild(externalStorageChildEcho, { args: [new Uint8Array(sizeBytes)] });
   return result.length;
+}
+
+/** Returns its argument unchanged, so a large arg/result round-trips through the client boundary. */
+export async function externalStorageEcho(data: Uint8Array): Promise<Uint8Array> {
+  return data;
+}
+
+export const getBlobQuery = defineQuery<Uint8Array>('getBlob');
+export const finishSignal = defineSignal('finish');
+
+/**
+ * Serves a large blob (built from the given size) via a query, and stays open until signalled.
+ * Lets a client exercise the query retrieve path against an offloaded query result.
+ */
+export async function externalStorageQueryable(sizeBytes: number): Promise<void> {
+  const blob = new Uint8Array(sizeBytes).fill(7);
+  setHandler(getBlobQuery, () => blob);
+  let finished = false;
+  setHandler(finishSignal, () => {
+    finished = true;
+  });
+  await condition(() => finished);
 }
