@@ -31,7 +31,7 @@ import {
   decodeFromPayloadsAtIndex,
   encodeErrorToFailure,
   encodeToPayload,
-  extstoreRetrieveOptions,
+  extstoreInboundOptions,
   extstoreStoreOptions,
   visit,
   walkActivityHeartbeat,
@@ -1086,12 +1086,7 @@ export class Worker {
                         `Got start event for an already running activity: ${base64TaskToken}`
                       );
                     }
-                    // Resolve external-storage references in the task payloads in place before anything
-                    // reads them: `extractActivityInfo` below decodes `start.heartbeatDetails` into `info`.
-                    const { externalStorage } = loadedDataConverter;
-                    if (externalStorage) {
-                      await visit(task, walkActivityTask, extstoreRetrieveOptions(externalStorage));
-                    }
+                    await visit(task, walkActivityTask, extstoreInboundOptions(loadedDataConverter.externalStorage));
                     info = await extractActivityInfo({
                       task,
                       dataConverter: loadedDataConverter,
@@ -1347,7 +1342,7 @@ export class Worker {
                 }
               }
               const requestDeadline = task.requestDeadline != null ? tsToDate(task.requestDeadline) : undefined;
-              return await this.handleNexusRunTask(task.task, base64TaskToken, protobufEncodedTask, requestDeadline);
+              return await this.handleNexusRunTask(task, base64TaskToken, protobufEncodedTask, requestDeadline);
             }
             case 'cancelTask': {
               const nexusHandler = this.taskTokenToNexusHandler.get(base64TaskToken);
@@ -1398,11 +1393,12 @@ export class Worker {
   }
 
   private async handleNexusRunTask(
-    task: temporal.api.workflowservice.v1.IPollNexusTaskQueueResponse,
+    nexusTask: coresdk.nexus.INexusTask,
     base64TaskToken: string,
     protobufEncodedTask: ArrayBuffer,
     requestDeadline: Date | undefined
   ) {
+    const task = nexusTask.task!; // Caller guarantees the 'task' variant is populated.
     const { taskToken } = task;
     if (taskToken == null) {
       throw new nexus.HandlerError('INTERNAL', 'Task missing request task token');
@@ -1410,6 +1406,7 @@ export class Worker {
 
     let nexusHandler: NexusHandler | undefined = undefined;
     try {
+      await visit(nexusTask, walkNexusTask, extstoreInboundOptions(this.options.loadedDataConverter.externalStorage));
       const abortController = new AbortController();
 
       nexusHandler = new NexusHandler(
@@ -1541,9 +1538,7 @@ export class Worker {
         });
       }
       const { externalStorage } = this.options.loadedDataConverter;
-      if (externalStorage) {
-        await visit(activation, walkWorkflowActivation, extstoreRetrieveOptions(externalStorage));
-      }
+      await visit(activation, walkWorkflowActivation, extstoreInboundOptions(externalStorage));
       const decodedActivation = await workflowCodecRunner.decodeActivation(activation);
 
       if (workflow === undefined) {
@@ -2052,9 +2047,6 @@ export class Worker {
         this.hasOutstandingNexusPoll = false;
       }
       const task = coresdk.nexus.NexusTask.decode(new Uint8Array(buffer));
-      // NOTE: external-storage retrieval of the request payload happens in `nexusOperator`'s `task`
-      // handling, so a driver failure fails the Nexus task retryably instead of tearing down the poll
-      // loop (and the Worker).
       const taskToken = task.task?.taskToken || task.cancelTask?.taskToken;
       if (taskToken == null) {
         throw new TypeError('Got a Nexus task without a task token');
