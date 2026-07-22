@@ -1268,26 +1268,7 @@ export class Worker {
             const { externalStorage } = this.options.loadedDataConverter;
             const completion = { taskToken, result };
             if (externalStorage) {
-              let initialTarget: StorageDriverTargetInfo | undefined;
-              if (info) {
-                if (info.inWorkflow) {
-                  initialTarget = {
-                    kind: 'workflow',
-                    namespace: info.namespace,
-                    id: info.workflowExecution?.workflowId,
-                    runId: info.workflowExecution?.runId,
-                    type: info.workflowType,
-                  };
-                } else {
-                  initialTarget = {
-                    kind: 'activity',
-                    namespace: info.namespace,
-                    id: info.activityId,
-                    type: info.activityType,
-                    runId: info.activityRunId,
-                  };
-                }
-              }
+              const initialTarget = info ? activityStorageTarget(info) : undefined;
               try {
                 await visit(
                   completion,
@@ -1890,7 +1871,11 @@ export class Worker {
               const heartbeat: coresdk.IActivityHeartbeat = { taskToken, details: [payload] };
               const { externalStorage } = this.options.loadedDataConverter;
               if (externalStorage) {
-                await visit(heartbeat, walkActivityHeartbeat, extstoreStoreOptions(externalStorage));
+                await visit(
+                  heartbeat,
+                  walkActivityHeartbeat,
+                  extstoreStoreOptions(externalStorage, { initialTarget: activityStorageTarget(info) })
+                );
               }
               const arr = coresdk.ActivityHeartbeat.encodeDelimited(heartbeat).finish();
               this.nativeWorker.recordActivityHeartbeat(byteArrayToBuffer(arr));
@@ -2315,6 +2300,29 @@ function extractSourceMap(code: string): [string, string] {
   }
 
   throw new Error("Can't extract inlined source map from the provided Workflow Bundle");
+}
+
+/**
+ * External-storage target for payloads produced by an activity, matching the Go SDK: a
+ * workflow-bound activity targets its owning workflow execution; a standalone activity targets
+ * itself. Used for both the activity result and its heartbeat details.
+ */
+function activityStorageTarget(info: ActivityInfo): StorageDriverTargetInfo {
+  return info.inWorkflow
+    ? {
+        kind: 'workflow',
+        namespace: info.namespace,
+        id: info.workflowExecution?.workflowId,
+        runId: info.workflowExecution?.runId,
+        type: info.workflowType,
+      }
+    : {
+        kind: 'activity',
+        namespace: info.namespace,
+        id: info.activityId,
+        type: info.activityType,
+        runId: info.activityRunId,
+      };
 }
 
 /**

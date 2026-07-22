@@ -169,6 +169,11 @@ test('large heartbeat details are offloaded and recovered on retry', async (t) =
   t.is(len, payloadSize);
   t.true(driver.storeCalls.length >= 1);
   t.true(driver.retrieveCalls.length >= 1);
+
+  // The heartbeat store carried the owning workflow as its target (the activity is workflow-bound).
+  const target = requireDefined(driver.storeCalls[0], 'expected a heartbeat store call').context.target;
+  t.is(target?.kind, 'workflow');
+  t.is(target?.type, 'externalStorageHeartbeatDetailsOffload');
 });
 
 test('child workflow input and result are offloaded in both directions', async (t) => {
