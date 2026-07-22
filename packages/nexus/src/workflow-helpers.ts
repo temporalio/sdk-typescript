@@ -214,10 +214,20 @@ function pushResponseLink(ctx: nexus.StartOperationContext, responseLink: tempor
   }
 }
 
+/**
+ * Wraps the start of an async backing operation with a single-slot reservation guard. Handles minted
+ * by {@link TemporalNexusClientImpl.getWorkflowHandle} pass the client instance's guard so that their
+ * `update()` shares the reservation with `startWorkflow`; the standalone {@link startWorkflow} helper
+ * (WorkflowRun operations) has no client-scoped guard and passes {@link passThroughReservation}.
+ */
+type AsyncOperationStartReservation = <T>(fn: () => Promise<T>) => Promise<T>;
+const passThroughReservation: AsyncOperationStartReservation = (fn) => fn();
+
 function createWorkflowHandle<T extends Workflow>(
   ctx: nexus.StartOperationContext,
   workflowId: string,
-  runId?: string
+  runId?: string,
+  reserve: AsyncOperationStartReservation = passThroughReservation
 ): WorkflowHandle<WorkflowResultType<T>> {
   return {
     workflowId,
@@ -249,7 +259,7 @@ function createWorkflowHandle<T extends Workflow>(
       def: UpdateDefinition<Ret, Args, Name> | string,
       options?: NexusUpdateWorkflowOptions<Args>
     ): Promise<TemporalOperationResult<Ret>> {
-      return updateWorkflowOperation<Ret, Args>(ctx, this.workflowId, this.runId, def, options);
+      return updateWorkflowOperation<Ret, Args>(ctx, this.workflowId, this.runId, def, options, reserve);
     },
   } as WorkflowHandle<WorkflowResultType<T>>;
 }
@@ -431,7 +441,37 @@ export interface TemporalNexusClient {
 }
 
 class TemporalNexusClientImpl implements TemporalNexusClient {
+  // At most one async backing operation may back a single Nexus Operation handler invocation. This
+  // client is instantiated once per invocation (see TemporalOperationHandler.start), so this flag is
+  // naturally scoped to the invocation without any module-level state. It is shared between
+  // startWorkflow and the update() method of handles minted by getWorkflowHandle, mirroring
+  // sdk-python's per-invocation `_started_async` on its Nexus client.
+  private asyncOperationStarted = false;
+
   constructor(private readonly startOperationContext: TemporalStartOperationContext) {}
+
+  /**
+   * Reserves the single async-backing-operation slot for this invocation, runs `fn`, and releases the
+   * reservation only if `fn` throws. A successful `fn` keeps the reservation set for the rest of the
+   * invocation — including when a Workflow Update resolves synchronously — so the flag is predictably
+   * set after any successful backing-operation attempt (matching sdk-python). Declared as an arrow
+   * field so it can be passed as the reservation guard to {@link createWorkflowHandle}.
+   */
+  private readonly withAsyncOperationStartReservation = async <T>(fn: () => Promise<T>): Promise<T> => {
+    if (this.asyncOperationStarted) {
+      throw new nexus.HandlerError(
+        'BAD_REQUEST',
+        'Only one async operation can be started per operation handler invocation. Use TemporalNexusClient.client for additional workflow interactions'
+      );
+    }
+    this.asyncOperationStarted = true;
+    try {
+      return await fn();
+    } catch (err) {
+      this.asyncOperationStarted = false;
+      throw err;
+    }
+  };
 
   /**
    * The Temporal Client for the active Nexus Operation.
@@ -459,7 +499,7 @@ class TemporalNexusClientImpl implements TemporalNexusClient {
     workflowId: string,
     runId?: string
   ): WorkflowHandle<WorkflowResultType<T>> {
-    return createWorkflowHandle(this.startOperationContext, workflowId, runId);
+    return createWorkflowHandle(this.startOperationContext, workflowId, runId, this.withAsyncOperationStartReservation);
   }
 
   /**
@@ -471,7 +511,7 @@ class TemporalNexusClientImpl implements TemporalNexusClient {
     workflowTypeOrFunc: string | T,
     workflowOptions: WorkflowStartOptions<T>
   ): Promise<TemporalOperationResult<WorkflowResultType<T>>> {
-    return await withAsyncOperationStartReservation(this.startOperationContext, async () => {
+    return await this.withAsyncOperationStartReservation(async () => {
       const handle = await startWorkflow(this.startOperationContext, workflowTypeOrFunc, workflowOptions);
       const { namespace } = getHandlerContext();
       return TemporalOperationResult.async(generateWorkflowRunOperationToken(namespace, handle.workflowId));
@@ -492,41 +532,6 @@ class TemporalNexusClientImpl implements TemporalNexusClient {
 }
 
 /**
- * Tracks whether an async backing operation has already been started for a given Nexus Operation
- * invocation, keyed by its {@link nexus.StartOperationContext}. The guard is shared between
- * {@link TemporalNexusClient.startWorkflow} and {@link WorkflowHandle.update} (which lives on the
- * handle rather than the client) because at most one async operation may back a single handler
- * invocation, and both capture the same context object.
- */
-const asyncOperationStartedByContext = new WeakMap<nexus.StartOperationContext, boolean>();
-
-/**
- * Reserves the single async-backing-operation slot for the given operation invocation, runs `fn`,
- * and releases the reservation only if `fn` throws. A successful `fn` keeps the reservation set for
- * the rest of the handler invocation — including when a Workflow Update resolves synchronously — so
- * the flag is predictably set after any successful backing-operation attempt (matching sdk-python).
- */
-async function withAsyncOperationStartReservation<T>(
-  ctx: nexus.StartOperationContext,
-  fn: () => Promise<T>
-): Promise<T> {
-  if (asyncOperationStartedByContext.get(ctx)) {
-    throw new nexus.HandlerError(
-      'BAD_REQUEST',
-      'Only one async operation can be started per operation handler invocation. Use TemporalNexusClient.client for additional workflow interactions'
-    );
-  }
-
-  asyncOperationStartedByContext.set(ctx, true);
-  try {
-    return await fn();
-  } catch (err) {
-    asyncOperationStartedByContext.set(ctx, false);
-    throw err;
-  }
-}
-
-/**
  * Sends an Update to a Workflow as the async backing operation for the current Nexus Operation.
  * Shared implementation behind {@link WorkflowHandle.update}; the target Workflow's `workflowId` and
  * `runId` are supplied by the handle.
@@ -536,7 +541,8 @@ async function updateWorkflowOperation<Ret, Args extends any[]>(
   workflowId: string,
   runId: string | undefined,
   def: UpdateDefinition<Ret, Args> | string,
-  options?: NexusUpdateWorkflowOptions<Args>
+  options: NexusUpdateWorkflowOptions<Args> | undefined,
+  reserve: AsyncOperationStartReservation
 ): Promise<TemporalOperationResult<Ret>> {
   if (!ctx.callbackUrl) {
     throw new nexus.HandlerError(
@@ -549,7 +555,7 @@ async function updateWorkflowOperation<Ret, Args extends any[]>(
   // request (same request ID) spawning a duplicate Update.
   const updateId = options?.updateId || ctx.requestId;
 
-  return await withAsyncOperationStartReservation(ctx, async () => {
+  return await reserve(async () => {
     const { client, namespace } = getHandlerContext();
     // Token attached to the completion callback so the server can correlate the Update's
     // completion back to this operation even if it races the operation-start recording. The run ID
