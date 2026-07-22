@@ -1086,6 +1086,12 @@ export class Worker {
                         `Got start event for an already running activity: ${base64TaskToken}`
                       );
                     }
+                    // Resolve external-storage references in the task payloads in place before anything
+                    // reads them: `extractActivityInfo` below decodes `start.heartbeatDetails` into `info`.
+                    const { externalStorage } = loadedDataConverter;
+                    if (externalStorage) {
+                      await visit(task, walkActivityTask, extstoreRetrieveOptions(externalStorage));
+                    }
                     info = await extractActivityInfo({
                       task,
                       dataConverter: loadedDataConverter,
@@ -1203,7 +1209,7 @@ export class Worker {
               return undefined;
             }
             if (output.type === 'result') {
-              return { taskToken, result: output.result };
+              return { taskToken, result: output.result, info: undefined };
             }
             const { base64TaskToken } = output.activity.info;
 
@@ -1255,15 +1261,58 @@ export class Worker {
               ...activityLogAttributes(output.activity.info),
               status,
             });
-            return { taskToken, result };
+            return { taskToken, result, info: output.activity.info };
           }),
           filter(<T>(result: T): result is Exclude<T, undefined> => result !== undefined),
-          mergeMap(async (rest) => {
+          mergeMap(async ({ taskToken, result, info }) => {
             const { externalStorage } = this.options.loadedDataConverter;
+            const completion = { taskToken, result };
             if (externalStorage) {
-              await visit(rest, walkActivityTaskCompletion, extstoreStoreOptions(externalStorage));
+              let initialTarget: StorageDriverTargetInfo | undefined;
+              if (info) {
+                if (info.inWorkflow) {
+                  initialTarget = {
+                    kind: 'workflow',
+                    namespace: info.namespace,
+                    id: info.workflowExecution?.workflowId,
+                    runId: info.workflowExecution?.runId,
+                    type: info.workflowType,
+                  };
+                } else {
+                  initialTarget = {
+                    kind: 'activity',
+                    namespace: info.namespace,
+                    id: info.activityId,
+                    type: info.activityType,
+                    runId: info.activityRunId,
+                  };
+                }
+              }
+              try {
+                await visit(
+                  completion,
+                  walkActivityTaskCompletion,
+                  extstoreStoreOptions(externalStorage, { initialTarget })
+                );
+              } catch (e) {
+                const error = ensureApplicationFailure(e);
+                // Offloading the activity result failed. Fail the activity task retryably (the encoded
+                // failure surfaces in history/to the workflow) instead of tearing down the Worker.
+                this.logger.error(
+                  `Error while offloading ActivityTask result to external storage: ${errorMessage(error)}`,
+                  {
+                    ...(info ? activityLogAttributes(info) : { taskToken: formatTaskToken(taskToken) }),
+                    error: e,
+                  }
+                );
+                completion.result = {
+                  failed: {
+                    failure: await encodeErrorToFailure(this.options.loadedDataConverter, error),
+                  },
+                };
+              }
             }
-            return coresdk.ActivityTaskCompletion.encodeDelimited(rest).finish();
+            return coresdk.ActivityTaskCompletion.encodeDelimited(completion).finish();
           }),
           tap({
             next: () => {
@@ -1931,10 +1980,6 @@ export class Worker {
         this.hasOutstandingActivityPoll = false;
       }
       const task = coresdk.activity_task.ActivityTask.decode(new Uint8Array(buffer));
-      const { externalStorage } = this.options.loadedDataConverter;
-      if (externalStorage) {
-        await visit(task, walkActivityTask, extstoreRetrieveOptions(externalStorage));
-      }
       const { taskToken, ...rest } = task;
       const base64TaskToken = formatTaskToken(taskToken);
       this.logger.trace('Got activity task', {
