@@ -28,6 +28,9 @@ to docs, or any other relevant information.
   database. `ExternalStorage` and the `StorageDriver` types are exported from `@temporalio/common`.
   This feature is experimental and its API may change.
 
+- Added opt-in `envconfig` support to the test workflow environment. This enables testing against arbitrary
+  Temporal server environments (i.e. local, staging, prod)
+
 ### Breaking Changes
 
 - By default, workers now proactively validate outbound payload/memo sizes before sending: a field
@@ -39,6 +42,10 @@ to docs, or any other relevant information.
   `NativeConnectionOptions.payloadLimits`. If you use a proxy between the worker and server that
   alters the size of payloads (e.g. compression, encryption, external storage), it is advised that
   you disable size enforcement by setting `disablePayloadErrorLimit: true` on the worker.
+
+- `TEMPORAL_TLS` existing behavior when enabled was to _disable_ TLS configuration. This has been corrected,
+  setting `TEMPORAL_TLS` now _enables_ TLS configuration
+  
 
 ## [1.20.3] - 2026-07-13
 
