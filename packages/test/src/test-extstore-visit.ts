@@ -5,9 +5,7 @@ import { ExternalStorageNotConfiguredError } from '@temporalio/common';
 import { ExternalStorage } from '@temporalio/common/lib/converter/extstore';
 import {
   ExternalStorageRunner,
-  extstoreDetectReferencesOptions,
   extstoreInboundOptions,
-  extstoreRetrieveOptions,
   extstoreStoreOptions,
   isReferencePayload,
   visit,
@@ -156,7 +154,7 @@ test('workflow store then retrieve round-trips the original payload bytes', asyn
   const activation: coresdk.workflow_activation.IWorkflowActivation = {
     jobs: [{ resolveActivity: { result: { completed: { result: reference } } } }],
   };
-  await visit(activation, walkWorkflowActivation, extstoreRetrieveOptions(externalStorage));
+  await visit(activation, walkWorkflowActivation, extstoreInboundOptions(externalStorage));
 
   const retrieved = activation.jobs![0]!.resolveActivity!.result!.completed!.result!;
   t.false(isReferencePayload(retrieved));
@@ -192,7 +190,7 @@ test('activity task retrieve resolves the activity input', async (t) => {
     start: { input: [await toReference(externalStorage, input)] },
   };
 
-  await visit(task, walkActivityTask, extstoreRetrieveOptions(externalStorage));
+  await visit(task, walkActivityTask, extstoreInboundOptions(externalStorage));
 
   t.deepEqual(task.start!.input![0], input);
 });
@@ -215,7 +213,7 @@ test('nexus task retrieve resolves the request payload', async (t) => {
     task: { request: { startOperation: { payload: await toReference(externalStorage, requestPayload) } } },
   };
 
-  await visit(task, walkNexusTask, extstoreRetrieveOptions(externalStorage));
+  await visit(task, walkNexusTask, extstoreInboundOptions(externalStorage));
 
   t.deepEqual(task.task!.request!.startOperation!.payload, requestPayload);
 });
@@ -243,44 +241,12 @@ test('client response retrieve resolves the query result (via generic visit)', a
     queryResult: { payloads: [await toReference(externalStorage, queryResult)] },
   };
 
-  await visit(response, walkQueryWorkflowResponse, extstoreRetrieveOptions(externalStorage));
+  await visit(response, walkQueryWorkflowResponse, extstoreInboundOptions(externalStorage));
 
   t.deepEqual(response.queryResult!.payloads![0], queryResult);
 });
 
-test('detect pass raises ExternalStorageNotConfiguredError on an inbound reference', async (t) => {
-  const { externalStorage } = externalStorageWith();
-  const task: coresdk.activity_task.IActivityTask = {
-    start: { input: [await toReference(externalStorage, makePayload(256, 3))] },
-  };
-
-  const err = await t.throwsAsync(() => visit(task, walkActivityTask, extstoreDetectReferencesOptions()), {
-    instanceOf: ExternalStorageNotConfiguredError,
-  });
-  t.regex(err!.message, /TMPRL1105/);
-});
-
-test('detect pass leaves a reference-free message untouched', async (t) => {
-  const input = makePayload(256, 3);
-  const task: coresdk.activity_task.IActivityTask = { start: { input: [input] } };
-
-  await t.notThrowsAsync(() => visit(task, walkActivityTask, extstoreDetectReferencesOptions()));
-  t.deepEqual(task.start!.input![0], input, 'payload passes through unchanged');
-});
-
-test('inbound options retrieve when storage is configured', async (t) => {
-  const { externalStorage } = externalStorageWith();
-  const input = makePayload(256, 3);
-  const task: coresdk.activity_task.IActivityTask = {
-    start: { input: [await toReference(externalStorage, input)] },
-  };
-
-  await visit(task, walkActivityTask, extstoreInboundOptions(externalStorage));
-
-  t.deepEqual(task.start!.input![0], input, 'reference resolved back to the original payload');
-});
-
-test('inbound options raise TMPRL1105 when storage is not configured', async (t) => {
+test('inbound options raise TMPRL1105 on a reference when storage is not configured', async (t) => {
   const { externalStorage } = externalStorageWith();
   const task: coresdk.activity_task.IActivityTask = {
     start: { input: [await toReference(externalStorage, makePayload(256, 3))] },
@@ -290,4 +256,12 @@ test('inbound options raise TMPRL1105 when storage is not configured', async (t)
     instanceOf: ExternalStorageNotConfiguredError,
   });
   t.regex(err!.message, /TMPRL1105/);
+});
+
+test('inbound options leave a reference-free message untouched when storage is not configured', async (t) => {
+  const input = makePayload(256, 3);
+  const task: coresdk.activity_task.IActivityTask = { start: { input: [input] } };
+
+  await t.notThrowsAsync(() => visit(task, walkActivityTask, extstoreInboundOptions(undefined)));
+  t.deepEqual(task.start!.input![0], input, 'payload passes through unchanged');
 });

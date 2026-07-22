@@ -53,11 +53,7 @@ export function extstoreStoreOptions(
   };
 }
 
-/**
- * @internal
- * @experimental
- */
-export function extstoreRetrieveOptions(
+function extstoreRetrieveOptions(
   externalStorage: ExternalStorage,
   { limit, abortSignal }: { limit?: ConcurrencyLimit; abortSignal?: AbortSignal } = {}
 ): VisitOptions<void> {
@@ -73,14 +69,11 @@ export function extstoreRetrieveOptions(
 }
 
 /**
- * Options for a detection-only inbound walk used when no {@link ExternalStorage} is configured.
- * The walk leaves every payload untouched but throws {@link ExternalStorageNotConfiguredError}
- * on the first reference payload it encounters.
- *
- * @internal
- * @experimental
+ * Detection-only inbound walk used when no {@link ExternalStorage} is configured: leaves every
+ * payload untouched but throws {@link ExternalStorageNotConfiguredError} on the first reference
+ * payload.
  */
-export function extstoreDetectReferencesOptions(): VisitOptions<void> {
+function extstoreDetectReferencesOptions(): VisitOptions<void> {
   const assertNoReference = (payloads: Payload[]): Payload[] => {
     if (payloads.some(isReferencePayload)) {
       throw new ExternalStorageNotConfiguredError();

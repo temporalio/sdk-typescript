@@ -1398,7 +1398,10 @@ export class Worker {
     protobufEncodedTask: ArrayBuffer,
     requestDeadline: Date | undefined
   ) {
-    const task = nexusTask.task!; // Caller guarantees the 'task' variant is populated.
+    const task = nexusTask.task;
+    if (task == null) {
+      throw new nexus.HandlerError('INTERNAL', 'Nexus task missing task request');
+    }
     const { taskToken } = task;
     if (taskToken == null) {
       throw new nexus.HandlerError('INTERNAL', 'Task missing request task token');
