@@ -1493,7 +1493,8 @@ export class Worker {
       try {
         const unencodedCompletion = await workflow.workflow.activate(decodedActivation);
         const encodedCompletion = await workflowCodecRunner.encodeCompletion(unencodedCompletion);
-        if (externalStorage) {
+        // Skip extstore.store on replay: the completion is discarded and its payloads were already offloaded on the original run.
+        if (externalStorage && !this.isReplayWorker) {
           const namespace = workflowCodecRunner.workflowContext.namespace;
           await visit(
             encodedCompletion,

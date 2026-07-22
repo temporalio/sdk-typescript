@@ -1214,6 +1214,7 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
     maxActivitiesPerSecond: opts.maxActivitiesPerSecond ?? null,
     shutdownGraceTime: msToNumber(opts.shutdownGraceTime),
     plugins: opts.plugins?.map((p) => p.name) ?? [],
+    storageDrivers: [...new Set((opts.loadedDataConverter.externalStorage?.drivers ?? []).map((d) => d.type))],
     workflowFailureErrors,
     workflowTypesToFailureErrors,
     disablePayloadErrorLimit: opts.disablePayloadErrorLimit ?? false,
