@@ -374,6 +374,58 @@ test('AsyncCompletionClient.complete offloads a large result', async (t) => {
   const decoded = decodeReferencePayload(payload);
   t.is(decoded.driverName, driver.name);
   t.true(decoded.sizeBytes >= 4096);
+  // By-token completion knows only the namespace (the task token is opaque).
+  t.deepEqual(driver.storeCalls[0].context.target, { kind: 'activity', namespace: 'default' });
+});
+
+test('AsyncCompletionClient.complete by ID targets the activity', async (t) => {
+  const driver = makeFakeDriver();
+  const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
+
+  const connection = {
+    workflowService: { respondActivityTaskCompletedById: async () => ({}) },
+    plugins: [],
+  } as unknown as ConnectionLike;
+  const client = new Client({ connection, dataConverter: { externalStorage } });
+
+  await client.activity.complete({ workflowId: 'wf-1', activityId: 'act-1' }, new Uint8Array(4096).fill(9));
+
+  t.is(driver.storeCalls.length, 1);
+  t.deepEqual(driver.storeCalls[0].context.target, { kind: 'activity', namespace: 'default', id: 'act-1' });
+});
+
+test('activity-client start offloads a large input and targets the activity', async (t) => {
+  const driver = makeFakeDriver();
+  const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
+
+  let startReq: temporal.api.workflowservice.v1.IStartActivityExecutionRequest | undefined;
+  const connection = {
+    workflowService: {
+      startActivityExecution: async (req: temporal.api.workflowservice.v1.IStartActivityExecutionRequest) => {
+        startReq = req;
+        return { runId: 'run-1' };
+      },
+    },
+    plugins: [],
+  } as unknown as ConnectionLike;
+  const client = new Client({ connection, dataConverter: { externalStorage } });
+
+  await client.activity.start('myActivity', {
+    id: 'act-1',
+    taskQueue: 'q',
+    args: [new Uint8Array(4096).fill(8)],
+    scheduleToCloseTimeout: '1 minute',
+    retry: { maximumAttempts: 1 },
+  });
+
+  t.is(driver.storeCalls.length, 1);
+  t.true(isReferencePayload(startReq!.input!.payloads![0]), 'the activity input should be offloaded before sending');
+  t.deepEqual(driver.storeCalls[0].context.target, {
+    kind: 'activity',
+    namespace: 'default',
+    id: 'act-1',
+    type: 'myActivity',
+  });
 });
 
 test('client offloads a large workflow memo and retrieves it via describe', async (t) => {
@@ -440,6 +492,11 @@ test('schedule create offloads a large memo and describe retrieves it', async (t
   // Store: the memo exceeded the threshold and was offloaded on create.
   t.is(driver.storeCalls.length, 1);
   t.true(isReferencePayload(createReq!.memo!.fields!.blob), 'schedule memo should be offloaded on create');
+  // The store target is the workflow the schedule action will start.
+  const target = driver.storeCalls[0].context.target;
+  t.is(target?.kind, 'workflow');
+  t.is(target?.namespace, 'default');
+  t.is(target?.kind === 'workflow' ? target.type : undefined, 'w');
 
   // Retrieve: describe converts the reference back to the original bytes.
   const description = await handle.describe();

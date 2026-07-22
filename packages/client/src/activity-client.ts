@@ -267,7 +267,18 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       const req = await this.buildStartActivityExecutionRequest(input);
       const externalStorage = this.dataConverter.externalStorage;
       if (externalStorage) {
-        await visit(req, walkStartActivityExecutionRequest, extstoreStoreOptions(externalStorage));
+        await visit(
+          req,
+          walkStartActivityExecutionRequest,
+          extstoreStoreOptions(externalStorage, {
+            initialTarget: {
+              kind: 'activity',
+              namespace: this.options.namespace,
+              id: input.options.id,
+              type: input.activityType,
+            },
+          })
+        );
       }
       const resp = await this.workflowService.startActivityExecution(req);
       return this.createHandle(input.options.id, resp.runId);

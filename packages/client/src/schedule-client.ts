@@ -265,7 +265,19 @@ export class ScheduleClient extends BaseClient {
     try {
       const externalStorage = this.dataConverter.externalStorage;
       if (externalStorage) {
-        await visit(req, walkCreateScheduleRequest, extstoreStoreOptions(externalStorage));
+        const startWorkflow = req.schedule?.action?.startWorkflow;
+        await visit(
+          req,
+          walkCreateScheduleRequest,
+          extstoreStoreOptions(externalStorage, {
+            initialTarget: {
+              kind: 'workflow',
+              namespace: this.options.namespace,
+              id: startWorkflow?.workflowId ?? undefined,
+              type: startWorkflow?.workflowType?.name ?? undefined,
+            },
+          })
+        );
       }
       const res = await this.workflowService.createSchedule(req);
       return { conflictToken: res.conflictToken };
@@ -327,7 +339,19 @@ export class ScheduleClient extends BaseClient {
     try {
       const externalStorage = this.dataConverter.externalStorage;
       if (externalStorage) {
-        await visit(req, walkUpdateScheduleRequest, extstoreStoreOptions(externalStorage));
+        const startWorkflow = req.schedule?.action?.startWorkflow;
+        await visit(
+          req,
+          walkUpdateScheduleRequest,
+          extstoreStoreOptions(externalStorage, {
+            initialTarget: {
+              kind: 'workflow',
+              namespace: this.options.namespace,
+              id: startWorkflow?.workflowId ?? undefined,
+              type: startWorkflow?.workflowType?.name ?? undefined,
+            },
+          })
+        );
       }
       return await this.workflowService.updateSchedule(req);
     } catch (err: any) {
