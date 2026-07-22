@@ -111,11 +111,14 @@ export const MCP_CONNECTION_IDLE_MS = 5 * 60 * 1000;
 //
 // `refCount` tracks calls currently in flight against this connection. The idle-eviction timer is only
 // armed while `refCount` is 0, so a connection is never closed out from under a call still using it,
-// however long that call takes.
+// however long that call takes. `broken` marks a connection as suspect after a failed call; it's only
+// actually evicted once `refCount` drops back to 0, so an error in one concurrent call can't tear down
+// the session for sibling calls still mid-`execute()` on the same connection.
 interface McpConnectionEntry {
   client: Promise<MCPClient>;
   idleTimer?: NodeJS.Timeout;
   refCount: number;
+  broken: boolean;
 }
 
 const mcpConnections = new Map<string, McpConnectionEntry>();
@@ -181,7 +184,7 @@ function acquireMcpConnection(
   let entry = mcpConnections.get(key);
   if (entry === undefined) {
     const client = factory(clientArgs);
-    entry = { client, refCount: 0 };
+    entry = { client, refCount: 0, broken: false };
     mcpConnections.set(key, entry);
     // If the connect/factory call fails, drop the rejected promise so the next call retries
     // instead of caching the failure forever.
@@ -196,17 +199,22 @@ function acquireMcpConnection(
 
 /**
  * Releases one in-flight use of a pooled MCP connection acquired via {@link acquireMcpConnection}.
- * Only once the refcount drops back to 0 (no other concurrent call is still using it) is the idle timer
- * re-armed, so it starts counting from when the connection was last actually used, not from call start.
+ * Only once the refcount drops back to 0 (no other concurrent call is still using it) does this either
+ * evict the connection (if `broken`, i.e. the call that just finished failed) or re-arm the idle timer.
  *
- * Guarded by entry identity, not just the key: if this exact entry was already evicted (e.g. after a
- * failed call, or by a teardown) and a fresh connection has since been cached under the same key, we
- * must not touch that unrelated new entry's refcount or timer.
+ * Guarded by entry identity, not just the key: if this exact entry was already evicted (e.g. by a
+ * teardown) and a fresh connection has since been cached under the same key, we must not touch that
+ * unrelated new entry's refcount or timer.
  */
-function releaseMcpConnection(key: string, entry: McpConnectionEntry, idleMs: number): void {
+function releaseMcpConnection(key: string, entry: McpConnectionEntry, idleMs: number, broken: boolean): void {
   if (mcpConnections.get(key) !== entry) return;
+  if (broken) entry.broken = true;
   entry.refCount = Math.max(0, entry.refCount - 1);
   if (entry.refCount > 0) return;
+  if (entry.broken) {
+    void evictMcpConnection(key);
+    return;
+  }
   armIdleTimer(key, entry, idleMs);
 }
 
@@ -430,15 +438,17 @@ function activitiesForName(name: string, mcpClientFactory: McpClientFactory, idl
       }
     }
     const { client, key, entry } = acquireMcpConnection(name, args.clientArgs, mcpClientFactory);
+    let broken = false;
     try {
       const mcpClient = await client;
       return await extractTools(mcpClient);
     } catch (err) {
-      // The session may be broken (e.g. the server was restarted); drop it so the next call reconnects.
-      await evictMcpConnection(key);
+      // The session may be broken (e.g. the server was restarted); mark it so it's dropped once no
+      // concurrent call is still using it, instead of tearing down a connection siblings depend on.
+      broken = true;
       throw err;
     } finally {
-      releaseMcpConnection(key, entry, idleMs);
+      releaseMcpConnection(key, entry, idleMs, broken);
     }
   }
   async function callToolActivity(args: CallToolArgs): Promise<unknown> {
@@ -452,15 +462,17 @@ function activitiesForName(name: string, mcpClientFactory: McpClientFactory, idl
       }
     }
     const { client, key, entry } = acquireMcpConnection(name, args.clientArgs, mcpClientFactory);
+    let broken = false;
     try {
       const mcpClient = await client;
       return await callTool(mcpClient, args);
     } catch (err) {
-      // The session may be broken; drop it so the next call reconnects.
-      await evictMcpConnection(key);
+      // The session may be broken; mark it so it's dropped once no concurrent call is still using it,
+      // instead of tearing down a connection siblings depend on.
+      broken = true;
       throw err;
     } finally {
-      releaseMcpConnection(key, entry, idleMs);
+      releaseMcpConnection(key, entry, idleMs, broken);
     }
   }
   return {

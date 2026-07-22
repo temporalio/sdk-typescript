@@ -706,6 +706,60 @@ test('a long-running call is not evicted mid-call by a short idle timeout', asyn
   t.is(factoryCalls, 1, 'the in-flight call should not have triggered a reconnect');
 });
 
+test('a tool-level error on one concurrent call does not evict the connection out from under a sibling call', async (t) => {
+  let factoryCalls = 0;
+  const closeCalls: string[] = [];
+
+  const mockMcpClientFactory = async () => {
+    factoryCalls++;
+    const clientId = `client-${factoryCalls}`;
+    return {
+      async tools() {
+        return {
+          failingTool: {
+            description: 'A tool that always fails',
+            inputSchema: { type: 'object' },
+            execute: async () => {
+              // Fail quickly, while the sibling call below is still mid-execute.
+              await new Promise((resolve) => setTimeout(resolve, 10));
+              throw new Error('business logic failure, unrelated to the connection');
+            },
+          },
+          slowTool: {
+            description: 'A slow but healthy tool',
+            inputSchema: { type: 'object' },
+            execute: async () => {
+              await new Promise((resolve) => setTimeout(resolve, 50));
+              return { result: clientId };
+            },
+          },
+        };
+      },
+      async close() {
+        closeCalls.push(clientId);
+      },
+    } as any;
+  };
+
+  const activities = createActivities(
+    new TestProvider(helloWorkflowGenerator()),
+    { sharedServer: mockMcpClientFactory },
+    { mcpConnectionIdleTimeout: '1 minute' }
+  ) as Record<string, (args: unknown) => Promise<unknown>>;
+
+  const callToolActivity = activities['sharedServer-callTool']!;
+
+  const failingCall = callToolActivity({ name: 'failingTool', input: {}, options: {} });
+  const healthyCall = callToolActivity({ name: 'slowTool', input: {}, options: {} });
+
+  await t.throwsAsync(failingCall, { message: /business logic failure/ });
+  t.deepEqual(closeCalls, [], 'the shared connection must not be closed while the sibling call is still in flight');
+
+  const healthyResult = await healthyCall;
+  t.deepEqual(healthyResult, { result: 'client-1' }, 'the sibling call should complete successfully');
+  t.is(factoryCalls, 1, 'both concurrent calls should have shared the same pooled connection');
+});
+
 test('mcpConnectionIdleTimeout: 0 opts out of connection reuse (create-then-close every call)', async (t) => {
   let factoryCalls = 0;
   const closeCalls: string[] = [];
