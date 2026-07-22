@@ -488,7 +488,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       }
       throw new ServiceError(fallbackMessage, { cause: err });
     }
-    throw new ServiceError('Unexpected error while making gRPC request');
+    throw err;
   }
 }
 
