@@ -1326,6 +1326,26 @@ export class Worker {
               if (task.task == null) {
                 throw new IllegalStateError(`Got empty task for task variant with token: ${base64TaskToken}`);
               }
+              const { externalStorage } = this.options.loadedDataConverter;
+              if (externalStorage) {
+                try {
+                  await visit(task, walkNexusTask, extstoreRetrieveOptions(externalStorage));
+                } catch (e) {
+                  this.logger.error(
+                    `Error while retrieving Nexus task payloads from external storage: ${errorMessage(e)}`,
+                    { taskToken: base64TaskToken, error: e }
+                  );
+                  // Core requires a NexusHandlerFailureInfo on a Nexus failure completion, so wrap the
+                  // driver error in a retryable handler error.
+                  return {
+                    taskToken: task.task.taskToken,
+                    failure: await handlerErrorToProto(
+                      this.options.loadedDataConverter,
+                      new nexus.HandlerError('INTERNAL', errorMessage(e), { cause: e, retryableOverride: true })
+                    ),
+                  };
+                }
+              }
               const requestDeadline = task.requestDeadline != null ? tsToDate(task.requestDeadline) : undefined;
               return await this.handleNexusRunTask(task.task, base64TaskToken, protobufEncodedTask, requestDeadline);
             }
@@ -1352,10 +1372,27 @@ export class Worker {
       filter(<T>(result: T): result is Exclude<T, undefined> => result !== undefined),
       mergeMap(async (result) => {
         const { externalStorage } = this.options.loadedDataConverter;
+        let completion = result;
         if (externalStorage) {
-          await visit(result, walkNexusTaskCompletion, extstoreStoreOptions(externalStorage));
+          try {
+            await visit(completion, walkNexusTaskCompletion, extstoreStoreOptions(externalStorage));
+          } catch (e) {
+            this.logger.error(`Error while offloading Nexus task result to external storage: ${errorMessage(e)}`, {
+              taskToken: completion.taskToken ? formatTaskToken(completion.taskToken) : undefined,
+              error: e,
+            });
+            // Core requires a NexusHandlerFailureInfo on a Nexus failure completion, so wrap the driver
+            // error in a retryable handler error.
+            completion = {
+              taskToken: completion.taskToken,
+              failure: await handlerErrorToProto(
+                this.options.loadedDataConverter,
+                new nexus.HandlerError('INTERNAL', errorMessage(e), { cause: e, retryableOverride: true })
+              ),
+            };
+          }
         }
-        return coresdk.nexus.NexusTaskCompletion.encodeDelimited(result).finish();
+        return coresdk.nexus.NexusTaskCompletion.encodeDelimited(completion).finish();
       })
     );
   }
@@ -2015,10 +2052,9 @@ export class Worker {
         this.hasOutstandingNexusPoll = false;
       }
       const task = coresdk.nexus.NexusTask.decode(new Uint8Array(buffer));
-      const { externalStorage } = this.options.loadedDataConverter;
-      if (externalStorage) {
-        await visit(task, walkNexusTask, extstoreRetrieveOptions(externalStorage));
-      }
+      // NOTE: external-storage retrieval of the request payload happens in `nexusOperator`'s `task`
+      // handling, so a driver failure fails the Nexus task retryably instead of tearing down the poll
+      // loop (and the Worker).
       const taskToken = task.task?.taskToken || task.cancelTask?.taskToken;
       if (taskToken == null) {
         throw new TypeError('Got a Nexus task without a task token');
