@@ -45,7 +45,6 @@ to docs, or any other relevant information.
 
 - `TEMPORAL_TLS` existing behavior when enabled was to _disable_ TLS configuration. This has been corrected,
   setting `TEMPORAL_TLS` now _enables_ TLS configuration
-  
 
 ## [1.20.3] - 2026-07-13
 
