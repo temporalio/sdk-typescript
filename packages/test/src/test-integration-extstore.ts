@@ -306,12 +306,11 @@ test('client offloads a large start argument and retrieves a large result', asyn
 
   const workflowId = randomUUID();
   const handle = await client.workflow.start(externalStorageEcho, { taskQueue, workflowId, args: [data] });
-  // Round-trip proves both directions: the client stored the arg (so the worker could run) and the
-  // client retrieved the offloaded result.
   const result = await worker.runUntil(handle.result());
   t.deepEqual(result, data);
 
-  // Inspect raw history via a converter without external storage, so references are not retrieved away.
+  // Raw history is fetched through a converter without external storage; otherwise the references
+  // below would be retrieved away before we can assert on them.
   const { events } = await t.context.env.client.workflow.getHandle(workflowId).fetchHistory();
   const startArg = events?.find((e) => e.workflowExecutionStartedEventAttributes)
     ?.workflowExecutionStartedEventAttributes?.input?.payloads?.[0];
@@ -340,7 +339,6 @@ test('client retrieves an offloaded query result', async (t) => {
     const handle = await client.workflow.start(externalStorageQueryable, { taskQueue, workflowId, args: [sizeBytes] });
     const retrievesBefore = driver.retrieveCalls.length;
     const blob = await handle.query(getBlobQuery);
-    // The worker offloads the large query result; only a client-side retrieve yields the original bytes.
     t.deepEqual(blob, expected);
     t.true(driver.retrieveCalls.length > retrievesBefore, 'client should retrieve the offloaded query result');
     await handle.signal(finishSignal);
@@ -374,11 +372,10 @@ test('AsyncCompletionClient.complete offloads a large result', async (t) => {
   const decoded = decodeReferencePayload(payload);
   t.is(decoded.driverName, driver.name);
   t.true(decoded.sizeBytes >= 4096);
-  // By-token completion knows only the namespace (the task token is opaque).
-  t.deepEqual(driver.storeCalls[0].context.target, { kind: 'activity', namespace: 'default' });
+  t.deepEqual(driver.storeCalls[0].context.target, { kind: 'workflow', namespace: 'default' });
 });
 
-test('AsyncCompletionClient.complete by ID targets the activity', async (t) => {
+test('AsyncCompletionClient.complete by ID targets the Workflow for a Workflow Activity', async (t) => {
   const driver = makeFakeDriver();
   const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
 
@@ -388,10 +385,39 @@ test('AsyncCompletionClient.complete by ID targets the activity', async (t) => {
   } as unknown as ConnectionLike;
   const client = new Client({ connection, dataConverter: { externalStorage } });
 
-  await client.activity.complete({ workflowId: 'wf-1', activityId: 'act-1' }, new Uint8Array(4096).fill(9));
+  await client.activity.complete(
+    { workflowId: 'wf-1', runId: 'run-1', activityId: 'act-1' },
+    new Uint8Array(4096).fill(9)
+  );
 
   t.is(driver.storeCalls.length, 1);
-  t.deepEqual(driver.storeCalls[0].context.target, { kind: 'activity', namespace: 'default', id: 'act-1' });
+  t.deepEqual(driver.storeCalls[0].context.target, {
+    kind: 'workflow',
+    namespace: 'default',
+    id: 'wf-1',
+    runId: 'run-1',
+  });
+});
+
+test('AsyncCompletionClient.complete by ID targets the Activity for a Standalone Activity', async (t) => {
+  const driver = makeFakeDriver();
+  const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
+
+  const connection = {
+    workflowService: { respondActivityTaskCompletedById: async () => ({}) },
+    plugins: [],
+  } as unknown as ConnectionLike;
+  const client = new Client({ connection, dataConverter: { externalStorage } });
+
+  await client.activity.complete({ runId: 'run-2', activityId: 'act-2' }, new Uint8Array(4096).fill(9));
+
+  t.is(driver.storeCalls.length, 1);
+  t.deepEqual(driver.storeCalls[0].context.target, {
+    kind: 'activity',
+    namespace: 'default',
+    id: 'act-2',
+    runId: 'run-2',
+  });
 });
 
 test('activity-client start offloads a large input and targets the activity', async (t) => {
@@ -447,15 +473,13 @@ test('client offloads a large workflow memo and retrieves it via describe', asyn
   });
   await worker.runUntil(handle.result());
 
-  // The memo exceeds the threshold, so the client offloads it on start; describe must retrieve it back.
   t.true(driver.storeCalls.length >= 1, 'the large memo should have been offloaded on start');
   const description = await handle.describe();
   t.deepEqual(description.memo?.blob, memoBlob);
 });
 
-// Driven through a mock connection rather than the ephemeral server: describing a just-created
-// schedule against `TestWorkflowEnvironment` times out on slower CI runners (schedules need the
-// real server, see test-schedules.ts). The mock keeps store+retrieve fully deterministic.
+// Mocked rather than run against the ephemeral server: describing a just-created schedule there
+// times out on slower CI runners (test-schedules.ts covers schedules against a real server).
 test('schedule create offloads a large memo and describe retrieves it', async (t) => {
   const driver = makeFakeDriver();
   const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
@@ -468,7 +492,6 @@ test('schedule create offloads a large memo and describe retrieves it', async (t
         createReq = req;
         return {};
       },
-      // Echo the reference the client offloaded on create, so describe must retrieve it back.
       describeSchedule: async () => ({
         schedule: {
           spec: {},
@@ -489,16 +512,13 @@ test('schedule create offloads a large memo and describe retrieves it', async (t
     memo: { blob: memoBlob },
   });
 
-  // Store: the memo exceeded the threshold and was offloaded on create.
   t.is(driver.storeCalls.length, 1);
   t.true(isReferencePayload(createReq!.memo!.fields!.blob), 'schedule memo should be offloaded on create');
-  // The store target is the workflow the schedule action will start.
   const target = driver.storeCalls[0].context.target;
   t.is(target?.kind, 'workflow');
   t.is(target?.namespace, 'default');
   t.is(target?.kind === 'workflow' ? target.type : undefined, 'w');
 
-  // Retrieve: describe converts the reference back to the original bytes.
   const description = await handle.describe();
   t.deepEqual(description.memo?.blob, memoBlob);
 });

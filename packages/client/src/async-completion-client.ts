@@ -1,5 +1,5 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
-import type { ActivitySerializationContext, StorageDriverActivityInfo } from '@temporalio/common';
+import type { ActivitySerializationContext, StorageDriverTargetInfo } from '@temporalio/common';
 import { ensureTemporalFailure } from '@temporalio/common';
 import {
   encodeErrorToFailure,
@@ -139,10 +139,16 @@ export class AsyncCompletionClient extends BaseClient {
    * only know the namespace (the token is opaque), so the target is namespace-scoped and the driver falls
    * back to content-addressed naming.
    */
-  protected storageTargetFor(taskTokenOrFullActivityId: Uint8Array | FullActivityId): StorageDriverActivityInfo {
-    return taskTokenOrFullActivityId instanceof Uint8Array
-      ? { kind: 'activity', namespace: this.options.namespace }
-      : { kind: 'activity', namespace: this.options.namespace, id: taskTokenOrFullActivityId.activityId };
+  protected storageTargetFor(taskTokenOrFullActivityId: Uint8Array | FullActivityId): StorageDriverTargetInfo {
+    const namespace = this.options.namespace;
+    if (taskTokenOrFullActivityId instanceof Uint8Array) {
+      return { kind: 'workflow', namespace };
+    }
+    const { workflowId, runId, activityId } = taskTokenOrFullActivityId;
+    if (workflowId != null) {
+      return { kind: 'workflow', namespace, id: workflowId, ...(runId != null ? { runId } : {}) };
+    }
+    return { kind: 'activity', namespace, id: activityId, ...(runId != null ? { runId } : {}) };
   }
 
   /**
