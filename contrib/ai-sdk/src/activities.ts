@@ -108,16 +108,30 @@ export const MCP_CONNECTION_IDLE_MS = 5 * 60 * 1000;
 // so distinct `clientArgs` for the same server (e.g. different auth) get distinct connections. Activities
 // run in the worker's Node process, so this module state is shared across every activity invocation on
 // the worker, matching how `@temporalio/strands-agents`'s plugin scopes its connection cache.
-const mcpConnections = new Map<string, { client: Promise<MCPClient>; idleTimer?: NodeJS.Timeout }>();
+//
+// `refCount` tracks calls currently in flight against this connection. The idle-eviction timer is only
+// armed while `refCount` is 0, so a connection is never closed out from under a call still using it,
+// however long that call takes.
+interface McpConnectionEntry {
+  client: Promise<MCPClient>;
+  idleTimer?: NodeJS.Timeout;
+  refCount: number;
+}
+
+const mcpConnections = new Map<string, McpConnectionEntry>();
 
 function mcpConnectionKey(name: string, clientArgs: unknown): string {
   return `${name}:${JSON.stringify(clientArgs) ?? 'undefined'}`;
 }
 
-function resetMcpIdleTimer(key: string, idleMs: number): void {
-  const entry = mcpConnections.get(key);
-  if (entry === undefined) return;
-  if (entry.idleTimer !== undefined) clearTimeout(entry.idleTimer);
+function clearIdleTimer(entry: McpConnectionEntry): void {
+  if (entry.idleTimer === undefined) return;
+  clearTimeout(entry.idleTimer);
+  entry.idleTimer = undefined;
+}
+
+function armIdleTimer(key: string, entry: McpConnectionEntry, idleMs: number): void {
+  clearIdleTimer(entry);
   const timer = setTimeout(() => void evictMcpConnection(key), idleMs);
   // Don't let an idle MCP connection keep the worker process alive.
   timer.unref?.();
@@ -129,7 +143,7 @@ async function evictMcpConnection(key: string): Promise<void> {
   const entry = mcpConnections.get(key);
   if (entry === undefined) return;
   mcpConnections.delete(key);
-  if (entry.idleTimer !== undefined) clearTimeout(entry.idleTimer);
+  clearIdleTimer(entry);
   try {
     const client = await entry.client;
     await client.close();
@@ -152,17 +166,22 @@ export async function _evictMcpConnectionsForServer(name: string): Promise<void>
   );
 }
 
-function getMcpConnection(
+/**
+ * Acquires the pooled MCP connection for `${name}:${clientArgs}`, creating it if absent, and marks it
+ * in-use for the duration of one call. Cancels any pending idle-eviction timer and increments the
+ * connection's in-flight refcount so it can't be evicted while this call is running, however long it
+ * takes. Callers must pair this with a matching {@link releaseMcpConnection} in a `finally` block.
+ */
+function acquireMcpConnection(
   name: string,
   clientArgs: unknown,
-  factory: McpClientFactory,
-  idleMs: number
-): Promise<MCPClient> {
+  factory: McpClientFactory
+): { client: Promise<MCPClient>; key: string; entry: McpConnectionEntry } {
   const key = mcpConnectionKey(name, clientArgs);
   let entry = mcpConnections.get(key);
   if (entry === undefined) {
     const client = factory(clientArgs);
-    entry = { client };
+    entry = { client, refCount: 0 };
     mcpConnections.set(key, entry);
     // If the connect/factory call fails, drop the rejected promise so the next call retries
     // instead of caching the failure forever.
@@ -170,8 +189,25 @@ function getMcpConnection(
       if (mcpConnections.get(key) === entry) mcpConnections.delete(key);
     });
   }
-  resetMcpIdleTimer(key, idleMs);
-  return entry.client;
+  clearIdleTimer(entry);
+  entry.refCount++;
+  return { client: entry.client, key, entry };
+}
+
+/**
+ * Releases one in-flight use of a pooled MCP connection acquired via {@link acquireMcpConnection}.
+ * Only once the refcount drops back to 0 (no other concurrent call is still using it) is the idle timer
+ * re-armed, so it starts counting from when the connection was last actually used, not from call start.
+ *
+ * Guarded by entry identity, not just the key: if this exact entry was already evicted (e.g. after a
+ * failed call, or by a teardown) and a fresh connection has since been cached under the same key, we
+ * must not touch that unrelated new entry's refcount or timer.
+ */
+function releaseMcpConnection(key: string, entry: McpConnectionEntry, idleMs: number): void {
+  if (mcpConnections.get(key) !== entry) return;
+  entry.refCount = Math.max(0, entry.refCount - 1);
+  if (entry.refCount > 0) return;
+  armIdleTimer(key, entry, idleMs);
 }
 
 /**
@@ -393,13 +429,16 @@ function activitiesForName(name: string, mcpClientFactory: McpClientFactory, idl
         await mcpClient.close();
       }
     }
-    const mcpClient = await getMcpConnection(name, args.clientArgs, mcpClientFactory, idleMs);
+    const { client, key, entry } = acquireMcpConnection(name, args.clientArgs, mcpClientFactory);
     try {
+      const mcpClient = await client;
       return await extractTools(mcpClient);
     } catch (err) {
       // The session may be broken (e.g. the server was restarted); drop it so the next call reconnects.
-      await evictMcpConnection(mcpConnectionKey(name, args.clientArgs));
+      await evictMcpConnection(key);
       throw err;
+    } finally {
+      releaseMcpConnection(key, entry, idleMs);
     }
   }
   async function callToolActivity(args: CallToolArgs): Promise<unknown> {
@@ -412,13 +451,16 @@ function activitiesForName(name: string, mcpClientFactory: McpClientFactory, idl
         await mcpClient.close();
       }
     }
-    const mcpClient = await getMcpConnection(name, args.clientArgs, mcpClientFactory, idleMs);
+    const { client, key, entry } = acquireMcpConnection(name, args.clientArgs, mcpClientFactory);
     try {
+      const mcpClient = await client;
       return await callTool(mcpClient, args);
     } catch (err) {
       // The session may be broken; drop it so the next call reconnects.
-      await evictMcpConnection(mcpConnectionKey(name, args.clientArgs));
+      await evictMcpConnection(key);
       throw err;
+    } finally {
+      releaseMcpConnection(key, entry, idleMs);
     }
   }
   return {

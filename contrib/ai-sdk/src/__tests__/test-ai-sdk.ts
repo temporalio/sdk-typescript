@@ -664,6 +664,48 @@ test('idle MCP client connection is closed and evicted after the idle timeout el
   t.is(factoryCalls, 2, 'a new connection should be created after eviction');
 });
 
+test('a long-running call is not evicted mid-call by a short idle timeout', async (t) => {
+  let factoryCalls = 0;
+  const closeCalls: string[] = [];
+
+  const mockMcpClientFactory = async () => {
+    factoryCalls++;
+    const clientId = `client-${factoryCalls}`;
+    return {
+      async tools() {
+        return {
+          testTool: {
+            description: 'A test tool',
+            inputSchema: { type: 'object' },
+            execute: async () => {
+              // Run well past the configured idle timeout while the call is in flight.
+              await new Promise((resolve) => setTimeout(resolve, 100));
+              return { result: clientId };
+            },
+          },
+        };
+      },
+      async close() {
+        closeCalls.push(clientId);
+      },
+    } as any;
+  };
+
+  const activities = createActivities(
+    new TestProvider(helloWorkflowGenerator()),
+    { longCallServer: mockMcpClientFactory },
+    { mcpConnectionIdleTimeout: 20 }
+  ) as Record<string, (args: unknown) => Promise<unknown>>;
+
+  const callToolActivity = activities['longCallServer-callTool']!;
+
+  const result = await callToolActivity({ name: 'testTool', input: {}, options: {} });
+
+  t.deepEqual(result, { result: 'client-1' });
+  t.deepEqual(closeCalls, [], 'the connection must not be closed by the idle timer while the call is still in flight');
+  t.is(factoryCalls, 1, 'the in-flight call should not have triggered a reconnect');
+});
+
 test('mcpConnectionIdleTimeout: 0 opts out of connection reuse (create-then-close every call)', async (t) => {
   let factoryCalls = 0;
   const closeCalls: string[] = [];
