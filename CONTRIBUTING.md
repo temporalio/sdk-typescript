@@ -27,18 +27,18 @@ available to you.
 When reporting a bug, include enough detail for someone else to reproduce or
 understand the problem:
 
-* A short summary of the problem.
-* A minimal reproduction, preferably as code that can be copied into a small
+- A short summary of the problem.
+- A minimal reproduction, preferably as code that can be copied into a small
   project or test.
-* What you expected to happen and what actually happened.
-* The SDK version.
-* The language runtime version.
-* The operating system and architecture.
-* Temporal Server or Temporal Cloud details, if the issue depends on service
+- What you expected to happen and what actually happened.
+- The SDK version.
+- The language runtime version.
+- The operating system and architecture.
+- Temporal Server or Temporal Cloud details, if the issue depends on service
   behavior.
-* Logs, stack traces, workflow histories, or other diagnostics that show the
+- Logs, stack traces, workflow histories, or other diagnostics that show the
   failure.
-* Whether the behavior is a regression, and the last version where it worked if
+- Whether the behavior is a regression, and the last version where it worked if
   known.
 
 ## Feature Requests and Design Changes
@@ -58,12 +58,12 @@ straight to a pull request.
 
 Good pull requests are focused and easy to review:
 
-* Keep each pull request scoped to one logical change.
-* Include tests for behavior changes.
-* Update public API documentation or doc comments when public behavior changes.
-* Add a high-level changelog entry for user-facing changes according to the
+- Keep each pull request scoped to one logical change.
+- Include tests for behavior changes.
+- Update public API documentation or doc comments when public behavior changes.
+- Add a high-level changelog entry for user-facing changes according to the
   repository's local changelog convention.
-* Describe what changed, why it changed, and what validation you ran.
+- Describe what changed, why it changed, and what validation you ran.
 
 Run the relevant local checks when practical. CI must pass before a pull request can
 be merged.
@@ -72,10 +72,10 @@ be merged.
 
 Avoid changes that make review harder without improving the contribution:
 
-* Unrelated refactors mixed into a behavior change.
-* Style-only churn.
-* Large feature pull requests that were not discussed first.
-* License, copyright, or other legal changes without maintainer discussion.
+- Unrelated refactors mixed into a behavior change.
+- Style-only churn.
+- Large feature pull requests that were not discussed first.
+- License, copyright, or other legal changes without maintainer discussion.
 
 ## AI-Generated Contributions
 
