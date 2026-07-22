@@ -1672,10 +1672,6 @@ export class WorkflowClient extends BaseClient {
               namespace: this.client.options.namespace,
               execution: { workflowId, runId },
             });
-          const externalStorage = this.client.dataConverter.externalStorage;
-          if (externalStorage) {
-            await visit(response, walkGetWorkflowExecutionHistoryResponse, extstoreRetrieveOptions(externalStorage));
-          }
           events.push(...(response.history?.events ?? []));
           nextPageToken = response.nextPageToken;
           if (nextPageToken == null || nextPageToken.length === 0) break;
