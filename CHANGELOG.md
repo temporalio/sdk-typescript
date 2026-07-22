@@ -21,12 +21,19 @@ to docs, or any other relevant information.
 
 ### Added
 
-- **Experimental**: You can now configure external storage on your `DataConverter` via the new
+- **Prerelease, Experimental**: You can now configure external storage on your `DataConverter` via the new
   `externalStorage` option to offload large payloads out of Temporal Server. When set, payloads larger
   than the configured `payloadSizeThreshold` are stored via your `StorageDriver`(s) and retrieved
   transparently, keeping large arguments, return values, and heartbeat details out of the Temporal Server
   database. `ExternalStorage` and the `StorageDriver` types are exported from `@temporalio/common`.
-  This feature is experimental and its API may change.
+- **Prerelease, Experimental**: AWS S3 external storage driver: This release introduces a
+  [package](https://github.com/temporalio/sdk-typescript/tree/main/contrib/external-storage-s3) which
+  can be used with external storage to offload large payloads to S3 buckets in AWS instead of inlining them
+  into workflow history.
+- **Prerelease, Experimental**: GCP GCS external storage driver: This release introduces a
+  [package](https://github.com/temporalio/sdk-typescript/tree/main/contrib/external-storage-gcs) which
+  can be used with external storage to offload large payloads to GCS buckets in GCP instead of inlining them
+  into workflow history.
 
 ### Breaking Changes
 
