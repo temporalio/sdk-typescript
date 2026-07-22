@@ -182,6 +182,10 @@ export async function withTracingWorker<T>(args: HarnessArgs<T>): Promise<T> {
       workflowsPath: WORKFLOWS_PATH,
       activities: args.activities,
       plugins: [plugin],
+      // Avoid waiting for the default 10s sticky execution timeout on worker
+      // transition: these short-lived per-case workers can otherwise stall a
+      // full 10s on task redelivery and, on loaded CI, blow the 120s AVA cap.
+      stickyQueueScheduleToStartTimeout: '1s',
       ...args.workerOptions,
     });
 
