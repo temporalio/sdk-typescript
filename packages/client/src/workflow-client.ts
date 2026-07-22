@@ -42,9 +42,11 @@ import {
   extstoreRetrieveOptions,
   extstoreStoreOptions,
   visit,
+  walkDescribeWorkflowExecutionResponse,
   walkExecuteMultiOperationRequest,
   walkExecuteMultiOperationResponse,
   walkGetWorkflowExecutionHistoryResponse,
+  walkListWorkflowExecutionsResponse,
   walkPollWorkflowExecutionUpdateResponse,
   walkQueryWorkflowRequest,
   walkQueryWorkflowResponse,
@@ -1559,10 +1561,15 @@ export class WorkflowClient extends BaseClient {
    */
   protected async _describeWorkflowHandler(input: WorkflowDescribeInput): Promise<DescribeWorkflowExecutionResponse> {
     try {
-      return await this.workflowService.describeWorkflowExecution({
+      const response = await this.workflowService.describeWorkflowExecution({
         namespace: this.options.namespace,
         execution: input.workflowExecution,
       });
+      const externalStorage = this.dataConverter.externalStorage;
+      if (externalStorage) {
+        await visit(response, walkDescribeWorkflowExecutionResponse, extstoreRetrieveOptions(externalStorage));
+      }
+      return response;
     } catch (err) {
       this.rethrowGrpcError(err, 'Failed to describe workflow', input.workflowExecution);
     }
@@ -1766,6 +1773,10 @@ export class WorkflowClient extends BaseClient {
         });
       } catch (e) {
         this.rethrowGrpcError(e, 'Failed to list workflows', undefined);
+      }
+      const externalStorage = this.dataConverter.externalStorage;
+      if (externalStorage) {
+        await visit(response, walkListWorkflowExecutionsResponse, extstoreRetrieveOptions(externalStorage));
       }
       // Not decoding memo payloads concurrently even though we could have to keep the lazy nature of this iterator.
       // Decoding is done for `memo` fields which tend to be small.

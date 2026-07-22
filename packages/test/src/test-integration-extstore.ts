@@ -1,17 +1,25 @@
 /**
  * Integration tests for the external storage feature.
  */
+import { randomUUID } from 'node:crypto';
+import type { ConnectionLike } from '@temporalio/client';
+import { Client } from '@temporalio/client';
 import { ExternalStorage, type StorageDriverTargetInfo } from '@temporalio/common';
 import { decodeReferencePayload, isReferencePayload } from '@temporalio/common/lib/internal-non-workflow';
+import type { temporal } from '@temporalio/proto';
 import * as activities from './activities';
 import { makeFakeDriver } from './extstore-fake-driver';
 import { helpers, makeTestFunction } from './helpers-integration';
 import {
   externalStorageActivityInputOffload,
   externalStorageByteFidelity,
+  externalStorageEcho,
   externalStorageHeartbeatDetailsOffload,
   externalStorageOffload,
   externalStorageParentChildOffload,
+  externalStorageQueryable,
+  finishSignal,
+  getBlobQuery,
 } from './workflows';
 
 const test = makeTestFunction({ workflowsPath: require.resolve('./workflows') });
@@ -284,4 +292,233 @@ test('a transient activity input retrieve failure retries the activity and recov
 
   t.is(len, payloadSize);
   t.true(driver.retrieveCalls.length >= 2);
+});
+
+test('client offloads a large start argument and retrieves a large result', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+
+  const driver = makeFakeDriver();
+  const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
+  const data = new Uint8Array(4096).fill(3);
+
+  const worker = await createWorker({ dataConverter: { externalStorage } });
+  const client = new Client({ connection: t.context.env.connection, dataConverter: { externalStorage } });
+
+  const workflowId = randomUUID();
+  const handle = await client.workflow.start(externalStorageEcho, { taskQueue, workflowId, args: [data] });
+  const result = await worker.runUntil(handle.result());
+  t.deepEqual(result, data);
+
+  // Raw history is fetched through a converter without external storage; otherwise the references
+  // below would be retrieved away before we can assert on them.
+  const { events } = await t.context.env.client.workflow.getHandle(workflowId).fetchHistory();
+  const startArg = events?.find((e) => e.workflowExecutionStartedEventAttributes)
+    ?.workflowExecutionStartedEventAttributes?.input?.payloads?.[0];
+  if (startArg == null) throw new Error('expected a start input payload');
+  t.true(isReferencePayload(startArg), 'start argument should be offloaded by the client');
+
+  const resultPayload = events?.find((e) => e.workflowExecutionCompletedEventAttributes)
+    ?.workflowExecutionCompletedEventAttributes?.result?.payloads?.[0];
+  if (resultPayload == null) throw new Error('expected a completed result payload');
+  t.true(isReferencePayload(resultPayload), 'workflow result should be a reference before the client retrieves it');
+});
+
+test('client retrieves an offloaded query result', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+
+  const driver = makeFakeDriver();
+  const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
+  const sizeBytes = 4096;
+  const expected = new Uint8Array(sizeBytes).fill(7);
+
+  const worker = await createWorker({ dataConverter: { externalStorage } });
+  const client = new Client({ connection: t.context.env.connection, dataConverter: { externalStorage } });
+
+  const workflowId = randomUUID();
+  await worker.runUntil(async () => {
+    const handle = await client.workflow.start(externalStorageQueryable, { taskQueue, workflowId, args: [sizeBytes] });
+    const retrievesBefore = driver.retrieveCalls.length;
+    const blob = await handle.query(getBlobQuery);
+    t.deepEqual(blob, expected);
+    t.true(driver.retrieveCalls.length > retrievesBefore, 'client should retrieve the offloaded query result');
+    await handle.signal(finishSignal);
+    await handle.result();
+  });
+});
+
+test('AsyncCompletionClient.complete offloads a large result', async (t) => {
+  const driver = makeFakeDriver();
+  const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
+
+  let recorded: temporal.api.workflowservice.v1.IRespondActivityTaskCompletedRequest | undefined;
+  const connection = {
+    workflowService: {
+      respondActivityTaskCompleted: async (
+        req: temporal.api.workflowservice.v1.IRespondActivityTaskCompletedRequest
+      ) => {
+        recorded = req;
+      },
+    },
+    plugins: [],
+  } as unknown as ConnectionLike;
+  const client = new Client({ connection, dataConverter: { externalStorage } });
+
+  await client.activity.complete(new Uint8Array([1]), new Uint8Array(4096).fill(9));
+
+  t.is(driver.storeCalls.length, 1);
+  const payload = recorded?.result?.payloads?.[0];
+  if (payload == null) throw new Error('expected a result payload');
+  t.true(isReferencePayload(payload), 'the async completion result should be offloaded before sending');
+  const decoded = decodeReferencePayload(payload);
+  t.is(decoded.driverName, driver.name);
+  t.true(decoded.sizeBytes >= 4096);
+  t.deepEqual(driver.storeCalls[0].context.target, { kind: 'workflow', namespace: 'default' });
+});
+
+test('AsyncCompletionClient.complete by ID targets the Workflow for a Workflow Activity', async (t) => {
+  const driver = makeFakeDriver();
+  const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
+
+  const connection = {
+    workflowService: { respondActivityTaskCompletedById: async () => ({}) },
+    plugins: [],
+  } as unknown as ConnectionLike;
+  const client = new Client({ connection, dataConverter: { externalStorage } });
+
+  await client.activity.complete(
+    { workflowId: 'wf-1', runId: 'run-1', activityId: 'act-1' },
+    new Uint8Array(4096).fill(9)
+  );
+
+  t.is(driver.storeCalls.length, 1);
+  t.deepEqual(driver.storeCalls[0].context.target, {
+    kind: 'workflow',
+    namespace: 'default',
+    id: 'wf-1',
+    runId: 'run-1',
+  });
+});
+
+test('AsyncCompletionClient.complete by ID targets the Activity for a Standalone Activity', async (t) => {
+  const driver = makeFakeDriver();
+  const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
+
+  const connection = {
+    workflowService: { respondActivityTaskCompletedById: async () => ({}) },
+    plugins: [],
+  } as unknown as ConnectionLike;
+  const client = new Client({ connection, dataConverter: { externalStorage } });
+
+  await client.activity.complete({ runId: 'run-2', activityId: 'act-2' }, new Uint8Array(4096).fill(9));
+
+  t.is(driver.storeCalls.length, 1);
+  t.deepEqual(driver.storeCalls[0].context.target, {
+    kind: 'activity',
+    namespace: 'default',
+    id: 'act-2',
+    runId: 'run-2',
+  });
+});
+
+test('activity-client start offloads a large input and targets the activity', async (t) => {
+  const driver = makeFakeDriver();
+  const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
+
+  let startReq: temporal.api.workflowservice.v1.IStartActivityExecutionRequest | undefined;
+  const connection = {
+    workflowService: {
+      startActivityExecution: async (req: temporal.api.workflowservice.v1.IStartActivityExecutionRequest) => {
+        startReq = req;
+        return { runId: 'run-1' };
+      },
+    },
+    plugins: [],
+  } as unknown as ConnectionLike;
+  const client = new Client({ connection, dataConverter: { externalStorage } });
+
+  await client.activity.start('myActivity', {
+    id: 'act-1',
+    taskQueue: 'q',
+    args: [new Uint8Array(4096).fill(8)],
+    scheduleToCloseTimeout: '1 minute',
+    retry: { maximumAttempts: 1 },
+  });
+
+  t.is(driver.storeCalls.length, 1);
+  t.true(isReferencePayload(startReq!.input!.payloads![0]), 'the activity input should be offloaded before sending');
+  t.deepEqual(driver.storeCalls[0].context.target, {
+    kind: 'activity',
+    namespace: 'default',
+    id: 'act-1',
+    type: 'myActivity',
+  });
+});
+
+test('client offloads a large workflow memo and retrieves it via describe', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+
+  const driver = makeFakeDriver();
+  const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
+  const memoBlob = new Uint8Array(4096).fill(5);
+
+  const worker = await createWorker({ dataConverter: { externalStorage } });
+  const client = new Client({ connection: t.context.env.connection, dataConverter: { externalStorage } });
+
+  const workflowId = randomUUID();
+  const handle = await client.workflow.start(externalStorageEcho, {
+    taskQueue,
+    workflowId,
+    args: [new Uint8Array(1)],
+    memo: { blob: memoBlob },
+  });
+  await worker.runUntil(handle.result());
+
+  t.true(driver.storeCalls.length >= 1, 'the large memo should have been offloaded on start');
+  const description = await handle.describe();
+  t.deepEqual(description.memo?.blob, memoBlob);
+});
+
+// Mocked rather than run against the ephemeral server: describing a just-created schedule there
+// times out on slower CI runners (test-schedules.ts covers schedules against a real server).
+test('schedule create offloads a large memo and describe retrieves it', async (t) => {
+  const driver = makeFakeDriver();
+  const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
+  const memoBlob = new Uint8Array(4096).fill(6);
+
+  let createReq: temporal.api.workflowservice.v1.ICreateScheduleRequest | undefined;
+  const connection = {
+    workflowService: {
+      createSchedule: async (req: temporal.api.workflowservice.v1.ICreateScheduleRequest) => {
+        createReq = req;
+        return {};
+      },
+      describeSchedule: async () => ({
+        schedule: {
+          spec: {},
+          action: { startWorkflow: { workflowType: { name: 'w' }, taskQueue: { name: 'q' } } },
+        },
+        info: { createTime: { seconds: 0, nanos: 0 } },
+        memo: { fields: { blob: createReq!.memo!.fields!.blob } },
+      }),
+    },
+    plugins: [],
+  } as unknown as ConnectionLike;
+  const client = new Client({ connection, dataConverter: { externalStorage } });
+
+  const handle = await client.schedule.create({
+    scheduleId: 'sched-1',
+    spec: {},
+    action: { type: 'startWorkflow', workflowType: 'w', taskQueue: 'q' },
+    memo: { blob: memoBlob },
+  });
+
+  t.is(driver.storeCalls.length, 1);
+  t.true(isReferencePayload(createReq!.memo!.fields!.blob), 'schedule memo should be offloaded on create');
+  const target = driver.storeCalls[0].context.target;
+  t.is(target?.kind, 'workflow');
+  t.is(target?.namespace, 'default');
+  t.is(target?.kind === 'workflow' ? target.type : undefined, 'w');
+
+  const description = await handle.describe();
+  t.deepEqual(description.memo?.blob, memoBlob);
 });
