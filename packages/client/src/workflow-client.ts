@@ -1035,9 +1035,7 @@ export class WorkflowClient extends BaseClient {
     const dataConverter = this.dataConverter;
     const context = this.workflowSerializationContext(input.workflowExecution.workflowId!);
     const updateId = input.options?.updateId ?? randomUUID();
-    const internalOptions = (input.options as InternalWorkflowUpdateOptions)[
-      InternalWorkflowUpdateOptionsSymbol
-    ];
+    const internalOptions = (input.options as InternalWorkflowUpdateOptions)[InternalWorkflowUpdateOptionsSymbol];
     return {
       namespace: this.options.namespace,
       workflowExecution: input.workflowExecution,
@@ -1112,9 +1110,7 @@ export class WorkflowClient extends BaseClient {
     if (externalStorage) {
       await visit(response, walkUpdateWorkflowExecutionResponse, extstoreRetrieveOptions(externalStorage));
     }
-    const internalOptions = (input.options as InternalWorkflowUpdateOptions)[
-      InternalWorkflowUpdateOptionsSymbol
-    ];
+    const internalOptions = (input.options as InternalWorkflowUpdateOptions)[InternalWorkflowUpdateOptionsSymbol];
     if (internalOptions != null) {
       // Capture the link the server attached to the Update response so the Nexus helper can add it
       // as a handler link. Older servers leave it unset.
