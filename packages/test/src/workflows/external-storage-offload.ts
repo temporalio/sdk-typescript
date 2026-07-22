@@ -59,24 +59,19 @@ export async function externalStorageHeartbeatDetailsOffload(sizeBytes: number):
 }
 
 /**
- * Child workflow that echoes back the (large) payload it receives, so its input is offloaded on
- * the parent's outbound command and its result is offloaded on the child's completion.
- */
-export async function externalStorageChildEcho(payload: Uint8Array): Promise<Uint8Array> {
-  return payload;
-}
-
-/**
  * Parent workflow that starts a child with a large argument and reads back the child's large
  * result, exercising offload/retrieval in both directions between two Workflows on the same
  * Worker. Returns the length of the payload round-tripped through the child.
  */
 export async function externalStorageParentChildOffload(sizeBytes: number): Promise<number> {
-  const result = await executeChild(externalStorageChildEcho, { args: [new Uint8Array(sizeBytes)] });
+  const result = await executeChild(externalStorageEcho, { args: [new Uint8Array(sizeBytes)] });
   return result.length;
 }
 
-/** Returns its argument unchanged, so a large arg/result round-trips through the client boundary. */
+/**
+ * Returns its argument unchanged. Used directly (a large arg/result round-trips through the client
+ * boundary) and as the child in {@link externalStorageParentChildOffload}.
+ */
 export async function externalStorageEcho(data: Uint8Array): Promise<Uint8Array> {
   return data;
 }
