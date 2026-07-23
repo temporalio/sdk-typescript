@@ -485,7 +485,7 @@ export class ScheduleClient extends BaseClient {
           policies: {
             // 'overlap' should never be missing on describe, as the server will replace UNSPECIFIED by an actual value
             overlap: decodeScheduleOverlapPolicy(raw.schedule.policies?.overlapPolicy) ?? ScheduleOverlapPolicy.SKIP,
-            catchupWindow: optionalTsToMs(raw.schedule.policies?.catchupWindow) ?? 60_000,
+            catchupWindow: optionalTsToMs(raw.schedule.policies?.catchupWindow) ?? 365 * 24 * 60 * 60 * 1000,
             pauseOnFailure: raw.schedule.policies?.pauseOnFailure === true,
           },
           state: {

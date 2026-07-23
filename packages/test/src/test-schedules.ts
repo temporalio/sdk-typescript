@@ -69,6 +69,7 @@ if (RUN_INTEGRATION_TESTS) {
       t.deepEqual(describedSchedule.spec.calendars, [
         { ...calendarSpecDescriptionDefaults, hour: [{ start: 2, end: 7, step: 1 }] },
       ]);
+      t.is(describedSchedule.policies.catchupWindow, 365 * 24 * 60 * 60 * 1000);
     } finally {
       await handle.delete();
     }
