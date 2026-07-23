@@ -1,6 +1,7 @@
 import { decode, encode } from '../encoding';
 import { PayloadConverterError, ValueError } from '../errors';
 import type { Payload } from '../interfaces';
+import type { TypeInfo } from '../type-info';
 import type { SerializationContext } from './serialization-context';
 import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY } from './types';
 
@@ -28,6 +29,26 @@ export interface PayloadConverter {
   fromPayload<T>(payload: Payload, context?: SerializationContext): T;
 }
 
+function toPayloadWithTypeInfo(
+  converter: PayloadConverter,
+  value: unknown,
+  context: SerializationContext | undefined,
+  typeInfo: TypeInfo | undefined
+): Payload {
+  const intermediate = typeInfo?.mapper ? typeInfo.mapper.toIntermediate(value) : value;
+  return converter.toPayload(intermediate, context);
+}
+
+function fromPayloadWithTypeInfo<T>(
+  converter: PayloadConverter,
+  payload: Payload,
+  context: SerializationContext | undefined,
+  typeInfo: TypeInfo | undefined
+): T {
+  const intermediate = converter.fromPayload<unknown>(payload, context);
+  return (typeInfo?.mapper ? typeInfo.mapper.fromIntermediate(intermediate) : intermediate) as T;
+}
+
 /**
  * Implements conversion of a list of values.
  *
@@ -49,13 +70,13 @@ export function toPayloads(converter: PayloadConverter, ...values: unknown[]): P
 export function toPayloadsWithContext(
   converter: PayloadConverter,
   context: SerializationContext | undefined,
-  values: unknown[]
+  values: unknown[],
+  typeInfo?: readonly TypeInfo[]
 ): Payload[] | undefined {
   if (values.length === 0) {
     return undefined;
   }
-
-  return values.map((value) => converter.toPayload(value, context));
+  return values.map((value, index) => toPayloadWithTypeInfo(converter, value, context, typeInfo?.[index]));
 }
 
 /**
@@ -101,7 +122,8 @@ export function fromPayloadsAtIndex<T>(
   converter: PayloadConverter,
   index: number,
   payloads?: Payload[] | null,
-  context?: SerializationContext
+  context?: SerializationContext,
+  valueTypeInfo?: TypeInfo
 ): T {
   // To make adding arguments a backwards compatible change
   if (payloads === undefined || payloads === null || index >= payloads.length) {
@@ -111,7 +133,7 @@ export function fromPayloadsAtIndex<T>(
   if (!payload) {
     return undefined as any;
   }
-  return converter.fromPayload(payload, context);
+  return fromPayloadWithTypeInfo(converter, payload, context, valueTypeInfo);
 }
 
 /**
@@ -120,12 +142,15 @@ export function fromPayloadsAtIndex<T>(
 export function arrayFromPayloads(
   converter: PayloadConverter,
   payloads?: Payload[] | null,
-  context?: SerializationContext
+  context?: SerializationContext,
+  typeInfo?: readonly TypeInfo[]
 ): unknown[] {
   if (!payloads) {
     return [];
   }
-  return payloads.map((payload: Payload) => converter.fromPayload(payload, context));
+  return payloads.map((payload: Payload, index) =>
+    fromPayloadWithTypeInfo(converter, payload, context, typeInfo?.[index])
+  );
 }
 
 export function mapFromPayloads<K extends string, T = unknown>(
