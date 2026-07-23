@@ -25,7 +25,7 @@ import {
   compilePriority,
   encodeActivityCancellationType,
   encodeWorkflowIdReusePolicy,
-  extractWorkflowType,
+  extractWorkflowTypeAndConfig,
   HandlerUnfinishedPolicy,
   mapToPayloads,
   encodeInitialVersioningBehavior,
@@ -436,7 +436,7 @@ function startChildWorkflowExecutionNextHandler({
         seq,
         workflowId,
         workflowType,
-        input: toPayloadsWithContext(activator.payloadConverter, context, options.args),
+        input: toPayloadsWithContext(activator.payloadConverter, context, options.args, options.typeInfo?.inputTypes),
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
         taskQueue: options.taskQueue || activator.info.taskQueue,
         workflowExecutionTimeout: msOptionalToTs(options.workflowExecutionTimeout),
@@ -479,6 +479,7 @@ function startChildWorkflowExecutionNextHandler({
       resolve,
       reject,
       context,
+      outputTypeInfo: options.typeInfo?.outputType,
     });
   });
   untrackPromise(startPromise);
@@ -877,7 +878,14 @@ export async function startChild<T extends Workflow>(
     'Workflow.startChild(...) may only be used from a Workflow Execution. Consider using Client.workflow.start(...) instead.)'
   );
   const optionsWithDefaults = addDefaultWorkflowOptions(options ?? ({} as any));
-  const workflowType = extractWorkflowType(workflowTypeOrFunc);
+  const { type: workflowType, typeInfo } = extractWorkflowTypeAndConfig(
+    workflowTypeOrFunc,
+    optionsWithDefaults.typeInfo
+  );
+  const workflowOptions = {
+    ...optionsWithDefaults,
+    typeInfo,
+  };
   const execute = composeInterceptors(
     activator.interceptors.outbound,
     'startChildWorkflowExecution',
@@ -885,14 +893,14 @@ export async function startChild<T extends Workflow>(
   );
   const [started, completed] = await execute({
     seq: activator.nextSeqs.childWorkflow++,
-    options: optionsWithDefaults,
+    options: workflowOptions,
     headers: {},
     workflowType,
   });
   const firstExecutionRunId = await started;
 
   return {
-    workflowId: optionsWithDefaults.workflowId,
+    workflowId: workflowOptions.workflowId,
     firstExecutionRunId,
     async result(): Promise<WorkflowResultType<T>> {
       return (await completed) as any;
@@ -909,7 +917,7 @@ export async function startChild<T extends Workflow>(
         typeInfo: typeof def === 'string' ? undefined : def.typeInfo,
         target: {
           type: 'child',
-          childWorkflowId: optionsWithDefaults.workflowId,
+          childWorkflowId: workflowOptions.workflowId,
         },
         headers: {},
       });
@@ -979,7 +987,14 @@ export async function executeChild<T extends Workflow>(
     'Workflow.executeChild(...) may only be used from a Workflow Execution. Consider using Client.workflow.execute(...) instead.'
   );
   const optionsWithDefaults = addDefaultWorkflowOptions(options ?? ({} as any));
-  const workflowType = extractWorkflowType(workflowTypeOrFunc);
+  const { type: workflowType, typeInfo } = extractWorkflowTypeAndConfig(
+    workflowTypeOrFunc,
+    optionsWithDefaults.typeInfo
+  );
+  const workflowOptions = {
+    ...optionsWithDefaults,
+    typeInfo,
+  };
   const execute = composeInterceptors(
     activator.interceptors.outbound,
     'startChildWorkflowExecution',
@@ -987,7 +1002,7 @@ export async function executeChild<T extends Workflow>(
   );
   const execPromise = execute({
     seq: activator.nextSeqs.childWorkflow++,
-    options: optionsWithDefaults,
+    options: workflowOptions,
     headers: {},
     workflowType,
   });
@@ -1071,13 +1086,19 @@ export function makeContinueAsNewFunc<F extends Workflow>(
     ...rest,
   };
 
+  let resolvedTypeInfo = options?.typeInfo;
+  // Reuse current workflow type information only when continuing as new to the same Workflow type.
+  if (resolvedTypeInfo == null && requiredOptions.workflowType === info.workflowType) {
+    resolvedTypeInfo = activator.typeInfo;
+  }
+
   return (...args: Parameters<F>): Promise<never> => {
     const context = currentWorkflowSerializationContext(info);
     const fn = composeInterceptors(activator.interceptors.outbound, 'continueAsNew', async (input) => {
       const { headers, args, options } = input;
       throw new ContinueAsNew({
         workflowType: options.workflowType,
-        arguments: toPayloadsWithContext(activator.payloadConverter, context, args),
+        arguments: toPayloadsWithContext(activator.payloadConverter, context, args, resolvedTypeInfo?.inputTypes),
         headers,
         taskQueue: options.taskQueue,
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo, context),
