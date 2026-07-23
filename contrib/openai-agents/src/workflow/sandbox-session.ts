@@ -50,12 +50,14 @@ import {
   decodeToolOutputImage,
   encodeEntry,
   encodeManifest,
+  sandboxSpanName,
   serializeSessionEnvelope,
   type EncodedManifest,
   type SerializedSandboxSessionState,
   type SerializedToolOutputImage,
   type TemporalSandboxSessionState,
 } from '../common/sandbox-activity-types';
+import { maybeTemporalSpan } from './span-helpers';
 
 /**
  * Workflow-side handle for a sandbox session. Holds only serializable state;
@@ -84,10 +86,17 @@ export class TemporalSandboxSession implements SandboxSession<TemporalSandboxSes
   }
 
   private dispatch<T>(suffix: string, input: Record<string, unknown>, extraArgs: unknown[] = []): Promise<T> {
-    return scheduleActivity<T>(
-      `${this._name}${suffix}`,
-      [{ state: this.stateInput(), ...input }, ...extraArgs],
-      this._config
+    const data: Record<string, unknown> = { sessionId: this.state.sessionId };
+    if (typeof input.port === 'number') data.port = input.port;
+    return maybeTemporalSpan(
+      sandboxSpanName(suffix),
+      () =>
+        scheduleActivity<T>(
+          `${this._name}${suffix}`,
+          [{ state: this.stateInput(), ...input }, ...extraArgs],
+          this._config
+        ),
+      data
     );
   }
 
@@ -198,10 +207,16 @@ class TemporalEditor implements Editor {
   ) {}
 
   private apply(suffix: string, operation: ApplyPatchOperation): Promise<ApplyPatchResult | void> {
-    return scheduleActivity<ApplyPatchResult | undefined>(
-      `${this.name}${suffix}`,
-      [{ state: this.stateInput(), operation, runAs: this.runAs }],
-      this.config
+    const state = this.stateInput();
+    return maybeTemporalSpan(
+      sandboxSpanName(suffix),
+      () =>
+        scheduleActivity<ApplyPatchResult | undefined>(
+          `${this.name}${suffix}`,
+          [{ state, operation, runAs: this.runAs }],
+          this.config
+        ),
+      { sessionId: state.sessionId }
     );
   }
 

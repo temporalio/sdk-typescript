@@ -75,6 +75,11 @@ export class OpenAIAgentsPlugin extends SimplePlugin {
 
     let allActivities: Record<string, (...args: any[]) => Promise<any>> = { ...modelActivities };
 
+    const interceptorOpts = options.interceptorOptions;
+    for (const provider of options.sandboxClientProviders ?? []) {
+      provider._addTemporalSpans = interceptorOpts?.addTemporalSpans === true;
+    }
+
     const providers: Array<{ name: string; _getActivities(): Record<string, (...args: any[]) => Promise<any>> }> = [
       ...(options.mcpServerProviders ?? []),
       ...(options.sandboxClientProviders ?? []),
@@ -90,7 +95,6 @@ export class OpenAIAgentsPlugin extends SimplePlugin {
       allActivities = { ...allActivities, ...provider._getActivities() };
     }
 
-    const interceptorOpts = options.interceptorOptions;
     const activityInterceptorOptions: OpenAIAgentsTraceInterceptorOptions = {
       addTemporalSpans: interceptorOpts?.addTemporalSpans,
     };

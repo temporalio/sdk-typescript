@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import type { ApplyPatchOperation, ApplyPatchResult, Editor } from '@openai/agents-core';
+import {
+  getCurrentTrace,
+  withCustomSpan,
+  type ApplyPatchOperation,
+  type ApplyPatchResult,
+  type Editor,
+} from '@openai/agents-core';
 import type {
   SandboxClient,
   SandboxClientOptions,
@@ -37,6 +43,7 @@ import {
   decodeManifest,
   encodeManifest,
   encodeToolOutputImage,
+  sandboxSpanName,
   serializeSessionEnvelope,
   toSdkStateRecord,
   type EncodedManifest,
@@ -86,6 +93,21 @@ function translateSandboxErrors(fn: ActivityFunction): ActivityFunction {
   };
 }
 
+function sessionIdOf(input: unknown): string | undefined {
+  const sessionId = (input as { state?: { sessionId?: unknown } } | undefined)?.state?.sessionId;
+  return typeof sessionId === 'string' ? sessionId : undefined;
+}
+
+function summarizeResult(result: unknown): Record<string, number> {
+  if (result && typeof result === 'object' && typeof (result as { exitCode?: unknown }).exitCode === 'number') {
+    return { exitCode: (result as { exitCode: number }).exitCode };
+  }
+  if (result instanceof Uint8Array) return { byteLength: result.byteLength };
+  if (typeof result === 'string') return { length: result.length };
+  if (Array.isArray(result)) return { count: result.length };
+  return {};
+}
+
 function unsupportedOperation(name: string, operation: string): never {
   throw ApplicationFailure.create({
     message: `Sandbox backend '${name}' does not support ${operation}().`,
@@ -124,6 +146,8 @@ function unsupportedOperation(name: string, operation: string): never {
 export class SandboxClientProvider {
   private readonly _sessions = new Map<string, SandboxSession>();
   private readonly _resuming = new Map<string, Promise<SandboxSession>>();
+  /** @internal */
+  _addTemporalSpans = false;
 
   constructor(
     public readonly name: string,
@@ -405,6 +429,24 @@ export class SandboxClientProvider {
       },
     };
 
-    return Object.fromEntries(Object.entries(activities).map(([name, fn]) => [name, translateSandboxErrors(fn)]));
+    return Object.fromEntries(
+      Object.entries(activities).map(([name, fn]) => [name, this.withSpan(name, translateSandboxErrors(fn))])
+    );
+  }
+
+  private withSpan(name: string, fn: ActivityFunction): ActivityFunction {
+    const spanName = `${sandboxSpanName(name.slice(this.name.length))}:result`;
+    return async (...args: unknown[]) => {
+      const sessionId = sessionIdOf(args[0]);
+      if (!this._addTemporalSpans || !sessionId || !getCurrentTrace()) return fn(...args);
+      return withCustomSpan(
+        async (span) => {
+          const result = await fn(...args);
+          Object.assign(span.spanData.data, { sessionId, ...summarizeResult(result) });
+          return result;
+        },
+        { data: { name: spanName, data: {} } }
+      );
+    };
   }
 }

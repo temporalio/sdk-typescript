@@ -76,6 +76,17 @@ export async function sandboxManifestResumeWorkflow(): Promise<string> {
   return `live=${live} persisted=${persisted}`;
 }
 
+export async function sandboxExecWorkflow(): Promise<string> {
+  const client = temporalSandboxClient('fake');
+  const session = await client.create();
+  await session.start!();
+  const result = await session.exec!({ cmd: 'echo hello' });
+  await session.readFile!({ path: '/workspace/out.txt' });
+  const editor = session.createEditor!();
+  await editor.createFile({ type: 'create_file', path: '/workspace/out.txt', diff: 'secret-content' });
+  return `exit=${result.exitCode}`;
+}
+
 export async function sandboxArchiveLimitsWorkflow(): Promise<string> {
   const client = temporalSandboxClient('fake');
   const session = await client.create();

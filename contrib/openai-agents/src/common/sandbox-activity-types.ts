@@ -45,6 +45,11 @@ export const SANDBOX_EDITOR_CREATE_FILE_SUFFIX = '-sandbox-editor-create-file';
 export const SANDBOX_EDITOR_UPDATE_FILE_SUFFIX = '-sandbox-editor-update-file';
 export const SANDBOX_EDITOR_DELETE_FILE_SUFFIX = '-sandbox-editor-delete-file';
 
+/** Span label for a sandbox Activity, e.g. `-sandbox-session-exec` -> `sandbox:session-exec`. */
+export function sandboxSpanName(activitySuffix: string): string {
+  return `sandbox:${activitySuffix.replace(/^-sandbox-/, '')}`;
+}
+
 /**
  * JSON-safe representation of the full manifest: binary file contents are
  * base64-encoded with the `{ type: 'base64', data }` marker. The entire manifest

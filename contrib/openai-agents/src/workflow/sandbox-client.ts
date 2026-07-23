@@ -17,12 +17,14 @@ import {
   decodeManifest,
   encodeManifest,
   reviveWorkflowSessionState,
+  sandboxSpanName,
   serializeSessionEnvelope,
   type EncodedManifest,
   type SandboxSessionResult,
   type TemporalSandboxSessionState,
 } from '../common/sandbox-activity-types';
 import { TemporalSandboxSession } from './sandbox-session';
+import { maybeTemporalSpan } from './span-helpers';
 
 /** Activity options for sandbox operations dispatched by this client's sessions. */
 export interface TemporalSandboxClientOptions {
@@ -90,24 +92,34 @@ export class TemporalSandboxClient implements SandboxClient<SandboxClientOptions
     state: TemporalSandboxSessionState,
     options?: SandboxClientResumeOptions
   ): Promise<SandboxSessionLike<TemporalSandboxSessionState>> {
-    const result = await scheduleActivity<SandboxSessionResult>(
-      `${this._name}${SANDBOX_CLIENT_RESUME_SUFFIX}`,
-      [
-        {
-          state: serializeSessionEnvelope(state.sessionId, state, state.providerState),
-          archiveLimits: options?.archiveLimits,
-        },
-      ],
-      this._config
+    const result = await maybeTemporalSpan(
+      sandboxSpanName(SANDBOX_CLIENT_RESUME_SUFFIX),
+      () =>
+        scheduleActivity<SandboxSessionResult>(
+          `${this._name}${SANDBOX_CLIENT_RESUME_SUFFIX}`,
+          [
+            {
+              state: serializeSessionEnvelope(state.sessionId, state, state.providerState),
+              archiveLimits: options?.archiveLimits,
+            },
+          ],
+          this._config
+        ),
+      { sessionId: state.sessionId }
     );
     return this.wrapSession(result);
   }
 
   async delete(state: TemporalSandboxSessionState): Promise<void> {
-    await scheduleActivity<void>(
-      `${this._name}${SANDBOX_CLIENT_DELETE_SUFFIX}`,
-      [{ state: serializeSessionEnvelope(state.sessionId, state, state.providerState) }],
-      this._config
+    await maybeTemporalSpan(
+      sandboxSpanName(SANDBOX_CLIENT_DELETE_SUFFIX),
+      () =>
+        scheduleActivity<void>(
+          `${this._name}${SANDBOX_CLIENT_DELETE_SUFFIX}`,
+          [{ state: serializeSessionEnvelope(state.sessionId, state, state.providerState) }],
+          this._config
+        ),
+      { sessionId: state.sessionId }
     );
   }
 
@@ -115,10 +127,15 @@ export class TemporalSandboxClient implements SandboxClient<SandboxClientOptions
     state: TemporalSandboxSessionState,
     options?: SandboxSessionSerializationOptions
   ): Promise<Record<string, unknown>> {
-    return scheduleActivity<Record<string, unknown>>(
-      `${this._name}${SANDBOX_CLIENT_SERIALIZE_SESSION_STATE_SUFFIX}`,
-      [{ state: serializeSessionEnvelope(state.sessionId, state, state.providerState), options }],
-      this._config
+    return maybeTemporalSpan(
+      sandboxSpanName(SANDBOX_CLIENT_SERIALIZE_SESSION_STATE_SUFFIX),
+      () =>
+        scheduleActivity<Record<string, unknown>>(
+          `${this._name}${SANDBOX_CLIENT_SERIALIZE_SESSION_STATE_SUFFIX}`,
+          [{ state: serializeSessionEnvelope(state.sessionId, state, state.providerState), options }],
+          this._config
+        ),
+      { sessionId: state.sessionId }
     );
   }
 

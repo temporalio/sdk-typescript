@@ -18,9 +18,11 @@ import {
   OpenAIAgentsPlugin,
   StatelessMCPServerProvider,
   StatefulMCPServerProvider,
+  SandboxClientProvider,
   DEDICATED_WORKER_FAILURE_TYPE,
 } from '..';
 import { FakeModelProvider, textResponse, toolCallResponse, handoffResponse } from './stubs/openai-agents-fakes';
+import { FakeSandboxClient } from './stubs/sandbox-fakes';
 import { installOtelCollector, installAgentSdkCollector } from './helpers/openai-agents-spans';
 import * as activities from './activities/openai-agents-comprehensive';
 import {
@@ -84,6 +86,13 @@ function* singleTurnScript(text: string): Generator<ReturnType<typeof textRespon
   yield textResponse(text);
 }
 
+function* sandboxAgentScript(): Generator<ReturnType<typeof textResponse>> {
+  yield toolCallResponse('run_command', { cmd: 'echo hello' });
+  yield toolCallResponse('read_file', { path: '/workspace/test.txt' });
+  yield toolCallResponse('write_file', { path: '/workspace/out.txt', diff: 'hello' });
+  yield textResponse('sandbox done');
+}
+
 /**
  * Composes the full FakeModelProvider script for one Test 1 / Test 2 run:
  * preamble + child + child wrapped + sessions x 2 + BIG (initial + resume) + small wrapped + finalRound.
@@ -94,6 +103,7 @@ function* comprehensiveScript(): Generator<ReturnType<typeof textResponse>> {
   yield* singleTurnScript('child-2 done');
   yield* singleTurnScript('teal noted');
   yield* singleTurnScript('your favorite color is teal');
+  yield* sandboxAgentScript();
   yield* bigAgentInitialScript();
   yield* bigAgentResumeScript();
   yield* singleTurnScript('small done');
@@ -113,6 +123,7 @@ function buildPlugin(opts: BuildPluginOptions): OpenAIAgentsPlugin {
   return new OpenAIAgentsPlugin({
     modelProvider: fakeProvider,
     mcpServerProviders: [stateless, statelessBOnly, stateful],
+    sandboxClientProviders: [new SandboxClientProvider('fake', new FakeSandboxClient())],
     interceptorOptions: {
       addTemporalSpans: opts.addTemporalSpans,
       useOtelInstrumentation: true,
@@ -328,6 +339,69 @@ const EXPECTED_OTEL_TEST_1: string[][] = [
     '        generation',
     '          temporal:startActivity:invokeModelActivity',
     '            temporal:executeActivity:invokeModelActivity',
+    '      agent:SandboxAgent',
+    '        sandbox.prepare_agent',
+    '          sandbox.create_session',
+    '            temporal:startActivity:fake-sandbox-client-create',
+    '              temporal:executeActivity:fake-sandbox-client-create',
+    '          sandbox:session-running',
+    '            temporal:startActivity:fake-sandbox-session-running',
+    '              temporal:executeActivity:fake-sandbox-session-running',
+    '                sandbox:session-running:result',
+    '          sandbox.start',
+    '            sandbox:session-start',
+    '              temporal:startActivity:fake-sandbox-session-start',
+    '                temporal:executeActivity:fake-sandbox-session-start',
+    '                  sandbox:session-start:result',
+    '        generation',
+    '          temporal:startActivity:invokeModelActivity',
+    '            temporal:executeActivity:invokeModelActivity',
+    '        function:run_command',
+    '          sandbox:session-exec-command',
+    '            temporal:startActivity:fake-sandbox-session-exec-command',
+    '              temporal:executeActivity:fake-sandbox-session-exec-command',
+    '                sandbox:session-exec-command:result',
+    '        sandbox.prepare_agent',
+    '        generation',
+    '          temporal:startActivity:invokeModelActivity',
+    '            temporal:executeActivity:invokeModelActivity',
+    '        function:read_file',
+    '          sandbox:session-read-file',
+    '            temporal:startActivity:fake-sandbox-session-read-file',
+    '              temporal:executeActivity:fake-sandbox-session-read-file',
+    '                sandbox:session-read-file:result',
+    '        sandbox.prepare_agent',
+    '        generation',
+    '          temporal:startActivity:invokeModelActivity',
+    '            temporal:executeActivity:invokeModelActivity',
+    '        function:write_file',
+    '          sandbox:editor-create-file',
+    '            temporal:startActivity:fake-sandbox-editor-create-file',
+    '              temporal:executeActivity:fake-sandbox-editor-create-file',
+    '                sandbox:editor-create-file:result',
+    '        sandbox.prepare_agent',
+    '        generation',
+    '          temporal:startActivity:invokeModelActivity',
+    '            temporal:executeActivity:invokeModelActivity',
+    '        sandbox.cleanup',
+    '          sandbox:client-serialize-session-state',
+    '            temporal:startActivity:fake-sandbox-client-serialize-session-state',
+    '              temporal:executeActivity:fake-sandbox-client-serialize-session-state',
+    '                sandbox:client-serialize-session-state:result',
+    '          sandbox.cleanup_sessions',
+    '            sandbox.shutdown',
+    '              sandbox:session-stop',
+    '                temporal:startActivity:fake-sandbox-session-stop',
+    '                  temporal:executeActivity:fake-sandbox-session-stop',
+    '                    sandbox:session-stop:result',
+    '              sandbox:session-shutdown',
+    '                temporal:startActivity:fake-sandbox-session-shutdown',
+    '                  temporal:executeActivity:fake-sandbox-session-shutdown',
+    '                    sandbox:session-shutdown:result',
+    '              sandbox:session-delete',
+    '                temporal:startActivity:fake-sandbox-session-delete',
+    '                  temporal:executeActivity:fake-sandbox-session-delete',
+    '                    sandbox:session-delete:result',
     '      agent:AgentA',
     '        mcp_tools',
     '          temporal:startActivity:mockStatelessMcp-stateless-list-tools',
@@ -508,6 +582,23 @@ const EXPECTED_OTEL_TEST_2: string[][] = [
     '    generation',
     '  agent:MemoryAgent',
     '    generation',
+    '  agent:SandboxAgent',
+    '    sandbox.prepare_agent',
+    '      sandbox.create_session',
+    '      sandbox.start',
+    '    generation',
+    '    function:run_command',
+    '    sandbox.prepare_agent',
+    '    generation',
+    '    function:read_file',
+    '    sandbox.prepare_agent',
+    '    generation',
+    '    function:write_file',
+    '    sandbox.prepare_agent',
+    '    generation',
+    '    sandbox.cleanup',
+    '      sandbox.cleanup_sessions',
+    '        sandbox.shutdown',
     '  agent:AgentA',
     '    mcp_tools',
     '    mcp_tools',
