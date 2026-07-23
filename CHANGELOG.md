@@ -22,7 +22,8 @@ to docs, or any other relevant information.
 ### Added
 
 - **Experimental**: Added TypeInfo APIs for transforming application values and supplying converter-specific
-  metadata during payload conversion, including client-started Workflow inputs and results.
+  metadata during payload conversion, including client-started Workflow inputs and results, child Workflow calls,
+  and continue-as-new.
 
 ## [1.21.0] - 2026-07-23
 

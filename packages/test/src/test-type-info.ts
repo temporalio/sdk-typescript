@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { ExecutionContext } from 'ava';
-import { Client, WithStartWorkflowOperation } from '@temporalio/client';
+import { Client, WithStartWorkflowOperation, WorkflowFailedError } from '@temporalio/client';
 import { workflowInterceptorModules } from '@temporalio/testing';
 import { bundleWorkflowCode } from '@temporalio/worker';
 import type { TestWorkflowEnvironment } from './helpers';
@@ -12,9 +12,13 @@ import {
   makeConfigurableEnvironmentTestFn,
 } from './helpers-integration';
 import {
+  parentWorkflowChildDefinition,
+  parentWorkflowChildDefinitionInvalidCallSiteTypeInfo,
+  continueAsNewToWorkflowWithTypeInfo,
   finishSignal,
   finishUpdate,
   Order,
+  parentWorkflowChildString,
   Receipt,
   workflowTypeInfo,
   workflowWithSignalStart,
@@ -158,6 +162,38 @@ test('detached workflow handle uses call-site output type information', async (t
   });
 });
 
+test('same-type continue-as-new reuses definition-supplied input and output type information', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker({ dataConverter });
+
+  await worker.runUntil(async () => {
+    const result = await client.workflow.execute(workflowWithTypeInfo, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+      args: [new Order('order-1', 12345n, 1)],
+    });
+
+    assertReceipt(t, result);
+  });
+});
+
+test('continue-as-new to a different workflow uses explicit input type information', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker({ dataConverter });
+
+  await worker.runUntil(async () => {
+    const result = await client.workflow.execute(continueAsNewToWorkflowWithTypeInfo, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+      args: [new Order('order-1', 12345n)],
+    });
+
+    assertReceipt(t, result);
+  });
+});
+
 test('signal-with-start carries definition-supplied workflow type information', async (t) => {
   const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
   const client = makeClient(t.context.env);
@@ -193,5 +229,56 @@ test('update-with-start carries definition-supplied workflow type information', 
     });
 
     assertReceipt(t, await (await startOperation.workflowHandle()).result());
+  });
+});
+
+test('child workflow uses definition-supplied input and output type information', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker({ dataConverter });
+
+  await worker.runUntil(async () => {
+    const result = await client.workflow.execute(parentWorkflowChildDefinition, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+      args: [new Order('order-1', 12345n)],
+    });
+
+    assertReceipt(t, result);
+  });
+});
+
+test('child workflow uses call-site input and output type information for string workflow type', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker({ dataConverter });
+
+  await worker.runUntil(async () => {
+    const result = await client.workflow.execute(parentWorkflowChildString, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+      args: [new Order('order-1', 12345n)],
+    });
+
+    assertReceipt(t, result);
+  });
+});
+
+test('child workflow definition with call-site type information is invalid', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker({ dataConverter });
+
+  await worker.runUntil(async () => {
+    const err = await t.throwsAsync(
+      client.workflow.execute(parentWorkflowChildDefinitionInvalidCallSiteTypeInfo, {
+        workflowId: `wf-${randomUUID()}`,
+        taskQueue: h.taskQueue,
+        args: [new Order('order-1', 12345n)],
+      }),
+      { instanceOf: WorkflowFailedError }
+    );
+
+    t.regex(err?.cause?.message ?? '', /Workflow type information cannot be supplied at the call site/);
   });
 });
