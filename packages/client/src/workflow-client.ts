@@ -1556,9 +1556,7 @@ export class WorkflowClient extends BaseClient {
         execution: input.workflowExecution,
       });
       const externalStorage = this.dataConverter.externalStorage;
-      if (externalStorage) {
-        await visit(response, walkDescribeWorkflowExecutionResponse, extstoreRetrieveOptions(externalStorage));
-      }
+      await visit(response, walkDescribeWorkflowExecutionResponse, extstoreInboundOptions(externalStorage));
       return response;
     } catch (err) {
       this.rethrowGrpcError(err, 'Failed to describe workflow', input.workflowExecution);
@@ -1765,9 +1763,7 @@ export class WorkflowClient extends BaseClient {
         this.rethrowGrpcError(e, 'Failed to list workflows', undefined);
       }
       const externalStorage = this.dataConverter.externalStorage;
-      if (externalStorage) {
-        await visit(response, walkListWorkflowExecutionsResponse, extstoreRetrieveOptions(externalStorage));
-      }
+      await visit(response, walkListWorkflowExecutionsResponse, extstoreInboundOptions(externalStorage));
       // Not decoding memo payloads concurrently even though we could have to keep the lazy nature of this iterator.
       // Decoding is done for `memo` fields which tend to be small.
       // We might decide to change that based on user feedback.

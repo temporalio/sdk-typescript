@@ -13,7 +13,7 @@ import {
   decodeOptionalFailureToOptionalError,
   decodeOptionalSinglePayload,
   encodeToPayload,
-  extstoreRetrieveOptions,
+  extstoreInboundOptions,
   extstoreStoreOptions,
   visit,
   walkDescribeNexusOperationExecutionResponse,
@@ -488,9 +488,7 @@ export class NexusClient extends BaseClient {
       }
 
       const externalStorage = this.dataConverter.externalStorage;
-      if (externalStorage) {
-        await visit(res, walkPollNexusOperationExecutionResponse, extstoreRetrieveOptions(externalStorage));
-      }
+      await visit(res, walkPollNexusOperationExecutionResponse, extstoreInboundOptions(externalStorage));
 
       // The operation is closed if we have a result or failure
       if (res.result) {
@@ -519,9 +517,7 @@ export class NexusClient extends BaseClient {
       this.rethrowGrpcError(err, 'Failed to describe Nexus operation', input.operationId);
     }
     const externalStorage = this.dataConverter.externalStorage;
-    if (externalStorage) {
-      await visit(res, walkDescribeNexusOperationExecutionResponse, extstoreRetrieveOptions(externalStorage));
-    }
+    await visit(res, walkDescribeNexusOperationExecutionResponse, extstoreInboundOptions(externalStorage));
     if (!res.info) {
       throw new ServiceError('Received invalid Nexus operation description from server: missing info');
     }
@@ -575,9 +571,7 @@ export class NexusClient extends BaseClient {
         this.rethrowGrpcError(err, 'Failed to list Nexus operations', undefined);
       }
       const externalStorage = this.dataConverter.externalStorage;
-      if (externalStorage) {
-        await visit(response, walkListNexusOperationExecutionsResponse, extstoreRetrieveOptions(externalStorage));
-      }
+      await visit(response, walkListNexusOperationExecutionsResponse, extstoreInboundOptions(externalStorage));
       for (const raw of response.operations ?? []) {
         yield nexusOperationListInfoFromProto(raw);
       }
