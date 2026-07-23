@@ -4,6 +4,7 @@ import { DefaultFailureConverter } from './failure-converter';
 import type { PayloadCodec } from './payload-codec';
 import type { PayloadConverter } from './payload-converter';
 import { defaultPayloadConverter } from './payload-converter';
+import { getTypeInfoAwarePayloadConverter } from './type-info-aware-payload-converter';
 
 /**
  * When your data (arguments and return values) is sent over the wire and stored by Temporal Server, it is encoded in
@@ -95,7 +96,7 @@ export const defaultFailureConverter: FailureConverter = new DefaultFailureConve
  * A "loaded" data converter that uses the default set of failure and payload converters.
  */
 export const defaultDataConverter: LoadedDataConverter = {
-  payloadConverter: defaultPayloadConverter,
+  payloadConverter: getTypeInfoAwarePayloadConverter(defaultPayloadConverter),
   failureConverter: defaultFailureConverter,
   payloadCodecs: [],
 };

@@ -1,7 +1,9 @@
 import { decode, encode } from '../encoding';
 import { PayloadConverterError, ValueError } from '../errors';
 import type { Payload } from '../interfaces';
+import type { TypeInfo } from '../type-info';
 import type { SerializationContext } from './serialization-context';
+import { getTypeInfoAwarePayloadConverter } from './type-info-aware-payload-converter';
 import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY } from './types';
 
 /**
@@ -49,13 +51,14 @@ export function toPayloads(converter: PayloadConverter, ...values: unknown[]): P
 export function toPayloadsWithContext(
   converter: PayloadConverter,
   context: SerializationContext | undefined,
-  values: unknown[]
+  values: unknown[],
+  typeInfo?: readonly TypeInfo[]
 ): Payload[] | undefined {
   if (values.length === 0) {
     return undefined;
   }
-
-  return values.map((value) => converter.toPayload(value, context));
+  const typeInfoAwareConverter = getTypeInfoAwarePayloadConverter(converter);
+  return values.map((value, index) => typeInfoAwareConverter.toPayloadWithTypeInfo(value, context, typeInfo?.[index]));
 }
 
 /**
@@ -101,7 +104,8 @@ export function fromPayloadsAtIndex<T>(
   converter: PayloadConverter,
   index: number,
   payloads?: Payload[] | null,
-  context?: SerializationContext
+  context?: SerializationContext,
+  valueTypeInfo?: TypeInfo<T>
 ): T {
   // To make adding arguments a backwards compatible change
   if (payloads === undefined || payloads === null || index >= payloads.length) {
@@ -111,7 +115,7 @@ export function fromPayloadsAtIndex<T>(
   if (!payload) {
     return undefined as any;
   }
-  return converter.fromPayload(payload, context);
+  return getTypeInfoAwarePayloadConverter(converter).fromPayloadWithTypeInfo(payload, context, valueTypeInfo);
 }
 
 /**
@@ -120,12 +124,16 @@ export function fromPayloadsAtIndex<T>(
 export function arrayFromPayloads(
   converter: PayloadConverter,
   payloads?: Payload[] | null,
-  context?: SerializationContext
+  context?: SerializationContext,
+  typeInfo?: readonly TypeInfo[]
 ): unknown[] {
   if (!payloads) {
     return [];
   }
-  return payloads.map((payload: Payload) => converter.fromPayload(payload, context));
+  const typeInfoAwareConverter = getTypeInfoAwarePayloadConverter(converter);
+  return payloads.map((payload: Payload, index) =>
+    typeInfoAwareConverter.fromPayloadWithTypeInfo(payload, context, typeInfo?.[index])
+  );
 }
 
 export function mapFromPayloads<K extends string, T = unknown>(

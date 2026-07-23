@@ -3,6 +3,7 @@ import { defaultPayloadConverter } from '../converter/payload-converter';
 import type { DataConverter, LoadedDataConverter } from '../converter/data-converter';
 import { defaultFailureConverter } from '../converter/data-converter';
 import type { FailureConverter } from '../converter/failure-converter';
+import { getTypeInfoAwarePayloadConverter } from '../converter/type-info-aware-payload-converter';
 import { errorCode, hasOwnProperty, isRecord } from '../type-helpers';
 import { ValueError } from '../errors';
 
@@ -79,7 +80,7 @@ export function loadDataConverter(dataConverter?: DataConverter): LoadedDataConv
     );
   }
   return {
-    payloadConverter,
+    payloadConverter: getTypeInfoAwarePayloadConverter(payloadConverter),
     failureConverter,
     payloadCodecs: dataConverter?.payloadCodecs ?? [],
     externalStorage: dataConverter?.externalStorage,
