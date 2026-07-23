@@ -1,4 +1,12 @@
-import { condition, defineQuery, defineSignal, executeChild, proxyActivities, setHandler } from '@temporalio/workflow';
+import {
+  condition,
+  defineQuery,
+  defineSignal,
+  executeChild,
+  makeContinueAsNewFunc,
+  proxyActivities,
+  setHandler,
+} from '@temporalio/workflow';
 import type * as activities from '../activities';
 
 // Allow a few attempts so the driver-failure tests can assert that a driver failure is
@@ -74,6 +82,24 @@ export async function externalStorageParentChildOffload(sizeBytes: number): Prom
  */
 export async function externalStorageEcho(data: Uint8Array): Promise<Uint8Array> {
   return data;
+}
+
+/**
+ * Continues-as-new into a *different* workflow type ({@link externalStorageContinueAsNewTarget}),
+ * passing a large argument. Exercises offload of the ContinueAsNew arguments on the source
+ * workflow's completion. Those arguments belong to the new run, so they must be keyed under the
+ * new workflow type (the command's `workflowType`), not the source's.
+ */
+export async function externalStorageContinueAsNewSource(sizeBytes: number): Promise<number> {
+  const continueAsTarget = makeContinueAsNewFunc<typeof externalStorageContinueAsNewTarget>({
+    workflowType: 'externalStorageContinueAsNewTarget',
+  });
+  return await continueAsTarget(new Uint8Array(sizeBytes).fill(4));
+}
+
+/** Target of {@link externalStorageContinueAsNewSource}'s continue-as-new; returns its argument's length. */
+export async function externalStorageContinueAsNewTarget(data: Uint8Array): Promise<number> {
+  return data.length;
 }
 
 export const getBlobQuery = defineQuery<Uint8Array>('getBlob');

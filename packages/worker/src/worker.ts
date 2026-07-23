@@ -178,6 +178,7 @@ interface WorkflowWithLogAttributes {
   workflow: Workflow;
   logAttributes: Record<string, unknown>;
   workflowCodecRunner: WorkflowCodecRunner;
+  info: WorkflowInfo;
 }
 
 function addBuildIdIfMissing(options: CompiledWorkerOptions, bundleCode?: string): CompiledWorkerOptionsWithBuildId {
@@ -1564,8 +1565,9 @@ export class Worker {
                 namespace,
                 id: workflowCodecRunner.workflowContext.workflowId,
                 runId: activation.runId,
+                type: workflow.info.workflowType,
               },
-              deriveContext: workflowCommandStoreTarget(namespace),
+              deriveContext: workflowCommandStoreTarget(namespace, workflow.info),
             })
           );
         }
@@ -1714,7 +1716,7 @@ export class Worker {
     });
 
     this.numCachedWorkflowsSubject.next(this.numCachedWorkflowsSubject.value + 1);
-    return { workflow, logAttributes, workflowCodecRunner };
+    return { workflow, logAttributes, workflowCodecRunner, info: workflowInfo };
   }
 
   /**
@@ -2411,7 +2413,8 @@ async function extractActivityInfo({
 }
 
 function workflowCommandStoreTarget(
-  namespace: string
+  namespace: string,
+  info: WorkflowInfo
 ): (
   message: object,
   typeName: string,
@@ -2421,7 +2424,12 @@ function workflowCommandStoreTarget(
     switch (typeName) {
       case 'coresdk.workflow_commands.StartChildWorkflowExecution': {
         const command = message as coresdk.workflow_commands.IStartChildWorkflowExecution;
-        return { kind: 'workflow', namespace: command.namespace || namespace, id: command.workflowId ?? undefined };
+        return {
+          kind: 'workflow',
+          namespace: command.namespace || namespace,
+          id: command.workflowId ?? undefined,
+          type: command.workflowType ?? undefined,
+        };
       }
       case 'coresdk.workflow_commands.SignalExternalWorkflowExecution':
       case 'coresdk.workflow_commands.RequestCancelExternalWorkflowExecution': {
@@ -2431,8 +2439,21 @@ function workflowCommandStoreTarget(
         const workflowId = command.workflowExecution?.workflowId ?? command.childWorkflowId ?? undefined;
         return { kind: 'workflow', namespace: command.workflowExecution?.namespace || namespace, id: workflowId };
       }
-      case 'coresdk.workflow_commands.ContinueAsNewWorkflowExecution':
-        return context ? { ...context, runId: undefined } : context;
+      case 'coresdk.workflow_commands.ContinueAsNewWorkflowExecution': {
+        if (context == null) return context;
+        const command = message as coresdk.workflow_commands.IContinueAsNewWorkflowExecution;
+        return { ...context, runId: undefined, type: command.workflowType || context.type };
+      }
+      case 'coresdk.workflow_commands.CompleteWorkflowExecution': {
+        const { parent } = info;
+        if (parent == null || info.continuedFromExecutionRunId != null) return context;
+        return {
+          kind: 'workflow',
+          namespace: parent.namespace || namespace,
+          id: parent.workflowId,
+          runId: parent.runId,
+        };
+      }
       default:
         return context;
     }

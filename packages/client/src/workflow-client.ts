@@ -1165,6 +1165,7 @@ export class WorkflowClient extends BaseClient {
               kind: 'workflow',
               namespace: this.options.namespace,
               id: input.workflowStartOptions.workflowId,
+              type: input.workflowType,
             },
           })
         );
@@ -1367,7 +1368,12 @@ export class WorkflowClient extends BaseClient {
           req,
           walkSignalWithStartWorkflowExecutionRequest,
           extstoreStoreOptions(externalStorage, {
-            initialTarget: { kind: 'workflow', namespace: this.options.namespace, id: req.workflowId ?? undefined },
+            initialTarget: {
+              kind: 'workflow',
+              namespace: this.options.namespace,
+              id: req.workflowId ?? undefined,
+              type: workflowType,
+            },
           })
         );
       }
@@ -1410,6 +1416,7 @@ export class WorkflowClient extends BaseClient {
               kind: 'workflow',
               namespace: req.namespace ?? this.options.namespace,
               id: req.workflowId ?? undefined,
+              type: workflowType,
             },
           })
         );

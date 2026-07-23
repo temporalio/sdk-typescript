@@ -13,6 +13,7 @@ import { helpers, makeTestFunction } from './helpers-integration';
 import {
   externalStorageActivityInputOffload,
   externalStorageByteFidelity,
+  externalStorageContinueAsNewSource,
   externalStorageEcho,
   externalStorageHeartbeatDetailsOffload,
   externalStorageOffload,
@@ -196,10 +197,50 @@ test('child workflow input and result are offloaded in both directions', async (
   const len = await worker.runUntil(handle.result());
 
   t.is(len, payloadSize);
-  // Stores: child input (by parent) + child result (by child). Retrieves: each read once. The
-  // parent's final result is small and stays inline.
+  // [0] child input (parent's StartChildWorkflowExecution command), keyed under the child (its
+  // runtime-generated id isn't known here, so only kind/type are asserted). [1] child result
+  // (child's completion), keyed under the *parent* — a child's result is consumed by its parent.
+  // The parent's own final result stays inline.
   t.is(driver.storeCalls.length, 2);
   t.is(driver.retrieveCalls.length, 2);
+  t.is(driver.storeCalls[0].context.target?.kind, 'workflow');
+  t.is(driver.storeCalls[0].context.target?.type, 'externalStorageEcho');
+  t.deepEqual(driver.storeCalls[1].context.target, {
+    kind: 'workflow',
+    namespace: 'default',
+    id: handle.workflowId,
+    runId: handle.firstExecutionRunId,
+  });
+});
+
+test('continue-as-new offloads a large argument keyed under the target workflow type', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+
+  const driver = makeFakeDriver();
+  const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
+  const sizeBytes = 4096;
+
+  const worker = await createWorker({ dataConverter: { externalStorage } });
+  const client = new Client({ connection: t.context.env.connection, dataConverter: { externalStorage } });
+
+  const workflowId = randomUUID();
+  const handle = await client.workflow.start(externalStorageContinueAsNewSource, {
+    taskQueue,
+    workflowId,
+    args: [sizeBytes],
+  });
+  const result = await worker.runUntil(handle.result());
+  t.is(result, sizeBytes, 'the continue-as-new target should observe the full offloaded argument');
+
+  // The ContinueAsNew argument, offloaded on the source's completion but keyed under the new run.
+  t.is(driver.storeCalls.length, 1);
+  t.deepEqual(driver.storeCalls[0].context.target, {
+    kind: 'workflow',
+    namespace: 'default',
+    id: workflowId,
+    runId: undefined,
+    type: 'externalStorageContinueAsNewTarget',
+  });
 });
 
 test('a transient workflow-completion store failure retries the workflow task and recovers', async (t) => {
@@ -321,6 +362,22 @@ test('client offloads a large start argument and retrieves a large result', asyn
     ?.workflowExecutionCompletedEventAttributes?.result?.payloads?.[0];
   if (resultPayload == null) throw new Error('expected a completed result payload');
   t.true(isReferencePayload(resultPayload), 'workflow result should be a reference before the client retrieves it');
+
+  // [0] client-side start argument, [1] Worker-side completion result.
+  t.is(driver.storeCalls.length, 2);
+  t.deepEqual(driver.storeCalls[0].context.target, {
+    kind: 'workflow',
+    namespace: 'default',
+    id: workflowId,
+    type: 'externalStorageEcho',
+  });
+  t.deepEqual(driver.storeCalls[1].context.target, {
+    kind: 'workflow',
+    namespace: 'default',
+    id: workflowId,
+    runId: handle.firstExecutionRunId,
+    type: 'externalStorageEcho',
+  });
 });
 
 test('client retrieves an offloaded query result', async (t) => {
@@ -417,6 +474,41 @@ test('AsyncCompletionClient.complete by ID targets the Activity for a Standalone
     namespace: 'default',
     id: 'act-2',
     runId: 'run-2',
+  });
+});
+
+test('signalWithStart offloads a large workflow argument and targets the workflow type', async (t) => {
+  const driver = makeFakeDriver();
+  const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
+
+  let req: temporal.api.workflowservice.v1.ISignalWithStartWorkflowExecutionRequest | undefined;
+  const connection = {
+    workflowService: {
+      signalWithStartWorkflowExecution: async (
+        r: temporal.api.workflowservice.v1.ISignalWithStartWorkflowExecutionRequest
+      ) => {
+        req = r;
+        return { runId: 'run-1' };
+      },
+    },
+    plugins: [],
+  } as unknown as ConnectionLike;
+  const client = new Client({ connection, dataConverter: { externalStorage } });
+
+  await client.workflow.signalWithStart('myWorkflow', {
+    workflowId: 'wf-1',
+    taskQueue: 'q',
+    args: [new Uint8Array(4096).fill(1)],
+    signal: 'mySignal',
+  });
+
+  t.is(driver.storeCalls.length, 1);
+  t.true(isReferencePayload(req!.input!.payloads![0]), 'the workflow argument should be offloaded before sending');
+  t.deepEqual(driver.storeCalls[0].context.target, {
+    kind: 'workflow',
+    namespace: 'default',
+    id: 'wf-1',
+    type: 'myWorkflow',
   });
 });
 
