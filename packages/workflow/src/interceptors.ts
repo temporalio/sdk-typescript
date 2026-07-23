@@ -4,16 +4,11 @@
  * @module
  */
 
-import type {
-  ActivityOptions,
-  Duration,
-  LocalActivityOptions,
-  MetricTags,
-  Timestamp,
-  WorkflowExecution,
-} from '@temporalio/common';
+import type { Duration, MetricTags, Timestamp, WorkflowExecution } from '@temporalio/common';
 import { Headers, Next } from '@temporalio/common';
 import type { coresdk } from '@temporalio/proto';
+import type { ActivityOptions, LocalActivityOptions } from './activities';
+import type { EventGroupMarker } from './event-groups';
 import type { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interfaces';
 import type { NexusOperationCancellationType } from './nexus';
 
@@ -232,6 +227,15 @@ export interface TimerOptions {
    * A fixed, single line summary of the command's purpose
    */
   readonly summary?: string;
+
+  /**
+   * Event group markers to attach to the timer command. The markers will be reflected on the
+   * corresponding workflow history events, and may be used by tooling (UI/CLI) to group
+   * related events together. See {@link EventGroupMarker} and `createEventGroup`.
+   *
+   * @experimental Event Groups is an experimental API and may change without notice.
+   */
+  readonly eventGroups?: EventGroupMarker[];
 }
 
 /**
@@ -323,6 +327,15 @@ export interface StartNexusOperationOptions {
    * This can be in single-line Temporal markdown format.
    */
   readonly summary?: string;
+
+  /**
+   * Event group markers to attach to the schedule-Nexus-operation command. The markers will be
+   * reflected on the corresponding workflow history events, and may be used by tooling
+   * (UI/CLI) to group related events together. See {@link EventGroupMarker} and `createEventGroup`.
+   *
+   * @experimental Event Groups is an experimental API and may change without notice.
+   */
+  readonly eventGroups?: EventGroupMarker[];
 }
 
 /**

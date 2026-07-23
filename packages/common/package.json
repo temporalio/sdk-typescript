@@ -13,7 +13,7 @@
   "license": "MIT",
   "dependencies": {
     "@temporalio/proto": "workspace:*",
-    "long": "^5.2.3",
+    "long": "^5.3.2",
     "ms": "3.0.0-canary.1",
     "nexus-rpc": "^0.0.2",
     "proto3-json-serializer": "^2.0.0"

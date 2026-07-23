@@ -13,6 +13,10 @@ exclude = ["index.node", "sdk-core"]
 name = "temporal_sdk_typescript_bridge"
 crate-type = ["cdylib"]
 
+[profile.dev]
+debug = false
+incremental = true
+
 [profile.release]
 opt-level = 3
 debug = false
@@ -28,7 +32,6 @@ neon = { version = "1.0.0", default-features = false, features = [
   "napi-6",
   "futures",
 ] }
-opentelemetry = "0.31"
 os_pipe = "1.2.1"
 parking_lot = "0.12"
 prost = "0.14"

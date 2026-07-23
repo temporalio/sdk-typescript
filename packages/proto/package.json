@@ -24,7 +24,7 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "long": "^5.2.3",
+    "long": "^5.3.2",
     "protobufjs": "^7.6.4"
   },
   "devDependencies": {

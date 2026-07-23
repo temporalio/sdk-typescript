@@ -561,8 +561,8 @@ importers:
         specifier: ^3.0.0
         version: 3.0.0
       long:
-        specifier: ^5.2.3
-        version: 5.2.3
+        specifier: ^5.3.2
+        version: 5.3.2
       nexus-rpc:
         specifier: ^0.0.2
         version: 0.0.2
@@ -599,8 +599,8 @@ importers:
         specifier: workspace:*
         version: link:../proto
       long:
-        specifier: ^5.2.3
-        version: 5.2.3
+        specifier: ^5.3.2
+        version: 5.3.2
       ms:
         specifier: 3.0.0-canary.1
         version: 3.0.0-canary.1
@@ -811,8 +811,8 @@ importers:
         specifier: workspace:*
         version: link:../proto
       long:
-        specifier: ^5.2.3
-        version: 5.2.3
+        specifier: ^5.3.2
+        version: 5.3.2
       nexus-rpc:
         specifier: ^0.0.2
         version: 0.0.2
@@ -882,8 +882,8 @@ importers:
   packages/proto:
     dependencies:
       long:
-        specifier: ^5.2.3
-        version: 5.2.3
+        specifier: ^5.3.2
+        version: 5.3.2
       protobufjs:
         specifier: ^7.6.4
         version: 7.6.4(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b)
@@ -988,8 +988,8 @@ importers:
         specifier: ^3.2.2
         version: 3.2.2
       long:
-        specifier: ^5.2.3
-        version: 5.2.3
+        specifier: ^5.3.2
+        version: 5.3.2
       ms:
         specifier: 3.0.0-canary.1
         version: 3.0.0-canary.1
@@ -1166,6 +1166,9 @@ importers:
       ava:
         specifier: ^5.3.1
         version: 5.3.1
+      long:
+        specifier: ^5.3.2
+        version: 5.3.2
       source-map:
         specifier: ^0.7.4
         version: 0.7.4
@@ -4688,9 +4691,6 @@ packages:
   lodash@4.18.1:
     resolution: {integrity: sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==}
 
-  long@5.2.3:
-    resolution: {integrity: sha512-lcHwpNoggQTObv5apGNCTdJrO69eHOZMi4BNC+rTLER8iHAqGrUVeLh/irVIM7zTw2bOXA8T6uNPeujwOLg/2Q==}
-
   long@5.3.2:
     resolution: {integrity: sha512-mNAgZ1GmyNhD7AuqnTG3/VQ26o760+ZYBPKjPvugO8+nLbYfX6TVpJPseBvopbdY+qpZ/lKUnmEc1LeZYS3QAA==}
 
@@ -7069,7 +7069,7 @@ snapshots:
   '@grpc/proto-loader@0.7.13':
     dependencies:
       lodash.camelcase: 4.3.0
-      long: 5.2.3
+      long: 5.3.2
       protobufjs: 7.6.4(patch_hash=e0f2d09b2fbf9f22b473e62de808b3e9e39e0088a35e16abce7b35645305724b)
       yargs: 17.7.2
 
@@ -10419,8 +10419,6 @@ snapshots:
   lodash@4.17.21: {}
 
   lodash@4.18.1: {}
-
-  long@5.2.3: {}
 
   long@5.3.2: {}
 
