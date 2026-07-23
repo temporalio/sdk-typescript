@@ -19,6 +19,8 @@ to docs, or any other relevant information.
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-07-23
+
 ### Added
 
 - **Prerelease, Experimental**: You can now configure external storage on your `DataConverter` via the new
@@ -34,6 +36,9 @@ to docs, or any other relevant information.
   [package](https://github.com/temporalio/sdk-typescript/tree/main/contrib/external-storage-gcs) which
   can be used with external storage to offload large payloads to GCS buckets in GCP instead of inlining them
   into workflow history.
+- `ResourceBasedController` can now be shared by resource-based tuners across multiple Workers in the same process.
+- **Experimental** New `@temporalio/strands-agents` package for building workflows with Strand Agents.
+- **Experimental**: `@temporalio/openai-agents` now supports streaming model events from Workflows.
 
 ### Breaking Changes
 
@@ -46,11 +51,18 @@ to docs, or any other relevant information.
   `NativeConnectionOptions.payloadLimits`. If you use a proxy between the worker and server that
   alters the size of payloads (e.g. compression, encryption, external storage), it is advised that
   you disable size enforcement by setting `disablePayloadErrorLimit: true` on the worker.
+- `@temporalio/ai-sdk` now targets Vercel AI SDK v7, requiring Node 22.12.0+.
 
 ### Changed
 
 - User metadata fields (staticSummary, staticDetails, currentDetails, activity summary, timer
   summary) are no longer marked as experimental.
+
+### Fixed
+
+- Nexus operation handlers now preserve `nexus.HandlerError` values thrown by payload codecs and converters.
+- `temporal_worker_task_slots_used` no longer counts reserved but unused task slots as in use.
+- When worker heartbeats are enabled, host CPU and memory are sampled at the configured heartbeat interval rather than every 100ms.
 
 ## [1.20.3] - 2026-07-13
 
