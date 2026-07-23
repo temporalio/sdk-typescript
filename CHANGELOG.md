@@ -21,8 +21,9 @@ to docs, or any other relevant information.
 
 ### Added
 
-- **Experimental**: Added `TypeInfo` and `TransferTypeConverter` to `@temporalio/common` for converting
-  application values to and from serialization-friendly transfer types around payload conversion.
+- **Experimental**: Added `TypeInfo`, `TransferTypeConverter`, and `ConverterHint` to `@temporalio/common` for converting
+  application values to and from serialization-friendly transfer types and supplying converter-specific metadata
+  during payload conversion.
 
 ## [1.21.1] - 2026-07-23
 

@@ -1,5 +1,5 @@
 import type { Payload } from '../interfaces';
-import type { TypeInfo } from '../type-info';
+import type { ConverterHint, TypeInfo } from '../type-info';
 import type { PayloadConverter } from './payload-converter';
 import type { SerializationContext } from './serialization-context';
 
@@ -9,12 +9,16 @@ import type { SerializationContext } from './serialization-context';
 export class TypeInfoAwarePayloadConverter implements PayloadConverter {
   public constructor(private readonly payloadConverter: PayloadConverter) {}
 
-  public toPayload<T>(value: T, context?: SerializationContext): Payload {
-    return this.payloadConverter.toPayload(value, context);
+  public toPayload<T>(value: T, context?: SerializationContext, hint?: ConverterHint): Payload {
+    return this.payloadConverter.toPayload(value, context, hint);
   }
 
-  public fromPayload<T>(payload: Payload, context?: SerializationContext): T {
-    return this.payloadConverter.fromPayload(payload, context);
+  public fromPayload<T>(payload: Payload, context?: SerializationContext, hint?: ConverterHint): T {
+    return this.payloadConverter.fromPayload(payload, context, hint);
+  }
+
+  public validateConverterHint(hint: ConverterHint): boolean {
+    return this.payloadConverter.validateConverterHint?.(hint) ?? false;
   }
 
   public toPayloadWithTypeInfo<T>(
@@ -25,7 +29,7 @@ export class TypeInfoAwarePayloadConverter implements PayloadConverter {
     const transferValue = typeInfo?.transferTypeConverter
       ? typeInfo.transferTypeConverter.toTransferType(value)
       : value;
-    return this.payloadConverter.toPayload(transferValue, context);
+    return this.payloadConverter.toPayload(transferValue, context, typeInfo?.hint);
   }
 
   public fromPayloadWithTypeInfo<T>(
@@ -33,7 +37,7 @@ export class TypeInfoAwarePayloadConverter implements PayloadConverter {
     context: SerializationContext | undefined,
     typeInfo: TypeInfo<T> | undefined
   ): T {
-    const transferValue = this.payloadConverter.fromPayload<unknown>(payload, context);
+    const transferValue = this.payloadConverter.fromPayload<unknown>(payload, context, typeInfo?.hint);
     return typeInfo?.transferTypeConverter
       ? typeInfo.transferTypeConverter.fromTransferType(transferValue)
       : (transferValue as T);
