@@ -1030,6 +1030,9 @@ importers:
       '@temporalio/common':
         specifier: workspace:*
         version: link:../common
+      '@temporalio/envconfig':
+        specifier: workspace:*
+        version: link:../envconfig
       '@temporalio/proto':
         specifier: workspace:*
         version: link:../proto

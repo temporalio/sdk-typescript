@@ -2,6 +2,7 @@ import { status as grpcStatus } from '@grpc/grpc-js';
 import type { ErrorConstructor, ExecutionContext, TestFn } from 'ava';
 import type { WorkflowHandle } from '@temporalio/client';
 import { isGrpcServiceError, WorkflowFailedError, WorkflowUpdateFailedError } from '@temporalio/client';
+import type { LoadClientProfileOptions } from '@temporalio/envconfig';
 import type { LocalTestWorkflowEnvironmentOptions, NexusEndpointIdentifier } from '@temporalio/testing';
 import type {
   BundlerPlugin,
@@ -106,6 +107,7 @@ export function makeConfigurableEnvironmentTestFn<T>(opts: {
 export interface TestFunctionOptions<C extends Context = Context> {
   workflowsPath: string;
   workflowEnvironmentOpts?: LocalTestWorkflowEnvironmentOptions;
+  envconfigOpts?: LoadClientProfileOptions;
   workflowInterceptorModules?: string[];
   recordedLogs?: { [workflowId: string]: LogEntry[] };
   runtimeOpts?: Partial<RuntimeOptions> | (() => Promise<[Partial<RuntimeOptions>, Partial<C>]>) | undefined;
@@ -126,21 +128,25 @@ export function makeTestFunction<C extends Context = Context>(opts: TestFunction
 
 export function makeDefaultTestContextFunction(opts: TestFunctionOptions): (t: ExecutionContext) => Promise<Context> {
   return async (_t: ExecutionContext): Promise<Context> => {
-    const env = await createTestWorkflowEnvironment(opts.workflowEnvironmentOpts);
-    return {
-      workflowBundle: await createTestWorkflowBundle({
+    const env = await createTestWorkflowEnvironment(opts.workflowEnvironmentOpts, opts.envconfigOpts);
+    try {
+      const workflowBundle = await createTestWorkflowBundle({
         workflowsPath: opts.workflowsPath,
         workflowInterceptorModules: opts.workflowInterceptorModules,
-      }),
-      env,
-    };
+      });
+      return { workflowBundle, env };
+    } catch (err) {
+      await env.teardown();
+      throw err;
+    }
   };
 }
 
 export async function createTestWorkflowEnvironment(
-  opts?: LocalTestWorkflowEnvironmentOptions
+  opts?: LocalTestWorkflowEnvironmentOptions,
+  envconfigOpts?: LoadClientProfileOptions
 ): Promise<TestWorkflowEnvironment> {
-  return createTestWorkflowEnvironmentBase(opts);
+  return createTestWorkflowEnvironmentBase(opts, envconfigOpts);
 }
 
 /**
@@ -171,7 +177,7 @@ export function helpers(t: ExecutionContext<Context>, env?: TestWorkflowEnvironm
   return {
     ...base,
     async createNativeConnection(opts?: Partial<NativeConnectionOptions>): Promise<NativeConnection> {
-      return await NativeConnection.connect({ address: testEnv.address, ...opts });
+      return await NativeConnection.connect({ ...testEnv.connectionOptions, address: testEnv.address, ...opts });
     },
     async runReplayHistory(
       opts: Partial<ReplayWorkerOptions>,

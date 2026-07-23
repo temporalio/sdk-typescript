@@ -1,10 +1,12 @@
 import type { LocalTestWorkflowEnvironmentOptions } from '@temporalio/testing';
 import { workflowInterceptorModules as defaultWorkflowInterceptorModules } from '@temporalio/testing';
+import { loadClientConnectConfig, type LoadClientProfileOptions } from '@temporalio/envconfig';
 import type { BundlerPlugin, WorkflowBundleWithSourceMap, BundleOptions } from '@temporalio/worker';
 import { bundleWorkflowCode, DefaultLogger } from '@temporalio/worker';
 import { defineSearchAttributeKey, SearchAttributeType } from '@temporalio/common/lib/search-attributes';
 import { TestWorkflowEnvironment } from './wrappers';
 import { baseBundlerIgnoreModules } from './bundler';
+import { isSet } from './flags';
 
 export const defaultDynamicConfigOptions = [
   'system.enableActivityEagerExecution=true',
@@ -76,20 +78,31 @@ export async function createLocalTestEnvironment(
 }
 
 /**
- * Create a test workflow environment, using an existing server if TEMPORAL_SERVICE_ADDRESS is set,
- * otherwise creating a local one.
+ * Create a test workflow environment.
+ *
+ * Uses envconfig for the test server connection when TEMPORAL_TEST_ENV_CONFIG_SERVER is truthy, uses
+ * TEMPORAL_SERVICE_ADDRESS as a legacy existing-server shortcut when set, otherwise creates a local environment.
  */
 export async function createTestWorkflowEnvironment(
-  opts?: LocalTestWorkflowEnvironmentOptions
+  opts?: LocalTestWorkflowEnvironmentOptions,
+  envconfigOpts?: LoadClientProfileOptions
 ): Promise<TestWorkflowEnvironment> {
-  let env: TestWorkflowEnvironment;
+  if (isSet(process.env.TEMPORAL_TEST_ENV_CONFIG_SERVER, false)) {
+    const { namespace, connectionOptions } = loadClientConnectConfig(envconfigOpts);
+    const { address, apiKey, metadata, tls } = connectionOptions;
+    return await TestWorkflowEnvironment.createFromExistingServer({
+      address,
+      namespace,
+      connectionOptions: { apiKey, metadata, tls },
+      client: opts?.client,
+      plugins: opts?.plugins,
+    });
+  }
   if (process.env.TEMPORAL_SERVICE_ADDRESS) {
-    env = await TestWorkflowEnvironment.createFromExistingServer({
+    return await TestWorkflowEnvironment.createFromExistingServer({
       address: process.env.TEMPORAL_SERVICE_ADDRESS,
       plugins: opts?.plugins,
     });
-  } else {
-    env = await createLocalTestEnvironment(opts);
   }
-  return env;
+  return await createLocalTestEnvironment(opts);
 }
