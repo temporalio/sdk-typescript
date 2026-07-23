@@ -16,6 +16,7 @@ import type {
   VersioningBehavior,
   InitialVersioningBehavior,
   SuggestContinueAsNewReason,
+  PayloadTypeInfo,
 } from '@temporalio/common';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
@@ -398,6 +399,17 @@ export interface ContinueAsNewOptions {
    * @experimental Versioning semantics with continue-as-new are experimental and may change in the future.
    */
   initialVersioningBehavior?: InitialVersioningBehavior;
+
+  /**
+   * Input type information for the next Workflow run.
+   *
+   * When continuing as new to the same Workflow type, its definition-supplied input type information is reused.
+   * The next Workflow must preserve the current Workflow's output contract because clients retain the original
+   * handle's output type information across the run chain.
+   *
+   * @experimental
+   */
+  typeInfo?: Pick<PayloadTypeInfo, 'inputTypes'>;
 }
 
 /**
@@ -554,6 +566,13 @@ export const [encodeParentClosePolicy, decodeParentClosePolicy] = makeProtoEnumC
 );
 
 export interface ChildWorkflowOptions extends Omit<CommonWorkflowOptions, 'workflowIdConflictPolicy'> {
+  /**
+   * Type information used to encode and decode Child Workflow input and output.
+   *
+   * @experimental
+   */
+  typeInfo?: PayloadTypeInfo;
+
   /**
    * Workflow id to use when starting. If not specified a UUID is generated. Note that it is
    * dangerous as in case of client side retries no deduplication will happen based on the
