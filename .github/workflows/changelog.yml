@@ -1,0 +1,33 @@
+name: Changelog
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  changelog-check:
+    name: Changelog checkpoint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a CHANGELOG.md update or override label
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          if echo "$LABELS" | grep -q '"skip-changelog"'; then
+            echo "Found 'skip-changelog' label; no CHANGELOG.md entry required."
+            exit 0
+          fi
+          if gh api "repos/$REPO/pulls/$PR_NUMBER/files" --paginate --jq '.[].filename' \
+            | grep -Eq '(^|/)CHANGELOG\.md$'; then
+            echo "A CHANGELOG.md was updated."
+            exit 0
+          fi
+          echo "::error::This PR does not update a CHANGELOG.md. If it includes a user-facing change, add an entry under [Unreleased] in CHANGELOG.md. If no changelog entry is needed, a maintainer can apply the 'skip-changelog' label."
+          exit 1

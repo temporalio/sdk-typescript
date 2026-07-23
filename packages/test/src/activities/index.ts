@@ -87,6 +87,38 @@ export async function produceLargePayload(sizeBytes: number): Promise<Uint8Array
   return new Uint8Array(sizeBytes);
 }
 
+/**
+ * Returns a `Uint8Array` of the requested size filled with a recognizable byte pattern
+ * (`i % 256`). Used by external-storage tests to assert byte-exact round-trips.
+ */
+export async function producePatternedPayload(sizeBytes: number): Promise<Uint8Array> {
+  const buf = new Uint8Array(sizeBytes);
+  for (let i = 0; i < sizeBytes; i++) buf[i] = i % 256;
+  return buf;
+}
+
+/**
+ * Returns the length of the received payload. Used by external-storage tests to exercise
+ * offloading of activity *input* arguments (the argument is what gets offloaded/retrieved).
+ */
+export async function consumeLargePayload(payload: Uint8Array): Promise<number> {
+  return payload.length;
+}
+
+/**
+ * Until heartbeat details have been recovered from a previous attempt, heartbeats a large
+ * `Uint8Array` (large enough to be offloaded) and throws to force a retry. Once details are present,
+ * returns their length.
+ */
+export async function heartbeatThenReturnDetailsLength(sizeBytes: number): Promise<number> {
+  const details = activityInfo().heartbeatDetails as Uint8Array | undefined;
+  if (details === undefined) {
+    Context.current().heartbeat(new Uint8Array(sizeBytes));
+    throw new Error('retry to read heartbeat details on the next attempt');
+  }
+  return details.length;
+}
+
 export async function progressiveSleep(): Promise<void> {
   const cx = Context.current();
   // Use ms formatted string once to test this is supported

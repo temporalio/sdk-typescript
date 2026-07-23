@@ -264,6 +264,7 @@ export interface WorkerOptions {
   maxActivitiesPerSecond: Option<number>;
   shutdownGraceTime: number;
   plugins: string[];
+  storageDrivers: string[];
   workflowFailureErrors: WorkflowErrorType[];
   workflowTypesToFailureErrors: Record<string, WorkflowErrorType[]>;
   disablePayloadErrorLimit: boolean;

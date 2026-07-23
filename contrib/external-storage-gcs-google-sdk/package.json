@@ -1,7 +1,6 @@
 {
   "name": "@temporalio/external-storage-gcs-google-sdk",
-  "version": "1.20.0",
-  "private": true,
+  "version": "1.21.0",
   "description": "@google-cloud/storage client for the Temporal GCS external storage driver",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
