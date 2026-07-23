@@ -91,8 +91,10 @@ export class LangSmithPlugin extends SimplePlugin {
   private readonly client: Client;
   private readonly emitter: EmitterConfig;
   private readonly workflowConfig: WorkflowLangSmithConfig;
-  // Absolute path so the workflow bundler resolves it under strict pnpm.
+  // Absolute paths so the workflow bundler resolves them under strict pnpm.
   private readonly workflowInterceptorModule = require.resolve('./workflow-interceptors');
+  // Target of the `node:async_hooks` rewrite; re-exports the runtime-injected ALS.
+  private readonly asyncHooksShimModule = require.resolve('./async-hooks-shim');
 
   constructor(options: LangSmithPluginOptions = {}) {
     // super() reads options.name immediately
@@ -172,7 +174,7 @@ export class LangSmithPlugin extends SimplePlugin {
       // Double-encode so the injected token is a string literal in the bundle.
       const definitions = { [CONFIG_GLOBAL]: JSON.stringify(JSON.stringify(this.workflowConfig)) };
       const plugins = [...(merged.plugins ?? [])];
-      plugins.push(bundleRewritesPlugin(this.workflowInterceptorModule, definitions) as (typeof plugins)[number]);
+      plugins.push(bundleRewritesPlugin(this.asyncHooksShimModule, definitions) as (typeof plugins)[number]);
       return { ...merged, plugins };
     };
     return { ...base, workflowInterceptorModules, ignoreModules, webpackConfigHook };
@@ -228,13 +230,15 @@ interface WebpackCompiler {
 /**
  * A webpack plugin that installs the three Workflow-bundle rewrites LangSmith needs:
  *
- *  - redirect `node:async_hooks` to the isolate-safe workflow-interceptor shim.
+ *  - redirect `node:async_hooks` to the shim module that re-exports the
+ *    runtime-injected `AsyncLocalStorage`, so LangSmith's `new AsyncLocalStorage()`
+ *    and `AsyncLocalStorage.snapshot()` resolve to the real SDK-provided ALS.
  *    webpack routes `node:` requests through a scheme handler before alias
  *    resolution, so `resolve.alias` can't do this; `NormalModuleReplacementPlugin`
  *    rewrites the request in `beforeResolve`. Paired with the `ignoreModules`
  *    whitelist (see {@link LangSmithPlugin.configureBundler}). The rewrite target
- *    is the resolved absolute module path so webpack dedupes to one isolate
- *    instance regardless of issuer.
+ *    is the resolved absolute module path so webpack dedupes to one instance
+ *    regardless of issuer.
  *  - redirect langsmith's node-only `utils/{fs,worker_threads}.cjs` to their
  *    `.browser.cjs` siblings so node builtins stay out of the isolate. Scoped to
  *    langsmith so a user's own `fs.cjs` is never rewritten.
@@ -246,14 +250,14 @@ interface WebpackCompiler {
  * installers (e.g. pnpm with `hoist=false`). Using the compiler's own webpack
  * also guarantees the exact instance running the bundle — never a second copy.
  */
-function bundleRewritesPlugin(workflowInterceptorModule: string, definitions: Record<string, string>): WebpackPlugin {
+function bundleRewritesPlugin(asyncHooksShimModule: string, definitions: Record<string, string>): WebpackPlugin {
   const swap = (s: string): string => s.replace(/\.cjs$/, '.browser.cjs');
   return {
     apply(compiler) {
       const { NormalModuleReplacementPlugin, DefinePlugin } = compiler.webpack;
 
       new NormalModuleReplacementPlugin(/^node:async_hooks$/, (resource) => {
-        resource.request = workflowInterceptorModule;
+        resource.request = asyncHooksShimModule;
       }).apply(compiler);
 
       new NormalModuleReplacementPlugin(/[/\\]utils[/\\](?:fs|worker_threads)\.cjs$/, (resource) => {
