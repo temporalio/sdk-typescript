@@ -4,6 +4,7 @@ import type {
   WithWorkflowArgs,
   Workflow,
   VersioningOverride,
+  PayloadTypeInfo,
 } from '@temporalio/common';
 import { toCanonicalString } from '@temporalio/common';
 import type { Duration } from '@temporalio/common/lib/time';
@@ -60,6 +61,13 @@ export interface WorkflowOptions extends CommonWorkflowOptions {
    * start it on a local worker running with this same client.
    */
   requestEagerStart?: boolean;
+
+  /**
+   * Type information used to encode and decode Workflow input and output.
+   *
+   * @experimental
+   */
+  typeInfo?: PayloadTypeInfo;
 }
 
 export type WithCompiledWorkflowOptions<T extends WorkflowOptions> = Replace<

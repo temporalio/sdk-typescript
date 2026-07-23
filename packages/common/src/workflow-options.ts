@@ -5,8 +5,8 @@ import type { Duration } from './time';
 import { makeProtoEnumConverters } from './internal-workflow';
 import type { SearchAttributePair, SearchAttributes, TypedSearchAttributes } from './search-attributes';
 import type { Priority } from './priority';
-import type { WorkflowFunctionWithOptions } from './workflow-definition-options';
-
+import { isWorkflowFunctionWithStaticOptions } from './workflow-definition-options';
+import type { PayloadTypeInfo } from './type-info';
 /**
  * Defines what happens when trying to start a Workflow with the same ID as a *Closed* Workflow.
  *
@@ -255,15 +255,42 @@ export interface WorkflowDurationOptions {
 
 export type CommonWorkflowOptions = BaseWorkflowOptions & WorkflowDurationOptions;
 
-export function extractWorkflowType<T extends Workflow>(
-  workflowTypeOrFunc: string | T | WorkflowFunctionWithOptions<any[], any>
-): string {
-  if (typeof workflowTypeOrFunc === 'string') return workflowTypeOrFunc as string;
+export interface WorkflowTypeOptions {
+  type: string;
+  typeInfo?: PayloadTypeInfo;
+}
+
+export function extractWorkflowTypeAndConfig<T extends Workflow>(
+  workflowTypeOrFunc: string | T,
+  callSiteTypeInfo?: PayloadTypeInfo
+): WorkflowTypeOptions {
+  if (typeof workflowTypeOrFunc === 'string') {
+    return { type: workflowTypeOrFunc, typeInfo: callSiteTypeInfo };
+  }
   if (typeof workflowTypeOrFunc === 'function') {
-    if (workflowTypeOrFunc?.name) return workflowTypeOrFunc.name;
-    throw new TypeError('Invalid workflow type: the workflow function is anonymous');
+    if (!workflowTypeOrFunc.name) {
+      throw new TypeError('Invalid workflow type: the workflow function is anonymous');
+    }
+    if (callSiteTypeInfo !== undefined) {
+      throw new TypeError(
+        'Workflow type information cannot be supplied at the call site when using a workflow function. ' +
+          'Use defineWorkflowOptions(..., { staticOptions: { typeInfo } }) on the workflow function instead, ' +
+          'or pass the workflow type as a string.'
+      );
+    }
+    const definitionTypeInfo = isWorkflowFunctionWithStaticOptions(workflowTypeOrFunc)
+      ? workflowTypeOrFunc.staticOptions.typeInfo
+      : undefined;
+    return {
+      type: workflowTypeOrFunc.name,
+      typeInfo: definitionTypeInfo,
+    };
   }
   throw new TypeError(
     `Invalid workflow type: expected either a string or a function, got '${typeof workflowTypeOrFunc}'`
   );
+}
+
+export function extractWorkflowType<T extends Workflow>(workflowTypeOrFunc: string | T): string {
+  return extractWorkflowTypeAndConfig(workflowTypeOrFunc).type;
 }
