@@ -1,7 +1,7 @@
 import { decode, encode } from '../encoding';
 import { PayloadConverterError, ValueError } from '../errors';
 import type { Payload } from '../interfaces';
-import type { TypeInfo } from '../type-info';
+import type { ConverterHint, TypeInfo } from '../type-info';
 import type { SerializationContext } from './serialization-context';
 import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY } from './types';
 
@@ -21,12 +21,21 @@ export interface PayloadConverter {
    *
    * Should throw {@link ValueError} if unable to convert.
    */
-  toPayload<T>(value: T, context?: SerializationContext): Payload;
+  toPayload<T>(value: T, context?: SerializationContext, hint?: ConverterHint): Payload;
 
   /**
    * Converts a {@link Payload} back to a value.
    */
-  fromPayload<T>(payload: Payload, context?: SerializationContext): T;
+  fromPayload<T>(payload: Payload, context?: SerializationContext, hint?: ConverterHint): T;
+
+  /**
+   * Optional method to validate whether this converter can handle a converter hint.
+   *
+   * Implementations may also use this method to validate hints inside {@link toPayload} and {@link fromPayload}.
+   *
+   * @experimental
+   */
+  validateConverterHint?: (hint: ConverterHint) => boolean;
 }
 
 function toPayloadWithTypeInfo(
@@ -36,7 +45,7 @@ function toPayloadWithTypeInfo(
   typeInfo: TypeInfo | undefined
 ): Payload {
   const intermediate = typeInfo?.mapper ? typeInfo.mapper.toIntermediate(value) : value;
-  return converter.toPayload(intermediate, context);
+  return converter.toPayload(intermediate, context, typeInfo?.hint);
 }
 
 function fromPayloadWithTypeInfo<T>(
@@ -45,7 +54,7 @@ function fromPayloadWithTypeInfo<T>(
   context: SerializationContext | undefined,
   typeInfo: TypeInfo | undefined
 ): T {
-  const intermediate = converter.fromPayload<unknown>(payload, context);
+  const intermediate = converter.fromPayload<unknown>(payload, context, typeInfo?.hint);
   return (typeInfo?.mapper ? typeInfo.mapper.fromIntermediate(intermediate) : intermediate) as T;
 }
 
@@ -197,14 +206,23 @@ export interface PayloadConverterWithEncoding {
    * @param value The value to convert. Example values include the Workflow args sent from the Client and the values returned by a Workflow or Activity.
    * @returns The {@link Payload}, or `undefined` if unable to convert.
    */
-  toPayload<T>(value: T, context?: SerializationContext): Payload | undefined;
+  toPayload<T>(value: T, context?: SerializationContext, hint?: ConverterHint): Payload | undefined;
 
   /**
    * Converts a {@link Payload} back to a value.
    */
-  fromPayload<T>(payload: Payload, context?: SerializationContext): T;
+  fromPayload<T>(payload: Payload, context?: SerializationContext, hint?: ConverterHint): T;
 
   readonly encodingType: string;
+
+  /**
+   * Optional method to validate whether this converter can handle a converter hint.
+   *
+   * Implementations may also use this method to validate hints inside {@link toPayload} and {@link fromPayload}.
+   *
+   * @experimental
+   */
+  validateConverterHint?: (hint: ConverterHint) => boolean;
 }
 
 /**
@@ -232,24 +250,30 @@ export class CompositePayloadConverter implements PayloadConverter {
    * Tries to run `.toPayload(value)` on each converter in the order provided at construction.
    * Returns the first successful result, throws {@link ValueError} if there is no converter that can handle the value.
    */
-  public toPayload<T>(value: T, context?: SerializationContext): Payload {
+  public toPayload<T>(value: T, context?: SerializationContext, hint?: ConverterHint): Payload {
     if (value instanceof RawValue) {
       return value.payload;
     }
     for (const converter of this.converters) {
-      const result = converter.toPayload(value, context);
+      if (hint !== undefined && !converter.validateConverterHint?.(hint)) {
+        continue;
+      }
+      const result = converter.toPayload(value, context, hint);
       if (result !== undefined) {
         return result;
       }
     }
 
+    if (hint !== undefined) {
+      throw new ValueError(`No payload converter supports converter hint '${hint.converter}'`);
+    }
     throw new ValueError(`Unable to convert ${value} to payload`);
   }
 
   /**
    * Run {@link PayloadConverterWithEncoding.fromPayload} based on the `encoding` metadata of the {@link Payload}.
    */
-  public fromPayload<T>(payload: Payload, context?: SerializationContext): T {
+  public fromPayload<T>(payload: Payload, context?: SerializationContext, hint?: ConverterHint): T {
     if (payload.metadata === undefined || payload.metadata === null) {
       throw new ValueError('Missing payload metadata');
     }
@@ -259,7 +283,12 @@ export class CompositePayloadConverter implements PayloadConverter {
     if (converter === undefined) {
       throw new ValueError(`Unknown encoding: ${encoding}`);
     }
-    return converter.fromPayload(payload, context);
+    if (hint !== undefined && !converter.validateConverterHint?.(hint)) {
+      throw new PayloadConverterError(
+        `Payload encoding '${encoding}' does not support converter hint '${hint.converter}'`
+      );
+    }
+    return converter.fromPayload(payload, context, hint);
   }
 }
 
