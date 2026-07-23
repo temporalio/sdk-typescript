@@ -118,7 +118,7 @@ export function fromPayloadsAtIndex<T>(
   index: number,
   payloads?: Payload[] | null,
   context?: SerializationContext,
-  valueTypeInfo?: TypeInfo<T>
+  valueTypeInfo?: TypeInfo
 ): T {
   // To make adding arguments a backwards compatible change
   if (payloads === undefined || payloads === null || index >= payloads.length) {

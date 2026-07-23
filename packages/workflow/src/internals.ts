@@ -14,6 +14,7 @@ import type {
   VersioningBehavior,
   WorkflowDefinitionOptions,
   WorkflowSerializationContext,
+  PayloadTypeInfo,
 } from '@temporalio/common';
 import {
   defaultFailureConverter,
@@ -27,6 +28,7 @@ import {
   ApplicationFailure,
   mapFromPayloads,
   fromPayloadsAtIndex,
+  toPayloadsWithContext,
   RawValue,
 } from '@temporalio/common';
 import {
@@ -506,6 +508,7 @@ export class Activator implements ActivationHandler {
   protected readonly stackTracesEnabled: boolean;
 
   private readonly patchActivationCallback?: (workflowInfo: WorkflowInfo, patchId: string) => boolean;
+  public typeInfo?: PayloadTypeInfo;
 
   constructor({
     info,
@@ -646,7 +649,7 @@ export class Activator implements ActivationHandler {
       executeWithLifecycleLogging(() =>
         execute({
           headers: activation.headers ?? {},
-          args: arrayFromPayloads(this.payloadConverter, activation.arguments, context),
+          args: arrayFromPayloads(this.payloadConverter, activation.arguments, context, this.typeInfo?.inputTypes),
         })
       ).then(this.completeWorkflow.bind(this), this.handleWorkflowFailure.bind(this))
     );
@@ -1451,7 +1454,7 @@ export class Activator implements ActivationHandler {
     this.pushCommand(
       {
         completeWorkflowExecution: {
-          result: this.payloadConverter.toPayloadWithTypeInfo(result, context, undefined),
+          result: this.payloadConverter.toPayloadWithTypeInfo(result, context, this.typeInfo?.outputType),
         },
       },
       true

@@ -35,12 +35,13 @@ export class TypeInfoAwarePayloadConverter implements PayloadConverter {
   public fromPayloadWithTypeInfo<T>(
     payload: Payload,
     context: SerializationContext | undefined,
-    typeInfo: TypeInfo<T> | undefined
+    typeInfo: TypeInfo | undefined
   ): T {
     const transferValue = this.payloadConverter.fromPayload<unknown>(payload, context, typeInfo?.hint);
-    return typeInfo?.transferTypeConverter
+    const value = typeInfo?.transferTypeConverter
       ? typeInfo.transferTypeConverter.fromTransferType(transferValue)
-      : (transferValue as T);
+      : transferValue;
+    return value as T;
   }
 }
 

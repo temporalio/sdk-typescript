@@ -148,7 +148,7 @@ export async function decodeFromPayloadsAtIndex<T>(
   index: number,
   payloads?: Payload[] | null,
   context?: SerializationContext,
-  valueTypeInfo?: TypeInfo<T>
+  valueTypeInfo?: TypeInfo
 ): Promise<T> {
   const { payloadConverter, payloadCodecs } = converter;
   return await fromPayloadsAtIndex(

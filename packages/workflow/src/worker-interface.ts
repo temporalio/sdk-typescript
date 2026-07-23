@@ -4,7 +4,12 @@
  * @module
  */
 import type { WorkflowFunctionWithOptions } from '@temporalio/common';
-import { encodeVersioningBehavior, IllegalStateError } from '@temporalio/common';
+import {
+  encodeVersioningBehavior,
+  IllegalStateError,
+  isWorkflowFunctionWithOptions,
+  isWorkflowFunctionWithStaticOptions,
+} from '@temporalio/common';
 import { getTypeInfoAwarePayloadConverter } from '@temporalio/common/lib/internal-workflow';
 import type { coresdk } from '@temporalio/proto';
 import type { WorkflowInterceptorsFactory } from './interceptors';
@@ -103,6 +108,9 @@ export function initRuntime(options: WorkflowCreateOptionsInternal): void {
       } else {
         activator.workflowDefinitionOptionsGetter = activator.workflow.workflowDefinitionOptions;
       }
+    }
+    if (isWorkflowFunctionWithStaticOptions(activator.workflow)) {
+      activator.typeInfo = activator.workflow.staticOptions.typeInfo;
     }
   } catch (e) {
     try {
@@ -321,9 +329,4 @@ export function destroy(): void {
       }
     }
   }
-}
-
-function isWorkflowFunctionWithOptions(obj: any): obj is WorkflowFunctionWithOptions<any[], any> {
-  if (obj == null) return false;
-  return Object.hasOwn(obj, 'workflowDefinitionOptions');
 }
