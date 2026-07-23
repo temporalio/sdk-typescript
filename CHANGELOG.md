@@ -35,6 +35,7 @@ to docs, or any other relevant information.
   update (e.g. a validation rejection) surfaces as a failed Nexus operation. Cancellation is
   customizable via the `cancelWorkflowUpdate` handler option; the default rejects with a
   `NOT_IMPLEMENTED` handler error.
+- **Experimental**: `@temporalio/google-adk-agents` package for running Google ADK agents as durable Temporal Workflows.
 
 ### Fixed
 
