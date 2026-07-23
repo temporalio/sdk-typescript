@@ -40,6 +40,12 @@ to docs, or any other relevant information.
   alters the size of payloads (e.g. compression, encryption, external storage), it is advised that
   you disable size enforcement by setting `disablePayloadErrorLimit: true` on the worker.
 
+### Fixed
+
+- strands: add `@aws-sdk/client-s3` to the workflow bundler ignore list, fixing bundler errors when
+  using the S3-backed `context-offloader` vended plugin. The package is dynamically imported
+  worker-side and is never reached from workflow code.
+
 ## [1.20.3] - 2026-07-13
 
 ### Fixed
