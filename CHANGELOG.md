@@ -19,6 +19,11 @@ to docs, or any other relevant information.
 
 ## [Unreleased]
 
+### Added
+
+- **Experimental**: Added `TypeInfo` and `TypeMapper` to `@temporalio/common` for transforming application
+  values to and from serialization-friendly intermediate values around payload conversion.
+
 ## [1.21.0] - 2026-07-23
 
 ### Added
