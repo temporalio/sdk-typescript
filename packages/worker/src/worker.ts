@@ -178,7 +178,7 @@ interface WorkflowWithLogAttributes {
   workflow: Workflow;
   logAttributes: Record<string, unknown>;
   workflowCodecRunner: WorkflowCodecRunner;
-  workflowType: string;
+  info: WorkflowInfo;
 }
 
 function addBuildIdIfMissing(options: CompiledWorkerOptions, bundleCode?: string): CompiledWorkerOptionsWithBuildId {
@@ -1565,9 +1565,9 @@ export class Worker {
                 namespace,
                 id: workflowCodecRunner.workflowContext.workflowId,
                 runId: activation.runId,
-                type: workflow.workflowType,
+                type: workflow.info.workflowType,
               },
-              deriveContext: workflowCommandStoreTarget(namespace),
+              deriveContext: workflowCommandStoreTarget(namespace, workflow.info),
             })
           );
         }
@@ -1716,7 +1716,7 @@ export class Worker {
     });
 
     this.numCachedWorkflowsSubject.next(this.numCachedWorkflowsSubject.value + 1);
-    return { workflow, logAttributes, workflowCodecRunner, workflowType };
+    return { workflow, logAttributes, workflowCodecRunner, info: workflowInfo };
   }
 
   /**
@@ -2413,7 +2413,8 @@ async function extractActivityInfo({
 }
 
 function workflowCommandStoreTarget(
-  namespace: string
+  namespace: string,
+  info: WorkflowInfo
 ): (
   message: object,
   typeName: string,
@@ -2442,6 +2443,11 @@ function workflowCommandStoreTarget(
         if (context == null) return context;
         const command = message as coresdk.workflow_commands.IContinueAsNewWorkflowExecution;
         return { ...context, runId: undefined, type: command.workflowType || context.type };
+      }
+      case 'coresdk.workflow_commands.CompleteWorkflowExecution': {
+        const { parent } = info;
+        if (parent == null || info.continuedFromExecutionRunId != null) return context;
+        return { kind: 'workflow', namespace: parent.namespace || namespace, id: parent.workflowId, runId: parent.runId };
       }
       default:
         return context;

@@ -197,15 +197,20 @@ test('child workflow input and result are offloaded in both directions', async (
   const len = await worker.runUntil(handle.result());
 
   t.is(len, payloadSize);
-  // [0] child input (parent's StartChildWorkflowExecution command), [1] child result (child's
-  // completion) — both keyed under the child's type. The parent's final result stays inline.
-  // The child's id/runId are runtime-generated, so only kind and type are asserted.
+  // [0] child input (parent's StartChildWorkflowExecution command), keyed under the child (its
+  // runtime-generated id isn't known here, so only kind/type are asserted). [1] child result
+  // (child's completion), keyed under the *parent* — a child's result is consumed by its parent.
+  // The parent's own final result stays inline.
   t.is(driver.storeCalls.length, 2);
   t.is(driver.retrieveCalls.length, 2);
   t.is(driver.storeCalls[0].context.target?.kind, 'workflow');
   t.is(driver.storeCalls[0].context.target?.type, 'externalStorageEcho');
-  t.is(driver.storeCalls[1].context.target?.kind, 'workflow');
-  t.is(driver.storeCalls[1].context.target?.type, 'externalStorageEcho');
+  t.deepEqual(driver.storeCalls[1].context.target, {
+    kind: 'workflow',
+    namespace: 'default',
+    id: handle.workflowId,
+    runId: handle.firstExecutionRunId,
+  });
 });
 
 test('continue-as-new offloads a large argument keyed under the target workflow type', async (t) => {
