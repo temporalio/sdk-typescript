@@ -19,6 +19,14 @@ to docs, or any other relevant information.
 
 ## [Unreleased]
 
+## [1.21.1] - 2026-07-23
+
+### Fixed
+
+- strands: add `@aws-sdk/client-s3` to the workflow bundler ignore list, fixing bundler errors when
+  using the S3-backed `context-offloader` vended plugin. The package is dynamically imported
+  worker-side and is never reached from workflow code.
+
 ## [1.21.0] - 2026-07-23
 
 ### Added
@@ -63,12 +71,6 @@ to docs, or any other relevant information.
 - Nexus operation handlers now preserve `nexus.HandlerError` values thrown by payload codecs and converters.
 - `temporal_worker_task_slots_used` no longer counts reserved but unused task slots as in use.
 - When worker heartbeats are enabled, host CPU and memory are sampled at the configured heartbeat interval rather than every 100ms.
-
-### Fixed
-
-- strands: add `@aws-sdk/client-s3` to the workflow bundler ignore list, fixing bundler errors when
-  using the S3-backed `context-offloader` vended plugin. The package is dynamically imported
-  worker-side and is never reached from workflow code.
 
 ## [1.20.3] - 2026-07-13
 
