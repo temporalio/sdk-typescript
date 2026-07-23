@@ -73,3 +73,16 @@ export class NamespaceNotFoundError extends Error {
  */
 @SymbolBasedInstanceOfError('CompleteAsyncError')
 export class CompleteAsyncError extends Error {}
+
+/**
+ * Thrown when an inbound payload is detected as an external-storage reference
+ * but no `ExternalStorage` is configured to resolve it.
+ *
+ * @experimental
+ */
+@SymbolBasedInstanceOfError('ExternalStorageNotConfiguredError')
+export class ExternalStorageNotConfiguredError extends Error {
+  constructor(message = 'Detected externally stored payload(s) but external storage is not configured.') {
+    super(`[TMPRL1105] ${message}`);
+  }
+}

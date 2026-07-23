@@ -11,7 +11,7 @@ import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import {
   encodeMapToPayloads,
   decodeMapFromPayloads,
-  extstoreRetrieveOptions,
+  extstoreInboundOptions,
   extstoreStoreOptions,
   visit,
   walkCreateScheduleRequest,
@@ -301,9 +301,7 @@ export class ScheduleClient extends BaseClient {
         scheduleId,
       });
       const externalStorage = this.dataConverter.externalStorage;
-      if (externalStorage) {
-        await visit(response, walkDescribeScheduleResponse, extstoreRetrieveOptions(externalStorage));
-      }
+      await visit(response, walkDescribeScheduleResponse, extstoreInboundOptions(externalStorage));
       return response;
     } catch (err: any) {
       this.rethrowGrpcError(err, 'Failed to describe schedule', scheduleId);
@@ -428,9 +426,7 @@ export class ScheduleClient extends BaseClient {
       }
 
       const externalStorage = this.dataConverter.externalStorage;
-      if (externalStorage) {
-        await visit(response, walkListSchedulesResponse, extstoreRetrieveOptions(externalStorage));
-      }
+      await visit(response, walkListSchedulesResponse, extstoreInboundOptions(externalStorage));
 
       for (const raw of response.schedules ?? []) {
         yield <ScheduleSummary>{

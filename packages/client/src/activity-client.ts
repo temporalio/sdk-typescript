@@ -30,7 +30,7 @@ import {
   decodeOptionalFailureToOptionalError,
   encodeToPayloads,
   encodeUserMetadata,
-  extstoreRetrieveOptions,
+  extstoreInboundOptions,
   extstoreStoreOptions,
   visit,
   walkDescribeActivityExecutionResponse,
@@ -350,9 +350,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       try {
         const resp = await this.workflowService.pollActivityExecution(req);
         const externalStorage = this.dataConverter.externalStorage;
-        if (externalStorage) {
-          await visit(resp, walkPollActivityExecutionResponse, extstoreRetrieveOptions(externalStorage));
-        }
+        await visit(resp, walkPollActivityExecutionResponse, extstoreInboundOptions(externalStorage));
         if (resp.outcome?.result) {
           const [result] = await decodeArrayFromPayloads(this.dataConverter, resp.outcome.result.payloads ?? []);
           return result;
@@ -388,9 +386,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
         runId: input.activityRunId || undefined,
       });
       const externalStorage = this.dataConverter.externalStorage;
-      if (externalStorage) {
-        await visit(resp, walkDescribeActivityExecutionResponse, extstoreRetrieveOptions(externalStorage));
-      }
+      await visit(resp, walkDescribeActivityExecutionResponse, extstoreInboundOptions(externalStorage));
       return buildActivityDescription(resp.info!, this.dataConverter);
     } catch (err) {
       this.rethrowGrpcError(err, 'Failed to describe activity');
@@ -447,9 +443,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
           });
 
         const externalStorage = this.dataConverter.externalStorage;
-        if (externalStorage) {
-          await visit(resp, walkListActivityExecutionsResponse, extstoreRetrieveOptions(externalStorage));
-        }
+        await visit(resp, walkListActivityExecutionsResponse, extstoreInboundOptions(externalStorage));
 
         for (const info of resp.executions ?? []) {
           yield buildActivityExecutionInfo(info);

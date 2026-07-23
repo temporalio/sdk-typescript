@@ -39,7 +39,7 @@ import {
   decodeOptionalSinglePayload,
   encodeMapToPayloads,
   encodeToPayloadsWithContext,
-  extstoreRetrieveOptions,
+  extstoreInboundOptions,
   extstoreStoreOptions,
   visit,
   walkDescribeWorkflowExecutionResponse,
@@ -836,9 +836,7 @@ export class WorkflowClient extends BaseClient {
         this.rethrowGrpcError(err, 'Failed to get Workflow execution history', { workflowId, runId });
       }
       const externalStorage = this.dataConverter.externalStorage;
-      if (externalStorage) {
-        await visit(res, walkGetWorkflowExecutionHistoryResponse, extstoreRetrieveOptions(externalStorage));
-      }
+      await visit(res, walkGetWorkflowExecutionHistoryResponse, extstoreInboundOptions(externalStorage));
       const events = res.history?.events;
 
       if (events == null || events.length === 0) {
@@ -1009,9 +1007,7 @@ export class WorkflowClient extends BaseClient {
       }
       this.rethrowGrpcError(err, 'Failed to query Workflow', input.workflowExecution);
     }
-    if (externalStorage) {
-      await visit(response, walkQueryWorkflowResponse, extstoreRetrieveOptions(externalStorage));
-    }
+    await visit(response, walkQueryWorkflowResponse, extstoreInboundOptions(externalStorage));
     if (response.queryRejected) {
       if (response.queryRejected.status === undefined || response.queryRejected.status === null) {
         throw new TypeError('Received queryRejected from server with no status');
@@ -1100,9 +1096,7 @@ export class WorkflowClient extends BaseClient {
     } catch (err) {
       this.rethrowUpdateGrpcError(err, 'Workflow Update failed', input.workflowExecution);
     }
-    if (externalStorage) {
-      await visit(response, walkUpdateWorkflowExecutionResponse, extstoreRetrieveOptions(externalStorage));
-    }
+    await visit(response, walkUpdateWorkflowExecutionResponse, extstoreInboundOptions(externalStorage));
     return {
       updateId: request.request!.meta!.updateId!,
 
@@ -1177,9 +1171,7 @@ export class WorkflowClient extends BaseClient {
       }
       do {
         multiOpResp = await this.workflowService.executeMultiOperation(multiOpReq);
-        if (externalStorage) {
-          await visit(multiOpResp, walkExecuteMultiOperationResponse, extstoreRetrieveOptions(externalStorage));
-        }
+        await visit(multiOpResp, walkExecuteMultiOperationResponse, extstoreInboundOptions(externalStorage));
         startResp = multiOpResp.responses?.[0]
           ?.startWorkflow as temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse;
         if (!seenStart) {
@@ -1266,9 +1258,7 @@ export class WorkflowClient extends BaseClient {
       try {
         const response = await this.workflowService.pollWorkflowExecutionUpdate(req);
         const externalStorage = this.dataConverter.externalStorage;
-        if (externalStorage) {
-          await visit(response, walkPollWorkflowExecutionUpdateResponse, extstoreRetrieveOptions(externalStorage));
-        }
+        await visit(response, walkPollWorkflowExecutionUpdateResponse, extstoreInboundOptions(externalStorage));
         if (response.outcome) {
           return response.outcome;
         }
@@ -1566,9 +1556,7 @@ export class WorkflowClient extends BaseClient {
         execution: input.workflowExecution,
       });
       const externalStorage = this.dataConverter.externalStorage;
-      if (externalStorage) {
-        await visit(response, walkDescribeWorkflowExecutionResponse, extstoreRetrieveOptions(externalStorage));
-      }
+      await visit(response, walkDescribeWorkflowExecutionResponse, extstoreInboundOptions(externalStorage));
       return response;
     } catch (err) {
       this.rethrowGrpcError(err, 'Failed to describe workflow', input.workflowExecution);
@@ -1775,9 +1763,7 @@ export class WorkflowClient extends BaseClient {
         this.rethrowGrpcError(e, 'Failed to list workflows', undefined);
       }
       const externalStorage = this.dataConverter.externalStorage;
-      if (externalStorage) {
-        await visit(response, walkListWorkflowExecutionsResponse, extstoreRetrieveOptions(externalStorage));
-      }
+      await visit(response, walkListWorkflowExecutionsResponse, extstoreInboundOptions(externalStorage));
       // Not decoding memo payloads concurrently even though we could have to keep the lazy nature of this iterator.
       // Decoding is done for `memo` fields which tend to be small.
       // We might decide to change that based on user feedback.
