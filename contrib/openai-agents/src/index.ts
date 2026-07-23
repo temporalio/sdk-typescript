@@ -6,6 +6,7 @@ export type {
 } from './worker/plugin';
 export { StatelessMCPServerProvider } from './worker/mcp-provider';
 export { StatefulMCPServerProvider } from './worker/stateful-mcp-provider';
+export { SandboxClientProvider } from './worker/sandbox-provider';
 export type {
   ModelActivityOptions,
   ModelSummaryProvider,

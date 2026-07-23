@@ -19,6 +19,10 @@ to docs, or any other relevant information.
 
 ## [Unreleased]
 
+### Added
+
+- **Experimental** The `@temporalio/openai-agents` plugin now supports running OpenAI Agents `SandboxAgent`s as Temporal Workflows; sandbox operations are dispatched as Activities.
+
 ## [1.21.0] - 2026-07-23
 
 ### Added

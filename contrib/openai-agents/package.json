@@ -80,8 +80,8 @@
     "web-streams-polyfill": "^4.2.0"
   },
   "peerDependencies": {
-    "@openai/agents-core": "~0.11.6",
-    "@openai/agents-openai": "~0.11.6",
+    "@openai/agents-core": "~0.13.5",
+    "@openai/agents-openai": "~0.13.5",
     "@opentelemetry/sdk-trace-base": "^1.25.1",
     "openai": "^6.35.0"
   },
@@ -91,8 +91,8 @@
     }
   },
   "devDependencies": {
-    "@openai/agents-core": "~0.11.6",
-    "@openai/agents-openai": "~0.11.6",
+    "@openai/agents-core": "~0.13.5",
+    "@openai/agents-openai": "~0.13.5",
     "@opentelemetry/core": "^1.25.1",
     "@opentelemetry/sdk-node": "^0.52.1",
     "@opentelemetry/sdk-trace-base": "^1.25.1",

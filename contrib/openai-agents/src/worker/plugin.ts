@@ -14,6 +14,7 @@ import { createModelActivity } from './activities';
 import { ensureActivityTracingProcessorRegistered } from './activity-tracing';
 import { makeAgentTracingSink } from './agent-sink-bridge';
 import type { StatelessMCPServerProvider } from './mcp-provider';
+import type { SandboxClientProvider } from './sandbox-provider';
 import type { StatefulMCPServerProvider } from './stateful-mcp-provider';
 import {
   OpenAIAgentsTraceActivityInboundInterceptor,
@@ -43,6 +44,13 @@ export interface OpenAIAgentsPluginOptions {
   /** MCP server providers whose Activities will be auto-registered. */
   mcpServerProviders?: MCPServerProvider[];
   /**
+   * Sandbox client providers whose Activities will be auto-registered.
+   * Reference them from Workflows via `temporalSandboxClient(name)`.
+   *
+   * @experimental Sandbox support is experimental and may change without notice.
+   */
+  sandboxClientProviders?: SandboxClientProvider[];
+  /**
    * Default Model Activity options (timeouts, retry, Task Queue, etc.).
    * Propagated to the Workflow via the `__openai_agents_config` header.
    */
@@ -67,21 +75,26 @@ export class OpenAIAgentsPlugin extends SimplePlugin {
 
     let allActivities: Record<string, (...args: any[]) => Promise<any>> = { ...modelActivities };
 
-    if (options.mcpServerProviders) {
-      const seenNames = new Set<string>();
-      for (const provider of options.mcpServerProviders) {
-        if (seenNames.has(provider.name)) {
-          throw new Error(
-            `Duplicate MCP server provider name: '${provider.name}'. Each provider must have a unique name.`
-          );
-        }
-        seenNames.add(provider.name);
-        const providerActivities = provider._getActivities();
-        allActivities = { ...allActivities, ...providerActivities };
-      }
+    const interceptorOpts = options.interceptorOptions;
+    for (const provider of options.sandboxClientProviders ?? []) {
+      provider._addTemporalSpans = interceptorOpts?.addTemporalSpans === true;
     }
 
-    const interceptorOpts = options.interceptorOptions;
+    const providers: Array<{ name: string; _getActivities(): Record<string, (...args: any[]) => Promise<any>> }> = [
+      ...(options.mcpServerProviders ?? []),
+      ...(options.sandboxClientProviders ?? []),
+    ];
+    const seenNames = new Set<string>();
+    for (const provider of providers) {
+      if (seenNames.has(provider.name)) {
+        throw new Error(
+          `Duplicate provider name: '${provider.name}'. Each MCP server and sandbox client provider must have a unique name.`
+        );
+      }
+      seenNames.add(provider.name);
+      allActivities = { ...allActivities, ...provider._getActivities() };
+    }
+
     const activityInterceptorOptions: OpenAIAgentsTraceInterceptorOptions = {
       addTemporalSpans: interceptorOpts?.addTemporalSpans,
     };

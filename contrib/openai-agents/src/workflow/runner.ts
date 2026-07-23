@@ -1,6 +1,7 @@
 import {
   type Agent,
   type AgentInputItem,
+  Handoff,
   MemorySession,
   Runner,
   RunState,
@@ -16,6 +17,7 @@ import {
   type StreamedRunResult,
   type TracingConfig,
 } from '@openai/agents-core';
+import { SandboxAgent, type SandboxRunConfig } from '@openai/agents-core/sandbox';
 import { ApplicationFailure } from '@temporalio/common';
 import {
   DEFAULT_MODEL_ACTIVITY_OPTIONS,
@@ -26,6 +28,7 @@ import {
 } from '../common/model-activity-options';
 import { unwrapTemporalFailure } from '../common/errors';
 import { convertAgent } from './convert-agent';
+import { TemporalSandboxClient } from './sandbox-client';
 import { ensureTracingProcessorRegistered } from './tracing';
 import { flushOpenSpans } from './agent-sink-processor';
 import { getCurrentPluginConfig } from './plugin-config-store';
@@ -81,6 +84,13 @@ export interface TemporalRunOptions<TContext = undefined> {
     groupId?: string;
     /** Additional metadata attached to the trace */
     traceMetadata?: Record<string, string>;
+    /**
+     * Sandbox runtime configuration used when execution reaches a `SandboxAgent`.
+     * `client` must be created via `temporalSandboxClient(name)`.
+     *
+     * @experimental Sandbox support is experimental and may change without notice.
+     */
+    sandbox?: SandboxRunConfig;
   };
 }
 
@@ -119,6 +129,54 @@ function definedFields<T extends object>(obj: T | undefined): Partial<T> {
     if (obj[key] !== undefined) result[key] = obj[key];
   }
   return result;
+}
+
+/** Whether a `SandboxAgent` is reachable from `agent` through its handoff graph. */
+export function hasSandboxAgent(agent: Agent<any, any>, seen: Set<Agent<any, any>> = new Set()): boolean {
+  if (agent instanceof SandboxAgent) return true;
+  if (seen.has(agent)) return false;
+  seen.add(agent);
+  for (const handoff of agent.handoffs ?? []) {
+    const target = handoff instanceof Handoff ? handoff.agent : handoff;
+    if (hasSandboxAgent(target, seen)) return true;
+  }
+  return false;
+}
+
+/**
+ * `runConfig.sandbox.client` must be a `TemporalSandboxClient` so every sandbox
+ * operation is dispatched as an Activity rather than run inline in the Workflow.
+ */
+export function validateSandboxRunConfig(agent: Agent<any, any>, sandbox: SandboxRunConfig | undefined): void {
+  if (!hasSandboxAgent(agent) && sandbox === undefined) return;
+  if (sandbox === undefined) {
+    throw ApplicationFailure.create({
+      message:
+        'A SandboxAgent was provided but runConfig.sandbox is not configured. ' +
+        'Set runConfig.sandbox with a client created via temporalSandboxClient(name) ' +
+        'from @temporalio/openai-agents/workflow.',
+      type: 'SandboxConfigurationError',
+      nonRetryable: true,
+    });
+  }
+  if (sandbox.client == null) {
+    throw ApplicationFailure.create({
+      message:
+        'runConfig.sandbox.client must be set to a Temporal sandbox client. ' +
+        'Use temporalSandboxClient(name) from @temporalio/openai-agents/workflow.',
+      type: 'SandboxConfigurationError',
+      nonRetryable: true,
+    });
+  }
+  if (!(sandbox.client instanceof TemporalSandboxClient)) {
+    throw ApplicationFailure.create({
+      message:
+        'runConfig.sandbox.client must be created via temporalSandboxClient(name) ' +
+        'from @temporalio/openai-agents/workflow. Do not pass a raw sandbox client directly.',
+      type: 'SandboxConfigurationError',
+      nonRetryable: true,
+    });
+  }
 }
 
 /**
@@ -186,6 +244,8 @@ export class TemporalOpenAIRunner {
         nonRetryable: true,
       });
     }
+
+    validateSandboxRunConfig(agent, options?.runConfig?.sandbox);
 
     const { model: modelOverride, ...runnerConfigOverrides } = options?.runConfig ?? {};
 
