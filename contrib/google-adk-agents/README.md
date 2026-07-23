@@ -3,20 +3,15 @@
 Run [Google Agent Development Kit](https://github.com/google/adk-js) (`@google/adk`)
 agents as durable [Temporal](https://temporal.io) Workflows.
 
-Your ADK agent graph — `LlmAgent`, `SequentialAgent`/`ParallelAgent`/`LoopAgent`,
-`FunctionTool`s, `MCPToolset`s, the `Runner` loop — runs **inside the Workflow**
-and replays deterministically. Only the non-deterministic I/O boundaries are
-routed out to Activities:
+Your ADK agent graph runs inside the Workflow and replays deterministically. The
+plugin routes non-deterministic boundaries out to Activities:
 
 - every **model call** (`generateContentAsync`) becomes a retryable, observable
   Activity, and
 - every **MCP tool call** (list-tools / call-tool) becomes an Activity.
 
-Regular `FunctionTool`s run in the Workflow; to have a tool run as an Activity
-instead, expose an existing Temporal Activity to the agent with `activityAsTool`.
-
-Temporal then gives you automatic retries, timeouts, heartbeating, and
-crash-safe replay for the whole run.
+Regular ADK `FunctionTool`s still run in the Workflow. If a tool performs I/O,
+wrap an existing Temporal Activity with `activityAsTool`.
 
 ## Install
 
@@ -24,14 +19,14 @@ crash-safe replay for the whole run.
 npm install @temporalio/google-adk-agents
 ```
 
-Peer dependency: `@google/adk` `^1.2.0` (and its `@google/genai`). Provide your
-Gemini credentials to the **worker** as usual (e.g. `GOOGLE_API_KEY` /
-`GEMINI_API_KEY`) — credentials are never placed in workflow or activity inputs.
+Peer dependency: `@google/adk` `^1.2.0` and its `@google/genai`. Provide Gemini
+credentials to the Worker as usual, for example with `GOOGLE_API_KEY` or
+`GEMINI_API_KEY`.
 
 ## Hello world
 
-Take an agent you already have and change **one line** — wrap its model in
-`TemporalModel` — then register the plugin.
+Wrap the agent model in `TemporalModel`, then register `GoogleAdkPlugin` on the
+Worker.
 
 ### `workflows.ts`
 
@@ -69,7 +64,8 @@ import { GoogleAdkPlugin } from '@temporalio/google-adk-agents';
 const worker = await Worker.create({
   taskQueue: 'adk',
   workflowsPath: require.resolve('./workflows'),
-  // Registers invokeModel / invokeModelStreaming for you.
+  // Register the plugin on the Worker. This installs the model Activities and
+  // the Workflow bundler configuration required by @google/adk.
   plugins: [new GoogleAdkPlugin()],
 });
 await worker.run();
@@ -79,12 +75,11 @@ await worker.run();
 
 ```typescript
 import { Client } from '@temporalio/client';
-import { GoogleAdkPlugin } from '@temporalio/google-adk-agents';
 import { askAgent } from './workflows';
 
-// Passing the plugin to the Client auto-propagates it to Workers created from
-// this Client — register it on EITHER the Client OR the Worker, not both.
-const client = new Client({ plugins: [new GoogleAdkPlugin()] });
+// No plugin is needed on the Client for this package. The Worker registration
+// above is what makes TemporalModel calls execute as Activities.
+const client = new Client();
 
 const result = await client.workflow.execute(askAgent, {
   taskQueue: 'adk',
@@ -94,64 +89,90 @@ const result = await client.workflow.execute(askAgent, {
 console.log(result);
 ```
 
-## What this plugin gives you
+## Usage
 
-- **Durable model calls.** Swap `model: 'gemini-2.5-flash'` for
-  `model: new TemporalModel('gemini-2.5-flash')` and each inference runs as a
-  Temporal Activity with a per-model `RetryPolicy`, `startToCloseTimeout`, and
-  auto-heartbeat for slow / thinking-mode calls. Upstream `429`/`5xx` and
-  `retry-after` headers are honored; non-retryable `4xx` fail fast.
-- **Durable MCP tools.** `new TemporalMCPToolset({ name })` routes tool
-  discovery and tool calls through Activities. The full tool schema (name,
-  description, **parameters**) round-trips, so the model still sees argument
-  schemas. MCP connection params stay on the worker:
+### Model calls
 
-  ```typescript
-  // worker
-  new GoogleAdkPlugin({
-    mcpToolsets: {
-      filesystem: () => ({
-        type: 'StdioConnectionParams',
-        serverParams: { command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', '/data'] },
-      }),
+`TemporalModel` is a Workflow-safe ADK model. Inside a Workflow, each
+`generateContentAsync` call runs as a Temporal Activity. Configure Activity
+timeouts, retry policy, task queue, summary, and heartbeat timeout with
+`TemporalModelOptions.activity`.
+
+```typescript
+const agent = new LlmAgent({
+  name: 'assistant',
+  model: new TemporalModel('gemini-2.5-flash', {
+    activity: {
+      startToCloseTimeout: '5 minutes',
+      heartbeatTimeout: '30 seconds',
+      retry: { maximumAttempts: 3 },
     },
-  });
+  }),
+});
+```
 
-  // workflow / agent
-  const agent = new LlmAgent({
-    name: 'fs',
-    model: new TemporalModel('gemini-2.5-flash'),
-    tools: [new TemporalMCPToolset({ name: 'filesystem' })],
-  });
-  ```
+### MCP tools
 
-- **Existing Activities as tools.** Already have a Temporal Activity? Expose it
-  to the agent with `activityAsTool` instead of re-declaring it:
+Use `TemporalMCPToolset` in Workflow code and register the matching MCP factory
+on the Worker:
 
-  ```typescript
-  import { activityAsTool } from '@temporalio/google-adk-agents/workflow';
-  import { Type } from '@google/genai';
+```typescript
+// worker
+new GoogleAdkPlugin({
+  mcpToolsets: {
+    filesystem: () => ({
+      type: 'StdioConnectionParams',
+      serverParams: { command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', '/data'] },
+    }),
+  },
+});
 
-  const lookupTool = activityAsTool({
-    name: 'lookupOrder', // a registered Activity on your worker
-    description: 'Look up an order by id.',
-    parameters: { type: Type.OBJECT, properties: { orderId: { type: Type.STRING } } },
-  });
-  ```
+// workflow
+const agent = new LlmAgent({
+  name: 'fs',
+  model: new TemporalModel('gemini-2.5-flash'),
+  tools: [new TemporalMCPToolset({ name: 'filesystem' })],
+});
+```
 
-- **Streaming (SSE).** Streaming requires `streamingTopic` on `TemporalModel`:
-  set it to publish incremental `LlmResponse` chunks via
-  `@temporalio/workflow-streams` while the Workflow still receives the full
-  transcript. Requesting streaming without a `streamingTopic` throws a
-  non-retryable `GoogleAdkStreamingTopicRequired` error.
-- **Human-in-the-loop.** Because the agent loop runs in the Workflow body, a
-  `LongRunningFunctionTool` can `await` a Temporal Signal or Update carrying a
-  human's result — no special shim required.
-- **Deterministic replay.** ADK's event IDs and timestamps funnel through
-  `Math.random()` / `Date.now()`, which the Temporal Workflow sandbox makes
-  deterministic — so the agent loop replays without a custom determinism hook.
+### Activities as tools
 
-### Testing your workflows
+Use `activityAsTool` to expose an existing Temporal Activity to the agent:
+
+```typescript
+import { activityAsTool } from '@temporalio/google-adk-agents/workflow';
+import { Type } from '@google/genai';
+
+const lookupTool = activityAsTool({
+  name: 'lookupOrder',
+  description: 'Look up an order by id.',
+  parameters: { type: Type.OBJECT, properties: { orderId: { type: Type.STRING } } },
+});
+```
+
+### Streaming
+
+Streaming requires `streamingTopic` on `TemporalModel`. Chunks are published via
+`@temporalio/workflow-streams`; the Workflow still receives the complete
+transcript as the Activity result.
+
+```typescript
+const model = new TemporalModel('gemini-2.5-flash', {
+  streamingTopic: 'adk-agent-stream',
+  streamingBatchInterval: '100 milliseconds',
+  activity: {
+    startToCloseTimeout: '5 minutes',
+    heartbeatTimeout: '30 seconds',
+  },
+});
+
+for await (const response of model.generateContentAsync(llmRequest, true)) {
+  // `true` requests ADK SSE streaming. Stream subscribers receive chunks on
+  // `adk-agent-stream`; the Workflow receives the transcript here.
+}
+```
+
+### Testing
 
 Import test doubles from the `./testing` entry point to unit-test agents
 without a live model or MCP server:
@@ -169,36 +190,18 @@ const plugin = new GoogleAdkPlugin({
 });
 ```
 
-## Under the hood
+## Operational notes
 
-### Retries
-
-Temporal's `RetryPolicy` is the **sole** retry authority for model calls. Inside
-`invokeModel`, the plugin pins the reconstructed `@google/genai` client's
-`httpOptions.retryOptions.attempts = 1` so the SDK does not run a second retry
-loop _inside_ each Activity attempt (which would multiply latency/request volume
-and hide the real failure from Temporal). One Activity attempt is exactly one
-model request; Temporal owns backoff, `retry-after` handling, and the retry
-budget. Tune it per model via `TemporalModelOptions.activity.retry`.
-
-## Composing with other plugins
-
-Temporal applies `plugins: [...]` in order. Place observability and governance
-plugins **before** this one so model/tool Activities are wrapped by them:
-
-```typescript
-new Client({
-  plugins: [
-    new OpenTelemetryPlugin(), // 1. observability (outermost)
-    new GovernancePlugin(), // 2. governance
-    new GoogleAdkPlugin(), // 3. this plugin
-  ],
-});
-```
-
-This plugin carries no trace context of its own — compose it with
-`@temporalio/interceptors-opentelemetry` for distributed tracing across the
-model/tool Activity boundary.
+- Register `GoogleAdkPlugin` on the Worker. Passing it directly to `Client` does
+  not register the model/MCP Activities. If composing plugins, place
+  observability and governance plugins before this one.
+- Model calls use Temporal retries. The plugin disables nested GenAI SDK retries
+  for model requests and honors `retry-after` where available.
+- Heartbeats are sent only when the Activity options include `heartbeatTimeout`.
+- Streaming topic delivery is at-least-once. The deterministic Workflow value is
+  the Activity result, not the stream side channel.
+- `BaseLlm.connect` live BIDI streaming is not supported inside Workflows.
+- Any ADK extension point that performs I/O must be moved behind an Activity.
 
 ## License
 
