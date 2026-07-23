@@ -22,6 +22,9 @@ export const baseBundlerIgnoreModules = [
   'async-retry',
   'uuid',
   'net',
+  // Node-only test util (uses http2/Buffer/sockets); stubbed out of the workflow bundle since it is
+  // only ever used from test (Node) code, never from workflow code.
+  './poll-gate-proxy',
   'fs/promises',
   'timers',
   'timers/promises',
