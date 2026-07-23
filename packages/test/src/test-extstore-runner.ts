@@ -1,6 +1,11 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import test from 'ava';
-import { ValueError, type Payload } from '@temporalio/common';
+import {
+  ExternalStorageDriverError,
+  ExternalStorageReferenceError,
+  ExternalStorageUnregisteredDriverError,
+  type Payload,
+} from '@temporalio/common';
 import { ExternalStorage } from '@temporalio/common/lib/converter/extstore';
 import { ExternalStorageRunner, isReferencePayload } from '@temporalio/common/lib/internal-non-workflow';
 import { encode } from '@temporalio/common/lib/encoding';
@@ -102,7 +107,7 @@ test('store selector returning null leaves the payload inline', async (t) => {
   t.deepEqual(result, [originalPayload]);
 });
 
-test('store throws ValueError when selector returns an unregistered driver', async (t) => {
+test('store throws ExternalStorageUnregisteredDriverError when selector returns an unregistered driver', async (t) => {
   const registeredDriver = makeFakeDriver({ name: 'a' });
   const strangerDriver = makeFakeDriver({ name: 'a' }); // same name, different identity
   const runner = new ExternalStorageRunner(
@@ -114,25 +119,27 @@ test('store throws ValueError when selector returns an unregistered driver', asy
   );
 
   await t.throwsAsync(() => runner.store([makePayload(1)]), {
-    instanceOf: ValueError,
+    instanceOf: ExternalStorageUnregisteredDriverError,
   });
 });
 
-test('store propagates driver errors unchanged', async (t) => {
+test('store wraps driver errors in ExternalStorageDriverError', async (t) => {
   const boom = new Error('disk full');
   const driver = makeFakeDriver({ name: 's3', onStore: () => Promise.reject(boom) });
   const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }));
 
-  const err = await t.throwsAsync(() => runner.store([makePayload(1)]));
-  t.is(err, boom);
+  const err = await t.throwsAsync(() => runner.store([makePayload(1)]), {
+    instanceOf: ExternalStorageDriverError,
+  });
+  t.is(err?.cause, boom);
 });
 
-test('store raises ValueError on claim arity mismatch', async (t) => {
+test('store raises ExternalStorageReferenceError on claim arity mismatch', async (t) => {
   const driver = makeFakeDriver({ name: 's3', onStore: () => [] });
   const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }));
 
   await t.throwsAsync(() => runner.store([makePayload(1)]), {
-    instanceOf: ValueError,
+    instanceOf: ExternalStorageReferenceError,
   });
 });
 
@@ -184,7 +191,7 @@ test('store/retrieve round-trip preserves order across drivers', async (t) => {
   t.deepEqual(retrievedPayloads, inputPayloads);
 });
 
-test('retrieve raises ValueError when the driver name is unknown', async (t) => {
+test('retrieve raises ExternalStorageUnregisteredDriverError when the driver name is unknown', async (t) => {
   const writerDriver = makeFakeDriver({ name: 'writer' });
   const writerRunner = new ExternalStorageRunner(
     new ExternalStorage({ drivers: [writerDriver], payloadSizeThreshold: 0 })
@@ -195,11 +202,11 @@ test('retrieve raises ValueError when the driver name is unknown', async (t) => 
   const readerRunner = new ExternalStorageRunner(new ExternalStorage({ drivers: [readerDriver] }));
 
   await t.throwsAsync(() => readerRunner.retrieve(storedPayloads), {
-    instanceOf: ValueError,
+    instanceOf: ExternalStorageUnregisteredDriverError,
   });
 });
 
-test('retrieve raises ValueError on payload arity mismatch', async (t) => {
+test('retrieve raises ExternalStorageReferenceError on payload arity mismatch', async (t) => {
   const payloadsToStore = [makePayload(1), makePayload(2)];
   const payloadsToRetrieve = [makePayload(1)];
 
@@ -215,11 +222,11 @@ test('retrieve raises ValueError on payload arity mismatch', async (t) => {
   );
 
   await t.throwsAsync(() => readerRunner.retrieve(storedPayloads), {
-    instanceOf: ValueError,
+    instanceOf: ExternalStorageReferenceError,
   });
 });
 
-test('retrieve propagates driver errors unchanged', async (t) => {
+test('retrieve wraps driver errors in ExternalStorageDriverError', async (t) => {
   const boom = new Error('object gone');
   const writerDriver = makeFakeDriver({ name: 's3' });
   const writerRunner = new ExternalStorageRunner(
@@ -232,8 +239,10 @@ test('retrieve propagates driver errors unchanged', async (t) => {
     new ExternalStorage({ drivers: [readerDriver], payloadSizeThreshold: 0 })
   );
 
-  const err = await t.throwsAsync(() => readerRunner.retrieve(storedPayloads));
-  t.is(err, boom);
+  const err = await t.throwsAsync(() => readerRunner.retrieve(storedPayloads), {
+    instanceOf: ExternalStorageDriverError,
+  });
+  t.is(err?.cause, boom);
 });
 
 test('retrieve only resolves reference payloads, passing others through', async (t) => {
