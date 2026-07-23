@@ -178,6 +178,7 @@ interface WorkflowWithLogAttributes {
   workflow: Workflow;
   logAttributes: Record<string, unknown>;
   workflowCodecRunner: WorkflowCodecRunner;
+  workflowType: string;
 }
 
 function addBuildIdIfMissing(options: CompiledWorkerOptions, bundleCode?: string): CompiledWorkerOptionsWithBuildId {
@@ -1564,6 +1565,7 @@ export class Worker {
                 namespace,
                 id: workflowCodecRunner.workflowContext.workflowId,
                 runId: activation.runId,
+                type: workflow.workflowType,
               },
               deriveContext: workflowCommandStoreTarget(namespace),
             })
@@ -1714,7 +1716,7 @@ export class Worker {
     });
 
     this.numCachedWorkflowsSubject.next(this.numCachedWorkflowsSubject.value + 1);
-    return { workflow, logAttributes, workflowCodecRunner };
+    return { workflow, logAttributes, workflowCodecRunner, workflowType };
   }
 
   /**
@@ -2421,7 +2423,12 @@ function workflowCommandStoreTarget(
     switch (typeName) {
       case 'coresdk.workflow_commands.StartChildWorkflowExecution': {
         const command = message as coresdk.workflow_commands.IStartChildWorkflowExecution;
-        return { kind: 'workflow', namespace: command.namespace || namespace, id: command.workflowId ?? undefined };
+        return {
+          kind: 'workflow',
+          namespace: command.namespace || namespace,
+          id: command.workflowId ?? undefined,
+          type: command.workflowType ?? undefined,
+        };
       }
       case 'coresdk.workflow_commands.SignalExternalWorkflowExecution':
       case 'coresdk.workflow_commands.RequestCancelExternalWorkflowExecution': {
@@ -2431,8 +2438,11 @@ function workflowCommandStoreTarget(
         const workflowId = command.workflowExecution?.workflowId ?? command.childWorkflowId ?? undefined;
         return { kind: 'workflow', namespace: command.workflowExecution?.namespace || namespace, id: workflowId };
       }
-      case 'coresdk.workflow_commands.ContinueAsNewWorkflowExecution':
-        return context ? { ...context, runId: undefined } : context;
+      case 'coresdk.workflow_commands.ContinueAsNewWorkflowExecution': {
+        if (context == null) return context;
+        const command = message as coresdk.workflow_commands.IContinueAsNewWorkflowExecution;
+        return { ...context, runId: undefined, type: command.workflowType || context.type };
+      }
       default:
         return context;
     }
