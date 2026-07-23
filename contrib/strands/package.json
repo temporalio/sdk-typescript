@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/strands-agents",
-  "version": "1.21.0",
+  "version": "1.21.1",
   "description": "Temporal Strands Agents integration package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",

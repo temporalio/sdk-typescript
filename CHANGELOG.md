@@ -19,6 +19,14 @@ to docs, or any other relevant information.
 
 ## [Unreleased]
 
+## [1.21.1] - 2026-07-23
+
+### Fixed
+
+- strands: add `@aws-sdk/client-s3` to the workflow bundler ignore list, fixing bundler errors when
+  using the S3-backed `context-offloader` vended plugin. The package is dynamically imported
+  worker-side and is never reached from workflow code.
+
 ## [1.21.0] - 2026-07-23
 
 ### Added
