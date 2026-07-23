@@ -5,14 +5,7 @@
  * appears direct and user-span-wrapped, handlers cover signal/query/update
  * paths, and the crash boundary is the resume execution's `condition()`.
  */
-import {
-  Agent,
-  RunState,
-  tool,
-  withCustomSpan,
-  createCustomSpan,
-  type Tool,
-} from '@openai/agents-core';
+import { Agent, RunState, tool, withCustomSpan, createCustomSpan, type Tool } from '@openai/agents-core';
 import { Capability, SandboxAgent, type SandboxSessionLike } from '@openai/agents-core/sandbox';
 import * as nexus from 'nexus-rpc';
 import {
