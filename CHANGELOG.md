@@ -61,7 +61,8 @@ to docs, or any other relevant information.
 ### Fixed
 
 - Nexus operation handlers now preserve `nexus.HandlerError` values thrown by payload codecs and converters.
-- `@temporalio/langsmith` now applies its Workflow-bundling rewrites when dependencies are installed without hoisting.
+- `temporal_worker_task_slots_used` no longer counts reserved but unused task slots as in use.
+- When worker heartbeats are enabled, host CPU and memory are sampled at the configured heartbeat interval rather than every 100ms.
 
 ## [1.20.3] - 2026-07-13
 
