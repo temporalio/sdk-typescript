@@ -2447,7 +2447,12 @@ function workflowCommandStoreTarget(
       case 'coresdk.workflow_commands.CompleteWorkflowExecution': {
         const { parent } = info;
         if (parent == null || info.continuedFromExecutionRunId != null) return context;
-        return { kind: 'workflow', namespace: parent.namespace || namespace, id: parent.workflowId, runId: parent.runId };
+        return {
+          kind: 'workflow',
+          namespace: parent.namespace || namespace,
+          id: parent.workflowId,
+          runId: parent.runId,
+        };
       }
       default:
         return context;
