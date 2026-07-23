@@ -22,3 +22,9 @@ export interface ConverterHint<T = unknown> {
   converter: string;
   [valueTypeBrand]?: T;
 }
+
+/** @experimental */
+export interface PayloadTypeInfo {
+  inputTypes?: readonly TypeInfo[];
+  outputType?: TypeInfo;
+}
