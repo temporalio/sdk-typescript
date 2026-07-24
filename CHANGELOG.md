@@ -19,11 +19,15 @@ to docs, or any other relevant information.
 
 ## [Unreleased]
 
+### Fixed
+
+- strands: Declare `zod` as a peer dependency.
+
 ## [1.21.1] - 2026-07-23
 
 ### Fixed
 
-- strands: add `@aws-sdk/client-s3` to the workflow bundler ignore list, fixing bundler errors when
+- strands: Add `@aws-sdk/client-s3` to the workflow bundler ignore list, fixing bundler errors when
   using the S3-backed `context-offloader` vended plugin. The package is dynamically imported
   worker-side and is never reached from workflow code.
 
