@@ -23,7 +23,8 @@ to docs, or any other relevant information.
 
 - **Experimental**: Added `TypeInfo`, `TransferTypeConverter`, and `ConverterHint` to `@temporalio/common` for converting
   application values to and from serialization-friendly transfer types and supplying converter-specific metadata
-  during payload conversion, including client-started Workflow inputs and results.
+  during payload conversion, including client-started Workflow inputs and results, child Workflow calls, and
+  continue-as-new.
 
 ## [1.21.1] - 2026-07-23
 
