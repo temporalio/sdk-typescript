@@ -1213,8 +1213,7 @@ export class WorkflowClient extends BaseClient {
     } catch (err) {
       this.rethrowUpdateGrpcError(err, 'Workflow Update failed', input.workflowExecution);
     }
-<<<<<<< HEAD
-    await visit(response, walkUpdateWorkflowExecutionResponse, extstoreInboundOptions(externalStorage));
+    
     const internalOptions = (input.options as InternalWorkflowUpdateOptions)[InternalWorkflowUpdateOptionsSymbol];
     if (internalOptions != null) {
       // Capture the link the server attached to the Update response so the Nexus helper can add it
@@ -1224,8 +1223,6 @@ export class WorkflowClient extends BaseClient {
       // Update (return a synchronous result) from one that is merely accepted (return async).
       internalOptions.outcome = response.outcome ?? undefined;
     }
-=======
->>>>>>> 8ab23a36 (wrap external storage errors in the contextual error type)
     return {
       updateId: request.request!.meta!.updateId!,
 
