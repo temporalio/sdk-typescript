@@ -228,7 +228,7 @@ function startNexusOperationNextHandler({
         service,
         operation,
         nexusHeader: headers,
-        input: activator.payloadConverter.toPayload(input, context),
+        input: activator.payloadConverter.toPayloadWithTypeInfo(input, context, undefined),
         scheduleToCloseTimeout: msOptionalToTs(options?.scheduleToCloseTimeout),
         scheduleToStartTimeout: msOptionalToTs(options?.scheduleToStartTimeout),
         startToCloseTimeout: msOptionalToTs(options?.startToCloseTimeout),

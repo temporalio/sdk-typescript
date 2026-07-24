@@ -3,7 +3,11 @@ import * as nexus from 'nexus-rpc';
 import { isGrpcServiceError, ServiceError } from '@temporalio/client';
 import type { LoadedDataConverter, Payload, ProtoFailure } from '@temporalio/common';
 import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
-import { encodeErrorToFailure, decodeOptionalSingle } from '@temporalio/common/lib/internal-non-workflow';
+import {
+  encodeErrorToFailure,
+  decodeOptionalSingle,
+  getTypeInfoAwarePayloadConverter,
+} from '@temporalio/common/lib/internal-non-workflow';
 import type { temporal } from '@temporalio/proto';
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -29,7 +33,11 @@ export async function decodePayload(
   }
 
   try {
-    return dataConverter.payloadConverter.fromPayload(decoded);
+    return getTypeInfoAwarePayloadConverter(dataConverter.payloadConverter).fromPayloadWithTypeInfo(
+      decoded,
+      undefined,
+      undefined
+    );
   } catch (err) {
     if (err instanceof ApplicationFailure || err instanceof nexus.HandlerError) {
       throw err;

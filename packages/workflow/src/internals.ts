@@ -3,7 +3,6 @@ import type { RawSourceMap } from 'source-map';
 import type {
   ActivitySerializationContext,
   FailureConverter,
-  PayloadConverter,
   ProtoFailure,
   Workflow,
   WorkflowFunctionWithOptions,
@@ -34,7 +33,8 @@ import {
   decodeSearchAttributes,
   decodeTypedSearchAttributes,
 } from '@temporalio/common/lib/converter/payload-search-attributes';
-import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
+import type { TypeInfoAwarePayloadConverter } from '@temporalio/common/lib/internal-workflow';
+import { getTypeInfoAwarePayloadConverter, makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import type { coresdk, temporal } from '@temporalio/proto';
 import {
   TEMPORAL_RESERVED_PREFIX,
@@ -462,7 +462,7 @@ export class Activator implements ActivationHandler {
 
   protected currentRandomStorage?: ALS<ScopedWorkflowRandomSource | undefined>;
 
-  public payloadConverter: PayloadConverter = defaultPayloadConverter;
+  public payloadConverter: TypeInfoAwarePayloadConverter = getTypeInfoAwarePayloadConverter(defaultPayloadConverter);
   public failureConverter: FailureConverter = defaultFailureConverter;
 
   /**
@@ -696,7 +696,9 @@ export class Activator implements ActivationHandler {
     const { resolve, reject, context } = this.consumeCompletion('activity', getSeq(activation));
     if (activation.result.completed) {
       const completed = activation.result.completed;
-      const result = completed.result ? this.payloadConverter.fromPayload(completed.result, context) : undefined;
+      const result = completed.result
+        ? this.payloadConverter.fromPayloadWithTypeInfo(completed.result, context, undefined)
+        : undefined;
       resolve(result);
     } else if (activation.result.failed) {
       const { failure } = activation.result.failed;
@@ -755,7 +757,9 @@ export class Activator implements ActivationHandler {
     const { resolve, reject, context } = this.consumeCompletion('childWorkflowComplete', getSeq(activation));
     if (activation.result.completed) {
       const completed = activation.result.completed;
-      const result = completed.result ? this.payloadConverter.fromPayload(completed.result, context) : undefined;
+      const result = completed.result
+        ? this.payloadConverter.fromPayloadWithTypeInfo(completed.result, context, undefined)
+        : undefined;
       resolve(result);
     } else if (activation.result.failed) {
       const { failure } = activation.result.failed;
@@ -797,7 +801,7 @@ export class Activator implements ActivationHandler {
     const context = this.workflowSerializationContext();
 
     if (activation.result?.completed) {
-      const result = this.payloadConverter.fromPayload(activation.result.completed, context);
+      const result = this.payloadConverter.fromPayloadWithTypeInfo(activation.result.completed, context, undefined);
 
       // It is possible for ResolveNexusOperation to be received without a prior ResolveNexusOperationStart,
       // e.g. because the handler completed the Operation synchronously.
@@ -1379,7 +1383,10 @@ export class Activator implements ActivationHandler {
   private completeQuery(queryId: string, result: unknown): void {
     const context = this.workflowSerializationContext();
     this.pushCommand({
-      respondToQuery: { queryId, succeeded: { response: this.payloadConverter.toPayload(result, context) } },
+      respondToQuery: {
+        queryId,
+        succeeded: { response: this.payloadConverter.toPayloadWithTypeInfo(result, context, undefined) },
+      },
     });
   }
 
@@ -1399,7 +1406,10 @@ export class Activator implements ActivationHandler {
   private completeUpdate(protocolInstanceId: string, result: unknown): void {
     const context = this.workflowSerializationContext();
     this.pushCommand({
-      updateResponse: { protocolInstanceId, completed: this.payloadConverter.toPayload(result, context) },
+      updateResponse: {
+        protocolInstanceId,
+        completed: this.payloadConverter.toPayloadWithTypeInfo(result, context, undefined),
+      },
     });
   }
 
@@ -1441,7 +1451,7 @@ export class Activator implements ActivationHandler {
     this.pushCommand(
       {
         completeWorkflowExecution: {
-          result: this.payloadConverter.toPayload(result, context),
+          result: this.payloadConverter.toPayloadWithTypeInfo(result, context, undefined),
         },
       },
       true

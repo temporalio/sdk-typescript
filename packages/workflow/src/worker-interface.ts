@@ -5,6 +5,7 @@
  */
 import type { WorkflowFunctionWithOptions } from '@temporalio/common';
 import { encodeVersioningBehavior, IllegalStateError } from '@temporalio/common';
+import { getTypeInfoAwarePayloadConverter } from '@temporalio/common/lib/internal-workflow';
 import type { coresdk } from '@temporalio/proto';
 import type { WorkflowInterceptorsFactory } from './interceptors';
 import type { WorkflowCreateOptionsInternal } from './interfaces';
@@ -48,7 +49,7 @@ export function initRuntime(options: WorkflowCreateOptionsInternal): void {
     const customPayloadConverter = require('__temporal_custom_payload_converter').payloadConverter;
     // The `payloadConverter` export is validated in the Worker
     if (customPayloadConverter != null) {
-      activator.payloadConverter = customPayloadConverter;
+      activator.payloadConverter = getTypeInfoAwarePayloadConverter(customPayloadConverter);
     }
     // webpack alias to failureConverterPath
     // eslint-disable-next-line @typescript-eslint/no-require-imports

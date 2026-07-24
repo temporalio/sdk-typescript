@@ -13,6 +13,7 @@ import type { LoadedDataConverter } from '../converter/data-converter';
 import type { UserMetadata } from '../user-metadata';
 import type { SerializationContext } from '../converter/serialization-context';
 import type { TypeInfo } from '../type-info';
+import { getTypeInfoAwarePayloadConverter } from '../converter/type-info-aware-payload-converter';
 import type { DecodedPayload, DecodedProtoFailure, EncodedPayload, EncodedProtoFailure } from './codec-types';
 
 /**
@@ -110,7 +111,7 @@ export async function decodeOptionalSinglePayload<T>(
   const { payloadConverter, payloadCodecs } = dataConverter;
   const decoded = await decodeOptionalSingle(payloadCodecs, payload, context);
   if (decoded == null) return decoded;
-  return payloadConverter.fromPayload(decoded, context);
+  return getTypeInfoAwarePayloadConverter(payloadConverter).fromPayloadWithTypeInfo(decoded, context, undefined);
 }
 
 /**
@@ -122,7 +123,8 @@ export async function encodeToPayload(
   context?: SerializationContext
 ): Promise<Payload> {
   const { payloadConverter, payloadCodecs } = converter;
-  return await encodeSingle(payloadCodecs, payloadConverter.toPayload(value, context), context);
+  const payload = getTypeInfoAwarePayloadConverter(payloadConverter).toPayloadWithTypeInfo(value, context, undefined);
+  return await encodeSingle(payloadCodecs, payload, context);
 }
 
 /**
@@ -220,11 +222,12 @@ export async function decodeMapFromPayloads<K extends string>(
 ): Promise<Record<K, unknown> | undefined> {
   if (!map) return undefined;
   const { payloadConverter, payloadCodecs } = converter;
+  const typeInfoAwareConverter = getTypeInfoAwarePayloadConverter(payloadConverter);
   return Object.fromEntries(
     await Promise.all(
       Object.entries(map).map(async ([k, payload]): Promise<[K, unknown]> => {
         const [decodedPayload] = await decode(payloadCodecs, [payload as Payload], context);
-        const value = payloadConverter.fromPayload(decodedPayload!, context);
+        const value = typeInfoAwareConverter.fromPayloadWithTypeInfo(decodedPayload!, context, undefined);
         return [k as K, value];
       })
     )
@@ -257,10 +260,11 @@ export async function encodeMapToPayloads<K extends string>(
   context?: SerializationContext
 ): Promise<Record<K, Payload>> {
   const { payloadConverter, payloadCodecs } = converter;
+  const typeInfoAwareConverter = getTypeInfoAwarePayloadConverter(payloadConverter);
   return Object.fromEntries(
     await Promise.all(
       Object.entries(map).map(async ([k, v]): Promise<[K, Payload]> => {
-        const payload = payloadConverter.toPayload(v, context);
+        const payload = typeInfoAwareConverter.toPayloadWithTypeInfo(v, context, undefined);
         if (payload === undefined) throw new PayloadConverterError(`Failed to encode entry: ${k}: ${v}`);
         const [encodedPayload] = await encode(payloadCodecs, [payload], context);
         return [k as K, encodedPayload!];

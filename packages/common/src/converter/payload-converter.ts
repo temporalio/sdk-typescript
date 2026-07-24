@@ -71,7 +71,7 @@ export function convertOptionalToPayload(
 ): Payload | null | undefined {
   if (value == null) return value;
 
-  return payloadConverter.toPayload(value, context);
+  return getTypeInfoAwarePayloadConverter(payloadConverter).toPayloadWithTypeInfo(value, context, undefined);
 }
 
 /**
@@ -84,8 +84,12 @@ export function mapToPayloads<K extends string, T = any>(
   map: Record<K, T>,
   context?: SerializationContext
 ): Record<K, Payload> {
+  const typeInfoAwareConverter = getTypeInfoAwarePayloadConverter(converter);
   return Object.fromEntries(
-    Object.entries(map).map(([k, v]): [K, Payload] => [k as K, converter.toPayload(v, context)])
+    Object.entries(map).map(([k, v]): [K, Payload] => [
+      k as K,
+      typeInfoAwareConverter.toPayloadWithTypeInfo(v, context, undefined),
+    ])
   ) as Record<K, Payload>;
 }
 
@@ -142,9 +146,10 @@ export function mapFromPayloads<K extends string, T = unknown>(
   context?: SerializationContext
 ): Record<K, T> | undefined {
   if (map == null) return undefined;
+  const typeInfoAwareConverter = getTypeInfoAwarePayloadConverter(converter);
   return Object.fromEntries(
     Object.entries(map).map(([k, payload]): [K, unknown] => {
-      const value = converter.fromPayload(payload as Payload, context);
+      const value = typeInfoAwareConverter.fromPayloadWithTypeInfo(payload as Payload, context, undefined);
       return [k as K, value];
     })
   ) as Record<K, T>;

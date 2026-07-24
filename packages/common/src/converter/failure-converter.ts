@@ -27,6 +27,7 @@ import { encode } from '../encoding';
 import type { PayloadConverter } from './payload-converter';
 import { arrayFromPayloads, fromPayloadsAtIndex, toPayloadsWithContext } from './payload-converter';
 import type { SerializationContext } from './serialization-context';
+import { getTypeInfoAwarePayloadConverter } from './type-info-aware-payload-converter';
 
 // Can't import proto enums into the workflow sandbox, use this helper type and enum converter instead.
 const NexusHandlerErrorRetryBehavior = {
@@ -278,7 +279,9 @@ export class DefaultFailureConverter implements FailureConverter {
 
   failureToError(failure: ProtoFailure, payloadConverter: PayloadConverter, context?: SerializationContext): Error {
     if (failure.encodedAttributes) {
-      const attrs = payloadConverter.fromPayload<DefaultEncodedFailureAttributes>(failure.encodedAttributes, context);
+      const attrs = getTypeInfoAwarePayloadConverter(
+        payloadConverter
+      ).fromPayloadWithTypeInfo<DefaultEncodedFailureAttributes>(failure.encodedAttributes, context, undefined);
       // Don't apply encodedAttributes unless they conform to an expected schema
       if (typeof attrs === 'object' && attrs !== null) {
         const { message, stack_trace } = attrs;
@@ -306,7 +309,11 @@ export class DefaultFailureConverter implements FailureConverter {
       const { message, stackTrace } = failure;
       failure.message = 'Encoded failure';
       failure.stackTrace = '';
-      failure.encodedAttributes = payloadConverter.toPayload({ message, stack_trace: stackTrace }, context);
+      failure.encodedAttributes = getTypeInfoAwarePayloadConverter(payloadConverter).toPayloadWithTypeInfo(
+        { message, stack_trace: stackTrace },
+        context,
+        undefined
+      );
     }
     return failure;
   }

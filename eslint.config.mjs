@@ -151,6 +151,25 @@ export default tseslint.config(
     },
   },
   {
+    files: ['packages/{client,worker,workflow}/src/**/*.ts'],
+    ignores: ['packages/{client,worker,workflow}/src/**/__tests__/**/*.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "CallExpression[callee.type='MemberExpression'][callee.object.type='MemberExpression'][callee.object.property.name='payloadConverter'][callee.property.name=/^(toPayload|fromPayload)$/]",
+          message: 'SDK runtime code must use TypeInfoAwarePayloadConverter so TypeInfo processing cannot be bypassed.',
+        },
+        {
+          selector:
+            "CallExpression[callee.type='MemberExpression'][callee.object.type='Identifier'][callee.object.name='payloadConverter'][callee.property.name=/^(toPayload|fromPayload)$/]",
+          message: 'SDK runtime code must use TypeInfoAwarePayloadConverter so TypeInfo processing cannot be bypassed.',
+        },
+      ],
+    },
+  },
+  {
     files: ['contrib/openai-agents/src/**/*.ts'],
     ignores: ['contrib/openai-agents/src/__tests__/**'],
     rules: {
