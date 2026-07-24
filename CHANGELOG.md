@@ -19,6 +19,11 @@ to docs, or any other relevant information.
 
 ## [Unreleased]
 
+### Added
+
+- Workers can now limit concurrent eager activity executions with
+  `maxConcurrentEagerActivityExecutionSize`.
+
 ### Fixed
 
 - strands: Declare `zod` as a peer dependency.

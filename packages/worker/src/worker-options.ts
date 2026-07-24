@@ -270,6 +270,15 @@ export interface WorkerOptions {
   maxTaskQueueActivitiesPerSecond?: number;
 
   /**
+   * Maximum number of eager Activities that can be reserved and executed concurrently by this Worker.
+   *
+   * A value of `0` or an unset value means there is no limit.
+   *
+   * @default 0
+   */
+  maxConcurrentEagerActivityExecutionSize?: number;
+
+  /**
    * Maximum number of Workflow Tasks to execute concurrently.
    *
    * In general, a Workflow Worker's performance is mostly network bound (due to communication latency with the
@@ -759,6 +768,7 @@ export interface ReplayWorkerOptions
     | 'enableNonLocalActivities'
     | 'maxActivitiesPerSecond'
     | 'maxTaskQueueActivitiesPerSecond'
+    | 'maxConcurrentEagerActivityExecutionSize'
     | 'stickyQueueScheduleToStartTimeout'
     | 'maxCachedWorkflows'
     | 'useVersioning'
@@ -1212,6 +1222,7 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
     defaultHeartbeatThrottleInterval: msToNumber(opts.defaultHeartbeatThrottleInterval),
     maxTaskQueueActivitiesPerSecond: opts.maxTaskQueueActivitiesPerSecond ?? null,
     maxActivitiesPerSecond: opts.maxActivitiesPerSecond ?? null,
+    maxConcurrentEagerActivityExecutionSize: opts.maxConcurrentEagerActivityExecutionSize ?? 0,
     shutdownGraceTime: msToNumber(opts.shutdownGraceTime),
     plugins: opts.plugins?.map((p) => p.name) ?? [],
     storageDrivers: [...new Set((opts.loadedDataConverter.externalStorage?.drivers ?? []).map((d) => d.type))],

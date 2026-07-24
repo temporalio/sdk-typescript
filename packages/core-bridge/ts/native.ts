@@ -262,6 +262,7 @@ export interface WorkerOptions {
   defaultHeartbeatThrottleInterval: number;
   maxTaskQueueActivitiesPerSecond: Option<number>;
   maxActivitiesPerSecond: Option<number>;
+  maxConcurrentEagerActivityExecutionSize: number;
   shutdownGraceTime: number;
   plugins: string[];
   storageDrivers: string[];
