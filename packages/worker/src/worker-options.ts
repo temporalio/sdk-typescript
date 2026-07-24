@@ -272,7 +272,7 @@ export interface WorkerOptions {
   /**
    * Maximum number of Activity slots that may be reserved for eager execution when completing a Workflow Task.
    *
-   * Setting this to `0` disables eager Activity execution.
+   * Must be a non-negative integer. Setting this to `0` disables eager Activity execution.
    *
    * @default 3
    */
@@ -1114,6 +1114,13 @@ export function compileWorkerOptions(
   }
 
   const opts = addDefaultWorkerOptions(rawOpts, logger, metricMeter);
+  if (
+    opts.maxEagerActivityReservationsPerWorkflowTask !== undefined &&
+    (!Number.isSafeInteger(opts.maxEagerActivityReservationsPerWorkflowTask) ||
+      opts.maxEagerActivityReservationsPerWorkflowTask < 0)
+  ) {
+    throw new TypeError('maxEagerActivityReservationsPerWorkflowTask must be a non-negative integer');
+  }
   if (opts.maxCachedWorkflows !== 0 && opts.maxCachedWorkflows < 2) {
     logger.warn('maxCachedWorkflows must be either 0 (ie. cache is disabled) or greater than 1. Defaulting to 2.');
     opts.maxCachedWorkflows = 2;

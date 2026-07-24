@@ -22,7 +22,8 @@ to docs, or any other relevant information.
 ### Added
 
 - Workers can now configure the number of activity slots reserved for eager execution per
-  workflow task with `maxEagerActivityReservationsPerWorkflowTask`.
+  workflow task with `maxEagerActivityReservationsPerWorkflowTask`. Setting it to zero disables
+  eager activity execution.
 
 ### Fixed
 
