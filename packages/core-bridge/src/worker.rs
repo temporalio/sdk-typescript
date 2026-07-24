@@ -546,7 +546,7 @@ mod config {
         default_heartbeat_throttle_interval: Duration,
         max_activities_per_second: Option<f64>,
         max_task_queue_activities_per_second: Option<f64>,
-        max_concurrent_eager_activity_execution_size: usize,
+        max_eager_activity_reservations_per_workflow_task: usize,
         shutdown_grace_time: Option<Duration>,
         plugins: Vec<String>,
         storage_drivers: Vec<String>,
@@ -640,8 +640,8 @@ mod config {
                     self.max_task_queue_activities_per_second,
                 )
                 .maybe_max_worker_activities_per_second(self.max_activities_per_second)
-                .max_concurrent_eager_activity_execution_size(
-                    self.max_concurrent_eager_activity_execution_size,
+                .max_eager_activity_reservations_per_workflow_task(
+                    self.max_eager_activity_reservations_per_workflow_task,
                 )
                 .maybe_graceful_shutdown_period(self.shutdown_grace_time)
                 .plugins(

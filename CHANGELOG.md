@@ -21,8 +21,8 @@ to docs, or any other relevant information.
 
 ### Added
 
-- Workers can now limit concurrent eager activity executions with
-  `maxConcurrentEagerActivityExecutionSize`.
+- Workers can now configure the number of activity slots reserved for eager execution per
+  workflow task with `maxEagerActivityReservationsPerWorkflowTask`.
 
 ### Fixed
 

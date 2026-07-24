@@ -270,13 +270,13 @@ export interface WorkerOptions {
   maxTaskQueueActivitiesPerSecond?: number;
 
   /**
-   * Maximum number of eager Activities that can be reserved and executed concurrently by this Worker.
+   * Maximum number of Activity slots that may be reserved for eager execution when completing a Workflow Task.
    *
-   * A value of `0` or an unset value means there is no limit.
+   * Setting this to `0` disables eager Activity execution.
    *
-   * @default 0
+   * @default 3
    */
-  maxConcurrentEagerActivityExecutionSize?: number;
+  maxEagerActivityReservationsPerWorkflowTask?: number;
 
   /**
    * Maximum number of Workflow Tasks to execute concurrently.
@@ -768,7 +768,7 @@ export interface ReplayWorkerOptions
     | 'enableNonLocalActivities'
     | 'maxActivitiesPerSecond'
     | 'maxTaskQueueActivitiesPerSecond'
-    | 'maxConcurrentEagerActivityExecutionSize'
+    | 'maxEagerActivityReservationsPerWorkflowTask'
     | 'stickyQueueScheduleToStartTimeout'
     | 'maxCachedWorkflows'
     | 'useVersioning'
@@ -1222,7 +1222,7 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
     defaultHeartbeatThrottleInterval: msToNumber(opts.defaultHeartbeatThrottleInterval),
     maxTaskQueueActivitiesPerSecond: opts.maxTaskQueueActivitiesPerSecond ?? null,
     maxActivitiesPerSecond: opts.maxActivitiesPerSecond ?? null,
-    maxConcurrentEagerActivityExecutionSize: opts.maxConcurrentEagerActivityExecutionSize ?? 0,
+    maxEagerActivityReservationsPerWorkflowTask: opts.maxEagerActivityReservationsPerWorkflowTask ?? 3,
     shutdownGraceTime: msToNumber(opts.shutdownGraceTime),
     plugins: opts.plugins?.map((p) => p.name) ?? [],
     storageDrivers: [...new Set((opts.loadedDataConverter.externalStorage?.drivers ?? []).map((d) => d.type))],
