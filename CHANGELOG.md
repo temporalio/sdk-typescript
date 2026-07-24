@@ -19,6 +19,16 @@ to docs, or any other relevant information.
 
 ## [Unreleased]
 
+### Added
+
+- `@temporalio/ai-sdk`: `listToolsActivity`/`callToolActivity` now reuse a single MCP client connection
+  across repeated invocations for the same server instead of creating and closing one on every call,
+  porting the idle-timeout connection pooling pattern already shipped in `@temporalio/strands-agents`.
+  Configure the idle window via the new `mcpConnectionIdleTimeout` option on `createActivities` and
+  `AiSdkPluginOptions` (defaults to 5 minutes); pass `mcpConnectionIdleTimeout: 0` to opt out and restore
+  the original create-then-close-per-call behavior for MCP servers/transports that don't tolerate a
+  reused or concurrent session.
+
 ## [1.21.0] - 2026-07-23
 
 ### Added

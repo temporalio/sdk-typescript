@@ -26,6 +26,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { createMCPClient } from '@ai-sdk/mcp';
+import { jsonSchema } from 'ai';
 import { temporal } from '@temporalio/proto';
 import { WorkflowClient } from '@temporalio/client';
 import type { OpenTelemetrySinks } from '@temporalio/interceptors-opentelemetry';
@@ -590,7 +591,11 @@ test('MCP client connection is reused across repeated tools()/callTool invocatio
         return {
           testTool: {
             description: 'A test tool',
-            inputSchema: { type: 'object' },
+            // The real @ai-sdk/mcp client always normalizes tool input schemas into a Schema
+            // object via `jsonSchema()` before returning them from `tools()`; a bare JSON
+            // Schema literal (e.g. `{ type: 'object' }`) is not a valid `FlexibleSchema` and
+            // makes `asSchema()` in `extractTools` (used by `listToolsActivity`) throw.
+            inputSchema: jsonSchema({ type: 'object' }),
             execute: async () => ({ result: clientId }),
           },
         };
