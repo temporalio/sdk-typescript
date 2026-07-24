@@ -32,6 +32,7 @@ import {
   encodeWorkflowIdConflictPolicy,
   compilePriority,
   extractWorkflowTypeAndConfig,
+  ExternalStorageError,
 } from '@temporalio/common';
 import { encodeUserMetadata } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
 import { encodeUnifiedSearchAttributes } from '@temporalio/common/lib/converter/payload-search-attributes';
@@ -926,13 +927,13 @@ export class WorkflowClient extends BaseClient {
 
     for (;;) {
       let res: temporal.api.workflowservice.v1.GetWorkflowExecutionHistoryResponse;
+      const externalStorage = this.dataConverter.externalStorage;
       try {
         res = await this.workflowService.getWorkflowExecutionHistory(req);
+        await visit(res, walkGetWorkflowExecutionHistoryResponse, extstoreInboundOptions(externalStorage));
       } catch (err) {
         this.rethrowGrpcError(err, 'Failed to get Workflow execution history', { workflowId, runId });
       }
-      const externalStorage = this.dataConverter.externalStorage;
-      await visit(res, walkGetWorkflowExecutionHistoryResponse, extstoreInboundOptions(externalStorage));
       const events = res.history?.events;
 
       if (events == null || events.length === 0) {
@@ -1058,6 +1059,9 @@ export class WorkflowClient extends BaseClient {
 
       throw new ServiceError(fallbackMessage, { cause: err });
     }
+    if (err instanceof ExternalStorageError) {
+      throw new ServiceError('External storage failed', { cause: err });
+    }
     throw new ServiceError('Unexpected error while making gRPC request', { cause: err as Error });
   }
 
@@ -1082,22 +1086,23 @@ export class WorkflowClient extends BaseClient {
       },
     };
     const externalStorage = this.dataConverter.externalStorage;
-    if (externalStorage) {
-      await visit(
-        req,
-        walkQueryWorkflowRequest,
-        extstoreStoreOptions(externalStorage, {
-          initialTarget: {
-            kind: 'workflow',
-            namespace: this.options.namespace,
-            id: input.workflowExecution.workflowId ?? undefined,
-          },
-        })
-      );
-    }
     let response: temporal.api.workflowservice.v1.QueryWorkflowResponse;
     try {
+      if (externalStorage) {
+        await visit(
+          req,
+          walkQueryWorkflowRequest,
+          extstoreStoreOptions(externalStorage, {
+            initialTarget: {
+              kind: 'workflow',
+              namespace: this.options.namespace,
+              id: input.workflowExecution.workflowId ?? undefined,
+            },
+          })
+        );
+      }
       response = await this.workflowService.queryWorkflow(req);
+      await visit(response, walkQueryWorkflowResponse, extstoreInboundOptions(externalStorage));
     } catch (err) {
       if (isGrpcServiceError(err)) {
         rethrowKnownErrorTypes(err);
@@ -1107,7 +1112,6 @@ export class WorkflowClient extends BaseClient {
       }
       this.rethrowGrpcError(err, 'Failed to query Workflow', input.workflowExecution);
     }
-    await visit(response, walkQueryWorkflowResponse, extstoreInboundOptions(externalStorage));
     if (response.queryRejected) {
       if (response.queryRejected.status === undefined || response.queryRejected.status === null) {
         throw new TypeError('Received queryRejected from server with no status');
@@ -1181,33 +1185,35 @@ export class WorkflowClient extends BaseClient {
 
     const request = await this._createUpdateWorkflowRequest(waitForStageProto, input);
     const externalStorage = this.dataConverter.externalStorage;
-    if (externalStorage) {
-      await visit(
-        request,
-        walkUpdateWorkflowExecutionRequest,
-        extstoreStoreOptions(externalStorage, {
-          initialTarget: {
-            kind: 'workflow',
-            namespace: this.options.namespace,
-            id: input.workflowExecution.workflowId ?? undefined,
-          },
-        })
-      );
-    }
 
     // Repeatedly send UpdateWorkflowExecution until update is durable (if the server receives a request with
     // an update ID that already exists, it responds with information for the existing update). If the
     // requested wait stage is COMPLETED, further polling is done before returning the UpdateHandle.
     let response: temporal.api.workflowservice.v1.UpdateWorkflowExecutionResponse;
     try {
+      if (externalStorage) {
+        await visit(
+          request,
+          walkUpdateWorkflowExecutionRequest,
+          extstoreStoreOptions(externalStorage, {
+            initialTarget: {
+              kind: 'workflow',
+              namespace: this.options.namespace,
+              id: input.workflowExecution.workflowId ?? undefined,
+            },
+          })
+        );
+      }
       do {
         response = await this.workflowService.updateWorkflowExecution(request);
       } while (
         response.stage < UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED
       );
+      await visit(response, walkUpdateWorkflowExecutionResponse, extstoreInboundOptions(externalStorage));
     } catch (err) {
       this.rethrowUpdateGrpcError(err, 'Workflow Update failed', input.workflowExecution);
     }
+<<<<<<< HEAD
     await visit(response, walkUpdateWorkflowExecutionResponse, extstoreInboundOptions(externalStorage));
     const internalOptions = (input.options as InternalWorkflowUpdateOptions)[InternalWorkflowUpdateOptionsSymbol];
     if (internalOptions != null) {
@@ -1218,6 +1224,8 @@ export class WorkflowClient extends BaseClient {
       // Update (return a synchronous result) from one that is merely accepted (return async).
       internalOptions.outcome = response.outcome ?? undefined;
     }
+=======
+>>>>>>> 8ab23a36 (wrap external storage errors in the contextual error type)
     return {
       updateId: request.request!.meta!.updateId!,
 
@@ -1959,6 +1967,7 @@ export class WorkflowClient extends BaseClient {
     let nextPageToken: Uint8Array = Buffer.alloc(0);
     for (;;) {
       let response: temporal.api.workflowservice.v1.ListWorkflowExecutionsResponse;
+      const externalStorage = this.dataConverter.externalStorage;
       try {
         response = await this.workflowService.listWorkflowExecutions({
           namespace: this.options.namespace,
@@ -1966,11 +1975,10 @@ export class WorkflowClient extends BaseClient {
           nextPageToken,
           pageSize: options?.pageSize,
         });
+        await visit(response, walkListWorkflowExecutionsResponse, extstoreInboundOptions(externalStorage));
       } catch (e) {
         this.rethrowGrpcError(e, 'Failed to list workflows', undefined);
       }
-      const externalStorage = this.dataConverter.externalStorage;
-      await visit(response, walkListWorkflowExecutionsResponse, extstoreInboundOptions(externalStorage));
       // Not decoding memo payloads concurrently even though we could have to keep the lazy nature of this iterator.
       // Decoding is done for `memo` fields which tend to be small.
       // We might decide to change that based on user feedback.
