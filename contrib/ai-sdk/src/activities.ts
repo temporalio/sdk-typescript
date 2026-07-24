@@ -11,10 +11,11 @@ import type {
   ProviderV4,
 } from '@ai-sdk/provider';
 import { asSchema, type Schema, type ToolExecutionOptions } from 'ai';
+import type { MCPClient } from '@ai-sdk/mcp';
 import { ApplicationFailure } from '@temporalio/common';
 import { Context } from '@temporalio/activity';
 import { WorkflowStreamClient } from '@temporalio/workflow-streams/client';
-import type { Duration } from '@temporalio/common/lib/time';
+import { msOptionalToNumber, type Duration } from '@temporalio/common/lib/time';
 import type { McpClientFactories, McpClientFactory } from './mcp';
 
 const encoder = new TextEncoder();
@@ -78,17 +79,162 @@ export interface CallToolArgs {
 }
 
 /**
+ * Options controlling MCP connection reuse for {@link createActivities}.
+ *
+ * @experimental The AI SDK integration is an experimental feature; APIs may change without notice.
+ */
+export interface CreateActivitiesOptions {
+  /**
+   * How long an idle MCP client connection is kept open (and reused across
+   * `listTools`/`callTool` activity invocations) before it's closed. The timer
+   * resets on every reuse. Accepts a millisecond number or a duration string
+   * (e.g. `'5 minutes'`), like `startToCloseTimeout`. Defaults to
+   * {@link MCP_CONNECTION_IDLE_MS} (5 minutes).
+   *
+   * Pass `0` to disable connection reuse and restore the original
+   * create-then-close-per-call behavior, for MCP servers/transports that
+   * don't tolerate a reused or concurrent session.
+   */
+  mcpConnectionIdleTimeout?: Duration;
+}
+
+/**
+ * Default for how long an idle MCP connection is kept open before it's closed.
+ * Override via {@link CreateActivitiesOptions.mcpConnectionIdleTimeout}.
+ */
+export const MCP_CONNECTION_IDLE_MS = 5 * 60 * 1000;
+
+// Worker-process cache of MCP client connections, keyed by `${server name}:${JSON.stringify(clientArgs)}`
+// so distinct `clientArgs` for the same server (e.g. different auth) get distinct connections. Activities
+// run in the worker's Node process, so this module state is shared across every activity invocation on
+// the worker, matching how `@temporalio/strands-agents`'s plugin scopes its connection cache.
+//
+// `refCount` tracks calls currently in flight against this connection. The idle-eviction timer is only
+// armed while `refCount` is 0, so a connection is never closed out from under a call still using it,
+// however long that call takes. `broken` marks a connection as suspect after a failed call; it's only
+// actually evicted once `refCount` drops back to 0, so an error in one concurrent call can't tear down
+// the session for sibling calls still mid-`execute()` on the same connection.
+interface McpConnectionEntry {
+  client: Promise<MCPClient>;
+  idleTimer?: NodeJS.Timeout;
+  refCount: number;
+  broken: boolean;
+}
+
+const mcpConnections = new Map<string, McpConnectionEntry>();
+
+function mcpConnectionKey(name: string, clientArgs: unknown): string {
+  return `${name}:${JSON.stringify(clientArgs) ?? 'undefined'}`;
+}
+
+function clearIdleTimer(entry: McpConnectionEntry): void {
+  if (entry.idleTimer === undefined) return;
+  clearTimeout(entry.idleTimer);
+  entry.idleTimer = undefined;
+}
+
+function armIdleTimer(key: string, entry: McpConnectionEntry, idleMs: number): void {
+  clearIdleTimer(entry);
+  const timer = setTimeout(() => void evictMcpConnection(key), idleMs);
+  // Don't let an idle MCP connection keep the worker process alive.
+  timer.unref?.();
+  entry.idleTimer = timer;
+}
+
+/** Closes and evicts a single cached MCP connection, if present. Best-effort. */
+async function evictMcpConnection(key: string): Promise<void> {
+  const entry = mcpConnections.get(key);
+  if (entry === undefined) return;
+  mcpConnections.delete(key);
+  clearIdleTimer(entry);
+  try {
+    const client = await entry.client;
+    await client.close();
+  } catch {
+    // Best-effort; the session may already be broken.
+  }
+}
+
+/**
+ * Closes and evicts every cached MCP connection registered under the given server name, regardless of
+ * `clientArgs`. Intended to be called from a Worker/plugin teardown hook so no MCP connection outlives
+ * the Worker process.
+ */
+export async function _evictMcpConnectionsForServer(name: string): Promise<void> {
+  const prefix = `${name}:`;
+  await Promise.all(
+    Array.from(mcpConnections.keys())
+      .filter((key) => key.startsWith(prefix))
+      .map((key) => evictMcpConnection(key))
+  );
+}
+
+/**
+ * Acquires the pooled MCP connection for `${name}:${clientArgs}`, creating it if absent, and marks it
+ * in-use for the duration of one call. Cancels any pending idle-eviction timer and increments the
+ * connection's in-flight refcount so it can't be evicted while this call is running, however long it
+ * takes. Callers must pair this with a matching {@link releaseMcpConnection} in a `finally` block.
+ */
+function acquireMcpConnection(
+  name: string,
+  clientArgs: unknown,
+  factory: McpClientFactory
+): { client: Promise<MCPClient>; key: string; entry: McpConnectionEntry } {
+  const key = mcpConnectionKey(name, clientArgs);
+  let entry = mcpConnections.get(key);
+  if (entry === undefined) {
+    const client = factory(clientArgs);
+    entry = { client, refCount: 0, broken: false };
+    mcpConnections.set(key, entry);
+    // If the connect/factory call fails, drop the rejected promise so the next call retries
+    // instead of caching the failure forever.
+    client.catch(() => {
+      if (mcpConnections.get(key) === entry) mcpConnections.delete(key);
+    });
+  }
+  clearIdleTimer(entry);
+  entry.refCount++;
+  return { client: entry.client, key, entry };
+}
+
+/**
+ * Releases one in-flight use of a pooled MCP connection acquired via {@link acquireMcpConnection}.
+ * Only once the refcount drops back to 0 (no other concurrent call is still using it) does this either
+ * evict the connection (if `broken`, i.e. the call that just finished failed) or re-arm the idle timer.
+ *
+ * Guarded by entry identity, not just the key: if this exact entry was already evicted (e.g. by a
+ * teardown) and a fresh connection has since been cached under the same key, we must not touch that
+ * unrelated new entry's refcount or timer.
+ */
+function releaseMcpConnection(key: string, entry: McpConnectionEntry, idleMs: number, broken: boolean): void {
+  if (mcpConnections.get(key) !== entry) return;
+  if (broken) entry.broken = true;
+  entry.refCount = Math.max(0, entry.refCount - 1);
+  if (entry.refCount > 0) return;
+  if (entry.broken) {
+    void evictMcpConnection(key);
+    return;
+  }
+  armIdleTimer(key, entry, idleMs);
+}
+
+/**
  * Creates Temporal activities for AI model invocation using the provided AI SDK provider.
  * These activities allow workflows to call AI models while maintaining Temporal's
  * execution guarantees and replay safety.
  *
  * @param provider The AI SDK provider to use for model invocations
  * @param mcpClientFactories A mapping of server names to functions to create mcp clients
+ * @param options Options controlling MCP connection reuse (see {@link CreateActivitiesOptions})
  * @returns An object containing the activity functions
  *
  * @experimental The AI SDK integration is an experimental feature; APIs may change without notice.
  */
-export function createActivities(provider: ProviderV4, mcpClientFactories?: McpClientFactories): object {
+export function createActivities(
+  provider: ProviderV4,
+  mcpClientFactories?: McpClientFactories,
+  options?: CreateActivitiesOptions
+): object {
   let activities = {
     async invokeModel(args: InvokeModelArgs): Promise<InvokeModelResult> {
       const model = provider.languageModel(args.modelId);
@@ -244,48 +390,89 @@ export function createActivities(provider: ProviderV4, mcpClientFactories?: McpC
     },
   };
   if (mcpClientFactories !== undefined) {
+    const idleMs = msOptionalToNumber(options?.mcpConnectionIdleTimeout) ?? MCP_CONNECTION_IDLE_MS;
     Object.entries(mcpClientFactories).forEach(([name, func]) => {
       activities = {
         ...activities,
-        ...activitiesForName(name, func),
+        ...activitiesForName(name, func, idleMs),
       };
     });
   }
   return activities;
 }
 
-function activitiesForName(name: string, mcpClientFactory: McpClientFactory): object {
+async function extractTools(mcpClient: MCPClient): Promise<Record<string, ListToolResult>> {
+  const tools = await mcpClient.tools();
+  return Object.fromEntries(
+    Object.entries(tools).map(([k, v]) => [
+      k,
+      {
+        // Function-valued descriptions (resolved per tool context) cannot cross the
+        // activity boundary; only plain strings are preserved.
+        description: typeof v.description === 'string' ? v.description : undefined,
+        // Convert the FlexibleSchema to a Schema so that the shape is known outside the activity
+        inputSchema: asSchema(v.inputSchema),
+      },
+    ])
+  );
+}
+
+async function callTool(mcpClient: MCPClient, args: CallToolArgs): Promise<unknown> {
+  const tools = await mcpClient.tools();
+  const tool = tools[args.name];
+  if (tool === undefined) {
+    throw ApplicationFailure.retryable(`Tool ${args.name} not found.`);
+  }
+  return await tool.execute(args.input, args.options);
+}
+
+function activitiesForName(name: string, mcpClientFactory: McpClientFactory, idleMs: number): object {
   async function listToolsActivity(args: ListToolArgs): Promise<Record<string, ListToolResult>> {
-    const mcpClient = await mcpClientFactory(args.clientArgs);
+    if (idleMs <= 0) {
+      // Opt-out: restore the original create-then-close-per-call behavior.
+      const mcpClient = await mcpClientFactory(args.clientArgs);
+      try {
+        return await extractTools(mcpClient);
+      } finally {
+        await mcpClient.close();
+      }
+    }
+    const { client, key, entry } = acquireMcpConnection(name, args.clientArgs, mcpClientFactory);
+    let broken = false;
     try {
-      const tools = await mcpClient.tools();
-      return Object.fromEntries(
-        Object.entries(tools).map(([k, v]) => [
-          k,
-          {
-            // Function-valued descriptions (resolved per tool context) cannot cross the
-            // activity boundary; only plain strings are preserved.
-            description: typeof v.description === 'string' ? v.description : undefined,
-            // Convert the FlexibleSchema to a Schema so that the shape is known outside the activity
-            inputSchema: asSchema(v.inputSchema),
-          },
-        ])
-      );
+      const mcpClient = await client;
+      return await extractTools(mcpClient);
+    } catch (err) {
+      // The session may be broken (e.g. the server was restarted); mark it so it's dropped once no
+      // concurrent call is still using it, instead of tearing down a connection siblings depend on.
+      broken = true;
+      throw err;
     } finally {
-      await mcpClient.close();
+      releaseMcpConnection(key, entry, idleMs, broken);
     }
   }
   async function callToolActivity(args: CallToolArgs): Promise<unknown> {
-    const mcpClient = await mcpClientFactory(args.clientArgs);
-    try {
-      const tools = await mcpClient.tools();
-      const tool = tools[args.name];
-      if (tool === undefined) {
-        throw ApplicationFailure.retryable(`Tool ${args.name} not found.`);
+    if (idleMs <= 0) {
+      // Opt-out: restore the original create-then-close-per-call behavior.
+      const mcpClient = await mcpClientFactory(args.clientArgs);
+      try {
+        return await callTool(mcpClient, args);
+      } finally {
+        await mcpClient.close();
       }
-      return await tool.execute(args.input, args.options);
+    }
+    const { client, key, entry } = acquireMcpConnection(name, args.clientArgs, mcpClientFactory);
+    let broken = false;
+    try {
+      const mcpClient = await client;
+      return await callTool(mcpClient, args);
+    } catch (err) {
+      // The session may be broken; mark it so it's dropped once no concurrent call is still using it,
+      // instead of tearing down a connection siblings depend on.
+      broken = true;
+      throw err;
     } finally {
-      await mcpClient.close();
+      releaseMcpConnection(key, entry, idleMs, broken);
     }
   }
   return {
