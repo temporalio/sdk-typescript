@@ -267,8 +267,8 @@ test('a transient workflow-completion store failure retries the workflow task an
     'expected a WorkflowTaskFailed event caused by the transient store failure'
   );
   t.true(
-    wftFailure.message?.includes('transient store failure') ?? false,
-    `WorkflowTaskFailed should reference the store failure, got: ${wftFailure.message}`
+    wftFailure.message?.includes('failed to store payloads') ?? false,
+    `WorkflowTaskFailed should reference the external storage failure, got: ${wftFailure.message}`
   );
 });
 
@@ -294,8 +294,8 @@ test('a transient workflow-activation retrieve failure retries the workflow task
     'expected a WorkflowTaskFailed event caused by the transient retrieve failure'
   );
   t.true(
-    wftFailure.message?.includes('transient retrieve failure') ?? false,
-    `WorkflowTaskFailed should reference the retrieve failure, got: ${wftFailure.message}`
+    wftFailure.message?.includes('failed to retrieve payloads') ?? false,
+    `WorkflowTaskFailed should reference the external storage failure, got: ${wftFailure.message}`
   );
 });
 

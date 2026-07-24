@@ -24,7 +24,7 @@ import {
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import { msOptionalToTs, optionalTsToDate, optionalTsToMs } from '@temporalio/common/lib/time';
 import { temporal } from '@temporalio/proto';
-import type { LoadedDataConverter } from '@temporalio/common';
+import { ExternalStorageError, type LoadedDataConverter } from '@temporalio/common';
 import type { SearchAttributeType, TypedSearchAttributeValue } from '@temporalio/common/lib/search-attributes';
 import { decode } from '@temporalio/common/lib/encoding';
 import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base-client';
@@ -404,11 +404,11 @@ export class NexusClient extends BaseClient {
       userMetadata,
     };
     const externalStorage = this.dataConverter.externalStorage;
-    if (externalStorage) {
-      await visit(req, walkStartNexusOperationExecutionRequest, extstoreStoreOptions(externalStorage));
-    }
     let res: temporal.api.workflowservice.v1.IStartNexusOperationExecutionResponse;
     try {
+      if (externalStorage) {
+        await visit(req, walkStartNexusOperationExecutionRequest, extstoreStoreOptions(externalStorage));
+      }
       res = await this.connection.workflowService.startNexusOperationExecution(req);
     } catch (err: unknown) {
       this.rethrowGrpcError(err, 'Failed to start Nexus operation', input.id);
@@ -481,14 +481,13 @@ export class NexusClient extends BaseClient {
     };
     for (;;) {
       let res: temporal.api.workflowservice.v1.IPollNexusOperationExecutionResponse;
+      const externalStorage = this.dataConverter.externalStorage;
       try {
         res = await this.connection.workflowService.pollNexusOperationExecution(req);
+        await visit(res, walkPollNexusOperationExecutionResponse, extstoreInboundOptions(externalStorage));
       } catch (err: unknown) {
         this.rethrowGrpcError(err, 'Failed to poll Nexus operation result', input.operationId);
       }
-
-      const externalStorage = this.dataConverter.externalStorage;
-      await visit(res, walkPollNexusOperationExecutionResponse, extstoreInboundOptions(externalStorage));
 
       // The operation is closed if we have a result or failure
       if (res.result) {
@@ -511,13 +510,13 @@ export class NexusClient extends BaseClient {
       runId: input.runId ?? '',
     };
     let res: temporal.api.workflowservice.v1.IDescribeNexusOperationExecutionResponse;
+    const externalStorage = this.dataConverter.externalStorage;
     try {
       res = await this.connection.workflowService.describeNexusOperationExecution(req);
+      await visit(res, walkDescribeNexusOperationExecutionResponse, extstoreInboundOptions(externalStorage));
     } catch (err: unknown) {
       this.rethrowGrpcError(err, 'Failed to describe Nexus operation', input.operationId);
     }
-    const externalStorage = this.dataConverter.externalStorage;
-    await visit(res, walkDescribeNexusOperationExecutionResponse, extstoreInboundOptions(externalStorage));
     if (!res.info) {
       throw new ServiceError('Received invalid Nexus operation description from server: missing info');
     }
@@ -560,6 +559,7 @@ export class NexusClient extends BaseClient {
     let nextPageToken: Uint8Array | undefined = undefined;
     for (;;) {
       let response: temporal.api.workflowservice.v1.IListNexusOperationExecutionsResponse;
+      const externalStorage = this.dataConverter.externalStorage;
       try {
         response = await this.connection.workflowService.listNexusOperationExecutions({
           namespace: this.options.namespace,
@@ -567,11 +567,10 @@ export class NexusClient extends BaseClient {
           pageSize: input.pageSize,
           nextPageToken,
         });
+        await visit(response, walkListNexusOperationExecutionsResponse, extstoreInboundOptions(externalStorage));
       } catch (err: unknown) {
         this.rethrowGrpcError(err, 'Failed to list Nexus operations', undefined);
       }
-      const externalStorage = this.dataConverter.externalStorage;
-      await visit(response, walkListNexusOperationExecutionsResponse, extstoreInboundOptions(externalStorage));
       for (const raw of response.operations ?? []) {
         yield nexusOperationListInfoFromProto(raw);
       }
@@ -607,6 +606,9 @@ export class NexusClient extends BaseClient {
       throw new ServiceError(fallbackMessage, { cause: err });
     }
 
+    if (err instanceof ExternalStorageError) {
+      throw new ServiceError('External storage failed', { cause: err });
+    }
     throw new ServiceError('Unexpected error while making gRPC request', { cause: err as Error });
   }
 }
