@@ -22,6 +22,7 @@ to docs, or any other relevant information.
 ### Fixed
 
 - strands: Declare `zod` as a peer dependency.
+- strands: MCP connections are no longer disconnected while being used by a `callTool` or `listTools` activity.
 
 ## [1.21.1] - 2026-07-23
 

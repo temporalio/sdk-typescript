@@ -418,6 +418,57 @@ test('mcpConnectionIdleTimeout evicts the cached connection while the worker run
   });
 });
 
+test('mcpConnectionIdleTimeout does not evict a connection with a call in flight', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+
+  const counters = { disconnects: 0, disconnectsDuringCall: 0 };
+  let callInFlight = false;
+  class SlowMcpClient extends StubMcpClient {
+    override async disconnect(): Promise<void> {
+      counters.disconnects++;
+      if (callInFlight) counters.disconnectsDuringCall++;
+    }
+    override async callTool(tool: { name: string }, args: JSONValue): Promise<JSONValue> {
+      callInFlight = true;
+      try {
+        // Outlast the idle window several times over.
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        return await super.callTool(tool, args);
+      } finally {
+        callInFlight = false;
+      }
+    }
+  }
+  const factory = (): McpClient =>
+    new SlowMcpClient([
+      { name: 'listFiles', description: 'List files', inputSchema: { type: 'object', properties: {} } },
+    ]);
+
+  const worker = await createWorker({
+    plugins: [
+      new StrandsPlugin({
+        models: {
+          test: () => new StubModel([toolCallTurn('listFiles', 'call_1', { path: '/' }), textTurn('done')]),
+        },
+        // Distinct server name so the worker-process connection cache can't be
+        // shared with the sibling MCP tests running in the same process.
+        mcpClients: { slowServer: factory },
+        // Idle window far shorter than the tool call it must not interrupt.
+        mcpConnectionIdleTimeout: '50ms',
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    // The tool call outlives the idle window, so an idle timer measured from the
+    // start of the call (rather than from the call completing) would disconnect
+    // the transport underneath it and fail the call.
+    const result = await executeWorkflow(mcpAgent, { args: ['list files', 'slowServer'] });
+    t.is(result, 'done');
+    t.is(counters.disconnectsDuringCall, 0, 'idle timer disconnected a connection with a call in flight');
+  });
+});
+
 test('TemporalMCPClient re-lists tools each turn by default and picks up mid-run additions', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
 
