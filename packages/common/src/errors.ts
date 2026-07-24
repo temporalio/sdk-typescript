@@ -111,8 +111,8 @@ export class ExternalStorageDriverError extends ExternalStorageError {
 }
 
 /**
- * [TMPRL-1105] Thrown when external storage is asked to use a driver that is not registered 
- * on the configured `ExternalStorage`. 
+ * [TMPRL-1105] Thrown when external storage is asked to use a driver that is not registered
+ * on the configured `ExternalStorage`.
  *
  * @experimental
  */
