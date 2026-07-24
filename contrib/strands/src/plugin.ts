@@ -119,6 +119,9 @@ export class StrandsPlugin extends SimplePlugin {
    *     (`@aws-sdk/client-bedrock-runtime`, `@anthropic-ai/sdk`, `openai`,
    *     `@google/genai`, `ai`). The workers constructs models worker-side;
    *     workflow code only goes through {@link TemporalModel}.
+   *   - `@aws-sdk/client-s3`, dynamically imported by the SDK's S3-backed
+   *     `context-offloader` vended plugin — worker-only, never reached from
+   *     workflow code.
    *   - `@temporalio/activity` and `@temporalio/client`, which the
    *     worker-only halves of {@link TemporalMCPClient}, {@link autoHeartbeat},
    *     and `@temporalio/workflow-streams/client` import.
@@ -145,6 +148,7 @@ export class StrandsPlugin extends SimplePlugin {
       '@temporalio/activity',
       '@temporalio/client',
       '@aws-sdk/client-bedrock-runtime',
+      '@aws-sdk/client-s3',
       '@aws-sdk/middleware-websocket',
       '@anthropic-ai/sdk',
       'openai',
