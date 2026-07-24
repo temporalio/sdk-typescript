@@ -83,7 +83,7 @@ export class CompleteAsyncError extends Error {}
 export abstract class ExternalStorageError extends Error {}
 
 /**
- * Thrown when an inbound payload is detected as an external-storage reference
+ * [TMPRL1105] Thrown when an inbound payload is detected as an external-storage reference
  * but no `ExternalStorage` is configured to resolve it.
  *
  * @experimental
@@ -111,7 +111,7 @@ export class ExternalStorageDriverError extends ExternalStorageError {
 }
 
 /**
- * [TMPRL-1105] Thrown when external storage is asked to use a driver that is not registered
+ * Thrown when external storage is asked to use a driver that is not registered
  * on the configured `ExternalStorage`.
  *
  * @experimental
