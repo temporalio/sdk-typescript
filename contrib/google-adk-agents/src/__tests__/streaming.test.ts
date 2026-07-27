@@ -119,7 +119,7 @@ test.serial('midStreamModelErrorIsClassifiedAndStreamDisposed', async (t) => {
     });
     const mockEnv = new MockActivityEnvironment();
     const err = await t.throwsAsync(
-      mockEnv.run(activities.invokeModelStreaming, {
+      mockEnv.run(activities['adk-invokeModelStreaming'], {
         model: 'mid-stream',
         request: {} as never,
         streamingTopic: 'adk-test-stream',

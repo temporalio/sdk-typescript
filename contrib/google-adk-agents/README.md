@@ -19,7 +19,7 @@ wrap an existing Temporal Activity with `activityAsTool`.
 npm install @temporalio/google-adk-agents
 ```
 
-Peer dependency: `@google/adk` `^1.2.0` and its `@google/genai`. Provide Gemini
+Peer dependency: `@google/adk` `^1.4.0` and its `@google/genai`. Provide Gemini
 credentials to the Worker as usual, for example with `GOOGLE_API_KEY` or
 `GEMINI_API_KEY`.
 
@@ -202,6 +202,19 @@ const plugin = new GoogleAdkPlugin({
   the Activity result, not the stream side channel.
 - `BaseLlm.connect` live BIDI streaming is not supported inside Workflows.
 - Any ADK extension point that performs I/O must be moved behind an Activity.
+
+## Troubleshooting
+
+A cryptic sandbox error during a model call — for example `fetch is not defined`,
+or a `... is not a function` error from a worker-only module like
+`google-auth-library` (the plugin's bundler config aliases such modules to an
+empty module in the Workflow bundle) — almost always means a model was not
+wrapped in `TemporalModel`. If an agent is configured with a raw model string
+(`model: 'gemini-2.5-flash'`) instead of `model: new TemporalModel('gemini-2.5-flash')`,
+ADK resolves the string through its `LLMRegistry` inside the Workflow sandbox and
+attempts a live network call from there. The sandbox blocks that call, and the
+resulting error points nowhere near the actual mistake. Wrap the model in
+`TemporalModel` so the call is routed out to an Activity.
 
 ## License
 

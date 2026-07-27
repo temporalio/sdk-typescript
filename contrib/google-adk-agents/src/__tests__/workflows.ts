@@ -286,7 +286,7 @@ export async function hitlWorkflow(): Promise<string> {
 
 /**
  * A combined scenario for the replay test: two sequential model calls followed
- * by an MCP tool discovery + call. Produces a history with `invokeModel` ×2,
+ * by an MCP tool discovery + call. Produces a history with `adk-invokeModel` ×2,
  * `testServer-listTools`, and `testServer-callTool` so replay exercises both
  * boundaries against a single recorded history.
  */
@@ -317,7 +317,7 @@ export async function replayScenario(): Promise<string> {
  * `TemporalModel`, then drive it with the SDK's own `InMemoryRunner.runEphemeral`
  * loop inside the Workflow and return the agent's final text response. The user
  * writes ordinary ADK code — the plugin transparently routes every model turn
- * the runner makes through the `invokeModel` Activity, so durability requires
+ * the runner makes through the `adk-invokeModel` Activity, so durability requires
  * no rewrite of the agent or the runner.
  */
 export async function agentRunnerWorkflow(prompt: string): Promise<string> {

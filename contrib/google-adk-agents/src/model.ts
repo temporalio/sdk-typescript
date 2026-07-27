@@ -7,8 +7,8 @@
  *
  * `TemporalModel` is a drop-in `BaseLlm` (from `@google/adk`) that a user places
  * on their agent (`model: new TemporalModel('gemini-2.5-flash')`). Inside a
- * Temporal Workflow it routes inference to the `invokeModel` /
- * `invokeModelStreaming` Activities; outside a Workflow it delegates to the
+ * Temporal Workflow it routes inference to the `adk-invokeModel` /
+ * `adk-invokeModelStreaming` Activities; outside a Workflow it delegates to the
  * real model resolved from the ADK `LLMRegistry`, so the same agent object
  * works in tests and in direct (non-Temporal) ADK use.
  *
@@ -80,9 +80,9 @@ export type WireLlmRequest = Omit<LlmRequest, 'toolsDict' | 'liveConnectConfig'>
  */
 export interface ModelActivities {
   /** Non-streaming inference; returns the full response transcript. */
-  invokeModel(args: InvokeModelArgs): Promise<LlmResponse[]>;
+  'adk-invokeModel'(args: InvokeModelArgs): Promise<LlmResponse[]>;
   /** Streaming (SSE) inference; publishes chunks and returns the transcript. */
-  invokeModelStreaming(args: InvokeModelStreamingArgs): Promise<LlmResponse[]>;
+  'adk-invokeModelStreaming'(args: InvokeModelStreamingArgs): Promise<LlmResponse[]>;
 }
 
 const DEFAULT_MODEL_START_TO_CLOSE: Duration = '1 minute';
@@ -142,14 +142,14 @@ export class TemporalModel extends BaseLlm {
           'GoogleAdkStreamingTopicRequired'
         );
       }
-      responses = await activities.invokeModelStreaming({
+      responses = await activities['adk-invokeModelStreaming']({
         model: this.model,
         request: wire,
         streamingTopic,
         batchInterval: this.options.streamingBatchInterval,
       });
     } else {
-      responses = await activities.invokeModel({ model: this.model, request: wire });
+      responses = await activities['adk-invokeModel']({ model: this.model, request: wire });
     }
 
     for (const response of responses) {

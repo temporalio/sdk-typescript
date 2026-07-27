@@ -45,7 +45,7 @@ export function createModelActivities(options: ModelActivitiesOptions = {}): Mod
   const resolveModel = (model: string): BaseLlm => options.modelProvider?.(model) ?? LLMRegistry.newLlm(model);
 
   return {
-    async invokeModel(args: InvokeModelArgs): Promise<LlmResponse[]> {
+    async 'adk-invokeModel'(args: InvokeModelArgs): Promise<LlmResponse[]> {
       const stopHeartbeat = startAdaptiveHeartbeat();
       try {
         const model = resolveModel(args.model);
@@ -63,7 +63,7 @@ export function createModelActivities(options: ModelActivitiesOptions = {}): Mod
       }
     },
 
-    async invokeModelStreaming(args: InvokeModelStreamingArgs): Promise<LlmResponse[]> {
+    async 'adk-invokeModelStreaming'(args: InvokeModelStreamingArgs): Promise<LlmResponse[]> {
       // Dispose the stream client in `finally`, not via `await using` — the
       // latter isn't parseable on this package's Node 20 floor and would
       // SyntaxError at module load.

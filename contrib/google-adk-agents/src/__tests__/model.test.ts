@@ -75,7 +75,7 @@ test.serial('sideEffectsActivityCount', async (t) => {
   t.is(result, n);
 
   const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
-  t.is(countScheduledActivities(events ?? [], 'invokeModel'), n);
+  t.is(countScheduledActivities(events ?? [], 'adk-invokeModel'), n);
 });
 
 test.serial('usesCustomModelProvider', async (t) => {
@@ -115,7 +115,7 @@ test.serial('appliesActivitySummary', async (t) => {
 
   const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
   const scheduled = (events ?? []).find(
-    (e) => e.activityTaskScheduledEventAttributes?.activityType?.name === 'invokeModel'
+    (e) => e.activityTaskScheduledEventAttributes?.activityType?.name === 'adk-invokeModel'
   );
   const summaryPayload = (scheduled as { userMetadata?: { summary?: unknown } } | undefined)?.userMetadata?.summary;
   t.not(summaryPayload, undefined);
@@ -137,7 +137,7 @@ test.serial('topLevelSummaryWinsOverActivitySummary', async (t) => {
   );
 
   const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
-  t.is(getScheduledActivitySummary(events ?? [], 'invokeModel'), 'top-level-summary');
+  t.is(getScheduledActivitySummary(events ?? [], 'adk-invokeModel'), 'top-level-summary');
 });
 
 test.serial('respectsCallerActivitySummary', async (t) => {
@@ -156,7 +156,7 @@ test.serial('respectsCallerActivitySummary', async (t) => {
   const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
   // No top-level `summary`: the caller's `activity.summary` must not be
   // clobbered by the auto-generated label.
-  t.is(getScheduledActivitySummary(events ?? [], 'invokeModel'), 'activity-summary');
+  t.is(getScheduledActivitySummary(events ?? [], 'adk-invokeModel'), 'activity-summary');
 });
 
 test.serial('defaultsActivitySummaryToAutoLabel', async (t) => {
@@ -174,7 +174,7 @@ test.serial('defaultsActivitySummaryToAutoLabel', async (t) => {
 
   const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
   // Neither a top-level `summary` nor `activity.summary` (nor an agent name).
-  t.is(getScheduledActivitySummary(events ?? [], 'invokeModel'), 'adk.invokeModel fake-model');
+  t.is(getScheduledActivitySummary(events ?? [], 'adk-invokeModel'), 'adk.invokeModel fake-model');
 });
 
 test.serial('defaultsActivitySummaryToAgentName', async (t) => {
@@ -192,7 +192,7 @@ test.serial('defaultsActivitySummaryToAgentName', async (t) => {
 
   const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
   const scheduled = (events ?? []).find(
-    (e) => e.activityTaskScheduledEventAttributes?.activityType?.name === 'invokeModel'
+    (e) => e.activityTaskScheduledEventAttributes?.activityType?.name === 'adk-invokeModel'
   );
   const summaryPayload = (scheduled as { userMetadata?: { summary?: unknown } } | undefined)?.userMetadata?.summary;
   t.not(summaryPayload, undefined);

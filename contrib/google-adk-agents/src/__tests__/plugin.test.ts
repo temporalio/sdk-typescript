@@ -65,8 +65,8 @@ test('configureWorker registers model activities, plus an MCP pair per toolset',
     string,
     unknown
   >;
-  t.is(typeof modelOnly.invokeModel, 'function');
-  t.is(typeof modelOnly.invokeModelStreaming, 'function');
+  t.is(typeof modelOnly['adk-invokeModel'], 'function');
+  t.is(typeof modelOnly['adk-invokeModelStreaming'], 'function');
 
   const withMcp = new GoogleAdkPlugin({ mcpToolsets: { weather: mockMCPToolset([]) } });
   const activities = withMcp.configureWorker({ taskQueue: 'tq' } as WorkerOptions).activities as Record<

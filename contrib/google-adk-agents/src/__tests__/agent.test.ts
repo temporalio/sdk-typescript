@@ -42,7 +42,7 @@ test.serial('runsLlmAgentThroughRunnerWithDurableModelCalls', async (t) => {
   t.is(result, 'fake-response:fake-model');
 
   // ...and that final text came from a durable Activity: the `LlmAgent`'s
-  // single model turn routed through `invokeModel` exactly once.
+  // single model turn routed through `adk-invokeModel` exactly once.
   const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
-  t.is(countScheduledActivities(events ?? [], 'invokeModel'), 1);
+  t.is(countScheduledActivities(events ?? [], 'adk-invokeModel'), 1);
 });
