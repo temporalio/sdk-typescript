@@ -32,6 +32,10 @@ export function convertTemporalLinkToNexusLink(link: TemporalLink): NexusLink {
     return convertNexusOperationLinkToNexusLink(link.nexusOperation);
   }
 
+  if (link.workflow != null) {
+    return convertWorkflowLinkToNexusLink(link.workflow);
+  }
+
   throw new TypeError('Invalid Temporal link: unknown variant');
 }
 
@@ -107,22 +111,6 @@ export function convertWorkflowLinkToNexusLink(wl: WorkflowLink): NexusLink {
     url,
     type: WORKFLOW_TYPE,
   };
-}
-
-/**
- * Converts a Temporal common Link into a Nexus link, preferring a {@link WorkflowEventLink} when
- * present and falling back to a plain {@link WorkflowLink}. The fallback safely points at a workflow
- * for cases where a Nexus operation fails before a history event exists (e.g. UpdateWorkflow
- * validation failure).
- */
-export function convertCommonLinkToNexusLink(link: TemporalLink): NexusLink {
-  if (link.workflowEvent != null) {
-    return convertWorkflowEventLinkToNexusLink(link.workflowEvent);
-  }
-  if (link.workflow != null) {
-    return convertWorkflowLinkToNexusLink(link.workflow);
-  }
-  throw new TypeError('Invalid Temporal link - workflow and workflowEvent fields were null');
 }
 
 export function convertNexusOperationLinkToNexusLink(opLink: NexusOperationLink): NexusLink {

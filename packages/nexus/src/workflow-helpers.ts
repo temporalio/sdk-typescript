@@ -25,11 +25,7 @@ import {
   InternalWorkflowStartOptionsSymbol,
   InternalWorkflowUpdateOptionsSymbol,
 } from '@temporalio/client/lib/internal';
-import {
-  convertCommonLinkToNexusLink,
-  convertNexusLinkToTemporalLink,
-  convertTemporalLinkToNexusLink,
-} from './link-converter';
+import { convertNexusLinkToTemporalLink, convertTemporalLinkToNexusLink } from './link-converter';
 import {
   assertUpdateWorkflowOperationToken,
   assertWorkflowRunOperationToken,
@@ -607,7 +603,7 @@ async function updateWorkflowOperation<Ret, Args extends any[]>(
       // Attach the link the server returned (a WorkflowEvent link on success, or a Workflow link
       // when there is no history event, e.g. validation failure) as a handler link.
       try {
-        ctx.outboundLinks.push(convertCommonLinkToNexusLink(internalOptions.responseLink));
+        ctx.outboundLinks.push(convertTemporalLinkToNexusLink(internalOptions.responseLink));
       } catch (err) {
         log.warn('failed to convert UpdateWorkflow response link to Nexus link', { error: err });
       }
@@ -618,7 +614,7 @@ async function updateWorkflowOperation<Ret, Args extends any[]>(
       // ID, or an immediate completion). Return a synchronous result; if it failed (validation
       // rejection is non-retryable), surface it as a failed Nexus operation.
       try {
-        const result = (await handle.result()) as Ret;
+        const result = await handle.result();
         return TemporalOperationResult.sync(result);
       } catch (err) {
         // Throwing releases the reservation via withAsyncOperationStartReservation; on a synchronous

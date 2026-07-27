@@ -2,7 +2,6 @@ import test from 'ava';
 import Long from 'long';
 import { temporal } from '@temporalio/proto';
 import {
-  convertCommonLinkToNexusLink,
   convertNexusLinkToTemporalLink,
   convertNexusLinkToWorkflowEventLink,
   convertNexusOperationLinkToNexusLink,
@@ -143,19 +142,6 @@ test('convertWorkflowLinkToNexusLink throws on missing required fields', (t) => 
   });
 });
 
-test('convertCommonLinkToNexusLink dispatches by variant, preferring workflowEvent', (t) => {
-  const workflowEvent = {
-    namespace: 'ns',
-    workflowId: 'wid',
-    runId: 'rid',
-    eventRef: makeEventRef(42, 'EVENT_TYPE_WORKFLOW_EXECUTION_UPDATE_ACCEPTED'),
-  };
-  t.is(convertCommonLinkToNexusLink({ workflowEvent }).type, WORKFLOW_EVENT_TYPE);
-
-  const workflowLink = { namespace: 'ns', workflowId: 'wid', runId: 'rid' };
-  t.is(convertCommonLinkToNexusLink({ workflow: workflowLink }).type, WORKFLOW_TYPE);
-});
-
 test('convertTemporalLinkToNexusLink dispatches by Temporal link variant', (t) => {
   const workflowEvent = {
     namespace: 'ns',
@@ -168,9 +154,14 @@ test('convertTemporalLinkToNexusLink dispatches by Temporal link variant', (t) =
     operationId: 'op-123',
     runId: 'run-456',
   };
+  const workflow = { namespace: 'ns', workflowId: 'wid', runId: 'rid' };
 
   t.is(convertTemporalLinkToNexusLink({ workflowEvent }).type, WORKFLOW_EVENT_TYPE);
   t.is(convertTemporalLinkToNexusLink({ nexusOperation }).type, NEXUS_OPERATION_TYPE);
+  t.is(convertTemporalLinkToNexusLink({ workflow }).type, WORKFLOW_TYPE);
+
+  // workflowEvent wins when the server populates more than one variant.
+  t.is(convertTemporalLinkToNexusLink({ workflowEvent, workflow }).type, WORKFLOW_EVENT_TYPE);
 });
 
 test('convertNexusLinkToTemporalLink dispatches by Nexus link type', (t) => {
