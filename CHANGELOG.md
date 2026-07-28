@@ -19,6 +19,12 @@ to docs, or any other relevant information.
 
 ## [Unreleased]
 
+### Added
+
+- Workers can now configure the number of activity slots reserved for eager execution per
+  workflow task with `maxEagerActivityReservationsPerWorkflowTask`. Setting it to zero disables
+  eager activity execution.
+
 ### Fixed
 
 - strands: Declare `zod` as a peer dependency.

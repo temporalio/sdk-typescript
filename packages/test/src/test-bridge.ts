@@ -316,6 +316,7 @@ const GenericConfigs = {
       defaultHeartbeatThrottleInterval: 1000,
       maxTaskQueueActivitiesPerSecond: null,
       maxActivitiesPerSecond: null,
+      maxEagerActivityReservationsPerWorkflowTask: 3,
       shutdownGraceTime: 1000,
       plugins: [],
       storageDrivers: [],

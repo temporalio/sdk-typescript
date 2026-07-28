@@ -270,6 +270,15 @@ export interface WorkerOptions {
   maxTaskQueueActivitiesPerSecond?: number;
 
   /**
+   * Maximum number of Activity slots that may be reserved for eager execution when completing a Workflow Task.
+   *
+   * Must be a non-negative integer. Setting this to `0` disables eager Activity execution.
+   *
+   * @default 3
+   */
+  maxEagerActivityReservationsPerWorkflowTask?: number;
+
+  /**
    * Maximum number of Workflow Tasks to execute concurrently.
    *
    * In general, a Workflow Worker's performance is mostly network bound (due to communication latency with the
@@ -759,6 +768,7 @@ export interface ReplayWorkerOptions
     | 'enableNonLocalActivities'
     | 'maxActivitiesPerSecond'
     | 'maxTaskQueueActivitiesPerSecond'
+    | 'maxEagerActivityReservationsPerWorkflowTask'
     | 'stickyQueueScheduleToStartTimeout'
     | 'maxCachedWorkflows'
     | 'useVersioning'
@@ -1104,6 +1114,13 @@ export function compileWorkerOptions(
   }
 
   const opts = addDefaultWorkerOptions(rawOpts, logger, metricMeter);
+  if (
+    opts.maxEagerActivityReservationsPerWorkflowTask !== undefined &&
+    (!Number.isSafeInteger(opts.maxEagerActivityReservationsPerWorkflowTask) ||
+      opts.maxEagerActivityReservationsPerWorkflowTask < 0)
+  ) {
+    throw new TypeError('maxEagerActivityReservationsPerWorkflowTask must be a non-negative integer');
+  }
   if (opts.maxCachedWorkflows !== 0 && opts.maxCachedWorkflows < 2) {
     logger.warn('maxCachedWorkflows must be either 0 (ie. cache is disabled) or greater than 1. Defaulting to 2.');
     opts.maxCachedWorkflows = 2;
@@ -1212,6 +1229,7 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
     defaultHeartbeatThrottleInterval: msToNumber(opts.defaultHeartbeatThrottleInterval),
     maxTaskQueueActivitiesPerSecond: opts.maxTaskQueueActivitiesPerSecond ?? null,
     maxActivitiesPerSecond: opts.maxActivitiesPerSecond ?? null,
+    maxEagerActivityReservationsPerWorkflowTask: opts.maxEagerActivityReservationsPerWorkflowTask ?? 3,
     shutdownGraceTime: msToNumber(opts.shutdownGraceTime),
     plugins: opts.plugins?.map((p) => p.name) ?? [],
     storageDrivers: [...new Set((opts.loadedDataConverter.externalStorage?.drivers ?? []).map((d) => d.type))],
