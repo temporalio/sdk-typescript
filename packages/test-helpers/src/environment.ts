@@ -1,6 +1,5 @@
 import type { LocalTestWorkflowEnvironmentOptions } from '@temporalio/testing';
 import { workflowInterceptorModules as defaultWorkflowInterceptorModules } from '@temporalio/testing';
-import { loadClientConnectConfig, type LoadClientProfileOptions } from '@temporalio/envconfig';
 import type { BundlerPlugin, WorkflowBundleWithSourceMap, BundleOptions } from '@temporalio/worker';
 import { bundleWorkflowCode, DefaultLogger } from '@temporalio/worker';
 import { defineSearchAttributeKey, SearchAttributeType } from '@temporalio/common/lib/search-attributes';
@@ -84,16 +83,10 @@ export async function createLocalTestEnvironment(
  * TEMPORAL_SERVICE_ADDRESS as a legacy existing-server shortcut when set, otherwise creates a local environment.
  */
 export async function createTestWorkflowEnvironment(
-  opts?: LocalTestWorkflowEnvironmentOptions,
-  envconfigOpts?: LoadClientProfileOptions
+  opts?: LocalTestWorkflowEnvironmentOptions
 ): Promise<TestWorkflowEnvironment> {
   if (isSet(process.env.TEMPORAL_TEST_ENV_CONFIG_SERVER, false)) {
-    const { namespace, connectionOptions } = loadClientConnectConfig(envconfigOpts);
-    const { address, apiKey, metadata, tls } = connectionOptions;
-    return await TestWorkflowEnvironment.createFromExistingServer({
-      address,
-      namespace,
-      connectionOptions: { apiKey, metadata, tls },
+    return await TestWorkflowEnvironment.createFromEnvConfig(undefined, {
       client: opts?.client,
       plugins: opts?.plugins,
     });

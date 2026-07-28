@@ -2,7 +2,6 @@ import { status as grpcStatus } from '@grpc/grpc-js';
 import type { ErrorConstructor, ExecutionContext, TestFn } from 'ava';
 import type { WorkflowHandle } from '@temporalio/client';
 import { isGrpcServiceError, WorkflowFailedError, WorkflowUpdateFailedError } from '@temporalio/client';
-import type { LoadClientProfileOptions } from '@temporalio/envconfig';
 import type { LocalTestWorkflowEnvironmentOptions, NexusEndpointIdentifier } from '@temporalio/testing';
 import type {
   BundlerPlugin,
@@ -107,7 +106,6 @@ export function makeConfigurableEnvironmentTestFn<T>(opts: {
 export interface TestFunctionOptions<C extends Context = Context> {
   workflowsPath: string;
   workflowEnvironmentOpts?: LocalTestWorkflowEnvironmentOptions;
-  envconfigOpts?: LoadClientProfileOptions;
   workflowInterceptorModules?: string[];
   recordedLogs?: { [workflowId: string]: LogEntry[] };
   runtimeOpts?: Partial<RuntimeOptions> | (() => Promise<[Partial<RuntimeOptions>, Partial<C>]>) | undefined;
@@ -128,7 +126,7 @@ export function makeTestFunction<C extends Context = Context>(opts: TestFunction
 
 export function makeDefaultTestContextFunction(opts: TestFunctionOptions): (t: ExecutionContext) => Promise<Context> {
   return async (_t: ExecutionContext): Promise<Context> => {
-    const env = await createTestWorkflowEnvironment(opts.workflowEnvironmentOpts, opts.envconfigOpts);
+    const env = await createTestWorkflowEnvironment(opts.workflowEnvironmentOpts);
     try {
       const workflowBundle = await createTestWorkflowBundle({
         workflowsPath: opts.workflowsPath,
@@ -143,10 +141,9 @@ export function makeDefaultTestContextFunction(opts: TestFunctionOptions): (t: E
 }
 
 export async function createTestWorkflowEnvironment(
-  opts?: LocalTestWorkflowEnvironmentOptions,
-  envconfigOpts?: LoadClientProfileOptions
+  opts?: LocalTestWorkflowEnvironmentOptions
 ): Promise<TestWorkflowEnvironment> {
-  return createTestWorkflowEnvironmentBase(opts, envconfigOpts);
+  return createTestWorkflowEnvironmentBase(opts);
 }
 
 /**
