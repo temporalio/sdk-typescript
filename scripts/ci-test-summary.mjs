@@ -6,7 +6,7 @@
 //
 // Usage: node scripts/ci-test-summary.mjs   (reads TEST_RESULTS_DIR or ./.test-results)
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, appendFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const root = process.cwd();
@@ -101,9 +101,9 @@ if (anyFailed) {
   }
 }
 
+// The runner pre-creates the GITHUB_STEP_SUMMARY file; just append to it.
 const summaryFile = process.env.GITHUB_STEP_SUMMARY;
 if (summaryFile) {
-  mkdirSync(join(summaryFile, '..'), { recursive: true });
   appendFileSync(summaryFile, md.join('\n') + '\n');
 }
 

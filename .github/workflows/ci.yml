@@ -238,19 +238,25 @@ jobs:
 
       - name: Run Tests (Bun)
         if: matrix.node == 'bun'
-        run: bun run -b --cwd packages/test ava ./lib/test-*.js
+        working-directory: packages/test
+        # Same wrapper as the Node path, but AVA_RUNTIME=bun makes it launch ava
+        # under Bun (mirrors `bun run -b ava`), so Bun is still exercised.
+        run: node ../../scripts/ava-ci.mjs ./lib/test-*.js
         env:
+          AVA_RUNTIME: bun
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
 
       # Aggregate the per-package results written by scripts/ava-ci.mjs into the
       # job summary (visible on the run's summary page). Runs even when tests fail
-      # so the failure overview is always present. Skipped for Bun (which doesn't
-      # route through the wrapper).
+      # so the failure overview is always present.
       - name: Publish test summary
-        if: always() && matrix.node != 'bun'
-        continue-on-error: true
-        run: node scripts/ci-test-summary.mjs
+        if: always()
+        # The gate is the "Run Tests" step. This step is informational, and the
+        # summary script exits non-zero when tests failed — swallow it with `|| true`
+        # so the step exits cleanly and the runner always captures the job summary
+        # (a non-zero step can drop its $GITHUB_STEP_SUMMARY) without an error line.
+        run: node scripts/ci-test-summary.mjs || true
 
       # FIXME: Move samples tests to a custom activity
       # Sample 1: hello-world to local server
@@ -302,7 +308,7 @@ jobs:
       # so it captures logs written by the sample steps above too.
       - name: Upload test logs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        if: always() && matrix.node != 'bun'
+        if: always()
         with:
           name: test-logs-${{ matrix.platform }}-${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}
           path: ${{ env.TEST_RESULTS_DIR }}

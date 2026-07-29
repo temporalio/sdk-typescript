@@ -171,9 +171,15 @@ const heartbeat = setInterval(() => {
 }, 30_000);
 if (typeof heartbeat.unref === 'function') heartbeat.unref();
 
-const avaArgs = ['ava', '--tap', ...process.argv.slice(2)];
-const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-const child = spawn(npx, avaArgs, {
+// Launch ava under the requested runtime. Default is Node (via npx). When
+// AVA_RUNTIME=bun, run ava under Bun — mirroring `bun run -b ava` — so the Bun test
+// matrix still exercises the SDK under Bun while sharing this wrapper's quiet output.
+const forwarded = process.argv.slice(2);
+const [cmd, cmdArgs] =
+  process.env.AVA_RUNTIME === 'bun'
+    ? ['bun', ['run', '-b', 'ava', '--tap', ...forwarded]]
+    : [process.platform === 'win32' ? 'npx.cmd' : 'npx', ['ava', '--tap', ...forwarded]];
+const child = spawn(cmd, cmdArgs, {
   cwd,
   shell: process.platform === 'win32',
   stdio: ['inherit', 'pipe', 'pipe'],
