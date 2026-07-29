@@ -331,8 +331,16 @@ export class WorkflowStream {
     }
     // Re-derive logOffset after the wait: truncate() can advance baseOffset
     // while this poll is parked, so a value captured before condition()
-    // would be stale.
-    await condition(() => this.log.length > Math.max(input.from_offset - this.baseOffset, 0) || this.draining);
+    // would be stale. The predicate also wakes on a truncation that moves
+    // baseOffset past from_offset, even if that leaves the log empty —
+    // otherwise such a truncate() would never satisfy `log.length > ...`
+    // and the poll would hang instead of failing with TruncatedOffset.
+    await condition(
+      () =>
+        this.draining ||
+        (input.from_offset !== 0 && input.from_offset - this.baseOffset < 0) ||
+        this.log.length > Math.max(input.from_offset - this.baseOffset, 0)
+    );
     let logOffset = input.from_offset - this.baseOffset;
     if (logOffset < 0) {
       if (input.from_offset === 0) {

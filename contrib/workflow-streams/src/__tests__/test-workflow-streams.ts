@@ -272,13 +272,18 @@ test('poll_parked_across_truncate_sees_all_events', async (t) => {
     t.is(first.items.length, 1);
     t.is(payloadString(decodePayloadWire(first.items[0]!.data)), 'A');
 
-    // Park from_offset=1, then trigger the publish/truncate/publish race.
-    const parkedPoll = rawHandle.executeUpdate<PollResult, [PollInput]>(workflowStreamPollUpdate, {
+    // Park from_offset=1. waitForStage: 'ACCEPTED' ensures the update has
+    // actually been admitted into the workflow (and is therefore blocked
+    // on condition()) before we trigger the race below — otherwise the
+    // signal could land first and the poll would just observe post-truncate
+    // state without ever having been parked.
+    const parkedUpdate = await rawHandle.startUpdate<PollResult, [PollInput]>(workflowStreamPollUpdate, {
       args: [{ topics: [], from_offset: 1 }],
+      waitForStage: 'ACCEPTED',
     });
     await handle.signal('triggerContinue');
 
-    const result = await parkedPoll;
+    const result = await parkedUpdate.result();
     t.deepEqual(
       result.items.map((i) => payloadString(decodePayloadWire(i.data))),
       ['B', 'C']
