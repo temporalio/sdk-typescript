@@ -75,14 +75,55 @@ export class NamespaceNotFoundError extends Error {
 export class CompleteAsyncError extends Error {}
 
 /**
- * Thrown when an inbound payload is detected as an external-storage reference
+ * Base type for all external storage errors.
+ *
+ * @experimental
+ */
+@SymbolBasedInstanceOfError('ExternalStorageError')
+export abstract class ExternalStorageError extends Error {}
+
+/**
+ * [TMPRL1105] Thrown when an inbound payload is detected as an external-storage reference
  * but no `ExternalStorage` is configured to resolve it.
  *
  * @experimental
  */
 @SymbolBasedInstanceOfError('ExternalStorageNotConfiguredError')
-export class ExternalStorageNotConfiguredError extends Error {
+export class ExternalStorageNotConfiguredError extends ExternalStorageError {
   constructor(message = 'Detected externally stored payload(s) but external storage is not configured.') {
     super(`[TMPRL1105] ${message}`);
   }
 }
+
+/**
+ * Thrown when a storage driver's `store` or `retrieve` operation fails.
+ *
+ * @experimental
+ */
+@SymbolBasedInstanceOfError('ExternalStorageDriverError')
+export class ExternalStorageDriverError extends ExternalStorageError {
+  public readonly cause?: unknown;
+
+  constructor(message: string, opts?: { cause?: unknown }) {
+    super(message);
+    this.cause = opts?.cause;
+  }
+}
+
+/**
+ * Thrown when external storage is asked to use a driver that is not registered
+ * on the configured `ExternalStorage`.
+ *
+ * @experimental
+ */
+@SymbolBasedInstanceOfError('ExternalStorageUnregisteredDriverError')
+export class ExternalStorageUnregisteredDriverError extends ExternalStorageError {}
+
+/**
+ * Thrown when an external-storage reference is malformed, or a driver returns a result inconsistent
+ * with its input.
+ *
+ * @experimental
+ */
+@SymbolBasedInstanceOfError('ExternalStorageReferenceError')
+export class ExternalStorageReferenceError extends ExternalStorageError {}

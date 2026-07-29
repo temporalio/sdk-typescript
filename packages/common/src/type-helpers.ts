@@ -175,8 +175,7 @@ export function assertNever(msg: string, x: never): never {
   throw new TypeError(msg + ': ' + x);
 }
 
-export type Class<E extends Error> = {
-  new (...args: any[]): E;
+export type Class<E extends Error> = (abstract new (...args: any[]) => E) & {
   prototype: E;
 };
 
