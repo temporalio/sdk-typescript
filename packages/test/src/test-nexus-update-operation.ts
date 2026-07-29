@@ -79,6 +79,37 @@ function makeAddOperationHandler() {
   });
 }
 
+/**
+ * Operation that starts a Workflow run and then tries to also back itself with an Update. Only one
+ * async backing operation is allowed per handler invocation, and the Workflow run has already
+ * consumed it, so the Update must be rejected.
+ */
+const runThenUpdateService = nexus.service('runThenUpdateService', {
+  startThenUpdate: nexus.operation<{ workflowId: string }, number>(),
+});
+
+function runThenUpdateServiceHandler() {
+  const handlers: nexus.ServiceHandlerFor<typeof runThenUpdateService.operations> = {
+    startThenUpdate: new temporalnexus.WorkflowRunOperationHandler(async (ctx, input: { workflowId: string }) => {
+      const handle = await temporalnexus.startWorkflow(ctx, counterWorkflow, { workflowId: input.workflowId });
+      // `update` is deliberately absent from the type of a handle returned by startWorkflow; cast to
+      // reach the runtime guard the way an untyped JavaScript caller would.
+      await (handle as temporalnexus.UpdatableWorkflowHandle<number>).update(addUpdate, { args: [5, 0] });
+      return handle;
+    }),
+  };
+  return nexus.serviceHandler(runThenUpdateService, handlers);
+}
+
+export async function runThenUpdateCaller(endpoint: string, counterWorkflowId: string): Promise<number> {
+  const client = workflow.createNexusServiceClient({ endpoint, service: runThenUpdateService });
+  return await client.executeOperation(
+    'startThenUpdate',
+    { workflowId: counterWorkflowId },
+    { scheduleToCloseTimeout: '10s' }
+  );
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Workflows
 
@@ -273,5 +304,26 @@ test('UpdateWorkflow Nexus operation - update against a completed workflow does 
       })
     );
     t.truthy(err);
+  });
+});
+
+// The single async backing operation per handler invocation is consumed by the Workflow run that
+// startWorkflow starts, so the handle it returns must refuse to also back the operation with an
+// Update. `update` is not on that handle's type; this covers the runtime guard behind it.
+test('UpdateWorkflow Nexus operation - update on a startWorkflow handle is rejected', async (t) => {
+  const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+  const counterWorkflowId = 'counter-' + randomUUID();
+
+  const worker = await createWorker({
+    nexusServices: [runThenUpdateServiceHandler()],
+  });
+
+  await worker.runUntil(async () => {
+    const err = await t.throwsAsync(() =>
+      executeWorkflow(runThenUpdateCaller, { args: [endpointName, counterWorkflowId] })
+    );
+    // BAD_REQUEST is non-retryable, so the operation fails rather than retrying until the timeout.
+    t.regex(causeChainMessages(err), /Only one async operation can be started/);
   });
 });

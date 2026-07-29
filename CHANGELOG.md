@@ -25,13 +25,14 @@ to docs, or any other relevant information.
   workflow task with `maxEagerActivityReservationsPerWorkflowTask`. Setting it to zero disables
   eager activity execution.
 - UpdateWorkflow-backed Nexus operations. A Temporal Nexus operation can now be backed by a Workflow
-  Update via `TemporalNexusClient.updateWorkflow`, in addition to a Workflow run. The Update request
-  carries the Nexus request ID (for deduplication), the request links, and a completion callback
-  bearing the operation token, so the Update's completion is delivered back to the Nexus caller. Only
-  asynchronous, `ACCEPTED`-stage updates are supported (a callback URL is required); an update that
-  has already completed is returned synchronously, and a completed-with-error update (e.g. a
-  validation rejection) surfaces as a failed Nexus operation. Cancellation is customizable via the
-  `cancelWorkflowUpdate` handler option; the default rejects with a `NOT_IMPLEMENTED` handler error.
+  Update via `TemporalNexusClient.getWorkflowHandle(...).update(...)`, in addition to a Workflow run.
+  The Update request carries the Nexus request ID (for deduplication), the request links, and a
+  completion callback bearing the operation token, so the Update's completion is delivered back to the
+  Nexus caller. Only asynchronous, `ACCEPTED`-stage updates are supported (a callback URL is
+  required); an update that has already completed is returned synchronously, and a completed-with-error
+  update (e.g. a validation rejection) surfaces as a failed Nexus operation. Cancellation is
+  customizable via the `cancelWorkflowUpdate` handler option; the default rejects with a
+  `NOT_IMPLEMENTED` handler error.
 
 ### Fixed
 

@@ -26,6 +26,7 @@ export {
   TemporalOperationResult,
   type TemporalNexusClient,
   type TemporalOperationStartHandler,
+  UpdatableWorkflowHandle,
   WorkflowHandle,
   WorkflowRunOperationHandler,
   WorkflowRunOperationStartHandler,
