@@ -247,16 +247,8 @@ jobs:
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
 
-      # Aggregate the per-package results written by scripts/ava-ci.mjs into the
-      # job summary (visible on the run's summary page). Runs even when tests fail
-      # so the failure overview is always present.
-      - name: Publish test summary
-        if: always()
-        # The gate is the "Run Tests" step. This step is informational, and the
-        # summary script exits non-zero when tests failed — swallow it with `|| true`
-        # so the step exits cleanly and the runner always captures the job summary
-        # (a non-zero step can drop its $GITHUB_STEP_SUMMARY) without an error line.
-        run: node scripts/ci-test-summary.mjs || true
+      # (Per-package results are printed by the wrapper into the "Run Tests" log
+      # above, and aggregated across all jobs by the `ci-summary` job below.)
 
       # FIXME: Move samples tests to a custom activity
       # Sample 1: hello-world to local server
@@ -366,3 +358,40 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  ci-summary:
+    name: CI Summary
+    if: always()
+    needs:
+      - compile-native-binaries-debug
+      - integration-tests
+      - conventions
+      - features-tests
+      - stress-tests-no-reuse-context
+      - stress-tests-reuse-context
+      - docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout code'
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Download test result artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: test-logs-*
+          path: all-results
+        continue-on-error: true
+
+      - name: Write consolidated summary
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          AGG_RESULTS_DIR: all-results
+        run: node scripts/ci-run-summary.mjs
+
+      # Make this rollup check red when any dependency failed (the summary above is
+      # written by the previous step regardless, so it always renders).
+      - name: Fail if any check failed
+        if: ${{ contains(needs.*.result, 'failure') }}
+        run: |
+          echo "One or more checks failed — see the CI Summary above."
+          exit 1

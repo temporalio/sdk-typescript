@@ -5,8 +5,8 @@
 //   - a periodic heartbeat so a long suite isn't silent;
 //   - a one-line per-package summary.
 //
-// It also writes a machine-readable `<pkg>.json` that scripts/ci-test-summary.mjs
-// aggregates into the GitHub Actions job summary.
+// It also writes a machine-readable `<pkg>.json` that scripts/ci-run-summary.mjs
+// aggregates (across all matrix cells) into the single GitHub Actions job summary.
 //
 // Usage (from a package's `test` script): node ../../scripts/ava-ci.mjs <ava args>
 
