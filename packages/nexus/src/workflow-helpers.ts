@@ -251,7 +251,11 @@ function createWorkflowHandle<T extends Workflow>(
       }
     },
 
-    update<Ret, Args extends any[] = [], Name extends string = string>(
+    update<Ret, Args extends [any, ...any[]], Name extends string = string>(
+        def: UpdateDefinition<Ret, Args, Name> | string,
+        options: NexusUpdateWorkflowOptions<Args> & { readonly args: Args }
+      ): Promise<TemporalOperationResult<Ret>>;
+    update<Ret, Args extends [] = [], Name extends string = string>(
       def: UpdateDefinition<Ret, Args, Name> | string,
       options?: NexusUpdateWorkflowOptions<Args>
     ): Promise<TemporalOperationResult<Ret>> {
