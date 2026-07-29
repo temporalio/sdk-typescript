@@ -209,7 +209,7 @@ function finish(exitCode) {
 
   const succeeded = exitCode === 0 && fail === 0;
   if (succeeded) {
-    process.stdout.write(`${green('✓')} ${pkgName}  ${counts}  ${duration}\n`);
+    process.stdout.write(`${green('✓')} ${pkgName}  ${counts}  ${duration}  ${dim(`→ ${relLog}`)}\n`);
   } else {
     const failCount = fail || 'unknown';
     process.stdout.write(`${red('✗')} ${pkgName}  ${red(`${failCount} FAILED`)}, ${counts}  ${duration}\n`);

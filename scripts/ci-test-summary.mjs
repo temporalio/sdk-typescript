@@ -76,6 +76,8 @@ md.push(
   }** | **${fmtDuration(totals.durationMs)}** |`
 );
 md.push('');
+md.push('_Full per-package logs are archived in the `test-logs-*` build artifact._');
+md.push('');
 
 if (anyFailed) {
   md.push('### Failures');
@@ -123,5 +125,6 @@ console.log(
     totals.skip
   } skipped  ${c('2', `(${fmtDuration(totals.durationMs)})`)}`
 );
+console.log(`  ${c('2', `full logs: ${resultsDir}`)}`);
 
 process.exit(anyFailed ? 1 : 0);
