@@ -18,8 +18,8 @@ export {
 export {
   startWorkflow,
   signalWithStartWorkflow,
-  type ActivityOptions as ActivityStartOptions,
-  type ActivityOptionsFor as ActivityStartOptionsFor,
+  type ActivityOptions,
+  type ActivityOptionsFor,
   type CancelActivityOptions,
   type CancelWorkflowRunOptions,
   type CancelWorkflowUpdateOptions,

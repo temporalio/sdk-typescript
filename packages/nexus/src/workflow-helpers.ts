@@ -429,7 +429,7 @@ async function startActivity<R>(
     },
   };
 
-  // Activity callback tokens cannot include the run ID because it is not known until after start.
+  // Activity callback tokens included in callback headers cannot include the run ID because it is not known until after start.
   const callbackToken = encodeOperationToken({
     t: OperationTokenType.ACTIVITY,
     ns: namespace,
@@ -457,22 +457,11 @@ async function startActivity<R>(
     [InternalActivityStartOptionsSymbol]: internalOptions,
   };
 
-  try {
-    const handle = await client.activity.start<R>(activity, startOptions);
-    if (internalOptions.responseLink != null) {
-      pushResponseLink(ctx, internalOptions.responseLink);
-    }
-    return handle;
-  } catch (err) {
-    // Invalid Activity options are caller errors. Surfacing them as BAD_REQUEST prevents
-    // a Nexus operation from retrying until its timeout or circuit breaker trips.
-    if (err instanceof TypeError) {
-      throw new nexus.HandlerError(nexus.HandlerErrorType.BAD_REQUEST, `Failed to start activity: ${err.message}`, {
-        cause: err,
-      });
-    }
-    throw err;
+  const handle = await client.activity.start<R>(activity, startOptions);
+  if (internalOptions.responseLink != null) {
+    pushResponseLink(ctx, internalOptions.responseLink);
   }
+  return handle;
 }
 
 /**

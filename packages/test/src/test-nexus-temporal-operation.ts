@@ -34,6 +34,8 @@ const test = makeTestFunction({
         'system.refreshNexusEndpointsMinWait="0s"',
         '--dynamic-config-value',
         'history.enableChasmCallbacks=true',
+        '--dynamic-config-value',
+        'activity.enableCallbacks=true',
       ],
     },
   },
@@ -710,49 +712,6 @@ test('TemporalOperationHandler start untyped standalone activity', async (t) => 
       id: randomUUID(),
     });
     t.is(result, 'foo');
-  });
-});
-
-test('TemporalOperationHandler converts invalid activity options to BAD_REQUEST', async (t) => {
-  const { createWorker, registerNexusEndpoint } = helpers(t);
-  const { endpointName } = await registerNexusEndpoint();
-  const { client } = t.context.env;
-
-  const worker = await createWorker({
-    activities,
-    nexusServices: [
-      makeTemporalOpServiceHandler({
-        echoActivity: new temporalnexus.TemporalOperationHandler({
-          async start(_ctx, client, input) {
-            // Intentionally omit scheduleToCloseTimeout/startToCloseTimeout. Activity option
-            // validation throws a TypeError, which startActivity converts into a BAD_REQUEST
-            // HandlerError so the caller gets an actionable, non-retryable error instead of the
-            // operation silently retrying until it times out.
-            return await client.startActivity('echo', {
-              id: randomUUID(),
-              args: [input],
-            });
-          },
-        }),
-      }),
-    ],
-  });
-
-  await worker.runUntil(async () => {
-    const nexusSvc = client.nexus.createServiceClient({ endpoint: endpointName, service: temporalOpService });
-    const err = await t.throwsAsync(
-      nexusSvc.executeOperation(temporalOpService.operations.echoActivity, 'foo', {
-        id: randomUUID(),
-      }),
-      { instanceOf: NexusOperationFailureError }
-    );
-    assert(err?.cause instanceof nexus.HandlerError);
-    const inner = innermostHandlerError(err.cause);
-    t.is(inner.type, 'BAD_REQUEST');
-    t.regex(
-      inner.message,
-      /Failed to start activity: Either scheduleToCloseTimeout or startToCloseTimeout is required/
-    );
   });
 });
 
