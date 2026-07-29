@@ -7,11 +7,12 @@
 import { setTimeout } from 'timers/promises';
 import { randomUUID } from 'crypto';
 import test from 'ava';
-import { Runtime, PromiseCompletionTimeoutError } from '@temporalio/worker';
+import type { LogEntry, NativeConnection } from '@temporalio/worker';
+import { Runtime, PromiseCompletionTimeoutError, DefaultLogger, MetricsBuffer } from '@temporalio/worker';
 import { TransportError, UnexpectedError } from '@temporalio/worker/lib/errors';
 import { Client } from '@temporalio/client';
 import { isBun, RUN_INTEGRATION_TESTS, Worker } from './helpers';
-import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
+import { defaultOptions, isolateFreeWorker, Worker as MockWorker } from './mock-native-worker';
 import { fillMemory } from './workflows';
 
 if (RUN_INTEGRATION_TESTS) {
@@ -130,6 +131,44 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 }
+
+test.serial('Worker.create debug log options are JSON serializable with buffered metrics and connection', async (t) => {
+  const logEntries: LogEntry[] = [];
+  const logger = new DefaultLogger('DEBUG', (entry) => {
+    JSON.stringify(entry.meta);
+    logEntries.push(entry);
+  });
+  const runtime = Runtime.install({
+    logger,
+    telemetryOptions: {
+      metrics: {
+        buffer: new MetricsBuffer(),
+      },
+    },
+  });
+  const connection = {
+    plugins: [],
+    referenceHolders: new Set(),
+    runtime,
+  } as unknown as NativeConnection;
+
+  try {
+    await MockWorker.create({
+      taskQueue: `json-logger-${randomUUID()}`,
+      activities: {
+        noop: async () => undefined,
+      },
+      connection,
+    });
+
+    const creatingWorkerLog = logEntries.find((entry) => entry.message === 'Creating worker');
+    t.truthy(creatingWorkerLog);
+    t.is(creatingWorkerLog?.meta?.options.connection, '<NativeConnection>');
+  } finally {
+    (connection as any).referenceHolders.clear();
+    await Runtime._instance?.shutdown();
+  }
+});
 
 test.serial('Mocked run shuts down gracefully', async (t) => {
   try {

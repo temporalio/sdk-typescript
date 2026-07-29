@@ -1,4 +1,4 @@
-import type { native } from '@temporalio/core-bridge';
+import { native } from '@temporalio/core-bridge';
 import type { Duration } from '@temporalio/common/lib/time';
 import { msToNumber } from '@temporalio/common/lib/time';
 import type { Logger, WorkerDeploymentVersion } from '@temporalio/common';
@@ -8,7 +8,7 @@ import type { Logger, WorkerDeploymentVersion } from '@temporalio/common';
  * controlling how "slots" are handed out for different task types. In order to poll for and then
  * run tasks, a slot must first be reserved by the {@link SlotSupplier} returned by the tuner.
  */
-export type WorkerTuner = ResourceBasedTuner | TunerHolder;
+export type WorkerTuner = ResourceBasedTuner | ResourceBasedTunerWithController | TunerHolder;
 
 /**
  * This tuner allows for different slot suppliers for different slot types.
@@ -34,11 +34,16 @@ export type SlotSupplier<SI extends SlotInfo> =
  * This tuner attempts to maintain certain levels of resource usage when under load. You do not
  * need more than one instance of this when using it for multiple slot types.
  */
-export interface ResourceBasedTuner {
-  /**
-   * Options for the tuner
-   */
-  tunerOptions: ResourceBasedTunerOptions;
+export interface ResourceBasedTuner extends ResourceBasedTunerSlotOptions, ResourceBasedTunerOptionsConfig {}
+
+/**
+ * A resource-based tuner that uses a controller which may be shared by multiple Workers.
+ */
+export interface ResourceBasedTunerWithController
+  extends ResourceBasedTunerSlotOptions,
+    ResourceBasedControllerConfig {}
+
+interface ResourceBasedTunerSlotOptions {
   /**
    * Options for workflow task slots. Defaults to a minimum of 2 slots and a maximum of 1000 slots
    * with no ramp throttle
@@ -61,6 +66,20 @@ export interface ResourceBasedTuner {
   nexusTaskSlotOptions?: ResourceBasedSlotOptions;
 }
 
+interface ResourceBasedTunerOptionsConfig {
+  /** Options used to construct a controller scoped to this tuner. */
+  tunerOptions: ResourceBasedTunerOptions;
+  controller?: never;
+}
+
+interface ResourceBasedControllerConfig {
+  /** A controller that may be shared by multiple tuners and Workers. */
+  controller: ResourceBasedController;
+  tunerOptions?: never;
+}
+
+type ResourceBasedTunerConfig = ResourceBasedTunerOptionsConfig | ResourceBasedControllerConfig;
+
 /**
  * Options for a {@link ResourceBasedTuner} to control target resource usage
  */
@@ -72,6 +91,25 @@ export interface ResourceBasedTunerOptions {
   // A value between 0 and 1 that represents the target (system) CPU usage. This can be set to 1.0
   // if desired, but it's recommended to leave some headroom for other processes.
   targetCpuUsage: number;
+}
+
+/**
+ * Coordinates resource-based slot allocation using a shared resource sampler and PID controller.
+ *
+ * Share one instance across resource-based tuners to enforce a single resource target across
+ * multiple Workers in the same process.
+ */
+export class ResourceBasedController {
+  private constructor(private readonly nativeController: native.ResourceBasedController) {}
+
+  /** Create a resource controller with the given target resource usage. */
+  public static create(options: ResourceBasedTunerOptions): ResourceBasedController {
+    return new ResourceBasedController(native.newResourceBasedController(options));
+  }
+}
+
+function extractNativeResourceBasedController(controller: ResourceBasedController): native.ResourceBasedController {
+  return (controller as any).nativeController;
 }
 
 /**
@@ -98,10 +136,10 @@ export interface ResourceBasedSlotOptions {
 /**
  * Resource based slot supplier options for a specific kind of slot.
  */
-export type ResourceBasedSlotsForType = ResourceBasedSlotOptions & {
-  type: 'resource-based';
-  tunerOptions: ResourceBasedTunerOptions;
-};
+export type ResourceBasedSlotsForType = ResourceBasedSlotOptions &
+  ResourceBasedTunerConfig & {
+    type: 'resource-based';
+  };
 
 // Fixed Size //////////////////////////////////////////////////////////////////////////////////////
 
@@ -274,32 +312,19 @@ export interface SlotReleaseContext<SI extends SlotInfo> {
 
 export function asNativeTuner(tuner: WorkerTuner, logger: Logger): native.WorkerTunerOptions {
   if (isTunerHolder(tuner)) {
-    let tunerOptions = undefined;
-    const retme = {
+    const resourceBasedTunerConfig = sharedResourceBasedTunerConfig([
+      tuner.workflowTaskSlotSupplier,
+      tuner.activityTaskSlotSupplier,
+      tuner.localActivityTaskSlotSupplier,
+      tuner.nexusTaskSlotSupplier,
+    ]);
+    return {
       workflowTaskSlotSupplier: nativeifySupplier(tuner.workflowTaskSlotSupplier, 'workflow', logger),
       activityTaskSlotSupplier: nativeifySupplier(tuner.activityTaskSlotSupplier, 'activity', logger),
       localActivityTaskSlotSupplier: nativeifySupplier(tuner.localActivityTaskSlotSupplier, 'activity', logger),
       nexusTaskSlotSupplier: nativeifySupplier(tuner.nexusTaskSlotSupplier, 'nexus', logger),
+      resourceBasedTunerConfig,
     };
-    for (const supplier of [
-      retme.workflowTaskSlotSupplier,
-      retme.activityTaskSlotSupplier,
-      retme.localActivityTaskSlotSupplier,
-    ]) {
-      if (isResourceBased(supplier)) {
-        if (tunerOptions !== undefined) {
-          if (
-            tunerOptions.targetCpuUsage !== supplier.tunerOptions.targetCpuUsage ||
-            tunerOptions.targetMemoryUsage !== supplier.tunerOptions.targetMemoryUsage
-          ) {
-            throw new TypeError('Cannot construct worker tuner with multiple different tuner options');
-          }
-        } else {
-          tunerOptions = supplier.tunerOptions;
-        }
-      }
-    }
-    return retme;
   } else if (isResourceBasedTuner(tuner)) {
     const wftSO = addResourceBasedSlotDefaults(tuner.workflowTaskSlotOptions ?? {}, 'workflow');
     const atSO = addResourceBasedSlotDefaults(tuner.activityTaskSlotOptions ?? {}, 'activity');
@@ -308,40 +333,37 @@ export function asNativeTuner(tuner: WorkerTuner, logger: Logger): native.Worker
     return {
       workflowTaskSlotSupplier: {
         type: 'resource-based',
-        tunerOptions: tuner.tunerOptions,
         ...wftSO,
         rampThrottle: msToNumber(wftSO.rampThrottle),
       },
       activityTaskSlotSupplier: {
         type: 'resource-based',
-        tunerOptions: tuner.tunerOptions,
         ...atSO,
         rampThrottle: msToNumber(atSO.rampThrottle),
       },
       localActivityTaskSlotSupplier: {
         type: 'resource-based',
-        tunerOptions: tuner.tunerOptions,
         ...latSO,
         rampThrottle: msToNumber(latSO.rampThrottle),
       },
       nexusTaskSlotSupplier: {
         type: 'resource-based',
-        tunerOptions: tuner.tunerOptions,
         ...nexusSO,
         rampThrottle: msToNumber(nexusSO.rampThrottle),
       },
+      resourceBasedTunerConfig: nativeifyResourceBasedTunerConfig(tuner),
     };
   } else {
     throw new TypeError('Invalid worker tuner configuration');
   }
 }
 
-const isResourceBasedTuner = (tuner: WorkerTuner): tuner is ResourceBasedTuner =>
-  Object.hasOwnProperty.call(tuner, 'tunerOptions');
+const isResourceBasedTuner = (tuner: WorkerTuner): tuner is ResourceBasedTuner | ResourceBasedTunerWithController =>
+  Object.hasOwnProperty.call(tuner, 'tunerOptions') || Object.hasOwnProperty.call(tuner, 'controller');
 const isTunerHolder = (tuner: WorkerTuner): tuner is TunerHolder =>
   Object.hasOwnProperty.call(tuner, 'workflowTaskSlotSupplier');
-const isResourceBased = (sup: SlotSupplier<any> | native.SlotSupplierOptions): sup is ResourceBasedSlotsForType =>
-  sup.type === 'resource-based';
+const isResourceBased = (supplier: SlotSupplier<any>): supplier is ResourceBasedSlotsForType =>
+  supplier.type === 'resource-based';
 const isCustom = (sup: SlotSupplier<any> | native.SlotSupplierOptions): sup is CustomSlotSupplier<any> =>
   sup.type === 'custom';
 
@@ -355,17 +377,12 @@ function nativeifySupplier<SI extends SlotInfo>(
   logger: Logger
 ): native.SlotSupplierOptions {
   if (isResourceBased(supplier)) {
-    const tunerOptions = supplier.tunerOptions;
     const defaulted = addResourceBasedSlotDefaults(supplier, kind);
     return {
       type: 'resource-based',
       minimumSlots: defaulted.minimumSlots,
       maximumSlots: defaulted.maximumSlots,
       rampThrottle: msToNumber(defaulted.rampThrottle),
-      tunerOptions: {
-        targetMemoryUsage: tunerOptions.targetMemoryUsage,
-        targetCpuUsage: tunerOptions.targetCpuUsage,
-      },
     };
   }
 
@@ -377,6 +394,60 @@ function nativeifySupplier<SI extends SlotInfo>(
     type: 'fixed-size',
     numSlots: supplier.numSlots,
   };
+}
+
+function sharedResourceBasedTunerConfig(suppliers: SlotSupplier<any>[]): native.ResourceBasedTunerConfig | null {
+  let sharedConfig: native.ResourceBasedTunerConfig | undefined;
+
+  for (const supplier of suppliers) {
+    if (!isResourceBased(supplier)) continue;
+
+    const config = nativeifyResourceBasedTunerConfig(supplier);
+    if (sharedConfig !== undefined && !resourceBasedTunerConfigsEqual(sharedConfig, config)) {
+      throw new TypeError('Cannot construct worker tuner with multiple different resource-based tuner configurations');
+    }
+    sharedConfig = config;
+  }
+
+  return sharedConfig ?? null;
+}
+
+function nativeifyResourceBasedTunerConfig(config: ResourceBasedTunerConfig): native.ResourceBasedTunerConfig {
+  const hasController = config.controller !== undefined;
+  const hasOptions = config.tunerOptions !== undefined;
+  if (hasController === hasOptions) {
+    throw new TypeError('Resource-based tuner must specify exactly one of controller or tunerOptions');
+  }
+
+  if (config.controller !== undefined) {
+    if (!(config.controller instanceof ResourceBasedController)) {
+      throw new TypeError('Resource-based tuner controller must be a ResourceBasedController');
+    }
+    return {
+      type: 'controller',
+      controller: extractNativeResourceBasedController(config.controller),
+    };
+  }
+
+  return {
+    type: 'options',
+    targetMemoryUsage: config.tunerOptions.targetMemoryUsage,
+    targetCpuUsage: config.tunerOptions.targetCpuUsage,
+  };
+}
+
+function resourceBasedTunerConfigsEqual(
+  left: native.ResourceBasedTunerConfig,
+  right: native.ResourceBasedTunerConfig
+): boolean {
+  if (left.type !== right.type) return false;
+  if (left.type === 'controller' && right.type === 'controller') {
+    return left.controller === right.controller;
+  }
+  if (left.type === 'options' && right.type === 'options') {
+    return left.targetCpuUsage === right.targetCpuUsage && left.targetMemoryUsage === right.targetMemoryUsage;
+  }
+  return false;
 }
 
 function addResourceBasedSlotDefaults(

@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./lib",
+    "rootDir": "./src"
+  },
+  "references": [{ "path": "../external-storage-gcs" }],
+  "include": ["./src/**/*.ts"]
+}

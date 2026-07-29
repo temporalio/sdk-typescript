@@ -52,7 +52,7 @@ pub fn client_new(
 ) -> BridgeResult<BridgeFuture<OpaqueOutboundHandle<Client>>> {
     let runtime = runtime.borrow()?.core_runtime.clone();
     let metric_meter = runtime.telemetry().get_temporal_metric_meter();
-    let options = config.into_connection_options(metric_meter);
+    let options = config.into_connection_options(metric_meter)?;
 
     runtime.clone().future_to_promise(async move {
         let core_connection = match Connection::connect(options).await {
@@ -263,6 +263,7 @@ async fn client_invoke_workflow_service(
     match call.rpc.as_str() {
         "CountActivityExecutions" => rpc_call!(connection, call, count_activity_executions),
         "CountSchedules" => rpc_call!(connection, call, count_schedules),
+        "CountWorkers" => rpc_call!(connection, call, count_workers),
         "CountWorkflowExecutions" => rpc_call!(connection, call, count_workflow_executions),
         "CountNexusOperationExecutions" => {
             rpc_call!(connection, call, count_nexus_operation_executions)
@@ -342,6 +343,7 @@ async fn client_invoke_workflow_service(
         "ListWorkflowRules" => rpc_call!(connection, call, list_workflow_rules),
         "PatchSchedule" => rpc_call!(connection, call, patch_schedule),
         "PauseActivity" => rpc_call!(connection, call, pause_activity),
+        "PauseActivityExecution" => rpc_call!(connection, call, pause_activity_execution),
         "PauseWorkflowExecution" => rpc_call!(connection, call, pause_workflow_execution),
         "PollActivityExecution" => rpc_call!(connection, call, poll_activity_execution),
         "PollActivityTaskQueue" => rpc_call!(connection, call, poll_activity_task_queue),
@@ -372,6 +374,7 @@ async fn client_invoke_workflow_service(
             rpc_call!(connection, call, request_cancel_workflow_execution)
         }
         "ResetActivity" => rpc_call!(connection, call, reset_activity),
+        "ResetActivityExecution" => rpc_call!(connection, call, reset_activity_execution),
         "ResetStickyTaskQueue" => rpc_call!(connection, call, reset_sticky_task_queue),
         "ResetWorkflowExecution" => rpc_call!(connection, call, reset_workflow_execution),
         "RespondActivityTaskCanceled" => {
@@ -425,7 +428,11 @@ async fn client_invoke_workflow_service(
         "TerminateWorkflowExecution" => rpc_call!(connection, call, terminate_workflow_execution),
         "TriggerWorkflowRule" => rpc_call!(connection, call, trigger_workflow_rule),
         "UnpauseActivity" => rpc_call!(connection, call, unpause_activity),
+        "UnpauseActivityExecution" => rpc_call!(connection, call, unpause_activity_execution),
         "UnpauseWorkflowExecution" => rpc_call!(connection, call, unpause_workflow_execution),
+        "UpdateActivityExecutionOptions" => {
+            rpc_call!(connection, call, update_activity_execution_options)
+        }
         "UpdateActivityOptions" => rpc_call!(connection, call, update_activity_options),
         "UpdateNamespace" => rpc_call!(connection, call, update_namespace),
         "UpdateSchedule" => rpc_call!(connection, call, update_schedule),
@@ -615,7 +622,8 @@ mod config {
 
     use temporalio_client::{
         ClientTlsOptions as CoreClientTlsOptions, ConnectionOptions, DnsLoadBalancingOptions,
-        HttpConnectProxyOptions, TlsOptions as CoreTlsOptions,
+        GrpcCompression as CoreGrpcCompression, HttpConnectProxyOptions, PayloadLimitsOptions,
+        TlsOptions as CoreTlsOptions,
     };
     use temporalio_common::telemetry::metrics::TemporalMeter;
     use temporalio_sdk_core::Url;
@@ -623,7 +631,10 @@ mod config {
 
     use bridge_macros::TryFromJs;
 
-    use crate::client::MetadataValue;
+    use crate::{
+        client::MetadataValue,
+        helpers::{BridgeError, BridgeResult},
+    };
 
     #[derive(Debug, Clone, TryFromJs)]
     pub(super) struct ClientOptions {
@@ -633,9 +644,12 @@ mod config {
         tls: Option<TlsOptions>,
         http_connect_proxy: Option<HttpConnectProxy>,
         dns_load_balancing_config: Option<DnsLoadBalancingConfig>,
+        grpc_compression: Option<GrpcCompressionConfig>,
         headers: Option<HashMap<String, MetadataValue>>,
         api_key: Option<String>,
         disable_error_code_metric_tags: bool,
+        payloads_warn_size: u64,
+        memo_warn_size: u64,
     }
 
     #[derive(Debug, Clone, TryFromJs)]
@@ -669,11 +683,16 @@ mod config {
         resolution_interval_millis: u64,
     }
 
+    #[derive(Debug, Clone, TryFromJs)]
+    struct GrpcCompressionConfig {
+        codec: String,
+    }
+
     impl ClientOptions {
         pub(super) fn into_connection_options(
             self,
             metrics_meter: Option<TemporalMeter>,
-        ) -> ConnectionOptions {
+        ) -> BridgeResult<ConnectionOptions> {
             let (ascii_headers, bin_headers) = partition_headers(self.headers);
             let has_http_connect_proxy = self.http_connect_proxy.is_some();
             // Core rejects DNS load balancing alongside an HTTP CONNECT proxy, so
@@ -688,24 +707,47 @@ mod config {
                 self.dns_load_balancing_config.map(Into::into)
             };
             let http_connect_proxy = self.http_connect_proxy.map(Into::into);
+            let grpc_compression = self
+                .grpc_compression
+                .map_or(Ok(CoreGrpcCompression::Gzip), TryInto::try_into)?;
 
-            ConnectionOptions::new(self.target_url)
+            Ok(ConnectionOptions::new(self.target_url)
                 .client_name(self.client_name)
                 .client_version(self.client_version)
                 .maybe_tls_options(self.tls.map(Into::into))
                 .maybe_http_connect_proxy(http_connect_proxy)
                 .dns_load_balancing(dns_load_balancing)
+                .grpc_compression(grpc_compression)
                 .maybe_headers(ascii_headers)
                 .maybe_binary_headers(bin_headers)
                 .maybe_api_key(self.api_key)
                 .maybe_metrics_meter(metrics_meter)
                 .disable_error_code_metric_tags(self.disable_error_code_metric_tags)
+                .payload_limits(PayloadLimitsOptions {
+                    payloads_warn_size: self.payloads_warn_size,
+                    memo_warn_size: self.memo_warn_size,
+                })
                 // identity -- skipped: will be set on worker
                 // retry_config -- skipped: worker overrides anyway
                 // override_origin -- skipped: will default to tls_cfg.domain
                 // keep_alive -- skipped: defaults to true; is there any reason to disable this?
                 // skip_get_system_info -- skipped: defaults to false; is there any reason to set this?
-                .build()
+                .build())
+        }
+    }
+
+    impl TryFrom<GrpcCompressionConfig> for CoreGrpcCompression {
+        type Error = BridgeError;
+
+        fn try_from(val: GrpcCompressionConfig) -> Result<Self, Self::Error> {
+            match val.codec.as_str() {
+                "gzip" => Ok(Self::Gzip),
+                "none" => Ok(Self::None),
+                codec => Err(BridgeError::InvalidVariant {
+                    enum_name: "GrpcCompressionConfig".to_string(),
+                    variant: codec.to_string(),
+                }),
+            }
         }
     }
 
@@ -718,6 +760,7 @@ mod config {
                     client_cert: pair.client_cert,
                     client_private_key: pair.client_private_key,
                 }),
+                server_cert_verifier: None,
             }
         }
     }

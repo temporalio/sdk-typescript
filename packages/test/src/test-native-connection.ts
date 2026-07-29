@@ -18,23 +18,23 @@ import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 const workflowServicePackageDefinition = protoLoader.loadSync(
   path.resolve(
     __dirname,
-    '../../core-bridge/sdk-core/crates/common/protos/api_upstream/temporal/api/workflowservice/v1/service.proto'
+    '../../core-bridge/sdk-core/crates/protos/protos/api_upstream/temporal/api/workflowservice/v1/service.proto'
   ),
-  { includeDirs: [path.resolve(__dirname, '../../core-bridge/sdk-core/crates/common/protos/api_upstream')] }
+  { includeDirs: [path.resolve(__dirname, '../../core-bridge/sdk-core/crates/protos/protos/api_upstream')] }
 );
 const workflowServiceProtoDescriptor = grpc.loadPackageDefinition(workflowServicePackageDefinition) as any;
 
 const operatorServicePackageDefinition = protoLoader.loadSync(
   path.resolve(
     __dirname,
-    '../../core-bridge/sdk-core/crates/common/protos/api_upstream/temporal/api/operatorservice/v1/service.proto'
+    '../../core-bridge/sdk-core/crates/protos/protos/api_upstream/temporal/api/operatorservice/v1/service.proto'
   ),
-  { includeDirs: [path.resolve(__dirname, '../../core-bridge/sdk-core/crates/common/protos/api_upstream')] }
+  { includeDirs: [path.resolve(__dirname, '../../core-bridge/sdk-core/crates/protos/protos/api_upstream')] }
 );
 const operatorServiceProtoDescriptor = grpc.loadPackageDefinition(operatorServicePackageDefinition) as any;
 
 const healthServicePackageDefinition = protoLoader.loadSync(
-  path.resolve(__dirname, '../../core-bridge/sdk-core/crates/common/protos/grpc/health/v1/health.proto'),
+  path.resolve(__dirname, '../../core-bridge/sdk-core/crates/protos/protos/grpc/health/v1/health.proto'),
   { includeDirs: [] }
 );
 const healthServiceProtoDescriptor = grpc.loadPackageDefinition(healthServicePackageDefinition) as any;
@@ -42,9 +42,9 @@ const healthServiceProtoDescriptor = grpc.loadPackageDefinition(healthServicePac
 const testServicePackageDefinition = protoLoader.loadSync(
   path.resolve(
     __dirname,
-    '../../core-bridge/sdk-core/crates/common/protos/testsrv_upstream/temporal/api/testservice/v1/service.proto'
+    '../../core-bridge/sdk-core/crates/protos/protos/testsrv_upstream/temporal/api/testservice/v1/service.proto'
   ),
-  { includeDirs: [path.resolve(__dirname, '../../core-bridge/sdk-core/crates/common/protos/testsrv_upstream')] }
+  { includeDirs: [path.resolve(__dirname, '../../core-bridge/sdk-core/crates/protos/protos/testsrv_upstream')] }
 );
 const testServiceProtoDescriptor = grpc.loadPackageDefinition(testServicePackageDefinition) as any;
 
@@ -67,6 +67,20 @@ async function bindLocalhostTls(server: grpc.Server): Promise<number> {
     false
   );
   return await util.promisify(server.bindAsync.bind(server))('127.0.0.1:0', credentials);
+}
+
+function addGetSystemInfoMock(server: grpc.Server): void {
+  server.addService(workflowServiceProtoDescriptor.temporal.api.workflowservice.v1.WorkflowService.service, {
+    getSystemInfo(
+      _call: grpc.ServerUnaryCall<
+        temporal.api.workflowservice.v1.IGetSystemInfoRequest,
+        temporal.api.workflowservice.v1.IGetSystemInfoResponse
+      >,
+      callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IGetSystemInfoResponse>
+    ) {
+      callback(null, {});
+    },
+  });
 }
 
 test('NativeConnection.connect() throws meaningful error when passed invalid address', async (t) => {
@@ -270,6 +284,7 @@ test('all WorkflowService methods are implemented', async (t) => {
 
 test('all OperatorService methods are implemented', async (t) => {
   const server = new grpc.Server();
+  addGetSystemInfoMock(server);
   const calledMethods = new Set<string>();
   server.addService(
     operatorServiceProtoDescriptor.temporal.api.operatorservice.v1.OperatorService.service,
@@ -315,6 +330,7 @@ test('all OperatorService methods are implemented', async (t) => {
 
 test('all HealthService methods are implemented', async (t) => {
   const server = new grpc.Server();
+  addGetSystemInfoMock(server);
   const calledMethods = new Set<string>();
   server.addService(
     healthServiceProtoDescriptor.grpc.health.v1.Health.service,
@@ -364,6 +380,7 @@ test('all HealthService methods are implemented', async (t) => {
 
 test('all TestService methods are implemented', async (t) => {
   const server = new grpc.Server();
+  addGetSystemInfoMock(server);
   const calledMethods = new Set<string>();
   server.addService(
     testServiceProtoDescriptor.temporal.api.testservice.v1.TestService.service,
@@ -509,4 +526,38 @@ test('NativeConnection: DNS load balancing config is converted to native millise
     dnsLoadBalancingConfig: { resolutionInterval: '5s' },
   });
   t.deepEqual(options.dnsLoadBalancingConfig, { resolutionIntervalMillis: 5000 });
+});
+
+test('NativeConnection: gRPC compression defaults to gzip', (t) => {
+  const options = toNativeClientOptions({});
+  t.deepEqual(options.grpcCompression, { codec: 'gzip' });
+});
+
+test('NativeConnection: gRPC compression can be disabled', (t) => {
+  const options = toNativeClientOptions({ grpcCompression: { codec: 'none' } });
+  t.deepEqual(options.grpcCompression, { codec: 'none' });
+});
+
+test('NativeConnection: payload/memo warn sizes default when payloadLimits is unset', (t) => {
+  const options = toNativeClientOptions({});
+  t.is(options.payloadsWarnSize, 512 * 1024);
+  t.is(options.memoWarnSize, 2 * 1024);
+});
+
+test('NativeConnection: setting payloadsWarnSize leaves memoWarnSize at its default', (t) => {
+  const options = toNativeClientOptions({ payloadLimits: { payloadsWarnSize: 1024 } });
+  t.is(options.payloadsWarnSize, 1024);
+  t.is(options.memoWarnSize, 2 * 1024);
+});
+
+test('NativeConnection: setting memoWarnSize leaves payloadsWarnSize at its default', (t) => {
+  const options = toNativeClientOptions({ payloadLimits: { memoWarnSize: 1024 } });
+  t.is(options.memoWarnSize, 1024);
+  t.is(options.payloadsWarnSize, 512 * 1024);
+});
+
+test('NativeConnection: a 0 warn size disables the warning instead of falling back to the default', (t) => {
+  const options = toNativeClientOptions({ payloadLimits: { payloadsWarnSize: 0, memoWarnSize: 0 } });
+  t.is(options.payloadsWarnSize, 0);
+  t.is(options.memoWarnSize, 0);
 });

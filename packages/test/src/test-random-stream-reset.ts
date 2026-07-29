@@ -1,11 +1,14 @@
-import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import path from 'node:path';
 import asyncRetry from 'async-retry';
 import type Long from 'long';
 import type { WorkflowHandle, WorkflowHandleWithFirstExecutionRunId } from '@temporalio/client';
 import type { temporal } from '@temporalio/proto';
+import { createTestWorkflowBundle } from '@temporalio/test-helpers';
+import { Worker } from '@temporalio/worker';
 import { helpers, makeTestFunction } from './helpers-integration';
 import * as workflows from './workflows';
+import { loadHistory } from './helpers';
 
 const test = makeTestFunction({ workflowsPath: path.join(__dirname, 'workflows') });
 
@@ -98,4 +101,49 @@ test.serial('named random streams are reseeded after workflow reset', async (t) 
   t.not(d.random, b.random);
   t.not(d.uuid, b.uuid);
   t.not(d.childWorkflowId, b.childWorkflowId);
+});
+
+const UUID_V4_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+test.serial('unsafe random source is nondeterministic across replays while named streams reset', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  // maxCachedWorkflows: 0 evicts the workflow after each task, so each query replays history
+  // from the start: the seed-derived named stream resets while the unsafe source draws fresh entropy.
+  const worker = await createWorker({ maxCachedWorkflows: 0 });
+  const [first, second] = await worker.runUntil(async () => {
+    const handle = await startWorkflow(workflows.unsafeRandomWorkflow);
+    const first = await handle.query(workflows.unsafeRandomQuery);
+    const second = await handle.query(workflows.unsafeRandomQuery);
+    await handle.signal(workflows.unsafeRandomUnblockSignal);
+    await handle.result();
+    return [first, second];
+  });
+
+  t.not(first.unsafe, second.unsafe);
+  t.regex(first.unsafe, UUID_V4_REGEX);
+  t.regex(second.unsafe, UUID_V4_REGEX);
+
+  t.is(first.named, second.named);
+
+  t.true(first.float >= 0 && first.float < 1);
+  t.true(second.float >= 0 && second.float < 1);
+
+  t.is(first.filled.length, 8);
+  t.is(second.filled.length, 8);
+  t.notDeepEqual(first.filled, second.filled);
+  t.true(first.filled.some((b) => b !== 0));
+});
+
+test.serial('can replay history with randoms from 1.17.2', async (t) => {
+  const hist = await loadHistory('random-replay-1.17.2.json');
+  await t.notThrowsAsync(async () => {
+    await Worker.runReplayHistory(
+      {
+        workflowBundle: await createTestWorkflowBundle({
+          workflowsPath: require.resolve('./workflows/random-streams'),
+        }),
+      },
+      hist
+    );
+  });
 });

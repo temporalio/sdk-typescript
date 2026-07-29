@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           submodules: recursive
 
@@ -50,6 +50,14 @@ jobs:
       # eslint-import-resolver-typescript requires packages to be built
       - name: Compile all non-rust code
         run: pnpm --recursive --stream --filter '!@temporalio/core-bridge' --filter '!typescript-sdk' run build
+
+      - name: Check generated payload visitor is up to date
+        run: |
+          pnpm run gen:payload-visitor
+          if ! git diff --exit-code -- packages/proto/src/payload-visitor.generated.ts; then
+            echo "::error::payload-visitor.generated.ts is out of date with the protos. Run 'pnpm run gen:payload-visitor' and commit the result."
+            exit 1
+          fi
 
       - run: pnpm run lint:check
       - run: pnpm run lint:prune

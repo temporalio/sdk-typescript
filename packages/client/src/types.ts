@@ -82,16 +82,12 @@ export type WorkflowExecutionDescription = Replace<
   /**
    * General fixed details for this workflow execution that may appear in UI/CLI.
    * This can be in Temporal markdown format and can span multiple lines.
-   *
-   * @experimental User metadata is a new API and susceptible to change.
    */
   staticDetails: () => Promise<string | undefined>;
 
   /**
    * A single-line fixed summary for this workflow execution that may appear in the UI/CLI.
    * This can be in single-line Temporal markdown format.
-   *
-   * @experimental User metadata is a new API and susceptible to change.
    */
   staticSummary: () => Promise<string | undefined>;
 };
@@ -361,6 +357,7 @@ export const ActivityExecutionStatus = {
   CANCELED: 'CANCELED',
   TERMINATED: 'TERMINATED',
   TIMED_OUT: 'TIMED_OUT',
+  PAUSED: 'PAUSED',
 } as const;
 /**
  * @experimental Standalone Activities are experimental. APIs may be subject to change.
@@ -383,6 +380,7 @@ export const [encodeActivityExecutionStatus, decodeActivityExecutionStatus] = ma
     [ActivityExecutionStatus.CANCELED]: 4,
     [ActivityExecutionStatus.TERMINATED]: 5,
     [ActivityExecutionStatus.TIMED_OUT]: 6,
+    [ActivityExecutionStatus.PAUSED]: 7,
     UNSPECIFIED: 0,
   } as const,
   'ACTIVITY_EXECUTION_STATUS_'

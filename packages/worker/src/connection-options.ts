@@ -16,6 +16,18 @@ import type { NativeConnectionPlugin } from './connection';
 export { TLSConfig, ProxyConfig };
 
 /**
+ * Default warning threshold, in bytes, for outbound payload-bearing field size.
+ * Mirrors the Temporal server's `limit.blobSize.warn` dynamic-config default.
+ */
+const DEFAULT_PAYLOADS_WARN_SIZE = 512 * 1024;
+
+/**
+ * Default warning threshold, in bytes, for outbound memo size.
+ * Mirrors the Temporal server's `limit.memoSize.warn` dynamic-config default.
+ */
+const DEFAULT_MEMO_WARN_SIZE = 2 * 1024;
+
+/**
  * DNS load balancing configuration.
  */
 export interface DNSLoadBalancingConfig {
@@ -23,6 +35,48 @@ export interface DNSLoadBalancingConfig {
    * How often Core should re-resolve DNS records for the target host.
    */
   resolutionInterval: Duration;
+}
+
+/**
+ * Use gzip for transport-level gRPC compression.
+ */
+export interface GzipGrpcCompressionConfig {
+  codec: 'gzip';
+}
+
+/**
+ * Disable transport-level gRPC compression.
+ */
+export interface NoneGrpcCompressionConfig {
+  codec: 'none';
+}
+
+/**
+ * Transport-level gRPC compression configuration.
+ */
+export type GrpcCompressionConfig = GzipGrpcCompressionConfig | NoneGrpcCompressionConfig;
+
+/**
+ * Payload size-limit configuration for a connection.
+ *
+ * @experimental Payload size-limit enforcement is an experimental feature; APIs may change without notice.
+ */
+export interface PayloadLimitsConfig {
+  /**
+   * Warning threshold, in bytes, for the size of an outbound payload-bearing field. Over-threshold
+   * fields are logged but still sent to the server. Set to `0` to disable.
+   *
+   * @default 512KiB
+   */
+  payloadsWarnSize?: number;
+
+  /**
+   * Warning threshold, in bytes, for outbound memo size. Over-threshold memos are logged but still
+   * sent to the server. Set to `0` to disable.
+   *
+   * @default 2KiB
+   */
+  memoWarnSize?: number;
 }
 
 /**
@@ -65,6 +119,14 @@ export interface NativeConnectionOptions {
   dnsLoadBalancingConfig?: DNSLoadBalancingConfig | null;
 
   /**
+   * Transport-level gRPC compression configuration for Core service requests.
+   *
+   * Defaults to gzip, which compresses outbound request bodies and accepts
+   * gzip-compressed responses. Set to `{ codec: 'none' }` to opt out.
+   */
+  grpcCompression?: GrpcCompressionConfig;
+
+  /**
    * Optional mapping of gRPC metadata (HTTP headers) to send with each request to the server.
    *
    * Set statically at connection time, can be replaced later using {@link NativeConnection.setMetadata}.
@@ -84,6 +146,14 @@ export interface NativeConnectionOptions {
    * @default false
    */
   disableErrorCodeMetricTags?: boolean;
+
+  /**
+   * Payload size-limit options for this connection. If unset, defaults of 512KiB (payloads) and
+   * 2KiB (memo) are used.
+   *
+   * @experimental Payload size-limit enforcement is an experimental feature; APIs may change without notice.
+   */
+  payloadLimits?: PayloadLimitsConfig;
 
   /**
    * List of plugins to register with the native connection.
@@ -138,6 +208,15 @@ export function toNativeClientOptions(options: NativeConnectionOptions): native.
       }
     : null;
 
+  const grpcCompression: native.GrpcCompressionConfig = options.grpcCompression ?? { codec: 'gzip' };
+  switch (grpcCompression.codec) {
+    case 'gzip':
+    case 'none':
+      break;
+    default:
+      throw new TypeError(`Unsupported gRPC compression codec: ${(grpcCompression as { codec: string }).codec}`);
+  }
+
   if (options?.apiKey && options.metadata?.['Authorization']) {
     throw new TypeError(
       'Both `apiKey` option and `Authorization` header were provided. Only one makes sense to use at a time.'
@@ -163,8 +242,11 @@ export function toNativeClientOptions(options: NativeConnectionOptions): native.
     tls,
     httpConnectProxy,
     dnsLoadBalancingConfig,
+    grpcCompression,
     headers,
     apiKey: options.apiKey ?? null,
     disableErrorCodeMetricTags: options.disableErrorCodeMetricTags ?? false,
+    payloadsWarnSize: options.payloadLimits?.payloadsWarnSize ?? DEFAULT_PAYLOADS_WARN_SIZE,
+    memoWarnSize: options.payloadLimits?.memoWarnSize ?? DEFAULT_MEMO_WARN_SIZE,
   };
 }

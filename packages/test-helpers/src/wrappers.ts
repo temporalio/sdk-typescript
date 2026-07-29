@@ -4,6 +4,7 @@ import type {
   TimeSkippingTestWorkflowEnvironmentOptions,
 } from '@temporalio/testing';
 import { TestWorkflowEnvironment as RealTestWorkflowEnvironment } from '@temporalio/testing';
+import { loadClientConnectConfig, type LoadClientProfileOptions } from '@temporalio/envconfig';
 import * as worker from '@temporalio/worker';
 import type { WorkerOptions } from '@temporalio/worker';
 import { Worker as RealWorker } from '@temporalio/worker';
@@ -76,5 +77,19 @@ export class TestWorkflowEnvironment extends RealTestWorkflowEnvironment {
     opts?: ExistingServerTestWorkflowEnvironmentOptions
   ): Promise<TestWorkflowEnvironment> {
     return RealTestWorkflowEnvironment.createFromExistingServer(opts);
+  }
+
+  static async createFromEnvConfig(
+    envconfigOpts?: LoadClientProfileOptions,
+    opts?: Pick<ExistingServerTestWorkflowEnvironmentOptions, 'client' | 'plugins'>
+  ): Promise<TestWorkflowEnvironment> {
+    const { namespace, connectionOptions } = loadClientConnectConfig(envconfigOpts);
+    const { address, apiKey, metadata, tls } = connectionOptions;
+    return await TestWorkflowEnvironment.createFromExistingServer({
+      address,
+      namespace,
+      connectionOptions: { apiKey, metadata, tls },
+      ...opts,
+    });
   }
 }

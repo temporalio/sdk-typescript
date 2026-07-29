@@ -35,7 +35,12 @@
  */
 
 export { NativeConnection, NativeConnectionPlugin } from './connection';
-export { DNSLoadBalancingConfig, NativeConnectionOptions, TLSConfig } from './connection-options';
+export {
+  DNSLoadBalancingConfig,
+  GrpcCompressionConfig,
+  NativeConnectionOptions,
+  TLSConfig,
+} from './connection-options';
 export { startDebugReplayer } from './debug-replayer';
 export { IllegalStateError } from '@temporalio/common';
 export {
@@ -64,6 +69,8 @@ export * from './sinks';
 export { DataConverter, defaultPayloadConverter, State, Worker, WorkerStatus } from './worker';
 export {
   CompiledWorkerOptions,
+  PatchActivationCallback,
+  PatchActivationInput,
   ReplayWorkerOptions,
   WorkerDeploymentOptions,
   WorkerOptions,
@@ -78,7 +85,9 @@ export {
   WorkerTuner,
   TunerHolder,
   SlotSupplier,
+  ResourceBasedController,
   ResourceBasedTuner,
+  ResourceBasedTunerWithController,
   ResourceBasedTunerOptions,
   ResourceBasedSlotOptions,
   ResourceBasedSlotsForType,

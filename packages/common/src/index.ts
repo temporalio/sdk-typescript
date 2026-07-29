@@ -11,6 +11,7 @@ export * from './activity-options';
 export { ActivityCancellationDetailsOptions, ActivityCancellationDetails } from './activity-cancellation-details';
 export { SuggestContinueAsNewReason } from './continue-as-new';
 export * from './converter/data-converter';
+export * from './converter/extstore';
 export * from './converter/failure-converter';
 export * from './converter/payload-codec';
 export * from './converter/payload-converter';

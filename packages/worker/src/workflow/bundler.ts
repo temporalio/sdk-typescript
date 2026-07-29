@@ -9,6 +9,10 @@ import { webpack, NormalModuleReplacementPlugin } from 'webpack';
 import type { Logger } from '../logger';
 import { DefaultLogger, hasColorSupport } from '../logger';
 import { toMB } from '../utils';
+import {
+  InjectWorkflowModuleCacheGlobalPlugin,
+  assertWorkflowModuleCacheGlobalApplied,
+} from './bundler/patch-module-cache';
 
 export const defaultWorkflowInterceptorModules = [require.resolve('../workflow-log-interceptor')];
 
@@ -22,6 +26,8 @@ export const disallowedModules = [
   '@temporalio/common/lib/internal-non-workflow',
   '@temporalio/interceptors-opentelemetry/lib/client',
   '@temporalio/interceptors-opentelemetry/lib/worker',
+  '@temporalio/interceptors-opentelemetry-v2/lib/client',
+  '@temporalio/interceptors-opentelemetry-v2/lib/worker',
   '@temporalio/testing',
   '@temporalio/core-bridge',
 ];
@@ -131,13 +137,9 @@ export class WorkflowCodeBundler {
 
     this.genEntrypoint(vol, entrypointPath);
     const bundleFilePath = await this.bundle(ufs, memoryFs, entrypointPath, distDir);
-    let code = memoryFs.readFileSync(bundleFilePath, 'utf8') as string;
-    // Replace webpack's module cache with an object injected by the runtime.
-    // This is the key to reusing a single v8 context.
-    code = code.replace(
-      'var __webpack_module_cache__ = {}',
-      'var __webpack_module_cache__ = globalThis.__webpack_module_cache__'
-    );
+
+    const code = memoryFs.readFileSync(bundleFilePath, 'utf8') as string;
+    assertWorkflowModuleCacheGlobalApplied(code);
 
     this.logger.info('Workflow bundle created', { size: `${toMB(code.length)}MB` });
 
@@ -238,14 +240,30 @@ exports.importInterceptors = function importInterceptors() {
         },
       },
       plugins: [
-        // `@temporalio/interceptors-opentelemetry` only requires `@temporalio/workflow` for interceptors that run in workflow context.
-        // In order to keep `@temporalio/workflow` as an optional peer dependency for `@temporalio/interceptors-opentelemetry`
+        // Redirect webpack's module cache to a runtime-injected global so that a single V8
+        // context can be reused across Workflow executions while keeping module state isolated.
+        new InjectWorkflowModuleCacheGlobalPlugin(),
+        // The OpenTelemetry interceptor packages only require `@temporalio/workflow` for interceptors that run in workflow context.
+        // In order to keep `@temporalio/workflow` as an optional peer dependency for those packages
         // we use `workflow-imports` to reexport all required imports from `@temporalio/workflow`.
         // Outside of workflow context the module used only contains stubs that will error if they are used.
         // When creating the workflow bundle we replace the module containing the stubs with a module that reexports the actual implementations.
         new NormalModuleReplacementPlugin(
-          /[\\/](?:@temporalio|contrib)[\\/]interceptors-opentelemetry[\\/](?:src|lib)[\\/]workflow[\\/]workflow-imports\.[jt]s$/,
+          /[\\/](?:@temporalio|contrib)[\\/]interceptors-opentelemetry(?:-v2)?[\\/](?:src|lib)[\\/]workflow[\\/]workflow-imports\.[jt]s$/,
           './workflow-imports-impl.js'
+        ),
+        // protobufjs 7.6.x resolves optional filesystem support through two package-local shim imports:
+        // `protobufjs/src/util.js -> ./util/fs` and `@protobufjs/fetch/index.js -> ./util/fs`.
+        // Resolve those shims to `null` to avoid failing due to the probe without requiring users to blanket allow `fs` usage
+        new NormalModuleReplacementPlugin(
+          /^\.\/util\/fs$/,
+          (resolveData: { context: string; request: string }): void => {
+            const protobufjsOptionalFsModuleParent =
+              /[\\/]node_modules[\\/](?:protobufjs[\\/]src|@protobufjs[\\/]fetch)$/;
+            if (protobufjsOptionalFsModuleParent.test(resolveData.context)) {
+              resolveData.request = path.resolve(__dirname, 'module-overrides', 'protobufjs-fs.js');
+            }
+          }
         ),
       ],
       externals: captureProblematicModules,

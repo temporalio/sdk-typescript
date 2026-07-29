@@ -1,5 +1,7 @@
 import { randomUUID } from 'crypto';
+import type { ExecutionContext } from 'ava';
 import * as nexus from 'nexus-rpc';
+import { temporal } from '@temporalio/proto';
 import type { NexusOperationExecutionCount } from '@temporalio/client';
 import {
   Client,
@@ -19,8 +21,12 @@ import {
 import * as temporalnexus from '@temporalio/nexus';
 import * as workflow from '@temporalio/workflow';
 import { CancelledFailure, TerminatedFailure, ApplicationFailure, SearchAttributeType } from '@temporalio/common';
+import { generateWorkflowRunOperationToken } from '@temporalio/nexus/lib/token';
+import type { Context } from './helpers-integration';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { waitUntil } from './helpers';
+
+const { EventType } = temporal.api.enums.v1;
 
 const test = makeTestFunction({
   workflowsPath: __filename,
@@ -96,6 +102,37 @@ function makeTestHandler() {
   };
 }
 
+function assertWorkflowCallbackLinksToNexusOperation(
+  t: ExecutionContext<Context>,
+  callbacks: temporal.api.workflow.v1.ICallbackInfo[] | null | undefined,
+  namespace: string,
+  operationId: string,
+  operationRunId: string
+): void {
+  const nexusOperationLink = callbacks
+    ?.flatMap((callbackInfo) => callbackInfo.callback?.links ?? [])
+    .find((link) => link.nexusOperation?.operationId === operationId)?.nexusOperation;
+  t.truthy(nexusOperationLink, 'expected workflow completion callback to link to the standalone Nexus operation');
+
+  t.is(nexusOperationLink?.namespace, namespace);
+  t.is(nexusOperationLink?.runId, operationRunId);
+}
+
+function assertOperationLinksToWorkflowStarted(
+  t: ExecutionContext<Context>,
+  links: temporal.api.common.v1.ILink[] | null | undefined,
+  namespace: string,
+  workflowId: string,
+  workflowRunId: string
+): void {
+  const workflowLink = links?.find((link) => link.workflowEvent?.workflowId === workflowId)?.workflowEvent;
+  t.truthy(workflowLink, 'expected Nexus operation to link to the started workflow');
+
+  t.is(workflowLink?.namespace, namespace);
+  t.is(workflowLink?.runId, workflowRunId);
+  t.is(workflowLink?.eventRef?.eventType, EventType.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED);
+}
+
 test('start sync operation and get result', async (t) => {
   const { createWorker, registerNexusEndpoint } = helpers(t);
   const { endpointName } = await registerNexusEndpoint();
@@ -141,6 +178,22 @@ test('start async operation and poll result', async (t) => {
 
     const result = await handle.result();
     t.is(result, 'async-hello');
+
+    const [workflowDesc, operationDesc] = await Promise.all([wfHandle.describe(), handle.describe()]);
+    assertWorkflowCallbackLinksToNexusOperation(
+      t,
+      workflowDesc.raw.callbacks,
+      t.context.env.client.options.namespace,
+      operationDesc.operationId,
+      operationDesc.runId
+    );
+    assertOperationLinksToWorkflowStarted(
+      t,
+      operationDesc.raw.links,
+      t.context.env.client.options.namespace,
+      wfHandle.workflowId,
+      workflowDesc.runId
+    );
   });
 });
 
@@ -491,5 +544,40 @@ test('interceptor integration', async (t) => {
     t.true(calls.includes('terminate'), 'terminate called');
     t.true(calls.includes('list'), 'list called');
     t.true(calls.includes('count'), 'count called');
+  });
+});
+
+test('WorkflorRunOperation workflow run has Nexus-Operation-Token Header', async (t) => {
+  const { createWorker, registerNexusEndpoint } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+  const { handler, workflowStarted } = makeTestHandler();
+  const worker = await createWorker({ nexusServices: [handler] });
+  const { client } = t.context.env;
+
+  await worker.runUntil(async () => {
+    const svc = client.nexus.createServiceClient({ endpoint: endpointName, service: testService });
+    const id = randomUUID();
+    const handle = await svc.startOperation(
+      testService.operations.blockingAsync,
+      { echo: 'async-hello', wfId: id },
+      {
+        id: `op-${id}`,
+        scheduleToCloseTimeout: '10s',
+      }
+    );
+
+    // wait for workflow to start
+    await workflowStarted;
+
+    // unblock workflow
+    const wfHandle = client.workflow.getHandle(id);
+    await wfHandle.executeUpdate(unblockEcho);
+
+    const result = await handle.result();
+    t.is(result, 'async-hello');
+
+    const desc = await wfHandle.describe();
+    const opToken = desc.raw.callbacks?.[0].callback?.nexus?.header?.['nexus-operation-token'];
+    t.is(opToken, generateWorkflowRunOperationToken(client.options.namespace, wfHandle.workflowId));
   });
 });

@@ -1,12 +1,18 @@
 import { isMainThread, parentPort as parentPortOrNull } from 'node:worker_threads';
 import { IllegalStateError } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
+import type { WorkflowInfo } from '@temporalio/workflow';
 import type { Workflow, WorkflowCreator } from './interface';
 import { ReusableVMWorkflowCreator } from './reusable-vm';
 import { VMWorkflowCreator } from './vm';
-import type { WorkerThreadRequest } from './workflow-worker-thread/input';
+import type { PatchActivationCallbackRequest, WorkerThreadRequest } from './workflow-worker-thread/input';
 import type { WorkerThreadResponse } from './workflow-worker-thread/output';
 import { isBun } from './bun';
+import {
+  makePatchActivationWorkflowInfoSnapshot,
+  PATCH_ACTIVATION_CALLBACK_BUFFER_SIZE,
+  waitForPatchActivationCallbackResult,
+} from './patch-activation-callback';
 
 if (isMainThread) {
   throw new IllegalStateError(`Imported ${__filename} from main thread`);
@@ -26,6 +32,18 @@ function ok(requestId: bigint): WorkerThreadResponse {
 let workflowCreator: WorkflowCreator | undefined;
 let workflowGetter: (runId: string) => Workflow | undefined;
 
+function requestPatchActivation(workflowInfo: WorkflowInfo, patchId: string): boolean {
+  const resultBuffer = new SharedArrayBuffer(PATCH_ACTIVATION_CALLBACK_BUFFER_SIZE);
+  const request: PatchActivationCallbackRequest = {
+    type: 'patch-activation-callback',
+    workflowInfo: makePatchActivationWorkflowInfoSnapshot(workflowInfo),
+    patchId,
+    resultBuffer,
+  };
+  parentPort.postMessage(request);
+  return waitForPatchActivationCallbackResult(resultBuffer);
+}
+
 /**
  * Process a `WorkerThreadRequest` and resolve with a `WorkerThreadResponse`.
  */
@@ -36,14 +54,16 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
         workflowCreator = await ReusableVMWorkflowCreator.create(
           input.workflowBundle,
           input.isolateExecutionTimeoutMs,
-          input.registeredActivityNames
+          input.registeredActivityNames,
+          input.hasPatchActivationCallback ? requestPatchActivation : undefined
         );
         workflowGetter = (runId) => ReusableVMWorkflowCreator.workflowByRunId.get(runId);
       } else {
         workflowCreator = await VMWorkflowCreator.create(
           input.workflowBundle,
           input.isolateExecutionTimeoutMs,
-          input.registeredActivityNames
+          input.registeredActivityNames,
+          input.hasPatchActivationCallback ? requestPatchActivation : undefined
         );
         workflowGetter = (runId) => VMWorkflowCreator.workflowByRunId.get(runId);
       }
@@ -93,15 +113,16 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
       }
       const calls = await workflow.getAndResetSinkCalls();
       calls.forEach((call) => {
-        // Delete .now because functions can't be serialized / sent to thread.
+        // Copy before stripping to avoid altering the running Workflow.
+        call.workflowInfo = { ...call.workflowInfo, unsafe: { ...call.workflowInfo.unsafe } };
+        // Delete .now and .random because functions can't be serialized / sent to thread.
         delete (call.workflowInfo.unsafe as any).now;
-        // Use structuredClone when available
-        // This lets us work around a bug in Bun's postMessage where
-        // shared object references get corrupted during serialization.
-        call.workflowInfo =
-          'structuredClone' in globalThis
-            ? structuredClone(call.workflowInfo)
-            : { ...call.workflowInfo, unsafe: { ...call.workflowInfo.unsafe } };
+        delete (call.workflowInfo.unsafe as any).random;
+        // Use structuredClone when available to work around a bug in Bun's postMessage
+        // where shared object references get corrupted during serialization.
+        if ('structuredClone' in globalThis) {
+          call.workflowInfo = structuredClone(call.workflowInfo);
+        }
       });
 
       return {
