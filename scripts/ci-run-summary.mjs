@@ -36,7 +36,20 @@ const anyFailed = jobs.some((j) => j.result === 'failure');
 const anyCancelled = jobs.some((j) => j.result === 'cancelled');
 const passed = !anyFailed && !anyCancelled;
 
-// Per-cell test failures, read from the downloaded artifacts.
+// Recursively collect *.json paths under a directory (robust to whatever nesting
+// upload/download-artifact produces, e.g. a preserved `.test-results/` prefix).
+function findJsonFiles(dir) {
+  const out = [];
+  for (const entry of readdirSync(dir)) {
+    const p = join(dir, entry);
+    if (statSync(p).isDirectory()) out.push(...findJsonFiles(p));
+    else if (entry.endsWith('.json')) out.push(p);
+  }
+  return out;
+}
+
+// Per-cell test failures, read from the downloaded artifacts. Each top-level
+// subdirectory of AGG_RESULTS_DIR is one matrix cell (artifact `test-logs-<cell>`).
 function collectCellFailures() {
   const root = process.env.AGG_RESULTS_DIR || 'all-results';
   const cells = [];
@@ -47,11 +60,10 @@ function collectCellFailures() {
     const cell = name.replace(/^test-logs-/, '');
     const experimental = /(^|-)bun(-|$)/.test(cell);
     const failures = [];
-    for (const file of readdirSync(dir)) {
-      if (!file.endsWith('.json')) continue;
+    for (const file of findJsonFiles(dir)) {
       let r;
       try {
-        r = JSON.parse(readFileSync(join(dir, file), 'utf8'));
+        r = JSON.parse(readFileSync(file, 'utf8'));
       } catch {
         continue;
       }

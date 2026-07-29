@@ -135,8 +135,8 @@ jobs:
     continue-on-error: ${{ matrix.node == 'bun' }}
     name: Run Integration Tests (${{ matrix.platform }}, ${{ matrix.node == 'bun' && 'Bun' || format('Node {0}', matrix.node) }}, Reuse V8 Context ${{ matrix.reuse-v8-context }})
     env:
-      # Per-package test summaries + full logs are written here by scripts/ava-ci.mjs,
-      # aggregated into the job summary by scripts/ci-test-summary.mjs, and archived as an artifact.
+      # Per-package result JSON + full logs are written here by scripts/ava-ci.mjs,
+      # archived as the test-logs-* artifact, and aggregated by the ci-summary job.
       TEST_RESULTS_DIR: ${{ github.workspace }}/.test-results
     defaults:
       run:
@@ -306,6 +306,10 @@ jobs:
           path: ${{ env.TEST_RESULTS_DIR }}
           retention-days: 7
           if-no-files-found: ignore
+          # TEST_RESULTS_DIR is a dot-directory (.test-results); upload-artifact
+          # excludes files under dot-dirs unless this is set, which would leave the
+          # ci-summary job with no results to report.
+          include-hidden-files: true
 
       - name: Upload Dev Server logs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
