@@ -28,6 +28,8 @@ to docs, or any other relevant information.
 ### Fixed
 
 - strands: Declare `zod` as a peer dependency.
+- workflow-streams: `WorkflowStream.onPoll` no longer serves a stale log index for a poll that
+  was parked across a `truncate()` call, which could silently skip events.
 
 ## [1.21.1] - 2026-07-23
 
