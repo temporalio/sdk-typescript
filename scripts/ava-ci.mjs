@@ -43,9 +43,9 @@ const logPath = join(resultsDir, `${safeName}.log`);
 const jsonPath = join(resultsDir, `${safeName}.json`);
 const logStream = createWriteStream(logPath);
 
-// ANSI colors, disabled when not a TTY and NO_COLOR is unset is left to the caller;
-// GitHub renders these fine, but honor NO_COLOR.
-const useColor = !process.env.NO_COLOR;
+// ANSI colors: honor NO_COLOR, and enable in a terminal or CI (GitHub is non-TTY
+// but renders ANSI). Stay plain when output is redirected to a file/pipe locally.
+const useColor = !process.env.NO_COLOR && (process.stdout.isTTY || !!process.env.CI || !!process.env.FORCE_COLOR);
 const c = (code, s) => (useColor ? `[${code}m${s}[0m` : s);
 const green = (s) => c('32', s);
 const red = (s) => c('31', s);

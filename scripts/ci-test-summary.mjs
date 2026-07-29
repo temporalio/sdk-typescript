@@ -106,7 +106,7 @@ if (summaryFile) {
 }
 
 // --- Console overview ---
-const useColor = !process.env.NO_COLOR;
+const useColor = !process.env.NO_COLOR && (process.stdout.isTTY || !!process.env.CI || !!process.env.FORCE_COLOR);
 const c = (code, s) => (useColor ? `[${code}m${s}[0m` : s);
 console.log('');
 console.log(c('1', 'Test summary'));
