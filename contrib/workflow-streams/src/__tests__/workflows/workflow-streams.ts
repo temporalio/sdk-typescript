@@ -93,6 +93,23 @@ export async function binaryPublishWorkflow(count: number): Promise<void> {
   await condition(() => closed);
 }
 
+/** Publishes 'A', then on signal synchronously publishes 'B', truncates, publishes 'C' (regression: #2263). */
+export async function truncateWhileParkedWorkflow(): Promise<void> {
+  const stream = new WorkflowStream();
+  const events = stream.topic<string>('events');
+  let closed = false;
+  setHandler(closeSignal, () => {
+    closed = true;
+  });
+  setHandler(triggerContinueSignal, () => {
+    events.publish('B');
+    stream.truncate(1);
+    events.publish('C');
+  });
+  events.publish('A');
+  await condition(() => closed);
+}
+
 /** Workflow that accepts a truncate update (explicit completion). */
 export async function truncateWorkflow(): Promise<void> {
   const stream = new WorkflowStream();

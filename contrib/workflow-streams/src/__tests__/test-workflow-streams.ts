@@ -19,6 +19,7 @@ import {
 } from '../client';
 import {
   type WorkflowStreamState,
+  decodePayloadWire,
   encodePayloadWire,
   workflowStreamOffsetQuery,
   workflowStreamPublishSignal,
@@ -39,6 +40,7 @@ import {
   forceFlushWorkflow,
   publisherSequencesQuery,
   truncateUpdate,
+  truncateWhileParkedWorkflow,
   truncateWorkflow,
   ttlTestWorkflow,
   workflowSidePublishWorkflow,
@@ -247,6 +249,40 @@ test('poll_truncated_offset_returns_application_failure', async (t) => {
     const after = await collectItems(handle, undefined, 3, 2);
     t.is(after.length, 2);
     t.is(after[0]!.offset, 3);
+
+    await handle.signal('close');
+  });
+});
+
+test('poll_parked_across_truncate_sees_all_events', async (t) => {
+  // Regression for #2263: a poll parked on from_offset=1 must not miss 'B'
+  // when the workflow publishes 'B', truncates, and publishes 'C' in a
+  // single task while the poll is parked.
+  const { createWorker, startWorkflow } = helpers(t);
+  const { env } = t.context;
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(truncateWhileParkedWorkflow, { args: [] });
+    const rawHandle = env.client.workflow.getHandle(handle.workflowId);
+
+    // Consume 'A' so the next poll starts from_offset=1.
+    const first = await rawHandle.executeUpdate<PollResult, [PollInput]>(workflowStreamPollUpdate, {
+      args: [{ topics: [], from_offset: 0 }],
+    });
+    t.is(first.items.length, 1);
+    t.is(payloadString(decodePayloadWire(first.items[0]!.data)), 'A');
+
+    // Park from_offset=1, then trigger the publish/truncate/publish race.
+    const parkedPoll = rawHandle.executeUpdate<PollResult, [PollInput]>(workflowStreamPollUpdate, {
+      args: [{ topics: [], from_offset: 1 }],
+    });
+    await handle.signal('triggerContinue');
+
+    const result = await parkedPoll;
+    t.deepEqual(
+      result.items.map((i) => payloadString(decodePayloadWire(i.data))),
+      ['B', 'C']
+    );
 
     await handle.signal('close');
   });
