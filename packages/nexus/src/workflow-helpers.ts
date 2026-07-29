@@ -876,7 +876,7 @@ export interface CancelActivityOptions {
 export interface TemporalOperationHandlerOptions {
   /**
    * Handler invoked to cancel a workflow-run-backed operation. Defaults to canceling the workflow.
-  */
+   */
   cancelWorkflowRun?: (ctx: TemporalCancelOperationContext, options: CancelWorkflowRunOptions) => Promise<void>;
 
   /**

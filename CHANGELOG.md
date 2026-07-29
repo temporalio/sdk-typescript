@@ -35,6 +35,9 @@ to docs, or any other relevant information.
   update (e.g. a validation rejection) surfaces as a failed Nexus operation. Cancellation is
   customizable via the `cancelWorkflowUpdate` handler option; the default rejects with a
   `NOT_IMPLEMENTED` handler error.
+- **Experimental**: `TemporalOperationHandler` can now use Standalone Activities as asynchronous
+  Nexus Operation backing executions through `TemporalNexusClient.startActivity` and
+  `typedActivity`.
 
 ### Fixed
 
