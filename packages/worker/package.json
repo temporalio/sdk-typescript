@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/worker",
-  "version": "1.17.2",
+  "version": "1.21.1",
   "description": "Temporal.io SDK Worker sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -28,14 +28,14 @@
     "heap-js": "^2.6.0",
     "memfs": "^4.6.0",
     "nexus-rpc": "^0.0.2",
-    "protobufjs": "^7.5.8",
+    "protobufjs": "^7.6.4",
     "rxjs": "^7.8.1",
     "source-map": "^0.7.4",
     "source-map-loader": "^5.0.0",
     "supports-color": "^8.1.1",
     "swc-loader": "^0.2.3",
     "unionfs": "^4.5.1",
-    "webpack": "^5.106.2"
+    "webpack": "^5.108.4"
   },
   "devDependencies": {
     "@types/supports-color": "^8.1.3"
@@ -57,6 +57,6 @@
     "lib"
   ],
   "engines": {
-    "node": ">= 20.0.0"
+    "node": ">= 20.3.0"
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/plugin",
-  "version": "1.17.2",
+  "version": "1.21.1",
   "description": "Library for plugin creation",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -34,7 +34,7 @@
     "access": "public"
   },
   "engines": {
-    "node": ">= 20.0.0"
+    "node": ">= 20.3.0"
   },
   "files": [
     "src",

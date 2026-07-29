@@ -162,7 +162,11 @@ test('updateWithStart failure: invalid argument', async (t) => {
   ]) {
     const err = await t.throwsAsync(promise);
     t.true(isGrpcServiceError(err) && err.code === grpcStatus.INVALID_ARGUMENT);
-    t.true(err?.message.startsWith('WorkflowId length exceeds limit.'));
+    // The exact wording of this server-side validation message has changed across server
+    // versions (e.g. 'WorkflowId length exceeds limit.' vs
+    // 'WorkflowId exceeds maximum allowed length (2772/1000)'), so match on the stable parts
+    // rather than an exact prefix.
+    t.regex(err?.message ?? '', /workflowid.*length/i);
   }
 });
 
@@ -560,12 +564,15 @@ export async function setUpdateHandlerAndExit(): Promise<string> {
 }
 
 test('Update is always delivered', async (t) => {
-  const { createWorker, startWorkflow } = helpers(t);
+  const { createWorker, startWorkflow, updateHasBeenAdmitted } = helpers(t);
   const wfHandle = await startWorkflow(setUpdateHandlerAndExit, { startDelay: '10000 days' });
 
-  wfHandle.executeUpdate(stateMutatingUpdate).catch(() => {
+  const updateId = 'update-id';
+  wfHandle.executeUpdate(stateMutatingUpdate, { updateId }).catch(() => {
     /* ignore */
   });
+  await waitUntil(() => updateHasBeenAdmitted(wfHandle, updateId), 5000);
+
   const worker = await createWorker();
   await worker.runUntil(async () => {
     // Worker receives activation: [doUpdate, startWorkflow]
@@ -575,18 +582,20 @@ test('Update is always delivered', async (t) => {
 });
 
 test('Two Updates in first WFT', async (t) => {
-  const { createWorker, startWorkflow } = helpers(t);
+  const { createWorker, startWorkflow, updateHasBeenAdmitted } = helpers(t);
   const wfHandle = await startWorkflow(workflowWithUpdates, { startDelay: '10000 days' });
 
-  wfHandle.executeUpdate(update, { args: ['1'] }).catch(() => {
+  const firstUpdateId = 'update-1';
+  wfHandle.executeUpdate(update, { args: ['1'], updateId: firstUpdateId }).catch(() => {
     /* ignore */
   });
-  wfHandle.executeUpdate(doneUpdate).catch(() => {
+  await waitUntil(() => updateHasBeenAdmitted(wfHandle, firstUpdateId), 5000);
+
+  const secondUpdateId = 'update-2';
+  wfHandle.executeUpdate(doneUpdate, { updateId: secondUpdateId }).catch(() => {
     /* ignore */
   });
-  // Race condition: we want the second update to be in the WFT together with
-  // the first, so allow some time to ensure that happens.
-  await new Promise((res) => setTimeout(res, 500));
+  await waitUntil(() => updateHasBeenAdmitted(wfHandle, secondUpdateId), 5000);
 
   const worker = await createWorker();
   await worker.runUntil(async () => {
@@ -620,14 +629,15 @@ export async function updateReplayTestWorkflow(): Promise<boolean> {
 }
 
 test('Update handler is called at same point during first execution and replay', async (t) => {
-  const { createWorker, startWorkflow } = helpers(t);
+  const { createWorker, startWorkflow, updateHasBeenAdmitted } = helpers(t);
 
   // Start a Workflow and an Update of that Workflow.
   const wfHandle = await startWorkflow(updateReplayTestWorkflow, { startDelay: '10000 days' });
-  wfHandle.executeUpdate(earlyExecutedUpdate).catch(() => {
+  const updateId = 'update-id';
+  wfHandle.executeUpdate(earlyExecutedUpdate, { updateId }).catch(() => {
     /* ignore */
   });
-  await new Promise((res) => setTimeout(res, 1000));
+  await waitUntil(() => updateHasBeenAdmitted(wfHandle, updateId), 5000);
 
   // Avoid waiting for sticky execution timeout on worker transition
   const worker1 = await createWorker({ maxCachedWorkflows: 0 });

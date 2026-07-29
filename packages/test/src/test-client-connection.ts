@@ -24,14 +24,14 @@ import { grpc as grpcProto } from '@temporalio/proto';
 const workflowServicePackageDefinition = protoLoader.loadSync(
   path.resolve(
     __dirname,
-    '../../core-bridge/sdk-core/crates/common/protos/api_upstream/temporal/api/workflowservice/v1/service.proto'
+    '../../core-bridge/sdk-core/crates/protos/protos/api_upstream/temporal/api/workflowservice/v1/service.proto'
   ),
-  { includeDirs: [path.resolve(__dirname, '../../core-bridge/sdk-core/crates/common/protos/api_upstream')] }
+  { includeDirs: [path.resolve(__dirname, '../../core-bridge/sdk-core/crates/protos/protos/api_upstream')] }
 );
 const workflowServiceProtoDescriptor = grpc.loadPackageDefinition(workflowServicePackageDefinition) as any;
 
 const healthServicePackageDefinition = protoLoader.loadSync(
-  path.resolve(__dirname, '../../core-bridge/sdk-core/crates/common/protos/grpc/health/v1/health.proto')
+  path.resolve(__dirname, '../../core-bridge/sdk-core/crates/protos/protos/grpc/health/v1/health.proto')
 );
 const healthServicePackageDescriptor = grpc.loadPackageDefinition(healthServicePackageDefinition) as any;
 

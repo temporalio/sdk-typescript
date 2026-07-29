@@ -47,6 +47,11 @@ export function cleanStackTrace(ostack: string): string {
  * Bun does not support promise hooks meaning we are currently unable to apply the source map on stack traces and workflow bundles
  * end up in the stack trace.
  *
+ * Bun (JSC) also sometimes drops the error name and message from a stack trace's header line, rendering
+ * a bare `Error` instead of e.g. `ApplicationFailure: failure`. When running under Bun the header (first)
+ * line is therefore allowed to match either the expected header or a bare `Error`. The call frames are
+ * always matched exactly.
+ *
  * Special:
  * - $CLASS: used to match class names that might be inconsistent
  * - $HASH: used to match bundle hash suffixes in workflow paths
@@ -57,5 +62,17 @@ export function compareStackTrace(t: ExecutionContext, actual: string, expected:
     .replace(/-/g, '\\x2d')
     .replaceAll('\\$CLASS', '(?:[A-Za-z]+)')
     .replaceAll('\\$HASH', '(?:[A-Za-z0-9]+)');
-  t.regex(actual, RegExp(`^${escapedTrace}$`));
+  // On Bun the header (first) line may collapse to a bare `Error` (see above), so accept either the
+  // expected header or `Error` there. Only applies to multi-line stacks, not single-line values.
+  const isBun = typeof (globalThis as any).Bun !== 'undefined';
+  const pattern =
+    isBun && escapedTrace.includes('\n')
+      ? escapedTrace.replace(/^[^\n]*/, (header) => `(?:${header}|Error)`)
+      : escapedTrace;
+  t.regex(
+    actual,
+    RegExp(`^${pattern}$`),
+    `Stack trace did not match. Compare the actual call frames to ensure this isn't a real regression.` +
+      `Actual:\n${actual}`
+  );
 }

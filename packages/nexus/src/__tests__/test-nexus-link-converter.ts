@@ -78,7 +78,7 @@ test('convertNexusOperationLinkToNexusLink and back with runId', (t) => {
 
   const nexusLink = convertNexusOperationLinkToNexusLink(opLink);
   t.is(nexusLink.type, NEXUS_OPERATION_TYPE);
-  t.is(nexusLink.url.toString(), 'temporal:///namespaces/ns/nexus-operations/op-123?runID=run-456');
+  t.is(nexusLink.url.toString(), 'temporal:///namespaces/ns/nexus-operations/op-123/run-456/details');
 
   const roundTrip = convertNexusLinkToTemporalLink(nexusLink);
   t.deepEqual(roundTrip, { nexusOperation: opLink });
@@ -88,17 +88,21 @@ test('convertNexusOperationLinkToNexusLink escapes URL path components', (t) => 
   const opLink = {
     namespace: 'name/space',
     operationId: 'operation id',
+    runId: 'run/id',
   };
 
   const nexusLink = convertNexusOperationLinkToNexusLink(opLink);
-  t.is(nexusLink.url.toString(), 'temporal:///namespaces/name%2Fspace/nexus-operations/operation%20id');
+  t.is(
+    nexusLink.url.toString(),
+    'temporal:///namespaces/name%2Fspace/nexus-operations/operation%20id/run%2Fid/details'
+  );
 
   const roundTrip = convertNexusLinkToTemporalLink(nexusLink);
   t.deepEqual(roundTrip, {
     nexusOperation: {
       namespace: 'name/space',
       operationId: 'operation id',
-      runId: null,
+      runId: 'run/id',
     },
   });
 });
@@ -178,6 +182,15 @@ test('throws on missing required fields', (t) => {
       convertNexusOperationLinkToNexusLink({
         namespace: 'ns',
         operationId: '',
+      }),
+    { instanceOf: TypeError }
+  );
+  t.throws(
+    () =>
+      convertNexusOperationLinkToNexusLink({
+        namespace: 'ns',
+        operationId: 'op-123',
+        runId: '',
       }),
     { instanceOf: TypeError }
   );

@@ -1083,6 +1083,7 @@ export function makeContinueAsNewFunc<F extends Workflow>(
             : undefined,
         workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
         workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
+        backoffStartInterval: msOptionalToTs(options.backoffStartInterval),
         versioningIntent: versioningIntentToProto(options.versioningIntent),
         initialVersioningBehavior: encodeInitialVersioningBehavior(options.initialVersioningBehavior),
       });

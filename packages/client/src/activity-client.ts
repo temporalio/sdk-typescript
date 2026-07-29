@@ -30,6 +30,13 @@ import {
   decodeOptionalFailureToOptionalError,
   encodeToPayloads,
   encodeUserMetadata,
+  extstoreInboundOptions,
+  extstoreStoreOptions,
+  visit,
+  walkDescribeActivityExecutionResponse,
+  walkListActivityExecutionsResponse,
+  walkPollActivityExecutionResponse,
+  walkStartActivityExecutionRequest,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { temporal } from '@temporalio/proto';
 import type { Replace } from '@temporalio/common/lib/type-helpers';
@@ -257,9 +264,23 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
     validateActivityOptions(input.options);
 
     try {
-      const resp = await this.workflowService.startActivityExecution(
-        await this.buildStartActivityExecutionRequest(input)
-      );
+      const req = await this.buildStartActivityExecutionRequest(input);
+      const externalStorage = this.dataConverter.externalStorage;
+      if (externalStorage) {
+        await visit(
+          req,
+          walkStartActivityExecutionRequest,
+          extstoreStoreOptions(externalStorage, {
+            initialTarget: {
+              kind: 'activity',
+              namespace: this.options.namespace,
+              id: input.options.id,
+              type: input.activityType,
+            },
+          })
+        );
+      }
+      const resp = await this.workflowService.startActivityExecution(req);
       return this.createHandle(input.options.id, resp.runId);
     } catch (err) {
       if (isGrpcServiceError(err) && err.code === grpcStatus.ALREADY_EXISTS) {
@@ -328,6 +349,8 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
 
       try {
         const resp = await this.workflowService.pollActivityExecution(req);
+        const externalStorage = this.dataConverter.externalStorage;
+        await visit(resp, walkPollActivityExecutionResponse, extstoreInboundOptions(externalStorage));
         if (resp.outcome?.result) {
           const [result] = await decodeArrayFromPayloads(this.dataConverter, resp.outcome.result.payloads ?? []);
           return result;
@@ -362,6 +385,8 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
         activityId: input.activityId,
         runId: input.activityRunId || undefined,
       });
+      const externalStorage = this.dataConverter.externalStorage;
+      await visit(resp, walkDescribeActivityExecutionResponse, extstoreInboundOptions(externalStorage));
       return buildActivityDescription(resp.info!, this.dataConverter);
     } catch (err) {
       this.rethrowGrpcError(err, 'Failed to describe activity');
@@ -416,6 +441,9 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
             query: input.query,
             nextPageToken,
           });
+
+        const externalStorage = this.dataConverter.externalStorage;
+        await visit(resp, walkListActivityExecutionsResponse, extstoreInboundOptions(externalStorage));
 
         for (const info of resp.executions ?? []) {
           yield buildActivityExecutionInfo(info);

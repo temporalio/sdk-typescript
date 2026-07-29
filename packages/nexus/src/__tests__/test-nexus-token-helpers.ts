@@ -1,5 +1,10 @@
 import test from 'ava';
-import { base64URLEncodeNoPadding, generateWorkflowRunOperationToken, loadWorkflowRunOperationToken } from '../token';
+import {
+  base64URLEncodeNoPadding,
+  generateWorkflowRunOperationToken,
+  loadOperationToken,
+  loadWorkflowRunOperationToken,
+} from '../token';
 
 test('encode and decode workflow run Operation token', (t) => {
   const expected = {
@@ -12,28 +17,33 @@ test('encode and decode workflow run Operation token', (t) => {
   t.deepEqual(decoded, expected);
 });
 
-test('decode workflow run Operation token errors', (t) => {
-  t.throws(() => loadWorkflowRunOperationToken(''), { message: /invalid workflow run token: token is empty/ });
+test('decode Operation token errors', (t) => {
+  t.throws(() => loadOperationToken(''), { message: /invalid operation token: token is empty/ });
 
-  t.throws(() => loadWorkflowRunOperationToken('not-base64!@#$'), { message: /failed to decode token/ });
+  t.throws(() => loadOperationToken('not-base64!@#$'), { message: /failed to decode token/ });
 
   const invalidJSONToken = base64URLEncodeNoPadding('invalid json');
-  t.throws(() => loadWorkflowRunOperationToken(invalidJSONToken), {
-    message: /failed to unmarshal workflow run Operation token/,
-  });
-
-  const invalidTypeToken = base64URLEncodeNoPadding('{"t":2}');
-  t.throws(() => loadWorkflowRunOperationToken(invalidTypeToken), {
-    message: /invalid workflow token type: 2, expected: 1/,
-  });
-
-  const missingWIDToken = base64URLEncodeNoPadding('{"t":1}');
-  t.throws(() => loadWorkflowRunOperationToken(missingWIDToken), {
-    message: /invalid workflow run token: missing workflow ID \(wid\)/,
+  t.throws(() => loadOperationToken(invalidJSONToken), {
+    message: /failed to unmarshal Operation token/,
   });
 
   const versionedToken = base64URLEncodeNoPadding('{"v":1, "t":1,"wid": "workflow-id"}');
-  t.throws(() => loadWorkflowRunOperationToken(versionedToken), {
-    message: /invalid workflow run token: "v" field should not be present/,
+  t.throws(() => loadOperationToken(versionedToken), {
+    message: /invalid operation token: "v" field should not be present/,
+  });
+});
+
+test('decode workflow run Operation token errors', (t) => {
+  const invalidTypeToken = base64URLEncodeNoPadding('{"t":2,"ns":"ns"}');
+  t.throws(() => loadWorkflowRunOperationToken(invalidTypeToken), {
+    // This currently fails on unknown token type as there are no other existing token types.
+    // When new token types are added this regex will need to be updated to
+    //  /invalid workflow token type: 2/
+    message: /invalid operation token: unknown token type: 2/,
+  });
+
+  const missingWIDToken = base64URLEncodeNoPadding('{"t":1,"ns":"ns"}');
+  t.throws(() => loadWorkflowRunOperationToken(missingWIDToken), {
+    message: /invalid workflow run token: missing workflow ID \(wid\)/,
   });
 });

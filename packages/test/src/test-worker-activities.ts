@@ -2,11 +2,12 @@ import { randomUUID } from 'crypto';
 import type { ExecutionContext, TestFn } from 'ava';
 import anyTest from 'ava';
 import dedent from 'dedent';
+import { activityInfo } from '@temporalio/activity';
 import { TemporalFailure, defaultPayloadConverter, toPayloads, ApplicationFailure } from '@temporalio/common';
 import { coresdk, google } from '@temporalio/proto';
 import { msToTs } from '@temporalio/common/lib/time';
 import { httpGet } from './activities';
-import { cleanOptionalStackTrace, isBun } from './helpers';
+import { cleanOptionalStackTrace, compareStackTrace, isBun } from './helpers';
 import type { Worker } from './mock-native-worker';
 import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
 import { withZeroesHTTPServer } from './zeroes-http-server';
@@ -43,8 +44,14 @@ function compareCompletion(
   expected: coresdk.activity_result.IActivityExecutionResult
 ) {
   if (actual?.failed?.failure) {
+    // The stack trace's header line varies by engine (e.g. Bun can render a bare `Error`), so pull
+    // `stackTrace` out of both sides and compare it via compareStackTrace, which tolerates that.
+    // Everything else on the failure is still compared exactly by the deepEqual below.
     const { stackTrace, ...rest } = actual.failed.failure;
-    actual = { failed: { failure: { stackTrace: cleanOptionalStackTrace(stackTrace), ...rest } } };
+    const { stackTrace: expectedStackTrace, ...expectedRest } = expected.failed?.failure ?? {};
+    compareStackTrace(t, cleanOptionalStackTrace(stackTrace) ?? '', (expectedStackTrace as string | undefined) ?? '');
+    actual = { failed: { failure: rest } };
+    expected = { failed: { failure: expectedRest } };
   }
   t.deepEqual(
     coresdk.activity_result.ActivityExecutionResult.create(actual ?? undefined).toJSON(),
@@ -67,6 +74,50 @@ test('Worker runs an activity and reports completion', async (t) => {
     });
     compareCompletion(t, completion.result, {
       completed: { result: defaultPayloadConverter.toPayload(await httpGet(url)) },
+    });
+  });
+});
+
+test('Worker activity info does not confuse task queue and namespace', async (t) => {
+  const worker = isolateFreeWorker({
+    ...defaultOptions,
+    namespace: 'activity-namespace',
+    taskQueue: 'activity-task-queue',
+    activities: {
+      async getActivityInfo() {
+        const info = activityInfo();
+        return {
+          taskQueue: info.taskQueue,
+          namespace: info.namespace,
+          // eslint-disable-next-line @typescript-eslint/no-deprecated
+          activityNamespace: info.activityNamespace,
+          // eslint-disable-next-line @typescript-eslint/no-deprecated
+          workflowNamespace: info.workflowNamespace,
+        };
+      },
+    },
+  });
+  t.context.worker = worker;
+
+  await runWorker(t, async () => {
+    const taskToken = Buffer.from(randomUUID());
+    const completion = await worker.native.runActivityTask({
+      taskToken,
+      start: {
+        activityType: 'getActivityInfo',
+        workflowNamespace: 'workflow-namespace',
+        workflowExecution: { workflowId: 'wfid', runId: 'runId' },
+      },
+    });
+    compareCompletion(t, completion.result, {
+      completed: {
+        result: defaultPayloadConverter.toPayload({
+          taskQueue: 'activity-task-queue',
+          namespace: 'workflow-namespace',
+          activityNamespace: 'activity-namespace',
+          workflowNamespace: 'workflow-namespace',
+        }),
+      },
     });
   });
 });

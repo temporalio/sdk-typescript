@@ -154,7 +154,14 @@ export class WorkflowStream {
     setHandler(workflowStreamPollUpdate, (input: PollInput) => this.onPoll(input), {
       validator: (_input: PollInput) => {
         if (this.draining) {
-          throw new Error('Workflow is draining for continue-as-new');
+          // Well-known type so a subscriber recognizes the rollover-in-progress
+          // and retries until its poll lands on the successor run, rather than
+          // surfacing the rejection as an error.
+          throw ApplicationFailure.create({
+            message: 'Workflow is draining for continue-as-new',
+            type: 'StreamDraining',
+            nonRetryable: true,
+          });
         }
       },
     });
@@ -312,25 +319,37 @@ export class WorkflowStream {
   }
 
   private async onPoll(input: PollInput): Promise<PollResult> {
+    const truncatedFailure = () =>
+      ApplicationFailure.create({
+        message:
+          `Requested offset ${input.from_offset} has been truncated. ` + `Current base offset is ${this.baseOffset}.`,
+        type: 'TruncatedOffset',
+        nonRetryable: true,
+      });
+    if (input.from_offset !== 0 && input.from_offset - this.baseOffset < 0) {
+      throw truncatedFailure();
+    }
+    // Re-derive logOffset after the wait: truncate() can advance baseOffset
+    // while this poll is parked, so a value captured before condition()
+    // would be stale. The predicate also wakes on a truncation that moves
+    // baseOffset past from_offset, even if that leaves the log empty —
+    // otherwise such a truncate() would never satisfy `log.length > ...`
+    // and the poll would hang instead of failing with TruncatedOffset.
+    await condition(
+      () =>
+        this.draining ||
+        (input.from_offset !== 0 && input.from_offset - this.baseOffset < 0) ||
+        this.log.length > Math.max(input.from_offset - this.baseOffset, 0)
+    );
     let logOffset = input.from_offset - this.baseOffset;
     if (logOffset < 0) {
       if (input.from_offset === 0) {
         // "From the beginning" — start at whatever is available.
         logOffset = 0;
       } else {
-        // Subscriber had a specific position that's been truncated.
-        // ApplicationFailure fails this update (client gets the error)
-        // without crashing the workflow task — avoids a poison pill
-        // during replay.
-        throw ApplicationFailure.create({
-          message:
-            `Requested offset ${input.from_offset} has been truncated. ` + `Current base offset is ${this.baseOffset}.`,
-          type: 'TruncatedOffset',
-          nonRetryable: true,
-        });
+        throw truncatedFailure();
       }
     }
-    await condition(() => this.log.length > logOffset || this.draining);
     const allNew = this.log.slice(logOffset);
 
     // Build [globalOffset, entry] candidates, filtering by topic if requested.

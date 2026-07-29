@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import type { TestFn, ExecutionContext } from 'ava';
 import anyTest from 'ava';
 import type { Observable } from 'rxjs';
-import { Subject, firstValueFrom } from 'rxjs';
+import { ReplaySubject, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import type { ConnectionLike } from '@temporalio/client';
 import {
@@ -239,7 +239,7 @@ test('AsyncCompletionClient heartbeat with task token uses explicit activity con
 
 if (RUN_INTEGRATION_TESTS) {
   test.before(async (t) => {
-    const infoSubject = new Subject<Info>();
+    const infoSubject = new ReplaySubject<Info>();
 
     const worker = await Worker.create({
       workflowsPath: require.resolve('./workflows'),

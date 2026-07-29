@@ -1,5 +1,5 @@
 import v8 from 'node:v8';
-import type vm from 'node:vm';
+import vm from 'node:vm';
 import { AsyncLocalStorage as AsyncLocalStorageOriginal } from 'node:async_hooks';
 import assert from 'node:assert';
 import { URL, URLSearchParams } from 'node:url';
@@ -159,6 +159,12 @@ export function injectGlobals(context: vm.Context): void {
     enumerable: true,
     configurable: false,
   });
+
+  vm.runInContext(
+    `if (typeof Symbol.dispose !== 'symbol') Object.defineProperty(Symbol, 'dispose', { value: Symbol.for('nodejs.dispose'), writable: false, enumerable: false, configurable: false });
+     if (typeof Symbol.asyncDispose !== 'symbol') Object.defineProperty(Symbol, 'asyncDispose', { value: Symbol.for('nodejs.asyncDispose'), writable: false, enumerable: false, configurable: false });`,
+    context
+  );
 }
 
 /**

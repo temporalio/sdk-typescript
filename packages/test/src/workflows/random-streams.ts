@@ -7,6 +7,7 @@ import {
   sleep,
   startChild,
   uuid4,
+  workflowInfo,
   workflowRandom,
 } from '@temporalio/workflow';
 
@@ -140,4 +141,49 @@ export async function randomStreamResetWorkflow(): Promise<RandomStreamResetCapt
   await condition(() => unblocked);
 
   return captures;
+}
+
+export async function directRandomAndUuidResetWorkflow(): Promise<RandomStreamResetCapture[]> {
+  const captures: RandomStreamResetCapture[] = [];
+  let unblocked = false;
+
+  setHandler(randomStreamResetCapturesQuery, () => captures);
+  setHandler(randomStreamResetUnblockSignal, () => void (unblocked = true));
+
+  for (let iteration = 0; iteration < 4; iteration++) {
+    captures.push(await captureDirectRandomAndUuidResetValues());
+    await sleep(1);
+  }
+  await condition(() => unblocked);
+
+  return captures;
+}
+
+async function captureDirectRandomAndUuidResetValues(): Promise<RandomStreamResetCapture> {
+  const random = Math.random();
+  const uuid = uuid4();
+  const child = await startChild(randomStreamResetChild);
+  return { random, uuid, childWorkflowId: child.workflowId };
+}
+
+export interface UnsafeRandomCapture {
+  unsafe: string;
+  named: string;
+  float: number;
+  filled: number[];
+}
+
+export const unsafeRandomQuery = defineQuery<UnsafeRandomCapture>('unsafeRandom');
+export const unsafeRandomUnblockSignal = defineSignal('unsafeRandomUnblock');
+
+export async function unsafeRandomWorkflow(): Promise<void> {
+  let unblocked = false;
+  setHandler(unsafeRandomQuery, () => ({
+    unsafe: workflowInfo().unsafe.random.uuid4(),
+    named: getRandomStream('@temporalio/test/random-streams/unsafe').uuid4(),
+    float: workflowInfo().unsafe.random.random(),
+    filled: Array.from(workflowInfo().unsafe.random.fillRandom(new Uint8Array(8))),
+  }));
+  setHandler(unsafeRandomUnblockSignal, () => void (unblocked = true));
+  await condition(() => unblocked);
 }

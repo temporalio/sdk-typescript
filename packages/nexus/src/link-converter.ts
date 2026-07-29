@@ -13,7 +13,6 @@ const LINK_EVENT_ID_PARAM = 'eventID';
 const LINK_EVENT_TYPE_PARAM = 'eventType';
 const LINK_REQUEST_ID_PARAM = 'requestID';
 const LINK_REFERENCE_TYPE_KEY = 'referenceType';
-const LINK_RUN_ID_KEY = 'runID';
 
 const EVENT_REFERENCE_TYPE = 'EventReference';
 const REQUEST_ID_REFERENCE_TYPE = 'RequestIdReference';
@@ -77,21 +76,15 @@ export function convertWorkflowEventLinkToNexusLink(we: WorkflowEventLink): Nexu
 }
 
 export function convertNexusOperationLinkToNexusLink(opLink: NexusOperationLink): NexusLink {
-  if (!opLink.namespace || !opLink.operationId) {
-    throw new TypeError('Missing required fields: namespace, or operationId');
+  if (!opLink.namespace || !opLink.operationId || !opLink.runId) {
+    throw new TypeError('Missing required fields: namespace, operationId, or runId');
   }
 
   const url = new URL(
     `temporal:///namespaces/${encodeURIComponent(opLink.namespace)}/nexus-operations/${encodeURIComponent(
       opLink.operationId
-    )}`
+    )}/${encodeURIComponent(opLink.runId)}/details`
   );
-
-  if (opLink.runId != null) {
-    const searchParams = new URLSearchParams();
-    searchParams.set(LINK_RUN_ID_KEY, opLink.runId);
-    url.search = searchParams.toString();
-  }
 
   return {
     url,
@@ -132,16 +125,18 @@ export function convertNexusLinkToWorkflowEventLink(link: NexusLink): WorkflowEv
 }
 
 function convertNexusLinkToNexusOperationLink(link: NexusLink): NexusOperationLink {
-  // /namespaces/:namespace/nexus-operations/:operationId?runId=:runId
+  // /namespaces/:namespace/nexus-operations/:operationId/:runId/details
   const parts = link.url.pathname.split('/');
-  if (parts.length !== 5 || parts[1] !== 'namespaces' || parts[3] !== 'nexus-operations') {
+  if (parts.length !== 7 || parts[1] !== 'namespaces' || parts[3] !== 'nexus-operations' || parts[6] !== 'details') {
     throw new TypeError(`Invalid URL path: ${link.url}`);
   }
   const namespace = decodeURIComponent(parts[2]!);
   const operationId = decodeURIComponent(parts[4]!);
+  const runId = decodeURIComponent(parts[5]!);
 
-  const query = link.url.searchParams;
-  const runId = query.get(LINK_RUN_ID_KEY);
+  if (!namespace || !operationId || !runId) {
+    throw new TypeError('Missing required fields: namespace, operationId, or runId');
+  }
 
   return {
     namespace,

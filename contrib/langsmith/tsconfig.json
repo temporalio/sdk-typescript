@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./lib",
+    "rootDir": "./src",
+    "stripInternal": true
+  },
+  "references": [
+    { "path": "../../packages/activity" },
+    { "path": "../../packages/client" },
+    { "path": "../../packages/common" },
+    { "path": "../../packages/plugin" },
+    { "path": "../../packages/testing" },
+    { "path": "../../packages/worker" },
+    { "path": "../../packages/workflow" }
+  ],
+  "include": ["./src/**/*.ts"]
+}

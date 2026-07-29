@@ -31,7 +31,18 @@ import {
   decodeFromPayloadsAtIndex,
   encodeErrorToFailure,
   encodeToPayload,
+  extstoreInboundOptions,
+  extstoreStoreOptions,
+  visit,
+  walkActivityHeartbeat,
+  walkActivityTask,
+  walkActivityTaskCompletion,
+  walkNexusTask,
+  walkNexusTaskCompletion,
+  walkWorkflowActivation,
+  walkWorkflowActivationCompletion,
 } from '@temporalio/common/lib/internal-non-workflow';
+import type { StorageDriverTargetInfo } from '@temporalio/common/lib/converter/extstore';
 import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 import type { Duration } from '@temporalio/common/lib/time';
 import {
@@ -46,6 +57,7 @@ import { LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
 import type { NonNullableObject, OmitFirstParam } from '@temporalio/common/lib/type-helpers';
 import { errorMessage } from '@temporalio/common/lib/type-helpers';
 import { workflowLogAttributes } from '@temporalio/workflow/lib/logs';
+import { createUnsafeRandomSource } from '@temporalio/workflow/lib/random-helpers';
 import { native } from '@temporalio/core-bridge';
 import { Client } from '@temporalio/client';
 import type { temporal } from '@temporalio/proto';
@@ -82,6 +94,7 @@ import type { Workflow, WorkflowCreator } from './workflow/interface';
 import { ReusableVMWorkflowCreator } from './workflow/reusable-vm';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
 import { VMWorkflowCreator } from './workflow/vm';
+import { invokePatchActivationCallback } from './workflow/patch-activation-callback';
 import type { WorkflowBundleWithSourceMapAndFilename } from './workflow/workflow-worker-thread/input';
 import {
   CombinedWorkerRunError,
@@ -165,6 +178,7 @@ interface WorkflowWithLogAttributes {
   workflow: Workflow;
   logAttributes: Record<string, unknown>;
   workflowCodecRunner: WorkflowCodecRunner;
+  info: WorkflowInfo;
 }
 
 function addBuildIdIfMissing(options: CompiledWorkerOptions, bundleCode?: string): CompiledWorkerOptionsWithBuildId {
@@ -509,6 +523,12 @@ export class Worker {
     logger.debug('Creating worker', {
       options: {
         ...compiledOptions,
+        // Avoid dumping NativeConnection which contains Runtime that might have ciruclar references
+        ...(compiledOptions.connection !== undefined
+          ? {
+              connection: '<NativeConnection>',
+            }
+          : {}),
         ...(compiledOptions.workflowBundle && isCodeBundleOption(compiledOptions.workflowBundle)
           ? {
               // Avoid dumping workflow bundle code to the console
@@ -557,6 +577,11 @@ export class Worker {
     logger: Logger
   ): Promise<WorkflowCreator> {
     const registeredActivityNames = new Set(compiledOptions.activities.keys());
+    const patchActivationCallback =
+      compiledOptions.patchActivationCallback === undefined
+        ? undefined
+        : (info: WorkflowInfo, patchId: string) =>
+            invokePatchActivationCallback(compiledOptions.patchActivationCallback!, info, patchId);
     // This isn't required for vscode, only for Chrome Dev Tools which doesn't support debugging worker threads.
     // We also rely on this in debug-replayer where we inject a global variable to be read from workflow context.
     if (compiledOptions.debugMode) {
@@ -564,13 +589,15 @@ export class Worker {
         return await ReusableVMWorkflowCreator.create(
           workflowBundle,
           compiledOptions.isolateExecutionTimeoutMs,
-          registeredActivityNames
+          registeredActivityNames,
+          patchActivationCallback
         );
       }
       return await VMWorkflowCreator.create(
         workflowBundle,
         compiledOptions.isolateExecutionTimeoutMs,
-        registeredActivityNames
+        registeredActivityNames,
+        patchActivationCallback
       );
     } else {
       return await ThreadedVMWorkflowCreator.create({
@@ -580,6 +607,7 @@ export class Worker {
         reuseV8Context: compiledOptions.reuseV8Context ?? true,
         registeredActivityNames,
         logger,
+        patchActivationCallback: compiledOptions.patchActivationCallback,
       });
     }
   }
@@ -1059,13 +1087,14 @@ export class Worker {
                         `Got start event for an already running activity: ${base64TaskToken}`
                       );
                     }
-                    info = await extractActivityInfo(
+                    await visit(task, walkActivityTask, extstoreInboundOptions(loadedDataConverter.externalStorage));
+                    info = await extractActivityInfo({
                       task,
-                      loadedDataConverter,
-                      this.options.namespace,
-                      this.options.taskQueue,
-                      context
-                    );
+                      dataConverter: loadedDataConverter,
+                      taskQueue: this.options.taskQueue,
+                      activityNamespace: this.options.namespace,
+                      context,
+                    });
 
                     const { activityType } = info;
                     // Use the corresponding activity if it exists, otherwise, fallback to default activity function (if exists)
@@ -1176,7 +1205,7 @@ export class Worker {
               return undefined;
             }
             if (output.type === 'result') {
-              return { taskToken, result: output.result };
+              return { taskToken, result: output.result, info: undefined };
             }
             const { base64TaskToken } = output.activity.info;
 
@@ -1228,10 +1257,40 @@ export class Worker {
               ...activityLogAttributes(output.activity.info),
               status,
             });
-            return { taskToken, result };
+            return { taskToken, result, info: output.activity.info };
           }),
           filter(<T>(result: T): result is Exclude<T, undefined> => result !== undefined),
-          map((rest) => coresdk.ActivityTaskCompletion.encodeDelimited(rest).finish()),
+          mergeMap(async ({ taskToken, result, info }) => {
+            const { externalStorage } = this.options.loadedDataConverter;
+            const completion = { taskToken, result };
+            if (externalStorage) {
+              const initialTarget = info ? activityStorageTarget(info) : undefined;
+              try {
+                await visit(
+                  completion,
+                  walkActivityTaskCompletion,
+                  extstoreStoreOptions(externalStorage, { initialTarget })
+                );
+              } catch (e) {
+                const error = ensureApplicationFailure(e);
+                // Offloading the activity result failed. Fail the activity task retryably (the encoded
+                // failure surfaces in history/to the workflow) instead of tearing down the Worker.
+                this.logger.error(
+                  `Error while offloading ActivityTask result to external storage: ${errorMessage(error)}`,
+                  {
+                    ...(info ? activityLogAttributes(info) : { taskToken: formatTaskToken(taskToken) }),
+                    error: e,
+                  }
+                );
+                completion.result = {
+                  failed: {
+                    failure: await encodeErrorToFailure(this.options.loadedDataConverter, error),
+                  },
+                };
+              }
+            }
+            return coresdk.ActivityTaskCompletion.encodeDelimited(completion).finish();
+          }),
           tap({
             next: () => {
               group$.close();
@@ -1263,6 +1322,25 @@ export class Worker {
               if (task.task == null) {
                 throw new IllegalStateError(`Got empty task for task variant with token: ${base64TaskToken}`);
               }
+              try {
+                await visit(
+                  task,
+                  walkNexusTask,
+                  extstoreInboundOptions(this.options.loadedDataConverter.externalStorage)
+                );
+              } catch (e) {
+                this.logger.error(
+                  `Error while retrieving Nexus task payloads from external storage: ${errorMessage(e)}`,
+                  { taskToken: base64TaskToken, error: e }
+                );
+                return {
+                  taskToken: task.task.taskToken,
+                  failure: await handlerErrorToProto(
+                    this.options.loadedDataConverter,
+                    new nexus.HandlerError('INTERNAL', errorMessage(e), { cause: e, retryableOverride: true })
+                  ),
+                };
+              }
               const requestDeadline = task.requestDeadline != null ? tsToDate(task.requestDeadline) : undefined;
               return await this.handleNexusRunTask(task.task, base64TaskToken, protobufEncodedTask, requestDeadline);
             }
@@ -1287,7 +1365,30 @@ export class Worker {
         }
       ),
       filter(<T>(result: T): result is Exclude<T, undefined> => result !== undefined),
-      map((result) => coresdk.nexus.NexusTaskCompletion.encodeDelimited(result).finish())
+      mergeMap(async (result) => {
+        const { externalStorage } = this.options.loadedDataConverter;
+        let completion = result;
+        if (externalStorage) {
+          try {
+            await visit(completion, walkNexusTaskCompletion, extstoreStoreOptions(externalStorage));
+          } catch (e) {
+            this.logger.error(`Error while offloading Nexus task result to external storage: ${errorMessage(e)}`, {
+              taskToken: completion.taskToken ? formatTaskToken(completion.taskToken) : undefined,
+              error: e,
+            });
+            // Core requires a NexusHandlerFailureInfo on a Nexus failure completion, so wrap the driver
+            // error in a retryable handler error.
+            completion = {
+              taskToken: completion.taskToken,
+              failure: await handlerErrorToProto(
+                this.options.loadedDataConverter,
+                new nexus.HandlerError('INTERNAL', errorMessage(e), { cause: e, retryableOverride: true })
+              ),
+            };
+          }
+        }
+        return coresdk.nexus.NexusTaskCompletion.encodeDelimited(completion).finish();
+      })
     );
   }
 
@@ -1434,6 +1535,8 @@ export class Worker {
           workflowId,
         });
       }
+      const { externalStorage } = this.options.loadedDataConverter;
+      await visit(activation, walkWorkflowActivation, extstoreInboundOptions(externalStorage));
       const decodedActivation = await workflowCodecRunner.decodeActivation(activation);
 
       if (workflow === undefined) {
@@ -1449,7 +1552,27 @@ export class Worker {
       let isFatalError = false;
       try {
         const unencodedCompletion = await workflow.workflow.activate(decodedActivation);
-        const completion = await workflowCodecRunner.encodeCompletion(unencodedCompletion);
+        const encodedCompletion = await workflowCodecRunner.encodeCompletion(unencodedCompletion);
+        // Skip extstore.store on replay: the completion is discarded and its payloads were already offloaded on the original run.
+        if (externalStorage && !this.isReplayWorker) {
+          const namespace = workflowCodecRunner.workflowContext.namespace;
+          await visit(
+            encodedCompletion,
+            walkWorkflowActivationCompletion,
+            extstoreStoreOptions(externalStorage, {
+              initialTarget: {
+                kind: 'workflow',
+                namespace,
+                id: workflowCodecRunner.workflowContext.workflowId,
+                runId: activation.runId,
+                type: workflow.info.workflowType,
+              },
+              deriveContext: workflowCommandStoreTarget(namespace, workflow.info),
+            })
+          );
+        }
+        const completion =
+          coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited(encodedCompletion).finish();
 
         return { state: workflow, output: { close, completion } };
       } catch (err) {
@@ -1577,6 +1700,7 @@ export class Worker {
         now: () => Date.now(), // re-set in initRuntime
         isReplaying: activation.isReplaying,
         isReplayingHistoryEvents: activation.isReplaying,
+        random: createUnsafeRandomSource(Math.random),
       },
       priority: decodePriority(priority),
     };
@@ -1592,7 +1716,7 @@ export class Worker {
     });
 
     this.numCachedWorkflowsSubject.next(this.numCachedWorkflowsSubject.value + 1);
-    return { workflow, logAttributes, workflowCodecRunner };
+    return { workflow, logAttributes, workflowCodecRunner, info: workflowInfo };
   }
 
   /**
@@ -1775,10 +1899,16 @@ export class Worker {
                 onError();
                 return;
               }
-              const arr = coresdk.ActivityHeartbeat.encodeDelimited({
-                taskToken,
-                details: [payload],
-              }).finish();
+              const heartbeat: coresdk.IActivityHeartbeat = { taskToken, details: [payload] };
+              const { externalStorage } = this.options.loadedDataConverter;
+              if (externalStorage) {
+                await visit(
+                  heartbeat,
+                  walkActivityHeartbeat,
+                  extstoreStoreOptions(externalStorage, { initialTarget: activityStorageTarget(info) })
+                );
+              }
+              const arr = coresdk.ActivityHeartbeat.encodeDelimited(heartbeat).finish();
               this.nativeWorker.recordActivityHeartbeat(byteArrayToBuffer(arr));
             } finally {
               this.activityHeartbeatSubject.next({
@@ -2200,15 +2330,44 @@ function extractSourceMap(code: string): [string, string] {
 }
 
 /**
+ * External-storage target for payloads produced by an activity, matching the Go SDK: a
+ * workflow-bound activity targets its owning workflow execution; a standalone activity targets
+ * itself. Used for both the activity result and its heartbeat details.
+ */
+function activityStorageTarget(info: ActivityInfo): StorageDriverTargetInfo {
+  return info.inWorkflow
+    ? {
+        kind: 'workflow',
+        namespace: info.namespace,
+        id: info.workflowExecution?.workflowId,
+        runId: info.workflowExecution?.runId,
+        type: info.workflowType,
+      }
+    : {
+        kind: 'activity',
+        namespace: info.namespace,
+        id: info.activityId,
+        type: info.activityType,
+        runId: info.activityRunId,
+      };
+}
+
+/**
  * Transform an ActivityTask into ActivityInfo to pass on into an Activity
  */
-async function extractActivityInfo(
-  task: coresdk.activity_task.ActivityTask,
-  dataConverter: LoadedDataConverter,
-  taskQueue: string,
-  activityNamespace: string,
-  context: ActivitySerializationContext
-): Promise<ActivityInfo> {
+async function extractActivityInfo({
+  task,
+  dataConverter,
+  taskQueue,
+  activityNamespace,
+  context,
+}: {
+  task: coresdk.activity_task.ActivityTask;
+  dataConverter: LoadedDataConverter;
+  taskQueue: string;
+  activityNamespace: string;
+  context: ActivitySerializationContext;
+}): Promise<ActivityInfo> {
   // NOTE: We trust core to supply all of these fields instead of checking for null and undefined everywhere
   const { taskToken } = task as NonNullableObject<coresdk.activity_task.IActivityTask>;
   const start = task.start as NonNullableObject<coresdk.activity_task.IStart>;
@@ -2236,7 +2395,7 @@ async function extractActivityInfo(
     workflowType: inWorkflow ? start.workflowType : undefined,
     heartbeatTimeoutMs: optionalTsToMs(start.heartbeatTimeout),
     heartbeatDetails,
-    activityNamespace: start.workflowNamespace,
+    activityNamespace,
     workflowNamespace: inWorkflow ? start.workflowNamespace : undefined,
     scheduledTimestampMs: requiredTsToMs(start.scheduledTime, 'scheduledTime'),
     startToCloseTimeoutMs: requiredTsToMs(start.startToCloseTimeout, 'startToCloseTimeout'),
@@ -2247,9 +2406,57 @@ async function extractActivityInfo(
     ),
     priority: decodePriority(start.priority),
     retryPolicy: decompileRetryPolicy(start.retryPolicy),
-    namespace: start.workflowNamespace,
+    namespace: start.workflowNamespace || activityNamespace,
     activityRunId: !inWorkflow ? start.runId : undefined,
     inWorkflow,
+  };
+}
+
+function workflowCommandStoreTarget(
+  namespace: string,
+  info: WorkflowInfo
+): (
+  message: object,
+  typeName: string,
+  context: StorageDriverTargetInfo | undefined
+) => StorageDriverTargetInfo | undefined {
+  return (message, typeName, context) => {
+    switch (typeName) {
+      case 'coresdk.workflow_commands.StartChildWorkflowExecution': {
+        const command = message as coresdk.workflow_commands.IStartChildWorkflowExecution;
+        return {
+          kind: 'workflow',
+          namespace: command.namespace || namespace,
+          id: command.workflowId ?? undefined,
+          type: command.workflowType ?? undefined,
+        };
+      }
+      case 'coresdk.workflow_commands.SignalExternalWorkflowExecution':
+      case 'coresdk.workflow_commands.RequestCancelExternalWorkflowExecution': {
+        const command = message as coresdk.workflow_commands.ISignalExternalWorkflowExecution & {
+          childWorkflowId?: string | null;
+        };
+        const workflowId = command.workflowExecution?.workflowId ?? command.childWorkflowId ?? undefined;
+        return { kind: 'workflow', namespace: command.workflowExecution?.namespace || namespace, id: workflowId };
+      }
+      case 'coresdk.workflow_commands.ContinueAsNewWorkflowExecution': {
+        if (context == null) return context;
+        const command = message as coresdk.workflow_commands.IContinueAsNewWorkflowExecution;
+        return { ...context, runId: undefined, type: command.workflowType || context.type };
+      }
+      case 'coresdk.workflow_commands.CompleteWorkflowExecution': {
+        const { parent } = info;
+        if (parent == null || info.continuedFromExecutionRunId != null) return context;
+        return {
+          kind: 'workflow',
+          namespace: parent.namespace || namespace,
+          id: parent.workflowId,
+          runId: parent.runId,
+        };
+      }
+      default:
+        return context;
+    }
   };
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/envconfig",
-  "version": "1.17.2",
+  "version": "1.21.1",
   "description": "Temporal.io SDK Environment Configuration sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -33,7 +33,7 @@
     "dedent": "^1.5.1"
   },
   "engines": {
-    "node": ">= 20.0.0"
+    "node": ">= 20.3.0"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

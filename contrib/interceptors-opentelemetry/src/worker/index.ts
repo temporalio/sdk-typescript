@@ -79,7 +79,7 @@ export class OpenTelemetryActivityInboundInterceptor implements ActivityInboundC
 /**
  * Intercepts calls to emit logs and metrics from an Activity.
  *
- * Attach OpenTelemetry context tracing attributes to emitted log messages and metrics, if appropriate.
+ * Attach OpenTelemetry context tracing attributes to emitted log messages, if appropriate.
  */
 export class OpenTelemetryActivityOutboundInterceptor implements ActivityOutboundCallsInterceptor {
   constructor(protected readonly ctx: ActivityContext) {}
@@ -106,18 +106,7 @@ export class OpenTelemetryActivityOutboundInterceptor implements ActivityOutboun
     input: GetMetricTagsInput,
     next: Next<ActivityOutboundCallsInterceptor, 'getMetricTags'>
   ): GetMetricTagsInput {
-    const span = otel.trace.getSpan(otel.context.active());
-    const spanContext = span?.spanContext();
-    if (spanContext && otel.isSpanContextValid(spanContext)) {
-      return next({
-        trace_id: spanContext.traceId,
-        span_id: spanContext.spanId,
-        trace_flags: `0${spanContext.traceFlags.toString(16)}`,
-        ...input,
-      });
-    } else {
-      return next(input);
-    }
+    return next(input);
   }
 }
 
@@ -177,7 +166,7 @@ export class OpenTelemetryNexusInboundInterceptor implements NexusInboundCallsIn
 /**
  * Intercepts outbound calls from a Nexus Operation handler.
  *
- * Attaches OpenTelemetry context tracing attributes to emitted log messages and metrics.
+ * Attaches OpenTelemetry context tracing attributes to emitted log messages.
  */
 export class OpenTelemetryNexusOutboundInterceptor implements NexusOutboundCallsInterceptor {
   constructor(protected readonly ctx: nexus.OperationContext) {}
@@ -204,18 +193,7 @@ export class OpenTelemetryNexusOutboundInterceptor implements NexusOutboundCalls
     input: GetMetricTagsInput,
     next: Next<NexusOutboundCallsInterceptor, 'getMetricTags'>
   ): GetMetricTagsInput {
-    const span = otel.trace.getSpan(otel.context.active());
-    const spanContext = span?.spanContext();
-    if (spanContext && otel.isSpanContextValid(spanContext)) {
-      return next({
-        trace_id: spanContext.traceId,
-        span_id: spanContext.spanId,
-        trace_flags: `0${spanContext.traceFlags.toString(16)}`,
-        ...input,
-      });
-    } else {
-      return next(input);
-    }
+    return next(input);
   }
 }
 

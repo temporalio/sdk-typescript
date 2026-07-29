@@ -19,6 +19,14 @@ packages:
   - packages/workflow
   - contrib/ai-sdk
   - contrib/interceptors-opentelemetry
+  - contrib/interceptors-opentelemetry-v2
+  - contrib/langsmith
+  - contrib/openai-agents
+  - contrib/strands
+  - contrib/external-storage-s3
+  - contrib/external-storage-s3-aws-sdk
+  - contrib/external-storage-gcs
+  - contrib/external-storage-gcs-google-sdk
   - contrib/workflow-streams
   - scripts
 
@@ -32,6 +40,10 @@ minimumReleaseAgeExclude:
   - '@temporalio/*'
   - nexus-rpc
 
+  # Allow as part of #2170 mitigation to make sure our tests confirm validity
+  # of our fix against the behavior change introduced by webpack@5.108.0
+  - webpack@5.108.4
+
 peerDependencyRules:
   ignoreMissing:
     # Peer of json-joy@9.9.1, missing in memfs@4.6.0
@@ -44,4 +56,4 @@ overrides:
   handlebars: '>=4.7.9'
 
 patchedDependencies:
-  protobufjs@7.5.8: patches/protobufjs@7.5.8.patch
+  protobufjs@^7.6.4: patches/protobufjs@7.6.2.patch

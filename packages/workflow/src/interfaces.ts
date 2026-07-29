@@ -269,6 +269,35 @@ export interface UnsafeWorkflowInfo {
    * callDuringReplay=false won't get processed.
    */
   readonly isReplayingHistoryEvents: boolean;
+
+  /**
+   * @experimental Nondeterministic; see {@link UnsafeRandomSource}.
+   */
+  readonly random: UnsafeRandomSource;
+}
+
+/**
+ * A nondeterministic random source: every draw is fresh entropy, not derived from the Workflow
+ * seed and not replay-stable. Only safe in read-only Query handlers and update validators; using
+ * it on the main Workflow path causes non-determinism errors.
+ *
+ * @experimental This API may be removed or changed in the future.
+ */
+export interface UnsafeRandomSource {
+  /**
+   * A fresh nondeterministic float in [0, 1), like an un-sandboxed `Math.random()`.
+   */
+  random(): number;
+
+  /**
+   * A fresh nondeterministic UUIDv4.
+   */
+  uuid4(): string;
+
+  /**
+   * Fills bytes with fresh nondeterministic values.
+   */
+  fillRandom(bytes: Uint8Array): Uint8Array;
 }
 
 /**
@@ -329,6 +358,11 @@ export interface ContinueAsNewOptions {
    * @format {@link https://www.npmjs.com/package/ms | ms-formatted string}
    */
   workflowTaskTimeout?: Duration;
+  /**
+   * Delay before the first Workflow Task of the continued run is scheduled
+   * @format {@link https://www.npmjs.com/package/ms | ms-formatted string}
+   */
+  backoffStartInterval?: Duration;
   /**
    * Non-searchable attributes to attach to next Workflow run
    */
@@ -654,6 +688,7 @@ export interface WorkflowCreateOptionsInternal extends WorkflowCreateOptions {
   registeredActivityNames: Set<string>;
   getTimeOfDay(): bigint;
   stackTracesEnabled: boolean;
+  patchActivationCallback?(workflowInfo: WorkflowInfo, patchId: string): boolean;
 }
 
 /**

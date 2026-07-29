@@ -13,9 +13,12 @@ import { Worker as NodeWorker } from 'node:worker_threads';
 import { setTimeout } from 'node:timers/promises';
 import { coresdk } from '@temporalio/proto';
 import { IllegalStateError, type SinkCall } from '@temporalio/workflow';
+import { createUnsafeRandomSource } from '@temporalio/workflow/lib/random-helpers';
 import type { Logger } from '@temporalio/common';
+import type { PatchActivationCallback } from '../worker-options';
 import { UnexpectedError } from '../errors';
 import type {
+  PatchActivationCallbackRequest,
   WorkflowBundleWithSourceMapAndFilename,
   WorkerThreadInput,
   WorkerThreadRequest,
@@ -23,6 +26,12 @@ import type {
 import type { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import type { WorkerThreadOutput, WorkerThreadResponse } from './workflow-worker-thread/output';
 import { isBun } from './bun';
+import {
+  completePatchActivationCallback,
+  invokePatchActivationCallbackWithSnapshot,
+  writePatchActivationCallbackError,
+  writePatchActivationCallbackResult,
+} from './patch-activation-callback';
 
 // https://nodejs.org/api/worker_threads.html#event-exit
 // Bun exits with code 0 instead of 1
@@ -64,9 +73,15 @@ export class WorkerThreadClient {
 
   constructor(
     protected workerThread: NodeWorker,
-    protected logger: Logger
+    protected logger: Logger,
+    protected patchActivationCallback?: PatchActivationCallback
   ) {
-    workerThread.on('message', ({ requestId, result }: WorkerThreadResponse) => {
+    workerThread.on('message', (message: WorkerThreadResponse | PatchActivationCallbackRequest) => {
+      if (!('requestId' in message)) {
+        this.handlePatchActivationCallback(message);
+        return;
+      }
+      const { requestId, result } = message;
       const completion = this.requestIdToCompletion.get(requestId);
       if (completion === undefined) {
         throw new IllegalStateError(`Got completion for unknown requestId ${requestId}`);
@@ -103,6 +118,31 @@ export class WorkerThreadClient {
         completion.reject(error);
       }
     });
+  }
+
+  private handlePatchActivationCallback(request: PatchActivationCallbackRequest): void {
+    try {
+      if (this.patchActivationCallback === undefined) {
+        throw new IllegalStateError('Received patch activation callback request without a configured callback');
+      }
+      const result = invokePatchActivationCallbackWithSnapshot(
+        this.patchActivationCallback,
+        request.workflowInfo,
+        request.patchId
+      );
+      writePatchActivationCallbackResult(request.resultBuffer, result);
+    } catch (err) {
+      writePatchActivationCallbackError(request.resultBuffer, err);
+      this.logger.warn('Patch activation callback failed', {
+        error: err,
+        workflowId: request.workflowInfo.workflowId,
+        runId: request.workflowInfo.runId,
+        workflowType: request.workflowInfo.workflowType,
+        patchId: request.patchId,
+      });
+    } finally {
+      completePatchActivationCallback(request.resultBuffer);
+    }
   }
 
   /**
@@ -175,6 +215,7 @@ export interface ThreadedVMWorkflowCreatorOptions {
   reuseV8Context: boolean;
   registeredActivityNames: Set<string>;
   logger: Logger;
+  patchActivationCallback?: PatchActivationCallback;
 }
 
 /**
@@ -193,10 +234,18 @@ export class ThreadedVMWorkflowCreator implements WorkflowCreator {
     reuseV8Context,
     registeredActivityNames,
     logger,
+    patchActivationCallback,
   }: ThreadedVMWorkflowCreatorOptions): Promise<ThreadedVMWorkflowCreator> {
     const workerThreadClients = Array(threadPoolSize)
       .fill(0)
-      .map(() => new WorkerThreadClient(new NodeWorker(require.resolve('./workflow-worker-thread')), logger));
+      .map(
+        () =>
+          new WorkerThreadClient(
+            new NodeWorker(require.resolve('./workflow-worker-thread')),
+            logger,
+            patchActivationCallback
+          )
+      );
     await Promise.all(
       workerThreadClients.map((client) =>
         client.send({
@@ -205,6 +254,7 @@ export class ThreadedVMWorkflowCreator implements WorkflowCreator {
           isolateExecutionTimeoutMs,
           reuseV8Context,
           registeredActivityNames,
+          hasPatchActivationCallback: patchActivationCallback !== undefined,
         })
       )
     );
@@ -242,10 +292,11 @@ export class VMWorkflowThreadProxy implements Workflow {
     workerThreadClient: WorkerThreadClient,
     options: WorkflowCreateOptions
   ): Promise<VMWorkflowThreadProxy> {
-    // Delete .now because functions can't be serialized / sent to thread.
-    // Cast to any to avoid type error, since .now is a required field.
-    // Safe to cast since we immediately set it inside the thread in initRuntime.
+    // Delete .now and .random because functions can't be serialized / sent to thread.
+    // Cast to any to avoid type errors, since both are required fields.
+    // Safe to cast since we immediately reset them inside the thread in initRuntime.
     delete (options.info.unsafe as any).now;
+    delete (options.info.unsafe as any).random;
     await workerThreadClient.send({ type: 'create-workflow', options });
     return new this(workerThreadClient, options.info.runId);
   }
@@ -269,6 +320,7 @@ export class VMWorkflowThreadProxy implements Workflow {
 
     output.calls.forEach((call) => {
       (call.workflowInfo.unsafe.now as any) = Date.now;
+      (call.workflowInfo.unsafe.random as any) = createUnsafeRandomSource(Math.random);
     });
     return output.calls;
   }
