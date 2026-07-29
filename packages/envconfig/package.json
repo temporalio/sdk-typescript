@@ -6,7 +6,7 @@
   "types": "./lib/index.d.ts",
   "scripts": {
     "build": "tsc --build",
-    "test": "ava ./lib/__tests__/test-*.js"
+    "test": "node ../../scripts/ava-ci.mjs ./lib/__tests__/test-*.js"
   },
   "ava": {
     "timeout": "60s",

@@ -134,6 +134,10 @@ jobs:
     # Allow Bun test failures since support is experimental
     continue-on-error: ${{ matrix.node == 'bun' }}
     name: Run Integration Tests (${{ matrix.platform }}, ${{ matrix.node == 'bun' && 'Bun' || format('Node {0}', matrix.node) }}, Reuse V8 Context ${{ matrix.reuse-v8-context }})
+    env:
+      # Per-package test summaries + full logs are written here by scripts/ava-ci.mjs,
+      # aggregated into the job summary by scripts/ci-test-summary.mjs, and archived as an artifact.
+      TEST_RESULTS_DIR: ${{ github.workspace }}/.test-results
     defaults:
       run:
         shell: bash
@@ -239,6 +243,15 @@ jobs:
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
 
+      # Aggregate the per-package results written by scripts/ava-ci.mjs into the
+      # job summary (visible on the run's summary page). Runs even when tests fail
+      # so the failure overview is always present. Skipped for Bun (which doesn't
+      # route through the wrapper).
+      - name: Publish test summary
+        if: always() && matrix.node != 'bun'
+        continue-on-error: true
+        run: node scripts/ci-test-summary.mjs
+
       # FIXME: Move samples tests to a custom activity
       # Sample 1: hello-world to local server
       - name: Instantiate sample project using verdaccio artifacts - Hello World
@@ -283,6 +296,18 @@ jobs:
           pnpm tsx scripts/test-example.ts --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm" --script-name workflow-local --expected-output "Hello World And Hello Wonderful Temporal!"
 
       # End samples
+
+      # Archive the full per-package test logs plus the redirected Verdaccio-publish
+      # and sample-init logs (the firehose we keep off the console). Placed at the end
+      # so it captures logs written by the sample steps above too.
+      - name: Upload test logs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always() && matrix.node != 'bun'
+        with:
+          name: test-logs-${{ matrix.platform }}-${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}
+          path: ${{ env.TEST_RESULTS_DIR }}
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Upload Dev Server logs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
