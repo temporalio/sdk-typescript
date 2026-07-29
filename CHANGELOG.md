@@ -19,9 +19,17 @@ to docs, or any other relevant information.
 
 ## [Unreleased]
 
+### Added
+
+- Workers can now configure the number of activity slots reserved for eager execution per
+  workflow task with `maxEagerActivityReservationsPerWorkflowTask`. Setting it to zero disables
+  eager activity execution.
+
 ### Fixed
 
 - strands: Declare `zod` as a peer dependency.
+- workflow-streams: `WorkflowStream.onPoll` no longer serves a stale log index for a poll that
+  was parked across a `truncate()` call, which could silently skip events.
 
 ## [1.21.1] - 2026-07-23
 
