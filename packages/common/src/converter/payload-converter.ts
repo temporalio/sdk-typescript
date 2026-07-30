@@ -1,6 +1,7 @@
 import { decode, encode } from '../encoding';
 import { PayloadConverterError, ValueError } from '../errors';
 import type { Payload } from '../interfaces';
+import type { TypeInfo } from '../type-info';
 import type { SerializationContext } from './serialization-context';
 import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY } from './types';
 
@@ -29,6 +30,38 @@ export interface PayloadConverter {
 }
 
 /**
+ * Apply TypeInfo transfer conversion before converting a value to a Payload.
+ *
+ * @experimental
+ */
+export function toPayloadWithTypeInfo<T>(
+  converter: PayloadConverter,
+  value: T,
+  context: SerializationContext | undefined,
+  typeInfo: TypeInfo<T> | undefined
+): Payload {
+  const transferValue = typeInfo?.transferTypeConverter ? typeInfo.transferTypeConverter.toTransferType(value) : value;
+  return converter.toPayload(transferValue, context);
+}
+
+/**
+ * Convert a Payload and then apply TypeInfo transfer conversion to the result.
+ *
+ * @experimental
+ */
+export function fromPayloadWithTypeInfo<T>(
+  converter: PayloadConverter,
+  payload: Payload,
+  context: SerializationContext | undefined,
+  typeInfo: TypeInfo<T> | undefined
+): T {
+  const transferValue = converter.fromPayload<unknown>(payload, context);
+  return typeInfo?.transferTypeConverter
+    ? typeInfo.transferTypeConverter.fromTransferType(transferValue)
+    : (transferValue as T);
+}
+
+/**
  * Implements conversion of a list of values.
  *
  * @param converter
@@ -49,13 +82,14 @@ export function toPayloads(converter: PayloadConverter, ...values: unknown[]): P
 export function toPayloadsWithContext(
   converter: PayloadConverter,
   context: SerializationContext | undefined,
-  values: unknown[]
+  values: unknown[],
+  typeInfo?: readonly TypeInfo[]
 ): Payload[] | undefined {
   if (values.length === 0) {
     return undefined;
   }
 
-  return values.map((value) => converter.toPayload(value, context));
+  return values.map((value, index) => toPayloadWithTypeInfo(converter, value, context, typeInfo?.[index]));
 }
 
 /**
@@ -101,7 +135,8 @@ export function fromPayloadsAtIndex<T>(
   converter: PayloadConverter,
   index: number,
   payloads?: Payload[] | null,
-  context?: SerializationContext
+  context?: SerializationContext,
+  typeInfo?: TypeInfo<T>
 ): T {
   // To make adding arguments a backwards compatible change
   if (payloads === undefined || payloads === null || index >= payloads.length) {
@@ -111,7 +146,7 @@ export function fromPayloadsAtIndex<T>(
   if (!payload) {
     return undefined as any;
   }
-  return converter.fromPayload(payload, context);
+  return fromPayloadWithTypeInfo(converter, payload, context, typeInfo);
 }
 
 /**
@@ -120,12 +155,15 @@ export function fromPayloadsAtIndex<T>(
 export function arrayFromPayloads(
   converter: PayloadConverter,
   payloads?: Payload[] | null,
-  context?: SerializationContext
+  context?: SerializationContext,
+  typeInfo?: readonly TypeInfo[]
 ): unknown[] {
   if (!payloads) {
     return [];
   }
-  return payloads.map((payload: Payload) => converter.fromPayload(payload, context));
+  return payloads.map((payload: Payload, index) =>
+    fromPayloadWithTypeInfo(converter, payload, context, typeInfo?.[index])
+  );
 }
 
 export function mapFromPayloads<K extends string, T = unknown>(
