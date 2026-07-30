@@ -364,7 +364,7 @@ jobs:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
   ci-summary:
-    name: CI Summary
+    name: CI
     if: always()
     needs:
       - compile-native-binaries-debug
