@@ -4,7 +4,7 @@
  * {@link transferTypeConverter} performs an application-defined, payload-converter-independent transformation.
  * For example, it can convert a class instance into a plain object before JSON serialization.
  *
- * {@link converterHint} carries metadata for a specific payload converter and describes its value type `D`.
+ * {@link payloadConverterHint} carries metadata for a specific payload converter and describes its value type `D`.
  * For example, a Protobuf converter hint can identify the message type required to deserialize bytes.
  *
  * On encoding, transfer type conversion runs before payload conversion. On decoding, payload conversion runs before
@@ -27,7 +27,7 @@ export interface TypeInfo<T = unknown, D = T> {
    *
    * Use this when conversion requires format-specific runtime information, such as a Protobuf message type.
    */
-  converterHint?: ConverterHint<D>;
+  payloadConverterHint?: ConverterHint<D>;
 }
 
 /**
