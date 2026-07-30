@@ -21,6 +21,8 @@ to docs, or any other relevant information.
 
 ### Added
 
+- **Experimental**: Added `TypeInfo` and `TransferTypeConverter` to `@temporalio/common` for converting
+  application values to and from serialization-friendly transfer types around payload conversion.
 - Workers can now configure the number of activity slots reserved for eager execution per
   workflow task with `maxEagerActivityReservationsPerWorkflowTask`. Setting it to zero disables
   eager activity execution.
