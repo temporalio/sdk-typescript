@@ -10,8 +10,11 @@ import { ProtobufBinaryPayloadConverter } from '../converter/protobuf-payload-co
 import type { SerializationContext } from '../converter/serialization-context';
 import { PayloadConverterError, ValueError } from '../errors';
 import type { Payload } from '../interfaces';
-import { decodeArrayFromPayloads, encodeToPayloadsWithContext } from '../internal-non-workflow/codec-helpers';
-import { isRecord } from '../type-helpers';
+import {
+  decodeArrayFromPayloads,
+  decodeFromPayloadsAtIndex,
+  encodeToPayloadsWithContext,
+} from '../internal-non-workflow/codec-helpers';
 import type { ConverterHint, TypeInfo } from '../type-info';
 
 class UserAccount {
@@ -63,12 +66,12 @@ class HintedProtobufBinaryPayloadConverter extends ProtobufBinaryPayloadConverte
     if (hint === undefined) {
       return super.toPayload(value);
     }
-    if (!this.validateConverterHint(hint) || !isRecord(value)) {
+    if (!this.validateConverterHint(hint)) {
       return undefined;
     }
     return this.constructPayload({
       messageTypeName: hint.messageType.fullName,
-      message: hint.messageType.encode(hint.messageType.create(value)).finish(),
+      message: hint.messageType.encode(Object.assign(hint.messageType.create(), value)).finish(),
     });
   }
 
@@ -117,11 +120,7 @@ test('uses a converter hint to serialize and deserialize a protobuf message', as
   };
 
   const payloads = await encodeToPayloadsWithContext(converter, undefined, [{ value: '123' }], [typeInfo]);
-  const [result] = await decodeArrayFromPayloads(converter, payloads, undefined, [typeInfo]);
+  const result = await decodeFromPayloadsAtIndex(converter, 0, payloads, undefined, typeInfo);
 
-  if (!isRecord(result)) {
-    t.fail('Expected a protobuf object');
-    return;
-  }
   t.is(result.value, '123');
 });
