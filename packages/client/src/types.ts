@@ -357,6 +357,7 @@ export const ActivityExecutionStatus = {
   CANCELED: 'CANCELED',
   TERMINATED: 'TERMINATED',
   TIMED_OUT: 'TIMED_OUT',
+  PAUSED: 'PAUSED',
 } as const;
 /**
  * @experimental Standalone Activities are experimental. APIs may be subject to change.
@@ -379,6 +380,7 @@ export const [encodeActivityExecutionStatus, decodeActivityExecutionStatus] = ma
     [ActivityExecutionStatus.CANCELED]: 4,
     [ActivityExecutionStatus.TERMINATED]: 5,
     [ActivityExecutionStatus.TIMED_OUT]: 6,
+    [ActivityExecutionStatus.PAUSED]: 7,
     UNSPECIFIED: 0,
   } as const,
   'ACTIVITY_EXECUTION_STATUS_'
