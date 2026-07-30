@@ -1,6 +1,8 @@
 import type { temporal } from '@temporalio/proto';
-import type { WorkflowOptions } from './workflow-options';
-import type { WorkflowHandle } from './workflow-client';
+import type { UpdateDefinition } from '@temporalio/common';
+import type { WorkflowOptions, WorkflowUpdateOptions } from './workflow-options';
+import type { WorkflowHandle, WorkflowUpdateHandle } from './workflow-client';
+import type { WorkflowUpdateStage } from './workflow-update-stage';
 import type { WorkflowSignalInput } from './interceptors';
 
 /**
@@ -46,6 +48,51 @@ export interface InternalWorkflowStartOptions extends WorkflowOptions {
      * Used by the Nexus WorkflowRunOperations to attach to a callback to a running workflow.
      */
     onConflictOptions?: temporal.api.workflow.v1.IOnConflictOptions;
+  };
+}
+
+/**
+ * A symbol used to attach extra, SDK-internal options to a `WorkflowHandle.startUpdate()` /
+ * `executeUpdate()` call.
+ *
+ * Used by the Temporal Nexus helpers to attach a completion callback, request ID, and request links
+ * onto the UpdateWorkflowExecution request, and to capture the response link the server returns.
+ *
+ * @internal
+ * @hidden
+ */
+export const InternalWorkflowUpdateOptionsSymbol = Symbol.for('__temporal_internal_client_workflow_update_options');
+export interface InternalWorkflowUpdateOptions {
+  [InternalWorkflowUpdateOptionsSymbol]?: {
+    /**
+     * Request ID used for server-side deduplication of the Update request.
+     */
+    requestId?: string;
+
+    /**
+     * Callbacks to be invoked by the server when the Update reaches a terminal state.
+     * Callback addresses must be whitelisted in the server's dynamic configuration.
+     */
+    completionCallbacks?: temporal.api.common.v1.ICallback[];
+
+    /**
+     * Links to be associated with the Update.
+     */
+    links?: temporal.api.common.v1.ILink[];
+
+    /**
+     * Response link copied by the client from the UpdateWorkflowExecutionResponse. On success it
+     * points at the Update Accepted event; on validation failure it may be a plain Workflow link.
+     * Only populated by servers that return an update response link; left unset otherwise.
+     */
+    responseLink?: temporal.api.common.v1.ILink;
+
+    /**
+     * Terminal outcome of the Update, copied by the client from the UpdateWorkflowExecutionResponse
+     * when the Update already reached a completed state (e.g. a retried request with the same update
+     * ID, or an Update that completes immediately). Left unset while the Update is only accepted.
+     */
+    outcome?: temporal.api.update.v1.IOutcome;
   };
 }
 
@@ -98,4 +145,20 @@ export type InternalWorkflowSignalInput = WorkflowSignalInput & InternalWorkflow
  * @internal
  * @hidden
  */
-export type InternalWorkflowHandle = WorkflowHandle & InternalWorkflowSignalOptions;
+export type InternalWorkflowHandle = WorkflowHandle &
+  InternalWorkflowSignalOptions & {
+    /**
+     * A single, non-overloaded view of {@link WorkflowHandle.startUpdate} used by the Temporal Nexus
+     * helpers to start an Update-backed operation. The public `startUpdate` is overloaded to
+     * discriminate empty vs non-empty argument tuples, which a generic `Args extends any[]` satisfies
+     * neither of; this added call signature accepts the generic form and carries the
+     * {@link InternalWorkflowUpdateOptionsSymbol} payload (request ID, completion callbacks, links).
+     */
+    startUpdate<Ret, Args extends any[]>(
+      def: UpdateDefinition<Ret, Args> | string,
+      options: WorkflowUpdateOptions & {
+        args?: Args;
+        waitForStage: typeof WorkflowUpdateStage.ACCEPTED;
+      } & InternalWorkflowUpdateOptions
+    ): Promise<WorkflowUpdateHandle<Ret>>;
+  };

@@ -7,11 +7,13 @@ import {
   convertNexusOperationLinkToNexusLink,
   convertTemporalLinkToNexusLink,
   convertWorkflowEventLinkToNexusLink,
+  convertWorkflowLinkToNexusLink,
 } from '../link-converter';
 
 const { EventType } = temporal.api.enums.v1;
 const WORKFLOW_EVENT_TYPE = (temporal.api.common.v1.Link.WorkflowEvent as any).fullName.slice(1);
 const NEXUS_OPERATION_TYPE = (temporal.api.common.v1.Link.NexusOperation as any).fullName.slice(1);
+const WORKFLOW_TYPE = (temporal.api.common.v1.Link.Workflow as any).fullName.slice(1);
 
 function makeEventRef(eventId: number, eventType: keyof typeof EventType) {
   return {
@@ -107,6 +109,39 @@ test('convertNexusOperationLinkToNexusLink escapes URL path components', (t) => 
   });
 });
 
+test('convertWorkflowLinkToNexusLink produces a history URL with the Workflow link type', (t) => {
+  const nexusLink = convertWorkflowLinkToNexusLink({
+    namespace: 'ns',
+    workflowId: 'wid',
+    runId: 'rid',
+  });
+  t.is(nexusLink.type, WORKFLOW_TYPE);
+  t.is(nexusLink.url.toString(), 'temporal:///namespaces/ns/workflows/wid/rid/history');
+});
+
+test('convertWorkflowLinkToNexusLink escapes URL path components', (t) => {
+  const nexusLink = convertWorkflowLinkToNexusLink({
+    namespace: 'name/space',
+    workflowId: 'work id',
+    runId: 'run/id',
+  });
+  t.is(nexusLink.url.toString(), 'temporal:///namespaces/name%2Fspace/workflows/work%20id/run%2Fid/history');
+});
+
+test('convertWorkflowLinkToNexusLink throws on missing required fields', (t) => {
+  t.throws(() => convertWorkflowLinkToNexusLink({ namespace: '', workflowId: 'wid', runId: 'rid' }), {
+    instanceOf: TypeError,
+  });
+  t.throws(() => convertWorkflowLinkToNexusLink({ namespace: 'ns', workflowId: '', runId: 'rid' }), {
+    instanceOf: TypeError,
+  });
+  // An empty run ID would produce `.../workflows/wid//history`, whose double slash does not resolve
+  // to a valid UI page, so the converter rejects it rather than emit a malformed URL.
+  t.throws(() => convertWorkflowLinkToNexusLink({ namespace: 'ns', workflowId: 'wid', runId: '' }), {
+    instanceOf: TypeError,
+  });
+});
+
 test('convertTemporalLinkToNexusLink dispatches by Temporal link variant', (t) => {
   const workflowEvent = {
     namespace: 'ns',
@@ -119,9 +154,14 @@ test('convertTemporalLinkToNexusLink dispatches by Temporal link variant', (t) =
     operationId: 'op-123',
     runId: 'run-456',
   };
+  const workflow = { namespace: 'ns', workflowId: 'wid', runId: 'rid' };
 
   t.is(convertTemporalLinkToNexusLink({ workflowEvent }).type, WORKFLOW_EVENT_TYPE);
   t.is(convertTemporalLinkToNexusLink({ nexusOperation }).type, NEXUS_OPERATION_TYPE);
+  t.is(convertTemporalLinkToNexusLink({ workflow }).type, WORKFLOW_TYPE);
+
+  // workflowEvent wins when the server populates more than one variant.
+  t.is(convertTemporalLinkToNexusLink({ workflowEvent, workflow }).type, WORKFLOW_EVENT_TYPE);
 });
 
 test('convertNexusLinkToTemporalLink dispatches by Nexus link type', (t) => {
