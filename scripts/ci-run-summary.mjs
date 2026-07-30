@@ -3,16 +3,16 @@
 // `ci-summary` job, which runs after all checks.
 //
 // Inputs:
-//   - NEEDS_JSON: the workflow `needs` context (`${{ toJSON(needs) }}`), i.e.
-//     { "<job-id>": { "result": "success|failure|cancelled|skipped" }, ... }
-//   - AGG_RESULTS_DIR (default "all-results"): a directory of downloaded
-//     `test-logs-*` artifacts, one subdir per matrix cell, each containing the
-//     per-package <pkg>.json files written by scripts/ava-ci.mjs.
+//   - NEEDS_JSON: the workflow `needs` context (`${{ toJSON(needs) }}`) — top-level
+//     check results: { "<job-id>": { "result": "success|failure|cancelled|skipped" } }.
+//   - JOBS_JSON_FILE: path to the GitHub "list jobs for a run" API response. Gives
+//     the per-matrix-cell conclusions (including cancelled), which `needs` does not.
+//   - AGG_RESULTS_DIR (default "all-results"): downloaded `test-logs-*` artifacts,
+//     one subdir per matrix cell, holding the per-package <pkg>.json from ava-ci.mjs.
 
 import { existsSync, readdirSync, readFileSync, statSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-// Friendly labels for the top-level checks.
 const JOB_LABELS = {
   'compile-native-binaries-debug': 'Compile Native Binaries',
   'integration-tests': 'Integration Tests',
@@ -24,18 +24,16 @@ const JOB_LABELS = {
 };
 
 const needs = JSON.parse(process.env.NEEDS_JSON || '{}');
-const jobs = Object.entries(needs).map(([id, v]) => ({
+const topLevel = Object.entries(needs).map(([id, v]) => ({
   id,
   label: JOB_LABELS[id] || id,
   result: v?.result || 'unknown',
 }));
-
-const anyFailed = jobs.some((j) => j.result === 'failure');
-const anyCancelled = jobs.some((j) => j.result === 'cancelled');
+const anyFailed = topLevel.some((j) => j.result === 'failure');
+const anyCancelled = topLevel.some((j) => j.result === 'cancelled');
 const passed = !anyFailed && !anyCancelled;
 
-// Recursively collect *.json paths under a directory (robust to whatever nesting
-// upload/download-artifact produces, e.g. a preserved `.test-results/` prefix).
+// --- per-package failures from the downloaded artifacts, keyed by cell id ---
 function findJsonFiles(dir) {
   const out = [];
   for (const entry of readdirSync(dir)) {
@@ -46,17 +44,14 @@ function findJsonFiles(dir) {
   return out;
 }
 
-// Per-cell test failures, read from the downloaded artifacts. Each top-level
-// subdirectory of AGG_RESULTS_DIR is one matrix cell (artifact `test-logs-<cell>`).
-function collectCellFailures() {
+function collectFailuresByCell() {
   const root = process.env.AGG_RESULTS_DIR || 'all-results';
-  const cells = [];
-  if (!existsSync(root)) return cells;
+  const byCell = {};
+  if (!existsSync(root)) return byCell;
   for (const name of readdirSync(root)) {
     const dir = join(root, name);
     if (!statSync(dir).isDirectory()) continue;
-    const cell = name.replace(/^test-logs-/, '');
-    const experimental = /(^|-)bun(-|$)/.test(cell);
+    const cellId = name.replace(/^test-logs-/, ''); // e.g. linux-arm-20-reuse
     const failures = [];
     for (const file of findJsonFiles(dir)) {
       let r;
@@ -65,8 +60,7 @@ function collectCellFailures() {
       } catch {
         continue;
       }
-      const failed = (r.fail || 0) > 0 || r.exitCode !== 0;
-      if (!failed) continue;
+      if ((r.fail || 0) === 0 && r.exitCode === 0) continue;
       if (r.failures && r.failures.length) {
         for (const f of r.failures)
           failures.push({ pkg: r.package, title: f.title, at: f.at, message: f.message, diagnostic: f.diagnostic });
@@ -74,15 +68,36 @@ function collectCellFailures() {
         failures.push({ pkg: r.package, title: `${r.fail || '?'} failed (see job log)`, at: '', message: '' });
       }
     }
-    if (failures.length) cells.push({ cell, experimental, failures });
+    if (failures.length) byCell[cellId] = failures;
   }
-  return cells.sort((a, b) => a.cell.localeCompare(b.cell));
+  return byCell;
 }
 
-const cellFailures = collectCellFailures();
+function readIntegrationCells() {
+  const file = process.env.JOBS_JSON_FILE;
+  if (!file || !existsSync(file)) return null;
+  let data;
+  try {
+    data = JSON.parse(readFileSync(file, 'utf8'));
+  } catch {
+    return null;
+  }
+  const cells = [];
+  for (const j of data.jobs || []) {
+    const m = /^Run Integration Tests \((.+)\)$/.exec(j.name || '');
+    if (!m) continue;
+    const [platform, nodePart, reusePart] = m[1].split(', ');
+    const node = nodePart === 'Bun' ? 'bun' : nodePart.replace(/^Node /, '');
+    const reuse = /true\s*$/.test(reusePart || '') ? 'reuse' : 'noreuse';
+    cells.push({
+      id: `${platform}-${node}-${reuse}`,
+      label: `${platform} · ${node === 'bun' ? 'Bun (non-blocking)' : `Node ${node}`}`,
+      conclusion: j.conclusion, // success | failure | cancelled | skipped | null
+    });
+  }
+  return cells.length ? cells : null;
+}
 
-// Classify a failure so the reader can tell a likely-flaky timeout from a real
-// assertion, a crashed worker, or a test-discovery problem.
 function classify(f) {
   const t = `${f.title}\n${f.message || ''}\n${f.diagnostic || ''}`.toLowerCase();
   if (/no tests found/.test(t)) return 'no tests';
@@ -96,49 +111,64 @@ function classify(f) {
   return 'test failure';
 }
 
-// `linux-arm-20-reuse` -> `linux-arm · Node 20`. Platform may contain hyphens, so
-// peel the trailing reuse + node tokens off the end.
-function prettyCell(cell) {
-  const parts = cell.split('-');
-  parts.pop(); // reuse | noreuse
-  const node = parts.pop();
-  const platform = parts.join('-');
-  return `${platform} · ${node === 'bun' ? 'Bun' : `Node ${node}`}`;
+const failuresByCell = collectFailuresByCell();
+const cells = readIntegrationCells();
+
+// --- build one row per non-passing (job, test) ---
+const esc = (s) => String(s).replace(/\|/g, '\\|');
+const rows = []; // { job, type, test }
+let intFailed = 0;
+let intCancelled = 0;
+
+function testCol(f) {
+  const pkg = f.pkg && f.pkg !== '@temporalio/test' ? `${f.pkg.replace('@temporalio/', '')}: ` : '';
+  return `${pkg}${f.title}${f.at ? ` (${f.at})` : ''}`;
 }
 
-const esc = (s) => String(s).replace(/\|/g, '\\|');
-
-// Flatten cell failures into table rows, sorted by cell then test.
-const rows = [];
-for (const { cell, experimental, failures } of cellFailures) {
-  for (const f of failures) {
-    const pkg = f.pkg && f.pkg !== '@temporalio/test' ? `${f.pkg.replace('@temporalio/', '')}: ` : '';
-    rows.push({
-      cell: `${prettyCell(cell)}${experimental ? ' ⚠️' : ''}`,
-      type: classify(f),
-      test: `${pkg}${f.title}${f.at ? ` (${f.at})` : ''}`,
-    });
+if (cells) {
+  // Complete picture: iterate every integration cell from the jobs API.
+  for (const c of cells.sort((a, b) => a.label.localeCompare(b.label))) {
+    if (c.conclusion === 'success' || c.conclusion === 'skipped' || c.conclusion == null) continue;
+    if (c.conclusion === 'cancelled') {
+      intCancelled++;
+      rows.push({ job: c.label, type: 'cancelled', test: 'did not finish' });
+      continue;
+    }
+    intFailed++;
+    const fails = failuresByCell[c.id];
+    if (fails && fails.length) {
+      for (const f of fails) rows.push({ job: c.label, type: classify(f), test: testCol(f) });
+    } else {
+      rows.push({ job: c.label, type: 'no results', test: 'no test results captured — see job log' });
+    }
+  }
+} else {
+  // Fallback (e.g. local run, no jobs API): artifact failures only.
+  for (const [cellId, fails] of Object.entries(failuresByCell)) {
+    const label = cellId
+      .replace(/-(reuse|noreuse)$/, '')
+      .replace(/-(\d+|bun)$/, (_, n) => ` · ${n === 'bun' ? 'Bun' : `Node ${n}`}`);
+    intFailed++;
+    for (const f of fails) rows.push({ job: label, type: classify(f), test: testCol(f) });
   }
 }
-rows.sort((a, b) => a.cell.localeCompare(b.cell) || a.test.localeCompare(b.test));
 
-const failingLabels = jobs.filter((j) => j.result === 'failure').map((j) => j.label);
-const otherFailing = failingLabels.filter((l) => l !== 'Integration Tests');
-const hasExperimental = cellFailures.some((c) => c.experimental);
+const otherFailing = topLevel.filter((j) => j.result === 'failure' && j.id !== 'integration-tests').map((j) => j.label);
 
-// One concise verdict line naming the top-level checks that failed.
 function verdictLine() {
   if (passed) return 'All checks passed.';
-  if (!anyFailed) return 'Some checks were cancelled and did not complete.';
   const parts = [];
-  if (failingLabels.includes('Integration Tests')) {
-    const n = cellFailures.length;
-    parts.push(`**Integration Tests** — ${n} ${n === 1 ? 'cell' : 'cells'} failed`);
+  if (intFailed || intCancelled) {
+    const bits = [];
+    if (intFailed) bits.push(`${intFailed} failed`);
+    if (intCancelled) bits.push(`${intCancelled} cancelled`);
+    parts.push(`**Integration Tests** — ${bits.join(', ')}`);
+  } else if (needs['integration-tests']?.result === 'failure') {
+    parts.push('**Integration Tests** failed');
   }
-  if (otherFailing.length) parts.push(`**${otherFailing.join('**, **')}** failed`);
-  let line = parts.join('; ') + '.';
-  if (failingLabels.length === 1 && failingLabels[0] === 'Integration Tests') line += ' All other checks passed.';
-  return line;
+  for (const label of otherFailing) parts.push(`**${label}** failed`);
+  if (!parts.length && anyCancelled) return 'Some checks were cancelled and did not complete.';
+  return parts.join('; ') + '.';
 }
 
 // ---- Markdown ----
@@ -148,13 +178,12 @@ md.push('');
 md.push(verdictLine());
 md.push('');
 if (rows.length) {
-  md.push('| Cell | Type | Failing test |');
+  md.push('| Job | Type | Failing test |');
   md.push('| --- | --- | --- |');
-  for (const r of rows) md.push(`| ${esc(r.cell)} | ${r.type} | ${esc(r.test)} |`);
+  for (const r of rows) md.push(`| ${esc(r.job)} | ${r.type} | ${esc(r.test)} |`);
   md.push('');
+  md.push('Full per-job logs: `test-logs-*` artifacts.');
 }
-if (hasExperimental) md.push('⚠️ Bun is experimental and does not block the build.');
-if (rows.length) md.push('Full per-cell logs: `test-logs-*` artifacts.');
 
 const summaryFile = process.env.GITHUB_STEP_SUMMARY;
 if (summaryFile) appendFileSync(summaryFile, md.join('\n') + '\n');
@@ -167,10 +196,9 @@ console.log(color('1', passed ? '✓ CI passed' : anyFailed ? '✗ CI failed' : 
 console.log('  ' + verdictLine().replace(/\*\*/g, ''));
 if (rows.length) {
   console.log('');
-  for (const r of rows) console.log(`  ${color('31', '✗')} ${r.cell}  [${r.type}]  ${r.test}`);
+  for (const r of rows) console.log(`  ${color('31', '✗')} ${r.job}  [${r.type}]  ${r.test}`);
 }
 
-// Always exit 0: writing the summary must not depend on exit code (a non-zero step
-// can drop its $GITHUB_STEP_SUMMARY). A separate workflow step sets the job's
-// red/green status from the `needs` results.
+// Always exit 0: writing the summary must not depend on exit code. A separate
+// workflow step sets the job's red/green status from the `needs` results.
 process.exit(0);

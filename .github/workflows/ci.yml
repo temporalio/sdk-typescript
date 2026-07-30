@@ -386,10 +386,16 @@ jobs:
           path: all-results
         continue-on-error: true
 
+      - name: Collect per-cell job results
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs?per_page=100" > jobs.json || echo '{}' > jobs.json
+
       - name: Write consolidated summary
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}
           AGG_RESULTS_DIR: all-results
+          JOBS_JSON_FILE: jobs.json
         run: node scripts/ci-run-summary.mjs
 
       # Make this rollup check red when any dependency failed (the summary above is

@@ -66,6 +66,7 @@ let fail = 0;
 let skip = 0;
 let todo = 0;
 const failures = [];
+const noTestFiles = []; // files that imported ava but registered no tests
 let pendingFailure = null; // { title, diag: [], started } while consuming a diagnostic block
 
 function dedent(lines) {
@@ -143,6 +144,15 @@ function handleTapLine(line) {
     pass++;
     return;
   }
+  // ava reports a file that imports ava but registers zero tests as
+  // `not ok - No tests found in <file>`. In a multi-file run that is a non-fatal
+  // warning and ava still exits 0 (e.g. time-skipping tests are compiled out on
+  // linux-arm64). Don't count it as a test failure — ava's exit code is the
+  // authority on whether the run actually failed.
+  if (/^No tests found in /.test(title)) {
+    noTestFiles.push(title.replace(/^No tests found in /, ''));
+    return;
+  }
   // not ok -> begin buffering its diagnostic block (may or may not be present)
   fail++;
   pendingFailure = { title, diag: [], started: false };
@@ -210,6 +220,7 @@ function finish(exitCode) {
   const parts = [`${pass} passed`];
   if (skip) parts.push(`${skip} skipped`);
   if (todo) parts.push(`${todo} todo`);
+  if (noTestFiles.length) parts.push(`${noTestFiles.length} file(s) without tests`);
   const counts = parts.join(', ');
   const duration = dim(`(${fmtDuration(durationMs)})`);
 
