@@ -193,7 +193,7 @@ function verdictLine(): string {
 
 // ---- Markdown ----
 const md: string[] = [];
-md.push(`# ${passed ? '✅ CI passed' : anyFailed ? '❌ CI failed' : '⚪ CI incomplete'}`);
+md.push(`# ${passed ? '✅ Passed' : anyFailed ? '❌ Failed' : '⚪ Incomplete'}`);
 md.push('');
 md.push(verdictLine());
 md.push('');
@@ -212,7 +212,7 @@ if (summaryFile) appendFileSync(summaryFile, md.join('\n') + '\n');
 const useColor = !process.env.NO_COLOR && (process.stdout.isTTY || !!process.env.CI || !!process.env.FORCE_COLOR);
 const color = (code: string, s: string): string => (useColor ? `[${code}m${s}[0m` : s);
 console.log('');
-console.log(color('1', passed ? '✓ CI passed' : anyFailed ? '✗ CI failed' : 'CI incomplete'));
+console.log(color('1', passed ? '✓ Passed' : anyFailed ? '✗ Failed' : 'Incomplete'));
 console.log('  ' + verdictLine().replace(/\*\*/g, ''));
 if (rows.length) {
   console.log('');
