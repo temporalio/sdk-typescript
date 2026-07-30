@@ -122,12 +122,12 @@ export interface UpdatableWorkflowHandle<T> extends WorkflowHandle<T> {
    */
   update<Ret, Args extends [any, ...any[]], Name extends string = string>(
     def: UpdateDefinition<Ret, Args, Name> | string,
-    options: NexusUpdateWorkflowOptions<Args> & { readonly args: Args }
+    options: NexusUpdateWorkflowOptions & { readonly args: Args }
   ): Promise<TemporalOperationResult<Ret>>;
 
   update<Ret, Args extends [] = [], Name extends string = string>(
     def: UpdateDefinition<Ret, Args, Name> | string,
-    options?: NexusUpdateWorkflowOptions<Args>
+    options?: NexusUpdateWorkflowOptions & { readonly args?: Args }
   ): Promise<TemporalOperationResult<Ret>>;
 }
 
@@ -289,10 +289,10 @@ function createWorkflowHandle<T extends Workflow>(
     },
 
     // Single permissive implementation signature; the no-arg vs with-args overload pair that callers
-    // type against is declared on `UpdatableWorkflowHandle.update` 
+    // type against is declared on `UpdatableWorkflowHandle.update`
     update<Ret, Args extends any[]>(
       def: UpdateDefinition<Ret, Args> | string,
-      options?: NexusUpdateWorkflowOptions<Args>
+      options?: NexusUpdateWorkflowOptions & { readonly args?: Args }
     ): Promise<TemporalOperationResult<Ret>> {
       return updateWorkflowOperation<Ret, Args>(ctx, this.workflowId, this.runId, def, options, reserve);
     },
@@ -404,13 +404,16 @@ export const TemporalOperationResult = {
 };
 
 /**
- * Options for {@link WorkflowHandle.update}. The target Workflow (workflow and run IDs) is carried by
- * the {@link WorkflowHandle}, and the Update definition or name is passed as the method's first
- * argument, so only the Update ID and arguments are supplied here.
+ * Options for {@link UpdatableWorkflowHandle.update}. The target Workflow (workflow and run IDs) is
+ * carried by the handle, and the Update definition or name is passed as the method's first argument,
+ * so only the Update ID is supplied here.
+ *
+ * The Update's arguments are intersected onto this type by each `update` overload, so that `args` is
+ * required for an Update that takes arguments and rejected for one that does not.
  *
  * @experimental Nexus support in Temporal SDK is experimental.
  */
-export interface NexusUpdateWorkflowOptions<Args extends any[] = []> {
+export interface NexusUpdateWorkflowOptions {
   /**
    * The Update ID, a unique-per-Workflow-Execution identifier for this Update.
    *
@@ -418,11 +421,6 @@ export interface NexusUpdateWorkflowOptions<Args extends any[] = []> {
    * request (e.g. after a network failure) spawning a duplicate Update.
    */
   readonly updateId?: string;
-
-  /**
-   * Arguments to pass to the Update handler.
-   */
-  readonly args?: Args;
 }
 
 /**
@@ -571,15 +569,15 @@ class TemporalNexusClientImpl implements TemporalNexusClient {
 
 /**
  * Sends an Update to a Workflow as the async backing operation for the current Nexus Operation.
- * Shared implementation behind {@link WorkflowHandle.update}; the target Workflow's `workflowId` and
- * `runId` are supplied by the handle.
+ * Shared implementation behind {@link UpdatableWorkflowHandle.update}; the target Workflow's
+ * `workflowId` and `runId` are supplied by the handle.
  */
 async function updateWorkflowOperation<Ret, Args extends any[]>(
   ctx: nexus.StartOperationContext,
   workflowId: string,
   runId: string | undefined,
   def: UpdateDefinition<Ret, Args> | string,
-  options: NexusUpdateWorkflowOptions<Args> | undefined,
+  options: (NexusUpdateWorkflowOptions & { readonly args?: Args }) | undefined,
   reserve: AsyncOperationStartReservation
 ): Promise<TemporalOperationResult<Ret>> {
   if (!ctx.callbackUrl) {
