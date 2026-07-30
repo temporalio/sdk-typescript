@@ -135,7 +135,7 @@ jobs:
     continue-on-error: ${{ matrix.node == 'bun' }}
     name: Run Integration Tests (${{ matrix.platform }}, ${{ matrix.node == 'bun' && 'Bun' || format('Node {0}', matrix.node) }}, Reuse V8 Context ${{ matrix.reuse-v8-context }})
     env:
-      # Per-package result JSON + full logs are written here by scripts/ava-ci.mjs,
+      # Per-package result JSON + full logs are written here by scripts/ava-ci.ts,
       # archived as the test-logs-* artifact, and aggregated by the ci-summary job.
       TEST_RESULTS_DIR: ${{ github.workspace }}/.test-results
     defaults:
@@ -240,8 +240,9 @@ jobs:
         if: matrix.node == 'bun'
         working-directory: packages/test
         # Same wrapper as the Node path, but AVA_RUNTIME=bun makes it launch ava
-        # under Bun (mirrors `bun run -b ava`), so Bun is still exercised.
-        run: node ../../scripts/ava-ci.mjs ./lib/test-*.js
+        # under Bun (mirrors `bun run -b ava`), so Bun is still exercised. Bun runs
+        # the TypeScript wrapper directly (no tsx needed).
+        run: bun ../../scripts/ava-ci.ts ./lib/test-*.js
         env:
           AVA_RUNTIME: bun
           RUN_INTEGRATION_TESTS: true
@@ -379,6 +380,11 @@ jobs:
       - name: 'Checkout code'
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
+      - name: Setup Node
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: '22'
+
       - name: Download test result artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
@@ -396,7 +402,7 @@ jobs:
           NEEDS_JSON: ${{ toJSON(needs) }}
           AGG_RESULTS_DIR: all-results
           JOBS_JSON_FILE: jobs.json
-        run: node scripts/ci-run-summary.mjs
+        run: node scripts/ci-run-summary.ts
 
       # Make this rollup check red when any dependency failed (the summary above is
       # written by the previous step regardless, so it always renders).

@@ -37,7 +37,7 @@
   "license": "MIT",
   "scripts": {
     "build": "tsc --build",
-    "test": "node ./scripts/run-tests.mjs"
+    "test": "tsx ./scripts/run-tests.ts"
   },
   "ava": {
     "timeout": "120s",

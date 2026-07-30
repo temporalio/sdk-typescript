@@ -8,12 +8,32 @@
 //   - JOBS_JSON_FILE: path to the GitHub "list jobs for a run" API response. Gives
 //     the per-matrix-cell conclusions (including cancelled), which `needs` does not.
 //   - AGG_RESULTS_DIR (default "all-results"): downloaded `test-logs-*` artifacts,
-//     one subdir per matrix cell, holding the per-package <pkg>.json from ava-ci.mjs.
+//     one subdir per matrix cell, holding the per-package <pkg>.json from ava-ci.ts.
 
 import { existsSync, readdirSync, readFileSync, statSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const JOB_LABELS = {
+interface Failure {
+  pkg: string;
+  title: string;
+  at: string;
+  message?: string;
+  diagnostic?: string;
+}
+
+interface Cell {
+  id: string;
+  label: string;
+  conclusion: string | null;
+}
+
+interface Row {
+  job: string;
+  type: string;
+  test: string;
+}
+
+const JOB_LABELS: Record<string, string> = {
   'compile-native-binaries-debug': 'Compile Native Binaries',
   'integration-tests': 'Integration Tests',
   conventions: 'Lint & Prune',
@@ -23,7 +43,7 @@ const JOB_LABELS = {
   docs: 'Build Docs',
 };
 
-const needs = JSON.parse(process.env.NEEDS_JSON || '{}');
+const needs: Record<string, { result?: string }> = JSON.parse(process.env.NEEDS_JSON || '{}');
 const topLevel = Object.entries(needs).map(([id, v]) => ({
   id,
   label: JOB_LABELS[id] || id,
@@ -34,8 +54,8 @@ const anyCancelled = topLevel.some((j) => j.result === 'cancelled');
 const passed = !anyFailed && !anyCancelled;
 
 // --- per-package failures from the downloaded artifacts, keyed by cell id ---
-function findJsonFiles(dir) {
-  const out = [];
+function findJsonFiles(dir: string): string[] {
+  const out: string[] = [];
   for (const entry of readdirSync(dir)) {
     const p = join(dir, entry);
     if (statSync(p).isDirectory()) out.push(...findJsonFiles(p));
@@ -44,15 +64,15 @@ function findJsonFiles(dir) {
   return out;
 }
 
-function collectFailuresByCell() {
+function collectFailuresByCell(): Record<string, Failure[]> {
   const root = process.env.AGG_RESULTS_DIR || 'all-results';
-  const byCell = {};
+  const byCell: Record<string, Failure[]> = {};
   if (!existsSync(root)) return byCell;
   for (const name of readdirSync(root)) {
     const dir = join(root, name);
     if (!statSync(dir).isDirectory()) continue;
     const cellId = name.replace(/^test-logs-/, ''); // e.g. linux-arm-20-reuse
-    const failures = [];
+    const failures: Failure[] = [];
     for (const file of findJsonFiles(dir)) {
       let r;
       try {
@@ -73,7 +93,7 @@ function collectFailuresByCell() {
   return byCell;
 }
 
-function readIntegrationCells() {
+function readIntegrationCells(): Cell[] | null {
   const file = process.env.JOBS_JSON_FILE;
   if (!file || !existsSync(file)) return null;
   let data;
@@ -82,7 +102,7 @@ function readIntegrationCells() {
   } catch {
     return null;
   }
-  const cells = [];
+  const cells: Cell[] = [];
   for (const j of data.jobs || []) {
     const m = /^Run Integration Tests \((.+)\)$/.exec(j.name || '');
     if (!m) continue;
@@ -98,7 +118,7 @@ function readIntegrationCells() {
   return cells.length ? cells : null;
 }
 
-function classify(f) {
+function classify(f: Failure): string {
   const t = `${f.title}\n${f.message || ''}\n${f.diagnostic || ''}`.toLowerCase();
   if (/no tests found/.test(t)) return 'no tests';
   if (/timed out|timeout|no new tests completed within|exceeded/.test(t)) return 'timeout';
@@ -115,12 +135,12 @@ const failuresByCell = collectFailuresByCell();
 const cells = readIntegrationCells();
 
 // --- build one row per non-passing (job, test) ---
-const esc = (s) => String(s).replace(/\|/g, '\\|');
-const rows = []; // { job, type, test }
+const esc = (s: string): string => String(s).replace(/\|/g, '\\|');
+const rows: Row[] = [];
 let intFailed = 0;
 let intCancelled = 0;
 
-function testCol(f) {
+function testCol(f: Failure): string {
   const pkg = f.pkg && f.pkg !== '@temporalio/test' ? `${f.pkg.replace('@temporalio/', '')}: ` : '';
   return `${pkg}${f.title}${f.at ? ` (${f.at})` : ''}`;
 }
@@ -155,11 +175,11 @@ if (cells) {
 
 const otherFailing = topLevel.filter((j) => j.result === 'failure' && j.id !== 'integration-tests').map((j) => j.label);
 
-function verdictLine() {
+function verdictLine(): string {
   if (passed) return 'All checks passed.';
-  const parts = [];
+  const parts: string[] = [];
   if (intFailed || intCancelled) {
-    const bits = [];
+    const bits: string[] = [];
     if (intFailed) bits.push(`${intFailed} failed`);
     if (intCancelled) bits.push(`${intCancelled} cancelled`);
     parts.push(`**Integration Tests** — ${bits.join(', ')}`);
@@ -172,7 +192,7 @@ function verdictLine() {
 }
 
 // ---- Markdown ----
-const md = [];
+const md: string[] = [];
 md.push(`# ${passed ? '✅ CI passed' : anyFailed ? '❌ CI failed' : '⚪ CI incomplete'}`);
 md.push('');
 md.push(verdictLine());
@@ -190,7 +210,7 @@ if (summaryFile) appendFileSync(summaryFile, md.join('\n') + '\n');
 
 // ---- Console ----
 const useColor = !process.env.NO_COLOR && (process.stdout.isTTY || !!process.env.CI || !!process.env.FORCE_COLOR);
-const color = (code, s) => (useColor ? `[${code}m${s}[0m` : s);
+const color = (code: string, s: string): string => (useColor ? `[${code}m${s}[0m` : s);
 console.log('');
 console.log(color('1', passed ? '✓ CI passed' : anyFailed ? '✗ CI failed' : 'CI incomplete'));
 console.log('  ' + verdictLine().replace(/\*\*/g, ''));

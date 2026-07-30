@@ -5,18 +5,31 @@
 //   - a periodic heartbeat so a long suite isn't silent;
 //   - a one-line per-package summary.
 //
-// It also writes a machine-readable `<pkg>.json` that scripts/ci-run-summary.mjs
+// It also writes a machine-readable `<pkg>.json` that scripts/ci-run-summary.ts
 // aggregates (across all matrix cells) into the single GitHub Actions job summary.
 //
-// Usage (from a package's `test` script): node ../../scripts/ava-ci.mjs <ava args>
+// Usage (from a package's `test` script): tsx ../../scripts/ava-ci.ts <ava args>
 
 import { spawn } from 'node:child_process';
 import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, relative } from 'node:path';
 
+interface Failure {
+  title: string;
+  message: string;
+  at: string;
+  diagnostic: string;
+}
+
+interface PendingFailure {
+  title: string;
+  diag: string[];
+  started: boolean;
+}
+
 const cwd = process.cwd();
 
-function findWorkspaceRoot(start) {
+function findWorkspaceRoot(start: string): string {
   let dir = start;
   for (;;) {
     if (existsSync(join(dir, 'pnpm-workspace.yaml'))) return dir;
@@ -46,12 +59,12 @@ const logStream = createWriteStream(logPath);
 // ANSI colors: honor NO_COLOR, and enable in a terminal or CI (GitHub is non-TTY
 // but renders ANSI). Stay plain when output is redirected to a file/pipe locally.
 const useColor = !process.env.NO_COLOR && (process.stdout.isTTY || !!process.env.CI || !!process.env.FORCE_COLOR);
-const c = (code, s) => (useColor ? `[${code}m${s}[0m` : s);
-const green = (s) => c('32', s);
-const red = (s) => c('31', s);
-const dim = (s) => c('2', s);
+const c = (code: string, s: string): string => (useColor ? `[${code}m${s}[0m` : s);
+const green = (s: string): string => c('32', s);
+const red = (s: string): string => c('31', s);
+const dim = (s: string): string => c('2', s);
 
-function fmtDuration(ms) {
+function fmtDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
   const secs = ms / 1000;
   if (secs < 60) return `${secs.toFixed(1)}s`;
@@ -65,17 +78,17 @@ let pass = 0;
 let fail = 0;
 let skip = 0;
 let todo = 0;
-const failures = [];
-const noTestFiles = []; // files that imported ava but registered no tests
-let pendingFailure = null; // { title, diag: [], started } while consuming a diagnostic block
+const failures: Failure[] = [];
+const noTestFiles: string[] = []; // files that imported ava but registered no tests
+let pendingFailure: PendingFailure | null = null; // set while consuming a diagnostic block
 
-function dedent(lines) {
-  const indents = lines.filter((l) => l.trim()).map((l) => l.match(/^ */)[0].length);
+function dedent(lines: string[]): string[] {
+  const indents = lines.filter((l) => l.trim()).map((l) => l.match(/^ */)![0].length);
   const min = indents.length ? Math.min(...indents) : 0;
   return lines.map((l) => l.slice(min));
 }
 
-function flushPendingFailure() {
+function flushPendingFailure(): void {
   if (!pendingFailure) return;
   const diag = dedent(pendingFailure.diag);
   const text = diag.join('\n');
@@ -85,7 +98,7 @@ function flushPendingFailure() {
   const atMatch = text.match(/^at:\s*(.+)$/m);
   const nameMatch = text.match(/^name:\s*(.+)$/m);
   const assertionMatch = text.match(/^assertion:\s*(.+)$/m);
-  const unquote = (s) => s.trim().replace(/^['"]|['"]$/g, '');
+  const unquote = (s: string): string => s.trim().replace(/^['"]|['"]$/g, '');
   const message = messageMatch
     ? unquote(messageMatch[1])
     : [nameMatch && nameMatch[1].trim(), assertionMatch && `(${assertionMatch[1].trim()})`].filter(Boolean).join(' ');
@@ -100,7 +113,7 @@ function flushPendingFailure() {
 
 const TEST_LINE = /^(ok|not ok) (\d+) - (.*)$/;
 
-function handleTapLine(line) {
+function handleTapLine(line: string): void {
   // A diagnostic block immediately follows a `not ok` line and is written
   // atomically by ava, so worker output can't interleave inside it. The block is
   // delimited by `  ---` / `  ...`; some `not ok` lines have no block at all.
@@ -160,10 +173,10 @@ function handleTapLine(line) {
 
 // --- line-buffered stdout parsing ---
 let buffer = '';
-function consume(chunk) {
+function consume(chunk: string): void {
   logStream.write(chunk);
   buffer += chunk;
-  let idx;
+  let idx: number;
   while ((idx = buffer.indexOf('\n')) !== -1) {
     const line = buffer.slice(0, idx);
     buffer = buffer.slice(idx + 1);
@@ -179,13 +192,13 @@ const heartbeat = setInterval(() => {
   const elapsed = fmtDuration(Date.now() - started);
   process.stdout.write(dim(`  … ${done} tests, ${fail} failure${fail === 1 ? '' : 's'} (${elapsed})\n`));
 }, 30_000);
-if (typeof heartbeat.unref === 'function') heartbeat.unref();
+heartbeat.unref?.();
 
 // Launch ava under the requested runtime. Default is Node (via npx). When
 // AVA_RUNTIME=bun, run ava under Bun — mirroring `bun run -b ava` — so the Bun test
 // matrix still exercises the SDK under Bun while sharing this wrapper's quiet output.
 const forwarded = process.argv.slice(2);
-const [cmd, cmdArgs] =
+const [cmd, cmdArgs]: [string, string[]] =
   process.env.AVA_RUNTIME === 'bun'
     ? ['bun', ['run', '-b', 'ava', '--tap', ...forwarded]]
     : [process.platform === 'win32' ? 'npx.cmd' : 'npx', ['ava', '--tap', ...forwarded]];
@@ -195,13 +208,13 @@ const child = spawn(cmd, cmdArgs, {
   stdio: ['inherit', 'pipe', 'pipe'],
 });
 
-child.stdout.setEncoding('utf8');
-child.stdout.on('data', consume);
+child.stdout?.setEncoding('utf8');
+child.stdout?.on('data', consume);
 // ava writes some diagnostics to stderr; archive but don't parse for TAP.
-child.stderr.setEncoding('utf8');
-child.stderr.on('data', (chunk) => logStream.write(chunk));
+child.stderr?.setEncoding('utf8');
+child.stderr?.on('data', (chunk: string) => logStream.write(chunk));
 
-function finish(exitCode) {
+function finish(exitCode: number): void {
   clearInterval(heartbeat);
   if (buffer.length) handleTapLine(buffer);
   flushPendingFailure();
@@ -243,8 +256,8 @@ function finish(exitCode) {
   process.exit(succeeded ? 0 : exitCode || 1);
 }
 
-child.on('error', (err) => {
+child.on('error', (err: Error) => {
   logStream.write(`\nFailed to spawn ava: ${err.stack || err}\n`);
   finish(1);
 });
-child.on('close', (code) => finish(code ?? 1));
+child.on('close', (code: number | null) => finish(code ?? 1));
