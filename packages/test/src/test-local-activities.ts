@@ -11,6 +11,13 @@ import { helpers, makeTestFunction } from './helpers-integration';
 const test = makeTestFunction({
   workflowsPath: __filename,
   workflowInterceptorModules: [__filename],
+  workflowEnvironmentOpts: {
+    server: {
+      // eager activities do not propagate retry policy
+      // see https://github.com/temporalio/temporal/pull/11357
+      extraArgs: ['--dynamic-config-value', 'system.enableActivityEagerExecution=false'],
+    },
+  },
 });
 
 export async function runOneLocalActivity(s: string): Promise<string> {
