@@ -107,7 +107,7 @@ test('uses a converter hint to serialize and deserialize a protobuf message', as
     converter: 'protobufjs',
     messageType,
   } satisfies ProtobufJsConverterHint<{ value: string }>;
-  const typeInfo: TypeInfo<{ value: string }, { value: string }> = { hint };
+  const typeInfo: TypeInfo<{ value: string }, { value: string }> = { converterHint: hint };
   const converter = {
     ...defaultDataConverter,
     payloadConverter: new CompositePayloadConverter(

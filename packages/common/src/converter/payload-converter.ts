@@ -50,7 +50,7 @@ export function toPayloadWithTypeInfo<T>(
   typeInfo: TypeInfo<T, unknown> | undefined
 ): Payload {
   const transferValue = typeInfo?.transferTypeConverter ? typeInfo.transferTypeConverter.toTransferType(value) : value;
-  return converter.toPayload(transferValue, context, typeInfo?.hint);
+  return converter.toPayload(transferValue, context, typeInfo?.converterHint);
 }
 
 /**
@@ -64,7 +64,7 @@ export function fromPayloadWithTypeInfo<T>(
   context: SerializationContext | undefined,
   typeInfo: TypeInfo<T, unknown> | undefined
 ): T {
-  const transferValue = converter.fromPayload<unknown>(payload, context, typeInfo?.hint);
+  const transferValue = converter.fromPayload<unknown>(payload, context, typeInfo?.converterHint);
   return typeInfo?.transferTypeConverter
     ? typeInfo.transferTypeConverter.fromTransferType(transferValue)
     : (transferValue as T);
