@@ -32,7 +32,7 @@
     "ci-stress": "node ./packages/test/lib/load/run-all-stress-ci-scenarios.js",
     "ci-nightly": "node ./packages/test/lib/load/run-all-nightly-scenarios.js",
     "lint": "eslint --no-error-on-unmatched-pattern --fix && prettier --write . && pnpm --recursive --stream run lint",
-    "lint:check": "eslint --no-error-on-unmatched-pattern && prettier --end-of-line auto --check .  && pnpm --recursive --stream run lint:check",
+    "lint:check": "eslint --no-error-on-unmatched-pattern && prettier --end-of-line auto --check .  && tsc -p scripts/tsconfig.json && pnpm --recursive --stream run lint:check",
     "lint:prune": "ts-prune --error -p tsconfig.prune.json --ignore \"used in module\" --skip \".d.ts\"",
     "commitlint": "commitlint --from origin/main",
     "format": "prettier --write . && pnpm --recursive --stream run format",
