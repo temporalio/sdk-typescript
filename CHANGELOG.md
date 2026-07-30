@@ -32,6 +32,7 @@ to docs, or any other relevant information.
 - strands: Declare `zod` as a peer dependency.
 - workflow-streams: `WorkflowStream.onPoll` no longer serves a stale log index for a poll that
   was parked across a `truncate()` call, which could silently skip events.
+- Workflows no longer retain completion state when a child Workflow fails or is cancelled before starting.
 
 ## [1.21.1] - 2026-07-23
 
