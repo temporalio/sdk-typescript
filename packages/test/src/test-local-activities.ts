@@ -1,37 +1,16 @@
 import { firstValueFrom, Subject } from 'rxjs';
-import type { TestFn } from 'ava';
 import { Context as ActivityContext } from '@temporalio/activity';
 import { ApplicationFailure, defaultPayloadConverter, WorkflowFailedError } from '@temporalio/client';
 import type { LocalActivityOptions, RetryPolicy } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { temporal } from '@temporalio/proto';
-import { workflowInterceptorModules } from '@temporalio/testing';
-import type { LogLevel } from '@temporalio/worker';
-import { bundleWorkflowCode, DefaultLogger, Runtime } from '@temporalio/worker';
 import * as workflow from '@temporalio/workflow';
-import type { BaseContext } from '@temporalio/test-helpers';
-import { test as anyTest, Worker, TestWorkflowEnvironment, helpers } from '@temporalio/test-helpers';
-import { bundlerOptions } from './helpers';
+import { Worker } from '@temporalio/test-helpers';
+import { helpers, makeTestFunction } from './helpers-integration';
 
-const test = anyTest as TestFn<BaseContext>;
-
-test.before(async (t) => {
-  // Ignore invalid log levels
-  Runtime.install({ logger: new DefaultLogger((process.env.TEST_LOG_LEVEL || 'ERROR').toUpperCase() as LogLevel) });
-  const env = await TestWorkflowEnvironment.createLocal();
-  const workflowBundle = await bundleWorkflowCode({
-    ...bundlerOptions,
-    workflowInterceptorModules: [...workflowInterceptorModules, __filename],
-    workflowsPath: __filename,
-  });
-  t.context = {
-    env,
-    workflowBundle,
-  };
-});
-
-test.after.always(async (t) => {
-  await t.context.env.teardown();
+const test = makeTestFunction({
+  workflowsPath: __filename,
+  workflowInterceptorModules: [__filename],
 });
 
 export async function runOneLocalActivity(s: string): Promise<string> {
