@@ -197,10 +197,10 @@ tracer creates `invocation`, `invoke_agent <name>`, `call_llm` (with
 `gen_ai.usage.input_tokens` / `gen_ai.usage.output_tokens` attributes), and
 `execute_tool` spans. Under this plugin the agent loop runs inside the Workflow
 sandbox, so those spans are created there too — and **by default they are
-silently dropped**: no OpenTelemetry SDK can run inside the sandbox, so the
-spans are non-recording no-ops. A tracer provider configured in the worker
-process (e.g. `NodeSDK`) does not see them either; the sandbox is isolated from
-process globals.
+silently dropped**: nothing registers a tracer provider inside the sandbox, so
+ADK's tracer yields non-recording no-ops. A tracer provider configured in the
+worker process (e.g. `NodeSDK`) does not see them either; the sandbox is
+isolated from process globals.
 
 To export them, compose with the SDK's OpenTelemetry integration
 ([`@temporalio/interceptors-opentelemetry`](https://github.com/temporalio/sdk-typescript/tree/main/contrib/interceptors-opentelemetry)),
@@ -222,11 +222,15 @@ history replays re-run the agent-loop code but re-export nothing. You get
 exactly one span per real model call or tool call, plus the interceptor's own
 `RunWorkflow` / `StartActivity` spans, nested under the same trace.
 
-Two cautions:
+Cautions:
 
 - Do **not** register a custom telemetry sink with `callDuringReplay: true` —
   every replayed workflow task would then re-emit the agent-loop spans,
   over-counting each operation once per replay.
+- The replay gate makes span export at-least-once, not exactly-once: a workflow
+  task **retry** (a task that failed or timed out and re-executes) is not a
+  replay, so its spans are re-emitted. Retries are rare in normal operation, but
+  don't build alerting that assumes exact span counts.
 - `call_llm` spans carry the full request/response payloads as
   `gcp.vertex.agent.llm_request` / `gcp.vertex.agent.llm_response` attributes.
   Point the span processor somewhere approved for prompt content, or strip

@@ -41,6 +41,25 @@ test('configureBundler stubs ADK node-only packages and disallowed builtins', (t
   for (const polyfilled of ['assert', 'url', 'util']) {
     t.false(ignored.has(polyfilled), `expected polyfilled builtin ${polyfilled} to remain`);
   }
+  // The pure-JS OpenTelemetry tracing packages must stay resolvable:
+  // `@temporalio/interceptors-opentelemetry` constructs a `BasicTracerProvider`
+  // from them inside the sandbox — the SDK's only replay-safe workflow span
+  // path. Re-stubbing any of these breaks composing with `OpenTelemetryPlugin`.
+  for (const otel of ['@opentelemetry/api', '@opentelemetry/sdk-trace-base', '@opentelemetry/resources']) {
+    t.false(ignored.has(otel), `expected OpenTelemetry package ${otel} to remain resolvable`);
+  }
+});
+
+test('configureBundler prepends the polyfill loader to workflowInterceptorModules', (t) => {
+  const plugin = new GoogleAdkPlugin();
+  const { workflowInterceptorModules } = plugin.configureBundler({
+    workflowsPath: 'wf',
+    workflowInterceptorModules: ['user-interceptors'],
+  } as BundleOptions);
+  // Must be first so the web-global polyfills install before any other
+  // per-workflow module (interceptors, then the user's workflows) evaluates.
+  t.is(workflowInterceptorModules?.[0], require.resolve('../load-polyfills'));
+  t.deepEqual(workflowInterceptorModules?.slice(1), ['user-interceptors']);
 });
 
 test('configureBundler appends the sandbox-compat plugin, preserving a user hook', (t) => {

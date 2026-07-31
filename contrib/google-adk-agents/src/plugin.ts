@@ -416,6 +416,12 @@ export class GoogleAdkPlugin extends SimplePlugin {
    *     at bundle load, before any activator, where the polyfill's
    *     `inWorkflowContext()` gate is false — and in the reusable-V8-context
    *     mode the no-op evaluation would be cached and never re-run.)
+   *     Known gap: custom payload/failure converter modules
+   *     (`payloadConverterPath` / `failureConverterPath`) evaluate *before*
+   *     interceptor modules, so a converter module that itself imports
+   *     `@google/adk`/`@google/genai` must import
+   *     `@temporalio/google-adk-agents/workflow` (or `./load-polyfills`) first
+   *     to install the polyfills.
    *
    * Tradeoff: putting **all** disallowed builtins in `ignoreModules` suppresses
    * the bundler's friendly "you imported a Node builtin in your Workflow"
