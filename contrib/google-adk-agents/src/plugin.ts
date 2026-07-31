@@ -126,6 +126,19 @@ const MIKRO_ORM_SHIM_SOURCE =
   'PrimaryKey:PrimaryKey,Property:Property,LockMode:LockMode};\n';
 
 /**
+ * ESM source for the `async_hooks` builtin shim. ADK's `utils/client_labels.js`
+ * executes `new AsyncLocalStorage()` at **module load** on the workflow-reached
+ * path (`models/base_llm.js` imports it), and later uses only `run(store, fn)` /
+ * `getStore()`. The Workflow sandbox injects a real, workflow-scoped
+ * `AsyncLocalStorage` onto its `globalThis` (the SDK's own `CancellationScope`
+ * is built on it), so re-exporting that global — the same contract as the
+ * langsmith contrib's `async-hooks-shim` — gives ADK full async-context
+ * tracking with sandbox-managed lifetime.
+ */
+const ASYNC_HOOKS_SHIM_SOURCE =
+  'export const AsyncLocalStorage=globalThis.AsyncLocalStorage;export default {AsyncLocalStorage};\n';
+
+/**
  * Requests redirected (in `beforeResolve`) to an inline `data:` URI shim. These
  * are the packages/builtins ADK *dereferences at module load* (subclasses,
  * decorates, or calls a member of) and so cannot be aliased to an empty module —
@@ -139,6 +152,8 @@ const REQUEST_SHIM_SOURCES: ReadonlyArray<readonly [string, string]> = [
   ['winston', WINSTON_SHIM_SOURCE],
   ['os', OS_SHIM_SOURCE],
   ['node:os', OS_SHIM_SOURCE],
+  ['async_hooks', ASYNC_HOOKS_SHIM_SOURCE],
+  ['node:async_hooks', ASYNC_HOOKS_SHIM_SOURCE],
   ['@mikro-orm/core', MIKRO_ORM_SHIM_SOURCE],
 ];
 
@@ -375,7 +390,7 @@ export class GoogleAdkPlugin extends SimplePlugin {
    * recipe applies identically on both paths and there is no separate
    * `configureWorker`/`configureReplayWorker` bundler override.
    *
-   * The recipe has two parts, both required:
+   * The recipe has three parts, all required:
    *
    *  1. **`webpackConfigHook`** adds {@link googleAdkSandboxCompatPlugin} (the
    *     `node:` strip, shim redirects, and `process` provide).
@@ -386,6 +401,16 @@ export class GoogleAdkPlugin extends SimplePlugin {
    *     `false` by the bundler — listing them additionally tells its determinism
    *     guard "expected, don't fail" for the few ADK *core* reaches on paths that
    *     never run in a Workflow.
+   *  3. **`workflowInterceptorModules`** gets the `load-polyfills` module
+   *     prepended. Interceptor modules are evaluated per workflow — with the
+   *     activator installed — *before* the user's workflow module, so the web
+   *     globals `@google/adk`/`@google/genai` dereference at module load
+   *     (`ReadableStream`, …) exist no matter what order the user's own imports
+   *     evaluate in. The module exports no `interceptors`, so it registers
+   *     nothing. (A webpack entry preload would not work: entry code evaluates
+   *     at bundle load, before any activator, where the polyfill's
+   *     `inWorkflowContext()` gate is false — and in the reusable-V8-context
+   *     mode the no-op evaluation would be cached and never re-run.)
    *
    * Tradeoff: putting **all** disallowed builtins in `ignoreModules` suppresses
    * the bundler's friendly "you imported a Node builtin in your Workflow"
@@ -399,6 +424,7 @@ export class GoogleAdkPlugin extends SimplePlugin {
     return {
       ...base,
       ignoreModules,
+      workflowInterceptorModules: [require.resolve('./load-polyfills'), ...(base.workflowInterceptorModules ?? [])],
       webpackConfigHook: addSandboxCompat(base.webpackConfigHook),
     };
   }
