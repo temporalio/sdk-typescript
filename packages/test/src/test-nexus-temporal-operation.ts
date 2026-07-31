@@ -223,6 +223,17 @@ test('TemporalOperationHandler infers correct output type from typed activity', 
     },
   });
 
+  const _activityUnknownNameOp = new temporalnexus.TemporalOperationHandler({
+    async start(_ctx, client, input: string) {
+      // @ts-expect-error - The activity name must be a key of the provided activity interface
+      return await client.typedActivity<typeof activities>().startActivity('missingActivity', {
+        id: 'test',
+        args: [input],
+        scheduleToCloseTimeout: '10s',
+      });
+    },
+  });
+
   const _explicitActivityStringOp: nexus.OperationHandler<string, string> = new temporalnexus.TemporalOperationHandler<
     string,
     string
@@ -235,6 +246,33 @@ test('TemporalOperationHandler infers correct output type from typed activity', 
       });
     },
   });
+
+  // This test only checks for compile-time errors.
+  t.pass();
+});
+
+test('TemporalOperationHandler respects explicit output type from untyped activity', async (t) => {
+  const _untypedActivityStringOp: nexus.OperationHandler<string, string> = new temporalnexus.TemporalOperationHandler({
+    async start(_ctx, client, input: string) {
+      return await client.startActivity<string>('echo', {
+        id: 'test',
+        args: [input],
+        scheduleToCloseTimeout: '10s',
+      });
+    },
+  });
+
+  // @ts-expect-error - Explicit activity result type is string, not number
+  const _untypedActivityMismatchedOp: nexus.OperationHandler<string, number> =
+    new temporalnexus.TemporalOperationHandler({
+      async start(_ctx, client, input: string) {
+        return await client.startActivity<string>('echo', {
+          id: 'test',
+          args: [input],
+          scheduleToCloseTimeout: '10s',
+        });
+      },
+    });
 
   // This test only checks for compile-time errors.
   t.pass();
