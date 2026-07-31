@@ -141,12 +141,12 @@ export async function decodeArrayFromPayloads(
 /**
  * Decode `payloads` and then return {@link fromPayloadsAtIndex}.
  */
-export async function decodeFromPayloadsAtIndex<T>(
+export async function decodeFromPayloadsAtIndex<T, D = T>(
   converter: LoadedDataConverter,
   index: number,
   payloads?: Payload[] | null,
   context?: SerializationContext,
-  typeInfo?: TypeInfo<T>
+  typeInfo?: TypeInfo<T, D>
 ): Promise<T> {
   const { payloadConverter, payloadCodecs } = converter;
   return await fromPayloadsAtIndex(
