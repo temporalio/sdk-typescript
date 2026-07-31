@@ -339,3 +339,32 @@ export async function agentRunnerWorkflow(prompt: string): Promise<string> {
   }
   return finalText;
 }
+
+/**
+ * Two sequential agent turns through the native runner loop, for the telemetry
+ * test. Produces a history with two `adk-invokeModel` Activities across three
+ * (or more) workflow tasks — so a cache-disabled worker replays the first
+ * turn's code on later tasks, while ADK's spans must be exported exactly once
+ * per real turn.
+ */
+export async function agentRunnerTwoTurnsWorkflow(prompt: string): Promise<string> {
+  const agent = new LlmAgent({
+    name: 'assistant',
+    model: new TemporalModel('fake-model'),
+    instruction: 'You are a helpful assistant.',
+  });
+  const runner = new InMemoryRunner({ agent });
+
+  const texts: string[] = [];
+  for (let turn = 0; turn < 2; turn++) {
+    for await (const event of runner.runEphemeral({
+      userId: 'test-user',
+      newMessage: { role: 'user', parts: [{ text: `${prompt}-${turn}` }] },
+    })) {
+      if (isFinalResponse(event)) {
+        texts.push(stringifyContent(event));
+      }
+    }
+  }
+  return texts.join('|');
+}
