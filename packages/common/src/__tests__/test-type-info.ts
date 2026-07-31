@@ -5,6 +5,7 @@ import {
   CompositePayloadConverter,
   defaultPayloadConverter,
   JsonPayloadConverter,
+  type PayloadConverter,
 } from '../converter/payload-converter';
 import { ProtobufBinaryPayloadConverter } from '../converter/protobuf-payload-converters';
 import type { SerializationContext } from '../converter/serialization-context';
@@ -36,12 +37,11 @@ function toUserAccountData(account: UserAccount): UserAccountData {
   };
 }
 
-function fromUserAccountData(value: unknown): UserAccount {
-  const data = value as UserAccountData;
-  return new UserAccount(data.id, BigInt(data.balanceInCents));
+function fromUserAccountData(value: UserAccountData): UserAccount {
+  return new UserAccount(value.id, BigInt(value.balanceInCents));
 }
 
-const userAccountTypeInfo: TypeInfo<UserAccount> = {
+const userAccountTypeInfo: TypeInfo<UserAccount, UserAccountData> = {
   transferTypeConverter: {
     toTransferType: toUserAccountData,
     fromTransferType: fromUserAccountData,
@@ -88,6 +88,22 @@ class HintedProtobufBinaryPayloadConverter extends ProtobufBinaryPayloadConverte
     return hint.messageType.decode(payload.data) as T;
   }
 }
+
+function checkPayloadConverterHintTypes(
+  converter: PayloadConverter,
+  payload: Payload,
+  valueHint: ProtobufJsConverterHint<{ value: string }>,
+  countHint: ProtobufJsConverterHint<{ count: number }>
+): void {
+  converter.toPayload({ value: '123' }, undefined, valueHint);
+  converter.toPayload({ count: 123 }, undefined, countHint);
+  converter.fromPayload<{ value: string }>(payload, undefined, valueHint);
+  converter.fromPayload<{ count: number }>(payload, undefined, countHint);
+
+  // @ts-expect-error 2345 Converter hint value type must match the converted value type.
+  converter.fromPayload<{ value: string }>(payload, undefined, countHint);
+}
+void checkPayloadConverterHintTypes;
 
 test('converts an application class to a transfer type around JSON payload conversion', async (t) => {
   const account = new UserAccount('account-123', 123n);

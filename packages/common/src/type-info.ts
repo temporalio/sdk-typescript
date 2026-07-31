@@ -10,6 +10,8 @@
  * On encoding, transfer type conversion runs before payload conversion. On decoding, payload conversion runs before
  * transfer type conversion. Either mechanism may be used independently or they may be combined.
  *
+ * When {@link transferTypeConverter} is unspecified, `D` should be the same type as `T`.
+ *
  * SDK conversion helpers apply this information when supplied. Calling a {@link PayloadConverter} directly does not.
  *
  * @experimental
@@ -20,7 +22,7 @@ export interface TypeInfo<T = unknown, D = T> {
    *
    * This transformation runs outside the payload converter and should not depend on its serialization format.
    */
-  transferTypeConverter?: TransferTypeConverter<T>;
+  transferTypeConverter?: TransferTypeConverter<T, D>;
 
   /**
    * Metadata forwarded unchanged to the payload converter.
@@ -31,19 +33,21 @@ export interface TypeInfo<T = unknown, D = T> {
 }
 
 /**
- * Converts between an application value and its payload-converter-independent transfer representation.
+ * Converts between an application value of type `T` and its payload-converter-independent representation of type `D`.
  *
  * @experimental
  */
-export interface TransferTypeConverter<T> {
-  fromTransferType(value: unknown): T;
-  toTransferType(value: T): unknown;
+export interface TransferTypeConverter<T, D = unknown> {
+  fromTransferType(value: D): T;
+  toTransferType(value: T): D;
 }
 
 declare const valueTypeBrand: unique symbol;
 
 /**
  * Identifies converter-specific metadata and associates it with the value type `T` handled by that converter.
+ *
+ * The association applies to an individual payload conversion; it does not bind a payload converter instance to `T`.
  *
  * Extend this interface to define metadata for a payload converter.
  *

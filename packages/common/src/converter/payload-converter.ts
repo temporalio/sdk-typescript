@@ -21,12 +21,12 @@ export interface PayloadConverter {
    *
    * Should throw {@link ValueError} if unable to convert.
    */
-  toPayload<T>(value: T, context?: SerializationContext, hint?: ConverterHint): Payload;
+  toPayload<T>(value: T, context?: SerializationContext, hint?: ConverterHint<T>): Payload;
 
   /**
    * Converts a {@link Payload} back to a value.
    */
-  fromPayload<T>(payload: Payload, context?: SerializationContext, hint?: ConverterHint): T;
+  fromPayload<T>(payload: Payload, context?: SerializationContext, hint?: ConverterHint<T>): T;
 
   /**
    * Return whether this converter can handle the supplied converter hint.
@@ -43,11 +43,11 @@ export interface PayloadConverter {
  *
  * @experimental
  */
-export function toPayloadWithTypeInfo<T>(
+export function toPayloadWithTypeInfo<T, D = T>(
   converter: PayloadConverter,
   value: T,
   context: SerializationContext | undefined,
-  typeInfo: TypeInfo<T, unknown> | undefined
+  typeInfo: TypeInfo<T, D> | undefined
 ): Payload {
   const transferValue = typeInfo?.transferTypeConverter ? typeInfo.transferTypeConverter.toTransferType(value) : value;
   return converter.toPayload(transferValue, context, typeInfo?.payloadConverterHint);
@@ -58,16 +58,16 @@ export function toPayloadWithTypeInfo<T>(
  *
  * @experimental
  */
-export function fromPayloadWithTypeInfo<T>(
+export function fromPayloadWithTypeInfo<T, D = T>(
   converter: PayloadConverter,
   payload: Payload,
   context: SerializationContext | undefined,
-  typeInfo: TypeInfo<T, unknown> | undefined
+  typeInfo: TypeInfo<T, D> | undefined
 ): T {
-  const transferValue = converter.fromPayload<unknown>(payload, context, typeInfo?.payloadConverterHint);
+  const transferValue = converter.fromPayload<D>(payload, context, typeInfo?.payloadConverterHint);
   return typeInfo?.transferTypeConverter
     ? typeInfo.transferTypeConverter.fromTransferType(transferValue)
-    : (transferValue as T);
+    : (transferValue as unknown as T);
 }
 
 /**
@@ -140,12 +140,12 @@ export function mapToPayloads<K extends string, T = any>(
  * @throws {@link PayloadConverterError} if conversion of the data passed as parameter failed for any
  *     reason.
  */
-export function fromPayloadsAtIndex<T>(
+export function fromPayloadsAtIndex<T, D = T>(
   converter: PayloadConverter,
   index: number,
   payloads?: Payload[] | null,
   context?: SerializationContext,
-  typeInfo?: TypeInfo<T>
+  typeInfo?: TypeInfo<T, D>
 ): T {
   // To make adding arguments a backwards compatible change
   if (payloads === undefined || payloads === null || index >= payloads.length) {
@@ -219,12 +219,12 @@ export interface PayloadConverterWithEncoding {
    * @param value The value to convert. Example values include the Workflow args sent from the Client and the values returned by a Workflow or Activity.
    * @returns The {@link Payload}, or `undefined` if unable to convert.
    */
-  toPayload<T>(value: T, context?: SerializationContext, hint?: ConverterHint): Payload | undefined;
+  toPayload<T>(value: T, context?: SerializationContext, hint?: ConverterHint<T>): Payload | undefined;
 
   /**
    * Converts a {@link Payload} back to a value.
    */
-  fromPayload<T>(payload: Payload, context?: SerializationContext, hint?: ConverterHint): T;
+  fromPayload<T>(payload: Payload, context?: SerializationContext, hint?: ConverterHint<T>): T;
 
   readonly encodingType: string;
 
@@ -263,7 +263,7 @@ export class CompositePayloadConverter implements PayloadConverter {
    * Tries to run `.toPayload(value)` on each converter in the order provided at construction.
    * Returns the first successful result, throws {@link ValueError} if there is no converter that can handle the value.
    */
-  public toPayload<T>(value: T, context?: SerializationContext, hint?: ConverterHint): Payload {
+  public toPayload<T>(value: T, context?: SerializationContext, hint?: ConverterHint<T>): Payload {
     if (value instanceof RawValue) {
       return value.payload;
     }
@@ -286,7 +286,7 @@ export class CompositePayloadConverter implements PayloadConverter {
   /**
    * Run {@link PayloadConverterWithEncoding.fromPayload} based on the `encoding` metadata of the {@link Payload}.
    */
-  public fromPayload<T>(payload: Payload, context?: SerializationContext, hint?: ConverterHint): T {
+  public fromPayload<T>(payload: Payload, context?: SerializationContext, hint?: ConverterHint<T>): T {
     if (payload.metadata === undefined || payload.metadata === null) {
       throw new ValueError('Missing payload metadata');
     }
