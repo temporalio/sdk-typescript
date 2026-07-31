@@ -248,14 +248,19 @@ const ADK_NODE_ONLY_SERVICE_PACKAGES: readonly string[] = [
   // setup functions that never run in a Workflow, so aliasing to an empty module
   // is load-safe. (`@opentelemetry/api` + `api-logs` are intentionally kept
   // real — see the doc comment above.)
+  //
+  // `@opentelemetry/sdk-trace-base` and `@opentelemetry/resources` must NOT be
+  // listed: they are pure-JS, and `@temporalio/interceptors-opentelemetry(-v2)`
+  // constructs a `BasicTracerProvider` from them *inside the Workflow sandbox* —
+  // the SDK's only replay-safe workflow span path (spans leave the isolate via a
+  // replay-gated sink). Stubbing them is bundle-wide and would break composing
+  // this plugin with `OpenTelemetryPlugin` for every workflow on the worker.
   '@opentelemetry/exporter-logs-otlp-http',
   '@opentelemetry/exporter-metrics-otlp-http',
   '@opentelemetry/exporter-trace-otlp-http',
-  '@opentelemetry/resources',
   '@opentelemetry/resource-detector-gcp',
   '@opentelemetry/sdk-logs',
   '@opentelemetry/sdk-metrics',
-  '@opentelemetry/sdk-trace-base',
   '@opentelemetry/sdk-trace-node',
   // The A2A (agent-to-agent) protocol subtree: ADK's `a2a/*` reach `@a2a-js/sdk`
   // and `express`, whose server/buffer code touches the web `Event` global /
