@@ -383,7 +383,9 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
-          node-version: '22'
+          # This job installs no dependencies, so it runs ci-run-summary.ts through
+          # Node's native type stripping rather than tsx. That needs Node >= 23.6.
+          node-version: '24'
 
       - name: Download test result artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
