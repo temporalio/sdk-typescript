@@ -44,7 +44,9 @@ if (inWorkflowContext()) {
     // Both map onto the sandbox-patched `Date.now()` (workflow time), so the
     // values are deterministic under replay. Mirrors the shim
     // `@temporalio/interceptors-opentelemetry` installs from its own workflow
-    // runtime module; whichever evaluates first wins — the semantics match.
+    // runtime module; ours yields to an existing shim, while that package's
+    // unconditional `Object.assign` may later replace ours — harmless either
+    // way, since both compute identical values from the same sandbox clock.
     const timeOrigin = Date.now();
     globals.performance = {
       timeOrigin,

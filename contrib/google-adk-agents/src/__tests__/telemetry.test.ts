@@ -15,7 +15,7 @@
 
 import path from 'node:path';
 
-import test from 'ava';
+import test, { type ExecutionContext } from 'ava';
 import { trace } from '@opentelemetry/api';
 import { Resource } from '@opentelemetry/resources';
 import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
@@ -39,6 +39,43 @@ function adkSpanCounts(exporter: InMemorySpanExporter): Record<string, number> {
     counts[span.name] = (counts[span.name] ?? 0) + 1;
   }
   return counts;
+}
+
+/** `WorkflowTaskTimedOut`/`WorkflowTaskFailed` events — retried (not replayed) workflow tasks. */
+function countWorkflowTaskRetries(
+  events: Array<{ workflowTaskTimedOutEventAttributes?: unknown; workflowTaskFailedEventAttributes?: unknown }>
+): number {
+  return events.filter(
+    (e) => e.workflowTaskTimedOutEventAttributes != null || e.workflowTaskFailedEventAttributes != null
+  ).length;
+}
+
+/**
+ * Asserts exactly `expected[name]` exported ADK spans per name on a clean
+ * history. A workflow task retry (timeout/failure) is not a replay — the
+ * retried segment's spans legitimately re-emit (see README) — so when a slow
+ * runner caused retries, degrade to a lower bound, which still fails on
+ * silently dropped spans.
+ */
+function assertAdkSpanCounts(
+  t: ExecutionContext,
+  exporter: InMemorySpanExporter,
+  workflowTaskRetries: number,
+  expected: Record<string, number>
+): void {
+  const counts = adkSpanCounts(exporter);
+  for (const [name, n] of Object.entries(expected)) {
+    if (workflowTaskRetries === 0) {
+      t.is(counts[name], n, name);
+    } else {
+      t.true(
+        (counts[name] ?? 0) >= n,
+        `${name}: expected >= ${n} spans, got ${
+          counts[name] ?? 0
+        } (history has ${workflowTaskRetries} workflow task retries)`
+      );
+    }
+  }
 }
 
 // Composing with OpenTelemetryPlugin exports ADK spans; replays add none (E2E)
@@ -73,10 +110,11 @@ test.serial('adkSpansExportOncePerOperationUnderReplay', async (t) => {
   // Exactly one exported span per real operation. A regression that lets
   // replayed sandbox code re-emit (e.g. a callDuringReplay sink) would show up
   // here as workflowTasks-proportional counts (3+ per name).
-  const counts = adkSpanCounts(exporter);
-  t.is(counts['call_llm'], 2);
-  t.is(counts['invocation'], 2);
-  t.is(counts['invoke_agent assistant'], 2);
+  assertAdkSpanCounts(t, exporter, countWorkflowTaskRetries(events), {
+    call_llm: 2,
+    invocation: 2,
+    'invoke_agent assistant': 2,
+  });
 });
 
 // ADK evaluated before the interceptor factories still exports spans (E2E)
@@ -110,10 +148,12 @@ test.serial('adkSpansExportWhenAdkEvaluatesBeforeInterceptorFactories', async (t
   );
   t.is(result, 'fake-response:fake-model|fake-response:fake-model');
 
-  const counts = adkSpanCounts(exporter);
-  t.is(counts['call_llm'], 2);
-  t.is(counts['invocation'], 2);
-  t.is(counts['invoke_agent assistant'], 2);
+  const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
+  assertAdkSpanCounts(t, exporter, countWorkflowTaskRetries(events ?? []), {
+    call_llm: 2,
+    invocation: 2,
+    'invoke_agent assistant': 2,
+  });
 });
 
 // Without the OpenTelemetry plugin, sandbox spans never reach a process-global provider (E2E)
