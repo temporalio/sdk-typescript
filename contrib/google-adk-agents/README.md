@@ -220,7 +220,11 @@ ADK's tracer binds to, and exports the spans through a Worker sink that is
 **replay-gated**: spans are recorded when Workflow code first executes;
 history replays re-run the agent-loop code but re-export nothing. You get
 exactly one span per real model call or tool call, plus the interceptor's own
-`RunWorkflow` / `StartActivity` spans, nested under the same trace.
+`RunWorkflow` / `StartActivity` spans, nested under the same trace. The plugin
+pins `@opentelemetry/api` to a single copy in the Workflow bundle (the one
+`@google/adk` resolves — ADK pins an exact api version, so a bundle could
+otherwise contain two copies), so ADK's tracer binds to that provider no
+matter which module evaluates ADK first.
 
 Cautions:
 
@@ -235,6 +239,13 @@ Cautions:
   `gcp.vertex.agent.llm_request` / `gcp.vertex.agent.llm_response` attributes.
   Point the span processor somewhere approved for prompt content, or strip
   those attributes in the processor.
+- Custom payload/failure converter modules (`payloadConverterPath` /
+  `failureConverterPath`) evaluate **before** the plugin's polyfill loader. If
+  such a module imports `@google/adk` / `@google/genai`, import
+  `@temporalio/google-adk-agents/workflow` first: it installs the sandbox
+  polyfills (`Headers`, `structuredClone`, the WHATWG streams globals, and the
+  deterministic `performance` shim ADK's telemetry chain dereferences at module
+  load) before ADK evaluates.
 
 ADK (as of 1.4.0) defines no OpenTelemetry metric instruments, so there is no
 workflow-side metric telemetry to configure. Activity-side telemetry (the real
