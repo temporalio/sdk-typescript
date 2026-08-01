@@ -13,6 +13,8 @@
  * OpenTelemetry plugin, sandbox spans never reach a process-global provider.
  */
 
+import path from 'node:path';
+
 import test from 'ava';
 import { trace } from '@opentelemetry/api';
 import { Resource } from '@opentelemetry/resources';
@@ -71,6 +73,43 @@ test.serial('adkSpansExportOncePerOperationUnderReplay', async (t) => {
   // Exactly one exported span per real operation. A regression that lets
   // replayed sandbox code re-emit (e.g. a callDuringReplay sink) would show up
   // here as workflowTasks-proportional counts (3+ per name).
+  const counts = adkSpanCounts(exporter);
+  t.is(counts['call_llm'], 2);
+  t.is(counts['invocation'], 2);
+  t.is(counts['invoke_agent assistant'], 2);
+});
+
+// ADK evaluated before the interceptor factories still exports spans (E2E)
+test.serial('adkSpansExportWhenAdkEvaluatesBeforeInterceptorFactories', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-otel-early');
+  const workflowId = uid('wf-otel-early');
+
+  const exporter = new InMemorySpanExporter();
+  const otelPlugin = new OpenTelemetryPlugin({
+    resource: new Resource({ 'service.name': 'adk-telemetry-test' }),
+    spanProcessor: new SimpleSpanProcessor(exporter),
+  });
+
+  // A user workflow-interceptors module importing `@google/adk` evaluates ADK
+  // — and its module-load `trace.getTracer(...)` — before any interceptor
+  // factory registers the sandbox tracer provider. ADK's tracer must still
+  // bind to that provider, which requires the bundle to hold a single
+  // `@opentelemetry/api` copy: with two copies (ADK pins one exact version),
+  // every ADK span is silently dropped while the interceptor's own spans keep
+  // exporting.
+  const result = await withWorker(
+    env,
+    {
+      taskQueue,
+      plugins: [otelPlugin, makeAdkPlugin()],
+      maxCachedWorkflows: 0,
+      workflowInterceptorModules: [path.resolve(__dirname, '../../src/__tests__/adk-first-interceptor.ts')],
+    },
+    () => env.client.workflow.execute(agentRunnerTwoTurnsWorkflow, { taskQueue, workflowId, args: ['hi'] })
+  );
+  t.is(result, 'fake-response:fake-model|fake-response:fake-model');
+
   const counts = adkSpanCounts(exporter);
   t.is(counts['call_llm'], 2);
   t.is(counts['invocation'], 2);

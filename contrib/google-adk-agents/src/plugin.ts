@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { builtinModules } from 'node:module';
+import { builtinModules, createRequire } from 'node:module';
 
 import type { BaseLlm } from '@google/adk';
 import { SimplePlugin } from '@temporalio/plugin';
@@ -17,6 +17,24 @@ import { type MCPToolsetFactory } from './mcp';
 type WebpackConfig = Parameters<NonNullable<BundleOptions['webpackConfigHook']>>[0];
 
 const NODE_SCHEME = 'node:';
+
+const OTEL_API_PACKAGE = '@opentelemetry/api';
+
+/**
+ * Resolves the `@opentelemetry/api` copy that `@google/adk` itself resolves.
+ * ADK pins an exact api version while other packages in the Workflow bundle
+ * (notably `@temporalio/interceptors-opentelemetry`) may resolve a different
+ * one, so without intervention the bundle can contain two api copies. ADK's
+ * `telemetry/tracing.js` caches `trace.getTracer(...)` at module load; if that
+ * binds a different api copy than the one the OTel interceptor registers its
+ * tracer provider on, every ADK span is silently lost (the workflow still
+ * succeeds and interceptor spans still export). Rewriting every bundle request
+ * for `@opentelemetry/api` to ADK's copy keeps the tracer and the provider on
+ * the same registration regardless of module evaluation order.
+ */
+function adkOtelApiEntry(): string {
+  return createRequire(require.resolve('@google/adk')).resolve(OTEL_API_PACKAGE);
+}
 
 /**
  * ESM source for the `module` builtin shim. Every `@google/adk` compiled ESM
@@ -221,7 +239,8 @@ function disallowedBuiltins(): readonly string[] {
  * {@link REQUEST_SHIM_SOURCES}. `@opentelemetry/api` and `@opentelemetry/api-logs`
  * are deliberately *absent* (kept real): they are pure-JS API packages with no
  * node builtins, and `telemetry/tracing.js` calls `trace.getTracer(...)` from
- * them at module load on the in-Workflow path.
+ * them at module load on the in-Workflow path. (`@opentelemetry/api` is
+ * additionally pinned to a single bundle copy — see {@link adkOtelApiEntry}.)
  */
 const ADK_NODE_ONLY_SERVICE_PACKAGES: readonly string[] = [
   'google-auth-library',
@@ -273,17 +292,21 @@ const ADK_NODE_ONLY_SERVICE_PACKAGES: readonly string[] = [
 
 /**
  * The webpack plugin that makes the `@google/adk` barrel load inside the
- * Workflow sandbox. It does three things:
+ * Workflow sandbox. It does four things:
  *
  *  1. **Shim redirects** ({@link REQUEST_SHIM_SOURCES}): in `beforeResolve`,
  *     redirect the load-dereferenced requests to their inline `data:` URI shims.
- *  2. **`node:` scheme strip**: every other `node:<name>` → bare `<name>`. The
+ *  2. **Single `@opentelemetry/api` copy**: rewrite every request for
+ *     `@opentelemetry/api` to the copy `@google/adk` resolves
+ *     ({@link adkOtelApiEntry}), so ADK's module-load tracer and the OTel
+ *     interceptor's tracer-provider registration share one api instance.
+ *  3. **`node:` scheme strip**: every other `node:<name>` → bare `<name>`. The
  *     Worker bundler aliases each disallowed builtin to `false` by its **bare**
  *     name; a `node:`-prefixed request never reaches `resolve.alias` — webpack's
  *     scheme handler intercepts it first and throws `UnhandledSchemeError` (a
  *     hard *build* failure). Stripping the scheme lets the bundler's bare-name
  *     policy take over.
- *  3. **`process` provide**: a `ProvidePlugin` injects the deterministic
+ *  4. **`process` provide**: a `ProvidePlugin` injects the deterministic
  *     `process` shim ({@link PROCESS_SHIM_SOURCE}) wherever `process` is a free
  *     variable.
  */
@@ -293,6 +316,7 @@ function googleAdkSandboxCompatPlugin(): unknown {
   const shimUris = REQUEST_SHIM_SOURCES.map(([request, source]) => [request, toDataUri(source)] as const);
   const shimByRequest = new Map<string, string>(shimUris);
   const processShimUri = toDataUri(PROCESS_SHIM_SOURCE);
+  const otelApiEntry = adkOtelApiEntry();
   return {
     name: 'google-adk-sandbox-compat',
     apply(compiler: WebpackCompilerLike): void {
@@ -307,6 +331,10 @@ function googleAdkSandboxCompatPlugin(): unknown {
           const shim = shimByRequest.get(request);
           if (shim !== undefined) {
             data.request = shim;
+            return;
+          }
+          if (request === OTEL_API_PACKAGE) {
+            data.request = otelApiEntry;
             return;
           }
           if (request.startsWith(NODE_SCHEME)) {
@@ -409,10 +437,10 @@ export class GoogleAdkPlugin extends SimplePlugin {
    *  3. **`workflowInterceptorModules`** gets the `load-polyfills` module
    *     prepended. Interceptor modules are evaluated per workflow — with the
    *     activator installed — *before* the user's workflow module, so the web
-   *     globals `@google/adk`/`@google/genai` dereference at module load
-   *     (`ReadableStream`, …) exist no matter what order the user's own imports
-   *     evaluate in. The module exports no `interceptors`, so it registers
-   *     nothing. (A webpack entry preload would not work: entry code evaluates
+   *     globals `@google/adk`/`@google/genai` and ADK's OpenTelemetry chain
+   *     dereference at module load (`ReadableStream`, `performance`, …) exist
+   *     no matter what order the user's own imports evaluate in. The module
+   *     exports no `interceptors`, so it registers nothing. (A webpack entry preload would not work: entry code evaluates
    *     at bundle load, before any activator, where the polyfill's
    *     `inWorkflowContext()` gate is false — and in the reusable-V8-context
    *     mode the no-op evaluation would be cached and never re-run.)

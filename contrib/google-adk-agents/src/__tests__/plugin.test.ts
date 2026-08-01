@@ -7,6 +7,8 @@
  * `configureWorker` output without bundling or executing a Workflow.
  */
 
+import { createRequire } from 'node:module';
+
 import test from 'ava';
 import type { BundleOptions, WorkerOptions } from '@temporalio/worker';
 
@@ -77,6 +79,54 @@ test('configureBundler appends the sandbox-compat plugin, preserving a user hook
   const result = webpackConfigHook!({ plugins: [] } as never) as WebpackConfigLike;
   const names = (result.plugins ?? []).map((p) => p.name);
   t.deepEqual(names, ['user-plugin', 'google-adk-sandbox-compat']);
+});
+
+test('sandbox-compat plugin rewrites @opentelemetry/api to the copy @google/adk resolves', (t) => {
+  const plugin = new GoogleAdkPlugin();
+  const { webpackConfigHook } = plugin.configureBundler({ workflowsPath: 'wf' } as BundleOptions);
+  const cfg = webpackConfigHook!({ plugins: [] } as never) as {
+    plugins: Array<{ name?: string; apply(compiler: unknown): void }>;
+  };
+  const compat = cfg.plugins.find((p) => p.name === 'google-adk-sandbox-compat')!;
+
+  // Drive the plugin against a minimal fake compiler to capture its
+  // `beforeResolve` tap.
+  let beforeResolve: ((data: { request?: string }) => void) | undefined;
+  compat.apply({
+    webpack: {
+      ProvidePlugin: class {
+        apply(): void {}
+      },
+    },
+    hooks: {
+      normalModuleFactory: {
+        tap: (_name: string, fn: (nmf: unknown) => void) =>
+          fn({
+            hooks: {
+              beforeResolve: {
+                tap: (_tapName: string, f: (data: { request?: string }) => void) => {
+                  beforeResolve = f;
+                },
+              },
+            },
+          }),
+      },
+    },
+  });
+  t.truthy(beforeResolve);
+
+  // Every `@opentelemetry/api` request must land on ADK's own resolution, so
+  // ADK's module-load tracer and the OTel interceptor's provider registration
+  // share one api instance regardless of module evaluation order.
+  const expected = createRequire(require.resolve('@google/adk')).resolve('@opentelemetry/api');
+  const api = { request: '@opentelemetry/api' };
+  beforeResolve!(api);
+  t.is(api.request, expected);
+
+  // Packages that merely share the name prefix are untouched.
+  const apiLogs = { request: '@opentelemetry/api-logs' };
+  beforeResolve!(apiLogs);
+  t.is(apiLogs.request, '@opentelemetry/api-logs');
 });
 
 test('configureWorker registers model activities, plus an MCP pair per toolset', (t) => {

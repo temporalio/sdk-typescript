@@ -127,6 +127,11 @@ export interface WithWorkerOptions {
   plugins: unknown[];
   activities?: Record<string, (...args: never[]) => Promise<unknown>>;
   maxCachedWorkflows?: number;
+  /**
+   * User `interceptors.workflowModules` entries; the plugin's polyfill loader
+   * still evaluates first, these follow.
+   */
+  workflowInterceptorModules?: string[];
 }
 
 /**
@@ -144,6 +149,9 @@ export async function withWorker<T>(
     plugins: options.plugins as any,
     activities: options.activities as any,
     maxCachedWorkflows: options.maxCachedWorkflows,
+    interceptors: options.workflowInterceptorModules
+      ? { workflowModules: options.workflowInterceptorModules }
+      : undefined,
   });
   return worker.runUntil(fn());
 }
