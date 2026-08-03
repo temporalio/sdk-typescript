@@ -1,22 +1,31 @@
 import { randomUUID } from 'crypto';
 import test from 'ava';
-import { WorkflowClient } from '@temporalio/client';
 import { defaultOptions } from './mock-native-worker';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { createTestWorkflowEnvironment } from './helpers-integration';
 import { successString } from './workflows';
 
 if (RUN_INTEGRATION_TESTS) {
   test('Worker functions when asked not to run Activities', async (t) => {
+    const env = await createTestWorkflowEnvironment();
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { activities, taskQueue, ...rest } = defaultOptions;
-    const worker = await Worker.create({ taskQueue: 'only-workflows', ...rest });
-    const client = new WorkflowClient();
-    const result = await worker.runUntil(
-      client.execute(successString, {
-        workflowId: randomUUID(),
+    try {
+      const worker = await Worker.create({
         taskQueue: 'only-workflows',
-      })
-    );
-    t.is(result, 'success');
+        ...rest,
+        connection: env.nativeConnection,
+        namespace: env.namespace,
+      });
+      const result = await worker.runUntil(
+        env.client.workflow.execute(successString, {
+          workflowId: randomUUID(),
+          taskQueue: 'only-workflows',
+        })
+      );
+      t.is(result, 'success');
+    } finally {
+      await env.teardown();
+    }
   });
 }
