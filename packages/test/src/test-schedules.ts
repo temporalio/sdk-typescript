@@ -10,19 +10,26 @@ import type {
   ScheduleUpdateOptions,
   ScheduleDescription,
 } from '@temporalio/client';
-import { defaultPayloadConverter, Client, Connection } from '@temporalio/client';
+import { defaultPayloadConverter, Client } from '@temporalio/client';
 import { msToNumber } from '@temporalio/common/lib/time';
 import type { SearchAttributes } from '@temporalio/common';
 import { SearchAttributeType, TypedSearchAttributes, defineSearchAttributeKey } from '@temporalio/common';
+import type { TestWorkflowEnvironment } from '@temporalio/test-helpers';
+import { requiresLocalServer } from '@temporalio/test-helpers';
 import { registerDefaultCustomSearchAttributes, RUN_INTEGRATION_TESTS, waitUntil } from './helpers';
-import { defaultSAKeys } from './helpers-integration';
+import { createTestWorkflowEnvironment, defaultSAKeys } from './helpers-integration';
 
 export interface Context {
   client: Client;
+  env: TestWorkflowEnvironment;
 }
 
-const taskQueue = 'async-activity-completion';
+const taskQueue = `schedules-${randomUUID()}`;
 const test = anyTest as TestFn<Context>;
+const localTest = requiresLocalServer<Context>(
+  'Current Cloud credentials cannot manage operator search attributes (temporalio/features#851).',
+  test
+);
 
 const dummyWorkflow = async () => undefined;
 const dummyWorkflowWith1Arg = async (_s: string) => undefined;
@@ -41,11 +48,19 @@ const calendarSpecDescriptionDefaults: CalendarSpecDescription = {
 
 if (RUN_INTEGRATION_TESTS) {
   test.before(async (t) => {
-    const connection = await Connection.connect();
-    await registerDefaultCustomSearchAttributes(connection);
+    const env = await createTestWorkflowEnvironment();
     t.context = {
-      client: new Client({ connection }),
+      client: env.client,
+      env,
     };
+  });
+
+  localTest.before(async (t) => {
+    await registerDefaultCustomSearchAttributes(t.context.env.connection);
+  });
+
+  test.after.always(async (t) => {
+    await t.context.env.teardown();
   });
 
   test.serial('Can create schedule with calendar', async (t) => {
@@ -152,7 +167,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test.serial('Can create schedule with startWorkflow action (no arg)', async (t) => {
+  localTest.serial('Can create schedule with startWorkflow action (no arg)', async (t) => {
     const { client } = t.context;
     const scheduleId = `can-create-schedule-with-startWorkflow-action-${randomUUID()}`;
     const handle = await client.schedule.create({
@@ -196,7 +211,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test.serial('Can create schedule with startWorkflow action (with args)', async (t) => {
+  localTest.serial('Can create schedule with startWorkflow action (with args)', async (t) => {
     const { client } = t.context;
     const scheduleId = `can-create-schedule-with-startWorkflow-action-${randomUUID()}`;
     const handle = await client.schedule.create({
@@ -245,6 +260,7 @@ if (RUN_INTEGRATION_TESTS) {
   test.serial('Interceptor is called on create schedule', async (t) => {
     const clientWithInterceptor = new Client({
       connection: t.context.client.connection,
+      namespace: t.context.client.options.namespace,
       interceptors: {
         schedule: [
           {
@@ -287,6 +303,7 @@ if (RUN_INTEGRATION_TESTS) {
   test.serial('startWorkflow headers are kept on update', async (t) => {
     const clientWithInterceptor = new Client({
       connection: t.context.client.connection,
+      namespace: t.context.client.options.namespace,
       interceptors: {
         schedule: [
           {
@@ -329,7 +346,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test.serial('Can pause and unpause schedule', async (t) => {
+  localTest.serial('Can pause and unpause schedule', async (t) => {
     const { client } = t.context;
     const scheduleId = `can-pause-and-unpause-schedule-${randomUUID()}`;
     const handle = await client.schedule.create({
@@ -567,7 +584,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test.serial('Can list Schedules with a query string', async (t) => {
+  localTest.serial('Can list Schedules with a query string', async (t) => {
     const { client } = t.context;
 
     const groupId = randomUUID();
@@ -751,7 +768,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
   });
 
-  test.serial('Can update search attributes of a schedule', async (t) => {
+  localTest.serial('Can update search attributes of a schedule', async (t) => {
     const { client } = t.context;
     const scheduleId = `can-update-search-attributes-of-schedule-${randomUUID()}`;
 

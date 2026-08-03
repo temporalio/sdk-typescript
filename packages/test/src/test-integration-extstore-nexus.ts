@@ -11,7 +11,10 @@ import * as workflow from '@temporalio/workflow';
 import { makeFakeDriver } from './extstore-fake-driver';
 import { helpers, makeTestFunction } from './helpers-integration';
 
-const test = makeTestFunction({ workflowsPath: __filename });
+const test = makeTestFunction({
+  workflowsPath: __filename,
+  requiresLocalServer: 'Current Cloud credentials cannot manage Nexus endpoints (temporalio/features#851).',
+});
 
 const nexusSizeService = nexus.service('extstoreNexusSizeService', {
   // Takes a payload and returns its length, so a large input can be offloaded and the handler's

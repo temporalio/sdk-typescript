@@ -4,7 +4,10 @@ import { WorkflowFailedError } from '@temporalio/client';
 import * as workflow from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
 
-const test = makeTestFunction({ workflowsPath: __filename });
+const test = makeTestFunction({
+  workflowsPath: __filename,
+  requiresLocalServer: 'Current Cloud credentials cannot manage Nexus endpoints (temporalio/features#851).',
+});
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // NEXUS OPERATION SCHEDULE-TO-START TIMEOUT TEST
