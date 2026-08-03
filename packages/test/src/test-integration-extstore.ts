@@ -207,7 +207,7 @@ test('child workflow input and result are offloaded in both directions', async (
   t.is(driver.storeCalls[0].context.target?.type, 'externalStorageEcho');
   t.deepEqual(driver.storeCalls[1].context.target, {
     kind: 'workflow',
-    namespace: 'default',
+    namespace: t.context.env.client.options.namespace,
     id: handle.workflowId,
     runId: handle.firstExecutionRunId,
   });
@@ -221,7 +221,11 @@ test('continue-as-new offloads a large argument keyed under the target workflow 
   const sizeBytes = 4096;
 
   const worker = await createWorker({ dataConverter: { externalStorage } });
-  const client = new Client({ connection: t.context.env.connection, dataConverter: { externalStorage } });
+  const client = new Client({
+    connection: t.context.env.connection,
+    namespace: t.context.env.client.options.namespace,
+    dataConverter: { externalStorage },
+  });
 
   const workflowId = randomUUID();
   const handle = await client.workflow.start(externalStorageContinueAsNewSource, {
@@ -236,7 +240,7 @@ test('continue-as-new offloads a large argument keyed under the target workflow 
   t.is(driver.storeCalls.length, 1);
   t.deepEqual(driver.storeCalls[0].context.target, {
     kind: 'workflow',
-    namespace: 'default',
+    namespace: t.context.env.client.options.namespace,
     id: workflowId,
     runId: undefined,
     type: 'externalStorageContinueAsNewTarget',
@@ -343,7 +347,11 @@ test('client offloads a large start argument and retrieves a large result', asyn
   const data = new Uint8Array(4096).fill(3);
 
   const worker = await createWorker({ dataConverter: { externalStorage } });
-  const client = new Client({ connection: t.context.env.connection, dataConverter: { externalStorage } });
+  const client = new Client({
+    connection: t.context.env.connection,
+    namespace: t.context.env.client.options.namespace,
+    dataConverter: { externalStorage },
+  });
 
   const workflowId = randomUUID();
   const handle = await client.workflow.start(externalStorageEcho, { taskQueue, workflowId, args: [data] });
@@ -367,13 +375,13 @@ test('client offloads a large start argument and retrieves a large result', asyn
   t.is(driver.storeCalls.length, 2);
   t.deepEqual(driver.storeCalls[0].context.target, {
     kind: 'workflow',
-    namespace: 'default',
+    namespace: t.context.env.client.options.namespace,
     id: workflowId,
     type: 'externalStorageEcho',
   });
   t.deepEqual(driver.storeCalls[1].context.target, {
     kind: 'workflow',
-    namespace: 'default',
+    namespace: t.context.env.client.options.namespace,
     id: workflowId,
     runId: handle.firstExecutionRunId,
     type: 'externalStorageEcho',
@@ -389,7 +397,11 @@ test('client retrieves an offloaded query result', async (t) => {
   const expected = new Uint8Array(sizeBytes).fill(7);
 
   const worker = await createWorker({ dataConverter: { externalStorage } });
-  const client = new Client({ connection: t.context.env.connection, dataConverter: { externalStorage } });
+  const client = new Client({
+    connection: t.context.env.connection,
+    namespace: t.context.env.client.options.namespace,
+    dataConverter: { externalStorage },
+  });
 
   const workflowId = randomUUID();
   await worker.runUntil(async () => {
@@ -554,7 +566,11 @@ test('client offloads a large workflow memo and retrieves it via describe', asyn
   const memoBlob = new Uint8Array(4096).fill(5);
 
   const worker = await createWorker({ dataConverter: { externalStorage } });
-  const client = new Client({ connection: t.context.env.connection, dataConverter: { externalStorage } });
+  const client = new Client({
+    connection: t.context.env.connection,
+    namespace: t.context.env.client.options.namespace,
+    dataConverter: { externalStorage },
+  });
 
   const workflowId = randomUUID();
   const handle = await client.workflow.start(externalStorageEcho, {
