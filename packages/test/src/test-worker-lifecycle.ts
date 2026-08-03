@@ -21,7 +21,7 @@ if (RUN_INTEGRATION_TESTS) {
     try {
       const worker = await Worker.create({
         ...defaultOptions,
-        taskQueue: t.title.replace(/ /g, '_'),
+        taskQueue: `${t.title.replace(/ /g, '_')}-${randomUUID()}`,
         connection: env.nativeConnection,
         namespace: env.namespace,
       });
@@ -47,7 +47,7 @@ if (RUN_INTEGRATION_TESTS) {
     try {
       const worker = await Worker.create({
         ...defaultOptions,
-        taskQueue: t.title.replace(/ /g, '_'),
+        taskQueue: `${t.title.replace(/ /g, '_')}-${randomUUID()}`,
         connection: env.nativeConnection,
         namespace: env.namespace,
       });
@@ -73,7 +73,7 @@ if (RUN_INTEGRATION_TESTS) {
     try {
       const worker = await Worker.create({
         ...defaultOptions,
-        taskQueue: t.title.replace(/ /g, '_'),
+        taskQueue: `${t.title.replace(/ /g, '_')}-${randomUUID()}`,
         connection: env.nativeConnection,
         namespace: env.namespace,
       });
@@ -94,7 +94,7 @@ if (RUN_INTEGRATION_TESTS) {
       await t.throwsAsync(
         Worker.create({
           ...defaultOptions,
-          taskQueue: t.title.replace(/ /g, '_'),
+          taskQueue: `${t.title.replace(/ /g, '_')}-${randomUUID()}`,
           connection: env.nativeConnection,
           namespace: 'oogabooga',
         }),
@@ -111,7 +111,7 @@ if (RUN_INTEGRATION_TESTS) {
     // be non-conclusive. We need the test timeout to be longer than that.
     t.timeout(30_000);
 
-    const taskQueue = t.title.replace(/ /g, '_');
+    const taskQueue = `${t.title.replace(/ /g, '_')}-${randomUUID()}`;
     const env = await createTestWorkflowEnvironment();
     const worker = await Worker.create({
       ...defaultOptions,

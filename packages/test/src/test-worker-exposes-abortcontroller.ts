@@ -8,17 +8,18 @@ import { abortController } from './workflows';
 if (RUN_INTEGRATION_TESTS) {
   test(`Worker runtime exposes AbortController as a global`, async (t) => {
     const env = await createTestWorkflowEnvironment();
+    const taskQueue = `test-worker-exposes-abortcontroller-${randomUUID()}`;
     try {
       const worker = await Worker.create({
         ...defaultOptions,
-        taskQueue: 'test-worker-exposes-abortcontroller',
+        taskQueue,
         connection: env.nativeConnection,
         namespace: env.namespace,
       });
       const result = await worker.runUntil(
         env.client.workflow.execute(abortController, {
           args: [],
-          taskQueue: 'test-worker-exposes-abortcontroller',
+          taskQueue,
           workflowId: randomUUID(),
           workflowExecutionTimeout: '5s',
         })

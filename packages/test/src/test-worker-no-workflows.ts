@@ -9,24 +9,26 @@ if (RUN_INTEGRATION_TESTS) {
   test('Worker functions when asked not to run Workflows', async (t) => {
     const env = await createTestWorkflowEnvironment();
     const { activities } = defaultOptions;
+    const activityTaskQueue = `only-activities-${randomUUID()}`;
+    const workflowTaskQueue = `also-workflows-${randomUUID()}`;
     try {
       const workflowlessWorker = await Worker.create({
-        taskQueue: 'only-activities',
+        taskQueue: activityTaskQueue,
         activities,
         connection: env.nativeConnection,
         namespace: env.namespace,
       });
       const normalWorker = await Worker.create({
         ...defaultOptions,
-        taskQueue: 'also-workflows',
+        taskQueue: workflowTaskQueue,
         connection: env.nativeConnection,
         namespace: env.namespace,
       });
       const result = await normalWorker.runUntil(
         workflowlessWorker.runUntil(
           env.client.workflow.execute(runActivityInDifferentTaskQueue, {
-            args: ['only-activities'],
-            taskQueue: 'also-workflows',
+            args: [activityTaskQueue],
+            taskQueue: workflowTaskQueue,
             workflowId: randomUUID(),
           })
         )
