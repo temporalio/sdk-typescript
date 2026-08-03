@@ -13,6 +13,7 @@ import { IllegalStateError, NativeConnection, TransportError } from '@temporalio
 import { toNativeClientOptions } from '@temporalio/worker/lib/connection-options';
 import type { temporal } from '@temporalio/proto';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
+import { requiresLocalServer } from '@temporalio/test-helpers';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 
 const workflowServicePackageDefinition = protoLoader.loadSync(
@@ -425,7 +426,9 @@ test('all TestService methods are implemented', async (t) => {
   server.forceShutdown();
 });
 
-test('can power workflow client calls', async (t) => {
+const localTest = requiresLocalServer('creates an ephemeral server for native connection client calls', test);
+
+localTest('can power workflow client calls', async (t) => {
   const env = await TestWorkflowEnvironment.createLocal();
   try {
     {

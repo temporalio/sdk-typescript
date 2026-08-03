@@ -1,10 +1,13 @@
 import crypto from 'crypto';
 import test from 'ava';
 import * as wf from '@temporalio/workflow';
+import { requiresLocalServer } from '@temporalio/test-helpers';
 import { Worker, TestWorkflowEnvironment } from './helpers';
 import * as workflows from './workflows/signal-query-patch-pre-patch';
 
-test('Signal+Query+Patch does not cause non-determinism error on replay', async (t) => {
+const localTest = requiresLocalServer('creates an ephemeral server for a worker replacement test', test);
+
+localTest('Signal+Query+Patch does not cause non-determinism error on replay', async (t) => {
   const env = await TestWorkflowEnvironment.createLocal();
   try {
     const workflowId = crypto.randomUUID();

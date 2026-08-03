@@ -5,6 +5,7 @@ import { WorkflowFailedError } from '@temporalio/client';
 import { workflowInterceptorModules } from '@temporalio/testing';
 import type { WorkflowBundleWithSourceMap } from '@temporalio/worker';
 import { bundleWorkflowCode } from '@temporalio/worker';
+import { requiresLocalServer } from '@temporalio/test-helpers';
 import {
   assertFromWorkflow,
   asyncChildStarter,
@@ -20,7 +21,10 @@ interface Context {
   bundle: WorkflowBundleWithSourceMap;
 }
 
-const testTimeSkipping = anyTestTimeSkipping as TestFn<Context>;
+const testTimeSkipping = requiresLocalServer(
+  'uses the time-skipping test server',
+  anyTestTimeSkipping as TestFn<Context>
+);
 
 testTimeSkipping.before(async (t) => {
   t.context = {

@@ -1,11 +1,14 @@
 import { randomUUID } from 'crypto';
 import test from 'ava';
 import { Runtime, Worker } from '@temporalio/worker';
+import { requiresLocalServer } from '@temporalio/test-helpers';
 import { getRandomPort, TestWorkflowEnvironment, assertEventually } from './helpers';
 import * as activities from './activities';
 import * as workflows from './workflows';
 
-test.serial('Can run autoscaling polling worker', async (t) => {
+const localTest = requiresLocalServer('creates an ephemeral server to exercise autoscaling pollers', test);
+
+localTest.serial('Can run autoscaling polling worker', async (t) => {
   const port = await getRandomPort();
   Runtime.install({
     telemetryOptions: {

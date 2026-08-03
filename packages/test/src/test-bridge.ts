@@ -2,6 +2,7 @@ import { setTimeout } from 'node:timers/promises';
 import ms from 'ms';
 import test from 'ava';
 import { native, errors } from '@temporalio/core-bridge';
+import { requiresLocalServer } from '@temporalio/test-helpers';
 
 // TESTING NOTES
 //
@@ -9,6 +10,11 @@ import { native, errors } from '@temporalio/core-bridge';
 //   server support provided by Core SDK would affect the behavior that we're testing here.
 // - Tests in this file can't be run in parallel, since the bridge is mostly a singleton.
 // - Some of these tests explicitly use the native bridge, without going through the lang side Runtime/Worker.
+
+const localTest = requiresLocalServer(
+  'uses low-level bridge client configuration that targets the external local server',
+  test
+);
 
 test('Can instantiate and shutdown the native runtime', async (t) => {
   const runtime = native.newRuntime(GenericConfigs.runtime.basic);
@@ -29,7 +35,7 @@ test('Can instantiate and shutdown the native runtime', async (t) => {
   });
 });
 
-test('Can run multiple runtime concurrently', async (t) => {
+localTest('Can run multiple runtime concurrently', async (t) => {
   const runtime1 = native.newRuntime(GenericConfigs.runtime.basic);
   const runtime2 = native.newRuntime(GenericConfigs.runtime.basic);
   const runtime3 = native.newRuntime(GenericConfigs.runtime.basic);
@@ -141,13 +147,13 @@ test("Creating Runtime without shutting it down doesn't hang process", (t) => {
   t.pass();
 });
 
-test("Dropping Client without closing doesn't hang process", (t) => {
+localTest("Dropping Client without closing doesn't hang process", (t) => {
   const runtime = native.newRuntime(GenericConfigs.runtime.basic);
   const _client = native.newClient(runtime, GenericConfigs.client.basic);
   t.pass();
 });
 
-test("Dropping Worker without shutting it down doesn't hang process", async (t) => {
+localTest("Dropping Worker without shutting it down doesn't hang process", async (t) => {
   const runtime = native.newRuntime(GenericConfigs.runtime.basic);
   const client = await native.newClient(runtime, GenericConfigs.client.basic);
   const worker = native.newWorker(client, GenericConfigs.worker.basic);
@@ -162,7 +168,7 @@ test("Dropping EphemeralServer without shutting it down doesn't hang process", a
   t.pass();
 });
 
-test("Stopping Worker after creating another runtime doesn't fail", async (t) => {
+localTest("Stopping Worker after creating another runtime doesn't fail", async (t) => {
   async function expectShutdownError(taskPromise: () => Promise<Buffer>) {
     await t.throwsAsync(taskPromise, {
       instanceOf: errors.ShutdownError,

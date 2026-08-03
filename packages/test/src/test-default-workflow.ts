@@ -3,10 +3,13 @@
  */
 import { randomUUID } from 'crypto';
 import test from 'ava';
+import { requiresLocalServer } from '@temporalio/test-helpers';
 import { TestWorkflowEnvironment, Worker } from './helpers';
 import { existing } from './workflows/default-workflow-function';
 
-test('Default workflow handler is used if requested workflow does not exist', async (t) => {
+const localTest = requiresLocalServer('creates an ephemeral server for default workflow handler tests', test);
+
+localTest('Default workflow handler is used if requested workflow does not exist', async (t) => {
   const env = await TestWorkflowEnvironment.createLocal();
   try {
     const taskQueue = `${t.title}-${randomUUID()}`;
@@ -30,7 +33,7 @@ test('Default workflow handler is used if requested workflow does not exist', as
   }
 });
 
-test('Default workflow handler is not used if requested workflow exists', async (t) => {
+localTest('Default workflow handler is not used if requested workflow exists', async (t) => {
   const env = await TestWorkflowEnvironment.createLocal();
   try {
     const taskQueue = `${t.title}-${randomUUID()}`;

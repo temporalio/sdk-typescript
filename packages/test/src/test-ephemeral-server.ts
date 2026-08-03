@@ -6,6 +6,7 @@ import type { WorkflowBundle } from '@temporalio/worker';
 import { bundleWorkflowCode } from '@temporalio/worker';
 import { Connection } from '@temporalio/client';
 import { TestWorkflowEnvironment as RealTestWorkflowEnvironment } from '@temporalio/testing';
+import { requiresLocalServer } from '@temporalio/test-helpers';
 import {
   Worker,
   TestWorkflowEnvironment,
@@ -19,8 +20,11 @@ interface Context {
   taskQueue: string;
 }
 
-const test = anyTest as TestFn<Context>;
-const testTimeSkipping = testTimeSkippingFromHelpers as TestFn<Context>;
+const test = requiresLocalServer('starts and configures ephemeral Temporal servers', anyTest as TestFn<Context>);
+const testTimeSkipping = requiresLocalServer(
+  'starts and configures ephemeral Temporal servers',
+  testTimeSkippingFromHelpers as TestFn<Context>
+);
 
 test.before(async (t) => {
   t.context.bundle = await bundleWorkflowCode({ workflowsPath: require.resolve('./workflows') });

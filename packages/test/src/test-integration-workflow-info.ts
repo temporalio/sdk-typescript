@@ -11,6 +11,7 @@ import {
   TypedSearchAttributes,
 } from '@temporalio/common';
 import { encode } from '@temporalio/common/lib/encoding';
+import { requiresLocalServer } from '@temporalio/test-helpers';
 import {
   buildIdTester,
   completableWorkflow,
@@ -189,7 +190,9 @@ test('Count workflow executions', async (t) => {
   });
 });
 
-test.serial('can register search attributes to dev server', async (t) => {
+const localTest = requiresLocalServer('starts a dev server with a custom search attribute', test);
+
+localTest.serial('can register search attributes to dev server', async (t) => {
   const key = defineSearchAttributeKey('new-search-attr', SearchAttributeType.INT);
   const newSearchAttribute: SearchAttributePair = { key, value: 12 };
 
