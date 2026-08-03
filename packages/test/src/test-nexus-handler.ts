@@ -19,6 +19,7 @@ import {
 } from '@temporalio/common';
 import { ServiceError } from '@temporalio/client';
 import { coerceToHandlerError, operationErrorToProto } from '@temporalio/worker/lib/nexus/conversions';
+import { requiresLocalServer } from '@temporalio/test-helpers';
 
 export interface Context {
   taskQueue: string;
@@ -27,7 +28,10 @@ export interface Context {
   logEntries: LogEntry[];
 }
 
-const test = anyTest as TestFn<Context>;
+const test = requiresLocalServer<Context>(
+  'Current Cloud credentials cannot manage Nexus endpoints (temporalio/features#851).',
+  anyTest as TestFn<Context>
+);
 
 test.before(async (t) => {
   const logEntries = new Array<LogEntry>();

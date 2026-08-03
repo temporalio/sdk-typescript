@@ -12,7 +12,11 @@ import { unwrapHandlerErrorCause, innermostHandlerError } from './helpers-nexus'
 import { waitUntil } from './helpers';
 
 const recordedLogs: { [key: string]: LogEntry[] } = {};
-const test = makeTestFunction({ workflowsPath: __filename, recordedLogs });
+const test = makeTestFunction({
+  workflowsPath: __filename,
+  recordedLogs,
+  requiresLocalServer: 'Current Cloud credentials cannot manage Nexus endpoints (temporalio/features#851).',
+});
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Service definitions
