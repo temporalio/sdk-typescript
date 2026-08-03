@@ -251,11 +251,15 @@ export function helpers(t: ExecutionContext<Context>, env?: TestWorkflowEnvironm
       const endpointName = (suffix ? `${taskQueue}-${suffix}` : taskQueue).replaceAll('_', '-');
       try {
         const endpointIdentifier = await testEnv.createNexusEndpoint(endpointName, taskQueue);
-        t.teardown(() =>
-          testEnv.deleteNexusEndpoint(endpointIdentifier).catch(() => {
-            /* ignore cleanup errors */
-          })
-        );
+        t.teardown(async () => {
+          try {
+            await testEnv.deleteNexusEndpoint(endpointIdentifier);
+          } catch (err) {
+            if (!isGrpcServiceError(err) || err.code !== grpcStatus.NOT_FOUND) {
+              throw err;
+            }
+          }
+        });
         return { endpointName, endpointIdentifier };
       } catch (err) {
         if (err instanceof Error) {
