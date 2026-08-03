@@ -9,7 +9,7 @@ if (RUN_INTEGRATION_TESTS) {
   test('Worker works in debugMode', async (t) => {
     const env = await createTestWorkflowEnvironment();
     // To debug Workflows with this worker run the test with `ava debug` and add breakpoints to your Workflows
-    const taskQueue = 'debug-mode';
+    const taskQueue = `debug-mode-${randomUUID()}`;
     try {
       const worker = await Worker.create({
         ...defaultOptions,

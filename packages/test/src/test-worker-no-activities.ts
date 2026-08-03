@@ -8,11 +8,12 @@ import { successString } from './workflows';
 if (RUN_INTEGRATION_TESTS) {
   test('Worker functions when asked not to run Activities', async (t) => {
     const env = await createTestWorkflowEnvironment();
+    const workflowTaskQueue = `only-workflows-${randomUUID()}`;
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { activities, taskQueue, ...rest } = defaultOptions;
     try {
       const worker = await Worker.create({
-        taskQueue: 'only-workflows',
+        taskQueue: workflowTaskQueue,
         ...rest,
         connection: env.nativeConnection,
         namespace: env.namespace,
@@ -20,7 +21,7 @@ if (RUN_INTEGRATION_TESTS) {
       const result = await worker.runUntil(
         env.client.workflow.execute(successString, {
           workflowId: randomUUID(),
-          taskQueue: 'only-workflows',
+          taskQueue: workflowTaskQueue,
         })
       );
       t.is(result, 'success');
