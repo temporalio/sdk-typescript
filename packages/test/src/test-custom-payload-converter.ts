@@ -7,6 +7,7 @@ import { coresdk } from '@temporalio/proto';
 import { ProtoActivityResult } from '../protos/root';
 import { protoActivity } from './activities';
 import { cleanOptionalStackTrace, RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { createTestWorkflowEnvironment } from './helpers-integration';
 import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
 import { messageInstance, payloadConverter } from './payload-converters/proto-payload-converter';
 import * as workflows from './workflows';
@@ -28,16 +29,27 @@ function compareCompletion(
 }
 
 if (RUN_INTEGRATION_TESTS) {
+  let env: Awaited<ReturnType<typeof createTestWorkflowEnvironment>>;
+
+  test.before(async () => {
+    env = await createTestWorkflowEnvironment();
+  });
+  test.after.always(async () => {
+    await env.teardown();
+  });
+
   test('Client and Worker work with provided dataConverter', async (t) => {
     const dataConverter = { payloadConverterPath: require.resolve('./payload-converters/proto-payload-converter') };
-    const taskQueue = 'test-custom-payload-converter';
+    const taskQueue = `test-custom-payload-converter-${randomUUID()}`;
     const worker = await Worker.create({
       ...defaultOptions,
       workflowsPath: require.resolve('./workflows/protobufs'),
       taskQueue,
       dataConverter,
+      connection: env.nativeConnection,
+      namespace: env.namespace,
     });
-    const client = new WorkflowClient({ dataConverter });
+    const client = new WorkflowClient({ connection: env.connection, namespace: env.namespace, dataConverter });
     await worker.runUntil(async () => {
       const result = await client.execute(protobufWorkflow, {
         args: [messageInstance],
@@ -52,12 +64,16 @@ if (RUN_INTEGRATION_TESTS) {
   test('fromPayload throws on Client when receiving result from client.execute()', async (t) => {
     const worker = await Worker.create({
       ...defaultOptions,
+      connection: env.nativeConnection,
+      namespace: env.namespace,
     });
 
     const client = new WorkflowClient({
       dataConverter: {
         payloadConverterPath: require.resolve('./payload-converters/payload-converter-throws-from-payload'),
       },
+      connection: env.connection,
+      namespace: env.namespace,
     });
     await worker.runUntil(
       t.throwsAsync(

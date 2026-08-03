@@ -6,6 +6,7 @@ import { decode } from '@temporalio/common/lib/encoding';
 import type { InjectedSinks } from '@temporalio/worker';
 import { createConcatActivity } from './activities/create-concat-activity';
 import { RUN_INTEGRATION_TESTS, u8, Worker } from './helpers';
+import { createTestWorkflowEnvironment } from './helpers-integration';
 import { defaultOptions } from './mock-native-worker';
 import type { LogSinks } from './workflows';
 import { twoStrings, twoStringsActivity } from './workflows';
@@ -37,6 +38,15 @@ class TestDecodeCodec implements PayloadCodec {
 }
 
 if (RUN_INTEGRATION_TESTS) {
+  let env: Awaited<ReturnType<typeof createTestWorkflowEnvironment>>;
+
+  test.before(async () => {
+    env = await createTestWorkflowEnvironment();
+  });
+  test.after.always(async () => {
+    await env.teardown();
+  });
+
   test('Workflow arguments and retvals are encoded', async (t) => {
     const logs: string[] = [];
     const sinks: InjectedSinks<LogSinks> = {
@@ -50,14 +60,16 @@ if (RUN_INTEGRATION_TESTS) {
     };
 
     const dataConverter = { payloadCodecs: [new TestEncodeCodec()] };
-    const taskQueue = 'test-workflow-encoded';
+    const taskQueue = `test-workflow-encoded-${randomUUID()}`;
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
       dataConverter,
       sinks,
+      connection: env.nativeConnection,
+      namespace: env.namespace,
     });
-    const client = new WorkflowClient({ dataConverter });
+    const client = new WorkflowClient({ connection: env.connection, namespace: env.namespace, dataConverter });
     await worker.runUntil(async () => {
       const result = await client.execute(twoStrings, {
         args: ['arg1', 'arg2'],
@@ -83,14 +95,16 @@ if (RUN_INTEGRATION_TESTS) {
     };
 
     const dataConverter = { payloadCodecs: [new TestDecodeCodec()] };
-    const taskQueue = 'test-workflow-decoded';
+    const taskQueue = `test-workflow-decoded-${randomUUID()}`;
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
       dataConverter,
       sinks,
+      connection: env.nativeConnection,
+      namespace: env.namespace,
     });
-    const client = new WorkflowClient({ dataConverter });
+    const client = new WorkflowClient({ connection: env.connection, namespace: env.namespace, dataConverter });
     await worker.runUntil(async () => {
       const result = await client.execute(twoStrings, {
         args: ['arg1', 'arg2'],
@@ -117,15 +131,17 @@ if (RUN_INTEGRATION_TESTS) {
     const activityLogs: string[] = [];
 
     const dataConverter = { payloadCodecs: [new TestEncodeCodec()] };
-    const taskQueue = 'test-activity-encoded';
+    const taskQueue = `test-activity-encoded-${randomUUID()}`;
     const worker = await Worker.create({
       ...defaultOptions,
       activities: createConcatActivity(activityLogs),
       taskQueue,
       dataConverter,
       sinks,
+      connection: env.nativeConnection,
+      namespace: env.namespace,
     });
-    const client = new WorkflowClient({ dataConverter });
+    const client = new WorkflowClient({ connection: env.connection, namespace: env.namespace, dataConverter });
     await worker.runUntil(async () => {
       await client.execute(twoStringsActivity, {
         workflowId: randomUUID(),
@@ -150,15 +166,17 @@ if (RUN_INTEGRATION_TESTS) {
     const activityLogs: string[] = [];
 
     const dataConverter = { payloadCodecs: [new TestDecodeCodec()] };
-    const taskQueue = 'test-activity-decoded';
+    const taskQueue = `test-activity-decoded-${randomUUID()}`;
     const worker = await Worker.create({
       ...defaultOptions,
       activities: createConcatActivity(activityLogs),
       taskQueue,
       dataConverter,
       sinks,
+      connection: env.nativeConnection,
+      namespace: env.namespace,
     });
-    const client = new WorkflowClient({ dataConverter });
+    const client = new WorkflowClient({ connection: env.connection, namespace: env.namespace, dataConverter });
     await worker.runUntil(async () => {
       await client.execute(twoStringsActivity, {
         workflowId: randomUUID(),
@@ -197,14 +215,16 @@ if (RUN_INTEGRATION_TESTS) {
         },
       ],
     };
-    const taskQueue = 'test-workflow-encoded-order';
+    const taskQueue = `test-workflow-encoded-order-${randomUUID()}`;
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
       dataConverter,
       sinks,
+      connection: env.nativeConnection,
+      namespace: env.namespace,
     });
-    const client = new WorkflowClient({ dataConverter });
+    const client = new WorkflowClient({ connection: env.connection, namespace: env.namespace, dataConverter });
     await worker.runUntil(async () => {
       const result = await client.execute(twoStrings, {
         args: ['arg1', 'arg2'],
@@ -246,14 +266,16 @@ if (RUN_INTEGRATION_TESTS) {
         new TestDecodeCodec(),
       ],
     };
-    const taskQueue = 'test-workflow-decoded-order';
+    const taskQueue = `test-workflow-decoded-order-${randomUUID()}`;
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
       dataConverter,
       sinks,
+      connection: env.nativeConnection,
+      namespace: env.namespace,
     });
-    const client = new WorkflowClient({ dataConverter });
+    const client = new WorkflowClient({ connection: env.connection, namespace: env.namespace, dataConverter });
     await worker.runUntil(async () => {
       const result = await client.execute(twoStrings, {
         args: ['arg1', 'arg2'],

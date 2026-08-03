@@ -14,6 +14,7 @@ import { DefaultLogger, Runtime } from '@temporalio/worker';
 import type { WorkflowInfo } from '@temporalio/workflow';
 import { defaultPayloadConverter } from '@temporalio/workflow';
 import { isBun, cleanOptionalStackTrace, compareStackTrace, RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { createTestWorkflowEnvironment } from './helpers-integration';
 import { defaultOptions } from './mock-native-worker';
 import {
   checkDisposeRan,
@@ -28,17 +29,27 @@ import {
 import { getSecretQuery, unblockWithSecretSignal } from './workflows/interceptor-example';
 
 if (RUN_INTEGRATION_TESTS) {
+  let env: Awaited<ReturnType<typeof createTestWorkflowEnvironment>>;
+
   test.before(() => {
     Runtime.install({ logger: new DefaultLogger('DEBUG') });
   });
+  test.before(async () => {
+    env = await createTestWorkflowEnvironment();
+  });
+  test.after.always(async () => {
+    await env.teardown();
+  });
 
   test.serial('Tracing can be implemented using interceptors', async (t) => {
-    const taskQueue = 'test-interceptors';
+    const taskQueue = `test-interceptors-${randomUUID()}`;
     const message = randomUUID();
 
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
+      connection: env.nativeConnection,
+      namespace: env.namespace,
       interceptors: {
         activity: [
           () => ({
@@ -55,6 +66,8 @@ if (RUN_INTEGRATION_TESTS) {
       },
     });
     const client = new WorkflowClient({
+      connection: env.connection,
+      namespace: env.namespace,
       interceptors: [
         {
           async start(input, next) {
@@ -132,14 +145,18 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test.serial('(Legacy) WorkflowClientCallsInterceptor intercepts terminate and cancel', async (t) => {
-    const taskQueue = 'test-interceptor-term-and-cancel';
+    const taskQueue = `test-interceptor-term-and-cancel-${randomUUID()}`;
     const message = randomUUID();
     // Use these to coordinate with workflow activation to complete only after termination
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
+      connection: env.nativeConnection,
+      namespace: env.namespace,
     });
     const client = new WorkflowClient({
+      connection: env.connection,
+      namespace: env.namespace,
       interceptors: {
         calls: [
           () => ({
@@ -176,14 +193,18 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test.serial('WorkflowClientInterceptor intercepts terminate and cancel', async (t) => {
-    const taskQueue = 'test-interceptor-term-and-cancel';
+    const taskQueue = `test-interceptor-term-and-cancel-${randomUUID()}`;
     const message = randomUUID();
     // Use these to coordinate with workflow activation to complete only after termination
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
+      connection: env.nativeConnection,
+      namespace: env.namespace,
     });
     const client = new WorkflowClient({
+      connection: env.connection,
+      namespace: env.namespace,
       interceptors: [
         {
           async terminate(input, next) {
@@ -218,7 +239,7 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test.serial('Workflow continueAsNew can be intercepted', async (t) => {
-    const taskQueue = 'test-continue-as-new-interceptor';
+    const taskQueue = `test-continue-as-new-interceptor-${randomUUID()}`;
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
@@ -226,8 +247,10 @@ if (RUN_INTEGRATION_TESTS) {
         // Includes an interceptor for ContinueAsNew that will throw an error when used with the workflow below
         workflowModules: [require.resolve('./workflows/interceptor-example')],
       },
+      connection: env.nativeConnection,
+      namespace: env.namespace,
     });
-    const client = new WorkflowClient();
+    const client = new WorkflowClient({ connection: env.connection, namespace: env.namespace });
     const err = await worker.runUntil(async () => {
       return (await t.throwsAsync(
         client.execute(continueAsNewToDifferentWorkflow, {
@@ -268,7 +291,7 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test.serial('Internals can be intercepted for observing Workflow state changes', async (t) => {
-    const taskQueue = 'test-internals-interceptor';
+    const taskQueue = `test-internals-interceptor-${randomUUID()}`;
 
     const events = Array<string>();
     const worker = await Worker.create({
@@ -287,8 +310,10 @@ if (RUN_INTEGRATION_TESTS) {
           },
         },
       },
+      connection: env.nativeConnection,
+      namespace: env.namespace,
     });
-    const client = new WorkflowClient();
+    const client = new WorkflowClient({ connection: env.connection, namespace: env.namespace });
     await worker.runUntil(
       client.execute(internalsInterceptorExample, {
         taskQueue,
@@ -299,16 +324,18 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test.serial('Internal interceptor disposes in reusable VM', async (t) => {
-    const taskQueue = 'test-reusable-vm-internal-interceptor-disposes';
+    const taskQueue = `test-reusable-vm-internal-interceptor-disposes-${randomUUID()}`;
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
       interceptors: {
         workflowModules: [require.resolve('./workflows/internal-interceptor-dispose-global')],
       },
+      connection: env.nativeConnection,
+      namespace: env.namespace,
     });
 
-    const client = new WorkflowClient();
+    const client = new WorkflowClient({ connection: env.connection, namespace: env.namespace });
     await worker.runUntil(async () => {
       const disposeFlagSet = await client.execute(initAndResetFlag, {
         taskQueue,
@@ -333,13 +360,15 @@ if (RUN_INTEGRATION_TESTS) {
   // CancellationScope.current().cancel() to clean up.
   // When storage is disabled, this incorrectly cancels the rootScope, failing the workflow with "Workflow cancelled".
   test.serial('workflow disposal does not break CancellationScope in other workflows in reusable vm', async (t) => {
-    const taskQueue = 'test-reusable-vm-disposal-cancellation-scope';
+    const taskQueue = `test-reusable-vm-disposal-cancellation-scope-${randomUUID()}`;
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
+      connection: env.nativeConnection,
+      namespace: env.namespace,
     });
 
-    const client = new WorkflowClient();
+    const client = new WorkflowClient({ connection: env.connection, namespace: env.namespace });
     const result = await worker.runUntil(async () => {
       // Fill the cache with workflow that complete immediately
       await client.execute(successString, { taskQueue, workflowId: randomUUID() });

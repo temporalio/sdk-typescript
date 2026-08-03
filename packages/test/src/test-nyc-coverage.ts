@@ -2,9 +2,10 @@ import { randomUUID } from 'crypto';
 import test from 'ava';
 import * as libCoverage from 'istanbul-lib-coverage';
 import { bundleWorkflowCode, Worker } from '@temporalio/worker';
-import { Client, WorkflowClient } from '@temporalio/client';
+import { WorkflowClient } from '@temporalio/client';
 import { WorkflowCoverage } from '@temporalio/nyc-test-coverage';
 import { RUN_INTEGRATION_TESTS } from './helpers';
+import { createTestWorkflowEnvironment } from './helpers-integration';
 import { successString } from './workflows';
 
 declare global {
@@ -12,6 +13,15 @@ declare global {
 }
 
 if (RUN_INTEGRATION_TESTS) {
+  let env: Awaited<ReturnType<typeof createTestWorkflowEnvironment>>;
+
+  test.before(async () => {
+    env = await createTestWorkflowEnvironment();
+  });
+  test.after.always(async () => {
+    await env.teardown();
+  });
+
   test('Istanbul injector execute correctly in Worker', async (t) => {
     // Make it believe that NYC has been loaded
     (global as any).__coverage__ = {};
@@ -23,9 +33,11 @@ if (RUN_INTEGRATION_TESTS) {
       workflowCoverage.augmentWorkerOptions({
         taskQueue,
         workflowsPath: require.resolve('./workflows'),
+        connection: env.nativeConnection,
+        namespace: env.namespace,
       })
     );
-    const client = new Client();
+    const client = env.client;
     await worker.runUntil(client.workflow.execute(successString, { taskQueue, workflowId: randomUUID() }));
 
     workflowCoverage.mergeIntoGlobalCoverage();
@@ -54,9 +66,11 @@ if (RUN_INTEGRATION_TESTS) {
       workflowCoverageWorker.augmentWorkerOptionsWithBundle({
         taskQueue,
         workflowBundle: { code },
+        connection: env.nativeConnection,
+        namespace: env.namespace,
       })
     );
-    const client = new Client();
+    const client = env.client;
     await worker.runUntil(client.workflow.execute(successString, { taskQueue, workflowId: randomUUID() }));
 
     workflowCoverageBundler.mergeIntoGlobalCoverage();
@@ -81,9 +95,11 @@ if (RUN_INTEGRATION_TESTS) {
       workflowCoverage.augmentWorkerOptions({
         taskQueue,
         workflowsPath: require.resolve('./workflows'),
+        connection: env.nativeConnection,
+        namespace: env.namespace,
       })
     );
-    const client = new WorkflowClient();
+    const client = new WorkflowClient({ connection: env.connection, namespace: env.namespace });
     await worker.runUntil(client.execute(successString, { taskQueue, workflowId: randomUUID() }));
 
     workflowCoverage.mergeIntoGlobalCoverage();

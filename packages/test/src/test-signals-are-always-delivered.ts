@@ -13,16 +13,23 @@ import type { InjectedSinks } from '@temporalio/worker';
 import { DefaultLogger, Runtime } from '@temporalio/worker';
 import { defaultOptions } from './mock-native-worker';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { createTestWorkflowEnvironment } from './helpers-integration';
 import * as workflows from './workflows';
 
 if (RUN_INTEGRATION_TESTS) {
+  let env: Awaited<ReturnType<typeof createTestWorkflowEnvironment>>;
+
   test.before(async () => {
     Runtime.install({ logger: new DefaultLogger('DEBUG') });
+    env = await createTestWorkflowEnvironment();
+  });
+  test.after.always(async () => {
+    await env.teardown();
   });
 
   test('Signals are always delivered', async (t) => {
-    const taskQueue = 'test-signal-delivery';
-    const conn = new WorkflowClient();
+    const taskQueue = `test-signal-delivery-${randomUUID()}`;
+    const conn = new WorkflowClient({ connection: env.connection, namespace: env.namespace });
     const wf = await conn.start(workflows.signalsAreAlwaysProcessed, { taskQueue, workflowId: randomUUID() });
 
     const sinks: InjectedSinks<workflows.SignalProcessTestSinks> = {
@@ -40,6 +47,8 @@ if (RUN_INTEGRATION_TESTS) {
       ...defaultOptions,
       taskQueue,
       sinks,
+      connection: env.nativeConnection,
+      namespace: env.namespace,
     });
 
     await worker.runUntil(wf.result());
