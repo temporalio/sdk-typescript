@@ -10,75 +10,99 @@ import test from 'ava';
 import type { LogEntry, NativeConnection } from '@temporalio/worker';
 import { Runtime, PromiseCompletionTimeoutError, DefaultLogger, MetricsBuffer } from '@temporalio/worker';
 import { TransportError, UnexpectedError } from '@temporalio/worker/lib/errors';
-import { Client } from '@temporalio/client';
 import { isBun, RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { createTestWorkflowEnvironment } from './helpers-integration';
 import { defaultOptions, isolateFreeWorker, Worker as MockWorker } from './mock-native-worker';
 import { fillMemory } from './workflows';
 
 if (RUN_INTEGRATION_TESTS) {
   test.serial('Worker shuts down gracefully', async (t) => {
-    const worker = await Worker.create({
-      ...defaultOptions,
-      taskQueue: t.title.replace(/ /g, '_'),
-    });
-    t.is(worker.getState(), 'INITIALIZED');
-    t.not(Runtime._instance, undefined);
-    const p = worker.run();
-    t.is(worker.getState(), 'RUNNING');
-    process.emit('SIGINT', 'SIGINT');
-    // Shutdown callback is enqueued as a microtask
-    await new Promise((resolve) => process.nextTick(resolve));
-    t.is(worker.getState(), 'DRAINING');
-    await p;
-    t.is(worker.getState(), 'STOPPED');
-    await t.throwsAsync(worker.run(), { message: 'Poller was already started' });
-    t.is(Runtime._instance, undefined);
+    const env = await createTestWorkflowEnvironment();
+    try {
+      const worker = await Worker.create({
+        ...defaultOptions,
+        taskQueue: t.title.replace(/ /g, '_'),
+        connection: env.nativeConnection,
+        namespace: env.namespace,
+      });
+      t.is(worker.getState(), 'INITIALIZED');
+      t.not(Runtime._instance, undefined);
+      const p = worker.run();
+      t.is(worker.getState(), 'RUNNING');
+      process.emit('SIGINT', 'SIGINT');
+      // Shutdown callback is enqueued as a microtask
+      await new Promise((resolve) => process.nextTick(resolve));
+      t.is(worker.getState(), 'DRAINING');
+      await p;
+      t.is(worker.getState(), 'STOPPED');
+      await t.throwsAsync(worker.run(), { message: 'Poller was already started' });
+      t.is(Runtime._instance, undefined);
+    } finally {
+      await env.teardown();
+    }
   });
 
   test.serial("Worker.runUntil doesn't hang if provided promise survives to Worker's shutdown", async (t) => {
-    const worker = await Worker.create({
-      ...defaultOptions,
-      taskQueue: t.title.replace(/ /g, '_'),
-    });
-    t.not(Runtime._instance, undefined);
-    const p = worker.runUntil(
-      new Promise(() => {
-        /* a promise that will never unblock */
-      })
-    );
-    t.is(worker.getState(), 'RUNNING');
-    worker.shutdown();
-    t.is(worker.getState(), 'DRAINING');
-    await t.throwsAsync(p, { instanceOf: PromiseCompletionTimeoutError });
-    t.is(worker.getState(), 'STOPPED');
-    t.is(Runtime._instance, undefined);
+    const env = await createTestWorkflowEnvironment();
+    try {
+      const worker = await Worker.create({
+        ...defaultOptions,
+        taskQueue: t.title.replace(/ /g, '_'),
+        connection: env.nativeConnection,
+        namespace: env.namespace,
+      });
+      t.not(Runtime._instance, undefined);
+      const p = worker.runUntil(
+        new Promise(() => {
+          /* a promise that will never unblock */
+        })
+      );
+      t.is(worker.getState(), 'RUNNING');
+      worker.shutdown();
+      t.is(worker.getState(), 'DRAINING');
+      await t.throwsAsync(p, { instanceOf: PromiseCompletionTimeoutError });
+      t.is(worker.getState(), 'STOPPED');
+      t.is(Runtime._instance, undefined);
+    } finally {
+      await env.teardown();
+    }
   });
 
   test.serial('Worker shuts down gracefully if interrupted before running', async (t) => {
-    const worker = await Worker.create({
-      ...defaultOptions,
-      taskQueue: t.title.replace(/ /g, '_'),
-    });
-    t.is(worker.getState(), 'INITIALIZED');
-    process.emit('SIGINT', 'SIGINT');
-    const p = worker.run();
-    t.is(worker.getState(), 'RUNNING');
-    await p;
-    t.is(worker.getState(), 'STOPPED');
+    const env = await createTestWorkflowEnvironment();
+    try {
+      const worker = await Worker.create({
+        ...defaultOptions,
+        taskQueue: t.title.replace(/ /g, '_'),
+        connection: env.nativeConnection,
+        namespace: env.namespace,
+      });
+      t.is(worker.getState(), 'INITIALIZED');
+      process.emit('SIGINT', 'SIGINT');
+      const p = worker.run();
+      t.is(worker.getState(), 'RUNNING');
+      await p;
+      t.is(worker.getState(), 'STOPPED');
+    } finally {
+      await env.teardown();
+    }
   });
 
   test.serial('Worker fails validation against unknown namespace', async (t) => {
-    await t.throwsAsync(
-      Worker.create({
-        ...defaultOptions,
-        taskQueue: t.title.replace(/ /g, '_'),
-        namespace: 'oogabooga',
-      }),
-      {
-        instanceOf: TransportError,
-        message: /Namespace oogabooga is not found/,
-      }
-    );
+    const env = await createTestWorkflowEnvironment();
+    try {
+      await t.throwsAsync(
+        Worker.create({
+          ...defaultOptions,
+          taskQueue: t.title.replace(/ /g, '_'),
+          connection: env.nativeConnection,
+          namespace: 'oogabooga',
+        }),
+        { instanceOf: TransportError, message: /Namespace oogabooga is not found/ }
+      );
+    } finally {
+      await env.teardown();
+    }
   });
 
   // Skip this test for Bun as the workflow doesn't cause an OOM unlike Node
@@ -88,16 +112,18 @@ if (RUN_INTEGRATION_TESTS) {
     t.timeout(30_000);
 
     const taskQueue = t.title.replace(/ /g, '_');
-    const client = new Client();
+    const env = await createTestWorkflowEnvironment();
     const worker = await Worker.create({
       ...defaultOptions,
       taskQueue,
+      connection: env.nativeConnection,
+      namespace: env.namespace,
     });
 
     // This workflow will allocate large block of memory, hopefully causing a ERR_WORKER_OUT_OF_MEMORY.
     // Note that due to the way Node/V8 optimize byte code, its possible that this may trigger
     // other type of errors, including some that can't be intercepted cleanly.
-    client.workflow
+    env.client.workflow
       .start(fillMemory, {
         taskQueue,
         workflowId: randomUUID(),
@@ -128,6 +154,7 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(worker.getState(), 'FAILED');
     } finally {
       if (Runtime._instance) await Runtime._instance.shutdown();
+      await env.teardown();
     }
   });
 }
