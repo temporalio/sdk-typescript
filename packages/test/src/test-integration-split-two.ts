@@ -560,7 +560,7 @@ test.serial(
       await handle.result();
       await t.throwsAsync(
         client.workflow.signalWithStart(workflows.sleeper, {
-          taskQueue: 'test',
+          taskQueue: `${handle.workflowId}-duplicate`,
           workflowId: handle.workflowId,
           signal: workflows.interruptSignal,
           signalArgs: ['interrupted from signalWithStart'],
@@ -585,7 +585,7 @@ test.serial('Handle from WorkflowClient.start follows only own execution chain',
   await worker.runUntil(async () => {
     await t.throwsAsync(handleFromGet.result(), { message: /.*/ });
     const handleFromSleeperStart = await client.workflow.start(workflows.sleeper, {
-      taskQueue: 'test',
+      taskQueue: `${handleFromThrowerStart.workflowId}-unpolled`,
       workflowId: handleFromThrowerStart.workflowId,
       args: [1_000_000],
     });

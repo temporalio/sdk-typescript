@@ -371,7 +371,7 @@ export async function childWorkflowStartFail(): Promise<void> {
 
   try {
     await startChild(workflows.successString, {
-      taskQueue: 'test',
+      taskQueue: `${child.workflowId}-duplicate`,
       workflowId: child.workflowId, // duplicate
       workflowIdReusePolicy: 'REJECT_DUPLICATE',
     });
@@ -778,7 +778,7 @@ test.serial('Workflow can read WorkflowInfo', configMacro, async (t, config) => 
     },
     attempt: 1,
     firstExecutionRunId: handle.firstExecutionRunId,
-    namespace: 'default',
+    namespace: env.client.options.namespace,
     taskTimeoutMs: 10_000,
     runId: handle.firstExecutionRunId,
     taskQueue,
