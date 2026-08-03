@@ -32,6 +32,7 @@ const test = makeTestFunction({
       ],
     },
   },
+  requiresLocalServer: 'configures the dev server long-poll expiration timeout',
   recordedLogs,
 });
 

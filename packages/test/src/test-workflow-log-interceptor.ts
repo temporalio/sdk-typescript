@@ -3,6 +3,7 @@ import type { TestFn, ExecutionContext } from 'ava';
 import anyTest from 'ava';
 import type { InjectedSinks, LogEntry, LogLevel, LoggerSinks } from '@temporalio/worker';
 import { DefaultLogger, Runtime, defaultSinks } from '@temporalio/worker';
+import { requiresLocalServer } from '@temporalio/test-helpers';
 import type { WorkflowInfo } from '@temporalio/workflow';
 import * as workflows from './workflows';
 import { Worker, TestWorkflowEnvironment } from './helpers';
@@ -11,7 +12,7 @@ interface Context {
   testEnv: TestWorkflowEnvironment;
   taskQueue: string;
 }
-const test = anyTest as TestFn<Context>;
+const test = requiresLocalServer('uses an ephemeral server with the default namespace', anyTest as TestFn<Context>);
 
 const recordedLogs: { [workflowId: string]: LogEntry[] } = {};
 

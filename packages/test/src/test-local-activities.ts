@@ -18,6 +18,7 @@ const test = makeTestFunction({
       extraArgs: ['--dynamic-config-value', 'system.enableActivityEagerExecution=false'],
     },
   },
+  requiresLocalServer: 'configures the dev server to disable eager activity execution',
 });
 
 export async function runOneLocalActivity(s: string): Promise<string> {

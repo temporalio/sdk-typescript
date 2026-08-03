@@ -1,9 +1,10 @@
 import test from 'ava';
-import { TestWorkflowEnvironment } from '@temporalio/test-helpers';
+import { requiresLocalServer, TestWorkflowEnvironment } from '@temporalio/test-helpers';
 
 const namespace = 'envconfig-test';
+const localTest = requiresLocalServer('starts a local source server to validate envconfig parsing', test);
 
-test('Envconfig factory connects through envconfig', async (t) => {
+localTest('Envconfig factory connects through envconfig', async (t) => {
   const sourceEnv = await TestWorkflowEnvironment.createLocal({ server: { namespace } });
   let env: TestWorkflowEnvironment | undefined;
 
