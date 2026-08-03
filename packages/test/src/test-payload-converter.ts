@@ -23,6 +23,7 @@ import {
 import { DefaultLogger, Runtime } from '@temporalio/worker';
 import root from '../protos/root'; // eslint-disable-line import/default
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { createTestWorkflowEnvironment } from './helpers-integration';
 import { defaultOptions } from './mock-native-worker';
 import { messageInstance } from './payload-converters/proto-payload-converter';
 import { protobufWorkflow } from './workflows/protobufs';
@@ -188,6 +189,15 @@ test(`SearchAttributePayloadConverter doesn't fail if Array.prototype contains e
 });
 
 if (RUN_INTEGRATION_TESTS) {
+  let env: Awaited<ReturnType<typeof createTestWorkflowEnvironment>>;
+
+  test.before(async () => {
+    env = await createTestWorkflowEnvironment();
+  });
+  test.after.always(async () => {
+    await env.teardown();
+  });
+
   test('Worker throws decoding proto JSON without WorkerOptions.dataConverter', async (t) => {
     let markErrorThrown: () => void;
     const expectedErrorWasThrown = new Promise<void>((resolve) => {
@@ -206,14 +216,18 @@ if (RUN_INTEGRATION_TESTS) {
       telemetryOptions: { logging: { forward: {}, filter: 'WARN' } },
     });
 
-    const taskQueue = `${__filename}/${t.title}`;
+    const taskQueue = `${__filename}/${t.title}/${randomUUID()}`;
     const worker = await Worker.create({
       ...defaultOptions,
       workflowsPath: require.resolve('./workflows/protobufs'),
       taskQueue,
+      connection: env.nativeConnection,
+      namespace: env.namespace,
     });
     const client = new WorkflowClient({
       dataConverter: { payloadConverterPath: require.resolve('./payload-converters/proto-payload-converter') },
+      connection: env.connection,
+      namespace: env.namespace,
     });
 
     const handle = await client.start(protobufWorkflow, {
@@ -235,16 +249,18 @@ if (RUN_INTEGRATION_TESTS) {
   test('Worker encodes/decodes a protobuf containing a binary array', async (t) => {
     const binaryInstance = root.BinaryMessage.create({ data: encode('abc') });
     const dataConverter = { payloadConverterPath: require.resolve('./payload-converters/proto-payload-converter') };
-    const taskQueue = `${__filename}/${t.title}`;
+    const taskQueue = `${__filename}/${t.title}/${randomUUID()}`;
 
     const worker = await Worker.create({
       ...defaultOptions,
       workflowsPath: require.resolve('./workflows/echo-binary-protobuf'),
       taskQueue,
       dataConverter,
+      connection: env.nativeConnection,
+      namespace: env.namespace,
     });
 
-    const client = new WorkflowClient({ dataConverter });
+    const client = new WorkflowClient({ connection: env.connection, namespace: env.namespace, dataConverter });
 
     await worker.runUntil(async () => {
       const result = await client.execute(echoBinaryProtobuf, {
