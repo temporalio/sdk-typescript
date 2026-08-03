@@ -259,12 +259,9 @@ test('Activity Context heartbeat is sent to core', async (t) => {
         input: toPayloads(defaultPayloadConverter),
       },
     });
-    console.log('waiting heartbeat 1');
     t.is(await worker.native.untilHeartbeat(taskToken), 1);
-    console.log('waiting heartbeat 2');
     t.is(await worker.native.untilHeartbeat(taskToken), 2);
     t.is(await worker.native.untilHeartbeat(taskToken), 3);
-    console.log('waiting completion');
     compareCompletion(t, (await completionPromise).result, {
       completed: { result: defaultPayloadConverter.toPayload(undefined) },
     });
