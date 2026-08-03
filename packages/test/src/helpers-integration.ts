@@ -25,7 +25,6 @@ import type {
 } from '@temporalio/test-helpers';
 import {
   helpers as baseHelpers,
-  defaultTaskQueueTransform,
   createTestWorkflowBundle as createTestWorkflowBundleBase,
   createTestWorkflowEnvironment as createTestWorkflowEnvironmentBase,
   createLocalTestEnvironment,
@@ -183,7 +182,7 @@ export function helpers(t: ExecutionContext<Context>, env?: TestWorkflowEnvironm
   const testEnv = env ?? t.context.env;
   const { workflowBundle } = t.context;
   const base = baseHelpers(t, testEnv);
-  const taskQueue = defaultTaskQueueTransform(t.title);
+  const { taskQueue } = base;
 
   return {
     ...base,

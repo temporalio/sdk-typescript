@@ -2,7 +2,13 @@ import { status as grpcStatus } from '@grpc/grpc-js';
 import test from 'ava';
 import { helpers } from './helpers-integration';
 
-function testContext(deleteNexusEndpoint: () => Promise<void>): {
+function testContext(
+  deleteNexusEndpoint: () => Promise<void>,
+  createNexusEndpoint: (name: string, taskQueue: string) => Promise<{ id: string; version: number }> = async () => ({
+    id: 'endpoint-id',
+    version: 1,
+  })
+): {
   context: Parameters<typeof helpers>[0];
   cleanup: () => Promise<void>;
 } {
@@ -11,7 +17,7 @@ function testContext(deleteNexusEndpoint: () => Promise<void>): {
     title: 'Nexus endpoint cleanup',
     context: {
       env: {
-        createNexusEndpoint: async () => ({ id: 'endpoint-id', version: 1 }),
+        createNexusEndpoint,
         deleteNexusEndpoint,
       },
       workflowBundle: {},
@@ -25,6 +31,21 @@ function testContext(deleteNexusEndpoint: () => Promise<void>): {
     cleanup: async () => await cleanup!(),
   };
 }
+
+test('Nexus endpoints route to the helper worker task queue', async (t) => {
+  let routedTaskQueue: string | undefined;
+  const { context } = testContext(
+    async () => undefined,
+    async (_name, taskQueue) => {
+      routedTaskQueue = taskQueue;
+      return { id: 'endpoint-id', version: 1 };
+    }
+  );
+
+  const helper = helpers(context);
+  await helper.registerNexusEndpoint();
+  t.is(routedTaskQueue, helper.taskQueue);
+});
 
 test('Nexus endpoint cleanup surfaces deletion failures', async (t) => {
   const failure = new Error('permission denied');
