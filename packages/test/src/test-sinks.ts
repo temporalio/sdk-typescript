@@ -1,6 +1,6 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import { randomUUID } from 'crypto';
-import test from 'ava';
+import anyTest from 'ava';
 import { Connection, WorkflowClient } from '@temporalio/client';
 import type { InjectedSinks, WorkerOptions, LogEntry } from '@temporalio/worker';
 import { DefaultLogger, Runtime, NativeConnection } from '@temporalio/worker';
@@ -8,9 +8,15 @@ import type { SearchAttributes, WorkflowInfo } from '@temporalio/workflow';
 import type { UnsafeWorkflowInfo } from '@temporalio/workflow/lib/interfaces';
 import type { TypedSearchAttributes } from '@temporalio/common';
 import { SdkComponent } from '@temporalio/common';
+import { requiresLocalServer } from '@temporalio/test-helpers';
 import { RUN_INTEGRATION_TESTS, Worker, registerDefaultCustomSearchAttributes } from './helpers';
 import { defaultOptions } from './mock-native-worker';
 import * as workflows from './workflows';
+
+const test = requiresLocalServer(
+  'Current Cloud credentials cannot manage operator search attributes (temporalio/features#851).',
+  anyTest
+);
 
 class DependencyError extends Error {
   constructor(

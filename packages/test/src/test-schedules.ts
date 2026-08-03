@@ -14,6 +14,7 @@ import { defaultPayloadConverter, Client, Connection } from '@temporalio/client'
 import { msToNumber } from '@temporalio/common/lib/time';
 import type { SearchAttributes } from '@temporalio/common';
 import { SearchAttributeType, TypedSearchAttributes, defineSearchAttributeKey } from '@temporalio/common';
+import { requiresLocalServer } from '@temporalio/test-helpers';
 import { registerDefaultCustomSearchAttributes, RUN_INTEGRATION_TESTS, waitUntil } from './helpers';
 import { defaultSAKeys } from './helpers-integration';
 
@@ -22,7 +23,10 @@ export interface Context {
 }
 
 const taskQueue = 'async-activity-completion';
-const test = anyTest as TestFn<Context>;
+const test = requiresLocalServer<Context>(
+  'Current Cloud credentials cannot manage operator search attributes (temporalio/features#851).',
+  anyTest as TestFn<Context>
+);
 
 const dummyWorkflow = async () => undefined;
 const dummyWorkflowWith1Arg = async (_s: string) => undefined;

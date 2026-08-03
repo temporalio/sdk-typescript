@@ -13,7 +13,10 @@ import { helpers, makeTestFunction } from './helpers-integration';
 import { innermostHandlerError } from './helpers-nexus';
 import { waitUntil } from './helpers';
 
-const test = makeTestFunction({ workflowsPath: __filename });
+const test = makeTestFunction({
+  workflowsPath: __filename,
+  requiresLocalServer: 'Current Cloud credentials cannot manage Nexus endpoints (temporalio/features#851).',
+});
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // WORKFLOW's SCHEDULE NEXUS OPERATION's CANCELLATION TYPES

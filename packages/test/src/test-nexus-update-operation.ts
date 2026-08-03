@@ -29,6 +29,7 @@ function causeChainMessages(err: unknown): string {
 
 const test = makeTestFunction({
   workflowsPath: __filename,
+  requiresLocalServer: 'Current Cloud credentials cannot manage Nexus endpoints (temporalio/features#851).',
   workflowEnvironmentOpts: {
     server: {
       // The default dev server (Temporal 1.31.2) does not deliver Workflow Update completion

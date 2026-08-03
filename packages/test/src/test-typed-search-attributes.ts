@@ -20,6 +20,7 @@ import { helpers, makeTestFunction } from './helpers-integration';
 
 const test = makeTestFunction({
   workflowsPath: __filename,
+  requiresLocalServer: 'Current Cloud credentials cannot manage operator search attributes (temporalio/features#851).',
   workflowEnvironmentOpts: {
     server: {
       namespace: 'test-typed-search-attributes',
