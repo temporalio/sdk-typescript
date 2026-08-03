@@ -62,8 +62,10 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('fromPayload throws on Client when receiving result from client.execute()', async (t) => {
+    const taskQueue = `test-custom-payload-converter-error-${randomUUID()}`;
     const worker = await Worker.create({
       ...defaultOptions,
+      taskQueue,
       connection: env.nativeConnection,
       namespace: env.namespace,
     });
@@ -78,7 +80,7 @@ if (RUN_INTEGRATION_TESTS) {
     await worker.runUntil(
       t.throwsAsync(
         client.execute(workflows.successString, {
-          taskQueue: 'test',
+          taskQueue,
           workflowId: randomUUID(),
         }),
         {
