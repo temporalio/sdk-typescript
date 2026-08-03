@@ -8,6 +8,8 @@ import type { TestWorkflowEnvironment } from './wrappers';
 import { Worker } from './wrappers';
 
 export const isBun = typeof (globalThis as any).Bun !== 'undefined';
+const TASK_QUEUE_NAME_MAX_LENGTH = 1_000;
+const TASK_QUEUE_NAME_UUID_LENGTH = 36;
 /** Union type for all supported test environment types */
 export type AnyTestWorkflowEnvironment = TestWorkflowEnvironment | RealTestWorkflowEnvironment;
 
@@ -50,6 +52,21 @@ export function defaultTaskQueueTransform(title: string): string {
     .replace(/^[-]?(.+?)[-]?$/, '$1');
 }
 
+function taskQueueNameForTest(title: string): string {
+  // Keep enough room for the separator and UUID, since task queue names are
+  // limited to 1,000 bytes by the server.
+  const maxPrefixLength = TASK_QUEUE_NAME_MAX_LENGTH - TASK_QUEUE_NAME_UUID_LENGTH - 1;
+  let prefix = '';
+  let prefixLength = 0;
+  for (const character of defaultTaskQueueTransform(title)) {
+    const characterLength = Buffer.byteLength(character);
+    if (prefixLength + characterLength > maxPrefixLength) break;
+    prefix += character;
+    prefixLength += characterLength;
+  }
+  return `${prefix}-${randomUUID()}`;
+}
+
 /**
  * Create helpers for a test.
  *
@@ -65,7 +82,7 @@ export function helpers<TEnv extends AnyTestWorkflowEnvironment = TestWorkflowEn
   env: AnyTestWorkflowEnvironment = t.context.env
 ): BaseHelpers {
   // createBaseHelpers(t.title, env, t.context.workflowBundle);
-  const taskQueue = defaultTaskQueueTransform(t.title);
+  const taskQueue = taskQueueNameForTest(t.title);
   const workflowBundle = t.context.workflowBundle;
 
   return {
