@@ -39,6 +39,9 @@ function localServerSkipTitle(title: string, reason: string): string {
 export function requiresLocalServer<Context = unknown>(reason: string, baseTest?: TestFn<Context>): TestFn<Context> {
   assertReason(reason);
   const source = (baseTest ?? test) as TestFn<Context>;
+  if (inWorkflowContext()) {
+    return source;
+  }
   if (!isSet(process.env.TEMPORAL_TEST_ENV_CONFIG_SERVER, false)) {
     return source;
   }
