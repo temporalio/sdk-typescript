@@ -14,6 +14,24 @@ test('shared helpers create unique task queues with a readable title prefix', (t
   t.not(first, second);
 });
 
+test('shared helpers reuse a task queue for the same test environment', (t) => {
+  const env = {};
+  const context = { title: 'Stable helper test', context: { workflowBundle: {}, env } } as ExecutionContext<any>;
+
+  t.is(helpers(context).taskQueue, helpers(context).taskQueue);
+});
+
+test('shared helpers isolate task queues for different environments in the same test', (t) => {
+  const context = {
+    title: 'Multi-environment helper test',
+    context: { workflowBundle: {}, env: {} },
+  } as ExecutionContext<any>;
+  const firstEnv = {} as any;
+  const secondEnv = {} as any;
+
+  t.not(helpers(context, firstEnv).taskQueue, helpers(context, secondEnv).taskQueue);
+});
+
 test('shared helper task queues stay within the server length limit', (t) => {
   const taskQueue = taskQueueFor('a'.repeat(2_000));
 
