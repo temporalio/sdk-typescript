@@ -23,6 +23,7 @@ import { tsToMs } from '@temporalio/common/lib/time';
 import type { InjectedSinks } from '@temporalio/worker';
 import pkg from '@temporalio/worker/lib/pkg';
 import type { UnsafeWorkflowInfo, WorkflowInfo } from '@temporalio/workflow/lib/interfaces';
+import { requiresLocalServer } from '@temporalio/test-helpers';
 
 import {
   CancellationScope,
@@ -54,12 +55,16 @@ const CHANGE_MARKER_NAME = 'core_patch';
 
 const test = makeTestFn(() => createTestWorkflowBundle({ workflowsPath: __filename }));
 test.macro(configMacro);
+const localTest = requiresLocalServer(
+  'asserts the local server workflow-task failure detail for an unknown workflow type',
+  test
+);
 
 // FIXME: Unless we add .serial() here, ava tries to start all async tests in parallel, which
 //        is ok in most environments, but has been causing flakyness in CI, especially on Windows.
 //        We can probably avoid this by using larger runners, and there is some opportunity for
 //        optimization here, but for now, let's just run these tests serially.
-test.serial('Workflow not found results in task retry', configMacro, async (t, config) => {
+localTest.serial('Workflow not found results in task retry', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
   const { taskQueue } = configurableHelpers(t, t.context.workflowBundle, env);
   const worker = await createWorkerWithDefaults(t);
