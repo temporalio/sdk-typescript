@@ -13,6 +13,7 @@ import {
 } from '@temporalio/client';
 import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
 import { activityInfo } from '@temporalio/activity';
+import { requiresLocalServer } from '@temporalio/test-helpers';
 import type { TestWorkflowEnvironment } from './helpers';
 import { RUN_INTEGRATION_TESTS, waitUntil, Worker } from './helpers';
 import { echo, throwAnError } from './activities';
@@ -71,7 +72,10 @@ const defaultOptions: Omit<ActivityOptions, 'id' | 'args'> = {
   idReusePolicy: 'ALLOW_DUPLICATE',
 };
 
-const test = anyTest as TestFn<Context>;
+const test = requiresLocalServer(
+  'configures dev server standalone-activity capabilities and polling timeouts',
+  anyTest as TestFn<Context>
+);
 
 async function waitForValue<T>(subject: rxjs.Subject<T>, value: T) {
   await rxjs.firstValueFrom(subject.pipe(rxjs.first((v) => v === value)));

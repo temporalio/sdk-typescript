@@ -4,6 +4,7 @@ import { DefaultFailureConverter, ApplicationFailure, TemporalFailure } from '@t
 import { proxyActivities } from '@temporalio/workflow';
 import type { WorkflowFailedError } from '@temporalio/client';
 import { decodeFromPayloadsAtIndex } from '@temporalio/common/lib/internal-non-workflow';
+import { requiresLocalServer } from '@temporalio/test-helpers';
 import { test, bundlerOptions, ByteSkewerPayloadCodec, Worker, TestWorkflowEnvironment } from './helpers';
 
 export const failureConverter = new DefaultFailureConverter({ encodeCommonAttributes: true });
@@ -19,7 +20,9 @@ export async function workflow(): Promise<void> {
   await activities.raise();
 }
 
-test('Client and Worker use provided failureConverter', async (t) => {
+const localTest = requiresLocalServer('creates an ephemeral server with a custom data converter', test);
+
+localTest('Client and Worker use provided failureConverter', async (t) => {
   const dataConverter: DataConverter = {
     // Use a payload codec to verify that it's being utilized to encode / decode the failure
     payloadCodecs: [new ByteSkewerPayloadCodec()],

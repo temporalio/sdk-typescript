@@ -7,13 +7,14 @@ import type {
   WorkflowTerminateInput,
 } from '@temporalio/client';
 import { ApplicationFailure, Client, NamespaceNotFoundError, ValueError } from '@temporalio/client';
+import { requiresLocalServer } from '@temporalio/test-helpers';
 import { TestWorkflowEnvironment } from './helpers';
 
 interface Context {
   testEnv: TestWorkflowEnvironment;
 }
 
-const test = anyTest as TestFn<Context>;
+const test = requiresLocalServer('asserts dev server namespace-not-found error details', anyTest as TestFn<Context>);
 
 const unserializableObject = {
   toJSON() {

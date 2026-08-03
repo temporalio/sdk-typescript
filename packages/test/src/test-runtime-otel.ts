@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 import test from 'ava';
 import { WorkflowClient } from '@temporalio/client';
 import { Runtime } from '@temporalio/worker';
+import { requiresLocalServer } from '@temporalio/test-helpers';
 import { TestWorkflowEnvironment, Worker } from './helpers';
 import * as workflows from './workflows';
 
@@ -103,7 +104,9 @@ test.serial('Runtime.install() accepts metrics.otel.url without headers', async 
   }
 });
 
-test.serial('Exporting OTEL metrics from Core works', async (t) => {
+const localTest = requiresLocalServer('creates an ephemeral server to generate worker metrics', test);
+
+localTest.serial('Exporting OTEL metrics from Core works', async (t) => {
   let resolveCapturedRequest = (_req: http2.Http2ServerRequest) => undefined as void;
   const capturedRequest = new Promise<http2.Http2ServerRequest>((r) => (resolveCapturedRequest = r));
   try {
@@ -155,7 +158,7 @@ test.serial('Exporting OTEL metrics from Core works', async (t) => {
   }
 });
 
-test.serial('Exporting OTEL metrics using OTLP/HTTP from Core works', async (t) => {
+localTest.serial('Exporting OTEL metrics using OTLP/HTTP from Core works', async (t) => {
   let resolveCapturedRequest = (_req: http.IncomingMessage) => undefined as void;
   const capturedRequest = new Promise<http.IncomingMessage>((r) => (resolveCapturedRequest = r));
   try {

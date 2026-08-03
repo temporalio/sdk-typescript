@@ -6,6 +6,7 @@ import { waitUntil } from './helpers';
 
 const test = makeTestFunction({
   workflowsPath: __filename,
+  requiresLocalServer: 'starts a second ephemeral server to replace the worker connection',
 });
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

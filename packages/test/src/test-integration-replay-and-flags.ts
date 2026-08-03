@@ -1,6 +1,7 @@
 import asyncRetry from 'async-retry';
 import { tsToMs } from '@temporalio/common/lib/time';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
+import { requiresLocalServer } from '@temporalio/test-helpers';
 import {
   conditionTimeout0,
   issue1423Workflow,
@@ -89,7 +90,8 @@ test("Lang's SDK flags from 1.11.2 are retroactively applied on replay", async (
 });
 
 if (RUN_TIME_SKIPPING_TESTS) {
-  test.serial('setTimeout and clearTimeout - works before and after 1.10.3', async (t) => {
+  const localTest = requiresLocalServer('uses the time-skipping test server', test);
+  localTest.serial('setTimeout and clearTimeout - works before and after 1.10.3', async (t) => {
     const env = await TestWorkflowEnvironment.createTimeSkipping();
     const { createWorker, startWorkflow } = helpers(t, env);
     try {

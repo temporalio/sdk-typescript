@@ -13,7 +13,7 @@ import type { LogEntry } from '@temporalio/worker';
 import { Client, WorkflowFailedError } from '@temporalio/client';
 import proto from '@temporalio/proto'; // eslint-disable-line import/default
 import { TestWorkflowEnvironment } from '@temporalio/testing';
-import { waitUntil } from '@temporalio/test-helpers';
+import { requiresLocalServer, waitUntil } from '@temporalio/test-helpers';
 import { Worker } from './helpers';
 import * as activities from './activities';
 import { payloadSizeLimitsWorkflow } from './workflows/payload-size-limits';
@@ -58,7 +58,9 @@ async function withLocalEnv(fn: (env: TestWorkflowEnvironment) => Promise<void>)
   }
 }
 
-test.serial('oversized worker completion is failed by core with a [TMPRL1103] error log', async (t) => {
+const localTest = requiresLocalServer('configures dev server payload size limits', test);
+
+localTest.serial('oversized worker completion is failed by core with a [TMPRL1103] error log', async (t) => {
   capturedLogs.length = 0;
   await withLocalEnv(async (env) => {
     const worker = await Worker.create({
@@ -102,7 +104,7 @@ test.serial('oversized worker completion is failed by core with a [TMPRL1103] er
   });
 });
 
-test.serial('disablePayloadErrorLimit sends the oversized payload to the server', async (t) => {
+localTest.serial('disablePayloadErrorLimit sends the oversized payload to the server', async (t) => {
   await withLocalEnv(async (env) => {
     const worker = await Worker.create({
       connection: env.nativeConnection,
@@ -129,7 +131,7 @@ test.serial('disablePayloadErrorLimit sends the oversized payload to the server'
   });
 });
 
-test.serial('connection payloadsWarnSize produces a forwarded [TMPRL1103] warning', async (t) => {
+localTest.serial('connection payloadsWarnSize produces a forwarded [TMPRL1103] warning', async (t) => {
   capturedLogs.length = 0;
   await withLocalEnv(async (env) => {
     // The warn threshold is configured on the (worker's) connection and forwarded to core.
@@ -168,7 +170,7 @@ test.serial('connection payloadsWarnSize produces a forwarded [TMPRL1103] warnin
   });
 });
 
-test.serial('connection memoWarnSize produces a forwarded [TMPRL1103] warning', async (t) => {
+localTest.serial('connection memoWarnSize produces a forwarded [TMPRL1103] warning', async (t) => {
   capturedLogs.length = 0;
   await withLocalEnv(async (env) => {
     const connection = await NativeConnection.connect({
