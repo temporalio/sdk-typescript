@@ -10,6 +10,7 @@ import { Worker } from './wrappers';
 export const isBun = typeof (globalThis as any).Bun !== 'undefined';
 const TASK_QUEUE_NAME_MAX_LENGTH = 1_000;
 const TASK_QUEUE_NAME_UUID_LENGTH = 36;
+const taskQueueNamesByTest = new WeakMap<object, WeakMap<object, string>>();
 /** Union type for all supported test environment types */
 export type AnyTestWorkflowEnvironment = TestWorkflowEnvironment | RealTestWorkflowEnvironment;
 
@@ -52,7 +53,15 @@ export function defaultTaskQueueTransform(title: string): string {
     .replace(/^[-]?(.+?)[-]?$/, '$1');
 }
 
-function taskQueueNameForTest(title: string): string {
+function taskQueueNameForTest(title: string, testContext: object, env: object): string {
+  let taskQueueNamesByEnvironment = taskQueueNamesByTest.get(testContext);
+  if (taskQueueNamesByEnvironment === undefined) {
+    taskQueueNamesByEnvironment = new WeakMap();
+    taskQueueNamesByTest.set(testContext, taskQueueNamesByEnvironment);
+  }
+  const existing = taskQueueNamesByEnvironment.get(env);
+  if (existing !== undefined) return existing;
+
   // Keep enough room for the separator and UUID, since task queue names are
   // limited to 1,000 bytes by the server.
   const maxPrefixLength = TASK_QUEUE_NAME_MAX_LENGTH - TASK_QUEUE_NAME_UUID_LENGTH - 1;
@@ -64,7 +73,9 @@ function taskQueueNameForTest(title: string): string {
     prefix += character;
     prefixLength += characterLength;
   }
-  return `${prefix}-${randomUUID()}`;
+  const taskQueue = `${prefix}-${randomUUID()}`;
+  taskQueueNamesByEnvironment.set(env, taskQueue);
+  return taskQueue;
 }
 
 /**
@@ -82,7 +93,7 @@ export function helpers<TEnv extends AnyTestWorkflowEnvironment = TestWorkflowEn
   env: AnyTestWorkflowEnvironment = t.context.env
 ): BaseHelpers {
   // createBaseHelpers(t.title, env, t.context.workflowBundle);
-  const taskQueue = taskQueueNameForTest(t.title);
+  const taskQueue = taskQueueNameForTest(t.title, t, env);
   const workflowBundle = t.context.workflowBundle;
 
   return {
