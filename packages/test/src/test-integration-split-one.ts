@@ -23,6 +23,7 @@ import { tsToMs } from '@temporalio/common/lib/time';
 import type { InjectedSinks } from '@temporalio/worker';
 import pkg from '@temporalio/worker/lib/pkg';
 import type { UnsafeWorkflowInfo, WorkflowInfo } from '@temporalio/workflow/lib/interfaces';
+import { requiresLocalServer } from '@temporalio/test-helpers';
 
 import {
   CancellationScope,
@@ -54,6 +55,10 @@ const CHANGE_MARKER_NAME = 'core_patch';
 
 const test = makeTestFn(() => createTestWorkflowBundle({ workflowsPath: __filename }));
 test.macro(configMacro);
+const customSearchAttributeTest = requiresLocalServer(
+  'requires custom search attributes configured by the local test server',
+  test
+);
 
 // FIXME: Unless we add .serial() here, ava tries to start all async tests in parallel, which
 //        is ok in most environments, but has been causing flakyness in CI, especially on Windows.
@@ -613,7 +618,7 @@ test.serial('Worker default ServerOptions are generated correctly', configMacro,
   t.regex(binid, /@temporalio\/worker@\d+\.\d+\.\d+/);
 });
 
-test.serial('WorkflowHandle.describe result is wrapped', configMacro, async (t, config) => {
+customSearchAttributeTest.serial('WorkflowHandle.describe result is wrapped', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
   const date = new Date();
   const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
@@ -656,7 +661,7 @@ export async function returnSearchAttributes(): Promise<SearchAttributes | undef
   };
 }
 
-test.serial('Workflow can read Search Attributes set at start', configMacro, async (t, config) => {
+customSearchAttributeTest.serial('Workflow can read Search Attributes set at start', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
   const date = new Date();
   const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
@@ -679,7 +684,7 @@ test.serial('Workflow can read Search Attributes set at start', configMacro, asy
   });
 });
 
-test.serial('Workflow can upsert Search Attributes', configMacro, async (t, config) => {
+customSearchAttributeTest.serial('Workflow can upsert Search Attributes', configMacro, async (t, config) => {
   const { env, createWorkerWithDefaults } = config;
   const date = new Date();
   const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
