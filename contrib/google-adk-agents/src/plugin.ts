@@ -147,6 +147,39 @@ const MIKRO_ORM_SHIM_SOURCE =
   'PrimaryKey:PrimaryKey,Property:Property,LockMode:LockMode};\n';
 
 /**
+ * ESM source for the `net` builtin shim. `@google/adk` >= 1.5.0 ships
+ * `tools/load_web_page.js` on the barrel path, which parses its blocked-CIDR
+ * tables at **module load**, calling `isIP` from `node:net` in the process.
+ * With `net` aliased to an empty module (like the other disallowed builtins),
+ * `isIP` is `undefined` and that top-level call throws at Workflow load. The
+ * shim reimplements the classifiers `isIP`/`isIPv4`/`isIPv6` with Node's own
+ * address grammar (the regexes in Node's `lib/internal/net.js`): pure string
+ * parsing, deterministic, frozen in the bundle (so classification cannot
+ * drift between original execution and replay on a different worker), and no
+ * socket surface.
+ */
+const NET_SHIM_SOURCE =
+  "var v4Seg='(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])';" +
+  "var v4Str='(?:'+v4Seg+'\\\\.){3}'+v4Seg;" +
+  "var IPv4Reg=new RegExp('^'+v4Str+'$');" +
+  "var v6Seg='(?:[0-9a-fA-F]{1,4})';" +
+  "var IPv6Reg=new RegExp('^(?:'+" +
+  "'(?:'+v6Seg+':){7}(?:'+v6Seg+'|:)|'+" +
+  "'(?:'+v6Seg+':){6}(?:'+v4Str+'|:'+v6Seg+'|:)|'+" +
+  "'(?:'+v6Seg+':){5}(?::'+v4Str+'|(?::'+v6Seg+'){1,2}|:)|'+" +
+  "'(?:'+v6Seg+':){4}(?:(?::'+v6Seg+'){0,1}:'+v4Str+'|(?::'+v6Seg+'){1,3}|:)|'+" +
+  "'(?:'+v6Seg+':){3}(?:(?::'+v6Seg+'){0,2}:'+v4Str+'|(?::'+v6Seg+'){1,4}|:)|'+" +
+  "'(?:'+v6Seg+':){2}(?:(?::'+v6Seg+'){0,3}:'+v4Str+'|(?::'+v6Seg+'){1,5}|:)|'+" +
+  "'(?:'+v6Seg+':){1}(?:(?::'+v6Seg+'){0,4}:'+v4Str+'|(?::'+v6Seg+'){1,6}|:)|'+" +
+  "'(?::(?:(?::'+v6Seg+'){0,5}:'+v4Str+'|(?::'+v6Seg+'){1,7}|:))'+" +
+  "')(?:%[0-9a-zA-Z-.:]{1,})?$');" +
+  'function isIPv4(s){return IPv4Reg.test(s);}' +
+  'function isIPv6(s){return IPv6Reg.test(s);}' +
+  'function isIP(s){if(isIPv4(s))return 4;if(isIPv6(s))return 6;return 0;}' +
+  'export {isIP,isIPv4,isIPv6};' +
+  'export default {isIP:isIP,isIPv4:isIPv4,isIPv6:isIPv6};\n';
+
+/**
  * ESM source for the `async_hooks` builtin shim. ADK's `utils/client_labels.js`
  * executes `new AsyncLocalStorage()` at **module load** on the workflow-reached
  * path (`models/base_llm.js` imports it), and later uses only `run(store, fn)` /
@@ -173,6 +206,8 @@ const REQUEST_SHIM_SOURCES: ReadonlyArray<readonly [string, string]> = [
   ['winston', WINSTON_SHIM_SOURCE],
   ['os', OS_SHIM_SOURCE],
   ['node:os', OS_SHIM_SOURCE],
+  ['net', NET_SHIM_SOURCE],
+  ['node:net', NET_SHIM_SOURCE],
   ['async_hooks', ASYNC_HOOKS_SHIM_SOURCE],
   ['node:async_hooks', ASYNC_HOOKS_SHIM_SOURCE],
   ['@mikro-orm/core', MIKRO_ORM_SHIM_SOURCE],

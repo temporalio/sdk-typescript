@@ -37,7 +37,12 @@ test('configureBundler stubs ADK node-only packages and disallowed builtins', (t
   ]) {
     t.true(ignored.has(pkg), `expected ADK node-only package ${pkg} to be stubbed`);
   }
-  for (const builtin of ['fs', 'child_process', 'net']) {
+  // `dns/promises` is what ADK >= 1.5.0's `load_web_page.js` imports for its
+  // (function-body-only) host resolution. `net` from the same file is
+  // redirected to a shim at resolve time before this alias could apply; it
+  // stays listed because the disallowed-builtins list is derived wholesale
+  // from `builtinModules`.
+  for (const builtin of ['fs', 'child_process', 'dns/promises', 'net']) {
     t.true(ignored.has(builtin), `expected disallowed builtin ${builtin} to be stubbed`);
   }
   // The three sandbox-polyfilled builtins must stay resolvable.
