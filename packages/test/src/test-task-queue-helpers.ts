@@ -35,7 +35,8 @@ test('shared helpers isolate task queues for different environments in the same 
 
 test('configurable helpers reuse a task queue for the same test environment', (t) => {
   const env = {} as any;
-  const context = { title: 'Configurable helper test', context: {} } as ExecutionContext<any>;
+  const context = { context: {} } as ExecutionContext<any>;
+  Object.defineProperty(context, 'title', { value: 'Configurable helper test' });
 
   t.is(configurableHelpers(context, {} as any, env).taskQueue, configurableHelpers(context, {} as any, env).taskQueue);
 });
