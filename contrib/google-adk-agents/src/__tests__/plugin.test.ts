@@ -104,6 +104,23 @@ test('configureBundler aliases @opentelemetry/api to the copy @google/adk resolv
   t.is(alias['user-alias'], '/user/alias');
 });
 
+test('configureBundler prepends the api pin to an array-form user alias list', (t) => {
+  const plugin = new GoogleAdkPlugin();
+  const { webpackConfigHook } = plugin.configureBundler({ workflowsPath: 'wf' } as BundleOptions);
+  const userEntry = { name: 'user-alias', alias: '/user/alias' };
+  const cfg = webpackConfigHook!({ plugins: [], resolve: { alias: [userEntry] } } as never) as {
+    resolve?: { alias?: Array<{ name: string; onlyModule?: boolean; alias: string }> };
+  };
+  const alias = cfg.resolve?.alias ?? [];
+
+  // Array-form aliases resolve first-match-first, so the pin must come first
+  // to keep the same precedence over a user exact-match entry as the object
+  // form.
+  const expected = createRequire(require.resolve('@google/adk')).resolve('@opentelemetry/api');
+  t.deepEqual(alias[0], { name: '@opentelemetry/api', onlyModule: true, alias: expected });
+  t.is(alias[1], userEntry);
+});
+
 test('configureWorker registers model activities, plus an MCP pair per toolset', (t) => {
   const modelOnly = new GoogleAdkPlugin().configureWorker({ taskQueue: 'tq' } as WorkerOptions).activities as Record<
     string,

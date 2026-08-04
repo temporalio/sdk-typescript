@@ -363,7 +363,10 @@ function addSandboxCompat(
     cfg.plugins = [...plugins, googleAdkSandboxCompatPlugin() as PluginElement];
     const alias = cfg.resolve?.alias;
     if (Array.isArray(alias)) {
-      alias.push({ name: OTEL_API_PACKAGE, onlyModule: true, alias: adkOtelApiEntry() });
+      // Array-form aliases resolve first-match-first, so prepend to give the
+      // pin the same precedence over a user exact-match entry as the object
+      // branch below (where the pin is spread last).
+      alias.unshift({ name: OTEL_API_PACKAGE, onlyModule: true, alias: adkOtelApiEntry() });
     } else {
       cfg.resolve = { ...cfg.resolve, alias: { ...alias, [`${OTEL_API_PACKAGE}$`]: adkOtelApiEntry() } };
     }
