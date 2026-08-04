@@ -22,7 +22,7 @@ import test from 'ava';
 import { Worker } from '@temporalio/worker';
 
 import { LangSmithPlugin } from '../index';
-import { InMemoryRunCollector, WORKFLOWS_PATH, dumpTraces, withTracingWorker } from './helpers';
+import { InMemoryRunCollector, WORKFLOWS_PATH, dumpTraces, withTracingWorker, useSharedEnv } from './helpers';
 import {
   ConcurrentTraceableWorkflow,
   NestedTraceableWorkflow,
@@ -81,6 +81,8 @@ async function assertParentingStable(
     },
   });
 }
+
+useSharedEnv(test);
 
 test('nested traceable: child nests under its enclosing traceable, stable across replay', async (t) => {
   await assertParentingStable(t, NestedTraceableWorkflow, 'nested', ['parent', '  leaf'].join('\n'));
