@@ -6,6 +6,11 @@
  * routes the model/MCP I/O to Activities.
  */
 
+// In the Workflow bundle this resolves to the plugin's deterministic `net`
+// shim; on the worker (test files import this module for workflow references)
+// it is the real builtin.
+import { isIP } from 'node:net';
+
 import {
   InMemoryRunner,
   isFinalResponse,
@@ -19,6 +24,13 @@ import { condition, defineSignal, defineUpdate, proxyActivities, setHandler } fr
 import { WorkflowStream } from '@temporalio/workflow-streams/workflow';
 
 import { TemporalModel, TemporalMCPToolset, activityAsTool } from '../workflow';
+
+// Mirrors `@google/adk` >= 1.5.0 `tools/load_web_page.js` (on the barrel
+// path), which parses its blocked-CIDR tables at module load, calling
+// `net.isIP` in the process. Keeping the same top-level shape here makes every
+// E2E bundle in this suite fail at Workflow load if the `net` shim regresses.
+const BLOCKED_IPV6_CIDR_BASES = ['::', '::1', '64:ff9b:1::', '100::', '2001:db8::', 'fc00::', 'fe80::', 'ff00::'];
+const blockedIpv6BaseVersions = BLOCKED_IPV6_CIDR_BASES.map((address) => isIP(address));
 
 /** Build a minimal, serializable LlmRequest for a single user turn. */
 function makeRequest(text: string): LlmRequest {
@@ -338,4 +350,41 @@ export async function agentRunnerWorkflow(prompt: string): Promise<string> {
     }
   }
   return finalText;
+}
+
+/**
+ * Two sequential agent turns through the native runner loop, for the telemetry
+ * test. Produces a history with two `adk-invokeModel` Activities across three
+ * (or more) workflow tasks — so a cache-disabled worker replays the first
+ * turn's code on later tasks, while ADK's spans must be exported exactly once
+ * per real turn.
+ */
+export async function agentRunnerTwoTurnsWorkflow(prompt: string): Promise<string> {
+  const agent = new LlmAgent({
+    name: 'assistant',
+    model: new TemporalModel('fake-model'),
+    instruction: 'You are a helpful assistant.',
+  });
+  const runner = new InMemoryRunner({ agent });
+
+  const texts: string[] = [];
+  for (let turn = 0; turn < 2; turn++) {
+    for await (const event of runner.runEphemeral({
+      userId: 'test-user',
+      newMessage: { role: 'user', parts: [{ text: `${prompt}-${turn}` }] },
+    })) {
+      if (isFinalResponse(event)) {
+        texts.push(stringifyContent(event));
+      }
+    }
+  }
+  return texts.join('|');
+}
+
+/** `net` shim classifications computed at module load and at run time. */
+export async function netShimProbe(): Promise<{ loadTime: number[]; runtime: number[] }> {
+  return {
+    loadTime: blockedIpv6BaseVersions,
+    runtime: ['127.0.0.1', '::ffff:127.0.0.1', 'not-an-ip'].map((address) => isIP(address)),
+  };
 }

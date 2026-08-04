@@ -190,6 +190,69 @@ const plugin = new GoogleAdkPlugin({
 });
 ```
 
+## Telemetry and observability
+
+ADK instruments its agent loop with OpenTelemetry: the `gcp.vertex.agent`
+tracer creates `invocation`, `invoke_agent <name>`, `call_llm` (with
+`gen_ai.usage.input_tokens` / `gen_ai.usage.output_tokens` attributes), and
+`execute_tool` spans. Under this plugin the agent loop runs inside the Workflow
+sandbox, so those spans are created there too — and **by default they are
+silently dropped**: nothing registers a tracer provider inside the sandbox, so
+ADK's tracer yields non-recording no-ops. A tracer provider configured in the
+worker process (e.g. `NodeSDK`) does not see them either; the sandbox is
+isolated from process globals.
+
+To export them, compose with the SDK's OpenTelemetry integration
+([`@temporalio/interceptors-opentelemetry`](https://github.com/temporalio/sdk-typescript/tree/main/contrib/interceptors-opentelemetry)),
+placed before this plugin:
+
+```typescript
+import { OpenTelemetryPlugin } from '@temporalio/interceptors-opentelemetry';
+
+const worker = await Worker.create({
+  // ...
+  plugins: [new OpenTelemetryPlugin({ resource, spanProcessor }), new GoogleAdkPlugin()],
+});
+```
+
+Its Workflow interceptor registers a tracer provider inside the sandbox that
+ADK's tracer binds to, and exports the spans through a Worker sink that is
+**replay-gated**: spans are recorded when Workflow code first executes;
+history replays re-run the agent-loop code but re-export nothing. You get
+exactly one span per real model call or tool call, plus the interceptor's own
+`RunWorkflow` / `StartActivity` spans, nested under the same trace. The plugin
+pins `@opentelemetry/api` to a single copy in the Workflow bundle (the one
+`@google/adk` resolves — ADK pins an exact api version, so a bundle could
+otherwise contain two copies), so ADK's tracer binds to that provider no
+matter which module evaluates ADK first.
+
+Cautions:
+
+- Do **not** register a custom telemetry sink with `callDuringReplay: true` —
+  every replayed workflow task would then re-emit the agent-loop spans,
+  over-counting each operation once per replay.
+- The replay gate makes span export at-least-once, not exactly-once: a workflow
+  task **retry** (a task that failed or timed out and re-executes) is not a
+  replay, so its spans are re-emitted. Retries are rare in normal operation, but
+  don't build alerting that assumes exact span counts.
+- `call_llm` spans carry the full request/response payloads as
+  `gcp.vertex.agent.llm_request` / `gcp.vertex.agent.llm_response` attributes.
+  Point the span processor somewhere approved for prompt content, or strip
+  those attributes in the processor.
+- Custom payload/failure converter modules (`payloadConverterPath` /
+  `failureConverterPath`) evaluate **before** the plugin's polyfill loader. If
+  such a module imports `@google/adk` / `@google/genai`, import
+  `@temporalio/google-adk-agents/workflow` first: it installs the sandbox
+  polyfills (`Headers`, `structuredClone`, the WHATWG streams globals, and the
+  deterministic `performance` shim ADK's telemetry chain dereferences at module
+  load) before ADK evaluates.
+
+ADK (as of 1.4.0) defines no OpenTelemetry metric instruments, so there is no
+workflow-side metric telemetry to configure. Activity-side telemetry (the real
+Gemini/MCP calls) runs in the worker process where normal Node OpenTelemetry
+setup applies, and is naturally replay-immune — completed Activities are read
+from history rather than re-executed.
+
 ## Operational notes
 
 - Register `GoogleAdkPlugin` on the Worker. Passing it directly to `Client` does
