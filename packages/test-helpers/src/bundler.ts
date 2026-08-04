@@ -8,6 +8,7 @@ export const baseBundlerIgnoreModules = [
   // This is a bit ugly but it does the trick, when a test that includes workflow code tries to import a forbidden
   // workflow module, add it to this list:
   '@temporalio/common/lib/internal-non-workflow',
+  '@temporalio/envconfig',
   '@temporalio/activity',
   '@temporalio/client',
   '@temporalio/testing',

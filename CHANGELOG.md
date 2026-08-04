@@ -21,17 +21,39 @@ to docs, or any other relevant information.
 
 ### Added
 
+- **Experimental**: Added `TypeInfo` and `TransferTypeConverter` to `@temporalio/common` for converting
+  application values to and from serialization-friendly transfer types and supplying converter-specific hints.
+- Workers can now configure the number of activity slots reserved for eager execution per
+  workflow task with `maxEagerActivityReservationsPerWorkflowTask`. Setting it to zero disables
+  eager activity execution.
+- UpdateWorkflow-backed Nexus operations. A Temporal Nexus operation can now be backed by a Workflow
+  Update via `TemporalNexusClient.getWorkflowHandle(...).update(...)`, in addition to a Workflow run.
+  The Update request carries the Nexus request ID (for deduplication), the request links, and a
+  completion callback bearing the operation token, so the Update's completion is delivered back to the
+  Nexus caller. Only asynchronous, `ACCEPTED`-stage updates are supported (a callback URL is
+  required); an update that has already completed is returned synchronously, and a completed-with-error
+  update (e.g. a validation rejection) surfaces as a failed Nexus operation. Cancellation is
+  customizable via the `cancelWorkflowUpdate` handler option; the default rejects with a
+  `NOT_IMPLEMENTED` handler error.
 - `@temporalio/ai-sdk`: `listToolsActivity`/`callToolActivity` now reuse a single MCP client connection
   across repeated invocations for the same server instead of creating and closing one on every call.
   Configure the idle window via the new `mcpConnectionIdleTimeout` option on `createActivities` and
   `AiSdkPluginOptions` (defaults to 5 minutes); pass `mcpConnectionIdleTimeout: 0` to opt out and restore
   the original behavior for MCP servers/transports that don't tolerate a reused or concurrent session.
 
+### Fixed
+
+- strands: Declare `zod` as a peer dependency.
+- workflow-streams: `WorkflowStream.onPoll` no longer serves a stale log index for a poll that
+  was parked across a `truncate()` call, which could silently skip events.
+- Workflows no longer retain completion state when a child Workflow fails or is cancelled before starting.
+- Local Activity tests now use `makeTestFunction` to manage their test environment.
+
 ## [1.21.1] - 2026-07-23
 
 ### Fixed
 
-- strands: add `@aws-sdk/client-s3` to the workflow bundler ignore list, fixing bundler errors when
+- strands: Add `@aws-sdk/client-s3` to the workflow bundler ignore list, fixing bundler errors when
   using the S3-backed `context-offloader` vended plugin. The package is dynamically imported
   worker-side and is never reached from workflow code.
 
@@ -55,6 +77,9 @@ to docs, or any other relevant information.
 - `ResourceBasedController` can now be shared by resource-based tuners across multiple Workers in the same process.
 - **Experimental** New `@temporalio/strands-agents` package for building workflows with Strand Agents.
 - **Experimental**: `@temporalio/openai-agents` now supports streaming model events from Workflows.
+
+- Added opt-in `envconfig` support to the test workflow environment. This enables testing against arbitrary
+  Temporal server environments (i.e. local, staging, prod)
 
 ### Breaking Changes
 
@@ -85,6 +110,9 @@ to docs, or any other relevant information.
 - strands: add `@aws-sdk/client-s3` to the workflow bundler ignore list, fixing bundler errors when
   using the S3-backed `context-offloader` vended plugin. The package is dynamically imported
   worker-side and is never reached from workflow code.
+
+- `TEMPORAL_TLS` existing behavior when enabled was to _disable_ TLS configuration. This has been corrected,
+  setting `TEMPORAL_TLS` now _enables_ TLS configuration
 
 ## [1.20.3] - 2026-07-13
 

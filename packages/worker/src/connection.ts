@@ -32,13 +32,13 @@ export class NativeConnection implements ConnectionLike {
 
   /**
    * Raw gRPC access to Temporal Server's {@link
-   * https://github.com/temporalio/api/blob/master/temporal/api/workflowservice/v1/service.proto | Workflow service}
+   * https://github.com/temporalio/api/blob/main/temporal/api/workflowservice/v1/service.proto | Workflow service}
    */
   public readonly workflowService: WorkflowService;
 
   /**
    * Raw gRPC access to Temporal Server's
-   * {@link https://github.com/temporalio/api/blob/master/temporal/api/operatorservice/v1/service.proto | Operator service}
+   * {@link https://github.com/temporalio/api/blob/main/temporal/api/operatorservice/v1/service.proto | Operator service}
    *
    * The Operator Service API defines how Temporal SDKs and other clients interact with the Temporal
    * server to perform administrative functions like registering a search attribute or a namespace.
@@ -55,7 +55,7 @@ export class NativeConnection implements ConnectionLike {
 
   /**
    * Raw gRPC access to Temporal Server's
-   * {@link https://github.com/temporalio/api/blob/master/temporal/api/testservice/v1/service.proto | Test service}
+   * {@link https://github.com/temporalio/api/blob/main/temporal/api/testservice/v1/service.proto | Test service}
    *
    * Will be `undefined` if connected to a server that does not support the test service.
    */
