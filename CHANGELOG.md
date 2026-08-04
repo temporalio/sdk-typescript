@@ -37,6 +37,7 @@ to docs, or any other relevant information.
   `NOT_IMPLEMENTED` handler error.
 
 ### Changed
+
 - Updated Core to `65b25ada` (`temporal-core` 0.6.0)
 
 ### Fixed
