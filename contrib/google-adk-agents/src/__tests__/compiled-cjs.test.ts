@@ -19,7 +19,7 @@ import test from 'ava';
 import { Worker } from '@temporalio/worker';
 
 import { GoogleAdkPlugin } from '../index';
-import { defaultTestProvider, setupTestEnv, uid, workflowsPath } from './helpers';
+import { defaultTestProvider, REUSE_V8_CONTEXT, setupTestEnv, uid, workflowsPath } from './helpers';
 import { singleModelCall } from './workflows';
 
 const getEnv = setupTestEnv(test);
@@ -37,6 +37,7 @@ test.serial('compiledCjsWorkflowBundleRuns', async (t) => {
     connection: env.nativeConnection,
     taskQueue,
     workflowsPath: compiledWorkflowsPath,
+    reuseV8Context: REUSE_V8_CONTEXT,
     plugins: [new GoogleAdkPlugin({ modelProvider: defaultTestProvider() })],
   });
   const result = await worker.runUntil(
@@ -61,6 +62,7 @@ test.serial('converterModuleImportingAdkRunsWithWorkaround', async (t) => {
     connection: env.nativeConnection,
     taskQueue,
     workflowsPath,
+    reuseV8Context: REUSE_V8_CONTEXT,
     dataConverter: { payloadConverterPath: compiledConverterPath },
     plugins: [new GoogleAdkPlugin({ modelProvider: defaultTestProvider() })],
   });
