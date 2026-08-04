@@ -62,8 +62,6 @@ if (RUN_INTEGRATION_TESTS) {
     workflowCoverageBundler.mergeIntoGlobalCoverage();
     workflowCoverageWorker.mergeIntoGlobalCoverage();
     const coverageMap = libCoverage.createCoverageMap(global.__coverage__);
-    console.log(coverageMap.files());
-
     const successStringFileName = coverageMap.files().find((x) => x.match(/[/\\]success-string\.js/));
     if (successStringFileName) {
       t.is(coverageMap.fileCoverageFor(successStringFileName).toSummary().lines.pct, 100);
