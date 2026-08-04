@@ -28,9 +28,12 @@ const OTEL_API_PACKAGE = '@opentelemetry/api';
  * `telemetry/tracing.js` caches `trace.getTracer(...)` at module load; if that
  * binds a different api copy than the one the OTel interceptor registers its
  * tracer provider on, every ADK span is silently lost (the workflow still
- * succeeds and interceptor spans still export). Rewriting every bundle request
- * for `@opentelemetry/api` to ADK's copy keeps the tracer and the provider on
- * the same registration regardless of module evaluation order.
+ * succeeds and interceptor spans still export). Aliasing the bare
+ * `@opentelemetry/api` specifier to ADK's copy ({@link addSandboxCompat})
+ * keeps the tracer and the provider on the same registration regardless of
+ * module evaluation order. The returned path is not hardcoded: it is whatever
+ * file the package's own `exports` map designates as its entry, obtained
+ * through ordinary Node resolution from ADK's entry point.
  */
 function adkOtelApiEntry(): string {
   return createRequire(require.resolve('@google/adk')).resolve(OTEL_API_PACKAGE);
@@ -292,21 +295,17 @@ const ADK_NODE_ONLY_SERVICE_PACKAGES: readonly string[] = [
 
 /**
  * The webpack plugin that makes the `@google/adk` barrel load inside the
- * Workflow sandbox. It does four things:
+ * Workflow sandbox. It does three things:
  *
  *  1. **Shim redirects** ({@link REQUEST_SHIM_SOURCES}): in `beforeResolve`,
  *     redirect the load-dereferenced requests to their inline `data:` URI shims.
- *  2. **Single `@opentelemetry/api` copy**: rewrite every request for
- *     `@opentelemetry/api` to the copy `@google/adk` resolves
- *     ({@link adkOtelApiEntry}), so ADK's module-load tracer and the OTel
- *     interceptor's tracer-provider registration share one api instance.
- *  3. **`node:` scheme strip**: every other `node:<name>` → bare `<name>`. The
+ *  2. **`node:` scheme strip**: every other `node:<name>` → bare `<name>`. The
  *     Worker bundler aliases each disallowed builtin to `false` by its **bare**
  *     name; a `node:`-prefixed request never reaches `resolve.alias` — webpack's
  *     scheme handler intercepts it first and throws `UnhandledSchemeError` (a
  *     hard *build* failure). Stripping the scheme lets the bundler's bare-name
  *     policy take over.
- *  4. **`process` provide**: a `ProvidePlugin` injects the deterministic
+ *  3. **`process` provide**: a `ProvidePlugin` injects the deterministic
  *     `process` shim ({@link PROCESS_SHIM_SOURCE}) wherever `process` is a free
  *     variable.
  */
@@ -316,7 +315,6 @@ function googleAdkSandboxCompatPlugin(): unknown {
   const shimUris = REQUEST_SHIM_SOURCES.map(([request, source]) => [request, toDataUri(source)] as const);
   const shimByRequest = new Map<string, string>(shimUris);
   const processShimUri = toDataUri(PROCESS_SHIM_SOURCE);
-  const otelApiEntry = adkOtelApiEntry();
   return {
     name: 'google-adk-sandbox-compat',
     apply(compiler: WebpackCompilerLike): void {
@@ -333,10 +331,6 @@ function googleAdkSandboxCompatPlugin(): unknown {
             data.request = shim;
             return;
           }
-          if (request === OTEL_API_PACKAGE) {
-            data.request = otelApiEntry;
-            return;
-          }
           if (request.startsWith(NODE_SCHEME)) {
             data.request = request.slice(NODE_SCHEME.length);
           }
@@ -347,8 +341,17 @@ function googleAdkSandboxCompatPlugin(): unknown {
 }
 
 /**
- * Adds the sandbox-compat webpack plugin to a bundler `Configuration`, composing
- * after any user-supplied hook so their customizations are preserved.
+ * Adds the sandbox-compat webpack plugin and the single-copy
+ * `@opentelemetry/api` alias to a bundler `Configuration`, composing after any
+ * user-supplied hook so their customizations are preserved.
+ *
+ * The alias is webpack's standard single-instance pin: an **exact-match**
+ * (`$`) `resolve.alias` entry — the same declarative surface the Worker
+ * bundler itself uses — so only the bare `@opentelemetry/api` specifier is
+ * pinned to the copy `@google/adk` resolves ({@link adkOtelApiEntry});
+ * `@opentelemetry/api-logs` and subpath imports resolve normally. It is
+ * applied after the user hook because two api copies in one bundle silently
+ * drop every ADK span (see {@link adkOtelApiEntry}).
  */
 function addSandboxCompat(
   existing: BundleOptions['webpackConfigHook']
@@ -358,6 +361,12 @@ function addSandboxCompat(
     const plugins = Array.isArray(cfg.plugins) ? cfg.plugins : [];
     type PluginElement = NonNullable<WebpackConfig['plugins']>[number];
     cfg.plugins = [...plugins, googleAdkSandboxCompatPlugin() as PluginElement];
+    const alias = cfg.resolve?.alias;
+    if (Array.isArray(alias)) {
+      alias.push({ name: OTEL_API_PACKAGE, onlyModule: true, alias: adkOtelApiEntry() });
+    } else {
+      cfg.resolve = { ...cfg.resolve, alias: { ...alias, [`${OTEL_API_PACKAGE}$`]: adkOtelApiEntry() } };
+    }
     return cfg;
   };
 }
@@ -426,7 +435,9 @@ export class GoogleAdkPlugin extends SimplePlugin {
    * The recipe has three parts, all required:
    *
    *  1. **`webpackConfigHook`** adds {@link googleAdkSandboxCompatPlugin} (the
-   *     `node:` strip, shim redirects, and `process` provide).
+   *     `node:` strip, shim redirects, and `process` provide) and the
+   *     exact-match `resolve.alias` pin of `@opentelemetry/api` to a single
+   *     bundle copy (see {@link addSandboxCompat}).
    *  2. **`ignoreModules`** stubs (`alias → false`) two groups: ADK's heavy
    *     node-only *service* packages ({@link ADK_NODE_ONLY_SERVICE_PACKAGES})
    *     and every disallowed Node
@@ -436,14 +447,19 @@ export class GoogleAdkPlugin extends SimplePlugin {
    *     never run in a Workflow.
    *  3. **`workflowInterceptorModules`** gets the `load-polyfills` module
    *     prepended. Interceptor modules are evaluated per workflow — with the
-   *     activator installed — *before* the user's workflow module, so the web
-   *     globals `@google/adk`/`@google/genai` and ADK's OpenTelemetry chain
+   *     activator installed — *before* the user's workflow module (the
+   *     `initRuntime` contract in `@temporalio/workflow`'s worker-interface:
+   *     it sets the activator, then imports interceptor modules in list order,
+   *     then imports workflows), so the web globals
+   *     `@google/adk`/`@google/genai` and ADK's OpenTelemetry chain
    *     dereference at module load (`ReadableStream`, `performance`, …) exist
    *     no matter what order the user's own imports evaluate in. The module
-   *     exports no `interceptors`, so it registers nothing. (A webpack entry preload would not work: entry code evaluates
-   *     at bundle load, before any activator, where the polyfill's
-   *     `inWorkflowContext()` gate is false — and in the reusable-V8-context
-   *     mode the no-op evaluation would be cached and never re-run.)
+   *     exports an `interceptors` factory that registers nothing, per the
+   *     documented interceptor-module contract. (A webpack entry preload would
+   *     not work: entry code evaluates at bundle load, before any activator,
+   *     where the polyfill's `inWorkflowContext()` gate is false — and in the
+   *     reusable-V8-context mode the no-op evaluation would be cached and
+   *     never re-run.)
    *     Known gap: custom payload/failure converter modules
    *     (`payloadConverterPath` / `failureConverterPath`) evaluate *before*
    *     interceptor modules, so a converter module that itself imports
