@@ -352,6 +352,11 @@ function googleAdkSandboxCompatPlugin(): unknown {
  * `@opentelemetry/api-logs` and subpath imports resolve normally. It is
  * applied after the user hook because two api copies in one bundle silently
  * drop every ADK span (see {@link adkOtelApiEntry}).
+ *
+ * Precedence is identical in both `resolve.alias` forms: alias entries
+ * resolve first-match-first, the pin is placed first, so it wins the bare
+ * specifier over any user entry (exact- or prefix-form), while a user
+ * prefix-form `@opentelemetry/api` entry still applies to subpath imports.
  */
 function addSandboxCompat(
   existing: BundleOptions['webpackConfigHook']
@@ -362,13 +367,17 @@ function addSandboxCompat(
     type PluginElement = NonNullable<WebpackConfig['plugins']>[number];
     cfg.plugins = [...plugins, googleAdkSandboxCompatPlugin() as PluginElement];
     const alias = cfg.resolve?.alias;
+    const pinTarget = adkOtelApiEntry();
     if (Array.isArray(alias)) {
-      // Array-form aliases resolve first-match-first, so prepend to give the
-      // pin the same precedence over a user exact-match entry as the object
-      // branch below (where the pin is spread last).
-      alias.unshift({ name: OTEL_API_PACKAGE, onlyModule: true, alias: adkOtelApiEntry() });
+      alias.unshift({ name: OTEL_API_PACKAGE, onlyModule: true, alias: pinTarget });
     } else {
-      cfg.resolve = { ...cfg.resolve, alias: { ...alias, [`${OTEL_API_PACKAGE}$`]: adkOtelApiEntry() } };
+      // Object-form aliases also match in key insertion order, so the pin key
+      // goes first; the re-assignment restores the pin's target if the user
+      // supplied the same exact-match key (a spread overwrites the value in
+      // place, not the key's position).
+      const merged = { [`${OTEL_API_PACKAGE}$`]: pinTarget, ...alias };
+      merged[`${OTEL_API_PACKAGE}$`] = pinTarget;
+      cfg.resolve = { ...cfg.resolve, alias: merged };
     }
     return cfg;
   };

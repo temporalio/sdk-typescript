@@ -104,6 +104,28 @@ test('configureBundler aliases @opentelemetry/api to the copy @google/adk resolv
   t.is(alias['user-alias'], '/user/alias');
 });
 
+test('the api pin wins the bare specifier over user object-form alias entries', (t) => {
+  const plugin = new GoogleAdkPlugin();
+  const { webpackConfigHook } = plugin.configureBundler({ workflowsPath: 'wf' } as BundleOptions);
+  const cfg = webpackConfigHook!({
+    plugins: [],
+    resolve: { alias: { '@opentelemetry/api': '/user/api-prefix', '@opentelemetry/api$': '/user/api-exact' } },
+  } as never) as {
+    resolve?: { alias?: Record<string, unknown> };
+  };
+  const alias = cfg.resolve?.alias ?? {};
+
+  // Object-form aliases match in key insertion order, so the pin key must be
+  // first and must keep the pin's target even when the user supplied the same
+  // exact-match key. The user's prefix-form entry survives for subpath
+  // imports but no longer captures the bare specifier — same semantics as the
+  // array form below.
+  const expected = createRequire(require.resolve('@google/adk')).resolve('@opentelemetry/api');
+  t.is(Object.keys(alias)[0], '@opentelemetry/api$');
+  t.is(alias['@opentelemetry/api$'], expected);
+  t.is(alias['@opentelemetry/api'], '/user/api-prefix');
+});
+
 test('configureBundler prepends the api pin to an array-form user alias list', (t) => {
   const plugin = new GoogleAdkPlugin();
   const { webpackConfigHook } = plugin.configureBundler({ workflowsPath: 'wf' } as BundleOptions);
@@ -113,9 +135,9 @@ test('configureBundler prepends the api pin to an array-form user alias list', (
   };
   const alias = cfg.resolve?.alias ?? [];
 
-  // Array-form aliases resolve first-match-first, so the pin must come first
-  // to keep the same precedence over a user exact-match entry as the object
-  // form.
+  // Alias entries resolve first-match-first in both forms, so the pin must
+  // come first: it wins the bare specifier over any user entry, exactly as in
+  // the object form.
   const expected = createRequire(require.resolve('@google/adk')).resolve('@opentelemetry/api');
   t.deepEqual(alias[0], { name: '@opentelemetry/api', onlyModule: true, alias: expected });
   t.is(alias[1], userEntry);
