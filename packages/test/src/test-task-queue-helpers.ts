@@ -1,6 +1,7 @@
 import test from 'ava';
 import type { ExecutionContext } from 'ava';
 import { helpers } from '@temporalio/test-helpers';
+import { configurableHelpers } from './helpers-integration';
 
 function taskQueueFor(title: string): string {
   return helpers({ title, context: { workflowBundle: {}, env: {} } } as ExecutionContext<any>).taskQueue;
@@ -30,6 +31,13 @@ test('shared helpers isolate task queues for different environments in the same 
   const secondEnv = {} as any;
 
   t.not(helpers(context, firstEnv).taskQueue, helpers(context, secondEnv).taskQueue);
+});
+
+test('configurable helpers reuse a task queue for the same test environment', (t) => {
+  const env = {} as any;
+  const context = { title: 'Configurable helper test', context: {} } as ExecutionContext<any>;
+
+  t.is(configurableHelpers(context, {} as any, env).taskQueue, configurableHelpers(context, {} as any, env).taskQueue);
 });
 
 test('shared helper task queues stay within the server length limit', (t) => {

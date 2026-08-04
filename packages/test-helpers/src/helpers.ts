@@ -86,14 +86,15 @@ function taskQueueNameForTest(title: string, testContext: object, env: object): 
  *
  * @param t - The test execution context
  * @param env - Optional environment override (defaults to t.context.env)
+ * @param testIdentity - Optional stable identity used to reuse a task queue across helper wrappers
  * @returns BaseHelpers instance
  */
 export function helpers<TEnv extends AnyTestWorkflowEnvironment = TestWorkflowEnvironment>(
   t: ExecutionContext<BaseContext<TEnv>>,
-  env: AnyTestWorkflowEnvironment = t.context.env
+  env: AnyTestWorkflowEnvironment = t.context.env,
+  testIdentity: object = t
 ): BaseHelpers {
-  // createBaseHelpers(t.title, env, t.context.workflowBundle);
-  const taskQueue = taskQueueNameForTest(t.title, t, env);
+  const taskQueue = taskQueueNameForTest(t.title, testIdentity, env);
   const workflowBundle = t.context.workflowBundle;
 
   return {

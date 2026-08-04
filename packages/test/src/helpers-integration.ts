@@ -279,5 +279,9 @@ export function configurableHelpers<T>(
   workflowBundle: WorkflowBundle,
   testEnv: TestWorkflowEnvironment
 ): BaseHelpers {
-  return baseHelpers({ title: t.title, context: { env: testEnv, workflowBundle } } as ExecutionContext<Context>);
+  return baseHelpers(
+    { ...t, context: { ...t.context, workflowBundle } } as unknown as ExecutionContext<Context>,
+    testEnv,
+    t
+  );
 }
