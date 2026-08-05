@@ -12,6 +12,7 @@ import type {
 } from '@temporalio/worker';
 import { Worker, bundleWorkflowCode } from '@temporalio/worker';
 import { SimplePlugin } from '@temporalio/plugin';
+import { requiresLocalServer } from '@temporalio/test-helpers';
 import { activityWorkflow, helloWorkflow } from './workflows/plugins';
 import { TestWorkflowEnvironment } from './helpers';
 
@@ -20,7 +21,7 @@ import * as activities from './activities';
 interface Context {
   testEnv: TestWorkflowEnvironment;
 }
-const test = anyTest as TestFn<Context>;
+const test = requiresLocalServer('creates an ephemeral server to test environment plugins', anyTest as TestFn<Context>);
 
 test.before(async (t) => {
   t.context = {

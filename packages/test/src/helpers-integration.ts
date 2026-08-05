@@ -25,11 +25,12 @@ import type {
 } from '@temporalio/test-helpers';
 import {
   helpers as baseHelpers,
-  defaultTaskQueueTransform,
   createTestWorkflowBundle as createTestWorkflowBundleBase,
   createTestWorkflowEnvironment as createTestWorkflowEnvironmentBase,
   createLocalTestEnvironment,
   defaultSAKeys,
+  isSet,
+  requiresLocalServer,
   test as anyTest,
   Worker,
 } from '@temporalio/test-helpers';
@@ -89,8 +90,12 @@ export function makeConfigurableEnvironmentTestFn<T>(opts: {
   createTestContext: (t: ExecutionContext) => Promise<T>;
   teardown: (t: T) => Promise<void>;
   runtimeOpts?: Partial<RuntimeOptions> | (() => Promise<[Partial<RuntimeOptions>, Partial<T>]>) | undefined;
+  requiresLocalServer?: string;
 }): TestFn<T> {
-  const test = anyTest as TestFn<T>;
+  const test =
+    opts.requiresLocalServer !== undefined
+      ? requiresLocalServer<T>(opts.requiresLocalServer, anyTest as TestFn<T>)
+      : (anyTest as TestFn<T>);
   test.before(async (t) => {
     const [runtimeOpts, extraContext] =
       typeof opts.runtimeOpts === 'function' ? await opts.runtimeOpts() : [opts.runtimeOpts, {}];
@@ -105,6 +110,8 @@ export function makeConfigurableEnvironmentTestFn<T>(opts: {
 
 export interface TestFunctionOptions<C extends Context = Context> {
   workflowsPath: string;
+  /** Why this suite needs an ephemeral/local Temporal server rather than an envconfig-selected server. */
+  requiresLocalServer?: string;
   workflowEnvironmentOpts?: LocalTestWorkflowEnvironmentOptions;
   workflowInterceptorModules?: string[];
   recordedLogs?: { [workflowId: string]: LogEntry[] };
@@ -115,6 +122,7 @@ export function makeTestFunction<C extends Context = Context>(opts: TestFunction
   return makeConfigurableEnvironmentTestFn<C>({
     recordedLogs: opts.recordedLogs,
     runtimeOpts: opts.runtimeOpts,
+    requiresLocalServer: opts.requiresLocalServer,
     createTestContext: makeDefaultTestContextFunction(opts) as (t: ExecutionContext) => Promise<C>,
     teardown: async (c: Context) => {
       if (c.env) {
@@ -143,6 +151,11 @@ export function makeDefaultTestContextFunction(opts: TestFunctionOptions): (t: E
 export async function createTestWorkflowEnvironment(
   opts?: LocalTestWorkflowEnvironmentOptions
 ): Promise<TestWorkflowEnvironment> {
+  if (isSet(process.env.TEMPORAL_TEST_ENV_CONFIG_SERVER, false) && opts?.server) {
+    throw new Error(
+      'workflowEnvironmentOpts.server cannot be used when TEMPORAL_TEST_ENV_CONFIG_SERVER is enabled; mark the suite requiresLocalServer instead'
+    );
+  }
   return createTestWorkflowEnvironmentBase(opts);
 }
 
@@ -169,7 +182,7 @@ export function helpers(t: ExecutionContext<Context>, env?: TestWorkflowEnvironm
   const testEnv = env ?? t.context.env;
   const { workflowBundle } = t.context;
   const base = baseHelpers(t, testEnv);
-  const taskQueue = defaultTaskQueueTransform(t.title);
+  const { taskQueue } = base;
 
   return {
     ...base,
@@ -237,11 +250,15 @@ export function helpers(t: ExecutionContext<Context>, env?: TestWorkflowEnvironm
       const endpointName = (suffix ? `${taskQueue}-${suffix}` : taskQueue).replaceAll('_', '-');
       try {
         const endpointIdentifier = await testEnv.createNexusEndpoint(endpointName, taskQueue);
-        t.teardown(() =>
-          testEnv.deleteNexusEndpoint(endpointIdentifier).catch(() => {
-            /* ignore cleanup errors */
-          })
-        );
+        t.teardown(async () => {
+          try {
+            await testEnv.deleteNexusEndpoint(endpointIdentifier);
+          } catch (err) {
+            if (!isGrpcServiceError(err) || err.code !== grpcStatus.NOT_FOUND) {
+              throw err;
+            }
+          }
+        });
         return { endpointName, endpointIdentifier };
       } catch (err) {
         if (err instanceof Error) {
@@ -262,5 +279,9 @@ export function configurableHelpers<T>(
   workflowBundle: WorkflowBundle,
   testEnv: TestWorkflowEnvironment
 ): BaseHelpers {
-  return baseHelpers({ title: t.title, context: { env: testEnv, workflowBundle } } as ExecutionContext<Context>);
+  return baseHelpers(
+    { title: t.title, context: { ...t.context, workflowBundle } } as unknown as ExecutionContext<Context>,
+    testEnv,
+    t
+  );
 }

@@ -5,13 +5,12 @@
 import { randomUUID } from 'crypto';
 import asyncRetry from 'async-retry';
 import type { LogEntry } from '@temporalio/worker';
-import { Runtime, DefaultLogger, makeTelemetryFilterString, NativeConnection } from '@temporalio/worker';
-import { Client, WorkflowClient } from '@temporalio/client';
+import { Runtime, DefaultLogger, makeTelemetryFilterString } from '@temporalio/worker';
 import * as wf from '@temporalio/workflow';
 import { defaultOptions } from './mock-native-worker';
 import * as workflows from './workflows';
 import { RUN_INTEGRATION_TESTS, Worker, test } from './helpers';
-import { createTestWorkflowBundle } from './helpers-integration';
+import { createTestWorkflowBundle, createTestWorkflowEnvironment } from './helpers-integration';
 
 if (RUN_INTEGRATION_TESTS) {
   test.serial('Runtime can be created and disposed', async (t) => {
@@ -20,63 +19,85 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test.serial('Runtime tracks registered workers, shuts down and restarts as expected', async (t) => {
+    const env = await createTestWorkflowEnvironment();
+    const q1 = `q1-${randomUUID()}`;
+    const q2 = `q2-${randomUUID()}`;
     // Create 2 Workers and verify Runtime keeps running after first Worker deregisteration
-    const worker1 = await Worker.create({
-      ...defaultOptions,
-      taskQueue: 'q1',
-    });
-    const worker2 = await Worker.create({
-      ...defaultOptions,
-      taskQueue: 'q2',
-    });
-    const worker1Drained = worker1.run();
-    const worker2Drained = worker2.run();
-    worker1.shutdown();
-    await worker1Drained;
-    const client = new WorkflowClient();
-    // Run a simple workflow
-    await client.execute(workflows.sleeper, { taskQueue: 'q2', workflowId: randomUUID(), args: [1] });
-    worker2.shutdown();
-    await worker2Drained;
+    try {
+      const worker1 = await Worker.create({
+        ...defaultOptions,
+        taskQueue: q1,
+        connection: env.nativeConnection,
+        namespace: env.namespace,
+      });
+      const worker2 = await Worker.create({
+        ...defaultOptions,
+        taskQueue: q2,
+        connection: env.nativeConnection,
+        namespace: env.namespace,
+      });
+      const worker1Drained = worker1.run();
+      const worker2Drained = worker2.run();
+      worker1.shutdown();
+      await worker1Drained;
+      // Run a simple workflow
+      await env.client.workflow.execute(workflows.sleeper, { taskQueue: q2, workflowId: randomUUID(), args: [1] });
+      worker2.shutdown();
+      await worker2Drained;
 
-    const worker3 = await Worker.create({
-      ...defaultOptions,
-      taskQueue: 'q1', // Same as the first Worker created
-    });
-    const worker3Drained = worker3.run();
-    // Run a simple workflow
-    await client.execute('sleeper', { taskQueue: 'q1', workflowId: randomUUID(), args: [1] });
-    worker3.shutdown();
-    await worker3Drained;
-    // No exceptions, test passes, Runtime is implicitly shut down
-    t.pass();
+      const worker3 = await Worker.create({
+        ...defaultOptions,
+        taskQueue: q1,
+        connection: env.nativeConnection,
+        namespace: env.namespace,
+      }); // Same as the first Worker created
+      const worker3Drained = worker3.run();
+      // Run a simple workflow
+      await env.client.workflow.execute('sleeper', { taskQueue: q1, workflowId: randomUUID(), args: [1] });
+      worker3.shutdown();
+      await worker3Drained;
+      // No exceptions, test passes, Runtime is implicitly shut down
+      t.pass();
+    } finally {
+      await env.teardown();
+    }
   });
 
   // Stopping and starting Workers is probably not a common pattern but if we don't remember what
   // Runtime configuration was installed, creating a new Worker after Runtime shutdown we would fallback
   // to the default configuration (127.0.0.1) which is surprising behavior.
   test.serial('Runtime.install() remembers installed options after it has been shut down', async (t) => {
+    const env = await createTestWorkflowEnvironment();
+    const taskQueue = `runtime-restart-${randomUUID()}`;
     const logger = new DefaultLogger('DEBUG');
     Runtime.install({ logger });
     {
       const runtime = Runtime.instance();
       t.is(runtime.options.logger, logger);
     }
-    const worker = await Worker.create({
-      ...defaultOptions,
-      taskQueue: 'q1', // Same as the first Worker created
-    });
-    const workerDrained = worker.run();
-    worker.shutdown();
-    await workerDrained;
-    {
-      const runtime = Runtime.instance();
-      t.is(runtime.options.logger, logger);
-      await runtime.shutdown();
+    try {
+      const worker = await Worker.create({
+        ...defaultOptions,
+        taskQueue,
+        connection: env.nativeConnection,
+        namespace: env.namespace,
+      }); // Same as the first Worker created
+      const workerDrained = worker.run();
+      worker.shutdown();
+      await workerDrained;
+      {
+        const runtime = Runtime.instance();
+        t.is(runtime.options.logger, logger);
+        await runtime.shutdown();
+      }
+    } finally {
+      await env.teardown();
     }
   });
 
   test.serial('Runtime.install() Core forwarded logs contains metadata', async (t) => {
+    const env = await createTestWorkflowEnvironment();
+    const taskQueue = `runtime-forwarded-logs-${randomUUID()}`;
     const logEntries: LogEntry[] = [];
     const logger = new DefaultLogger('DEBUG', (entry) => logEntries.push(entry));
     Runtime.install({
@@ -84,10 +105,12 @@ if (RUN_INTEGRATION_TESTS) {
       telemetryOptions: { logging: { forward: {}, filter: makeTelemetryFilterString({ core: 'DEBUG' }) } },
     });
     try {
-      await new Client().workflow.start('not-existant', { taskQueue: 'q1', workflowId: randomUUID() });
+      await env.client.workflow.start('not-existant', { taskQueue, workflowId: randomUUID() });
       const worker = await Worker.create({
         ...defaultOptions,
-        taskQueue: 'q1',
+        taskQueue,
+        connection: env.nativeConnection,
+        namespace: env.namespace,
       });
       await worker.runUntil(() =>
         asyncRetry(
@@ -113,6 +136,7 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(typeof failingWftEntry.meta?.['sdkComponent'], 'string');
     } finally {
       await Runtime.instance().shutdown();
+      await env.teardown();
     }
   });
 
@@ -128,8 +152,9 @@ if (RUN_INTEGRATION_TESTS) {
     });
     const bufferedLogger = runtime.logger;
 
+    const env = await createTestWorkflowEnvironment();
     // Hold on to a connection to prevent implicit shutdown of the runtime before we print 'final log'
-    const connection = await NativeConnection.connect();
+    const connection = env.nativeConnection;
 
     try {
       const taskQueue = `runtime-native-log-collector-preriodically-flushed-${randomUUID()}`;
@@ -141,7 +166,7 @@ if (RUN_INTEGRATION_TESTS) {
       });
 
       await worker.runUntil(async () => {
-        await new Client().workflow.execute(log5Times, { taskQueue, workflowId: randomUUID() });
+        await env.client.workflow.execute(log5Times, { taskQueue, workflowId: randomUUID() });
       });
       t.true(logEntries.some((x) => x.message.startsWith('workflow log ')));
 
@@ -149,8 +174,8 @@ if (RUN_INTEGRATION_TESTS) {
       bufferedLogger.info('final log');
       t.false(logEntries.some((x) => x.message.startsWith('final log')));
     } finally {
-      await connection.close();
       await runtime.shutdown();
+      await env.teardown();
     }
 
     // Assert all log messages have been flushed

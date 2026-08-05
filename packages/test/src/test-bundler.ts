@@ -11,12 +11,14 @@ import test from 'ava';
 import { moduleMatches } from '@temporalio/worker/lib/workflow/bundler';
 import type { LogEntry, WorkerOptions } from '@temporalio/worker';
 import { bundleWorkflowCode, DefaultLogger } from '@temporalio/worker';
-import { Client } from '@temporalio/client';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { createTestWorkflowEnvironment } from './helpers-integration';
 import { issue516 } from './mocks/workflows-with-node-dependencies/issue-516';
 import { preloadSharedCounter } from './workflows/preload-shared-counter';
 import { workflowWithPrebundledDep } from './workflows/workflow-with-prebundled-dep';
 import { successString } from './workflows';
+
+let env: Awaited<ReturnType<typeof createTestWorkflowEnvironment>>;
 
 test('moduleMatches works', (t) => {
   t.true(moduleMatches('fs', ['fs']));
@@ -29,10 +31,12 @@ async function runPreloadSharedCounter(
   workerOptions: Pick<WorkerOptions, 'bundlerOptions' | 'workflowBundle' | 'workflowsPath'>
 ): Promise<[number, number]> {
   const taskQueue = `${t.title}-${randomUUID()}`;
-  const client = new Client();
+  const client = env.client;
   const worker = await Worker.create({
     taskQueue,
     reuseV8Context: true,
+    connection: env.nativeConnection,
+    namespace: env.namespace,
     ...workerOptions,
   });
   return await worker.runUntil(async () => {
@@ -43,6 +47,13 @@ async function runPreloadSharedCounter(
 }
 
 if (RUN_INTEGRATION_TESTS) {
+  test.before(async () => {
+    env = await createTestWorkflowEnvironment();
+  });
+  test.after.always(async () => {
+    await env.teardown();
+  });
+
   test('Worker can be created from bundle code', async (t) => {
     const taskQueue = `${t.title}-${randomUUID()}`;
     const workflowBundle = await bundleWorkflowCode({
@@ -51,8 +62,10 @@ if (RUN_INTEGRATION_TESTS) {
     const worker = await Worker.create({
       taskQueue,
       workflowBundle,
+      connection: env.nativeConnection,
+      namespace: env.namespace,
     });
-    const client = new Client();
+    const client = env.client;
     await worker.runUntil(client.workflow.execute(successString, { taskQueue, workflowId: randomUUID() }));
     t.pass();
   });
@@ -69,8 +82,10 @@ if (RUN_INTEGRATION_TESTS) {
     const worker = await Worker.create({
       taskQueue,
       workflowBundle,
+      connection: env.nativeConnection,
+      namespace: env.namespace,
     });
-    const client = new Client();
+    const client = env.client;
     try {
       await worker.runUntil(client.workflow.execute(successString, { taskQueue, workflowId: randomUUID() }));
     } finally {
@@ -88,8 +103,10 @@ if (RUN_INTEGRATION_TESTS) {
     const worker = await Worker.create({
       taskQueue,
       workflowBundle,
+      connection: env.nativeConnection,
+      namespace: env.namespace,
     });
-    const client = new Client();
+    const client = env.client;
     await worker.runUntil(client.workflow.execute(issue516, { taskQueue, workflowId: randomUUID() }));
     t.pass();
   });
@@ -118,6 +135,8 @@ if (RUN_INTEGRATION_TESTS) {
       Worker.create({
         taskQueue,
         workflowsPath: require.resolve('./workflows'),
+        connection: env.nativeConnection,
+        namespace: env.namespace,
         bundlerOptions: {
           webpackConfigHook: (config) => {
             t.is(config.mode, 'development');
@@ -244,8 +263,14 @@ if (RUN_INTEGRATION_TESTS) {
     const workflowBundle = await bundleWorkflowCode({
       workflowsPath: require.resolve('./workflows/workflow-with-prebundled-dep'),
     });
-    const client = new Client();
-    const worker = await Worker.create({ taskQueue, reuseV8Context: true, workflowBundle });
+    const client = env.client;
+    const worker = await Worker.create({
+      taskQueue,
+      reuseV8Context: true,
+      workflowBundle,
+      connection: env.nativeConnection,
+      namespace: env.namespace,
+    });
     const results = await worker.runUntil(async () => {
       const first = await client.workflow.execute(workflowWithPrebundledDep, { taskQueue, workflowId: randomUUID() });
       const second = await client.workflow.execute(workflowWithPrebundledDep, { taskQueue, workflowId: randomUUID() });

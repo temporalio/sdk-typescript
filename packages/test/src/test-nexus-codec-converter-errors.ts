@@ -11,6 +11,7 @@ import { innermostHandlerError } from './helpers-nexus';
 const test = makeTestFunction({
   workflowsPath: __filename,
   workflowInterceptorModules: [__filename],
+  requiresLocalServer: 'Current Cloud credentials cannot manage Nexus endpoints (temporalio/features#851).',
 });
 
 const testService = nexus.service('codec-converter-test', {

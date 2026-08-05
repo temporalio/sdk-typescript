@@ -319,6 +319,58 @@ jobs:
           name: integration-tests-${{ matrix.platform }}-${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-devserver-logs
           path: ${{ steps.tmp-dir.outputs.dir }}/devserver.log
 
+  # Run the full integration test suite against Temporal Cloud. This job deliberately does not
+  # start a local Temporal CLI, so tests that have not adopted the shared environment fail visibly.
+  cloud-integration-tests:
+    name: Cloud Integration Tests
+    if: ${{ vars.IS_TEMPORALIO_SDK_TYPESCRIPT_REPO == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    timeout-minutes: 30
+    needs:
+      - compile-native-binaries-debug
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          submodules: recursive
+
+      - name: Download core-bridge native library
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: corebridge-native-debug-linux-x64
+          path: ./packages/core-bridge/releases
+
+      - name: Setup Node and install dependencies
+        uses: ./.github/actions/setup-node-deps
+        with:
+          node-version: 24
+          platform: linux-x64
+
+      - name: Compile code
+        run: pnpm --recursive --stream --filter '!@temporalio/core-bridge' --filter '!typescript-sdk' run build
+
+      - name: Run tests against Temporal Cloud
+        run: pnpm --dir packages/test exec ava --tap ./lib/test-*.js | tee cloud-integration.tap
+        env:
+          RUN_INTEGRATION_TESTS: true
+          REUSE_V8_CONTEXT: true
+          TEMPORAL_TEST_ENV_CONFIG_SERVER: true
+          TEMPORAL_ADDRESS: ca-central-1.aws.api.temporal.io:7233
+          TEMPORAL_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
+          TEMPORAL_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
+
+      - name: Upload Cloud test output
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cloud-integration-tests-output
+          path: cloud-integration.tap
+          if-no-files-found: ignore
+          retention-days: 14
+
   conventions:
     name: Lint and Prune
     uses: ./.github/workflows/conventions.yml

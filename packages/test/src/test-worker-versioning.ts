@@ -9,14 +9,18 @@ import type { ImplementationFn, TestFn } from 'ava';
 import anyTest from 'ava';
 import { status } from '@grpc/grpc-js';
 import asyncRetry from 'async-retry';
-import { BuildIdNotFoundError, Client, UnversionedBuildId } from '@temporalio/client';
+import type { Client } from '@temporalio/client';
+import { BuildIdNotFoundError, UnversionedBuildId } from '@temporalio/client';
 import { DefaultLogger, Runtime } from '@temporalio/worker';
+import type { TestWorkflowEnvironment } from '@temporalio/testing';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { createTestWorkflowEnvironment } from './helpers-integration';
 import * as activities from './activities';
 import { unblockSignal } from './workflows';
 
 export interface Context {
   client: Client;
+  env: TestWorkflowEnvironment;
   doSkip: boolean;
 }
 
@@ -33,7 +37,8 @@ const withSkipper = test.macro<[ImplementationFn<[], Context>]>(async (t, fn) =>
 if (RUN_INTEGRATION_TESTS) {
   test.before(async (t) => {
     Runtime.install({ logger: new DefaultLogger('DEBUG') });
-    const client = new Client();
+    const env = await createTestWorkflowEnvironment();
+    const client = env.client;
     // Test if this server supports worker versioning
     let doSkip = false;
     const taskQueue = 'test-worker-versioning' + randomUUID();
@@ -52,8 +57,13 @@ if (RUN_INTEGRATION_TESTS) {
     }
     t.context = {
       client,
+      env,
       doSkip,
     };
+  });
+
+  test.after.always(async (t) => {
+    await t.context.env.teardown();
   });
 
   test('Worker versioning workers get appropriate tasks', withSkipper, async (t) => {
@@ -72,6 +82,8 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue,
       buildId: '1.0',
       useVersioning: true,
+      connection: t.context.env.nativeConnection,
+      namespace: t.context.env.namespace,
     });
     const worker1Prom = worker1.run();
     worker1Prom.catch((err) => {
@@ -98,6 +110,8 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue,
       buildId: '2.0',
       useVersioning: true,
+      connection: t.context.env.nativeConnection,
+      namespace: t.context.env.namespace,
     });
     const worker2Prom = worker2.run();
     worker2Prom.catch((err) => {

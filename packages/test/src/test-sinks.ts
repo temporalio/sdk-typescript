@@ -1,16 +1,24 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import { randomUUID } from 'crypto';
-import test from 'ava';
-import { Connection, WorkflowClient } from '@temporalio/client';
+import anyTest from 'ava';
+import type { TestWorkflowEnvironment } from '@temporalio/test-helpers';
 import type { InjectedSinks, WorkerOptions, LogEntry } from '@temporalio/worker';
-import { DefaultLogger, Runtime, NativeConnection } from '@temporalio/worker';
+import { DefaultLogger, Runtime } from '@temporalio/worker';
 import type { SearchAttributes, WorkflowInfo } from '@temporalio/workflow';
 import type { UnsafeWorkflowInfo } from '@temporalio/workflow/lib/interfaces';
 import type { TypedSearchAttributes } from '@temporalio/common';
 import { SdkComponent } from '@temporalio/common';
+import { requiresLocalServer } from '@temporalio/test-helpers';
 import { RUN_INTEGRATION_TESTS, Worker, registerDefaultCustomSearchAttributes } from './helpers';
+import { createTestWorkflowEnvironment } from './helpers-integration';
 import { defaultOptions } from './mock-native-worker';
 import * as workflows from './workflows';
+
+const test = anyTest;
+const localTest = requiresLocalServer(
+  'Current Cloud credentials cannot manage operator search attributes (temporalio/features#851).',
+  test
+);
 
 class DependencyError extends Error {
   constructor(
@@ -23,10 +31,13 @@ class DependencyError extends Error {
 
 if (RUN_INTEGRATION_TESTS) {
   const recordedLogs: { [workflowId: string]: LogEntry[] } = {};
-  let nativeConnection: NativeConnection;
+  let env: TestWorkflowEnvironment;
+  const workerEnvironmentOptions = (): Partial<WorkerOptions> => ({
+    connection: env.nativeConnection,
+    namespace: env.namespace,
+  });
 
   test.before(async (_) => {
-    await registerDefaultCustomSearchAttributes(await Connection.connect({}));
     Runtime.install({
       logger: new DefaultLogger('DEBUG', (entry: LogEntry) => {
         const workflowId = (entry.meta as any)?.workflowInfo?.workflowId;
@@ -34,17 +45,15 @@ if (RUN_INTEGRATION_TESTS) {
         recordedLogs[workflowId].push(entry);
       }),
     });
+    env = await createTestWorkflowEnvironment();
+  });
 
-    // FIXME(JWH): At some point, tests in this file ends up creating a situation where we no longer have any
-    // native resource tracked by the lang side Runtime object, so the lang Runtime tries to shutdown itself,
-    // but in the mean time, another test tries to create another resource. which results in a rust side
-    // finalization error. Holding on to a nativeConnection object avoids that situation. That's a dirty hack.
-    // Proper fix will be implemented in a distinct PR.
-    nativeConnection = await NativeConnection.connect({});
+  localTest.before(async () => {
+    await registerDefaultCustomSearchAttributes(env.connection);
   });
 
   test.after.always(async () => {
-    await nativeConnection.close();
+    await env.teardown();
   });
 
   test('Worker injects sinks', async (t) => {
@@ -61,7 +70,7 @@ if (RUN_INTEGRATION_TESTS) {
     }
 
     const recordedCalls: RecordedCall[] = [];
-    const taskQueue = `${__filename}-${t.title}`;
+    const taskQueue = `${__filename}-${t.title}-${randomUUID()}`;
     const thrownErrors = Array<DependencyError>();
     const sinks: InjectedSinks<workflows.TestSinks> = {
       success: {
@@ -98,10 +107,11 @@ if (RUN_INTEGRATION_TESTS) {
 
     const worker = await Worker.create({
       ...defaultOptions,
+      ...workerEnvironmentOptions(),
       taskQueue,
       sinks,
     });
-    const client = new WorkflowClient();
+    const client = env.client.workflow;
     const wf = await worker.runUntil(async () => {
       const wf = await client.start(workflows.sinksWorkflow, { taskQueue, workflowId: randomUUID() });
       await wf.result();
@@ -113,7 +123,7 @@ if (RUN_INTEGRATION_TESTS) {
     t.true(historySize > 300);
 
     const info: WorkflowInfo = {
-      namespace: 'default',
+      namespace: env.client.options.namespace,
       firstExecutionRunId: wf.firstExecutionRunId,
       attempt: 1,
       taskTimeoutMs: 10_000,
@@ -201,7 +211,7 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Sink functions are not called during replay if callDuringReplay is unset', async (t) => {
-    const taskQueue = `${__filename}-${t.title}`;
+    const taskQueue = `${__filename}-${t.title}-${randomUUID()}`;
 
     const recordedMessages = Array<{ message: string; historyLength: number; isReplaying: boolean }>();
     const sinks: InjectedSinks<workflows.CustomLoggerSinks> = {
@@ -218,9 +228,10 @@ if (RUN_INTEGRATION_TESTS) {
       },
     };
 
-    const client = new WorkflowClient();
+    const client = env.client.workflow;
     const worker = await Worker.create({
       ...defaultOptions,
+      ...workerEnvironmentOptions(),
       taskQueue,
       sinks,
       maxCachedWorkflows: 0,
@@ -243,7 +254,7 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Sink functions are called during replay if callDuringReplay is set', async (t) => {
-    const taskQueue = `${__filename}-${t.title}`;
+    const taskQueue = `${__filename}-${t.title}-${randomUUID()}`;
 
     const recordedMessages = Array<{ message: string; historyLength: number; isReplaying: boolean }>();
     const sinks: InjectedSinks<workflows.CustomLoggerSinks> = {
@@ -263,12 +274,13 @@ if (RUN_INTEGRATION_TESTS) {
 
     const worker = await Worker.create({
       ...defaultOptions,
+      ...workerEnvironmentOptions(),
       taskQueue,
       sinks,
       maxCachedWorkflows: 0,
       maxConcurrentWorkflowTaskExecutions: 2,
     });
-    const client = new WorkflowClient();
+    const client = env.client.workflow;
     await worker.runUntil(client.execute(workflows.logSinkTester, { taskQueue, workflowId: randomUUID() }));
 
     // Note that task may be replayed more than once and record the first messages multiple times.
@@ -307,10 +319,11 @@ if (RUN_INTEGRATION_TESTS) {
       },
     };
 
-    const client = new WorkflowClient();
-    const taskQueue = `${__filename}-${t.title}`;
+    const client = env.client.workflow;
+    const taskQueue = `${__filename}-${t.title}-${randomUUID()}`;
     const worker = await Worker.create({
       ...defaultOptions,
+      ...workerEnvironmentOptions(),
       taskQueue,
       sinks,
     });
@@ -335,7 +348,7 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Sink functions are called in runReplayHistories if callDuringReplay is set', async (t) => {
-    const taskQueue = `${__filename}-${t.title}`;
+    const taskQueue = `${__filename}-${t.title}-${randomUUID()}`;
 
     const recordedMessages = Array<{ message: string; historyLength: number; isReplaying: boolean }>();
     const sinks: InjectedSinks<workflows.CustomLoggerSinks> = {
@@ -355,10 +368,11 @@ if (RUN_INTEGRATION_TESTS) {
 
     const worker = await Worker.create({
       ...defaultOptions,
+      ...workerEnvironmentOptions(),
       taskQueue,
       sinks,
     });
-    const client = new WorkflowClient();
+    const client = env.client.workflow;
     const workflowId = randomUUID();
     await worker.runUntil(async () => {
       await client.execute(workflows.logSinkTester, { taskQueue, workflowId });
@@ -392,8 +406,8 @@ if (RUN_INTEGRATION_TESTS) {
     ]);
   });
 
-  test('Sink functions contains upserted search attributes', async (t) => {
-    const taskQueue = `${__filename}-${t.title}`;
+  localTest('Sink functions contains upserted search attributes', async (t) => {
+    const taskQueue = `${__filename}-${t.title}-${randomUUID()}`;
 
     const recordedMessages = Array<{ message: string; searchAttributes: SearchAttributes }>();
     const sinks: InjectedSinks<workflows.CustomLoggerSinks> = {
@@ -410,11 +424,12 @@ if (RUN_INTEGRATION_TESTS) {
       },
     };
 
-    const client = new WorkflowClient();
+    const client = env.client.workflow;
     const date = new Date();
 
     const worker = await Worker.create({
       ...defaultOptions,
+      ...workerEnvironmentOptions(),
       taskQueue,
       sinks,
     });
@@ -445,8 +460,8 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Sink functions contains upserted memo', async (t) => {
-    const taskQueue = `${__filename}-${t.title}`;
-    const client = new WorkflowClient();
+    const taskQueue = `${__filename}-${t.title}-${randomUUID()}`;
+    const client = env.client.workflow;
 
     const recordedMessages = Array<{ message: string; memo: Record<string, unknown> | undefined }>();
     const sinks: InjectedSinks<workflows.CustomLoggerSinks> = {
@@ -465,6 +480,7 @@ if (RUN_INTEGRATION_TESTS) {
 
     const worker = await Worker.create({
       ...defaultOptions,
+      ...workerEnvironmentOptions(),
       taskQueue,
       sinks,
     });
@@ -509,7 +525,7 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Core issue 589', async (t) => {
-    const taskQueue = `${__filename}-${t.title}`;
+    const taskQueue = `${__filename}-${t.title}-${randomUUID()}`;
 
     const recordedMessages = Array<{ message: string; historyLength: number; isReplaying: boolean }>();
     const sinks: InjectedSinks<workflows.CustomLoggerSinks> = {
@@ -527,11 +543,12 @@ if (RUN_INTEGRATION_TESTS) {
       },
     };
 
-    const client = new WorkflowClient();
+    const client = env.client.workflow;
     const handle = await client.start(workflows.coreIssue589, { taskQueue, workflowId: randomUUID() });
 
     const workerOptions: WorkerOptions = {
       ...defaultOptions,
+      ...workerEnvironmentOptions(),
       taskQueue,
       sinks,
 
@@ -562,7 +579,7 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Logging is allowed in query handlers and update validators', async (t) => {
-    const taskQueue = `${__filename}-${t.title}`;
+    const taskQueue = `${__filename}-${t.title}-${randomUUID()}`;
 
     let recordedMessages: { message: string; isReplaying: boolean }[] = [];
     const sinks: InjectedSinks<workflows.CustomLoggerSinks> = {
@@ -578,11 +595,12 @@ if (RUN_INTEGRATION_TESTS) {
       },
     };
 
-    const client = new WorkflowClient();
+    const client = env.client.workflow;
     const handle = await client.start(workflows.queryAndValidatorLogging, { taskQueue, workflowId: randomUUID() });
 
     const worker = await Worker.create({
       ...defaultOptions,
+      ...workerEnvironmentOptions(),
       taskQueue,
       sinks,
       // Avoid waiting for sticky execution timeout on worker transition
@@ -601,6 +619,7 @@ if (RUN_INTEGRATION_TESTS) {
 
     const worker2 = await Worker.create({
       ...defaultOptions,
+      ...workerEnvironmentOptions(),
       taskQueue,
       sinks,
       // Avoid waiting for sticky execution timeout on worker transition

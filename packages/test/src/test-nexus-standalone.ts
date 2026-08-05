@@ -30,6 +30,7 @@ const { EventType } = temporal.api.enums.v1;
 
 const test = makeTestFunction({
   workflowsPath: __filename,
+  requiresLocalServer: 'Current Cloud credentials cannot manage Nexus endpoints (temporalio/features#851).',
   workflowEnvironmentOpts: {
     server: {
       extraArgs: [

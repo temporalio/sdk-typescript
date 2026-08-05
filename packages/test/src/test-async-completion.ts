@@ -4,26 +4,23 @@ import anyTest from 'ava';
 import type { Observable } from 'rxjs';
 import { ReplaySubject, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import type { ConnectionLike } from '@temporalio/client';
-import {
-  ActivityCancelledError,
-  Client,
-  ActivityNotFoundError,
-  WorkflowFailedError,
-  Connection,
-} from '@temporalio/client';
+import type { Connection, ConnectionLike } from '@temporalio/client';
+import type { TestWorkflowEnvironment } from '@temporalio/test-helpers';
+import { ActivityCancelledError, Client, ActivityNotFoundError, WorkflowFailedError } from '@temporalio/client';
 import type { Info } from '@temporalio/activity';
 import type { ActivitySerializationContext } from '@temporalio/common';
 import { ApplicationFailure, defaultPayloadConverter, fromPayloadsAtIndex, rootCause } from '@temporalio/common';
 import type { temporal } from '@temporalio/proto';
 import { isCancellation } from '@temporalio/workflow';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { createTestWorkflowEnvironment } from './helpers-integration';
 import { runAnAsyncActivity } from './workflows';
 import { createActivities } from './activities/async-completer';
 import { activityCtx, enc, makeContextTrace } from './payload-converters/serialization-context-converter';
 import type { ContextTrace } from './payload-converters/serialization-context-converter';
 
 export interface Context {
+  env: TestWorkflowEnvironment;
   worker: Worker;
   client: Client;
   activityStarted$: Observable<Info>;
@@ -64,7 +61,7 @@ async function makeNotFoundTaskToken(conn: Connection, namespace: string): Promi
   return new Uint8Array(buf);
 }
 
-const taskQueue = 'async-activity-completion';
+const taskQueue = `async-activity-completion-${randomUUID()}`;
 const test = anyTest as TestFn<Context>;
 const TASK_TOKEN = new Uint8Array([1]);
 const dataConverter = {
@@ -239,31 +236,35 @@ test('AsyncCompletionClient heartbeat with task token uses explicit activity con
 
 if (RUN_INTEGRATION_TESTS) {
   test.before(async (t) => {
+    const env = await createTestWorkflowEnvironment();
     const infoSubject = new ReplaySubject<Info>();
 
     const worker = await Worker.create({
       workflowsPath: require.resolve('./workflows'),
       activities: createActivities(infoSubject),
       taskQueue,
+      connection: env.nativeConnection,
+      namespace: env.namespace,
     });
     const runPromise = worker.run();
     // Catch the error here to avoid unhandled rejection
     runPromise.catch((err) => {
       console.error('Caught error while worker was running', err);
     });
-    const connection = await Connection.connect();
     t.context = {
       worker,
       runPromise,
       activityStarted$: infoSubject,
-      client: new Client({ connection }),
-      notFoundTaskToken: await makeNotFoundTaskToken(connection, 'default'),
+      client: new Client({ connection: env.connection, namespace: env.namespace }),
+      notFoundTaskToken: await makeNotFoundTaskToken(env.connection, env.client.options.namespace),
+      env,
     };
   });
 
   test.after.always(async (t) => {
     t.context.worker.shutdown();
     await t.context.runPromise;
+    await t.context.env.teardown();
   });
 
   test('Activity can complete asynchronously', async (t) => {

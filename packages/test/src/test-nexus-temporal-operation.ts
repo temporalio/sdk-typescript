@@ -17,6 +17,7 @@ import { waitUntil } from './helpers';
 
 const test = makeTestFunction({
   workflowsPath: __filename,
+  requiresLocalServer: 'Current Cloud credentials cannot manage Nexus endpoints (temporalio/features#851).',
   workflowEnvironmentOpts: {
     server: {
       extraArgs: [

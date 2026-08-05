@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import test from 'ava';
 import { WorkflowClient } from '@temporalio/client';
 import { Runtime } from '@temporalio/worker';
+import { requiresLocalServer } from '@temporalio/test-helpers';
 import { Worker, getRandomPort, TestWorkflowEnvironment, assertEventually } from './helpers';
 import * as workflows from './workflows';
 
@@ -27,7 +28,9 @@ test.serial(
   }
 );
 
-test.serial('Exporting Prometheus metrics from Core works', async (t) => {
+const localTest = requiresLocalServer('creates an ephemeral server to generate worker metrics', test);
+
+localTest.serial('Exporting Prometheus metrics from Core works', async (t) => {
   const port = await getRandomPort();
   Runtime.install({
     telemetryOptions: {
@@ -66,7 +69,7 @@ test.serial('Exporting Prometheus metrics from Core works', async (t) => {
   }
 });
 
-test.serial('Exporting Prometheus metrics from Core works with lots of options', async (t) => {
+localTest.serial('Exporting Prometheus metrics from Core works with lots of options', async (t) => {
   const port = await getRandomPort();
   Runtime.install({
     telemetryOptions: {

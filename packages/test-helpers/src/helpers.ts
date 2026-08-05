@@ -8,6 +8,9 @@ import type { TestWorkflowEnvironment } from './wrappers';
 import { Worker } from './wrappers';
 
 export const isBun = typeof (globalThis as any).Bun !== 'undefined';
+const TASK_QUEUE_NAME_MAX_LENGTH = 1_000;
+const TASK_QUEUE_NAME_UUID_LENGTH = 36;
+const taskQueueNamesByTest = new WeakMap<object, WeakMap<object, string>>();
 /** Union type for all supported test environment types */
 export type AnyTestWorkflowEnvironment = TestWorkflowEnvironment | RealTestWorkflowEnvironment;
 
@@ -50,6 +53,31 @@ export function defaultTaskQueueTransform(title: string): string {
     .replace(/^[-]?(.+?)[-]?$/, '$1');
 }
 
+function taskQueueNameForTest(title: string, testContext: object, env: object): string {
+  let taskQueueNamesByEnvironment = taskQueueNamesByTest.get(testContext);
+  if (taskQueueNamesByEnvironment === undefined) {
+    taskQueueNamesByEnvironment = new WeakMap();
+    taskQueueNamesByTest.set(testContext, taskQueueNamesByEnvironment);
+  }
+  const existing = taskQueueNamesByEnvironment.get(env);
+  if (existing !== undefined) return existing;
+
+  // Keep enough room for the separator and UUID, since task queue names are
+  // limited to 1,000 bytes by the server.
+  const maxPrefixLength = TASK_QUEUE_NAME_MAX_LENGTH - TASK_QUEUE_NAME_UUID_LENGTH - 1;
+  let prefix = '';
+  let prefixLength = 0;
+  for (const character of defaultTaskQueueTransform(title)) {
+    const characterLength = Buffer.byteLength(character);
+    if (prefixLength + characterLength > maxPrefixLength) break;
+    prefix += character;
+    prefixLength += characterLength;
+  }
+  const taskQueue = `${prefix}-${randomUUID()}`;
+  taskQueueNamesByEnvironment.set(env, taskQueue);
+  return taskQueue;
+}
+
 /**
  * Create helpers for a test.
  *
@@ -58,14 +86,15 @@ export function defaultTaskQueueTransform(title: string): string {
  *
  * @param t - The test execution context
  * @param env - Optional environment override (defaults to t.context.env)
+ * @param testIdentity - Optional stable identity used to reuse a task queue across helper wrappers
  * @returns BaseHelpers instance
  */
 export function helpers<TEnv extends AnyTestWorkflowEnvironment = TestWorkflowEnvironment>(
   t: ExecutionContext<BaseContext<TEnv>>,
-  env: AnyTestWorkflowEnvironment = t.context.env
+  env: AnyTestWorkflowEnvironment = t.context.env,
+  testIdentity: object = t
 ): BaseHelpers {
-  // createBaseHelpers(t.title, env, t.context.workflowBundle);
-  const taskQueue = defaultTaskQueueTransform(t.title);
+  const taskQueue = taskQueueNameForTest(t.title, testIdentity, env);
   const workflowBundle = t.context.workflowBundle;
 
   return {
