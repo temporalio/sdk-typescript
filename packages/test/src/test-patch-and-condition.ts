@@ -2,25 +2,38 @@ import crypto from 'crypto';
 import test from 'ava';
 import { WorkflowClient } from '@temporalio/client';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { createTestWorkflowEnvironment } from './helpers-integration';
 import * as workflows from './workflows/patch-and-condition-pre-patch';
 
 if (RUN_INTEGRATION_TESTS) {
+  let env: Awaited<ReturnType<typeof createTestWorkflowEnvironment>>;
+
+  test.before(async () => {
+    env = await createTestWorkflowEnvironment();
+  });
+  test.after.always(async () => {
+    await env.teardown();
+  });
+
   test('Patch in condition does not cause non-determinism error on replay', async (t) => {
-    const client = new WorkflowClient();
+    const client = new WorkflowClient({ connection: env.connection, namespace: env.namespace });
     const workflowId = crypto.randomUUID();
+    const taskQueue = `patch-in-condition-${crypto.randomUUID()}`;
 
     // Create the first worker with pre-patched version of the workflow
     const worker1 = await Worker.create({
-      taskQueue: 'patch-in-condition',
+      taskQueue,
       workflowsPath: require.resolve('./workflows/patch-and-condition-pre-patch'),
       // Avoid waiting for sticky execution timeout on each worker transition
       maxCachedWorkflows: 0,
+      connection: env.nativeConnection,
+      namespace: env.namespace,
     });
 
     // Start the workflow and wait for the first task to be processed
     const handle = await worker1.runUntil(async () => {
       const handle = await client.start(workflows.patchInCondition, {
-        taskQueue: 'patch-in-condition',
+        taskQueue,
         workflowId,
       });
       await handle.query('__temporal_workflow_metadata');
@@ -29,9 +42,11 @@ if (RUN_INTEGRATION_TESTS) {
 
     // Create the second worker with post-patched version of the workflow
     const worker2 = await Worker.create({
-      taskQueue: 'patch-in-condition',
+      taskQueue,
       workflowsPath: require.resolve('./workflows/patch-and-condition-post-patch'),
       maxCachedWorkflows: 0,
+      connection: env.nativeConnection,
+      namespace: env.namespace,
     });
 
     // Trigger a signal and wait for it to be processed
@@ -42,9 +57,11 @@ if (RUN_INTEGRATION_TESTS) {
 
     // Create the third worker that is identical to the second one
     const worker3 = await Worker.create({
-      taskQueue: 'patch-in-condition',
+      taskQueue,
       workflowsPath: require.resolve('./workflows/patch-and-condition-post-patch'),
       maxCachedWorkflows: 0,
+      connection: env.nativeConnection,
+      namespace: env.namespace,
     });
 
     // Trigger a workflow task that will cause replay.
