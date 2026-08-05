@@ -9,6 +9,8 @@ import {
   WorkflowExecutionAlreadyStartedError,
   WorkflowFailedError,
 } from '@temporalio/client';
+import type { Client } from '@temporalio/client';
+import { type InternalActivityStartOptions, InternalActivityStartOptionsSymbol } from '@temporalio/client/lib/internal';
 import * as temporalnexus from '@temporalio/nexus';
 import { asyncLocalStorage } from '@temporalio/nexus/lib/context';
 import {
@@ -697,6 +699,120 @@ test('TemporalOperationHandler activity has Nexus-Operation-Token Header', async
     const actualToken = desc.rawCallbacks?.[0].info?.callback?.nexus?.header?.['nexus-operation-token'];
     t.is(actualToken, expectedToken);
   });
+});
+
+test('TemporalOperationHandler activity links are not duplicated', async (t) => {
+  const { createWorker, registerNexusEndpoint } = helpers(t);
+  const { client } = t.context.env;
+  const { endpointName } = await registerNexusEndpoint();
+
+  const worker = await createWorker({
+    activities,
+    nexusServices: [
+      makeTemporalOpServiceHandler({
+        asyncOp: new temporalnexus.TemporalOperationHandler<string, string>({
+          async start(_ctx, client, input) {
+            return await client.typedActivity<typeof activities>().startActivity('echo', {
+              id: input,
+              args: [input],
+              scheduleToCloseTimeout: '10s',
+            });
+          },
+        }),
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const targetActivityId = randomUUID();
+    const nexusClient = client.nexus.createServiceClient({ endpoint: endpointName, service: temporalOpService });
+    const operation = await nexusClient.startOperation(temporalOpService.operations.asyncOp, targetActivityId, {
+      id: randomUUID(),
+      scheduleToCloseTimeout: '10s',
+    });
+    const result = await operation.result();
+    t.is(result, targetActivityId);
+
+    const desc = await client.activity.getHandle(targetActivityId).describe();
+    const callback = desc.rawCallbacks?.[0].info?.callback;
+    const nexusOperationLink = callback?.links?.find((link) => link.nexusOperation != null)?.nexusOperation;
+    t.is(nexusOperationLink?.operationId, operation.operationId);
+    t.deepEqual(desc.rawInfo.links, []);
+  });
+});
+
+test('TemporalOperationHandler places activity links based on callback presence', async (t) => {
+  const inboundLink: nexus.Link = {
+    type: 'temporal.api.common.v1.Link.NexusOperation',
+    url: new URL('temporal:///namespaces/ns/nexus-operations/operation-id/run-id/details'),
+  };
+  const expectedLinks = [
+    {
+      nexusOperation: {
+        namespace: 'ns',
+        operationId: 'operation-id',
+        runId: 'run-id',
+      },
+    },
+  ];
+  const makeStartContext = (callbackUrl?: string): nexus.StartOperationContext => ({
+    service: 'service',
+    operation: 'operation',
+    headers: {},
+    abortSignal: new AbortController().signal,
+    requestId: 'request-id',
+    callbackUrl,
+    callbackHeaders: { callback: 'header' },
+    inboundLinks: [inboundLink],
+    outboundLinks: [],
+  });
+  const captureStartOptions = async (
+    callbackUrl?: string
+  ): Promise<NonNullable<InternalActivityStartOptions[typeof InternalActivityStartOptionsSymbol]>> => {
+    let capturedOptions: InternalActivityStartOptions | undefined;
+    const client = {
+      activity: {
+        async start(_activity: string, options: InternalActivityStartOptions) {
+          capturedOptions = options;
+          return { activityId: options.id, runId: 'activity-run-id' };
+        },
+      },
+    } as unknown as Client;
+    const handler = new temporalnexus.TemporalOperationHandler<undefined, unknown>({
+      async start(_ctx, nexusClient) {
+        return await nexusClient.startActivity('activity', {
+          id: 'activity-id',
+          scheduleToCloseTimeout: '1m',
+        });
+      },
+    });
+
+    await asyncLocalStorage.run(
+      {
+        client,
+        endpoint: 'endpoint',
+        namespace: 'ns',
+        taskQueue: 'task-queue',
+        log: undefined as any,
+        metrics: undefined as any,
+      },
+      () => handler.start(makeStartContext(callbackUrl), undefined)
+    );
+
+    const internalOptions = capturedOptions?.[InternalActivityStartOptionsSymbol];
+    if (internalOptions == null) {
+      throw new Error('Activity start did not receive internal Nexus options');
+    }
+    return internalOptions;
+  };
+
+  const withCallback = await captureStartOptions('https://callback.example');
+  t.is(withCallback.links, undefined);
+  t.deepEqual(withCallback.completionCallbacks?.[0]?.links, expectedLinks);
+
+  const withoutCallback = await captureStartOptions();
+  t.deepEqual(withoutCallback.links, expectedLinks);
+  t.is(withoutCallback.completionCallbacks, undefined);
 });
 
 test('TemporalOperationHandler start typed standalone activity', async (t) => {

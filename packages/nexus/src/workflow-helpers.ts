@@ -420,7 +420,6 @@ async function startActivity<R>(
   const { client, taskQueue, namespace } = getHandlerContext();
   const links = requestLinksToTemporalLinks(ctx);
   const internalOptions: InternalActivityStartOptions[typeof InternalActivityStartOptionsSymbol] = {
-    links,
     requestId: ctx.requestId,
     onConflictOptions: {
       attachLinks: true,
@@ -448,6 +447,8 @@ async function startActivity<R>(
         links,
       },
     ];
+  } else {
+    internalOptions.links = links;
   }
 
   const { taskQueue: userSpecifiedTaskQueue, ...rest } = activityOptions;
