@@ -19,6 +19,8 @@ to docs, or any other relevant information.
 
 ## [Unreleased]
 
+## [1.22.0] - 2026-08-05
+
 ### Added
 
 - **Experimental**: Added `TypeInfo` and `TransferTypeConverter` to `@temporalio/common` for converting
