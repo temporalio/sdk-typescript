@@ -154,6 +154,25 @@ function createDeferred(): [promise: Promise<void>, resolve: () => void] {
   return [promise, resolve];
 }
 
+// Activity cancellation is delivered through heartbeats. Without a heartbeat timeout, the default heartbeat throttle
+// is 30 seconds, which can let the activity's terminal timeout win the race with cancellation in these tests.
+const cancellationHeartbeatInterval = '100ms';
+
+function createCancellationActivities(markActivityStarted: () => void) {
+  return {
+    ...activities,
+    async waitForCancellation() {
+      const cx = Context.current();
+      cx.heartbeat();
+      markActivityStarted();
+      while (true) {
+        await cx.sleep(cancellationHeartbeatInterval);
+        cx.heartbeat();
+      }
+    },
+  };
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Tests
 
@@ -919,25 +938,25 @@ test('TemporalOperationHandler propagates backing activity failure', async (t) =
   });
 });
 
-test('TemporalOperationHandler cancels backing activity', async (t) => {
+test.serial('TemporalOperationHandler cancels backing activity', async (t) => {
   const { createWorker, registerNexusEndpoint } = helpers(t);
   const { endpointName } = await registerNexusEndpoint();
   const { client } = t.context.env;
 
   const [activityStarted, markActivityStarted] = createDeferred();
+  const cancellationActivities = createCancellationActivities(markActivityStarted);
 
   const worker = await createWorker({
-    activities,
+    activities: cancellationActivities,
+    defaultHeartbeatThrottleInterval: cancellationHeartbeatInterval,
     nexusServices: [
       makeTemporalOpServiceHandler({
         blockingActivity: new temporalnexus.TemporalOperationHandler({
           async start(_ctx, client, input) {
-            const result = await client.typedActivity<typeof activities>().startActivity('waitForCancellation', {
+            return await client.typedActivity<typeof cancellationActivities>().startActivity('waitForCancellation', {
               id: input,
-              scheduleToCloseTimeout: '10s',
+              scheduleToCloseTimeout: '30s',
             });
-            markActivityStarted();
-            return result;
           },
         }),
       }),
@@ -952,7 +971,8 @@ test('TemporalOperationHandler cancels backing activity', async (t) => {
     });
     await activityStarted;
 
-    const activityHandle = client.activity.getHandle(targetActivityId);
+    const { activityRunId } = await client.activity.getHandle(targetActivityId).describe();
+    const activityHandle = client.activity.getHandle(targetActivityId, activityRunId);
 
     await handle.cancel();
 
@@ -960,36 +980,44 @@ test('TemporalOperationHandler cancels backing activity', async (t) => {
       t.throwsAsync(activityHandle.result(), { instanceOf: ActivityExecutionFailedError }),
       t.throwsAsync(handle.result(), { instanceOf: NexusOperationFailureError }),
     ]);
-    t.true(activityError?.cause instanceof CancelledFailure);
-    t.true(operationError?.cause instanceof CancelledFailure);
+    t.true(
+      activityError?.cause instanceof CancelledFailure,
+      `Expected backing activity cancellation, got ${activityError?.cause?.name ?? 'no cause'}`
+    );
+    t.true(
+      operationError?.cause instanceof CancelledFailure,
+      `Expected Nexus operation cancellation, got ${operationError?.cause?.name ?? 'no cause'}`
+    );
 
     t.is((await activityHandle.describe()).status, 'CANCELED');
     t.is((await handle.describe()).status, NexusOperationExecutionStatus.CANCELED);
   });
 });
 
-test('TemporalOperationHandler invokes custom cancelActivity', async (t) => {
+test.serial('TemporalOperationHandler invokes custom cancelActivity', async (t) => {
   const { createWorker, registerNexusEndpoint } = helpers(t);
   const { endpointName } = await registerNexusEndpoint();
   const { client } = t.context.env;
 
   const [activityStarted, markActivityStarted] = createDeferred();
   const [customCancelCalled, markCustomCancelCalled] = createDeferred();
+  const cancellationActivities = createCancellationActivities(markActivityStarted);
+  let canceledActivityRunId: string | undefined;
 
   const worker = await createWorker({
-    activities,
+    activities: cancellationActivities,
+    defaultHeartbeatThrottleInterval: cancellationHeartbeatInterval,
     nexusServices: [
       makeTemporalOpServiceHandler({
         blockingActivity: new temporalnexus.TemporalOperationHandler({
           async start(_ctx, client, input) {
-            const result = await client.typedActivity<typeof activities>().startActivity('waitForCancellation', {
+            return await client.typedActivity<typeof cancellationActivities>().startActivity('waitForCancellation', {
               id: input,
-              scheduleToCloseTimeout: '10s',
+              scheduleToCloseTimeout: '30s',
             });
-            markActivityStarted();
-            return result;
           },
-          async cancelActivity(ctx, { activityId, runId }) {
+          async cancelActivity(_ctx, { activityId, runId }) {
+            canceledActivityRunId = runId;
             const handle = temporalnexus.getClient().activity.getHandle(activityId, runId);
             await handle.cancel('test custom cancellation');
             markCustomCancelCalled();
@@ -1008,17 +1036,25 @@ test('TemporalOperationHandler invokes custom cancelActivity', async (t) => {
 
     await activityStarted;
 
-    const activityHandle = client.activity.getHandle(targetActivityId);
+    const { activityRunId } = await client.activity.getHandle(targetActivityId).describe();
+    const activityHandle = client.activity.getHandle(targetActivityId, activityRunId);
     await result.cancel();
 
     await customCancelCalled;
+    t.is(canceledActivityRunId, activityRunId);
 
     const [activityError, operationError] = await Promise.all([
       t.throwsAsync(activityHandle.result(), { instanceOf: ActivityExecutionFailedError }),
       t.throwsAsync(result.result(), { instanceOf: NexusOperationFailureError }),
     ]);
-    t.true(activityError?.cause instanceof CancelledFailure);
-    t.true(operationError?.cause instanceof CancelledFailure);
+    t.true(
+      activityError?.cause instanceof CancelledFailure,
+      `Expected backing activity cancellation, got ${activityError?.cause?.name ?? 'no cause'}`
+    );
+    t.true(
+      operationError?.cause instanceof CancelledFailure,
+      `Expected Nexus operation cancellation, got ${operationError?.cause?.name ?? 'no cause'}`
+    );
 
     t.is((await activityHandle.describe()).status, 'CANCELED');
     t.is((await result.describe()).status, NexusOperationExecutionStatus.CANCELED);
