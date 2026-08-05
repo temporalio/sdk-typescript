@@ -49,6 +49,12 @@ to docs, or any other relevant information.
 - Workflows no longer retain completion state when a child Workflow fails or is cancelled before starting.
 - Local Activity tests now use `makeTestFunction` to manage their test environment.
 
+### Security
+
+- Bumped the vendored `quinn-proto` in `@temporalio/core-bridge`'s `Cargo.lock` from 0.11.14 to
+  0.11.15, clearing GHSA-4w2j-m93h-cj5j / RUSTSEC-2026-0185 (unbounded out-of-order stream
+  reassembly DoS) for downstream image scanners.
+
 ## [1.21.1] - 2026-07-23
 
 ### Fixed
