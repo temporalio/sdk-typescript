@@ -35,6 +35,11 @@ to docs, or any other relevant information.
   update (e.g. a validation rejection) surfaces as a failed Nexus operation. Cancellation is
   customizable via the `cancelWorkflowUpdate` handler option; the default rejects with a
   `NOT_IMPLEMENTED` handler error.
+- `@temporalio/ai-sdk`: `listToolsActivity`/`callToolActivity` now reuse a single MCP client connection
+  across repeated invocations for the same server instead of creating and closing one on every call.
+  Configure the idle window via the new `mcpConnectionIdleTimeout` option on `createActivities` and
+  `AiSdkPluginOptions` (defaults to 5 minutes); pass `mcpConnectionIdleTimeout: 0` to opt out and restore
+  the original behavior for MCP servers/transports that don't tolerate a reused or concurrent session.
 
 ### Fixed
 
