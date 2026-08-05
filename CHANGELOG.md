@@ -41,6 +41,10 @@ to docs, or any other relevant information.
   `AiSdkPluginOptions` (defaults to 5 minutes); pass `mcpConnectionIdleTimeout: 0` to opt out and restore
   the original behavior for MCP servers/transports that don't tolerate a reused or concurrent session.
 
+### Changed
+
+- Updated Core to `65b25ada` (`temporal-core` 0.6.0)
+
 ### Fixed
 
 - strands: Declare `zod` as a peer dependency.
