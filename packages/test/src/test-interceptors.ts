@@ -217,6 +217,47 @@ if (RUN_INTEGRATION_TESTS) {
     });
   });
 
+  test.serial('WorkflowClientInterceptor intercepts list and fetchHistory', async (t) => {
+    const taskQueue = 'test-interceptor-list-and-fetch-history';
+    const workflowId = randomUUID();
+    const worker = await Worker.create({
+      ...defaultOptions,
+      taskQueue,
+    });
+    let listCalls = 0;
+    let fetchHistoryCalls = 0;
+    const client = new WorkflowClient({
+      interceptors: [
+        {
+          list(input, next) {
+            listCalls += 1;
+            return next(input);
+          },
+          async fetchHistory(input, next) {
+            fetchHistoryCalls += 1;
+            return next(input);
+          },
+        },
+      ],
+    });
+
+    await worker.runUntil(async () => {
+      await client.execute(successString, {
+        taskQueue,
+        workflowId,
+      });
+
+      const history = await client.getHandle(workflowId).fetchHistory();
+      t.true((history.events?.length ?? 0) > 0);
+      t.is(fetchHistoryCalls, 1);
+
+      for await (const _ of client.list({ query: `WorkflowId = "${workflowId}"` })) {
+        // consume iterator
+      }
+      t.is(listCalls, 1);
+    });
+  });
+
   test.serial('Workflow continueAsNew can be intercepted', async (t) => {
     const taskQueue = 'test-continue-as-new-interceptor';
     const worker = await Worker.create({
