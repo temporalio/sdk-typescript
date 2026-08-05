@@ -50,6 +50,7 @@ to docs, or any other relevant information.
 ### Fixed
 
 - strands: Declare `zod` as a peer dependency.
+- strands: MCP connections are no longer disconnected while being used by a `callTool` or `listTools` activity.
 - workflow-streams: `WorkflowStream.onPoll` no longer serves a stale log index for a poll that
   was parked across a `truncate()` call, which could silently skip events.
 - Workflows no longer retain completion state when a child Workflow fails or is cancelled before starting.
