@@ -25,7 +25,7 @@
   "license": "MIT",
   "dependencies": {
     "long": "^5.2.3",
-    "protobufjs": "^7.6.4"
+    "protobufjs": "^7.6.5"
   },
   "devDependencies": {
     "glob": "^10.3.10",
