@@ -72,6 +72,7 @@ test('Start of workflow respects workflow id conflict policy', async (t) => {
     );
 
     t.true(err instanceof WorkflowExecutionAlreadyStartedError);
+    t.is((err as WorkflowExecutionAlreadyStartedError).runId, handle.firstExecutionRunId);
 
     // Confirm fails with explicit option
     const err1 = await t.throwsAsync(
@@ -86,6 +87,7 @@ test('Start of workflow respects workflow id conflict policy', async (t) => {
     );
 
     t.true(err1 instanceof WorkflowExecutionAlreadyStartedError);
+    t.is((err1 as WorkflowExecutionAlreadyStartedError).runId, handle.firstExecutionRunId);
 
     // Confirm gives back same handle
     const handle2 = await client.workflow.start(conflictId, {

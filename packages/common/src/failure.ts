@@ -413,7 +413,11 @@ export class WorkflowExecutionAlreadyStartedError extends TemporalFailure {
   constructor(
     message: string,
     public readonly workflowId: string,
-    public readonly workflowType: string
+    public readonly workflowType: string,
+    /**
+     * The runId of the already-running Workflow Execution, when provided by the server.
+     */
+    public readonly runId?: string
   ) {
     super(message);
   }
