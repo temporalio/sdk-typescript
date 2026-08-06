@@ -74,10 +74,5 @@
       "version": "10.27.0",
       "onFail": "warn"
     }
-  },
-  "pnpm": {
-    "patchedDependencies": {
-      "protobufjs@^7.6.4": "patches/protobufjs@7.6.2.patch"
-    }
   }
 }

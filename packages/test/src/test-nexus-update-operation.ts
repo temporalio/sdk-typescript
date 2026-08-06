@@ -32,8 +32,8 @@ const test = makeTestFunction({
   workflowEnvironmentOpts: {
     server: {
       // The default dev server (Temporal 1.31.2) does not deliver Workflow Update completion
-      // callbacks to Nexus. Pin a server build that does (server 1.32.0-157.0).
-      executable: { type: 'cached-download', version: 'v1.7.2-standalone-nexus-operations' },
+      // callbacks to Nexus. Pin a server build that does (server 1.32.0-158.0).
+      executable: { type: 'cached-download', version: 'v1.7.4-standalone-nexus-operations' },
       extraArgs: [
         '--dynamic-config-value',
         'system.refreshNexusEndpointsMinWait="0s"',
