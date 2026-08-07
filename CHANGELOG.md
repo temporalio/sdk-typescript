@@ -19,6 +19,10 @@ to docs, or any other relevant information.
 
 ## [Unreleased]
 
+### Added
+
+- **Experimental**: `@temporalio/google-adk-agents` package for running Google ADK agents as durable Temporal Workflows.
+
 ## [1.22.0] - 2026-08-05
 
 ### Added

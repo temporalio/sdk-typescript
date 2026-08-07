@@ -3,6 +3,9 @@
   "compilerOptions": {
     "paths": {
       "@temporalio/ai-sdk": ["contrib/ai-sdk"],
+      "@temporalio/google-adk-agents": ["contrib/google-adk-agents"],
+      "@temporalio/google-adk-agents/testing": ["contrib/google-adk-agents/src/testing"],
+      "@temporalio/google-adk-agents/workflow": ["contrib/google-adk-agents/src/workflow"],
       "@temporalio/interceptors-opentelemetry": ["contrib/interceptors-opentelemetry"],
       "@temporalio/openai-agents": ["contrib/openai-agents"],
       "@temporalio/openai-agents/otel": ["contrib/openai-agents/src/otel"],
@@ -19,6 +22,9 @@
   "files": [
     "./packages/activity/src/index.ts",
     "./contrib/ai-sdk/src/index.ts",
+    "./contrib/google-adk-agents/src/index.ts",
+    "./contrib/google-adk-agents/src/testing.ts",
+    "./contrib/google-adk-agents/src/workflow.ts",
     "./contrib/openai-agents/src/index.ts",
     "./contrib/openai-agents/src/otel.ts",
     "./contrib/openai-agents/src/workflow.ts",
