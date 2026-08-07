@@ -10,18 +10,19 @@
  * tool discovery to a `<name>-listTools` Activity and each tool call to a
  * `<name>-callTool` Activity. The full `FunctionDeclaration` (name +
  * description + parameter schema) round-trips, so the model still receives
- * argument schemas. MCP connection params live only on the worker (plugin
- * options); workflow inputs carry only the toolset *name*.
+ * argument schemas. The live MCP session is opened worker-side; call inputs
+ * carry the tool name and the model's arguments.
  *
  * ADK MCP is session-per-call (`MCPSessionManager` opens and closes a fresh
  * client per `getTools` / `runAsync`), so the stateless list-tools + call-tool
  * model below is complete, not a simplification.
  *
  * IMPORTANT: this module is part of the Workflow-sandbox import graph (the
- * public barrel re-exports it and user Workflows import `TemporalMCPToolset`).
- * It must therefore NOT import any worker-only module (`@temporalio/activity`,
- * `@temporalio/workflow-streams`). The Activity *implementations* that open
- * real MCP sessions live in `./activities.ts`, which only `plugin.ts` imports.
+ * `./workflow` entry point re-exports it and user Workflows import
+ * `TemporalMCPToolset`). It must therefore NOT import any worker-only module
+ * (`@temporalio/activity`, `@temporalio/workflow-streams/client`). The Activity
+ * *implementations* that open real MCP sessions live in `./activities.ts`,
+ * which nothing in that graph imports.
  */
 
 import type { FunctionDeclaration } from '@google/genai';

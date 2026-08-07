@@ -10,7 +10,8 @@
  * The Workflow sandbox does not expose all of them, so we install minimal
  * polyfills — but ONLY inside Workflow context (gated on `inWorkflowContext()`),
  * so a normal Node import (the worker / Activity side, tests, direct ADK use)
- * is left untouched. The plugin barrel imports this module for its side effect.
+ * is left untouched. The `./workflow` entry point imports this module for its
+ * side effect.
  */
 
 import { inWorkflowContext } from '@temporalio/workflow';
