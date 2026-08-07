@@ -73,4 +73,5 @@ export class StrandsFailureConverter extends DefaultFailureConverter implements 
   }
 }
 
+// ts-prune-ignore-next
 export const failureConverter: FailureConverter = new StrandsFailureConverter();
