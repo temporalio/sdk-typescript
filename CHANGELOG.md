@@ -19,6 +19,11 @@ to docs, or any other relevant information.
 
 ## [Unreleased]
 
+### Changed
+
+- Nexus is now generally available (GA) for calling Nexus Operations from Workflows and handling
+  Workflow-backed Operations with `WorkflowRunOperationHandler`.
+
 ## [1.22.0] - 2026-08-05
 
 ### Added

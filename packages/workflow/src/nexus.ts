@@ -12,14 +12,12 @@ import type { StartNexusOperationInput, StartNexusOperationOutput, StartNexusOpe
 /**
  * A Nexus client for invoking Nexus Operations for a specific service from a Workflow.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface NexusServiceClient<T extends nexus.ServiceDefinition> {
   /**
    * Start a Nexus Operation and wait for its completion taking a {@link nexus.operation}.
    * Returns the operation's result.
    *
-   * @experimental Nexus support in Temporal SDK is experimental.
    */
   executeOperation<O extends T['operations'][keyof T['operations']]>(
     op: O,
@@ -38,7 +36,6 @@ export interface NexusServiceClient<T extends nexus.ServiceDefinition> {
    * the {@link nexus.ServiceDefinition} object; it may differ from the value of the `name` property
    * if one was explicitly specified on the {@link nexus.OperationDefinition} object.
    *
-   * @experimental Nexus support in Temporal SDK is experimental.
    */
   executeOperation<K extends nexus.OperationKey<T['operations']>>(
     op: K,
@@ -51,7 +48,6 @@ export interface NexusServiceClient<T extends nexus.ServiceDefinition> {
    *
    * Returns a handle that can be used to wait for the Operation's result.
    *
-   * @experimental Nexus support in Temporal SDK is experimental.
    */
   startOperation<O extends T['operations'][keyof T['operations']]>(
     op: O,
@@ -67,7 +63,6 @@ export interface NexusServiceClient<T extends nexus.ServiceDefinition> {
    * the {@link nexus.ServiceDefinition} object; it may differ from the value of the `name` property
    * if one was explicitly specified on the {@link nexus.OperationDefinition} object.
    *
-   * @experimental Nexus support in Temporal SDK is experimental.
    */
   startOperation<K extends nexus.OperationKey<T['operations']>>(
     op: K,
@@ -79,7 +74,6 @@ export interface NexusServiceClient<T extends nexus.ServiceDefinition> {
 /**
  * A handle to a Nexus Operation.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface NexusOperationHandle<T> {
   /**
@@ -114,7 +108,6 @@ export interface NexusServiceClientOptions<T> {
 /**
  * Create a Nexus client for invoking Nexus Operations from a Workflow.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export function createNexusServiceClient<T extends nexus.ServiceDefinition>(
   options: NexusServiceClientOptions<T>
@@ -255,7 +248,6 @@ function startNexusOperationNextHandler({
  * Workflow itself, or from internal cancellation of the `CancellationScope` in which the
  * Operation call was made.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 // MAINTENANCE: Keep this typedoc in sync with the `StartNexusOperationOptions.cancellationType` field
 export const NexusOperationCancellationType = {
