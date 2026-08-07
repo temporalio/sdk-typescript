@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/create",
-  "version": "1.21.1",
+  "version": "1.22.0",
   "description": "Create a Temporal project from template",
   "main": "cli.js",
   "bin": "cli.js",
@@ -8,7 +8,7 @@
   "scripts": {
     "build": "tsc --build",
     "build:watch": "tsc --build --watch",
-    "test": "ava ./lib/**/*.test.js",
+    "test": "tsx ../../scripts/ava-ci.ts ./lib/**/*.test.js",
     "test:watch": "ava --watch ./lib/**/*.test.js"
   },
   "keywords": [

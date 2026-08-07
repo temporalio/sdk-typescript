@@ -234,7 +234,6 @@ test.serial('Worker shutdown while running a local activity completes after comp
   });
   t.true(workflow.isCancellation(err?.cause));
   t.is(err?.cause?.message, 'Local Activity cancelled');
-  console.log('Local Waiting for worker to complete shutdown');
   await p;
 });
 

@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/langsmith",
-  "version": "1.21.1",
+  "version": "1.22.0",
   "description": "Temporal LangSmith observability integration package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -13,7 +13,7 @@
   },
   "scripts": {
     "build": "tsc --build",
-    "test": "ava ./lib/__tests__/test-*.js"
+    "test": "tsx ../../scripts/ava-ci.ts ./lib/__tests__/test-*.js"
   },
   "ava": {
     "files": [

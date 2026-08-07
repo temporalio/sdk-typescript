@@ -351,6 +351,9 @@ async fn client_invoke_workflow_service(
             rpc_call!(connection, call, poll_nexus_operation_execution)
         }
         "PollNexusTaskQueue" => rpc_call!(connection, call, poll_nexus_task_queue),
+        "PollWorkflowExecutionTimeSkipping" => {
+            rpc_call!(connection, call, poll_workflow_execution_time_skipping)
+        }
         "PollWorkflowExecutionUpdate" => {
             rpc_call!(connection, call, poll_workflow_execution_update)
         }
