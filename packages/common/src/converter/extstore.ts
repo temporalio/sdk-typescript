@@ -104,6 +104,9 @@ export type StorageDriverSelector = (context: StorageDriverStoreContext, payload
 /** Default {@link ExternalStorage.payloadSizeThreshold}: 256 KiB. */
 const DEFAULT_PAYLOAD_SIZE_THRESHOLD = 256 * 1024;
 
+/** Default {@link ExternalStorage.maxConcurrentOperations}: 3. */
+const DEFAULT_MAX_CONCURRENT_OPERATIONS = 3;
+
 /**
  * Configuration for external storage. Holds the registered drivers, an
  * optional selector, and the size threshold above which payloads are
@@ -120,17 +123,21 @@ export class ExternalStorage {
    */
   readonly driverSelector: StorageDriverSelector;
   readonly payloadSizeThreshold: number;
+  readonly maxConcurrentOperations: number;
   private readonly driversByName: ReadonlyMap<string, StorageDriver>;
 
   constructor({
     drivers,
     driverSelector,
     payloadSizeThreshold = DEFAULT_PAYLOAD_SIZE_THRESHOLD,
+    maxConcurrentOperations = DEFAULT_MAX_CONCURRENT_OPERATIONS,
   }: {
     drivers: StorageDriver[];
     driverSelector?: StorageDriverSelector;
     /** Omit for default (256 KiB). Set `0` to consider all payloads regardless of size. */
     payloadSizeThreshold?: number;
+    /** Maximum concurrent store/retrieve driver calls per payload walk. Omit for default (3). */
+    maxConcurrentOperations?: number;
   }) {
     if (!Array.isArray(drivers) || drivers.length === 0) {
       throw new ValueError('ExternalStorage requires at least one driver');
@@ -142,6 +149,11 @@ export class ExternalStorage {
     ) {
       throw new ValueError(
         `ExternalStorage.payloadSizeThreshold must be a non-negative finite number, got ${String(payloadSizeThreshold)}`
+      );
+    }
+    if (!Number.isInteger(maxConcurrentOperations) || maxConcurrentOperations < 1) {
+      throw new ValueError(
+        `ExternalStorage.maxConcurrentOperations must be a positive integer, got ${String(maxConcurrentOperations)}`
       );
     }
 
@@ -163,6 +175,7 @@ export class ExternalStorage {
     this.drivers = [...drivers];
     this.driverSelector = driverSelector ?? (() => drivers[0] as StorageDriver);
     this.payloadSizeThreshold = payloadSizeThreshold;
+    this.maxConcurrentOperations = maxConcurrentOperations;
     this.driversByName = driversByName;
   }
 
