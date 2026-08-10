@@ -62,7 +62,7 @@
     "access": "public"
   },
   "engines": {
-    "node": ">= 20.0.0"
+    "node": ">= 22.11.0"
   },
   "files": [
     "src",

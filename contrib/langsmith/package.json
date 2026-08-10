@@ -65,7 +65,7 @@
     "nexus-rpc": "^0.0.2"
   },
   "engines": {
-    "node": ">= 20.3.0"
+    "node": ">= 22.11.0"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

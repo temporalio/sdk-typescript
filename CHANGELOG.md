@@ -28,6 +28,19 @@ to docs, or any other relevant information.
 - Nexus is now generally available (GA) for calling Nexus Operations from Workflows and handling
   Workflow-backed Operations with `WorkflowRunOperationHandler`.
 
+### Breaking Changes
+
+- The minimum supported Node.js version is now **22.11.0**. Node 20 is no longer supported, having reached
+  [end-of-life](https://nodejs.org/en/about/previous-releases) on 2026-04-30. The SDK is now officially
+  supported on Node 22 and 24, in line with Node's release policy of supporting Active and Maintenance LTS
+  releases.
+
+  To upgrade, move your application to Node 22.11.0 or later. If you deploy `@temporalio/lambda-worker` on the
+  AWS `nodejs20.x` Lambda runtime, migrate to `nodejs22.x` or later.
+
+  This change is limited to package metadata, CI configuration, and documentation. No SDK source was modified
+  and the compiled JavaScript + type declarations remain unchanged.
+
 ## [1.22.0] - 2026-08-05
 
 ### Added

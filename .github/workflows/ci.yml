@@ -114,7 +114,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 24, bun] # Min and max officially supported Node versions + Bun
+        node: [22, 24, bun] # Min and max officially supported Node versions + Bun
         platform: [linux-x64, linux-arm, macos-arm, windows-x64]
         include:
           - platform: linux-x64
@@ -384,8 +384,8 @@ jobs:
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
           # This job installs no dependencies, so it runs ci-run-summary.ts through
-          # Node's native type stripping rather than tsx. That needs Node >= 23.6.
-          node-version: '24'
+          # Node's native type stripping rather than tsx. That needs Node >= 22.18.
+          node-version: '22'
 
       - name: Download test result artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
