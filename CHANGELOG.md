@@ -42,9 +42,13 @@ to docs, or any other relevant information.
   - The `getTypeUrl` method on generated message types is no longer declared, though it remains
     callable at runtime.
 
-  - JSON-encoded protobuf payloads are now spec-compliant: a field holding its default value is
-    _omitted_ rather than written out, so an enum field that used to read back as `0` may now read
-    back as `undefined`. Unknown fields are still ignored when parsing.
+  - A field holding its default value is no longer materialized as an own property on decoded
+    messages. This applies both to JSON-encoded payloads, which are now spec-compliant and _omit_
+    such fields rather than writing them out, and to binary ones, since `protobufjs` v8 no longer
+    sets them when decoding. Reading the field still yields its default (`msg.someEnum` is still
+    `0`), but it no longer shows up in `Object.keys`, object spreads, or a deep equality comparison
+    against a message built with `create({ someEnum: 0 })`. Unknown fields are still ignored when
+    parsing JSON.
 
   - `protobufjs` renamed the generated "properties" interfaces from `IFoo` to `Foo.$Properties`,
     and added a companion `Foo.$Shape` that narrows `oneof` fields. We still expose `IFoo` as an
