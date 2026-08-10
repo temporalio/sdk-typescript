@@ -1,6 +1,6 @@
 import { appendFile, readFile } from 'node:fs/promises';
 import { CloudOperationsClient, CloudOperationsConnection } from '@temporalio/cloud';
-import { cloudNamespaceName, createCloudNamespace, deleteCloudNamespace } from '../src/cloud-namespace';
+import { cloudNamespaceName, createCloudNamespace, deleteCloudNamespace } from './cloud-namespace';
 
 const CLOUD_OPERATION_TIMEOUT_MS = 10 * 60 * 1_000;
 
@@ -13,7 +13,7 @@ function requiredEnv(name: string): string {
 async function main(): Promise<void> {
   const [command, namespaceArgument] = process.argv.slice(2);
   if (command !== 'create' && command !== 'delete') {
-    throw new TypeError('Usage: cloud-namespace.ts create | delete <namespace>');
+    throw new TypeError('Usage: cloud-namespace-cli.ts create | delete <namespace>');
   }
 
   const apiVersion = requiredEnv('TEMPORAL_CLIENT_CLOUD_API_VERSION');
@@ -44,7 +44,7 @@ async function main(): Promise<void> {
         }
 
         if (!namespaceArgument) {
-          throw new TypeError('Usage: cloud-namespace.ts delete <namespace>');
+          throw new TypeError('Usage: cloud-namespace-cli.ts delete <namespace>');
         }
         await deleteCloudNamespace(client.cloudService, namespaceArgument);
         process.stdout.write(`Cloud namespace ${namespaceArgument} was deleted\n`);
