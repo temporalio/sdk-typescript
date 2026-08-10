@@ -40,10 +40,6 @@ minimumReleaseAgeExclude:
   - '@temporalio/*'
   - nexus-rpc
 
-  # Allow as part of #2170 mitigation to make sure our tests confirm validity
-  # of our fix against the behavior change introduced by webpack@5.108.0
-  - webpack@5.108.4
-
   # Minimum version carrying vercel/ai@401a4ba, which we depend upon. The AI SDK
   # packages pin exact versions of each other and must move in lockstep, so the
   # whole family has to be allowed together.
