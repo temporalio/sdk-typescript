@@ -157,7 +157,6 @@ export interface WorkflowOutboundCallsInterceptor {
   /**
    * Called when Workflow starts a Nexus Operation.
    *
-   * @experimental Nexus support in Temporal SDK is experimental.
    */
   startNexusOperation?: (
     input: StartNexusOperationInput,
@@ -261,7 +260,6 @@ export interface LocalActivityInput {
 /**
  * Input for {@link WorkflowOutboundCallsInterceptor.startNexusOperation}.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface StartNexusOperationInput {
   readonly input: unknown;
@@ -276,7 +274,6 @@ export interface StartNexusOperationInput {
 /**
  * Options for starting a Nexus Operation.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface StartNexusOperationOptions {
   /**
@@ -328,7 +325,6 @@ export interface StartNexusOperationOptions {
 /**
  * Output for {@link WorkflowOutboundCallsInterceptor.startNexusOperation}.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface StartNexusOperationOutput {
   /**

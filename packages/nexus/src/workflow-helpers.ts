@@ -8,6 +8,11 @@ import type {
 } from '@temporalio/common';
 import type { Replace } from '@temporalio/common/lib/type-helpers';
 import type {
+  ActivityHandle,
+  ActivityName,
+  ActivityOptions as ClientActivityOptions,
+  ActivityOptionsFor as ClientActivityOptionsFor,
+  ActivityResult,
   Client,
   WorkflowStartOptions as ClientWorkflowStartOptions,
   WorkflowSignalWithStartOptions as ClientWorkflowSignalWithStartOptions,
@@ -15,22 +20,27 @@ import type {
 import { WorkflowUpdateStage, type WorkflowUpdateOptions } from '@temporalio/client';
 import { type temporal } from '@temporalio/proto';
 import type {
+  InternalActivityStartOptions,
   InternalWorkflowHandle,
   InternalWorkflowSignalOptions,
   InternalWorkflowStartOptions,
   InternalWorkflowUpdateOptions,
 } from '@temporalio/client/lib/internal';
 import {
+  InternalActivityStartOptionsSymbol,
   InternalWorkflowSignalOptionsSymbol,
   InternalWorkflowStartOptionsSymbol,
   InternalWorkflowUpdateOptionsSymbol,
 } from '@temporalio/client/lib/internal';
 import { convertNexusLinkToTemporalLink, convertTemporalLinkToNexusLink } from './link-converter';
 import {
+  assertActivityOperationToken,
   assertUpdateWorkflowOperationToken,
   assertWorkflowRunOperationToken,
   generateUpdateWorkflowOperationToken,
   generateWorkflowRunOperationToken,
+  generateActivityOperationToken,
+  encodeOperationToken,
   loadOperationToken,
   loadWorkflowRunOperationToken,
   OperationTokenType,
@@ -53,8 +63,6 @@ declare const workflowResultType: unique symbol;
  * The type parameter `T` carries the workflow's result type for downstream type inference in
  * {@link WorkflowRunOperationHandler}. It is encoded in the {@link workflowResultType} brand so
  * that `WorkflowHandle<string>` and `WorkflowHandle<number>` are structurally distinct.
- *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface WorkflowHandle<T> {
   readonly workflowId: string;
@@ -72,8 +80,6 @@ export interface WorkflowHandle<T> {
    *
    * @internal
    * @hidden
-   *
-   * @experimental Nexus support in Temporal SDK is experimental.
    */
   readonly [isNexusWorkflowHandle]: typeof isNexusWorkflowHandle;
 
@@ -83,8 +89,6 @@ export interface WorkflowHandle<T> {
    *
    * @internal
    * @hidden
-   *
-   * @experimental Nexus support in Temporal SDK is experimental.
    */
   readonly [workflowResultType]: T;
 }
@@ -98,7 +102,7 @@ export interface WorkflowHandle<T> {
  * they refer to already backs the operation, and a Nexus Operation handler invocation may only start
  * one async backing operation.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
+ * @experimental Workflow Updates as Nexus Operations are experimental.
  */
 export interface UpdatableWorkflowHandle<T> extends WorkflowHandle<T> {
   /**
@@ -118,7 +122,7 @@ export interface UpdatableWorkflowHandle<T> extends WorkflowHandle<T> {
    * If the Update takes arguments, `options.args` is required; an Update that takes no arguments
    * accepts no `args` and may be called without options at all.
    *
-   * @experimental Nexus support in Temporal SDK is experimental.
+   * @experimental Workflow Updates as Nexus Operations are experimental.
    */
   update<Ret, Args extends [any, ...any[]], Name extends string = string>(
     def: UpdateDefinition<Ret, Args, Name> | string,
@@ -135,8 +139,6 @@ export interface UpdatableWorkflowHandle<T> extends WorkflowHandle<T> {
  * Options for starting a workflow using {@link startWorkflow}, this type is identical to the
  * client's `WorkflowStartOptions` with the exception that `taskQueue` is optional and defaults
  * to the current worker's task queue.
- *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export type WorkflowStartOptions<T extends Workflow> = Replace<ClientWorkflowStartOptions<T>, { taskQueue?: string }>;
 
@@ -145,15 +147,13 @@ export type WorkflowStartOptions<T extends Workflow> = Replace<ClientWorkflowSta
  * to a Nexus Operation (subsequent runs started from continue-as-new and retries). Automatically
  * propagates the callback, request ID, and request and response links from the Nexus options to the
  * Workflow.
- *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export async function startWorkflow<T extends Workflow>(
   ctx: nexus.StartOperationContext,
   workflowTypeOrFunc: string | T,
   workflowOptions: WorkflowStartOptions<T>
 ): Promise<WorkflowHandle<WorkflowResultType<T>>> {
-  const { client, taskQueue } = getHandlerContext();
+  const { client, taskQueue, namespace } = getHandlerContext();
   const links = requestLinksToTemporalLinks(ctx);
   const internalOptions: InternalWorkflowStartOptions[typeof InternalWorkflowStartOptionsSymbol] = {
     links,
@@ -170,7 +170,7 @@ export async function startWorkflow<T extends Workflow>(
   // and Nexus Operation start recording
   const callbackHeaders = {
     ...ctx.callbackHeaders,
-    'nexus-operation-token': generateWorkflowRunOperationToken(client.options.namespace, workflowOptions.workflowId),
+    'nexus-operation-token': generateWorkflowRunOperationToken(namespace, workflowOptions.workflowId),
   };
 
   if (ctx.callbackUrl) {
@@ -302,8 +302,6 @@ function createWorkflowHandle<T extends Workflow>(
 /**
  * Options for {@link signalWithStartWorkflow}, identical to the client's `WorkflowSignalWithStartOptions`
  * except that `taskQueue` is optional and defaults to the current worker's task queue.
- *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export type WorkflowSignalWithStartOptions<SignalArgs extends any[] = []> = Replace<
   ClientWorkflowSignalWithStartOptions<SignalArgs>,
@@ -312,8 +310,6 @@ export type WorkflowSignalWithStartOptions<SignalArgs extends any[] = []> = Repl
 
 /**
  * Signals a Workflow, starting it first if it is not already running, as part of a Nexus Operation.
- *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export async function signalWithStartWorkflow<T extends Workflow, SignalArgs extends any[] = []>(
   ctx: nexus.StartOperationContext,
@@ -346,8 +342,6 @@ export async function signalWithStartWorkflow<T extends Workflow, SignalArgs ext
 
 /**
  * A handler function for the {@link WorkflowRunOperationHandler} constructor.
- *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export type WorkflowRunOperationStartHandler<I, O> = (
   ctx: nexus.StartOperationContext,
@@ -356,8 +350,6 @@ export type WorkflowRunOperationStartHandler<I, O> = (
 
 /**
  * A Nexus Operation implementation that is backed by a Workflow run.
- *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export class WorkflowRunOperationHandler<I, O> implements nexus.OperationHandler<I, O> {
   constructor(readonly handler: WorkflowRunOperationStartHandler<I, O>) {}
@@ -375,6 +367,87 @@ export class WorkflowRunOperationHandler<I, O> implements nexus.OperationHandler
 }
 
 /**
+ * Options for starting an untyped activity using {@link TemporalNexusClient.startActivity}, this type is identical to the
+ * client's `ActivityOptions` with the exception that `taskQueue` is optional and defaults
+ * to the current worker's task queue.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+export type ActivityOptions = Replace<ClientActivityOptions, { taskQueue?: string }>;
+
+/**
+ * Options for starting a typed activity using {@link NexusTypedActivityClient.startActivity}, this type is identical to the
+ * client's `ActivityOptionsFor` with the exception that `taskQueue` is optional and defaults
+ * to the current worker's task queue.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+export type ActivityOptionsFor<T, N extends ActivityName<T>> = Replace<
+  ClientActivityOptionsFor<T, N>,
+  { taskQueue?: string }
+>;
+
+/**
+ * Starts an activity for a {@link TemporalNexusClient.startActivity}, linking the execution chain
+ * to a Nexus Operation. Automatically propagates the callback, request ID, and back and forward
+ * links from the Nexus options to the Activity.
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+async function startActivity<R>(
+  ctx: TemporalStartOperationContext,
+  activity: string,
+  activityOptions: ActivityOptions
+): Promise<ActivityHandle<R>> {
+  const { client, taskQueue, namespace } = getHandlerContext();
+  const links = requestLinksToTemporalLinks(ctx);
+  const internalOptions: InternalActivityStartOptions[typeof InternalActivityStartOptionsSymbol] = {
+    requestId: ctx.requestId,
+    onConflictOptions: {
+      attachLinks: true,
+      attachCompletionCallbacks: true,
+      attachRequestId: true,
+    },
+  };
+
+  // Activity callback tokens included in callback headers cannot include the run ID because it is not known until after start.
+  const callbackToken = encodeOperationToken({
+    t: OperationTokenType.ACTIVITY,
+    ns: namespace,
+    aid: activityOptions.id,
+  });
+  if (ctx.callbackUrl) {
+    internalOptions.completionCallbacks = [
+      {
+        nexus: {
+          url: ctx.callbackUrl,
+          header: {
+            ...ctx.callbackHeaders,
+            'nexus-operation-token': callbackToken,
+          },
+        },
+        links,
+      },
+    ];
+  } else {
+    internalOptions.links = links;
+  }
+
+  const { taskQueue: userSpecifiedTaskQueue, ...rest } = activityOptions;
+  const startOptions: InternalActivityStartOptions = {
+    ...rest,
+    taskQueue: userSpecifiedTaskQueue || taskQueue,
+    [InternalActivityStartOptionsSymbol]: internalOptions,
+  };
+
+  const handle = await client.activity.start<R>(activity, startOptions);
+  if (internalOptions.responseLink != null) {
+    pushResponseLink(ctx, internalOptions.responseLink);
+  }
+  return handle;
+}
+
+/**
  * Module-private brand and payload key for {@link TemporalOperationResult}.
  */
 const operationResult: unique symbol = Symbol('temporal_nexus_TemporalOperationResult');
@@ -383,7 +456,7 @@ const operationResult: unique symbol = Symbol('temporal_nexus_TemporalOperationR
  * A result produced by a {@link TemporalOperationHandler}. Construct via
  * {@link TemporalOperationResult.sync} or {@link TemporalOperationResult.async}.
 
- * @experimental Nexus support in Temporal SDK is experimental.
+ * @experimental Temporal Operation handlers are experimental.
  */
 export interface TemporalOperationResult<T> {
   readonly [operationResult]: nexus.HandlerStartOperationResult<T>;
@@ -411,7 +484,7 @@ export const TemporalOperationResult = {
  * The Update's arguments are intersected onto this type by each `update` overload, so that `args` is
  * required for an Update that takes arguments and rejected for one that does not.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
+ * @experimental Workflow Updates as Nexus Operations are experimental.
  */
 export interface NexusUpdateWorkflowOptions {
   /**
@@ -426,20 +499,20 @@ export interface NexusUpdateWorkflowOptions {
 /**
  * A Nexus-aware Temporal Client for use inside {@link TemporalOperationHandler} implementations.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
+ * @experimental Temporal Operation handlers are experimental.
  */
 export interface TemporalNexusClient {
   /**
    * The Temporal Client for the active Nexus Operation.
    *
-   * @experimental Nexus support in Temporal SDK is experimental.
+   * @experimental Temporal Operation handlers are experimental.
    */
   readonly client: Client;
 
   /**
    * Starts a workflow run as the asynchronous backing operation for the current Nexus Operation.
    *
-   * @experimental Nexus support in Temporal SDK is experimental.
+   * @experimental Temporal Operation handlers are experimental.
    */
   startWorkflow<T extends Workflow>(
     workflowTypeOrFunc: string | T,
@@ -457,7 +530,7 @@ export interface TemporalNexusClient {
    * This method does not validate `workflowId`. If there is no Workflow Execution with the given `workflowId`, handle
    * methods like `handle.signal()` will throw a {@link WorkflowNotFoundError} error.
    *
-   * @experimental Nexus support in Temporal SDK is experimental.
+   * @experimental Temporal Operation handlers are experimental.
    */
   getWorkflowHandle<T extends Workflow>(
     workflowId: string,
@@ -468,12 +541,40 @@ export interface TemporalNexusClient {
    * Signals a Workflow, starting it first if it is not already running, forwarding the Nexus
    * Operation's request links and propagating the response link the server returns (when supported).
    *
-   * @experimental Nexus support in Temporal SDK is experimental.
+   * @experimental Temporal Operation handlers are experimental.
    */
   signalWithStartWorkflow<T extends Workflow, SignalArgs extends any[] = []>(
     workflowTypeOrFunc: string | T,
     workflowOptions: WithWorkflowArgs<T, WorkflowSignalWithStartOptions<SignalArgs>>
   ): Promise<void>;
+
+  startActivity<R = any>(activity: string, options: ActivityOptions): Promise<TemporalOperationResult<R>>;
+
+  /**
+   * Returns this client as a {@link NexusTypedActivityClient}. It enables strong type checking of Activity name, arguments
+   * and result based on the provided Activity interface. Note that no new client object is created - this method only
+   * affects type annotations.
+   * @template T Activity interface to use for type checking. The returned client can only start activities present in
+   * this interface.
+   *
+   * @experimental Nexus support in Temporal SDK is experimental.
+   */
+  typedActivity<T>(): NexusTypedActivityClient<T>;
+}
+
+/**
+ * Sub-interface of {@link TemporalNexusClient} that provides a strongly-typed interface for executing Activities.
+ * Argument types in the provided options must match the argument types of the specified Activity as defined in provided
+ * interface
+ * @template T Activity interface
+ *
+ * @experimental Nexus support in Temporal SDK is experimental.
+ */
+export interface NexusTypedActivityClient<T> {
+  startActivity<N extends ActivityName<T>>(
+    activity: N,
+    options: ActivityOptionsFor<T, N>
+  ): Promise<TemporalOperationResult<ActivityResult<T, N>>>;
 }
 
 class TemporalNexusClientImpl implements TemporalNexusClient {
@@ -512,7 +613,7 @@ class TemporalNexusClientImpl implements TemporalNexusClient {
   /**
    * The Temporal Client for the active Nexus Operation.
    *
-   * @experimental Nexus support in Temporal SDK is experimental.
+   * @experimental Temporal Operation handlers are experimental.
    */
   public get client(): Client {
     return getClient();
@@ -529,7 +630,7 @@ class TemporalNexusClientImpl implements TemporalNexusClient {
    * This method does not validate `workflowId`. If there is no Workflow Execution with the given `workflowId`, handle
    * methods like `handle.signal()` will throw a {@link WorkflowNotFoundError} error.
    *
-   * @experimental Nexus support in Temporal SDK is experimental.
+   * @experimental Temporal Operation handlers are experimental.
    */
   public getWorkflowHandle<T extends Workflow>(
     workflowId: string,
@@ -541,7 +642,7 @@ class TemporalNexusClientImpl implements TemporalNexusClient {
   /**
    * Starts a workflow run as the asynchronous backing operation for the current Nexus Operation.
    *
-   * @experimental Nexus support in Temporal SDK is experimental.
+   * @experimental Temporal Operation handlers are experimental.
    */
   public async startWorkflow<T extends Workflow>(
     workflowTypeOrFunc: string | T,
@@ -557,13 +658,29 @@ class TemporalNexusClientImpl implements TemporalNexusClient {
   /**
    * Signals a Workflow, starting it first if it is not already running.
    *
-   * @experimental Nexus support in Temporal SDK is experimental.
+   * @experimental Temporal Operation handlers are experimental.
    */
   public async signalWithStartWorkflow<T extends Workflow, SignalArgs extends any[] = []>(
     workflowTypeOrFunc: string | T,
     workflowOptions: WithWorkflowArgs<T, WorkflowSignalWithStartOptions<SignalArgs>>
   ): Promise<void> {
     await signalWithStartWorkflow(this.startOperationContext, workflowTypeOrFunc, workflowOptions);
+  }
+
+  public async startActivity<R = any>(activity: string, options: ActivityOptions): Promise<TemporalOperationResult<R>> {
+    return await this.withAsyncOperationStartReservation(async () => {
+      const handle = await startActivity(this.startOperationContext, activity, options);
+      const { namespace } = getHandlerContext();
+
+      // handle.runId is always populated when starting an activity
+      // it's safe to use non-null assertion
+      const token = generateActivityOperationToken(namespace, handle.activityId, handle.runId!);
+      return TemporalOperationResult.async(token);
+    });
+  }
+
+  public typedActivity<T>(): NexusTypedActivityClient<T> {
+    return this;
   }
 }
 
@@ -672,7 +789,7 @@ async function updateWorkflowOperation<Ret, Args extends any[]>(
 /**
  * A handler function for the {@link TemporalOperationHandler} constructor.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
+ * @experimental Temporal Operation handlers are experimental.
  */
 export type TemporalOperationStartHandler<I, O> = (
   ctx: TemporalStartOperationContext,
@@ -684,7 +801,7 @@ export type TemporalOperationStartHandler<I, O> = (
  * Options passed to a {@link TemporalOperationHandlerOptions.cancelWorkflowRun} handler describing
  * the workflow run to cancel.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
+ * @experimental Temporal Operation handlers are experimental.
  */
 export interface CancelWorkflowRunOptions {
   /**
@@ -697,7 +814,7 @@ export interface CancelWorkflowRunOptions {
  * Options passed to a {@link TemporalOperationHandlerOptions.cancelWorkflowUpdate} handler describing
  * the Workflow Update to cancel.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
+ * @experimental Workflow Updates as Nexus Operations are experimental.
  */
 export interface CancelWorkflowUpdateOptions {
   /**
@@ -717,9 +834,27 @@ export interface CancelWorkflowUpdateOptions {
 }
 
 /**
- * Options for customizing a {@link TemporalOperationHandler}.
+ * Options passed to a {@link TemporalOperationHandlerOptions.cancelActivity} handler describing
+ * the activity to cancel.
  *
  * @experimental Nexus support in Temporal SDK is experimental.
+ */
+export interface CancelActivityOptions {
+  /**
+   * The ID of the activity backing the Nexus Operation that is being canceled.
+   */
+  readonly activityId: string;
+
+  /**
+   * The run ID of the activity backing the Nexus Operation that is being canceled.
+   */
+  readonly runId: string;
+}
+
+/**
+ * Options for customizing a {@link TemporalOperationHandler}.
+ *
+ * @experimental Temporal Operation handlers are experimental.
  */
 export interface TemporalOperationHandlerOptions {
   /**
@@ -734,22 +869,25 @@ export interface TemporalOperationHandlerOptions {
    * provided, canceling such an operation fails with a `NOT_IMPLEMENTED` Nexus handler error.
    */
   cancelWorkflowUpdate?: (ctx: TemporalCancelOperationContext, options: CancelWorkflowUpdateOptions) => Promise<void>;
+  cancelActivity?: (ctx: TemporalCancelOperationContext, options: CancelActivityOptions) => Promise<void>;
 }
 
 /**
  * A Nexus Operation implementation for operations that interact with Temporal.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
+ * @experimental Temporal Operation handlers are experimental.
  */
 export class TemporalOperationHandler<I, O> implements nexus.OperationHandler<I, O> {
   private readonly startHandler: TemporalOperationStartHandler<I, O>;
   private readonly cancelWorkflowRunHandler: NonNullable<TemporalOperationHandlerOptions['cancelWorkflowRun']>;
   private readonly cancelWorkflowUpdateHandler: NonNullable<TemporalOperationHandlerOptions['cancelWorkflowUpdate']>;
+  private readonly cancelActivityHandler: NonNullable<TemporalOperationHandlerOptions['cancelActivity']>;
 
   constructor(options: { start: TemporalOperationStartHandler<I, O> } & TemporalOperationHandlerOptions) {
     this.startHandler = options.start;
     this.cancelWorkflowRunHandler = options.cancelWorkflowRun ?? defaultCancelWorkflowRun;
     this.cancelWorkflowUpdateHandler = options.cancelWorkflowUpdate ?? defaultCancelWorkflowUpdate;
+    this.cancelActivityHandler = options.cancelActivity ?? defaultCancelActivity;
   }
 
   async start(ctx: nexus.StartOperationContext, input: I): Promise<nexus.HandlerStartOperationResult<O>> {
@@ -775,6 +913,16 @@ export class TemporalOperationHandler<I, O> implements nexus.OperationHandler<I,
           });
         }
         await this.cancelWorkflowRunHandler(ctx, { workflowId: opToken.wid });
+        return;
+      case OperationTokenType.ACTIVITY:
+        try {
+          assertActivityOperationToken(opToken);
+        } catch (err) {
+          throw new nexus.HandlerError(nexus.HandlerErrorType.BAD_REQUEST, 'invalid activity operation token', {
+            cause: err,
+          });
+        }
+        await this.cancelActivityHandler(ctx, { activityId: opToken.aid, runId: opToken.rid });
         return;
       case OperationTokenType.UPDATE_WORKFLOW:
         try {
@@ -810,4 +958,11 @@ async function defaultCancelWorkflowUpdate(
   // There is no default way to cancel a Workflow Update; users must supply a cancelWorkflowUpdate
   // handler if their operation needs to support cancellation.
   throw new nexus.HandlerError(nexus.HandlerErrorType.NOT_IMPLEMENTED, 'cannot cancel an UpdateWorkflow operation');
+}
+
+async function defaultCancelActivity(
+  _ctx: TemporalCancelOperationContext,
+  { activityId, runId }: CancelActivityOptions
+) {
+  await getClient().activity.getHandle(activityId, runId).cancel(`Nexus Operation cancellation requested`);
 }
