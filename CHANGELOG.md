@@ -23,6 +23,11 @@ to docs, or any other relevant information.
 
 - **Experimental**: `@temporalio/google-adk-agents` package for running Google ADK agents as durable Temporal Workflows.
 
+### Changed
+
+- Nexus is now generally available (GA) for calling Nexus Operations from Workflows and handling
+  Workflow-backed Operations with `WorkflowRunOperationHandler`.
+
 ## [1.22.0] - 2026-08-05
 
 ### Added
@@ -46,6 +51,9 @@ to docs, or any other relevant information.
   Configure the idle window via the new `mcpConnectionIdleTimeout` option on `createActivities` and
   `AiSdkPluginOptions` (defaults to 5 minutes); pass `mcpConnectionIdleTimeout: 0` to opt out and restore
   the original behavior for MCP servers/transports that don't tolerate a reused or concurrent session.
+- **Experimental**: `TemporalOperationHandler` can now use Standalone Activities as asynchronous
+  Nexus Operation backing executions through `TemporalNexusClient.startActivity` and
+  `typedActivity`.
 
 ### Changed
 
