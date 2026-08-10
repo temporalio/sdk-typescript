@@ -7,6 +7,7 @@
     "build": "pnpm run build:protos && pnpm run build:ts",
     "build:ts": "tsc --build",
     "build:protos": "tsx ./scripts/compile-proto.ts",
+    "cloud-namespace": "tsx ./scripts/cloud-namespace.ts",
     "test": "tsx ../../scripts/ava-ci.ts ./lib/test-*.js",
     "test:watch": "ava --watch ./lib/test-*.js",
     "test:bun": "bun run -b ava ./lib/test-*.js"

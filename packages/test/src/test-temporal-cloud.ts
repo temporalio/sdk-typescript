@@ -26,6 +26,7 @@ test('Can connect to Temporal Cloud using mTLS', async (t) => {
       },
     },
   });
+  t.teardown(() => connection.close());
   const client = new Client({ connection, namespace });
 
   const nativeConnection = await NativeConnection.connect({
@@ -37,6 +38,7 @@ test('Can connect to Temporal Cloud using mTLS', async (t) => {
       },
     },
   });
+  t.teardown(() => nativeConnection.close());
   const nativeClient = new Client({ connection: nativeConnection, namespace });
 
   const taskQueue = `test-temporal-cloud-mtls-${randomUUID()}`;
@@ -79,6 +81,7 @@ test('Can connect to Temporal Cloud using API Keys', async (t) => {
     apiKey,
     tls: true,
   });
+  t.teardown(() => connection.close());
   const client = new Client({ connection, namespace });
 
   const nativeConnection = await NativeConnection.connect({
@@ -86,6 +89,7 @@ test('Can connect to Temporal Cloud using API Keys', async (t) => {
     apiKey,
     tls: true,
   });
+  t.teardown(() => nativeConnection.close());
   const nativeClient = new Client({ connection: nativeConnection, namespace });
 
   const taskQueue = `test-temporal-cloud-api-key-${randomUUID()}`;
@@ -128,6 +132,7 @@ test('Can create connection to Temporal Cloud Operation service', async (t) => {
     address,
     apiKey,
   });
+  t.teardown(() => connection.close());
   const client = new CloudOperationsClient({ connection, apiVersion });
 
   const metadata: Metadata = {};
