@@ -31,7 +31,7 @@ export * from './priority';
 export * from './metrics';
 export * from './retry-policy';
 export type { Timestamp, Duration, StringValue } from './time';
-export type { ConverterHint, TransferTypeConverter, TypeInfo } from './type-info';
+export type { ConverterHint, PayloadTypeInfo, TransferTypeConverter, TypeInfo } from './type-info';
 export * from './worker-deployments';
 export * from './workflow-definition-options';
 export * from './workflow-handle';
