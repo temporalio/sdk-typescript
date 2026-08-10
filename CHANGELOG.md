@@ -19,6 +19,10 @@ to docs, or any other relevant information.
 
 ## [Unreleased]
 
+### Added
+
+- **Experimental**: Workflow Clients can now use `TypeInfo` to encode Workflow inputs and decode Workflow results.
+
 ### Changed
 
 - Nexus is now generally available (GA) for calling Nexus Operations from Workflows and handling
