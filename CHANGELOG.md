@@ -56,6 +56,10 @@ to docs, or any other relevant information.
     on the legacy spelling. Note that we may choose to deprecate the legacy spelling at some point
     in the future to encourage adoption of protobufjs' roadmap.
 
+### Added
+
+- **Experimental**: Workflow Clients can now use `TypeInfo` to encode Workflow inputs and decode Workflow results.
+
 ### Changed
 
 - Nexus is now generally available (GA) for calling Nexus Operations from Workflows and handling
