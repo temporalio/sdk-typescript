@@ -24,6 +24,12 @@ The Temporal TypeScript SDK (as well as the rest of the Temporal codebase) is op
 
 We welcome contributions from the community. To contribute, please start by opening an [issue](https://github.com/temporalio/sdk-typescript/issues) and discussing the proposed change. Once a change has been agreed upon, development may start and be submitted via a [pull request](https://github.com/temporalio/sdk-typescript/pulls).
 
+AI tools may assist with contributions, but contributors must fully understand the
+issue they are fixing and be able to explain the proposed change. We expect that
+human understanding to be evident in pull request responses and design discussions.
+If a contribution's interaction appears entirely AI-driven, maintainers may close
+it: it does not provide a benefit over maintainers using AI tooling themselves.
+
 ## Maintenance
 
 If you'd like to give a hand, please reach us on our [community Slack workspace](https://temporalio.slack.com/channels/typescript-sdk). We'd be happy to have help with any of these things:
