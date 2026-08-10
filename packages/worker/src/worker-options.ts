@@ -437,6 +437,24 @@ export interface WorkerOptions {
   maxCachedWorkflows?: number;
 
   /**
+   * Maximum old-generation heap size (in MiB) for each workflow worker thread.
+   *
+   * When set, each workflow worker thread is created with
+   * {@link https://nodejs.org/api/worker_threads.html#new-workerfilename-options | resourceLimits.maxOldGenerationSizeMb}
+   * so that a single thread's V8 heap cannot grow beyond this limit. Without this, an unbounded workflow cache can
+   * exhaust the process heap and crash the entire worker with an unrecoverable OOM error.
+   *
+   * Setting this value converts a fatal process-level OOM into a per-thread error that the worker handles gracefully
+   * (the affected thread exits and its workflows are reported as failed). The worker itself continues running.
+   *
+   * A good starting point is to divide the available heap (`--max-old-space-size` or the Node.js default) by the
+   * number of workflow threads, leaving headroom for the main thread.
+   *
+   * @default undefined (no per-thread heap limit; the process-level limit applies)
+   */
+  maxWorkflowThreadHeapMiB?: number;
+
+  /**
    * Controls the number of threads to be created for executing Workflow Tasks.
    *
    * Adjusting this value is generally not useful, as a Workflow Worker's performance is mostly network bound (due to
@@ -1120,6 +1138,9 @@ export function compileWorkerOptions(
   if (opts.maxCachedWorkflows !== 0 && opts.maxCachedWorkflows < 2) {
     logger.warn('maxCachedWorkflows must be either 0 (ie. cache is disabled) or greater than 1. Defaulting to 2.');
     opts.maxCachedWorkflows = 2;
+  }
+  if (opts.maxWorkflowThreadHeapMiB !== undefined && opts.maxWorkflowThreadHeapMiB <= 0) {
+    throw new TypeError('maxWorkflowThreadHeapMiB must be a positive number');
   }
 
   if (opts.maxConcurrentWorkflowTaskExecutions !== undefined) {

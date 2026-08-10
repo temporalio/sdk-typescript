@@ -98,9 +98,21 @@ export class WorkerThreadClient {
       completion.resolve(result.output);
     });
     workerThread.on('error', (err) => {
-      logger.error(`Workflow Worker Thread failed: ${err}`, err);
+      const isOOM =
+        err instanceof Error &&
+        (err.message.includes('out of memory') ||
+          err.message.includes('ERR_WORKER_OUT_OF_MEMORY') ||
+          err.message.includes('Allocation failed'));
+      if (isOOM) {
+        logger.error(
+          'Workflow Worker Thread ran out of memory. ' +
+            'Consider reducing maxCachedWorkflows or setting maxWorkflowThreadHeapMiB.',
+          err
+        );
+      } else {
+        logger.error(`Workflow Worker Thread failed: ${err}`, err);
+      }
       this.exitError = new UnexpectedError(`Workflow Worker Thread exited prematurely: ${err}`, err);
-      // Node will automatically terminate the Worker Thread, immediately after this event.
     });
     workerThread.on('exit', (exitCode) => {
       logger.trace(`Workflow Worker Thread exited with code ${exitCode}`, { exitError: this.exitError });
@@ -216,6 +228,7 @@ export interface ThreadedVMWorkflowCreatorOptions {
   registeredActivityNames: Set<string>;
   logger: Logger;
   patchActivationCallback?: PatchActivationCallback;
+  maxOldGenerationSizeMb?: number;
 }
 
 /**
@@ -235,13 +248,15 @@ export class ThreadedVMWorkflowCreator implements WorkflowCreator {
     registeredActivityNames,
     logger,
     patchActivationCallback,
+    maxOldGenerationSizeMb,
   }: ThreadedVMWorkflowCreatorOptions): Promise<ThreadedVMWorkflowCreator> {
+    const resourceLimits = maxOldGenerationSizeMb ? { maxOldGenerationSizeMb } : undefined;
     const workerThreadClients = Array(threadPoolSize)
       .fill(0)
       .map(
         () =>
           new WorkerThreadClient(
-            new NodeWorker(require.resolve('./workflow-worker-thread')),
+            new NodeWorker(require.resolve('./workflow-worker-thread'), { resourceLimits }),
             logger,
             patchActivationCallback
           )

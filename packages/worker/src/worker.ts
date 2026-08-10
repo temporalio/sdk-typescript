@@ -621,6 +621,7 @@ export class Worker {
         registeredActivityNames,
         logger,
         patchActivationCallback: compiledOptions.patchActivationCallback,
+        maxOldGenerationSizeMb: compiledOptions.maxWorkflowThreadHeapMiB,
       });
     }
   }
