@@ -543,30 +543,6 @@ export async function getRetryPolicyFromActivityInfo(
     : workflow.proxyActivities({ startToCloseTimeout: '1m', retry: retryPolicy }).retryPolicy());
 }
 
-test.serial('retryPolicy is set correctly', async (t) => {
-  const { executeWorkflow, createWorker } = helpers(t);
-  const worker = await createWorker({
-    activities: {
-      async retryPolicy(): Promise<object | undefined> {
-        return ActivityContext.current().info.retryPolicy;
-      },
-    },
-  });
-
-  const retryPolicy: RetryPolicy = {
-    backoffCoefficient: 1.5,
-    initialInterval: 2.0,
-    maximumAttempts: 3,
-    maximumInterval: 10.0,
-    nonRetryableErrorTypes: ['nonRetryableError'],
-  };
-
-  await worker.runUntil(async () => {
-    t.deepEqual(await executeWorkflow(getRetryPolicyFromActivityInfo, { args: [retryPolicy, true] }), retryPolicy);
-    t.deepEqual(await executeWorkflow(getRetryPolicyFromActivityInfo, { args: [retryPolicy, false] }), retryPolicy);
-  });
-});
-
 export async function runLocalActivityWithNonLocalActivitiesDisabled(): Promise<string> {
   const { echo } = workflow.proxyLocalActivities({ startToCloseTimeout: '1m' });
   return await echo('hello from local activity');

@@ -1,4 +1,3 @@
-import { setTimeout as setTimeoutPromise } from 'timers/promises';
 import { randomUUID } from 'crypto';
 import * as workflow from '@temporalio/workflow';
 import type { SearchAttributePair } from '@temporalio/common';
@@ -173,11 +172,19 @@ test('Count workflow executions', async (t) => {
     ]);
   });
 
-  // FIXME: Find a better way to wait for visibility to stabilize
-  await setTimeoutPromise(1000);
+  await waitUntil(async () => (await client.workflow.count(`TaskQueue = '${taskQueue}'`)).count === 5, 10_000);
 
   const actualTotal = await client.workflow.count(`TaskQueue = '${taskQueue}'`);
   t.deepEqual(actualTotal, { count: 5, groups: [] });
+
+  await waitUntil(async () => {
+    const { count, groups } = await client.workflow.count(`TaskQueue = '${taskQueue}' GROUP BY ExecutionStatus`);
+    return (
+      count === 5 &&
+      groups.some(({ count, groupValues }) => count === 2 && groupValues[0]?.[0] === 'Running') &&
+      groups.some(({ count, groupValues }) => count === 3 && groupValues[0]?.[0] === 'Completed')
+    );
+  }, 10_000);
 
   const actualByExecutionStatus = await client.workflow.count(`TaskQueue = '${taskQueue}' GROUP BY ExecutionStatus`);
   t.deepEqual(actualByExecutionStatus, {
