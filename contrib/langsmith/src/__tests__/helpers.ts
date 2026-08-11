@@ -105,6 +105,22 @@ export class InMemoryRunCollector {
     this.flushCount = 0;
   }
 
+  /** Copy of the current state; lets the harness roll back a retried attempt. */
+  snapshot(): { createOrder: string[]; byId: Map<string, CollectedRun>; flushCount: number } {
+    return { createOrder: [...this.createOrder], byId: new Map(this.byId), flushCount: this.flushCount };
+  }
+
+  /** Restore a {@link snapshot}, discarding anything recorded since. */
+  restore(state: { createOrder: string[]; byId: Map<string, CollectedRun>; flushCount: number }): void {
+    this.createOrder.length = 0;
+    this.createOrder.push(...state.createOrder);
+    this.byId.clear();
+    for (const [id, run] of state.byId) {
+      this.byId.set(id, run);
+    }
+    this.flushCount = state.flushCount;
+  }
+
   /** View this collector as a LangSmith client for the plugin's `client` option. */
   asClient(): LangSmithClient {
     return this as unknown as LangSmithClient;
@@ -198,37 +214,108 @@ function getBundle(plugin: LangSmithPlugin, workflowsPath: string, optionsKey: s
   return bundle;
 }
 
+// Bound on one body attempt, and how many fresh workers to try. On a loaded CI
+// machine the dev server + worker pair can permanently fail to deliver a
+// workflow's *first* workflow task: the task stays SCHEDULED at attempt 1
+// forever (normal-queue first tasks have no schedule-to-start timeout), while a
+// fresh poller on the same queue receives it instantly. Left alone, the case
+// promise never settles, AVA's 120s inactivity watchdog fires, and its SIGTERM
+// is swallowed by the SDK Runtime's shutdown handler — wedging the whole suite
+// until the CI job timeout. Bounding each attempt and retrying on a fresh
+// worker + task queue converts that hang into (at worst) a visible failure and
+// (in practice) a recovered pass. Budget: MAX_BODY_ATTEMPTS * BODY_STALL_TIMEOUT_MS
+// plus the final attempt's body time must stay under the 120s AVA cap.
+const BODY_STALL_TIMEOUT_MS = 30_000;
+const MAX_BODY_ATTEMPTS = 3;
+
+/** A body attempt exceeded {@link BODY_STALL_TIMEOUT_MS}; the harness retries on a fresh worker. */
+class HarnessStallError extends Error {
+  constructor(taskQueue: string, attempt: number) {
+    super(
+      `Test body did not settle within ${BODY_STALL_TIMEOUT_MS}ms on task queue ${taskQueue} ` +
+        `(attempt ${attempt}/${MAX_BODY_ATTEMPTS}); assuming the first-workflow-task delivery stall`
+    );
+  }
+}
+
+/** Terminate workflows a stalled attempt left running so a retry can reuse their workflow ids. */
+async function terminateLeakedWorkflows(env: TestWorkflowEnvironment, taskQueue: string): Promise<void> {
+  try {
+    const leaked = env.client.workflow.list({
+      query: `TaskQueue = '${taskQueue}' AND ExecutionStatus = 'Running'`,
+    });
+    for await (const wf of leaked) {
+      try {
+        await env.client.workflow.getHandle(wf.workflowId, wf.runId).terminate('stalled harness attempt cleanup');
+      } catch {
+        /* already closed */
+      }
+    }
+  } catch {
+    /* best-effort: the retry runs on a fresh task queue regardless */
+  }
+}
+
 export async function withTracingWorker<T>(args: HarnessArgs<T>): Promise<T> {
   const privateEnv = sharedEnv ? undefined : await TestWorkflowEnvironment.createLocal();
   const env = sharedEnv ?? privateEnv!;
   try {
-    const taskQueue = args.taskQueue ?? `langsmith-test-${randomUUID()}`;
     const plugin = new LangSmithPlugin({ ...args.options, client: args.collector.asClient() });
 
     const { workflowsPath = WORKFLOWS_PATH, ...restWorkerOpts } = args.workerOptions ?? {};
     const workflowBundle = await getBundle(plugin, workflowsPath, JSON.stringify(args.options ?? {}));
 
-    const worker = await Worker.create({
-      connection: env.nativeConnection,
-      namespace: env.namespace,
-      taskQueue,
-      workflowBundle,
-      activities: args.activities,
-      plugins: [plugin],
-      // Avoid waiting for the default 10s sticky execution timeout on worker
-      // transition: these short-lived per-case workers can otherwise stall a
-      // full 10s on task redelivery and, on loaded CI, blow the 120s AVA cap.
-      stickyQueueScheduleToStartTimeout: '1s',
-      ...restWorkerOpts,
-    });
+    // Roll the collector back on retry so assertions never see a stalled
+    // attempt's partial emissions.
+    const preAttemptState = args.collector.snapshot();
 
-    const client = new Client({
-      connection: env.connection,
-      namespace: env.namespace,
-      plugins: [plugin],
-    });
+    for (let attempt = 1; ; attempt++) {
+      const taskQueue = args.taskQueue ?? `langsmith-test-${randomUUID()}`;
 
-    return await worker.runUntil(args.body({ client, taskQueue, env }));
+      const worker = await Worker.create({
+        connection: env.nativeConnection,
+        namespace: env.namespace,
+        taskQueue,
+        workflowBundle,
+        activities: args.activities,
+        plugins: [plugin],
+        // Avoid waiting for the default 10s sticky execution timeout on worker
+        // transition: these short-lived per-case workers can otherwise stall a
+        // full 10s on task redelivery and, on loaded CI, blow the 120s AVA cap.
+        stickyQueueScheduleToStartTimeout: '1s',
+        ...restWorkerOpts,
+      });
+
+      const client = new Client({
+        connection: env.connection,
+        namespace: env.namespace,
+        plugins: [plugin],
+      });
+
+      try {
+        // Deferred body (function form): the worker is polling before the body
+        // starts any workflow.
+        return await worker.runUntil(async () => {
+          let stallTimer: ReturnType<typeof setTimeout> | undefined;
+          const stall = new Promise<never>((_, reject) => {
+            stallTimer = setTimeout(() => reject(new HarnessStallError(taskQueue, attempt)), BODY_STALL_TIMEOUT_MS);
+          });
+          try {
+            return await Promise.race([args.body({ client, taskQueue, env }), stall]);
+          } finally {
+            clearTimeout(stallTimer);
+          }
+        });
+      } catch (err) {
+        if (!(err instanceof HarnessStallError) || attempt >= MAX_BODY_ATTEMPTS) {
+          throw err;
+        }
+        // Surfaces in the archived test log so CI stalls stay diagnosable.
+        console.warn(`withTracingWorker: ${err.message}; retrying on a fresh worker`);
+        await terminateLeakedWorkflows(env, taskQueue);
+        args.collector.restore(preAttemptState);
+      }
+    }
   } finally {
     if (privateEnv) await privateEnv.teardown();
   }
