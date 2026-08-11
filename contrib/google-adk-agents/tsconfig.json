@@ -13,8 +13,6 @@
     { "path": "../../packages/activity" },
     { "path": "../../packages/client" },
     { "path": "../../packages/common" },
-    { "path": "../../packages/proto" },
-    { "path": "../../packages/test-helpers" },
     { "path": "../../packages/testing" },
     { "path": "../workflow-streams" }
   ],

@@ -3,11 +3,12 @@
  * Copyright 2025 Temporal Technologies Inc.
  * SPDX-License-Identifier: MIT
  *
- * Worker-side Activity implementations — the only module importing worker-runtime
- * packages (`@temporalio/activity`, `@temporalio/workflow-streams/client`), so it
- * is tree-shaken out of the Workflow bundle. Workflows pass only the model/toolset
- * name; the real `BaseLlm`/MCP session is rebuilt here and API keys stay
- * worker-side, never in activity inputs.
+ * Worker-side Activity implementations for the Google ADK Temporal plugin — no
+ * module in the `./workflow` import graph reaches this one, so the
+ * worker-runtime packages it pulls in (`@temporalio/activity`,
+ * `@temporalio/workflow-streams/client`) stay out of the Workflow bundle.
+ * Workflows pass a model/toolset name rather than a live `BaseLlm`/MCP session;
+ * both are rebuilt here, and the plugin never puts API keys in activity inputs.
  */
 
 import {
@@ -64,9 +65,6 @@ export function createModelActivities(options: ModelActivitiesOptions = {}): Mod
     },
 
     async 'adk-invokeModelStreaming'(args: InvokeModelStreamingArgs): Promise<LlmResponse[]> {
-      // Dispose the stream client in `finally`, not via `await using` — the
-      // latter isn't parseable on this package's Node 20 floor and would
-      // SyntaxError at module load.
       const stopHeartbeat = startAdaptiveHeartbeat();
       let stream: ReturnType<typeof WorkflowStreamClient.fromWithinActivity> | undefined;
       try {

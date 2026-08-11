@@ -13,10 +13,11 @@
  * works in tests and in direct (non-Temporal) ADK use.
  *
  * IMPORTANT: this module is part of the Workflow-sandbox import graph (the
- * public barrel re-exports it and user Workflows import `TemporalModel`). It must
- * therefore NOT import any worker-only module (`@temporalio/activity`,
- * `@temporalio/workflow-streams`). The Activity *implementations* live in
- * `./activities.ts`, which only `plugin.ts` imports.
+ * `./workflow` entry point re-exports it and user Workflows import
+ * `TemporalModel`). It must therefore NOT import any worker-only module
+ * (`@temporalio/activity`, `@temporalio/workflow-streams/client`). The Activity
+ * *implementations* live in `./activities.ts`, which nothing in that graph
+ * imports.
  */
 
 import { BaseLlm, LLMRegistry, type BaseLlmConnection, type LlmRequest, type LlmResponse } from '@google/adk';

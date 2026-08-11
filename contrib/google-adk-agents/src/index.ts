@@ -15,3 +15,5 @@
 
 export { GoogleAdkPlugin } from './plugin';
 export type { GoogleAdkPluginOptions } from './plugin';
+
+export type { MCPToolsetFactory } from './mcp';

@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/google-adk-agents",
-  "version": "1.21.1",
+  "version": "1.22.0",
   "description": "Temporal plugin for the Google Agent Development Kit (@google/adk): run ADK agents as durable Temporal Workflows.",
   "main": "./lib/index.js",
   "types": "./lib/index.d.ts",
@@ -36,10 +36,13 @@
   },
   "scripts": {
     "build": "tsc --build",
-    "build.watch": "tsc --build --watch",
-    "test": "ava ./lib/__tests__/*.test.js"
+    "build:watch": "tsc --build --watch",
+    "test": "tsx ../../scripts/ava-ci.ts ./lib/__tests__/*.test.js"
   },
   "ava": {
+    "files": [
+      "./lib/__tests__/**/*.test.js"
+    ],
     "timeout": "120s",
     "concurrency": 1,
     "workerThreads": false
@@ -64,9 +67,9 @@
     "@temporalio/plugin": "workspace:*",
     "@temporalio/workflow": "workspace:*",
     "@temporalio/workflow-streams": "workspace:*",
-    "@ungap/structured-clone": "^1.2.0",
-    "headers-polyfill": "^4.0.0",
-    "web-streams-polyfill": "^4.0.0"
+    "@ungap/structured-clone": "^1.3.1",
+    "headers-polyfill": "^4.0.3",
+    "web-streams-polyfill": "^4.2.0"
   },
   "peerDependencies": {
     "@google/adk": "^1.4.0",
@@ -83,11 +86,10 @@
     "@temporalio/testing": "workspace:*",
     "@temporalio/worker": "workspace:*",
     "@types/node": "^20.0.0",
-    "ava": "^5.3.1",
-    "typescript": "^5.4.0"
+    "ava": "^5.3.1"
   },
   "engines": {
-    "node": ">= 20.0.0"
+    "node": ">= 20.3.0"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

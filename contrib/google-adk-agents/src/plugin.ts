@@ -422,8 +422,8 @@ function addSandboxCompat(
  * Worker-side configuration for {@link GoogleAdkPlugin}.
  *
  * API keys are NOT configured here — the model Activities read them from the
- * worker environment (e.g. `GOOGLE_API_KEY` / `GEMINI_API_KEY`) or via a
- * custom `modelProvider`. They never enter workflow or activity inputs.
+ * worker environment (e.g. `GOOGLE_API_KEY` / `GEMINI_API_KEY`) or via a custom
+ * `modelProvider`. The plugin never puts them in workflow or activity inputs.
  */
 export interface GoogleAdkPluginOptions {
   /**

@@ -21,6 +21,17 @@ to docs, or any other relevant information.
 
 ### Added
 
+- **Experimental**: `@temporalio/google-adk-agents` package for running Google ADK agents as durable Temporal Workflows.
+
+### Changed
+
+- Nexus is now generally available (GA) for calling Nexus Operations from Workflows and handling
+  Workflow-backed Operations with `WorkflowRunOperationHandler`.
+
+## [1.22.0] - 2026-08-05
+
+### Added
+
 - **Experimental**: Added `TypeInfo` and `TransferTypeConverter` to `@temporalio/common` for converting
   application values to and from serialization-friendly transfer types and supplying converter-specific hints.
 - Workers can now configure the number of activity slots reserved for eager execution per
@@ -38,14 +49,33 @@ to docs, or any other relevant information.
 - **Experimental**: `@temporalio/google-adk-agents` package for running Google ADK agents as durable Temporal Workflows.
   ADK's OpenTelemetry agent-loop spans can be exported replay-safely from the Workflow sandbox by composing with
   `OpenTelemetryPlugin` from `@temporalio/interceptors-opentelemetry`; see the package README's telemetry section.
+- `@temporalio/ai-sdk`: `listToolsActivity`/`callToolActivity` now reuse a single MCP client connection
+  across repeated invocations for the same server instead of creating and closing one on every call.
+  Configure the idle window via the new `mcpConnectionIdleTimeout` option on `createActivities` and
+  `AiSdkPluginOptions` (defaults to 5 minutes); pass `mcpConnectionIdleTimeout: 0` to opt out and restore
+  the original behavior for MCP servers/transports that don't tolerate a reused or concurrent session.
+- **Experimental**: `TemporalOperationHandler` can now use Standalone Activities as asynchronous
+  Nexus Operation backing executions through `TemporalNexusClient.startActivity` and
+  `typedActivity`.
+
+### Changed
+
+- Updated Core to `65b25ada` (`temporal-core` 0.6.0)
 
 ### Fixed
 
 - strands: Declare `zod` as a peer dependency.
+- strands: MCP connections are no longer disconnected while being used by a `callTool` or `listTools` activity.
 - workflow-streams: `WorkflowStream.onPoll` no longer serves a stale log index for a poll that
   was parked across a `truncate()` call, which could silently skip events.
 - Workflows no longer retain completion state when a child Workflow fails or is cancelled before starting.
 - Local Activity tests now use `makeTestFunction` to manage their test environment.
+
+### Security
+
+- Bumped the vendored `quinn-proto` in `@temporalio/core-bridge`'s `Cargo.lock` from 0.11.14 to
+  0.11.15, clearing GHSA-4w2j-m93h-cj5j / RUSTSEC-2026-0185 (unbounded out-of-order stream
+  reassembly DoS) for downstream image scanners.
 
 ## [1.21.1] - 2026-07-23
 

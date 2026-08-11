@@ -12,10 +12,10 @@
  * sandbox does not expose all of them, so we install minimal polyfills — but
  * ONLY inside Workflow context (gated on `inWorkflowContext()`), so a normal
  * Node import (the worker / Activity side, tests, direct ADK use) is left
- * untouched. The plugin barrel imports this module for its side effect, and
- * `GoogleAdkPlugin.configureBundler` prepends it to
- * `workflowInterceptorModules` so it evaluates per workflow before the user's
- * workflow module.
+ * untouched. The `./workflow` entry point imports this module for its side
+ * effect, and `GoogleAdkPlugin.configureBundler` additionally prepends it to
+ * `workflowInterceptorModules`, which guarantees per-workflow evaluation
+ * before the user's workflow module regardless of user import order.
  */
 
 import { inWorkflowContext, type WorkflowInterceptorsFactory } from '@temporalio/workflow';

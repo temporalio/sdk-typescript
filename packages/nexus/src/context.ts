@@ -38,7 +38,6 @@ export interface HandlerContext {
 /**
  * Holds information about the current Nexus Operation Execution.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface OperationInfo {
   /**
@@ -62,7 +61,7 @@ export interface OperationInfo {
  * Context received by a {@link TemporalOperationHandler}'s start handler when a Nexus Operation is
  * started.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
+ * @experimental Temporal Operation handlers are experimental.
  */
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface TemporalStartOperationContext extends nexus.StartOperationContext {}
@@ -71,7 +70,7 @@ export interface TemporalStartOperationContext extends nexus.StartOperationConte
  * Context received by a {@link TemporalOperationHandler}'s cancel handler when a Nexus Operation is
  * canceled.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
+ * @experimental Temporal Operation handlers are experimental.
  */
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface TemporalCancelOperationContext extends nexus.CancelOperationContext {}
@@ -89,7 +88,6 @@ export interface TemporalCancelOperationContext extends nexus.CancelOperationCon
  * To customize log attributes, register a {@link nexus.NexusOutboundCallsInterceptor} that
  * intercepts the `getLogAttributes()` method.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export const log: Logger = {
   log(level: LogLevel, message: string, meta?: LogMetadata): any {
@@ -118,7 +116,6 @@ export const log: Logger = {
  * To add custom tags, register a {@link nexus.NexusOutboundCallsInterceptor} that
  * intercepts the `getMetricTags()` method.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export const metricMeter: MetricMeter = {
   createCounter(name, unit, description) {
@@ -139,7 +136,6 @@ export const metricMeter: MetricMeter = {
  * Returns a client to be used in a Nexus Operation's context, this Client is powered by the same
  * NativeConnection that the worker was created with.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export function getClient(): Client {
   return getHandlerContext().client;
@@ -150,7 +146,6 @@ export function getClient(): Client {
  *
  * @return OperationInfo for the current Nexus Operation being executed
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export function operationInfo(): OperationInfo {
   const ctx = getHandlerContext();

@@ -33,10 +33,11 @@ import {
  *   true` to list once at the start of the workflow instead.
  *
  * - `mcpConnectionIdleTimeout` — how long a worker-process MCP connection is
- *   kept open between `callTool` activities before it's disconnected. The timer
- *   resets on every reuse. Accepts a millisecond number or a duration string
- *   (e.g. `'5 minutes'`), like `startToCloseTimeout`. Defaults to
- *   {@link MCP_CONNECTION_IDLE_MS} (5 minutes).
+ *   kept open between `callTool` activities before it's disconnected. The window
+ *   only starts once no activity is using the connection, so it never cuts off
+ *   an in-flight call, however long it runs. Accepts a millisecond number or a
+ *   duration string (e.g. `'5 minutes'`), like `startToCloseTimeout`. Defaults
+ *   to {@link MCP_CONNECTION_IDLE_MS} (5 minutes).
  */
 export interface StrandsPluginOptions {
   models?: Record<string, () => Model>;

@@ -22,7 +22,7 @@ env:
   IS_MAIN_OR_RELEASE: ${{ vars.IS_TEMPORALIO_SDK_TYPESCRIPT_REPO == 'true' && github.event_name != 'pull_request' && ( github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/heads/releases')) }}
 
   # Use these variables to force specific version of CLI/Time Skipping Server for SDK tests
-  TESTS_CLI_VERSION: 'v1.7.2-standalone-nexus-operations'
+  TESTS_CLI_VERSION: 'v1.7.4-standalone-nexus-operations'
   # TESTS_TIME_SKIPPING_SERVER_VERSION: 'v1.24.1'
 
 jobs:
@@ -134,6 +134,10 @@ jobs:
     # Allow Bun test failures since support is experimental
     continue-on-error: ${{ matrix.node == 'bun' }}
     name: Run Integration Tests (${{ matrix.platform }}, ${{ matrix.node == 'bun' && 'Bun' || format('Node {0}', matrix.node) }}, Reuse V8 Context ${{ matrix.reuse-v8-context }})
+    env:
+      # Per-package result JSON + full logs are written here by scripts/ava-ci.ts,
+      # archived as the test-logs-* artifact, and aggregated by the ci-summary job.
+      TEST_RESULTS_DIR: ${{ github.workspace }}/.test-results
     defaults:
       run:
         shell: bash
@@ -234,10 +238,18 @@ jobs:
 
       - name: Run Tests (Bun)
         if: matrix.node == 'bun'
-        run: bun run -b --cwd packages/test ava ./lib/test-*.js
+        working-directory: packages/test
+        # Same wrapper as the Node path, but AVA_RUNTIME=bun makes it launch ava
+        # under Bun (mirrors `bun run -b ava`), so Bun is still exercised. Bun runs
+        # the TypeScript wrapper directly (no tsx needed).
+        run: bun ../../scripts/ava-ci.ts ./lib/test-*.js
         env:
+          AVA_RUNTIME: bun
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
+
+      # (Per-package results are printed by the wrapper into the "Run Tests" log
+      # above, and aggregated across all jobs by the `ci-summary` job below.)
 
       # FIXME: Move samples tests to a custom activity
       # Sample 1: hello-world to local server
@@ -283,6 +295,22 @@ jobs:
           pnpm tsx scripts/test-example.ts --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm" --script-name workflow-local --expected-output "Hello World And Hello Wonderful Temporal!"
 
       # End samples
+
+      # Archive the full per-package test logs plus the redirected Verdaccio-publish
+      # and sample-init logs (the firehose we keep off the console). Placed at the end
+      # so it captures logs written by the sample steps above too.
+      - name: Upload test logs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: test-logs-${{ matrix.platform }}-${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}
+          path: ${{ env.TEST_RESULTS_DIR }}
+          retention-days: 7
+          if-no-files-found: ignore
+          # TEST_RESULTS_DIR is a dot-directory (.test-results); upload-artifact
+          # excludes files under dot-dirs unless this is set, which would leave the
+          # ci-summary job with no results to report.
+          include-hidden-files: true
 
       - name: Upload Dev Server logs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -335,3 +363,53 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  ci-summary:
+    name: CI
+    if: always()
+    needs:
+      - compile-native-binaries-debug
+      - integration-tests
+      - conventions
+      - features-tests
+      - stress-tests-no-reuse-context
+      - stress-tests-reuse-context
+      - docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout code'
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Node
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          # This job installs no dependencies, so it runs ci-run-summary.ts through
+          # Node's native type stripping rather than tsx. That needs Node >= 23.6.
+          node-version: '24'
+
+      - name: Download test result artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: test-logs-*
+          path: all-results
+        continue-on-error: true
+
+      - name: Collect per-cell job results
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs?per_page=100" > jobs.json || echo '{}' > jobs.json
+
+      - name: Write consolidated summary
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          AGG_RESULTS_DIR: all-results
+          JOBS_JSON_FILE: jobs.json
+        run: node scripts/ci-run-summary.ts
+
+      # Make this rollup check red when any dependency failed (the summary above is
+      # written by the previous step regardless, so it always renders).
+      - name: Fail if any check failed
+        if: ${{ contains(needs.*.result, 'failure') }}
+        run: |
+          echo "One or more checks failed — see the CI Summary above."
+          exit 1

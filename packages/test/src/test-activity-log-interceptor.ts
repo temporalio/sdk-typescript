@@ -59,7 +59,6 @@ test('Activity Worker logs warning when activity fails', async (t) => {
     if (e !== err) throw e;
   }
   const logs = (env.context as MyTestActivityContext).logs;
-  console.log(logs);
   const entry = logs.find((entry) => entry.level === 'WARN' && entry.message === 'Activity failed');
   t.not(entry, undefined);
   const { durationMs, error, ...rest } = entry?.meta ?? {};

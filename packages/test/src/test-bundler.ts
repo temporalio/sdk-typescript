@@ -98,7 +98,6 @@ if (RUN_INTEGRATION_TESTS) {
     const logs: LogEntry[] = [];
     const logger = new DefaultLogger('WARN', (entry: LogEntry) => {
       logs.push(entry);
-      console.warn(entry.message);
     });
 
     await t.throwsAsync(

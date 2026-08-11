@@ -18,6 +18,9 @@ export {
 export {
   startWorkflow,
   signalWithStartWorkflow,
+  type ActivityOptions,
+  type ActivityOptionsFor,
+  type CancelActivityOptions,
   type CancelWorkflowRunOptions,
   type CancelWorkflowUpdateOptions,
   type NexusUpdateWorkflowOptions,
@@ -25,6 +28,7 @@ export {
   TemporalOperationHandler,
   TemporalOperationResult,
   type TemporalNexusClient,
+  type NexusTypedActivityClient,
   type TemporalOperationStartHandler,
   UpdatableWorkflowHandle,
   WorkflowHandle,
