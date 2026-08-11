@@ -5,20 +5,17 @@ import pkg from '@temporalio/worker/lib/pkg';
 import { bundleWorkflowCode } from '@temporalio/worker';
 import { temporal } from '@temporalio/proto';
 import { QueryNotRegisteredError } from '@temporalio/client';
-import { configMacro, makeTestFn } from './helpers-integration-multi-codec';
-import { configurableHelpers } from './helpers-integration';
+import { makeDataConverterTest } from './helpers-integration-multi-codec';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 import * as activities from './activities';
 import { approximatelyEqual, cleanOptionalStackTrace, compareStackTrace, isBun } from './helpers';
 import * as workflows from './workflows';
 
-const test = makeTestFn(() => bundleWorkflowCode({ workflowsPath: require.resolve('./workflows') }));
-test.macro(configMacro);
+const test = makeDataConverterTest(() => bundleWorkflowCode({ workflowsPath: require.resolve('./workflows') }));
 
-test('cancel-http-request', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { executeWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t, { activities });
+test('cancel-http-request', async (t, { env, helpers }) => {
+  const { executeWorkflow } = helpers;
+  const worker = await helpers.createWorker({ activities });
   await withZeroesHTTPServer(async (port) => {
     const url = `http://127.0.0.1:${port}`;
     await worker.runUntil(
@@ -32,10 +29,9 @@ test('cancel-http-request', configMacro, async (t, config) => {
 
 if ('promiseHooks' in v8 && !isBun) {
   // Skip in old node versions
-  test('Stack trace query returns stack that makes sense', configMacro, async (t, config) => {
-    const { env, createWorkerWithDefaults } = config;
-    const { executeWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-    const worker = await createWorkerWithDefaults(t, { activities });
+  test('Stack trace query returns stack that makes sense', async (t, { env, helpers }) => {
+    const { executeWorkflow } = helpers;
+    const worker = await helpers.createWorker({ activities });
     const rawStacks = await worker.runUntil(executeWorkflow(workflows.stackTracer));
 
     const [stack1, stack2] = rawStacks.map((r) =>
@@ -74,11 +70,9 @@ if ('promiseHooks' in v8 && !isBun) {
     );
   });
 
-  test('Enhanced stack trace returns trace that makes sense', configMacro, async (t, config) => {
-    const { env, createWorkerWithDefaults } = config;
-
-    const { executeWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-    const worker = await createWorkerWithDefaults(t, { activities });
+  test('Enhanced stack trace returns trace that makes sense', async (t, { env, helpers }) => {
+    const { executeWorkflow } = helpers;
+    const worker = await helpers.createWorker({ activities });
     const enhancedStack = await worker.runUntil(executeWorkflow(workflows.enhancedStackTracer));
 
     const stacks = enhancedStack.stacks.map((s) => ({
@@ -147,10 +141,9 @@ if ('promiseHooks' in v8 && !isBun) {
     t.deepEqual(Object.entries(enhancedStack.sources), expectedSources);
   });
 } else {
-  test('Stack trace query throws when not enabled', configMacro, async (t, config) => {
-    const { env, createWorkerWithDefaults } = config;
-    const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-    const worker = await createWorkerWithDefaults(t);
+  test('Stack trace query throws when not enabled', async (t, { env, helpers }) => {
+    const { startWorkflow } = helpers;
+    const worker = await helpers.createWorker();
     const handle = await startWorkflow(workflows.unblockOrCancel);
     await worker.runUntil(async () => {
       await t.throwsAsync(handle.query('__stack_trace'), {
@@ -163,56 +156,53 @@ if ('promiseHooks' in v8 && !isBun) {
   });
 }
 
-test(
-  'priorities can be specified and propagated across child workflows and activities',
-  configMacro,
-  async (t, config) => {
-    const { env, createWorkerWithDefaults } = config;
-    const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-    const worker = await createWorkerWithDefaults(t, { activities });
-    const handle = await startWorkflow(workflows.priorityWorkflow, {
-      args: [false, 1],
-      priority: { priorityKey: 1, fairnessKey: 'main-workflow', fairnessWeight: 3.0 },
-    });
-    await worker.runUntil(handle.result());
-    let firstChild = true;
-    const history = await handle.fetchHistory();
-    for (const event of history?.events ?? []) {
-      switch (event.eventType) {
-        case temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED:
-          t.deepEqual(event.workflowExecutionStartedEventAttributes?.priority?.priorityKey, 1);
-          t.deepEqual(event.workflowExecutionStartedEventAttributes?.priority?.fairnessKey, 'main-workflow');
-          t.deepEqual(event.workflowExecutionStartedEventAttributes?.priority?.fairnessWeight, 3.0);
-          break;
-        case temporal.api.enums.v1.EventType.EVENT_TYPE_START_CHILD_WORKFLOW_EXECUTION_INITIATED: {
-          const priority = event.startChildWorkflowExecutionInitiatedEventAttributes?.priority;
-          if (firstChild) {
-            t.deepEqual(priority?.priorityKey, 4);
-            t.deepEqual(priority?.fairnessKey, 'child-workflow-1');
-            t.deepEqual(priority?.fairnessWeight, 2.5);
-            firstChild = false;
-          } else {
-            t.deepEqual(priority?.priorityKey, 2);
-            t.deepEqual(priority?.fairnessKey, 'child-workflow-2');
-            t.deepEqual(priority?.fairnessWeight, 1.0);
-          }
-          break;
+test('priorities can be specified and propagated across child workflows and activities', async (t, {
+  env,
+  helpers,
+}) => {
+  const { startWorkflow } = helpers;
+  const worker = await helpers.createWorker({ activities });
+  const handle = await startWorkflow(workflows.priorityWorkflow, {
+    args: [false, 1],
+    priority: { priorityKey: 1, fairnessKey: 'main-workflow', fairnessWeight: 3.0 },
+  });
+  await worker.runUntil(handle.result());
+  let firstChild = true;
+  const history = await handle.fetchHistory();
+  for (const event of history?.events ?? []) {
+    switch (event.eventType) {
+      case temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED:
+        t.deepEqual(event.workflowExecutionStartedEventAttributes?.priority?.priorityKey, 1);
+        t.deepEqual(event.workflowExecutionStartedEventAttributes?.priority?.fairnessKey, 'main-workflow');
+        t.deepEqual(event.workflowExecutionStartedEventAttributes?.priority?.fairnessWeight, 3.0);
+        break;
+      case temporal.api.enums.v1.EventType.EVENT_TYPE_START_CHILD_WORKFLOW_EXECUTION_INITIATED: {
+        const priority = event.startChildWorkflowExecutionInitiatedEventAttributes?.priority;
+        if (firstChild) {
+          t.deepEqual(priority?.priorityKey, 4);
+          t.deepEqual(priority?.fairnessKey, 'child-workflow-1');
+          t.deepEqual(priority?.fairnessWeight, 2.5);
+          firstChild = false;
+        } else {
+          t.deepEqual(priority?.priorityKey, 2);
+          t.deepEqual(priority?.fairnessKey, 'child-workflow-2');
+          t.deepEqual(priority?.fairnessWeight, 1.0);
         }
-        case temporal.api.enums.v1.EventType.EVENT_TYPE_ACTIVITY_TASK_SCHEDULED:
-          t.deepEqual(event.activityTaskScheduledEventAttributes?.priority?.priorityKey, 5);
-          t.deepEqual(event.activityTaskScheduledEventAttributes?.priority?.fairnessKey, 'fair-activity');
-          // For some insane reason when proto reads this event it mangles the number to 4.19999999 something. Thanks Javascript.
-          t.assert(approximatelyEqual(event.activityTaskScheduledEventAttributes?.priority?.fairnessWeight, 4.2));
-          break;
+        break;
       }
+      case temporal.api.enums.v1.EventType.EVENT_TYPE_ACTIVITY_TASK_SCHEDULED:
+        t.deepEqual(event.activityTaskScheduledEventAttributes?.priority?.priorityKey, 5);
+        t.deepEqual(event.activityTaskScheduledEventAttributes?.priority?.fairnessKey, 'fair-activity');
+        // For some insane reason when proto reads this event it mangles the number to 4.19999999 something. Thanks Javascript.
+        t.assert(approximatelyEqual(event.activityTaskScheduledEventAttributes?.priority?.fairnessWeight, 4.2));
+        break;
     }
   }
-);
+});
 
-test('workflow start without priorities sees undefined for the key', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t, { activities });
+test('workflow start without priorities sees undefined for the key', async (t, { env, helpers }) => {
+  const { startWorkflow } = helpers;
+  const worker = await helpers.createWorker({ activities });
 
   const handle1 = await startWorkflow(workflows.priorityWorkflow, {
     args: [true, undefined],

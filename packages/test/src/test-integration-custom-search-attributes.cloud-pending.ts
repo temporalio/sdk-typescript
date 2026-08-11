@@ -3,20 +3,18 @@ import type { SearchAttributes } from '@temporalio/common';
 import type { InjectedSinks } from '@temporalio/worker';
 import pkg from '@temporalio/worker/lib/pkg';
 import { workflowInfo } from '@temporalio/workflow';
-import { configurableHelpers, createTestWorkflowBundle } from './helpers-integration';
-import { configMacro, makeTestFn } from './helpers-integration-multi-codec';
+import { createTestWorkflowBundle } from './helpers-integration';
+import { makeDataConverterTest } from './helpers-integration-multi-codec';
 import * as workflows from './workflows';
 
 export * from './workflows';
 
-const test = makeTestFn(() => createTestWorkflowBundle({ workflowsPath: __filename }));
-test.macro(configMacro);
+const test = makeDataConverterTest(() => createTestWorkflowBundle({ workflowsPath: __filename }));
 
-test.serial('WorkflowHandle.describe result is wrapped', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
+test.serial('WorkflowHandle.describe result is wrapped', async (t, { env, helpers }) => {
   const date = new Date();
-  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
+  const { startWorkflow } = helpers;
+  const worker = await helpers.createWorker();
   const handle = await startWorkflow(workflows.argsAndReturn, {
     args: ['hey', undefined, Buffer.from('abc')],
     searchAttributes: {
@@ -55,11 +53,10 @@ export async function returnSearchAttributes(): Promise<SearchAttributes | undef
   };
 }
 
-test.serial('Workflow can read Search Attributes set at start', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
+test.serial('Workflow can read Search Attributes set at start', async (t, { env, helpers }) => {
   const date = new Date();
-  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
+  const { startWorkflow } = helpers;
+  const worker = await helpers.createWorker();
   const handle = await startWorkflow(returnSearchAttributes, {
     searchAttributes: {
       CustomKeywordField: ['test-value'],
@@ -78,11 +75,10 @@ test.serial('Workflow can read Search Attributes set at start', configMacro, asy
   });
 });
 
-test.serial('Workflow can upsert Search Attributes', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
+test.serial('Workflow can upsert Search Attributes', async (t, { env, helpers }) => {
   const date = new Date();
-  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t, {
+  const { startWorkflow } = helpers;
+  const worker = await helpers.createWorker({
     sinks: {
       customLogger: {
         info: {

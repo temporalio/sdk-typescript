@@ -40,6 +40,12 @@ export interface BaseHelpers {
   ): Promise<WorkflowHandleWithFirstExecutionRunId<T>>;
 }
 
+export interface CreateBaseHelpersOptions {
+  taskQueue: string;
+  env: AnyTestWorkflowEnvironment;
+  workflowBundle: WorkflowBundle;
+}
+
 /**
  * Default task queue transform function that converts test title to a valid task queue name.
  */
@@ -64,10 +70,15 @@ export function helpers<TEnv extends AnyTestWorkflowEnvironment = TestWorkflowEn
   t: ExecutionContext<BaseContext<TEnv>>,
   env: AnyTestWorkflowEnvironment = t.context.env
 ): BaseHelpers {
-  // createBaseHelpers(t.title, env, t.context.workflowBundle);
-  const taskQueue = defaultTaskQueueTransform(t.title);
-  const workflowBundle = t.context.workflowBundle;
+  return createBaseHelpers({
+    taskQueue: defaultTaskQueueTransform(t.title),
+    env,
+    workflowBundle: t.context.workflowBundle,
+  });
+}
 
+/** Create helpers when the test environment and task queue are managed by another harness. */
+export function createBaseHelpers({ taskQueue, env, workflowBundle }: CreateBaseHelpersOptions): BaseHelpers {
   return {
     taskQueue,
     async createWorker(workerOpts?: Partial<WorkerOptions>): Promise<Worker> {
