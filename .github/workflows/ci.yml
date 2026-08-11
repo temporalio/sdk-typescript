@@ -378,9 +378,19 @@ jobs:
 
       - name: Run tests against Temporal Cloud
         run: |
-          pnpm --dir packages/test exec ava --tap \
-            --match 'Uses default activity if no matching activity exists' \
-            ./lib/test-default-activity.js | tee cloud-integration.tap
+          # Generate one compiled Cloud-eligible test path per line.
+          cloud_test_list="$RUNNER_TEMP/cloud-test-files.txt"
+          ./node_modules/.bin/tsx scripts/cloud-test-inventory.ts --cloud-files > "$cloud_test_list"
+          readarray -t cloud_test_files < "$cloud_test_list"
+
+          echo "::group::Cloud test files (${#cloud_test_files[@]})"
+          for test_file in "${cloud_test_files[@]}"; do
+            echo "  $test_file"
+          done
+          echo "::endgroup::"
+
+          # Quoted [@] passes each path to AVA as a separate argument.
+          pnpm --dir packages/test exec ava --tap "${cloud_test_files[@]}" | tee cloud-integration.tap
         env:
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: true
