@@ -218,9 +218,10 @@ const worker = await Worker.create({
 Its Workflow interceptor registers a tracer provider inside the sandbox that
 ADK's tracer binds to, and exports the spans through a Worker sink that is
 **replay-gated**: spans are recorded when Workflow code first executes;
-history replays re-run the agent-loop code but re-export nothing. You get
-exactly one span per real model call or tool call, plus the interceptor's own
-`RunWorkflow` / `StartActivity` spans, nested under the same trace. The plugin
+history replays re-run the agent-loop code but re-export nothing. Absent
+workflow task retries (see the cautions below), you get exactly one span per
+real model call or tool call, plus the interceptor's own `RunWorkflow` /
+`StartActivity` spans, nested under the same trace. The plugin
 pins `@opentelemetry/api` to a single copy in the Workflow bundle (the one
 `@google/adk` resolves — ADK pins an exact api version, so a bundle could
 otherwise contain two copies), so ADK's tracer binds to that provider no

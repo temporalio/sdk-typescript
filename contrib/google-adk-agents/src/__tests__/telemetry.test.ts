@@ -51,66 +51,96 @@ function countWorkflowTaskRetries(
 }
 
 /**
- * Asserts exactly `expected[name]` exported ADK spans per name on a clean
- * history. A workflow task retry (timeout/failure) is not a replay — the
- * retried segment's spans legitimately re-emit (see README) — so when a slow
- * runner caused retries, degrade to a lower bound, which still fails on
- * silently dropped spans.
+ * Asserts exactly `expected[name]` exported ADK spans per name. Callers must
+ * pass an exporter produced by `scenarioWithRetryFreeHistory`, which
+ * guarantees the history behind it has no workflow task retries — the one
+ * event that legitimately re-emits spans (a retry re-executes live; see the
+ * README's cautions). Keeping the assertion exact is the point of these
+ * regression tests: an N+1 replay over-count must never pass.
  */
 function assertAdkSpanCounts(
   t: ExecutionContext,
   exporter: InMemorySpanExporter,
-  workflowTaskRetries: number,
   expected: Record<string, number>
 ): void {
   const counts = adkSpanCounts(exporter);
   for (const [name, n] of Object.entries(expected)) {
-    if (workflowTaskRetries === 0) {
-      t.is(counts[name], n, name);
-    } else {
-      t.true(
-        (counts[name] ?? 0) >= n,
-        `${name}: expected >= ${n} spans, got ${
-          counts[name] ?? 0
-        } (history has ${workflowTaskRetries} workflow task retries)`
-      );
-    }
+    t.is(counts[name], n, name);
   }
+}
+
+type HistoryEvents = Array<{
+  workflowTaskTimedOutEventAttributes?: unknown;
+  workflowTaskFailedEventAttributes?: unknown;
+}>;
+
+const MAX_SCENARIO_ATTEMPTS = 3;
+
+/**
+ * Runs `scenario` with a fresh exporter until the resulting history contains
+ * no workflow task retries, so span-count assertions can always be exact. A
+ * retry (task timeout/failure on a loaded CI runner) re-executes workflow
+ * code live and legitimately re-emits spans; rather than weakening the
+ * assertion to a lower bound — which would also let a genuine replay
+ * over-count pass — the scenario is re-run on a fresh workflow.
+ */
+async function scenarioWithRetryFreeHistory(
+  t: ExecutionContext,
+  scenario: (exporter: InMemorySpanExporter) => Promise<HistoryEvents>
+): Promise<{ exporter: InMemorySpanExporter; events: HistoryEvents }> {
+  let retries = 0;
+  for (let attempt = 1; attempt <= MAX_SCENARIO_ATTEMPTS; attempt++) {
+    const exporter = new InMemorySpanExporter();
+    const events = await scenario(exporter);
+    retries = countWorkflowTaskRetries(events);
+    if (retries === 0) {
+      return { exporter, events };
+    }
+    t.log(
+      `attempt ${attempt}/${MAX_SCENARIO_ATTEMPTS}: history has ${retries} workflow task ` +
+        `retries, which re-emit spans live; re-running the scenario for exact-count assertions`
+    );
+  }
+  throw new Error(
+    `history still contained ${retries} workflow task retries after ` +
+      `${MAX_SCENARIO_ATTEMPTS} attempts; environment too unstable for exact span-count assertions`
+  );
 }
 
 // Composing with OpenTelemetryPlugin exports ADK spans; replays add none (E2E)
 test.serial('adkSpansExportOncePerOperationUnderReplay', async (t) => {
   const env = getEnv();
-  const taskQueue = uid('adk-otel');
-  const workflowId = uid('wf-otel');
 
-  const exporter = new InMemorySpanExporter();
-  const otelPlugin = new OpenTelemetryPlugin({
-    resource: new Resource({ 'service.name': 'adk-telemetry-test' }),
-    spanProcessor: new SimpleSpanProcessor(exporter),
+  const { exporter, events } = await scenarioWithRetryFreeHistory(t, async (exporter) => {
+    const taskQueue = uid('adk-otel');
+    const workflowId = uid('wf-otel');
+    const otelPlugin = new OpenTelemetryPlugin({
+      resource: new Resource({ 'service.name': 'adk-telemetry-test' }),
+      spanProcessor: new SimpleSpanProcessor(exporter),
+    });
+
+    // Observability plugins compose before this one (see README). The workflow
+    // cache is disabled so every workflow task after the first replays the whole
+    // history — re-running ADK's span-creating agent-loop code in the sandbox.
+    const result = await withWorker(
+      env,
+      { taskQueue, plugins: [otelPlugin, makeAdkPlugin()], maxCachedWorkflows: 0 },
+      () => env.client.workflow.execute(agentRunnerTwoTurnsWorkflow, { taskQueue, workflowId, args: ['hi'] })
+    );
+    t.is(result, 'fake-response:fake-model|fake-response:fake-model');
+
+    return (await env.client.workflow.getHandle(workflowId).fetchHistory()).events ?? [];
   });
 
-  // Observability plugins compose before this one (see README). The workflow
-  // cache is disabled so every workflow task after the first replays the whole
-  // history — re-running ADK's span-creating agent-loop code in the sandbox.
-  const result = await withWorker(
-    env,
-    { taskQueue, plugins: [otelPlugin, makeAdkPlugin()], maxCachedWorkflows: 0 },
-    () => env.client.workflow.execute(agentRunnerTwoTurnsWorkflow, { taskQueue, workflowId, args: ['hi'] })
-  );
-  t.is(result, 'fake-response:fake-model|fake-response:fake-model');
-
-  const history = await env.client.workflow.getHandle(workflowId).fetchHistory();
-  const events = history.events ?? [];
-  const workflowTasks = events.filter((e) => e.workflowTaskStartedEventAttributes).length;
-  const modelActivities = events.filter((e) => e.activityTaskScheduledEventAttributes).length;
+  const workflowTasks = events.filter((e) => (e as any).workflowTaskStartedEventAttributes).length;
+  const modelActivities = events.filter((e) => (e as any).activityTaskScheduledEventAttributes).length;
   t.is(modelActivities, 2);
   t.true(workflowTasks >= 3, `expected >= 3 workflow tasks so replays occurred, got ${workflowTasks}`);
 
   // Exactly one exported span per real operation. A regression that lets
   // replayed sandbox code re-emit (e.g. a callDuringReplay sink) would show up
   // here as workflowTasks-proportional counts (3+ per name).
-  assertAdkSpanCounts(t, exporter, countWorkflowTaskRetries(events), {
+  assertAdkSpanCounts(t, exporter, {
     call_llm: 2,
     invocation: 2,
     'invoke_agent assistant': 2,
@@ -120,36 +150,38 @@ test.serial('adkSpansExportOncePerOperationUnderReplay', async (t) => {
 // ADK evaluated before the interceptor factories still exports spans (E2E)
 test.serial('adkSpansExportWhenAdkEvaluatesBeforeInterceptorFactories', async (t) => {
   const env = getEnv();
-  const taskQueue = uid('adk-otel-early');
-  const workflowId = uid('wf-otel-early');
 
-  const exporter = new InMemorySpanExporter();
-  const otelPlugin = new OpenTelemetryPlugin({
-    resource: new Resource({ 'service.name': 'adk-telemetry-test' }),
-    spanProcessor: new SimpleSpanProcessor(exporter),
+  const { exporter } = await scenarioWithRetryFreeHistory(t, async (exporter) => {
+    const taskQueue = uid('adk-otel-early');
+    const workflowId = uid('wf-otel-early');
+    const otelPlugin = new OpenTelemetryPlugin({
+      resource: new Resource({ 'service.name': 'adk-telemetry-test' }),
+      spanProcessor: new SimpleSpanProcessor(exporter),
+    });
+
+    // A user workflow-interceptors module importing `@google/adk` evaluates ADK
+    // — and its module-load `trace.getTracer(...)` — before any interceptor
+    // factory registers the sandbox tracer provider. ADK's tracer must still
+    // bind to that provider, which requires the bundle to hold a single
+    // `@opentelemetry/api` copy: with two copies (ADK pins one exact version),
+    // every ADK span is silently dropped while the interceptor's own spans keep
+    // exporting.
+    const result = await withWorker(
+      env,
+      {
+        taskQueue,
+        plugins: [otelPlugin, makeAdkPlugin()],
+        maxCachedWorkflows: 0,
+        workflowInterceptorModules: [path.resolve(__dirname, '../../src/__tests__/adk-first-interceptor.ts')],
+      },
+      () => env.client.workflow.execute(agentRunnerTwoTurnsWorkflow, { taskQueue, workflowId, args: ['hi'] })
+    );
+    t.is(result, 'fake-response:fake-model|fake-response:fake-model');
+
+    return (await env.client.workflow.getHandle(workflowId).fetchHistory()).events ?? [];
   });
 
-  // A user workflow-interceptors module importing `@google/adk` evaluates ADK
-  // — and its module-load `trace.getTracer(...)` — before any interceptor
-  // factory registers the sandbox tracer provider. ADK's tracer must still
-  // bind to that provider, which requires the bundle to hold a single
-  // `@opentelemetry/api` copy: with two copies (ADK pins one exact version),
-  // every ADK span is silently dropped while the interceptor's own spans keep
-  // exporting.
-  const result = await withWorker(
-    env,
-    {
-      taskQueue,
-      plugins: [otelPlugin, makeAdkPlugin()],
-      maxCachedWorkflows: 0,
-      workflowInterceptorModules: [path.resolve(__dirname, '../../src/__tests__/adk-first-interceptor.ts')],
-    },
-    () => env.client.workflow.execute(agentRunnerTwoTurnsWorkflow, { taskQueue, workflowId, args: ['hi'] })
-  );
-  t.is(result, 'fake-response:fake-model|fake-response:fake-model');
-
-  const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
-  assertAdkSpanCounts(t, exporter, countWorkflowTaskRetries(events ?? []), {
+  assertAdkSpanCounts(t, exporter, {
     call_llm: 2,
     invocation: 2,
     'invoke_agent assistant': 2,
