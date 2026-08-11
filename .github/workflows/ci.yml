@@ -377,6 +377,8 @@ jobs:
           TEMPORAL_CLIENT_CLOUD_API_VERSION: v0.19.1
 
       - name: Run tests against Temporal Cloud
+        # Fail a hung suite while leaving job-level time for namespace cleanup and log upload.
+        timeout-minutes: 20
         run: |
           # Generate one compiled Cloud-eligible test path per line.
           cloud_test_list="$RUNNER_TEMP/cloud-test-files.txt"
