@@ -72,6 +72,8 @@ function assertAdkSpanCounts(
 type HistoryEvents = Array<{
   workflowTaskTimedOutEventAttributes?: unknown;
   workflowTaskFailedEventAttributes?: unknown;
+  workflowTaskStartedEventAttributes?: unknown;
+  activityTaskScheduledEventAttributes?: unknown;
 }>;
 
 const MAX_SCENARIO_ATTEMPTS = 3;
@@ -132,8 +134,8 @@ test.serial('adkSpansExportOncePerOperationUnderReplay', async (t) => {
     return (await env.client.workflow.getHandle(workflowId).fetchHistory()).events ?? [];
   });
 
-  const workflowTasks = events.filter((e) => (e as any).workflowTaskStartedEventAttributes).length;
-  const modelActivities = events.filter((e) => (e as any).activityTaskScheduledEventAttributes).length;
+  const workflowTasks = events.filter((e) => e.workflowTaskStartedEventAttributes != null).length;
+  const modelActivities = events.filter((e) => e.activityTaskScheduledEventAttributes != null).length;
   t.is(modelActivities, 2);
   t.true(workflowTasks >= 3, `expected >= 3 workflow tasks so replays occurred, got ${workflowTasks}`);
 

@@ -22,6 +22,8 @@ to docs, or any other relevant information.
 ### Added
 
 - **Experimental**: `@temporalio/google-adk-agents` package for running Google ADK agents as durable Temporal Workflows.
+  ADK's OpenTelemetry agent-loop spans can be exported replay-safely from the Workflow sandbox by composing with
+  `OpenTelemetryPlugin` from `@temporalio/interceptors-opentelemetry`; see the package README's telemetry section.
 
 ### Changed
 
@@ -46,9 +48,6 @@ to docs, or any other relevant information.
   update (e.g. a validation rejection) surfaces as a failed Nexus operation. Cancellation is
   customizable via the `cancelWorkflowUpdate` handler option; the default rejects with a
   `NOT_IMPLEMENTED` handler error.
-- **Experimental**: `@temporalio/google-adk-agents` package for running Google ADK agents as durable Temporal Workflows.
-  ADK's OpenTelemetry agent-loop spans can be exported replay-safely from the Workflow sandbox by composing with
-  `OpenTelemetryPlugin` from `@temporalio/interceptors-opentelemetry`; see the package README's telemetry section.
 - `@temporalio/ai-sdk`: `listToolsActivity`/`callToolActivity` now reuse a single MCP client connection
   across repeated invocations for the same server instead of creating and closing one on every call.
   Configure the idle window via the new `mcpConnectionIdleTimeout` option on `createActivities` and

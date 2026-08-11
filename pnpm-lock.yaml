@@ -261,9 +261,6 @@ importers:
       '@opentelemetry/sdk-trace-base':
         specifier: ^1.25.1
         version: 1.25.1(@opentelemetry/api@1.9.1)
-      '@temporalio/client':
-        specifier: workspace:*
-        version: link:../../packages/client
       '@temporalio/interceptors-opentelemetry':
         specifier: workspace:*
         version: link:../interceptors-opentelemetry
@@ -9183,7 +9180,7 @@ snapshots:
   '@opentelemetry/resources@2.7.1(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/semantic-conventions': 1.39.0
 
   '@opentelemetry/sdk-logs@0.205.0(@opentelemetry/api@1.9.0)':
