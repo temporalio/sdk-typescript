@@ -247,6 +247,54 @@ test('SimplePlugin with activities merges them correctly', async (t) => {
   t.truthy(worker.options.activities.has('pluginActivity'));
 });
 
+test('SimplePlugin injects workflowModules only when no workflowBundle is set', (t) => {
+  const makePlugin = () =>
+    new SimplePlugin({
+      name: 'simple-test-plugin',
+      workerInterceptors: {
+        workflowModules: ['plugin-interceptors-module'],
+      },
+    });
+
+  // With workflowsPath, the plugin's workflowModules are appended so the worker bundles them.
+  const pathOptions = makePlugin().configureWorker({
+    taskQueue: 'q',
+    workflowsPath: require.resolve('./workflows/plugins'),
+  });
+  t.deepEqual(pathOptions.interceptors?.workflowModules, ['plugin-interceptors-module']);
+
+  // With a prebuilt bundle, module paths cannot be applied; the plugin must not inject them.
+  const bundleOptions = makePlugin().configureWorker({
+    taskQueue: 'q',
+    workflowBundle: { code: 'ignored' },
+  });
+  t.deepEqual(bundleOptions.interceptors?.workflowModules ?? [], []);
+
+  // Same when the bundle is provided by the plugin itself.
+  const pluginBundleOptions = new SimplePlugin({
+    name: 'simple-test-plugin',
+    workflowBundle: { code: 'ignored' },
+    workerInterceptors: {
+      workflowModules: ['plugin-interceptors-module'],
+    },
+  }).configureWorker({ taskQueue: 'q' });
+  t.deepEqual(pluginBundleOptions.interceptors?.workflowModules ?? [], []);
+
+  // User-provided workflowModules are passed through untouched.
+  const userOptions = makePlugin().configureWorker({
+    taskQueue: 'q',
+    workflowBundle: { code: 'ignored' },
+    interceptors: { workflowModules: ['user-module'] },
+  });
+  t.deepEqual(userOptions.interceptors?.workflowModules, ['user-module']);
+
+  // Replay worker options follow the same rule.
+  const replayOptions = makePlugin().configureReplayWorker({
+    workflowBundle: { code: 'ignored' },
+  });
+  t.deepEqual(replayOptions.interceptors?.workflowModules ?? [], []);
+});
+
 export class AsyncExamplePlugin implements WorkerPlugin, BundlerPlugin {
   readonly name: string = 'async-example-plugin';
 

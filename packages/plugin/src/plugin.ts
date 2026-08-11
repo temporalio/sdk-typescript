@@ -57,7 +57,9 @@ export interface SimplePluginOptions {
   readonly workflowsPath?: PluginParameter<string>;
   /** Workflow bundle configuration */
   readonly workflowBundle?: PluginParameter<WorkflowBundleOption>;
-  /** Worker-side interceptors. When a value is provided, interceptors will be appended  */
+  /** Worker-side interceptors. When a value is provided, interceptors will be appended.
+   * Note that `workflowModules` are not appended to worker options when a workflow bundle is
+   * used; in that case, they are instead applied at bundling time (see `configureBundler`). */
   readonly workerInterceptors?: PluginParameter<WorkerInterceptors>;
   /** Context function to wrap worker execution */
   readonly runContext?: (next: () => Promise<void>) => Promise<void>;
@@ -104,14 +106,15 @@ export class SimplePlugin
    * @returns Modified worker options with plugin configuration applied
    */
   configureWorker(options: WorkerOptions): WorkerOptions {
+    const workflowBundle = resolveParameter(options.workflowBundle, this.options.workflowBundle);
     return {
       ...options,
       dataConverter: resolveDataConverter(options.dataConverter, this.options.dataConverter),
       activities: resolveAppendObjectParameter(options.activities, this.options.activities),
       nexusServices: resolveAppendParameter(options.nexusServices, this.options.nexusServices),
       workflowsPath: resolveParameter(options.workflowsPath, this.options.workflowsPath),
-      workflowBundle: resolveParameter(options.workflowBundle, this.options.workflowBundle),
-      interceptors: resolveWorkerInterceptors(options.interceptors, this.options.workerInterceptors),
+      workflowBundle,
+      interceptors: resolveWorkerInterceptorsForOptions(options, workflowBundle, this.options.workerInterceptors),
     };
   }
 
@@ -121,12 +124,13 @@ export class SimplePlugin
    * @returns Modified replay worker options with plugin configuration applied
    */
   configureReplayWorker(options: ReplayWorkerOptions): ReplayWorkerOptions {
+    const workflowBundle = resolveParameter(options.workflowBundle, this.options.workflowBundle);
     return {
       ...options,
       dataConverter: resolveDataConverter(options.dataConverter, this.options.dataConverter),
       workflowsPath: resolveParameter(options.workflowsPath, this.options.workflowsPath),
-      workflowBundle: resolveParameter(options.workflowBundle, this.options.workflowBundle),
-      interceptors: resolveWorkerInterceptors(options.interceptors, this.options.workerInterceptors),
+      workflowBundle,
+      interceptors: resolveWorkerInterceptorsForOptions(options, workflowBundle, this.options.workerInterceptors),
     };
   }
 
@@ -252,6 +256,24 @@ function resolveClientInterceptors(
     ),
     schedule: tryConcat(existing?.schedule, parameter?.schedule),
   }));
+}
+
+/**
+ * Resolves worker interceptors for worker or replay worker options. Workflow interceptor module
+ * paths cannot be applied to a prebuilt workflow bundle, so when a workflowBundle is used the
+ * plugin's workflowModules are not injected; they must instead be included at bundling time
+ * (see {@link SimplePlugin.configureBundler}).
+ */
+function resolveWorkerInterceptorsForOptions(
+  options: Pick<WorkerOptions, 'interceptors'>,
+  workflowBundle: WorkflowBundleOption | undefined,
+  parameter?: PluginParameter<WorkerInterceptors>
+): WorkerInterceptors | undefined {
+  const interceptors = resolveWorkerInterceptors(options.interceptors, parameter);
+  if (workflowBundle !== undefined && interceptors !== undefined) {
+    return { ...interceptors, workflowModules: options.interceptors?.workflowModules };
+  }
+  return interceptors;
 }
 
 function resolveWorkerInterceptors(
