@@ -187,13 +187,16 @@ test('Count workflow executions', async (t) => {
   }, 10_000);
 
   const actualByExecutionStatus = await client.workflow.count(`TaskQueue = '${taskQueue}' GROUP BY ExecutionStatus`);
-  t.deepEqual(actualByExecutionStatus, {
-    count: 5,
-    groups: [
-      { count: 2, groupValues: [['Running']] },
+  t.is(actualByExecutionStatus.count, 5);
+  t.deepEqual(
+    [...actualByExecutionStatus.groups].sort((a, b) =>
+      String(a.groupValues[0]?.[0]).localeCompare(String(b.groupValues[0]?.[0]))
+    ),
+    [
       { count: 3, groupValues: [['Completed']] },
-    ],
-  });
+      { count: 2, groupValues: [['Running']] },
+    ]
+  );
 });
 
 test.serial('can register search attributes to dev server', async (t) => {
