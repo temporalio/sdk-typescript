@@ -247,7 +247,7 @@ test('SimplePlugin with activities merges them correctly', async (t) => {
   t.truthy(worker.options.activities.has('pluginActivity'));
 });
 
-test('SimplePlugin injects workflowModules only when no workflowBundle is set', (t) => {
+test('SimplePlugin injects workflowModules only when a workflowsPath is set', (t) => {
   const makePlugin = () =>
     new SimplePlugin({
       name: 'simple-test-plugin',
@@ -287,6 +287,10 @@ test('SimplePlugin injects workflowModules only when no workflowBundle is set', 
     interceptors: { workflowModules: ['user-module'] },
   });
   t.deepEqual(userOptions.interceptors?.workflowModules, ['user-module']);
+
+  // A non-workflow worker (no workflowsPath and no workflowBundle) gets no workflowModules.
+  const nonWorkflowOptions = makePlugin().configureWorker({ taskQueue: 'q' });
+  t.deepEqual(nonWorkflowOptions.interceptors?.workflowModules ?? [], []);
 
   // Replay worker options follow the same rule.
   const replayOptions = makePlugin().configureReplayWorker({
