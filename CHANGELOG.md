@@ -27,6 +27,8 @@ to docs, or any other relevant information.
 
 - Nexus is now generally available (GA) for calling Nexus Operations from Workflows and handling
   Workflow-backed Operations with `WorkflowRunOperationHandler`.
+- `@temporalio/ai-sdk` now requires `ai@>=7.0.59` as a peer dependency, up from `7.0.0`, since
+  earlier releases threw a `TypeError` on import in runtimes without a global `fetch`.
 
 ## [1.22.0] - 2026-08-05
 
