@@ -15,7 +15,11 @@ import {
   finishSignal,
   finishUpdate,
   Order,
+  orderSignal,
   Receipt,
+  signalChildTarget,
+  signalExternalTarget,
+  signalTarget,
   workflowTypeInfo,
   workflowWithSignalStart,
   workflowWithTypeInfo,
@@ -168,6 +172,70 @@ test('signal-with-start carries definition-supplied workflow type information', 
     });
 
     assertReceipt(t, await handle.result());
+  });
+});
+
+test('signal uses definition-supplied input type information', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker();
+
+  await worker.runUntil(async () => {
+    const handle = await client.workflow.start(signalTarget, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+    });
+    await handle.signal(orderSignal, new Order('order-1', 12345n));
+    t.is(await handle.result(), 'order-1:12345:0');
+  });
+});
+
+test('signal-with-start uses definition-supplied Signal input type information', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker();
+
+  await worker.runUntil(async () => {
+    const handle = await client.workflow.signalWithStart(signalTarget, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+      signal: orderSignal,
+      signalArgs: [new Order('order-1', 12345n)],
+    });
+    t.is(await handle.result(), 'order-1:12345:0');
+  });
+});
+
+test('external Workflow signal uses definition-supplied input type information', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker();
+
+  await worker.runUntil(async () => {
+    const workflowId = `wf-${randomUUID()}`;
+    const target = await client.workflow.start(signalTarget, { workflowId, taskQueue: h.taskQueue });
+    await client.workflow.execute(signalExternalTarget, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+      args: [workflowId],
+    });
+    t.is(await target.result(), 'order-1:12345:0');
+  });
+});
+
+test('child Workflow signal uses definition-supplied input type information', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker();
+
+  await worker.runUntil(async () => {
+    t.is(
+      await client.workflow.execute(signalChildTarget, {
+        workflowId: `wf-${randomUUID()}`,
+        taskQueue: h.taskQueue,
+      }),
+      'order-1:12345:0'
+    );
   });
 });
 

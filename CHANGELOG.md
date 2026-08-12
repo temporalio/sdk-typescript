@@ -25,6 +25,8 @@ to docs, or any other relevant information.
 - **Experimental**: `TemporalOperationHandler` can now use Standalone Activities as asynchronous
   Nexus Operation backing executions through `TemporalNexusClient.startActivity` and
   `typedActivity`.
+- **Experimental**: Signal definitions can now provide `TypeInfo` for converting Signal arguments on Client and
+  Workflow callers and in Workflow handlers.
 
 ### Changed
 
