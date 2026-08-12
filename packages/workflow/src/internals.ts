@@ -1122,15 +1122,15 @@ export class Activator implements ActivationHandler {
     // If we fall through to the default signal handler then the unfinished
     // policy is WARN_AND_ABANDON; users currently have no way to silence any
     // ensuing warnings.
-    const unfinishedPolicy =
-      this.signalHandlers.get(signalName)?.unfinishedPolicy ?? HandlerUnfinishedPolicy.WARN_AND_ABANDON;
+    const signalHandler = this.signalHandlers.get(signalName);
+    const unfinishedPolicy = signalHandler?.unfinishedPolicy ?? HandlerUnfinishedPolicy.WARN_AND_ABANDON;
 
     const signalExecutionNum = this.signalHandlerExecutionSeq++;
     this.inProgressSignals.set(signalExecutionNum, { name: signalName, unfinishedPolicy });
     const execute = composeInterceptors(interceptors, 'handleSignal', this.signalWorkflowNextHandler.bind(this));
     const context = this.workflowSerializationContext();
     execute({
-      args: arrayFromPayloads(this.payloadConverter, activation.input, context),
+      args: arrayFromPayloads(this.payloadConverter, activation.input, context, signalHandler?.typeInfo?.inputTypes),
       signalName,
       headers: headers ?? {},
     })
