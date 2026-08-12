@@ -16,7 +16,15 @@ import { Worker, type ReplayWorkerOptions } from '@temporalio/worker';
 
 import { GoogleAdkPlugin } from '../index';
 import { mockMCPToolset } from '../testing';
-import { defaultTestProvider, echoDef, setupTestEnv, uid, withWorker, workflowsPath } from './helpers';
+import {
+  defaultTestProvider,
+  echoDef,
+  REUSE_V8_CONTEXT,
+  setupTestEnv,
+  uid,
+  withWorker,
+  workflowsPath,
+} from './helpers';
 import { replayScenario } from './workflows';
 
 function makePlugin(): GoogleAdkPlugin {
@@ -50,6 +58,7 @@ test.serial('replayWithPlugin', async (t) => {
   // fully type-checked, no cast.
   const replayOptions: ReplayWorkerOptions = {
     workflowsPath,
+    reuseV8Context: REUSE_V8_CONTEXT,
     plugins: [makePlugin()],
   };
   await Worker.runReplayHistory(replayOptions, history);

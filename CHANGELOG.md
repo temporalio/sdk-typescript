@@ -22,6 +22,8 @@ to docs, or any other relevant information.
 ### Added
 
 - **Experimental**: `@temporalio/google-adk-agents` package for running Google ADK agents as durable Temporal Workflows.
+  ADK's OpenTelemetry agent-loop spans can be exported replay-safely from the Workflow sandbox by composing with
+  `OpenTelemetryPlugin` from `@temporalio/interceptors-opentelemetry`; see the package README's telemetry section.
 
 ### Changed
 

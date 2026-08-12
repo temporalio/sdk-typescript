@@ -16,6 +16,19 @@ import { FakeLlm, type MockMCPToolDefinition } from '../testing';
 
 const here = __dirname;
 
+function isSet(env: string | undefined, def: boolean): boolean {
+  if (env === undefined) return def;
+  env = env.toLocaleLowerCase();
+  return env === '1' || env === 't' || env === 'true';
+}
+
+/**
+ * Mirrors `packages/test`: `REUSE_V8_CONTEXT=false` runs every worker in
+ * per-workflow-VM mode instead of the default reusable-V8-context mode, so the
+ * polyfill loader and telemetry gating get coverage in both sandbox modes.
+ */
+export const REUSE_V8_CONTEXT = isSet(process.env.REUSE_V8_CONTEXT, true);
+
 /** A unique task-queue / workflow id. */
 export function uid(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
@@ -127,6 +140,11 @@ export interface WithWorkerOptions {
   plugins: unknown[];
   activities?: Record<string, (...args: never[]) => Promise<unknown>>;
   maxCachedWorkflows?: number;
+  /**
+   * User `interceptors.workflowModules` entries; the plugin's polyfill loader
+   * still evaluates first, these follow.
+   */
+  workflowInterceptorModules?: string[];
 }
 
 /**
@@ -141,9 +159,13 @@ export async function withWorker<T>(
     connection: env.nativeConnection,
     taskQueue: options.taskQueue,
     workflowsPath,
+    reuseV8Context: REUSE_V8_CONTEXT,
     plugins: options.plugins as any,
     activities: options.activities as any,
     maxCachedWorkflows: options.maxCachedWorkflows,
+    interceptors: options.workflowInterceptorModules
+      ? { workflowModules: options.workflowInterceptorModules }
+      : undefined,
   });
   return worker.runUntil(fn());
 }

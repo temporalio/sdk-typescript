@@ -125,6 +125,9 @@ function mcpActivitiesForName(
       try {
         toolset = resolveToolset();
         const tools = await toolset.getTools();
+        // `_getDeclaration` is underscore-prefixed by ADK convention but is a
+        // typed, documented `BaseTool` member; ADK's own default
+        // `processLlmRequest` calls it the same way.
         return tools.map((tool) => tool._getDeclaration()).filter((d): d is FunctionDeclaration => d !== undefined);
       } catch (err) {
         throw toApplicationFailure(err);
