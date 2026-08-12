@@ -223,10 +223,29 @@ function getBundle(plugin: LangSmithPlugin, workflowsPath: string, optionsKey: s
 // is swallowed by the SDK Runtime's shutdown handler — wedging the whole suite
 // until the CI job timeout. Bounding each attempt and retrying on a fresh
 // worker + task queue converts that hang into (at worst) a visible failure and
-// (in practice) a recovered pass. Budget: MAX_BODY_ATTEMPTS * BODY_STALL_TIMEOUT_MS
-// plus the final attempt's body time must stay under the 120s AVA cap.
+// (in practice) a recovered pass.
+//
+// Calibration (from CI run 31544937973, linux-arm Node 24 leg):
+//  - 30s per attempt is latency headroom, not the recovery lever. Even on the
+//    slowest, contended runners a fresh worker reaches RUNNING in <300ms and
+//    healthy bodies finish in single-digit seconds; stalled attempts show zero
+//    activity for the entire window, and an unmitigated stall never recovers
+//    (20+ minute hung jobs). Waiting longer per attempt therefore cannot help;
+//    only a fresh worker can.
+//  - Stalls are correlated in time: that leg saw one case stall on 2/3
+//    attempts then recover, and another stall on 3/3 back-to-back attempts
+//    (~90s window). Six attempts sample a ~3 minute window — double the worst
+//    observed sequence — while still failing loudly within minutes if the
+//    degradation persists.
+//  - Attempts are not capped by AVA's 120s inactivity watchdog: AVA debounces
+//    that timer on every stateChange record carrying a testFile, which
+//    includes worker-stdout/stderr chunks (ava 5.3.1 lib/fork.js tags all
+//    records with testFile; lib/api.js debounces on any of them). The retry
+//    warning below is therefore load-bearing: it guarantees output every
+//    ≤~30s while attempts continue, so the watchdog only fires for a genuine
+//    silent wedge (its backstop role, unchanged).
 const BODY_STALL_TIMEOUT_MS = 30_000;
-const MAX_BODY_ATTEMPTS = 3;
+const MAX_BODY_ATTEMPTS = 6;
 
 /** A body attempt exceeded {@link BODY_STALL_TIMEOUT_MS}; the harness retries on a fresh worker. */
 class HarnessStallError extends Error {
@@ -310,7 +329,10 @@ export async function withTracingWorker<T>(args: HarnessArgs<T>): Promise<T> {
         if (!(err instanceof HarnessStallError) || attempt >= MAX_BODY_ATTEMPTS) {
           throw err;
         }
-        // Surfaces in the archived test log so CI stalls stay diagnosable.
+        // Load-bearing, do not remove: surfaces in the archived test log so CI
+        // stalls stay diagnosable, AND (as worker stdout) debounces AVA's
+        // inactivity watchdog so continued attempts can't trip it — see the
+        // calibration notes on MAX_BODY_ATTEMPTS.
         console.warn(`withTracingWorker: ${err.message}; retrying on a fresh worker`);
         await terminateLeakedWorkflows(env, taskQueue);
         args.collector.restore(preAttemptState);
