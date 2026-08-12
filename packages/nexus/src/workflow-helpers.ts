@@ -3,6 +3,7 @@ import type {
   Workflow,
   WorkflowResultType,
   WithWorkflowArgs,
+  QueryDefinition,
   SignalDefinition,
   UpdateDefinition,
 } from '@temporalio/common';
@@ -22,12 +23,14 @@ import { type temporal } from '@temporalio/proto';
 import type {
   InternalActivityStartOptions,
   InternalWorkflowHandle,
+  InternalWorkflowQueryOptions,
   InternalWorkflowSignalOptions,
   InternalWorkflowStartOptions,
   InternalWorkflowUpdateOptions,
 } from '@temporalio/client/lib/internal';
 import {
   InternalActivityStartOptionsSymbol,
+  InternalWorkflowQueryOptionsSymbol,
   InternalWorkflowSignalOptionsSymbol,
   InternalWorkflowStartOptionsSymbol,
   InternalWorkflowUpdateOptionsSymbol,
@@ -72,6 +75,16 @@ export interface WorkflowHandle<T> {
     def: SignalDefinition<Args, Name> | string,
     ...args: Args
   ): Promise<void>;
+
+  /**
+   * Queries the Workflow as part of this Nexus Operation.
+   *
+   * A Query resolves immediately and writes nothing to history, so this backs a synchronous
+   * operation: there is no operation token and nothing to cancel. The link the server returns for the
+   * Workflow that processed the Query is attached to the operation's outbound links, so the caller's
+   * NexusOperation history event points back at that Workflow.
+   */
+  query<Ret, Args extends any[] = []>(def: QueryDefinition<Ret, Args> | string, ...args: Args): Promise<Ret>;
 
   /**
    * Virtual type brand to maintain a distinction between {@link WorkflowHandle} provided by the
@@ -288,6 +301,26 @@ function createWorkflowHandle<T extends Workflow>(
       }
     },
 
+    async query<Ret, Args extends any[] = []>(def: QueryDefinition<Ret, Args> | string, ...args: Args): Promise<Ret> {
+      const { client } = getHandlerContext();
+
+      // Query through a regular WorkflowHandle for the same reason as signal above. There are no
+      // request links to forward, since a Query writes no event to link from; the payload exists
+      // only so the query handler can write the server's response link back onto it.
+      const handle = client.workflow.getHandle(this.workflowId, this.runId) as InternalWorkflowHandle;
+      const internalOptions: InternalWorkflowQueryOptions[typeof InternalWorkflowQueryOptionsSymbol] = {};
+      handle[InternalWorkflowQueryOptionsSymbol] = internalOptions;
+      try {
+        return await handle.query(def, ...args);
+      } finally {
+        // In the `finally` so a rejected or failed Query still contributes its link: the server
+        // returns one alongside the rejection, and the client records it before throwing.
+        if (internalOptions.responseLink != null) {
+          pushResponseLink(ctx, internalOptions.responseLink);
+        }
+      }
+    },
+
     // Single permissive implementation signature; the no-arg vs with-args overload pair that callers
     // type against is declared on `UpdatableWorkflowHandle.update`
     update<Ret, Args extends any[]>(
@@ -334,10 +367,9 @@ export async function signalWithStartWorkflow<T extends Workflow, SignalArgs ext
     pushResponseLink(ctx, internalOptions.responseLink);
   }
 
-  return {
-    workflowId: handle.workflowId,
-    runId: handle.signaledRunId,
-  } as WorkflowHandle<WorkflowResultType<T>>;
+  // As in `startWorkflow`, the Workflow run this handle refers to is the operation's async backing
+  // operation, so the handle's `update()` must not be able to start another one.
+  return createWorkflowHandle(ctx, handle.workflowId, handle.signaledRunId, alreadyBackedReservation);
 }
 
 /**

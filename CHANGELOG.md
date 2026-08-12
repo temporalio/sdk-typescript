@@ -90,6 +90,13 @@ to docs, or any other relevant information.
 - **Experimental**: `TemporalOperationHandler` can now use Standalone Activities as asynchronous
   Nexus Operation backing executions through `TemporalNexusClient.startActivity` and
   `typedActivity`.
+- **Experimental**: Workflow Queries as Nexus Operations, via
+  `TemporalNexusClient.getWorkflowHandle(...).query(...)`. A Query resolves immediately and writes
+  nothing to history, so it backs a synchronous operation: return the result with
+  `TemporalOperationResult.sync(...)`; there is no operation token and nothing to cancel. The link the
+  server returns for the Workflow that processed the Query is attached to the operation's outbound
+  links, so the caller's NexusOperation history event points back at that Workflow. Requires a server
+  that populates `QueryWorkflowResponse.link`; older servers leave it unset and no link is attached.
 - **Experimental**: Signal definitions can now provide `TypeInfo` for converting Signal arguments on Client and
   Workflow callers and in Workflow handlers.
 - **Experimental**: Workflows can now use `TypeInfo` for Child Workflow inputs and results and continue-as-new inputs.
@@ -104,6 +111,12 @@ to docs, or any other relevant information.
 
 - Nexus is now generally available (GA) for calling Nexus Operations from Workflows and handling
   Workflow-backed Operations with `WorkflowRunOperationHandler`.
+- A `common.v1.Link.Workflow` now serializes to the Workflow path
+  `temporal:///namespaces/{ns}/workflows/{wid}/{rid}` with the optional `reason` as a query param,
+  rather than reusing the workflow event path with a `/history` suffix and dropping `reason`. The
+  previous form was indistinguishable from a workflow event link except by its type, and did not match
+  the other SDKs. Inbound Workflow links are now parsed as well, and a link with a trailing path
+  segment is rejected.
 - `@temporalio/ai-sdk` now requires `ai@>=7.0.59` as a peer dependency, up from `7.0.0`, since
   earlier releases threw a `TypeError` on import in runtimes without a global `fetch`.
 - A Payload Converter or Payload Codec that fails to decode a Nexus Operation's input with a
