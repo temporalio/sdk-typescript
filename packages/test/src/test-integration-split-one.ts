@@ -34,10 +34,10 @@ import {
   startChild,
   workflowInfo,
 } from '@temporalio/workflow';
-import { configurableHelpers, createTestWorkflowBundle } from './helpers-integration';
+import { createTestWorkflowBundle } from './helpers-integration';
 import * as activities from './activities';
 import { cleanOptionalStackTrace, compareStackTrace, u8, Worker, isBun } from './helpers';
-import { configMacro, makeTestFn } from './helpers-integration-multi-codec';
+import { makeDataConverterTest } from './helpers-integration-multi-codec';
 import * as workflows from './workflows';
 
 // Note: re-export shared workflows (or long workflows)
@@ -50,17 +50,15 @@ const { EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCE
 const timerEventTypes = new Set([EVENT_TYPE_TIMER_STARTED, EVENT_TYPE_TIMER_FIRED, EVENT_TYPE_TIMER_CANCELED]);
 const CHANGE_MARKER_NAME = 'core_patch';
 
-const test = makeTestFn(() => createTestWorkflowBundle({ workflowsPath: __filename }));
-test.macro(configMacro);
+const test = makeDataConverterTest(() => createTestWorkflowBundle({ workflowsPath: __filename }));
 
 // FIXME: Unless we add .serial() here, ava tries to start all async tests in parallel, which
 //        is ok in most environments, but has been causing flakyness in CI, especially on Windows.
 //        We can probably avoid this by using larger runners, and there is some opportunity for
 //        optimization here, but for now, let's just run these tests serially.
-test.serial('Workflow not found results in task retry', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { taskQueue } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
+test.serial('Workflow not found results in task retry', async (t, { env, helpers }) => {
+  const { taskQueue } = helpers;
+  const worker = await helpers.createWorker();
   const client = env.client;
   const handle = await client.workflow.start('not-found', {
     taskQueue,
@@ -91,10 +89,9 @@ test.serial('Workflow not found results in task retry', configMacro, async (t, c
   t.pass();
 });
 
-test.serial('args-and-return', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { executeWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
+test.serial('args-and-return', async (t, { env, helpers }) => {
+  const { executeWorkflow } = helpers;
+  const worker = await helpers.createWorker();
   const res = await worker.runUntil(
     executeWorkflow(workflows.argsAndReturn, {
       args: ['Hello', undefined, u8('world!')],
@@ -110,10 +107,9 @@ export async function urlEcho(url: string): Promise<string> {
   return parsedURL.toString();
 }
 
-test.serial('url-whatwg', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { executeWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
+test.serial('url-whatwg', async (t, { env, helpers }) => {
+  const { executeWorkflow } = helpers;
+  const worker = await helpers.createWorker();
   const res = await worker.runUntil(
     executeWorkflow(urlEcho, {
       args: ['http://foo.com'],
@@ -122,11 +118,10 @@ test.serial('url-whatwg', configMacro, async (t, config) => {
   t.is(res, 'http://foo.com/?counter=1');
 });
 
-test.serial('cancel-fake-progress', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { executeWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
+test.serial('cancel-fake-progress', async (t, { env, helpers }) => {
+  const { executeWorkflow } = helpers;
 
-  const worker = await createWorkerWithDefaults(t, {
+  const worker = await helpers.createWorker({
     activities,
   });
   await worker.runUntil(executeWorkflow(workflows.cancelFakeProgress));
@@ -145,10 +140,9 @@ export async function activityFailure(useApplicationFailure: boolean): Promise<v
   }
 }
 
-test.serial('activity-failure with Error', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { executeWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t, { activities });
+test.serial('activity-failure with Error', async (t, { env, helpers }) => {
+  const { executeWorkflow } = helpers;
+  const worker = await helpers.createWorker({ activities });
   const err: WorkflowFailedError | undefined = await t.throwsAsync(
     worker.runUntil(
       executeWorkflow(activityFailure, {
@@ -184,10 +178,9 @@ test.serial('activity-failure with Error', configMacro, async (t, config) => {
   );
 });
 
-test.serial('activity-failure with ApplicationFailure', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { executeWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t, { activities });
+test.serial('activity-failure with ApplicationFailure', async (t, { env, helpers }) => {
+  const { executeWorkflow } = helpers;
+  const worker = await helpers.createWorker({ activities });
   const err: WorkflowFailedError | undefined = await t.throwsAsync(
     worker.runUntil(
       executeWorkflow(activityFailure, {
@@ -238,10 +231,9 @@ export async function childWorkflowInvoke(): Promise<{
   return { workflowId: child.workflowId, runId: child.firstExecutionRunId, result: await child.result(), execResult };
 }
 
-test.serial('child-workflow-invoke', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
+test.serial('child-workflow-invoke', async (t, { env, helpers }) => {
+  const { startWorkflow } = helpers;
+  const worker = await helpers.createWorker();
   const handle = await startWorkflow(childWorkflowInvoke);
   const { workflowId, runId, execResult, result } = await worker.runUntil(handle.result());
   t.is(execResult, 'success');
@@ -255,10 +247,9 @@ export async function childWorkflowFailure(): Promise<void> {
   await executeChild(workflows.throwAsync);
 }
 
-test.serial('child-workflow-failure', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { executeWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
+test.serial('child-workflow-failure', async (t, { env, helpers }) => {
+  const { executeWorkflow } = helpers;
+  const worker = await helpers.createWorker();
   await worker.runUntil(async () => {
     const err: WorkflowFailedError | undefined = await t.throwsAsync(executeWorkflow(childWorkflowFailure), {
       instanceOf: WorkflowFailedError,
@@ -299,10 +290,9 @@ export async function childWorkflowTermination(): Promise<void> {
   await child.result();
 }
 
-test.serial('child-workflow-termination', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
+test.serial('child-workflow-termination', async (t, { env, helpers }) => {
+  const { startWorkflow } = helpers;
+  const worker = await helpers.createWorker();
   const handle = await startWorkflow(childWorkflowTermination);
   const client = env.client;
 
@@ -340,10 +330,9 @@ export async function childWorkflowTimeout(): Promise<void> {
   });
 }
 
-test.serial('child-workflow-timeout', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { executeWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
+test.serial('child-workflow-timeout', async (t, { env, helpers }) => {
+  const { executeWorkflow } = helpers;
+  const worker = await helpers.createWorker();
   const err: WorkflowFailedError | undefined = await t.throwsAsync(
     worker.runUntil(executeWorkflow(childWorkflowTimeout)),
     {
@@ -381,37 +370,33 @@ export async function childWorkflowStartFail(): Promise<void> {
   }
 }
 
-test.serial('child-workflow-start-fail', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { executeWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
+test.serial('child-workflow-start-fail', async (t, { env, helpers }) => {
+  const { executeWorkflow } = helpers;
+  const worker = await helpers.createWorker();
   await worker.runUntil(executeWorkflow(childWorkflowStartFail));
   // Assertions in workflow code
   t.pass();
 });
 
-test.serial('child-workflow-cancel', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { executeWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
+test.serial('child-workflow-cancel', async (t, { env, helpers }) => {
+  const { executeWorkflow } = helpers;
+  const worker = await helpers.createWorker();
   await worker.runUntil(executeWorkflow(workflows.childWorkflowCancel));
   // Assertions in workflow code
   t.pass();
 });
 
-test.serial('child-workflow-signals', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { executeWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
+test.serial('child-workflow-signals', async (t, { env, helpers }) => {
+  const { executeWorkflow } = helpers;
+  const worker = await helpers.createWorker();
   await worker.runUntil(executeWorkflow(workflows.childWorkflowSignals));
   // Assertions in workflow code
   t.pass();
 });
 
-test.serial('query not found', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
+test.serial('query not found', async (t, { env, helpers }) => {
+  const { startWorkflow } = helpers;
+  const worker = await helpers.createWorker();
   const handle = await startWorkflow(workflows.unblockOrCancel);
   await worker.runUntil(async () => {
     await handle.signal(workflows.unblockSignal);
@@ -424,10 +409,9 @@ test.serial('query not found', configMacro, async (t, config) => {
   });
 });
 
-test.serial('query and unblock', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
+test.serial('query and unblock', async (t, { env, helpers }) => {
+  const { startWorkflow } = helpers;
+  const worker = await helpers.createWorker();
   const handle = await startWorkflow(workflows.unblockOrCancel);
   await worker.runUntil(async () => {
     t.true(await handle.query(workflows.isBlockedQuery));
@@ -437,10 +421,9 @@ test.serial('query and unblock', configMacro, async (t, config) => {
   });
 });
 
-test.serial('interrupt-signal', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
+test.serial('interrupt-signal', async (t, { env, helpers }) => {
+  const { startWorkflow } = helpers;
+  const worker = await helpers.createWorker();
   const handle = await startWorkflow(workflows.interruptableWorkflow);
   await worker.runUntil(async () => {
     await handle.signal(workflows.interruptSignal, 'just because');
@@ -454,10 +437,9 @@ test.serial('interrupt-signal', configMacro, async (t, config) => {
   });
 });
 
-test.serial('fail-signal', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
+test.serial('fail-signal', async (t, { env, helpers }) => {
+  const { startWorkflow } = helpers;
+  const worker = await helpers.createWorker();
   const handle = await startWorkflow(workflows.failSignalWorkflow);
   await worker.runUntil(async () => {
     await handle.signal(workflows.failSignal);
@@ -471,10 +453,9 @@ test.serial('fail-signal', configMacro, async (t, config) => {
   });
 });
 
-test.serial('async-fail-signal', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
+test.serial('async-fail-signal', async (t, { env, helpers }) => {
+  const { startWorkflow } = helpers;
+  const worker = await helpers.createWorker();
   const handle = await startWorkflow(workflows.asyncFailSignalWorkflow);
   await handle.signal(workflows.failSignal);
   await worker.runUntil(async () => {
@@ -488,18 +469,16 @@ test.serial('async-fail-signal', configMacro, async (t, config) => {
   });
 });
 
-test.serial('http', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { executeWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t, { activities });
+test.serial('http', async (t, { env, helpers }) => {
+  const { executeWorkflow } = helpers;
+  const worker = await helpers.createWorker({ activities });
   const res = await worker.runUntil(executeWorkflow(workflows.http));
   t.deepEqual(res, await activities.httpGet('https://temporal.io'));
 });
 
-test.serial('sleep', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
+test.serial('sleep', async (t, { env, helpers }) => {
+  const { startWorkflow } = helpers;
+  const worker = await helpers.createWorker();
   const handle = await startWorkflow(workflows.sleeper);
   const res = await worker.runUntil(handle.result());
   t.is(res, undefined);
@@ -511,10 +490,9 @@ test.serial('sleep', configMacro, async (t, config) => {
   t.is(timerEvents[1].timerFiredEventAttributes!.timerId, '1');
 });
 
-test.serial('cancel-timer-immediately', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
+test.serial('cancel-timer-immediately', async (t, { env, helpers }) => {
+  const { startWorkflow } = helpers;
+  const worker = await helpers.createWorker();
   const handle = await startWorkflow(workflows.cancelTimer);
   const res = await worker.runUntil(handle.result());
   t.is(res, undefined);
@@ -539,10 +517,9 @@ export async function cancelTimerWithDelay(): Promise<void> {
   }
 }
 
-test.serial('cancel-timer-with-delay', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
+test.serial('cancel-timer-with-delay', async (t, { env, helpers }) => {
+  const { startWorkflow } = helpers;
+  const worker = await helpers.createWorker();
   const handle = await startWorkflow(cancelTimerWithDelay);
   const res = await worker.runUntil(handle.result());
   t.is(res, undefined);
@@ -557,10 +534,9 @@ test.serial('cancel-timer-with-delay', configMacro, async (t, config) => {
   t.is(timerEvents[3].timerCanceledEventAttributes!.timerId, '1');
 });
 
-test.serial('patched', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
+test.serial('patched', async (t, { env, helpers }) => {
+  const { startWorkflow } = helpers;
+  const worker = await helpers.createWorker();
   const handle = await startWorkflow(workflows.patchedWorkflow);
   const res = await worker.runUntil(handle.result());
   t.is(res, undefined);
@@ -574,10 +550,9 @@ test.serial('patched', configMacro, async (t, config) => {
   t.is(hasChangeEvents[0].markerRecordedEventAttributes!.markerName, CHANGE_MARKER_NAME);
 });
 
-test.serial('deprecate-patch', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
+test.serial('deprecate-patch', async (t, { env, helpers }) => {
+  const { startWorkflow } = helpers;
+  const worker = await helpers.createWorker();
   const handle = await startWorkflow(workflows.deprecatePatchWorkflow);
   const res = await worker.runUntil(handle.result());
   t.is(res, undefined);
@@ -589,10 +564,9 @@ test.serial('deprecate-patch', configMacro, async (t, config) => {
   t.is(hasChangeEvents[0].markerRecordedEventAttributes!.markerName, CHANGE_MARKER_NAME);
 });
 
-test.serial('Worker default ServerOptions are generated correctly', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
+test.serial('Worker default ServerOptions are generated correctly', async (t, { env, helpers }) => {
+  const { startWorkflow } = helpers;
+  const worker = await helpers.createWorker();
   const handle = await startWorkflow(workflows.argsAndReturn, {
     args: ['hey', undefined, Buffer.from('abc')],
   });
@@ -641,10 +615,9 @@ function unusableUnsafeRandomIssue(source: string, unsafe: Partial<UnsafeWorkflo
   return `${source} exposes a callable unsafe.random after serialization`;
 }
 
-test.serial('Workflow can read WorkflowInfo', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { startWorkflow, taskQueue } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
+test.serial('Workflow can read WorkflowInfo', async (t, { env, helpers }) => {
+  const { startWorkflow, taskQueue } = helpers;
+  const worker = await helpers.createWorker();
   const handle = await startWorkflow(returnWorkflowInfo, {
     memo: {
       nested: { object: true },
@@ -683,10 +656,9 @@ test.serial('Workflow can read WorkflowInfo', configMacro, async (t, config) => 
   t.is(res.suggestedContinueAsNewReasons, undefined);
 });
 
-test.serial('Serialized WorkflowInfo does not expose unusable unsafe random source', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t);
+test.serial('Serialized WorkflowInfo does not expose unusable unsafe random source', async (t, { env, helpers }) => {
+  const { startWorkflow } = helpers;
+  const worker = await helpers.createWorker();
 
   await worker.runUntil(async () => {
     const failures: string[] = [];
@@ -718,11 +690,9 @@ test.serial('Serialized WorkflowInfo does not expose unusable unsafe random sour
  * NOTE: this test uses the `IN` operator API which requires advanced visibility as of server 1.18.
  * It will silently succeed on servers that only support standard visibility (can't dynamically skip a test).
  */
-test.serial('Download and replay multiple executions with client list method', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-
-  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
-  const worker = await createWorkerWithDefaults(t, { activities });
+test.serial('Download and replay multiple executions with client list method', async (t, { env, helpers }) => {
+  const { startWorkflow } = helpers;
+  const worker = await helpers.createWorker({ activities });
   const client = env.client;
   try {
     const fns = [workflows.http, workflows.cancelFakeProgress, childWorkflowInvoke, workflows.activityFailures];

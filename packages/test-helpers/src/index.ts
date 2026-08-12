@@ -37,6 +37,8 @@ export {
   AnyTestWorkflowEnvironment,
   BaseContext,
   BaseHelpers,
+  CreateBaseHelpersOptions,
+  createBaseHelpers,
   helpers,
   defaultTaskQueueTransform,
   isBun,

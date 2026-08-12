@@ -25,6 +25,7 @@ import type {
 } from '@temporalio/test-helpers';
 import {
   helpers as baseHelpers,
+  createBaseHelpers,
   defaultTaskQueueTransform,
   createTestWorkflowBundle as createTestWorkflowBundleBase,
   createTestWorkflowEnvironment as createTestWorkflowEnvironmentBase,
@@ -91,14 +92,18 @@ export function makeConfigurableEnvironmentTestFn<T>(opts: {
   runtimeOpts?: Partial<RuntimeOptions> | (() => Promise<[Partial<RuntimeOptions>, Partial<T>]>) | undefined;
 }): TestFn<T> {
   const test = anyTest as TestFn<T>;
+  let testContextCreated = false;
   test.before(async (t) => {
     const [runtimeOpts, extraContext] =
       typeof opts.runtimeOpts === 'function' ? await opts.runtimeOpts() : [opts.runtimeOpts, {}];
     setupRuntime(opts.recordedLogs, runtimeOpts);
     t.context = { ...(await opts.createTestContext(t)), ...extraContext };
+    testContextCreated = true;
   });
   test.after.always(async (t) => {
-    await opts.teardown(t.context);
+    if (testContextCreated) {
+      await opts.teardown(t.context);
+    }
   });
   return test;
 }
@@ -262,5 +267,9 @@ export function configurableHelpers<T>(
   workflowBundle: WorkflowBundle,
   testEnv: TestWorkflowEnvironment
 ): BaseHelpers {
-  return baseHelpers({ title: t.title, context: { env: testEnv, workflowBundle } } as ExecutionContext<Context>);
+  return createBaseHelpers({
+    taskQueue: defaultTaskQueueTransform(t.title),
+    env: testEnv,
+    workflowBundle,
+  });
 }
