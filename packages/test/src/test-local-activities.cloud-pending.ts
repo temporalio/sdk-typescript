@@ -1,13 +1,10 @@
 import { Context as ActivityContext } from '@temporalio/activity';
 import type { RetryPolicy } from '@temporalio/common';
 import { helpers, makeTestFunction } from './helpers-integration';
-import { getRetryPolicyFromActivityInfo } from './test-local-activities';
-
-const localActivitiesModule = require.resolve('./test-local-activities');
+import { getRetryPolicyFromActivityInfo } from './workflows/local-activities';
 
 const test = makeTestFunction({
-  workflowsPath: localActivitiesModule,
-  workflowInterceptorModules: [localActivitiesModule],
+  workflowsPath: require.resolve('./workflows/local-activities'),
   workflowEnvironmentOpts: {
     server: {
       // Eager activities do not propagate retry policies.

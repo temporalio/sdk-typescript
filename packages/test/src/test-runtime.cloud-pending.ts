@@ -10,8 +10,8 @@ import { DefaultLogger, makeTelemetryFilterString, NativeConnection, Runtime } f
 import { RUN_INTEGRATION_TESTS, test, Worker } from './helpers';
 import { createTestWorkflowBundle } from './helpers-integration';
 import { defaultOptions } from './mock-native-worker';
-import { log5Times } from './test-runtime';
 import * as workflows from './workflows';
+import { log5Times } from './workflows/runtime';
 
 if (RUN_INTEGRATION_TESTS) {
   test.serial('Runtime tracks registered workers, shuts down and restarts as expected', async (t) => {
@@ -105,7 +105,7 @@ if (RUN_INTEGRATION_TESTS) {
         ...defaultOptions,
         connection,
         taskQueue,
-        workflowBundle: await createTestWorkflowBundle({ workflowsPath: require.resolve('./test-runtime') }),
+        workflowBundle: await createTestWorkflowBundle({ workflowsPath: require.resolve('./workflows/runtime') }),
       });
 
       await worker.runUntil(async () => {

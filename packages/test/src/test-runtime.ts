@@ -3,7 +3,6 @@
  * Tests run serially because Runtime is a singleton.
  */
 import { Runtime } from '@temporalio/worker';
-import * as wf from '@temporalio/workflow';
 import { RUN_INTEGRATION_TESTS, test } from './helpers';
 
 if (RUN_INTEGRATION_TESTS) {
@@ -11,11 +10,4 @@ if (RUN_INTEGRATION_TESTS) {
     await Runtime.instance().shutdown();
     t.pass();
   });
-}
-
-export async function log5Times(): Promise<void> {
-  for (let i = 0; i < 5; i++) {
-    wf.log.info(`workflow log ${i}`);
-    await wf.sleep(1);
-  }
 }

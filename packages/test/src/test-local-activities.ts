@@ -1,7 +1,7 @@
 import { firstValueFrom, Subject } from 'rxjs';
 import { Context as ActivityContext } from '@temporalio/activity';
 import { ApplicationFailure, defaultPayloadConverter, WorkflowFailedError } from '@temporalio/client';
-import type { LocalActivityOptions, RetryPolicy } from '@temporalio/common';
+import type { LocalActivityOptions } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { temporal } from '@temporalio/proto';
 import * as workflow from '@temporalio/workflow';
@@ -533,15 +533,6 @@ export const interceptors: workflow.WorkflowInterceptorsFactory = () => {
     ],
   };
 };
-
-export async function getRetryPolicyFromActivityInfo(
-  retryPolicy: RetryPolicy,
-  fromInsideLocal: boolean
-): Promise<object | undefined> {
-  return await (fromInsideLocal
-    ? workflow.proxyLocalActivities({ startToCloseTimeout: '1m', retry: retryPolicy }).retryPolicy()
-    : workflow.proxyActivities({ startToCloseTimeout: '1m', retry: retryPolicy }).retryPolicy());
-}
 
 export async function runLocalActivityWithNonLocalActivitiesDisabled(): Promise<string> {
   const { echo } = workflow.proxyLocalActivities({ startToCloseTimeout: '1m' });
