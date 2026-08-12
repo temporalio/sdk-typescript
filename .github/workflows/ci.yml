@@ -319,6 +319,91 @@ jobs:
           name: integration-tests-${{ matrix.platform }}-${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-devserver-logs
           path: ${{ steps.tmp-dir.outputs.dir }}/devserver.log
 
+  cloud-integration-tests:
+    name: Cloud Integration Tests
+    if: ${{ vars.IS_TEMPORALIO_SDK_TYPESCRIPT_REPO == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    timeout-minutes: 40
+    needs:
+      - compile-native-binaries-debug
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          submodules: recursive
+
+      - name: Download core-bridge native library
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: corebridge-native-debug-linux-x64
+          path: ./packages/core-bridge/releases
+
+      - name: Setup Node and install dependencies
+        uses: ./.github/actions/setup-node-deps
+        with:
+          node-version: 24
+          platform: linux-x64
+
+      - name: Compile code
+        run: pnpm --recursive --stream --filter '!@temporalio/core-bridge' --filter '!typescript-sdk' run build
+
+      - name: Generate Cloud test certificates
+        run: |
+          cert_dir="$RUNNER_TEMP/cloud-test-certs"
+          mkdir "$cert_dir"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -keyout "$cert_dir/ca.key" -out "$cert_dir/ca.pem" \
+            -subj '/CN=Temporal TypeScript SDK Cloud CI CA'
+          openssl req -newkey rsa:2048 -nodes \
+            -keyout "$cert_dir/client.key" -out "$cert_dir/client.csr" \
+            -subj '/CN=Temporal TypeScript SDK Cloud CI'
+          openssl x509 -req -days 1 -in "$cert_dir/client.csr" \
+            -CA "$cert_dir/ca.pem" -CAkey "$cert_dir/ca.key" -CAcreateserial \
+            -out "$cert_dir/client.pem" -extfile <(printf 'extendedKeyUsage=clientAuth')
+          {
+            echo "TEMPORAL_CLOUD_CLIENT_CA_PATH=$cert_dir/ca.pem"
+            echo "TEMPORAL_TLS_CLIENT_CERT_PATH=$cert_dir/client.pem"
+            echo "TEMPORAL_TLS_CLIENT_KEY_PATH=$cert_dir/client.key"
+          } >> "$GITHUB_ENV"
+
+      - name: Create Cloud namespace
+        id: create-cloud-namespace
+        run: pnpm exec tsx .github/scripts/cloud-namespace.ts create
+        env:
+          TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
+          TEMPORAL_CLIENT_CLOUD_API_VERSION: v0.19.1
+
+      - name: Run tests against Temporal Cloud
+        run: |
+          pnpm --dir packages/test exec ava --tap \
+            --match 'Uses default activity if no matching activity exists' \
+            ./lib/test-default-activity.js | tee cloud-integration.tap
+        env:
+          RUN_INTEGRATION_TESTS: true
+          REUSE_V8_CONTEXT: true
+          TEMPORAL_TEST_ENV_CONFIG_SERVER: true
+          TEMPORAL_ADDRESS: ${{ steps.create-cloud-namespace.outputs.namespace }}.tmprl.cloud:7233
+          TEMPORAL_NAMESPACE: ${{ steps.create-cloud-namespace.outputs.namespace }}
+
+      - name: Delete Cloud namespace
+        if: ${{ always() && steps.create-cloud-namespace.outputs.namespace != '' }}
+        run: pnpm exec tsx .github/scripts/cloud-namespace.ts delete "${{ steps.create-cloud-namespace.outputs.namespace }}"
+        env:
+          TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
+          TEMPORAL_CLIENT_CLOUD_API_VERSION: v0.19.1
+
+      - name: Upload Cloud test output
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cloud-integration-tests-output
+          path: cloud-integration.tap
+          if-no-files-found: ignore
+          retention-days: 14
+
   conventions:
     name: Lint and Prune
     uses: ./.github/workflows/conventions.yml
@@ -370,6 +455,7 @@ jobs:
     needs:
       - compile-native-binaries-debug
       - integration-tests
+      - cloud-integration-tests
       - conventions
       - features-tests
       - stress-tests-no-reuse-context

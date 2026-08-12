@@ -21,6 +21,7 @@ to docs, or any other relevant information.
 
 ### Added
 
+- **Experimental**: Workflow Clients can now use `TypeInfo` to encode Workflow inputs and decode Workflow results.
 - **Experimental**: `@temporalio/google-adk-agents` package for running Google ADK agents as durable Temporal Workflows.
   ADK's OpenTelemetry agent-loop spans can be exported replay-safely from the Workflow sandbox by composing with
   `OpenTelemetryPlugin` from `@temporalio/interceptors-opentelemetry`; see the package README's telemetry section.
@@ -29,6 +30,8 @@ to docs, or any other relevant information.
 
 - Nexus is now generally available (GA) for calling Nexus Operations from Workflows and handling
   Workflow-backed Operations with `WorkflowRunOperationHandler`.
+- `@temporalio/ai-sdk` now requires `ai@>=7.0.59` as a peer dependency, up from `7.0.0`, since
+  earlier releases threw a `TypeError` on import in runtimes without a global `fetch`.
 
 ## [1.22.0] - 2026-08-05
 
