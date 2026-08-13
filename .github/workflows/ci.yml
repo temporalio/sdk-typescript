@@ -377,10 +377,9 @@ jobs:
           TEMPORAL_CLIENT_CLOUD_API_VERSION: v0.19.1
 
       - name: Run tests against Temporal Cloud
-        run: |
-          pnpm --dir packages/test exec ava --tap \
-            --match 'Uses default activity if no matching activity exists' \
-            ./lib/test-default-activity.js | tee cloud-integration.tap
+        # Fail a hung suite while leaving job-level time for namespace cleanup and log upload.
+        timeout-minutes: 20
+        run: pnpm --silent test:cloud | tee cloud-integration.tap
         env:
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: true
