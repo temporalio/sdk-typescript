@@ -10,7 +10,14 @@ import { BaseLlm, type BaseLlmConnection, type LlmRequest, type LlmResponse } fr
 import { Type } from '@google/genai';
 import { defaultPayloadConverter } from '@temporalio/common';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
-import { Worker } from '@temporalio/worker';
+import {
+  bundleWorkflowCode,
+  Worker,
+  type BundleOptions,
+  type BundlerPlugin,
+  type WorkerPlugin,
+  type WorkflowBundle,
+} from '@temporalio/worker';
 
 import { FakeLlm, type MockMCPToolDefinition } from '../testing';
 
@@ -77,7 +84,7 @@ export const reverseDef: MockMCPToolDefinition = {
   handler: (args) => ({ reversed: String(args.value).split('').reverse().join('') }),
 };
 
-// The Worker bundles the test workflows from their TypeScript source. `here` is
+// The test workflows are bundled from their TypeScript source. `here` is
 // `lib/__tests__` at runtime, so resolve back to the `src/__tests__` source that
 // ships alongside it.
 /** Absolute path to the test workflows source bundled into the sandbox. */
@@ -108,9 +115,25 @@ export class SlowLlm extends BaseLlm {
   override async *generateContentAsync(
     _llmRequest: LlmRequest,
     _stream?: boolean,
-    _abortSignal?: AbortSignal
+    abortSignal?: AbortSignal
   ): AsyncGenerator<LlmResponse, void> {
-    await new Promise((resolve) => setTimeout(resolve, 10_000));
+    // Both model Activities pass the Activity's cancellation signal; honoring it ends an attempt
+    // abandoned by the start-to-close timeout at once, not 10s later.
+    await new Promise<void>((resolve) => {
+      if (abortSignal?.aborted) {
+        resolve();
+        return;
+      }
+      const timer = setTimeout(resolve, 10_000);
+      abortSignal?.addEventListener(
+        'abort',
+        () => {
+          clearTimeout(timer);
+          resolve();
+        },
+        { once: true }
+      );
+    });
     yield { content: { role: 'model', parts: [{ text: 'too late' }] }, turnComplete: true };
   }
 
@@ -135,16 +158,54 @@ export function defaultTestProvider(responses?: LlmResponse[]): (model: string) 
 /** Options for {@link withWorker}. */
 export interface WithWorkerOptions {
   taskQueue: string;
-  // Plugins are passed to the Worker only (never also to the Client) so the
-  // plugin's activities are registered exactly once.
-  plugins: unknown[];
-  activities?: Record<string, (...args: never[]) => Promise<unknown>>;
+  plugins: Array<WorkerPlugin & BundlerPlugin>;
+  activities?: object;
   maxCachedWorkflows?: number;
   /**
-   * User `interceptors.workflowModules` entries; the plugin's polyfill loader
+   * User workflow-interceptor modules to bundle; the plugin's polyfill loader
    * still evaluates first, these follow.
    */
   workflowInterceptorModules?: string[];
+}
+
+const bundleCache = new Map<string, Promise<WorkflowBundle>>();
+
+/**
+ * Bundles the Workflow sandbox for `options`, reusing an earlier compile of an identical bundle — and a
+ * wrong hit silently runs a case against another's bundle. The key holds the plugin names plus every
+ * *resolved* `BundleOptions` field that shapes the bundle except `webpackConfigHook`, which is a
+ * function and can't be serialized (`logger` is left out too; it only routes webpack's output). So state
+ * that reaches a keyed field needs nothing extra, but a plugin that bakes its constructor config into
+ * the bundle through the hook — e.g. as `DefinePlugin` definitions — must add that state to the key.
+ * `configureBundler` runs twice per miss (here, then in the bundler), so it must also be pure.
+ */
+function getWorkflowBundle(
+  options: Pick<BundleOptions, 'workflowsPath' | 'workflowInterceptorModules' | 'plugins'>
+): Promise<WorkflowBundle> {
+  const plugins = options.plugins ?? [];
+  const resolved = plugins.reduce<BundleOptions>((acc, plugin) => plugin.configureBundler?.(acc) ?? acc, options);
+  const key = JSON.stringify([
+    plugins.map((plugin) => plugin.name),
+    resolved.workflowsPath,
+    resolved.workflowInterceptorModules ?? null,
+    resolved.payloadConverterPath ?? null,
+    resolved.failureConverterPath ?? null,
+    resolved.ignoreModules ?? null,
+    resolved.preloadModules ?? null,
+  ]);
+  let bundle = bundleCache.get(key);
+  if (bundle === undefined) {
+    // Bundle from the caller's options, not the resolved ones: `bundleWorkflowCode` runs the
+    // plugin chain itself, so resolved options would apply it twice — a second `addSandboxCompat`
+    // wrapper installs a second copy of the sandbox-compat webpack plugin and pins the
+    // `@opentelemetry/api` alias again.
+    bundle = bundleWorkflowCode(options);
+    // Cache the promise, not the awaited bundle, so a second caller joins an in-flight compile; drop a
+    // rejected one so later tests recompile instead of inheriting the cached rejection.
+    bundleCache.set(key, bundle);
+    bundle.catch(() => bundleCache.delete(key));
+  }
+  return bundle;
 }
 
 /**
@@ -155,17 +216,21 @@ export async function withWorker<T>(
   options: WithWorkerOptions,
   fn: () => Promise<T>
 ): Promise<T> {
+  // `Worker.create` ignores `interceptors.workflowModules` once `workflowBundle` is set, so the
+  // modules go to the bundler; the WARN a composed plugin triggers there is benign.
+  const workflowBundle = await getWorkflowBundle({
+    workflowsPath,
+    workflowInterceptorModules: options.workflowInterceptorModules,
+    plugins: options.plugins,
+  });
   const worker = await Worker.create({
     connection: env.nativeConnection,
     taskQueue: options.taskQueue,
-    workflowsPath,
+    workflowBundle,
     reuseV8Context: REUSE_V8_CONTEXT,
-    plugins: options.plugins as any,
-    activities: options.activities as any,
+    plugins: options.plugins,
+    activities: options.activities,
     maxCachedWorkflows: options.maxCachedWorkflows,
-    interceptors: options.workflowInterceptorModules
-      ? { workflowModules: options.workflowInterceptorModules }
-      : undefined,
   });
   return worker.runUntil(fn());
 }

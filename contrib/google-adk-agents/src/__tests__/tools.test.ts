@@ -35,7 +35,7 @@ test.serial('wrapsActivityAsTool', async (t) => {
     {
       taskQueue,
       plugins: [new GoogleAdkPlugin()],
-      activities: activities as unknown as Record<string, (...a: never[]) => Promise<unknown>>,
+      activities,
     },
     () =>
       env.client.workflow.execute(activityToolCall, {
