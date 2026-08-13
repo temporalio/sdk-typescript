@@ -64,6 +64,7 @@ export type LogExporterOptions =
   | {
       type: 'console';
       filter: string;
+      format: 'compact' | 'pretty' | 'json' | null;
     }
   | {
       type: 'forward';

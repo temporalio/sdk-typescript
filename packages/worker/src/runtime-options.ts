@@ -154,7 +154,13 @@ export type LogExporterConfig = {
  * Log directly to console
  */
 export interface ConsoleLogger {
-  console: {}; // eslint-disable-line @typescript-eslint/no-empty-object-type
+  console: {
+    /**
+     * Format for logs written directly to the console. If unset, Core preserves its existing
+     * output selection, including `TEMPORAL_CORE_PRETTY_LOGS` support.
+     */
+    format?: 'compact' | 'pretty' | 'json';
+  };
 }
 
 /**
@@ -479,6 +485,7 @@ function compileLoggerOptions(options: RuntimeOptions): [Logger, native.LogExpor
       {
         type: 'console',
         filter: loggingFilter ?? defaultFilter,
+        format: logging && 'console' in logging ? logging.console?.format ?? null : null,
       },
     ];
   }
