@@ -13,6 +13,7 @@ import type { Client } from '@temporalio/client';
 import { type InternalActivityStartOptions, InternalActivityStartOptionsSymbol } from '@temporalio/client/lib/internal';
 import * as temporalnexus from '@temporalio/nexus';
 import { asyncLocalStorage } from '@temporalio/nexus/lib/context';
+import { temporal } from '@temporalio/proto';
 import {
   base64URLEncodeNoPadding,
   encodeOperationToken,
@@ -25,6 +26,8 @@ import { helpers, makeTestFunction } from './helpers-integration';
 import { innermostHandlerError } from './helpers-nexus';
 import { waitUntil } from './helpers';
 import { echo, throwAnError } from './activities';
+
+const { EventType } = temporal.api.enums.v1;
 
 const test = makeTestFunction({
   workflowsPath: __filename,
@@ -111,6 +114,11 @@ export async function temporalDoubleStartOpCaller(endpoint: string): Promise<voi
 export async function temporalRetryAfterFailedStartOpCaller(endpoint: string, workflowId: string): Promise<string> {
   const client = workflow.createNexusServiceClient({ endpoint, service: temporalOpService });
   return await client.executeOperation('retryAfterFailedStartOp', workflowId);
+}
+
+export async function temporalActivityOpCaller(endpoint: string, activityId: string): Promise<string> {
+  const client = workflow.createNexusServiceClient({ endpoint, service: temporalOpService });
+  return await client.executeOperation('echoActivity', activityId);
 }
 
 export async function temporalDefaultCancelWorkflowCaller(endpoint: string, targetWorkflowId: string): Promise<void> {
@@ -502,6 +510,105 @@ test('TemporalOperationHandler activity has Nexus-Operation-Token Header', async
     });
     const actualToken = desc.rawCallbacks?.[0].info?.callback?.nexus?.header?.['nexus-operation-token'];
     t.is(actualToken, expectedToken);
+  });
+});
+
+test('TemporalOperationHandler links a Workflow-invoked Nexus operation and its backing activity', async (t) => {
+  const { createWorker, startWorkflow, registerNexusEndpoint } = helpers(t);
+  const { client } = t.context.env;
+  const { endpointName } = await registerNexusEndpoint();
+
+  const worker = await createWorker({
+    activities,
+    nexusServices: [
+      makeTemporalOpServiceHandler({
+        echoActivity: new temporalnexus.TemporalOperationHandler<string, string>({
+          async start(_ctx, nexusClient, activityId) {
+            return await nexusClient.typedActivity<typeof activities>().startActivity('echo', {
+              id: activityId,
+              args: [activityId],
+              scheduleToCloseTimeout: '10s',
+            });
+          },
+        }),
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const targetActivityId = randomUUID();
+    const callerHandle = await startWorkflow(temporalActivityOpCaller, {
+      args: [endpointName, targetActivityId],
+    });
+    t.is(await callerHandle.result(), targetActivityId);
+
+    const callerHistory = await callerHandle.fetchHistory();
+    const startedEvent = callerHistory.events?.find((event) => event.nexusOperationStartedEventAttributes != null);
+    const activityLink = startedEvent?.links?.find((link) => link.activity != null)?.activity;
+    const targetActivity = await client.activity.getHandle(targetActivityId).describe();
+
+    t.is(activityLink?.namespace, client.options.namespace);
+    t.is(activityLink?.activityId, targetActivityId);
+    t.is(activityLink?.runId, targetActivity.activityRunId);
+
+    const callerLink = targetActivity.rawCallbacks
+      ?.flatMap((callbackInfo) => callbackInfo.info?.callback?.links ?? [])
+      .find((link) => link.workflowEvent?.workflowId === callerHandle.workflowId)?.workflowEvent;
+    t.truthy(callerLink, 'expected Activity completion callback to link to the caller Nexus operation');
+    t.is(callerLink?.namespace, client.options.namespace);
+    t.is(callerLink?.workflowId, callerHandle.workflowId);
+    t.is(callerLink?.eventRef?.eventType, EventType.EVENT_TYPE_NEXUS_OPERATION_SCHEDULED);
+  });
+});
+
+test('TemporalOperationHandler links a standalone Nexus operation and its backing activity', async (t) => {
+  const { createWorker, registerNexusEndpoint } = helpers(t);
+  const { client } = t.context.env;
+  const { endpointName } = await registerNexusEndpoint();
+
+  const worker = await createWorker({
+    activities,
+    nexusServices: [
+      makeTemporalOpServiceHandler({
+        echoActivity: new temporalnexus.TemporalOperationHandler<string, string>({
+          async start(_ctx, nexusClient, activityId) {
+            return await nexusClient.typedActivity<typeof activities>().startActivity('echo', {
+              id: activityId,
+              args: [activityId],
+              scheduleToCloseTimeout: '10s',
+            });
+          },
+        }),
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const targetActivityId = randomUUID();
+    const nexusClient = client.nexus.createServiceClient({ endpoint: endpointName, service: temporalOpService });
+    const operation = await nexusClient.startOperation(temporalOpService.operations.echoActivity, targetActivityId, {
+      id: randomUUID(),
+      scheduleToCloseTimeout: '10s',
+    });
+    t.is(await operation.result(), targetActivityId);
+
+    const [operationDescription, targetActivity] = await Promise.all([
+      operation.describe(),
+      client.activity.getHandle(targetActivityId).describe(),
+    ]);
+    const activityLink = operationDescription.raw.links?.find((link) => link.activity != null)?.activity;
+
+    t.is(activityLink?.namespace, client.options.namespace);
+    t.is(activityLink?.activityId, targetActivityId);
+    t.is(activityLink?.runId, targetActivity.activityRunId);
+
+    const nexusOperationLink = targetActivity.rawCallbacks
+      ?.flatMap((callbackInfo) => callbackInfo.info?.callback?.links ?? [])
+      .find((link) => link.nexusOperation?.operationId === operationDescription.operationId)?.nexusOperation;
+    t.truthy(nexusOperationLink, 'expected Activity completion callback to link to the standalone Nexus operation');
+    t.is(nexusOperationLink?.namespace, client.options.namespace);
+    t.is(nexusOperationLink?.operationId, operationDescription.operationId);
+    t.is(nexusOperationLink?.runId, operationDescription.runId);
   });
 });
 

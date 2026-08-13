@@ -22,6 +22,9 @@ to docs, or any other relevant information.
 ### Added
 
 - **Experimental**: Workflow Clients can now use `TypeInfo` to encode Workflow inputs and decode Workflow results.
+- **Experimental**: `TemporalOperationHandler` can now use Standalone Activities as asynchronous
+  Nexus Operation backing executions through `TemporalNexusClient.startActivity` and
+  `typedActivity`.
 
 ### Changed
 
@@ -53,9 +56,6 @@ to docs, or any other relevant information.
   Configure the idle window via the new `mcpConnectionIdleTimeout` option on `createActivities` and
   `AiSdkPluginOptions` (defaults to 5 minutes); pass `mcpConnectionIdleTimeout: 0` to opt out and restore
   the original behavior for MCP servers/transports that don't tolerate a reused or concurrent session.
-- **Experimental**: `TemporalOperationHandler` can now use Standalone Activities as asynchronous
-  Nexus Operation backing executions through `TemporalNexusClient.startActivity` and
-  `typedActivity`.
 
 ### Changed
 
