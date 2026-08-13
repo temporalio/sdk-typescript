@@ -3,7 +3,7 @@
  *
  * Files with a suffix listed in `cloudExclusions` are omitted from the Cloud run. All other test
  * files are Cloud candidates. By default this script prints the exclusion inventory;
- * `--cloud-files` prints the corresponding compiled paths for CI to pass to AVA.
+ * `--cloud-files` prints the corresponding compiled paths for other tools to pass to AVA.
  */
 import { readdir } from 'node:fs/promises';
 import { join, relative } from 'node:path';
@@ -50,6 +50,15 @@ function toCompiledTestPath(file: string): string {
   return `./lib/${sourcePath.replace(/\.ts$/, '.js')}`;
 }
 
+/** Return the compiled AVA paths for every Cloud-eligible test file. */
+export async function findCloudTestFiles(): Promise<string[]> {
+  const testFiles = (await findTestFiles(testRoot)).sort();
+  const cloudFiles = testFiles.filter(isCloudReady).map(toCompiledTestPath);
+
+  if (cloudFiles.length === 0) throw new Error('No Cloud test files found');
+  return cloudFiles;
+}
+
 async function main(): Promise<void> {
   const [option, ...unexpectedArguments] = process.argv.slice(2);
   if (unexpectedArguments.length > 0 || (option !== undefined && option !== '--cloud-files')) {
@@ -78,7 +87,9 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
