@@ -379,7 +379,7 @@ jobs:
       - name: Run tests against Temporal Cloud
         # Fail a hung suite while leaving job-level time for namespace cleanup and log upload.
         timeout-minutes: 20
-        run: pnpm test:cloud
+        run: pnpm --silent test:cloud | tee cloud-integration.tap
         env:
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: true
@@ -399,7 +399,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: cloud-integration-tests-output
-          path: .test-results/cloud-integration.tap
+          path: cloud-integration.tap
           if-no-files-found: ignore
           retention-days: 14
 

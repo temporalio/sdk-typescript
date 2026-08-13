@@ -3,7 +3,7 @@
  *
  * Files with a suffix listed in `cloudExclusions` are omitted from the Cloud run. All other test
  * files are Cloud candidates. By default this script prints the exclusion inventory;
- * `--cloud-files` prints the corresponding compiled paths for other tools to pass to AVA.
+ * `--cloud-files` prints the corresponding compiled paths for CI to pass to AVA.
  */
 import { readdir } from 'node:fs/promises';
 import { join, relative } from 'node:path';
