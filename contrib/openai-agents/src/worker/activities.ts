@@ -11,7 +11,9 @@ import {
   type SerializedModelResponse,
   type SerializedStreamEvent,
 } from '../common/serialized-model';
+import { stripEchoedTools, stripEchoedToolsFromStreamEvent } from './echoed-tools';
 import { startAdaptiveHeartbeat } from './heartbeat';
+import { resolveToolSecretRefs } from './tool-secret-refs';
 
 export function toSerializedModelResponse(response: ModelResponse): SerializedModelResponse {
   return {
@@ -35,7 +37,7 @@ export function toSerializedModelResponse(response: ModelResponse): SerializedMo
     } as JsonValue,
     output: response.output as unknown as JsonValue[],
     responseId: response.responseId,
-    providerData: response.providerData as Record<string, JsonValue> | undefined,
+    providerData: stripEchoedTools(response.providerData) as Record<string, JsonValue> | undefined,
   };
 }
 
@@ -44,7 +46,7 @@ function fromSerializedModelRequest(wire: SerializedModelRequest): ModelRequest 
     systemInstructions: wire.systemInstructions,
     input: wire.input as string | AgentInputItem[],
     modelSettings: wire.modelSettings,
-    tools: wire.tools,
+    tools: resolveToolSecretRefs(wire.tools),
     toolsExplicitlyProvided: wire.toolsExplicitlyProvided,
     outputType: wire.outputType,
     handoffs: wire.handoffs,
@@ -130,6 +132,10 @@ export function createModelActivity(modelProvider: ModelProvider): {
 } {
   return {
     async invokeModelActivity(input: InvokeModelActivityInput): Promise<SerializedModelResponse> {
+      // Outside the try: toModelInvocationFailure would rewrap a secret-reference
+      // failure as a retryable ModelInvocationError.
+      const request = fromSerializedModelRequest(input.request);
+
       // Start heartbeating before resolving the model — getModel() can be slow
       // for providers that do I/O (e.g. token fetch), and we want heartbeats
       // running through that wait.
@@ -137,7 +143,7 @@ export function createModelActivity(modelProvider: ModelProvider): {
 
       try {
         const model = await Promise.resolve(modelProvider.getModel(input.modelName));
-        const response = await model.getResponse(fromSerializedModelRequest(input.request));
+        const response = await model.getResponse(request);
         return toSerializedModelResponse(response);
       } catch (error) {
         throw toModelInvocationFailure(error);
@@ -147,6 +153,9 @@ export function createModelActivity(modelProvider: ModelProvider): {
     },
 
     async invokeModelStreamActivity(input: InvokeModelStreamActivityInput): Promise<SerializedStreamEvent[]> {
+      // Outside the try: toModelInvocationFailure would rewrap a secret-reference
+      // failure as a retryable ModelInvocationError.
+      const request = fromSerializedModelRequest(input.request);
       const stopHeartbeat = startAdaptiveHeartbeat();
 
       try {
@@ -164,9 +173,10 @@ export function createModelActivity(modelProvider: ModelProvider): {
         // even if the drain also throws; a clean run still surfaces drain failures.
         let modelError: unknown;
         try {
-          for await (const event of model.getStreamedResponse(fromSerializedModelRequest(input.request))) {
-            events.push(toSerializedStreamEvent(event));
-            topic.publish(event);
+          for await (const event of model.getStreamedResponse(request)) {
+            const stripped = stripEchoedToolsFromStreamEvent(event);
+            events.push(toSerializedStreamEvent(stripped));
+            topic.publish(stripped);
           }
         } catch (error) {
           modelError = error;

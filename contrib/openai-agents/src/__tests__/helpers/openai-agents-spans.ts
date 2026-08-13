@@ -204,7 +204,14 @@ export interface AgentSdkSpan {
   parentId?: string;
   traceId: string;
   /** Agent SDK exposes name via `spanData.type` plus a discriminant field. */
-  spanData: { type: string; name?: string; from_agent?: string; to_agent?: string; data?: Record<string, unknown> };
+  spanData: {
+    type: string;
+    name?: string;
+    turn?: number;
+    from_agent?: string;
+    to_agent?: string;
+    data?: Record<string, unknown>;
+  };
 }
 
 export interface AgentSdkTrace {
@@ -305,6 +312,8 @@ function nameForAgentSdkSpan(span: AgentSdkSpan): string {
       return `agent:${d.name}`;
     case 'function':
       return `function:${d.name}`;
+    case 'turn':
+      return `turn:${d.turn}`;
     case 'generation':
       return 'generation';
     case 'response':

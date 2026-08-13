@@ -13,6 +13,8 @@ export type {
   SerializableModelActivityOptions,
 } from './common/model-activity-options';
 export { DEDICATED_WORKER_FAILURE_TYPE } from './common/mcp-types';
+export { secretRef } from './common/secret-ref';
+export { envSecretRef } from './common/env-secret-ref';
 
 export { OpenAIAgentsTraceClientInterceptor } from './client/trace-interceptor';
 export type { OpenAIAgentsTraceClientInterceptorOptions } from './client/trace-interceptor';

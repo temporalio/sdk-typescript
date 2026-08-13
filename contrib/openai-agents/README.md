@@ -510,6 +510,30 @@ export async function statefulMcpWorkflow(prompt: string): Promise<string> {
 
 Dedicated Worker startup and heartbeat failures surface as `ApplicationFailure` type (exported as `DEDICATED_WORKER_FAILURE_TYPE`).
 
+## Secret references
+
+A credential written into an Activity argument stays in Workflow history. Use `secretRef` and `envSecretRef` in place of the literal: each names a Worker environment variable, and only the name crosses into history.
+
+`secretRef(name)` returns a string marker for a tool credential field, and works in four of them: a hosted MCP tool's `authorization` and `headers`, a hosted shell tool's `environment.networkPolicy.domainSecrets[].value`, and a code interpreter tool's `container.network_policy.domain_secrets[].value`. The plugin never scans arbitrary strings, so **a marker placed in any other field is passed through verbatim to whatever consumes it.**
+
+`envSecretRef(name)` returns a sandbox Manifest environment value. A session can resume on any Worker, so set the variable on **every** Worker that might serve it. A Manifest environment value using the agents SDK's own `resolve()` hook is rejected — use `envSecretRef` instead.
+
+```ts
+import { envSecretRef, secretRef } from '@temporalio/openai-agents/workflow';
+import { hostedMcpTool } from '@openai/agents-core';
+import { Manifest } from '@openai/agents-core/sandbox';
+
+const docsTool = hostedMcpTool({
+  serverLabel: 'docs',
+  serverUrl: 'https://mcp.example.com',
+  authorization: secretRef('DOCS_MCP_TOKEN'),
+});
+
+const manifest = new Manifest({ environment: { DB_PASSWORD: envSecretRef('WORKER_DB_PASSWORD') } });
+```
+
+Both read the Worker's process environment, so project the credential into `process.env` however your deployment prefers. A variable that is unset or empty fails the Activity non-retryably with a `SecretReferenceError` naming the variable — never its value.
+
 ## Tracing
 
 OpenAI Agents SDK tracing works across Client, Workflow, Activity, Nexus, and MCP boundaries. Workflow replay does not duplicate spans.
@@ -610,9 +634,9 @@ Most applications use two import paths: `@temporalio/openai-agents` in Worker an
 | `@temporalio/openai-agents/otel`                 | Worker or Client | Replay-safe OpenTelemetry setup                             |
 | `@temporalio/openai-agents/workflow-interceptor` | Worker bundling  | Manual `workflowInterceptorModules` wiring without a plugin |
 
-`@temporalio/openai-agents` exports `OpenAIAgentsPlugin`, MCP provider classes, model option types, and `DEDICATED_WORKER_FAILURE_TYPE`. `OpenAIAgentsTraceClientInterceptor` is also public for Clients that need manual interceptor wiring instead of plugin registration.
+`@temporalio/openai-agents` exports `OpenAIAgentsPlugin`, MCP provider classes, `SandboxClientProvider`, model option types, `secretRef`, `envSecretRef`, and `DEDICATED_WORKER_FAILURE_TYPE`. `OpenAIAgentsTraceClientInterceptor` is also public for Clients that need manual interceptor wiring instead of plugin registration.
 
-`@temporalio/openai-agents/workflow` exports Workflow-safe APIs: `TemporalOpenAIRunner`, `WorkflowSafeMemorySession`, `activityAsTool`, `nexusOperationAsTool`, `agentAsTool`, `statelessMcpServer`, `statefulMcpServer`, related option/definition types, and `DEDICATED_WORKER_FAILURE_TYPE`.
+`@temporalio/openai-agents/workflow` exports Workflow-safe APIs: `TemporalOpenAIRunner`, `WorkflowSafeMemorySession`, `activityAsTool`, `nexusOperationAsTool`, `agentAsTool`, `statelessMcpServer`, `statefulMcpServer`, `temporalSandboxClient`, `secretRef`, `envSecretRef`, related option/definition types, and `DEDICATED_WORKER_FAILURE_TYPE`.
 
 `@temporalio/openai-agents/otel` exports `createTracerProvider`, `TemporalIdGenerator`, `markReplaySafeTracerProvider`, `isReplaySafeTracerProvider`, and `TemporalOpenAIAgentsTracerProviderOptions`. Install optional peer dependency `@opentelemetry/sdk-trace-base` only when you use this OTel integration.
 

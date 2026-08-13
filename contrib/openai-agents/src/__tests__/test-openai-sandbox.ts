@@ -8,6 +8,7 @@ import { FakeModelProvider, textResponse, toolCallResponse } from './stubs/opena
 import { FakeSandboxClient, FakeSandboxSession } from './stubs/sandbox-fakes';
 import {
   sandboxAgentWorkflow,
+  sandboxApprovalResumeWorkflow,
   sandboxArchiveLimitsWorkflow,
   sandboxExecWorkflow,
   sandboxManifestResumeWorkflow,
@@ -74,8 +75,39 @@ test('applyManifest updates the Workflow-side manifest and survives resume', asy
 
   await worker.runUntil(async () => {
     const result = await executeWorkflow(sandboxManifestResumeWorkflow);
-    t.is(result, 'live=true persisted=true');
+    t.is(result, 'live=true persisted=true reference=true');
   });
+});
+
+test('a SandboxAgent whose manifest carries an envSecretRef survives an approval interruption', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+
+  const client = new FakeSandboxClient();
+  const worker = await createWorker({
+    plugins: [
+      new OpenAIAgentsPlugin({
+        modelProvider: new FakeModelProvider([
+          toolCallResponse('run_command', { cmd: 'echo hello' }),
+          textResponse('Done.'),
+        ]),
+        modelParams: { startToCloseTimeout: '30s' },
+        sandboxClientProviders: [new SandboxClientProvider('fake', client)],
+      }),
+    ],
+  });
+
+  process.env.OPENAI_AGENTS_TEST_MANIFEST_SECRET = 'sk-approval-resume-sentinel';
+  try {
+    await worker.runUntil(async () => {
+      // Workflow-side resolution would fail the Workflow execution with the guard's
+      // SecretReferenceError instead of returning.
+      t.is(await executeWorkflow(sandboxApprovalResumeWorkflow), 'Done.');
+    });
+  } finally {
+    delete process.env.OPENAI_AGENTS_TEST_MANIFEST_SECRET;
+  }
+
+  t.true(client.resumeCalls >= 1, 'the preserved session is re-established through resume()');
 });
 
 test('setArchiveLimits is forwarded to the persistWorkspace and hydrateWorkspace Activities', async (t) => {

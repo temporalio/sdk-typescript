@@ -13,6 +13,11 @@ import type {
   SandboxSessionState,
 } from '@openai/agents-core/sandbox';
 import { SandboxError } from '@openai/agents-core/sandbox';
+import {
+  isStringRecord,
+  rehydratePersistedEnvironmentForRuntime,
+  sanitizeEnvironmentForPersistence,
+} from '@openai/agents-core/sandbox/internal';
 import { ApplicationFailure } from '@temporalio/common';
 import {
   SANDBOX_CLIENT_CREATE_SUFFIX,
@@ -159,7 +164,16 @@ export class SandboxClientProvider {
     if (this.client.deserializeSessionState) {
       return await this.client.deserializeSessionState(record);
     }
-    return { ...record, manifest: decodeManifest(payload.manifest) } as SandboxSessionState;
+    // Mirrors `deserializeLocalSandboxSessionStateValues`: Worker-injected keys are not
+    // in the manifest and cannot be re-derived, so they sit under the rehydrated set.
+    const manifest = decodeManifest(payload.manifest);
+    const persisted = isStringRecord(record.environment) ? { ...record.environment } : {};
+    const injected = Object.fromEntries(Object.entries(persisted).filter(([key]) => !(key in manifest.environment)));
+    return {
+      ...record,
+      manifest,
+      environment: { ...injected, ...(await rehydratePersistedEnvironmentForRuntime(manifest, persisted)) },
+    } as SandboxSessionState;
   }
 
   private async session(payload: SerializedSandboxSessionState): Promise<SandboxSession> {
@@ -195,9 +209,8 @@ export class SandboxClientProvider {
     if (this.client.serializeSessionState) {
       return await this.client.serializeSessionState(state);
     }
-    // Without a real serializer, drop only the envelope-owned fields already
-    // serialized at the session handle's top level; keep everything else —
-    // including the resolved `environment` — so a resumed session is complete.
+    // This scrub is deliberately partial: it covers providerState only, and the manifest
+    // encoded alongside it still carries ephemeral values in plaintext.
     const {
       manifest: _manifest,
       snapshot: _snapshot,
@@ -205,9 +218,10 @@ export class SandboxClientProvider {
       snapshotFingerprintVersion: _snapshotFingerprintVersion,
       workspaceReady: _workspaceReady,
       exposedPorts: _exposedPorts,
+      environment,
       ...rest
     } = state;
-    return rest;
+    return environment === undefined ? rest : { ...rest, environment: sanitizeEnvironmentForPersistence(state) };
   }
 
   private async sessionResult(sessionId: string, session: SandboxSession): Promise<SandboxSessionResult> {
