@@ -2,7 +2,7 @@
 import test from 'ava';
 import type { Payload } from '@temporalio/common';
 import { ExternalStorageNotConfiguredError } from '@temporalio/common';
-import { ExternalStorage } from '@temporalio/common/lib/converter/extstore';
+import { ExternalStorage, type StorageDriver } from '@temporalio/common/lib/converter/extstore';
 import {
   ExternalStorageRunner,
   extstoreInboundOptions,
@@ -264,4 +264,110 @@ test('inbound options leave a reference-free message untouched when storage is n
 
   await t.notThrowsAsync(() => visit(task, walkActivityTask, extstoreInboundOptions(undefined)));
   t.deepEqual(task.start!.input![0], input, 'payload passes through unchanged');
+});
+
+/**
+ * Wraps the in-memory fake driver so every call overlaps with any sibling the walk let through,
+ * and records the highest number that were ever in flight at once.
+ */
+function gatedDriver(): { driver: StorageDriver; peakConcurrency: () => number } {
+  const inner = makeFakeDriver({ name: 'mem' });
+  let inFlight = 0;
+  let peak = 0;
+  const gate = async <T>(op: () => Promise<T>): Promise<T> => {
+    peak = Math.max(peak, ++inFlight);
+    try {
+      // Hold the call open long enough for every sibling the limit permits to enter before any exits.
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      return await op();
+    } finally {
+      inFlight--;
+    }
+  };
+  return {
+    driver: {
+      name: inner.name,
+      type: inner.type,
+      store: (context, payloads) => gate(() => inner.store(context, payloads)),
+      retrieve: (context, claims) => gate(() => inner.retrieve(context, claims)),
+    },
+    peakConcurrency: () => peak,
+  };
+}
+
+/** A completion scheduling `count` activities, each carrying one above-threshold argument. */
+function completionSchedulingActivities(count: number): coresdk.workflow_completion.IWorkflowActivationCompletion {
+  return {
+    successful: {
+      commands: Array.from({ length: count }, (_, i) => ({
+        scheduleActivity: { activityId: `act-${i}`, arguments: [makePayload(256, i)] },
+      })),
+    },
+  };
+}
+
+/** External storage over a {@link gatedDriver}, offloading everything above 96 bytes. */
+function gatedExternalStorage(maxConcurrentVisits?: number) {
+  const { driver, peakConcurrency } = gatedDriver();
+  const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 96, maxConcurrentVisits });
+  return { externalStorage, peakConcurrency };
+}
+
+test('store walk bounds concurrent driver calls to maxConcurrentVisits', async (t) => {
+  const { externalStorage, peakConcurrency } = gatedExternalStorage(2);
+  const completion = completionSchedulingActivities(6);
+
+  await visit(
+    completion,
+    walkWorkflowActivationCompletion,
+    extstoreStoreOptions(externalStorage, { initialTarget: WORKFLOW_TARGET })
+  );
+
+  t.is(peakConcurrency(), 2);
+  for (const command of completion.successful!.commands!) {
+    t.true(isReferencePayload(command.scheduleActivity!.arguments![0]!));
+  }
+});
+
+test('store walk runs one driver call at a time at maxConcurrentVisits = 1', async (t) => {
+  const { externalStorage, peakConcurrency } = gatedExternalStorage(1);
+
+  await visit(
+    completionSchedulingActivities(4),
+    walkWorkflowActivationCompletion,
+    extstoreStoreOptions(externalStorage, { initialTarget: WORKFLOW_TARGET })
+  );
+
+  t.is(peakConcurrency(), 1);
+});
+
+test('store walk defaults to 3 concurrent driver calls', async (t) => {
+  const { externalStorage, peakConcurrency } = gatedExternalStorage();
+
+  await visit(
+    completionSchedulingActivities(6),
+    walkWorkflowActivationCompletion,
+    extstoreStoreOptions(externalStorage, { initialTarget: WORKFLOW_TARGET })
+  );
+
+  t.is(peakConcurrency(), 3);
+});
+
+test('inbound walk bounds concurrent driver calls to maxConcurrentVisits', async (t) => {
+  const { externalStorage, peakConcurrency } = gatedExternalStorage(2);
+  const originals = Array.from({ length: 6 }, (_, i) => makePayload(256, i));
+  const jobs: coresdk.workflow_activation.IWorkflowActivationJob[] = [];
+  for (const original of originals) {
+    // Awaited one at a time, so the setup itself never exceeds a concurrency of 1.
+    jobs.push({ resolveActivity: { result: { completed: { result: await toReference(externalStorage, original) } } } });
+  }
+  const activation: coresdk.workflow_activation.IWorkflowActivation = { jobs };
+
+  await visit(activation, walkWorkflowActivation, extstoreInboundOptions(externalStorage));
+
+  t.is(peakConcurrency(), 2);
+  t.deepEqual(
+    activation.jobs!.map((job) => job.resolveActivity!.result!.completed!.result!),
+    originals
+  );
 });

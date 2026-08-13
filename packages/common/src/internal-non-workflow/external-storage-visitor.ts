@@ -4,7 +4,7 @@
  *
  * @module
  */
-import type { ConcurrencyLimit } from '../concurrency/limit';
+import { limit, type ConcurrencyLimit } from '../concurrency/limit';
 import type { ExternalStorage, StorageDriverTargetInfo } from '../converter/extstore';
 import { ExternalStorageNotConfiguredError } from '../errors';
 import type { Payload } from '../interfaces';
@@ -25,8 +25,6 @@ export interface ExternalStorageStoreOptions {
   initialTarget?: StorageDriverTargetInfo;
   /** Derives new storage target from the current message. */
   deriveContext?: ContextDeriver<StoreTarget>;
-  /** Bounds concurrent transform calls across payload sites. Omit for sequential. */
-  limit?: ConcurrencyLimit;
   /** Aborts the walk and every in-flight driver call. */
   abortSignal?: AbortSignal;
 }
@@ -37,7 +35,7 @@ export interface ExternalStorageStoreOptions {
  */
 export function extstoreStoreOptions(
   externalStorage: ExternalStorage,
-  { initialTarget, deriveContext, limit, abortSignal }: ExternalStorageStoreOptions = {}
+  { initialTarget, deriveContext, abortSignal }: ExternalStorageStoreOptions = {}
 ): VisitOptions<StoreTarget> {
   const runner = new ExternalStorageRunner(externalStorage);
   return {
@@ -48,14 +46,14 @@ export function extstoreStoreOptions(
     initialContext: initialTarget,
     // Search attributes must keep their literal values so the server can index/search on them.
     skipSearchAttributes: true,
-    limit,
+    limit: limit(externalStorage.maxConcurrentVisits),
     abortSignal,
   };
 }
 
 function extstoreRetrieveOptions(
   externalStorage: ExternalStorage,
-  { limit, abortSignal }: { limit?: ConcurrencyLimit; abortSignal?: AbortSignal } = {}
+  { abortSignal }: { abortSignal?: AbortSignal } = {}
 ): VisitOptions<void> {
   const runner = new ExternalStorageRunner(externalStorage);
   return {
@@ -63,7 +61,7 @@ function extstoreRetrieveOptions(
     transformPayload: (payload, _context, signal) =>
       runner.retrieve([payload], { abortSignal: signal }).then((retrieved) => retrieved[0]!),
     skipSearchAttributes: true,
-    limit,
+    limit: limit(externalStorage.maxConcurrentVisits),
     abortSignal,
   };
 }

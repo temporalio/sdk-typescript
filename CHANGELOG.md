@@ -25,6 +25,9 @@ to docs, or any other relevant information.
 - **Experimental**: `TemporalOperationHandler` can now use Standalone Activities as asynchronous
   Nexus Operation backing executions through `TemporalNexusClient.startActivity` and
   `typedActivity`.
+- **Experimental**: Added `ExternalStorage.maxConcurrentVisits` which limits the number of in-flight payload visits
+  for external storage. This does not limit the total number of concurrent external storage operations or concurrent 
+  drivers actively processing payloads. 
 
 ### Changed
 

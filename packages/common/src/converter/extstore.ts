@@ -104,6 +104,9 @@ export type StorageDriverSelector = (context: StorageDriverStoreContext, payload
 /** Default {@link ExternalStorage.payloadSizeThreshold}: 256 KiB. */
 const DEFAULT_PAYLOAD_SIZE_THRESHOLD = 256 * 1024;
 
+/** Default {@link ExternalStorage.maxConcurrentVisits}. */
+const DEFAULT_MAX_CONCURRENT_VISITS = 3;
+
 /**
  * Configuration for external storage. Holds the registered drivers, an
  * optional selector, and the size threshold above which payloads are
@@ -120,17 +123,31 @@ export class ExternalStorage {
    */
   readonly driverSelector: StorageDriverSelector;
   readonly payloadSizeThreshold: number;
+  readonly maxConcurrentVisits: number;
   private readonly driversByName: ReadonlyMap<string, StorageDriver>;
 
   constructor({
     drivers,
     driverSelector,
     payloadSizeThreshold = DEFAULT_PAYLOAD_SIZE_THRESHOLD,
+    maxConcurrentVisits = DEFAULT_MAX_CONCURRENT_VISITS,
   }: {
     drivers: StorageDriver[];
     driverSelector?: StorageDriverSelector;
     /** Omit for default (256 KiB). Set `0` to consider all payloads regardless of size. */
     payloadSizeThreshold?: number;
+    /**
+     * Maximum number of payload-bearing fields ("visits") whose {@link StorageDriver.store} or
+     * {@link StorageDriver.retrieve} calls may be in flight at once while a single message is
+     * encoded or decoded. Each visit results in driver calls and each driver call may carry several
+     * payloads. This means that this does not limit the number of requests drivers make to
+     * external storage nor the number of drivers concurrently processing payloads. It only limits
+     * the number of payloads being processed at once for a single message. If you need more granular
+     * control consider implementing a custom {@link StorageDriver}.
+     *
+     * @default 3
+     */
+    maxConcurrentVisits?: number;
   }) {
     if (!Array.isArray(drivers) || drivers.length === 0) {
       throw new ValueError('ExternalStorage requires at least one driver');
@@ -142,6 +159,11 @@ export class ExternalStorage {
     ) {
       throw new ValueError(
         `ExternalStorage.payloadSizeThreshold must be a non-negative finite number, got ${String(payloadSizeThreshold)}`
+      );
+    }
+    if (!Number.isSafeInteger(maxConcurrentVisits) || maxConcurrentVisits < 1) {
+      throw new ValueError(
+        `ExternalStorage.maxConcurrentVisits must be a positive integer, got ${String(maxConcurrentVisits)}`
       );
     }
 
@@ -163,6 +185,7 @@ export class ExternalStorage {
     this.drivers = [...drivers];
     this.driverSelector = driverSelector ?? (() => drivers[0] as StorageDriver);
     this.payloadSizeThreshold = payloadSizeThreshold;
+    this.maxConcurrentVisits = maxConcurrentVisits;
     this.driversByName = driversByName;
   }
 

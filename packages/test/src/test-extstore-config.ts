@@ -86,6 +86,22 @@ test('ExternalStorage rejects non-finite payloadSizeThreshold', (t) => {
   );
 });
 
+test('ExternalStorage defaults maxConcurrentVisits to 3', (t) => {
+  t.is(new ExternalStorage({ drivers: [stubDriver('only')] }).maxConcurrentVisits, 3);
+});
+
+test('ExternalStorage accepts an explicit maxConcurrentVisits', (t) => {
+  t.is(new ExternalStorage({ drivers: [stubDriver('only')], maxConcurrentVisits: 8 }).maxConcurrentVisits, 8);
+});
+
+test('ExternalStorage rejects non-positive or non-integer maxConcurrentVisits', (t) => {
+  for (const maxConcurrentVisits of [0, -1, 1.5, Number.NaN]) {
+    t.throws(() => new ExternalStorage({ drivers: [stubDriver('only')], maxConcurrentVisits }), {
+      instanceOf: ValueError,
+    });
+  }
+});
+
 test('ExternalStorage rejects a driver with an empty name', (t) => {
   t.throws(() => new ExternalStorage({ drivers: [stubDriver('')] }), {
     instanceOf: ValueError,
