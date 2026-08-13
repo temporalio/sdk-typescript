@@ -29,7 +29,9 @@ const chunks: LlmResponse[] = [
 
 const getEnv = setupTestEnv(test);
 
-// Streaming (SSE) model boundary (E2E)
+// Streaming (SSE) model boundary (E2E). Nothing subscribes to the topic here:
+// publishing to an unsubscribed `streamingTopic` must not stall or drop the
+// transcript the Workflow gets back.
 test.serial('streamsPartialResponses', async (t) => {
   const env = getEnv();
   const taskQueue = uid('adk-stream');

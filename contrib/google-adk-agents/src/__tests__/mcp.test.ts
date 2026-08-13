@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: MIT
  *
  * E2E tests for the `TemporalMCPToolset` boundary: tool discovery and tool
- * calls route through named Activities, the FULL `FunctionDeclaration` (incl.
- * parameter schema) round-trips, the named factory resolves on the worker, and
- * `toolFilter` is honored. Uses the in-memory `mockMCPToolset` test double.
+ * calls route through the named server's Activities, the FULL
+ * `FunctionDeclaration` (incl. parameter schema) round-trips, and `toolFilter`
+ * / `prefix` shape the advertised tool names. Uses the in-memory
+ * `mockMCPToolset` test double.
  */
 
 import test from 'ava';
@@ -16,7 +17,6 @@ import { GoogleAdkPlugin } from '../index';
 import { TemporalMCPToolset } from '../workflow';
 import { mockMCPToolset } from '../testing';
 import {
-  countScheduledActivities,
   echoDef,
   findInCauseChain,
   getScheduledActivitySummary,
@@ -29,9 +29,8 @@ import {
   mcpCallTool,
   mcpCallToolWithActivitySummary,
   mcpCallUnknownTool,
-  mcpFilteredTools,
   mcpListTools,
-  mcpPrefixedTools,
+  mcpToolNameVariants,
 } from './workflows';
 
 function makePlugin(): GoogleAdkPlugin {
@@ -69,19 +68,6 @@ test.serial('callToolRoutesToActivity', async (t) => {
     })
   );
   t.deepEqual(result, { echoed: 'hello' });
-});
-
-test.serial('resolvesNamedToolsetFactory', async (t) => {
-  const env = getEnv();
-  const taskQueue = uid('adk-mcp-named');
-  const workflowId = uid('wf-mcp-named');
-  await withWorker(env, { taskQueue, plugins: [makePlugin()] }, () =>
-    env.client.workflow.execute(mcpListTools, { taskQueue, workflowId })
-  );
-  // The toolset name selects a `<name>-listTools` Activity registered by the
-  // plugin from the named factory.
-  const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
-  t.is(countScheduledActivities(events ?? [], 'testServer-listTools'), 1);
 });
 
 test.serial('unknownToolFailsNonRetryably', async (t) => {
@@ -125,29 +111,21 @@ test.serial('respectsCallerActivitySummary', async (t) => {
   t.is(getScheduledActivitySummary(events ?? [], 'testServer-callTool'), 'mcp-activity-summary');
 });
 
-test.serial('appliesToolFilter', async (t) => {
+test.serial('shapesAdvertisedToolNamesByFilterAndPrefix', async (t) => {
   const env = getEnv();
-  const taskQueue = uid('adk-mcp-filter');
+  const taskQueue = uid('adk-mcp-names');
   const result = await withWorker(env, { taskQueue, plugins: [makePlugin()] }, () =>
-    env.client.workflow.execute(mcpFilteredTools, {
+    env.client.workflow.execute(mcpToolNameVariants, {
       taskQueue,
-      workflowId: uid('wf-mcp-filter'),
+      workflowId: uid('wf-mcp-names'),
     })
   );
   // `toolFilter: ['echo']` drops `reverse`.
-  t.deepEqual(result, ['echo']);
-});
-
-test.serial('appliesPrefixToAdvertisedToolNames', async (t) => {
-  const env = getEnv();
-  const taskQueue = uid('adk-mcp-prefix');
-  const result = await withWorker(env, { taskQueue, plugins: [makePlugin()] }, () =>
-    env.client.workflow.execute(mcpPrefixedTools, {
-      taskQueue,
-      workflowId: uid('wf-mcp-prefix'),
-    })
-  );
-  t.deepEqual(result, ['srv_echo', 'srv_reverse']);
+  t.deepEqual(result.filtered, ['echo']);
+  t.deepEqual(result.prefixed, ['srv_echo', 'srv_reverse']);
+  // With both set, the filter matches the *advertised* (post-prefix) name —
+  // ADK `MCPToolset` semantics, so `['echo']` here would match nothing.
+  t.deepEqual(result.both, ['srv_echo']);
 });
 
 // TemporalMCPToolset outside a Workflow

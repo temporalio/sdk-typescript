@@ -19,11 +19,12 @@ import {
   stringifyContent,
   type LlmRequest,
 } from '@google/adk';
+import { Type } from '@google/genai';
 import type { Duration } from '@temporalio/common';
 import { condition, defineSignal, defineUpdate, proxyActivities, setHandler } from '@temporalio/workflow';
 import { WorkflowStream } from '@temporalio/workflow-streams/workflow';
 
-import { TemporalModel, TemporalMCPToolset, activityAsTool } from '../workflow';
+import { TemporalModel, TemporalMCPToolset, activityAsTool, type TemporalMCPToolsetOptions } from '../workflow';
 
 // Mirrors `@google/adk` >= 1.5.0 `tools/load_web_page.js` (on the barrel
 // path), which parses its blocked-CIDR tables at module load, calling
@@ -100,37 +101,26 @@ export async function modelCallError(): Promise<string> {
   return text;
 }
 
-/** A model call with a custom summary set on the Activity. */
-export async function modelCallWithSummary(prompt: string): Promise<string> {
-  const llm = new TemporalModel('fake-model', { summary: 'custom-model-summary' });
-  let text = '';
-  for await (const response of llm.generateContentAsync(makeRequest(prompt))) {
-    text += collectText(response.content?.parts);
+/**
+ * Sequential model calls covering every `summary` resolution branch, in this
+ * order: a top-level string, `activity.summary` alone, neither (the generic
+ * auto-generated label), and both set (the top-level string wins). Returns the
+ * number of responses produced.
+ */
+export async function modelCallsWithSummaryVariants(): Promise<number> {
+  const models = [
+    new TemporalModel('fake-model', { summary: 'custom-model-summary' }),
+    new TemporalModel('fake-model', { activity: { summary: 'activity-summary' } }),
+    new TemporalModel('fake-model'),
+    new TemporalModel('fake-model', { summary: 'top-level-summary', activity: { summary: 'activity-summary' } }),
+  ];
+  let responses = 0;
+  for (const llm of models) {
+    for await (const _response of llm.generateContentAsync(makeRequest('hi'))) {
+      responses++;
+    }
   }
-  return text;
-}
-
-/** A model call with both a top-level summary and an `activity.summary`. */
-export async function modelCallSummaryPrecedence(prompt: string): Promise<string> {
-  const llm = new TemporalModel('fake-model', {
-    summary: 'top-level-summary',
-    activity: { summary: 'activity-summary' },
-  });
-  let text = '';
-  for await (const response of llm.generateContentAsync(makeRequest(prompt))) {
-    text += collectText(response.content?.parts);
-  }
-  return text;
-}
-
-/** A model call with only `activity.summary` set (no top-level summary). */
-export async function modelCallActivitySummary(prompt: string): Promise<string> {
-  const llm = new TemporalModel('fake-model', { activity: { summary: 'activity-summary' } });
-  let text = '';
-  for await (const response of llm.generateContentAsync(makeRequest(prompt))) {
-    text += collectText(response.content?.parts);
-  }
-  return text;
+  return responses;
 }
 
 /** Streaming (SSE) model call; returns concatenated chunk text + chunk count. */
@@ -243,27 +233,60 @@ export async function mcpCallToolWithActivitySummary(value: string): Promise<unk
   return tool.runAsync({ args: { value }, toolContext: {} as never });
 }
 
-/** MCP discovery with a toolFilter restricting to a subset of tools. */
-export async function mcpFilteredTools(): Promise<string[]> {
-  const toolset = new TemporalMCPToolset({ name: 'testServer', toolFilter: ['echo'] });
-  const tools = await toolset.getTools();
-  return tools.map((t) => t.name);
+/**
+ * MCP discovery under the three ways a toolset can reshape the advertised tool
+ * names: a `toolFilter`, a `prefix`, and both at once. Returns the advertised
+ * names each configuration produced.
+ */
+export async function mcpToolNameVariants(): Promise<{ filtered: string[]; prefixed: string[]; both: string[] }> {
+  async function advertisedNames(options: TemporalMCPToolsetOptions): Promise<string[]> {
+    const toolset = new TemporalMCPToolset(options);
+    const tools = await toolset.getTools();
+    return tools.map((t) => t.name);
+  }
+  return {
+    filtered: await advertisedNames({ name: 'testServer', toolFilter: ['echo'] }),
+    prefixed: await advertisedNames({ name: 'testServer', prefix: 'srv' }),
+    both: await advertisedNames({ name: 'testServer', toolFilter: ['srv_echo'], prefix: 'srv' }),
+  };
 }
 
-/** MCP discovery with a prefix applied to the advertised tool names. */
-export async function mcpPrefixedTools(): Promise<string[]> {
-  const toolset = new TemporalMCPToolset({ name: 'testServer', prefix: 'srv' });
-  const tools = await toolset.getTools();
-  return tools.map((t) => t.name);
-}
-
-/** Dispatch a registered Temporal Activity as an ADK tool. */
-export async function activityToolCall(orderId: string): Promise<unknown> {
-  const tool = activityAsTool({
-    name: 'lookupOrder',
-    description: 'Look up an order by id.',
+/**
+ * The plugin's central use case: an ordinary ADK agent whose only tool is a
+ * registered Temporal Activity, driven by the SDK's own runner. The model's
+ * first turn emits a `functionCall`, ADK dispatches it through
+ * {@link activityAsTool} — one Activity — and the runner appends the result to
+ * the session so a second model turn sees it. Returns that turn's text.
+ */
+export async function agentToolLoopWorkflow(prompt: string): Promise<string> {
+  const agent = new LlmAgent({
+    name: 'assistant',
+    model: new TemporalModel('fake-model'),
+    instruction: 'You are a helpful assistant.',
+    tools: [
+      activityAsTool({
+        name: 'lookupOrder',
+        description: 'Look up an order by id.',
+        parameters: {
+          type: Type.OBJECT,
+          properties: { orderId: { type: Type.STRING, description: 'The order to look up.' } },
+          required: ['orderId'],
+        },
+      }),
+    ],
   });
-  return tool.runAsync({ args: { orderId }, toolContext: {} as never });
+  const runner = new InMemoryRunner({ agent });
+
+  let finalText = '';
+  for await (const event of runner.runEphemeral({
+    userId: 'test-user',
+    newMessage: { role: 'user', parts: [{ text: prompt }] },
+  })) {
+    if (isFinalResponse(event)) {
+      finalText = stringifyContent(event);
+    }
+  }
+  return finalText;
 }
 
 export const approveSignal = defineSignal<[string]>('approve');

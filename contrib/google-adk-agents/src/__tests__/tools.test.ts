@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: MIT
  *
  * E2E test for `activityAsTool`: an existing Temporal Activity, registered on
- * the worker, is exposed to the ADK agent as a `BaseTool`. A tool call inside
- * the Workflow dispatches the named Activity and returns its result.
+ * the worker, is exposed to the ADK agent as a `BaseTool`. The agent's model
+ * asks for it by name, ADK dispatches the call as an Activity, and the result
+ * feeds back into the next model turn.
  */
 
 import test from 'ava';
@@ -13,15 +14,16 @@ import { ApplicationFailure } from '@temporalio/common';
 
 import { GoogleAdkPlugin } from '../index';
 import { activityAsTool } from '../workflow';
-import { setupTestEnv, uid, withWorker } from './helpers';
-import { activityToolCall } from './workflows';
+import { countScheduledActivities, setupTestEnv, ToolCallingLlm, uid, withWorker } from './helpers';
+import { agentToolLoopWorkflow } from './workflows';
 
 const getEnv = setupTestEnv(test);
 
-// activityAsTool (E2E)
-test.serial('wrapsActivityAsTool', async (t) => {
+// activityAsTool driven by the ADK model loop (E2E)
+test.serial('dispatchesModelToolCallToActivity', async (t) => {
   const env = getEnv();
   const taskQueue = uid('adk-tool');
+  const workflowId = uid('wf-tool');
 
   // A user's existing Temporal Activity.
   const activities = {
@@ -30,22 +32,32 @@ test.serial('wrapsActivityAsTool', async (t) => {
     },
   };
 
-  const result = await withWorker(
-    env,
-    {
+  const plugin = new GoogleAdkPlugin({
+    modelProvider: (model) => new ToolCallingLlm({ model, toolName: 'lookupOrder', toolArgs: { orderId: 'order-42' } }),
+  });
+
+  const result = await withWorker(env, { taskQueue, plugins: [plugin], activities }, () =>
+    env.client.workflow.execute(agentToolLoopWorkflow, {
       taskQueue,
-      plugins: [new GoogleAdkPlugin()],
-      activities,
-    },
-    () =>
-      env.client.workflow.execute(activityToolCall, {
-        taskQueue,
-        workflowId: uid('wf-tool'),
-        args: ['order-42'],
-      })
+      workflowId,
+      args: ['where is order-42?'],
+    })
   );
 
-  t.deepEqual(result, { orderId: 'order-42', status: 'shipped' });
+  // The second turn reports what reached it: the Activity's return value as the
+  // tool result, and the schema `activityAsTool` advertised — which survives
+  // `toWireRequest` stripping the live `toolsDict` only because it travels in
+  // `config.tools[].functionDeclarations`.
+  t.is(
+    result,
+    'tool=lookupOrder; response={"orderId":"order-42","status":"shipped"}; declarations=lookupOrder(orderId)'
+  );
+
+  const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
+  // Two model turns around exactly one tool dispatch: the loop neither stopped
+  // at the tool call nor ran the tool twice.
+  t.is(countScheduledActivities(events ?? [], 'adk-invokeModel'), 2);
+  t.is(countScheduledActivities(events ?? [], 'lookupOrder'), 1);
 });
 
 // activityAsTool outside a Workflow

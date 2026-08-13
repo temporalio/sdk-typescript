@@ -143,6 +143,70 @@ export class SlowLlm extends BaseLlm {
 }
 
 /**
+ * A model double that drives exactly one tool call. Its first turn emits a
+ * `functionCall` for `toolName`; the turn after the tool ran emits the final
+ * text. Which turn this is comes from the request — a `functionResponse` in
+ * `contents` means the tool already ran — because the model Activity builds a
+ * fresh model per invocation, so nothing survives on the instance.
+ *
+ * The final text reports what reached the second turn: the tool result the
+ * runner fed back, and the tool declarations the request advertised. That makes
+ * the Workflow's return value a witness for both.
+ */
+export class ToolCallingLlm extends BaseLlm {
+  private readonly toolName: string;
+  private readonly toolArgs: Record<string, unknown>;
+
+  constructor(options: { model: string; toolName: string; toolArgs: Record<string, unknown> }) {
+    super({ model: options.model });
+    this.toolName = options.toolName;
+    this.toolArgs = options.toolArgs;
+  }
+
+  override async *generateContentAsync(
+    llmRequest: LlmRequest,
+    _stream?: boolean,
+    _abortSignal?: AbortSignal
+  ): AsyncGenerator<LlmResponse, void> {
+    const functionResponse = (llmRequest.contents ?? [])
+      .flatMap((content) => content.parts ?? [])
+      .find((part) => part.functionResponse !== undefined)?.functionResponse;
+
+    // `role` is required on both turns: ADK's `getContents` drops events whose
+    // content carries none, so the tool call would never reach the next request.
+    if (functionResponse === undefined) {
+      yield {
+        content: { role: 'model', parts: [{ functionCall: { name: this.toolName, args: this.toolArgs } }] },
+        turnComplete: true,
+      };
+      return;
+    }
+
+    const declarations = (llmRequest.config?.tools ?? [])
+      .flatMap((tool) => ('functionDeclarations' in tool ? tool.functionDeclarations ?? [] : []))
+      .map((declaration) => `${declaration.name}(${Object.keys(declaration.parameters?.properties ?? {}).join(',')})`);
+    yield {
+      content: {
+        role: 'model',
+        parts: [
+          {
+            text:
+              `tool=${functionResponse.name}; ` +
+              `response=${JSON.stringify(functionResponse.response)}; ` +
+              `declarations=${declarations.join(',')}`,
+          },
+        ],
+      },
+      turnComplete: true,
+    };
+  }
+
+  override async connect(_llmRequest: LlmRequest): Promise<BaseLlmConnection> {
+    throw new Error('ToolCallingLlm does not connect.');
+  }
+}
+
+/**
  * A `modelProvider` that maps `boom` → {@link ThrowingLlm}, `slow-model` →
  * {@link SlowLlm}, and everything else → {@link FakeLlm} (optionally with
  * canned responses).
@@ -243,21 +307,39 @@ export function countScheduledActivities(
   return events.filter((e) => e.activityTaskScheduledEventAttributes?.activityType?.name === activityTypeName).length;
 }
 
+/** An `ActivityTaskScheduled` history event, narrowed to what the helpers below read. */
+type ScheduledActivityEvent = {
+  activityTaskScheduledEventAttributes?: { activityType?: { name?: string | null } | null } | null;
+  userMetadata?: { summary?: unknown } | null;
+};
+
+/**
+ * Reads the decoded `summary` of every `ActivityTaskScheduled` event with the
+ * given activity type name, in history order; an entry is `undefined` where the
+ * event carries no summary.
+ */
+export function getScheduledActivitySummaries(
+  events: ScheduledActivityEvent[],
+  activityTypeName: string
+): Array<string | undefined> {
+  return events
+    .filter((e) => e.activityTaskScheduledEventAttributes?.activityType?.name === activityTypeName)
+    .map((e) => {
+      const payload = e.userMetadata?.summary;
+      if (payload == null) return undefined;
+      return defaultPayloadConverter.fromPayload<string>(payload as never);
+    });
+}
+
 /**
  * Reads the decoded `summary` of the first `ActivityTaskScheduled` event with
  * the given activity type name, or `undefined` if none carries one.
  */
 export function getScheduledActivitySummary(
-  events: Array<{
-    activityTaskScheduledEventAttributes?: { activityType?: { name?: string | null } | null } | null;
-    userMetadata?: { summary?: unknown } | null;
-  }>,
+  events: ScheduledActivityEvent[],
   activityTypeName: string
 ): string | undefined {
-  const scheduled = events.find((e) => e.activityTaskScheduledEventAttributes?.activityType?.name === activityTypeName);
-  const payload = scheduled?.userMetadata?.summary;
-  if (payload == null) return undefined;
-  return defaultPayloadConverter.fromPayload(payload as never);
+  return getScheduledActivitySummaries(events, activityTypeName)[0];
 }
 
 /**

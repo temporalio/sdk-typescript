@@ -20,7 +20,7 @@ import {
   countScheduledActivities,
   defaultTestProvider,
   findInCauseChain,
-  getScheduledActivitySummary,
+  getScheduledActivitySummaries,
   setupTestEnv,
   uid,
   withWorker,
@@ -28,10 +28,8 @@ import {
 import {
   agentRunnerWorkflow,
   countModelCalls,
-  modelCallActivitySummary,
   modelCallError,
-  modelCallSummaryPrecedence,
-  modelCallWithSummary,
+  modelCallsWithSummaryVariants,
   modelCallWithTimeout,
   modelConnectInWorkflow,
   singleModelCall,
@@ -78,103 +76,27 @@ test.serial('sideEffectsActivityCount', async (t) => {
   t.is(countScheduledActivities(events ?? [], 'adk-invokeModel'), n);
 });
 
-test.serial('usesCustomModelProvider', async (t) => {
-  const env = getEnv();
-  const taskQueue = uid('adk-custom');
-  const plugin = new GoogleAdkPlugin({
-    modelProvider: fakeModelProvider([
-      {
-        content: { role: 'model', parts: [{ text: 'CUSTOM-PROVIDER-OUTPUT' }] },
-        turnComplete: true,
-      },
-    ]),
-  });
-  const result = await withWorker(env, { taskQueue, plugins: [plugin] }, () =>
-    env.client.workflow.execute(singleModelCall, {
-      taskQueue,
-      workflowId: uid('wf-custom'),
-      args: ['hi'],
-    })
-  );
-  // Only reachable if the activity used the plugin's `modelProvider`.
-  t.is(result, 'CUSTOM-PROVIDER-OUTPUT');
-});
-
-test.serial('appliesActivitySummary', async (t) => {
+test.serial('resolvesActivitySummaryFromEachSource', async (t) => {
   const env = getEnv();
   const taskQueue = uid('adk-summary');
   const workflowId = uid('wf-summary');
   const plugin = new GoogleAdkPlugin({ modelProvider: defaultTestProvider() });
-  await withWorker(env, { taskQueue, plugins: [plugin] }, () =>
-    env.client.workflow.execute(modelCallWithSummary, {
-      taskQueue,
-      workflowId,
-      args: ['hi'],
-    })
+  const responses = await withWorker(env, { taskQueue, plugins: [plugin] }, () =>
+    env.client.workflow.execute(modelCallsWithSummaryVariants, { taskQueue, workflowId })
   );
+  t.is(responses, 4);
 
   const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
-  const scheduled = (events ?? []).find(
-    (e) => e.activityTaskScheduledEventAttributes?.activityType?.name === 'adk-invokeModel'
-  );
-  const summaryPayload = (scheduled as { userMetadata?: { summary?: unknown } } | undefined)?.userMetadata?.summary;
-  t.not(summaryPayload, undefined);
-  const summary = defaultPayloadConverter.fromPayload(summaryPayload as never);
-  t.is(summary, 'custom-model-summary');
-});
-
-test.serial('topLevelSummaryWinsOverActivitySummary', async (t) => {
-  const env = getEnv();
-  const taskQueue = uid('adk-summary-prec');
-  const workflowId = uid('wf-summary-prec');
-  const plugin = new GoogleAdkPlugin({ modelProvider: defaultTestProvider() });
-  await withWorker(env, { taskQueue, plugins: [plugin] }, () =>
-    env.client.workflow.execute(modelCallSummaryPrecedence, {
-      taskQueue,
-      workflowId,
-      args: ['hi'],
-    })
-  );
-
-  const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
-  t.is(getScheduledActivitySummary(events ?? [], 'adk-invokeModel'), 'top-level-summary');
-});
-
-test.serial('respectsCallerActivitySummary', async (t) => {
-  const env = getEnv();
-  const taskQueue = uid('adk-summary-act');
-  const workflowId = uid('wf-summary-act');
-  const plugin = new GoogleAdkPlugin({ modelProvider: defaultTestProvider() });
-  await withWorker(env, { taskQueue, plugins: [plugin] }, () =>
-    env.client.workflow.execute(modelCallActivitySummary, {
-      taskQueue,
-      workflowId,
-      args: ['hi'],
-    })
-  );
-
-  const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
-  // No top-level `summary`: the caller's `activity.summary` must not be
-  // clobbered by the auto-generated label.
-  t.is(getScheduledActivitySummary(events ?? [], 'adk-invokeModel'), 'activity-summary');
-});
-
-test.serial('defaultsActivitySummaryToAutoLabel', async (t) => {
-  const env = getEnv();
-  const taskQueue = uid('adk-summary-auto');
-  const workflowId = uid('wf-summary-auto');
-  const plugin = new GoogleAdkPlugin({ modelProvider: defaultTestProvider() });
-  await withWorker(env, { taskQueue, plugins: [plugin] }, () =>
-    env.client.workflow.execute(singleModelCall, {
-      taskQueue,
-      workflowId,
-      args: ['hi'],
-    })
-  );
-
-  const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
-  // Neither a top-level `summary` nor `activity.summary` (nor an agent name).
-  t.is(getScheduledActivitySummary(events ?? [], 'adk-invokeModel'), 'adk.invokeModel fake-model');
+  // One `adk-invokeModel` per call, in call order: the top-level string; the
+  // caller's `activity.summary`, which the auto-generated label must not
+  // clobber; that generic label when neither is set; and the top-level string
+  // again where it competes with an `activity.summary`.
+  t.deepEqual(getScheduledActivitySummaries(events ?? [], 'adk-invokeModel'), [
+    'custom-model-summary',
+    'activity-summary',
+    'adk.invokeModel fake-model',
+    'top-level-summary',
+  ]);
 });
 
 test.serial('defaultsActivitySummaryToAgentName', async (t) => {

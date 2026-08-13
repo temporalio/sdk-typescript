@@ -7,9 +7,12 @@
  * `tools/load_web_page.js` on the barrel path, which parses its blocked-CIDR
  * tables at module load, calling `isIP` from `node:net` in the process — with
  * `net` aliased to an empty module every Workflow task would fail at bundle
- * load. The parity test pins the shim's classifiers to `node:net`'s, and the
- * E2E test drives the same top-level pattern (mirrored in `workflows.ts`)
- * through a real Worker.
+ * load. The test below pins the shim's classifiers to `node:net`'s.
+ *
+ * That the shim also survives being called at Workflow *load* needs no test of
+ * its own: `workflows.ts` mirrors the same top-level pattern (the module-scope
+ * `blockedIpv6BaseVersions`), and every E2E in this suite bundles that module,
+ * so a regressed shim fails all of them at load.
  */
 
 import net from 'node:net';
@@ -18,11 +21,6 @@ import test from 'ava';
 import type { BundleOptions } from '@temporalio/worker';
 
 import { GoogleAdkPlugin } from '../index';
-import { fakeModelProvider } from '../testing';
-import { setupTestEnv, uid, withWorker } from './helpers';
-import { netShimProbe } from './workflows';
-
-const getEnv = setupTestEnv(test);
 
 interface ResolveData {
   request?: string;
@@ -144,18 +142,4 @@ test('net shim classifies addresses exactly like node:net', async (t) => {
     t.is(shim.isIPv4(input), net.isIPv4(input), `isIPv4(${JSON.stringify(input)})`);
     t.is(shim.isIPv6(input), net.isIPv6(input), `isIPv6(${JSON.stringify(input)})`);
   }
-});
-
-// ADK 1.5.0's load-time CIDR-parse pattern loads and classifies in the sandbox (E2E)
-test.serial('workflowBundleLoadsWithTopLevelNetIsIP', async (t) => {
-  const env = getEnv();
-  const taskQueue = uid('adk-net');
-  const plugin = new GoogleAdkPlugin({ modelProvider: fakeModelProvider() });
-  const result = await withWorker(env, { taskQueue, plugins: [plugin] }, () =>
-    env.client.workflow.execute(netShimProbe, { taskQueue, workflowId: uid('wf-net') })
-  );
-  t.deepEqual(result, {
-    loadTime: [6, 6, 6, 6, 6, 6, 6, 6],
-    runtime: [4, 6, 0],
-  });
 });
