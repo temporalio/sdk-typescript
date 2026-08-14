@@ -1872,11 +1872,14 @@ export class WorkflowClient extends BaseClient {
       ? (this.options.interceptors as WorkflowClientInterceptor[])
       : [];
     const list = composeInterceptors(interceptors, 'list', this._list.bind(this));
-    return {
+    const interceptedList: AsyncIterable<WorkflowExecutionInfo> = {
       [Symbol.asyncIterator]: () => list(input)[Symbol.asyncIterator](),
+    };
+    return {
+      [Symbol.asyncIterator]: () => interceptedList[Symbol.asyncIterator](),
       intoHistories: (intoHistoriesOptions?: IntoHistoriesOptions) => {
         return mapAsyncIterable(
-          list(input),
+          interceptedList,
           async ({ workflowId, runId }) => ({
             workflowId,
             history: await this.getHandle(workflowId, runId).fetchHistory(),

@@ -21,6 +21,8 @@ to docs, or any other relevant information.
 
 ### Added
 
+- **Experimental**: Added `list` and `fetchHistory` interception to `WorkflowClientInterceptor`.
+  `list` interception spans one lazy iterable consumption across pagination and early termination.
 - **Experimental**: Workflow Clients can now use `TypeInfo` to encode Workflow inputs and decode Workflow results.
 - **Experimental**: `@temporalio/google-adk-agents` package for running Google ADK agents as durable Temporal Workflows.
   ADK's OpenTelemetry agent-loop spans can be exported replay-safely from the Workflow sandbox by composing with
