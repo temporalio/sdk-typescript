@@ -7,6 +7,7 @@ type TemporalLink = temporal.api.common.v1.ILink;
 type WorkflowEventLink = temporal.api.common.v1.Link.IWorkflowEvent;
 type WorkflowLink = temporal.api.common.v1.Link.IWorkflow;
 type NexusOperationLink = temporal.api.common.v1.Link.INexusOperation;
+type ActivityLink = temporal.api.common.v1.Link.IActivity;
 type EventReference = temporal.api.common.v1.Link.WorkflowEvent.IEventReference;
 type RequestIdReference = temporal.api.common.v1.Link.WorkflowEvent.IRequestIdReference;
 
@@ -22,6 +23,7 @@ const REQUEST_ID_REFERENCE_TYPE = 'RequestIdReference';
 const WORKFLOW_EVENT_TYPE: string = (temporal.api.common.v1.Link.WorkflowEvent as any).fullName.slice(1);
 const NEXUS_OPERATION_TYPE: string = (temporal.api.common.v1.Link.NexusOperation as any).fullName.slice(1);
 const WORKFLOW_TYPE: string = (temporal.api.common.v1.Link.Workflow as any).fullName.slice(1);
+const ACTIVITY_TYPE: string = (temporal.api.common.v1.Link.Activity as any).fullName.slice(1);
 
 export function convertTemporalLinkToNexusLink(link: TemporalLink): NexusLink {
   if (link.workflowEvent != null) {
@@ -34,6 +36,10 @@ export function convertTemporalLinkToNexusLink(link: TemporalLink): NexusLink {
 
   if (link.workflow != null) {
     return convertWorkflowLinkToNexusLink(link.workflow);
+  }
+
+  if (link.activity != null) {
+    return convertActivityLinkToNexusLink(link.activity);
   }
 
   throw new TypeError('Invalid Temporal link: unknown variant');
@@ -52,6 +58,11 @@ export function convertNexusLinkToTemporalLink(link: NexusLink): TemporalLink {
     case NEXUS_OPERATION_TYPE:
       return {
         nexusOperation: convertNexusLinkToNexusOperationLink(link),
+      };
+
+    case ACTIVITY_TYPE:
+      return {
+        activity: convertNexusLinkToActivityLink(link),
       };
 
     default:
@@ -130,6 +141,23 @@ export function convertNexusOperationLinkToNexusLink(opLink: NexusOperationLink)
   };
 }
 
+export function convertActivityLinkToNexusLink(activityLink: ActivityLink): NexusLink {
+  if (!activityLink.namespace || !activityLink.activityId || !activityLink.runId) {
+    throw new TypeError('Missing required fields: namespace, activityId, or runId');
+  }
+
+  const url = new URL(
+    `temporal:///namespaces/${encodeURIComponent(activityLink.namespace)}/activities/${encodeURIComponent(
+      activityLink.activityId
+    )}/${encodeURIComponent(activityLink.runId)}/details`
+  );
+
+  return {
+    url,
+    type: ACTIVITY_TYPE,
+  };
+}
+
 export function convertNexusLinkToWorkflowEventLink(link: NexusLink): WorkflowEventLink {
   // /namespaces/:namespace/workflows/:workflowId/:runId/history
   const parts = link.url.pathname.split('/');
@@ -179,6 +207,27 @@ function convertNexusLinkToNexusOperationLink(link: NexusLink): NexusOperationLi
   return {
     namespace,
     operationId,
+    runId,
+  };
+}
+
+function convertNexusLinkToActivityLink(link: NexusLink): ActivityLink {
+  // /namespaces/:namespace/activities/:activityId/:runId/details
+  const parts = link.url.pathname.split('/');
+  if (parts.length !== 7 || parts[1] !== 'namespaces' || parts[3] !== 'activities' || parts[6] !== 'details') {
+    throw new TypeError(`Invalid URL path: ${link.url}`);
+  }
+  const namespace = decodeURIComponent(parts[2]!);
+  const activityId = decodeURIComponent(parts[4]!);
+  const runId = decodeURIComponent(parts[5]!);
+
+  if (!namespace || !activityId || !runId) {
+    throw new TypeError('Missing required fields: namespace, activityId, or runId');
+  }
+
+  return {
+    namespace,
+    activityId,
     runId,
   };
 }
