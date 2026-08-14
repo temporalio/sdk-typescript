@@ -14,6 +14,9 @@
 // eslint-disable-next-line import/no-unassigned-import
 import './load-polyfills';
 
+/**
+ * @experimental The Google ADK plugin is an experimental feature; APIs may change without notice.
+ */
 export { TemporalModel } from './model';
 export type { TemporalModelOptions } from './model';
 
@@ -22,3 +25,12 @@ export type { TemporalMCPToolsetOptions, MCPToolsetFactory } from './mcp';
 
 export { activityAsTool } from './tools';
 export type { ActivityAsToolOptions } from './tools';
+
+export {
+  ACTIVITY_TOOL_OUTSIDE_WORKFLOW_FAILURE_TYPE,
+  MCP_TOOL_NOT_FOUND_FAILURE_TYPE,
+  MCP_TOOLSET_OUTSIDE_WORKFLOW_FAILURE_TYPE,
+  MODEL_ERROR_FAILURE_TYPE,
+  STREAMING_TOPIC_REQUIRED_FAILURE_TYPE,
+  UNSUPPORTED_FAILURE_TYPE,
+} from './error-types';

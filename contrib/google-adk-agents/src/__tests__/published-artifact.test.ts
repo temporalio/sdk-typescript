@@ -23,6 +23,12 @@ test('cjsRequireExposesPublicExports', (t) => {
   t.is(typeof workflow.TemporalModel, 'function');
   t.is(typeof workflow.TemporalMCPToolset, 'function');
   t.is(typeof workflow.activityAsTool, 'function');
+  t.is(workflow.MODEL_ERROR_FAILURE_TYPE, 'GoogleAdkModelError');
+  t.is(workflow.MCP_TOOL_NOT_FOUND_FAILURE_TYPE, 'GoogleAdkMCPToolNotFound');
+  t.is(workflow.MCP_TOOLSET_OUTSIDE_WORKFLOW_FAILURE_TYPE, 'GoogleAdkMCPToolsetOutsideWorkflow');
+  t.is(workflow.ACTIVITY_TOOL_OUTSIDE_WORKFLOW_FAILURE_TYPE, 'GoogleAdkActivityToolOutsideWorkflow');
+  t.is(workflow.STREAMING_TOPIC_REQUIRED_FAILURE_TYPE, 'GoogleAdkStreamingTopicRequired');
+  t.is(workflow.UNSUPPORTED_FAILURE_TYPE, 'GoogleAdkUnsupported');
 
   const testing = require('@temporalio/google-adk-agents/testing');
   t.is(typeof testing.fakeModelProvider, 'function');

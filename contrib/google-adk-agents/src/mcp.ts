@@ -38,6 +38,7 @@ import type { ActivityOptions } from '@temporalio/common';
 import { ApplicationFailure } from '@temporalio/common';
 import { inWorkflowContext, proxyActivities } from '@temporalio/workflow';
 
+import { MCP_TOOLSET_OUTSIDE_WORKFLOW_FAILURE_TYPE } from './error-types';
 import { activityOptionsFrom } from './model';
 
 /**
@@ -48,6 +49,12 @@ import { activityOptionsFrom } from './model';
  * Returning a {@link BaseToolset} lets callers supply a fully-built toolset
  * (including in-memory test doubles); returning {@link MCPConnectionParams}
  * lets the plugin construct an `MCPToolset` for you.
+ *
+ * The plugin closes only the toolsets it constructs from
+ * {@link MCPConnectionParams}. A factory returning its own {@link BaseToolset}
+ * should return the same long-lived instance every time: the plugin calls the
+ * factory on every Activity invocation and never closes what it did not
+ * construct.
  */
 export type MCPToolsetFactory = () => BaseToolset | MCPConnectionParams;
 
@@ -58,7 +65,10 @@ export interface TemporalMCPToolsetOptions {
    * (`<name>-listTools`, `<name>-callTool`).
    */
   name: string;
-  /** Restrict the advertised tools to these (post-prefix) names. */
+  /**
+   * Restrict the advertised tools to these (post-prefix) names. ADK's other
+   * `toolFilter` form, a `ToolPredicate`, is not supported.
+   */
   toolFilter?: string[];
   /** Prefix applied to advertised tool names (mirrors ADK `MCPToolset`). */
   prefix?: string;
@@ -110,7 +120,7 @@ export class TemporalMCPToolset extends BaseToolset {
           `TemporalMCPToolset('${this.options.name}').getTools() was called outside a ` +
             'Workflow without `connectionParams`. Provide connectionParams to use this ' +
             'toolset directly with ADK (non-Temporal).',
-          'GoogleAdkMCPToolsetOutsideWorkflow'
+          MCP_TOOLSET_OUTSIDE_WORKFLOW_FAILURE_TYPE
         );
       }
       const real = new MCPToolset(this.options.connectionParams, this.options.toolFilter ?? [], this.options.prefix);
@@ -137,8 +147,8 @@ export class TemporalMCPToolset extends BaseToolset {
   }
 
   /**
-   * No-op: MCP sessions are opened and closed per Activity invocation on the
-   * worker (ADK MCP is session-per-call), so there is nothing to close on the
+   * No-op: the worker opens and closes an MCP session per operation — a
+   * `callTool` Activity opens two — so there is nothing to close on the
    * workflow side.
    */
   override async close(): Promise<void> {}

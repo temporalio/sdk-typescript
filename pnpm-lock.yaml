@@ -247,7 +247,7 @@ importers:
         version: 4.2.0
     devDependencies:
       '@google/adk':
-        specifier: ^1.4.0
+        specifier: '>=1.4.0 <1.6.0'
         version: 1.4.0(@grpc/grpc-js@1.14.4)(@mikro-orm/mariadb@6.6.15(@mikro-orm/core@6.6.15)(pg@8.20.0))(@mikro-orm/mssql@6.6.15(@mikro-orm/core@6.6.15)(mariadb@3.4.5)(pg@8.20.0))(@mikro-orm/mysql@6.6.15(@mikro-orm/core@6.6.15)(@types/node@20.19.41)(mariadb@3.4.5)(pg@8.20.0))(@mikro-orm/postgresql@6.6.15(@mikro-orm/core@6.6.15)(mariadb@3.4.5))(@mikro-orm/sqlite@6.6.15(@mikro-orm/core@6.6.15)(mariadb@3.4.5)(pg@8.20.0))(@opentelemetry/core@2.7.1(@opentelemetry/api@1.9.1))(encoding@0.1.13)
       '@google/genai':
         specifier: ^2.8.0
@@ -823,6 +823,9 @@ importers:
       '@temporalio/envconfig':
         specifier: workspace:*
         version: link:../envconfig
+      '@temporalio/google-adk-agents':
+        specifier: workspace:*
+        version: link:../../contrib/google-adk-agents
       '@temporalio/interceptors-opentelemetry':
         specifier: workspace:*
         version: link:../../contrib/interceptors-opentelemetry
@@ -1952,6 +1955,7 @@ packages:
   '@google-cloud/opentelemetry-cloud-monitoring-exporter@0.21.0':
     resolution: {integrity: sha512-+lAew44pWt6rA4l8dQ1gGhH7Uo95wZKfq/GBf9aEyuNDDLQ2XppGEEReu6ujesSqTtZ8ueQFt73+7SReSHbwqg==}
     engines: {node: '>=18'}
+    deprecated: Google Cloud Platform now supports native OpenTelemetry Protocol (OTLP) endpoints via the Telemetry API. Please follow https://github.com/GoogleCloudPlatform/opentelemetry-operations-js/blob/main/MIGRATION.md
     peerDependencies:
       '@opentelemetry/api': ^1.9.0
       '@opentelemetry/core': ^2.0.0
@@ -1961,6 +1965,7 @@ packages:
   '@google-cloud/opentelemetry-cloud-trace-exporter@3.0.0':
     resolution: {integrity: sha512-mUfLJBFo+ESbO0dAGboErx2VyZ7rbrHcQvTP99yH/J72dGaPbH2IzS+04TFbTbEd1VW5R9uK3xq2CqawQaG+1Q==}
     engines: {node: '>=18'}
+    deprecated: Google Cloud Platform now supports native OpenTelemetry Protocol (OTLP) endpoints via the Telemetry API. Please follow https://github.com/GoogleCloudPlatform/opentelemetry-operations-js/blob/main/MIGRATION.md
     peerDependencies:
       '@opentelemetry/api': ^1.0.0
       '@opentelemetry/core': ^2.0.0
@@ -1970,6 +1975,7 @@ packages:
   '@google-cloud/opentelemetry-resource-util@3.0.0':
     resolution: {integrity: sha512-CGR/lNzIfTKlZoZFfS6CkVzx+nsC9gzy6S8VcyaLegfEJbiPjxbMLP7csyhJTvZe/iRRcQJxSk0q8gfrGqD3/Q==}
     engines: {node: '>=18'}
+    deprecated: Google Cloud Platform now supports native OpenTelemetry Protocol (OTLP) endpoints via the Telemetry API. Please follow https://github.com/GoogleCloudPlatform/opentelemetry-operations-js/blob/main/MIGRATION.md
     peerDependencies:
       '@opentelemetry/core': ^2.0.0
       '@opentelemetry/resources': ^2.0.0
@@ -9185,7 +9191,7 @@ snapshots:
   '@opentelemetry/resources@2.7.1(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/semantic-conventions': 1.39.0
 
   '@opentelemetry/sdk-logs@0.205.0(@opentelemetry/api@1.9.0)':
@@ -9232,8 +9238,8 @@ snapshots:
   '@opentelemetry/sdk-metrics@2.7.1(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.0)
-      '@opentelemetry/resources': 2.7.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
+      '@opentelemetry/resources': 2.7.1(@opentelemetry/api@1.9.1)
 
   '@opentelemetry/sdk-node@0.217.0(@opentelemetry/api@1.9.1)':
     dependencies:

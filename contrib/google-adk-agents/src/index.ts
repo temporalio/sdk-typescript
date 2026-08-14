@@ -12,7 +12,6 @@
 /**
  * @experimental The Google ADK plugin is an experimental feature; APIs may change without notice.
  */
-
 export { GoogleAdkPlugin } from './plugin';
 export type { GoogleAdkPluginOptions } from './plugin';
 

@@ -19,9 +19,11 @@ wrap an existing Temporal Activity with `activityAsTool`.
 npm install @temporalio/google-adk-agents
 ```
 
-Peer dependency: `@google/adk` `^1.4.0` and its `@google/genai`. Provide Gemini
-credentials to the Worker as usual, for example with `GOOGLE_API_KEY` or
-`GEMINI_API_KEY`.
+Peer dependency: `@google/adk` `>=1.4.0 <1.6.0` and its `@google/genai`. The test
+suite runs against 1.4.0; 1.5.x is allowed but untested. There is an upper bound
+because a newer ADK can fail at Workflow-bundle load with an error that names
+neither ADK nor a version. Provide Gemini credentials to the Worker as usual, for
+example with `GOOGLE_API_KEY` or `GEMINI_API_KEY`.
 
 ## Hello world
 
@@ -134,6 +136,21 @@ const agent = new LlmAgent({
   tools: [new TemporalMCPToolset({ name: 'filesystem' })],
 });
 ```
+
+Nothing is pooled: every MCP operation opens its own session — its own
+`initialize` handshake, and against a stdio server its own subprocess — and closes
+it before returning. ADK resolves the agent's toolsets twice while building each
+request, so every model request is preceded by two `<name>-listTools` Activities,
+one session each; `<name>-callTool` re-lists the server's tools to resolve the name
+before invoking it, so that single Activity opens two. A turn where the model calls
+one tool and then answers therefore runs seven Activities — two `adk-invokeModel`,
+four `<name>-listTools`, one `<name>-callTool` — and opens six sessions. Every one
+of those Activities is recorded in Workflow history, so the Activity count is plain
+in the Temporal UI; the sessions each Activity opens are not.
+
+Because no session outlives the operation that opened it, an MCP server that keeps
+per-session state (a pagination cursor, a working directory, an authenticated
+session) will not work behind this plugin.
 
 ### Activities as tools
 
@@ -261,11 +278,54 @@ from history rather than re-executed.
   observability and governance plugins before this one.
 - Model calls use Temporal retries. The plugin disables nested GenAI SDK retries
   for model requests and honors `retry-after` where available.
-- Heartbeats are sent only when the Activity options include `heartbeatTimeout`.
+- Set `heartbeatTimeout` in the Activity options to have a stalled model or MCP
+  call detected before `startToCloseTimeout` expires. The plugin then heartbeats
+  every such call at half that timeout, and a streaming model call on each chunk as
+  well. Without it there is no heartbeat, and only `startToCloseTimeout` ends a
+  stalled call.
 - Streaming topic delivery is at-least-once. The deterministic Workflow value is
   the Activity result, not the stream side channel.
 - `BaseLlm.connect` live BIDI streaming is not supported inside Workflows.
 - Any ADK extension point that performs I/O must be moved behind an Activity.
+
+## Error types
+
+Failures the plugin raises carry a stable `ApplicationFailure.type`; the matching
+constants are exported from `@temporalio/google-adk-agents/workflow`. Only the
+failures raised inside an Activity arrive wrapped — the rest are thrown where they
+happened — so read the type off the error itself or the first `ApplicationFailure`
+in its `.cause` chain rather than reaching for a fixed `err.cause.type`. Match
+`MODEL_ERROR_FAILURE_TYPE` with `startsWith`, not `===`: the plugin appends the
+upstream HTTP status wherever it read one, and emits the bare value only when the
+failure reported no status.
+
+| `failure.type`                                        | Constant                                      | Raised when                                                                                                                                                                            | Reaches Workflow code as                                                                         |
+| :---------------------------------------------------- | :-------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------- |
+| `GoogleAdkModelError`, `GoogleAdkModelError.<status>` | `MODEL_ERROR_FAILURE_TYPE`                    | A model or MCP call failed. The upstream HTTP status, where there was one, is appended.                                                                                                | `ActivityFailure`; read `.cause` — but not from a model or tool call inside an agent run (below) |
+| `GoogleAdkMCPToolNotFound`                            | `MCP_TOOL_NOT_FOUND_FAILURE_TYPE`             | `<name>-callTool` found no tool by the requested name: the server's list changed since discovery, workers disagree on what `<name>` resolves to, or the Activity was invoked directly. | `ActivityFailure`; read `.cause` — but not from a tool call inside an agent run (below)          |
+| `GoogleAdkStreamingTopicRequired`                     | `STREAMING_TOPIC_REQUIRED_FAILURE_TYPE`       | Streaming was requested without `TemporalModelOptions.streamingTopic`.                                                                                                                 | Thrown by `TemporalModel.generateContentAsync` — but not inside an agent run (below)             |
+| `GoogleAdkUnsupported`                                | `UNSUPPORTED_FAILURE_TYPE`                    | `BaseLlm.connect` (BIDI live streaming) was called inside a Workflow.                                                                                                                  | Thrown by `TemporalModel.connect`                                                                |
+| `GoogleAdkMCPToolsetOutsideWorkflow`                  | `MCP_TOOLSET_OUTSIDE_WORKFLOW_FAILURE_TYPE`   | `TemporalMCPToolset.getTools()` ran outside a Workflow with no `connectionParams`.                                                                                                     | Thrown to the direct caller                                                                      |
+| `GoogleAdkActivityToolOutsideWorkflow`                | `ACTIVITY_TOOL_OUTSIDE_WORKFLOW_FAILURE_TYPE` | An `activityAsTool` tool ran outside a Workflow.                                                                                                                                       | Thrown to the direct caller                                                                      |
+
+Inside an `LlmAgent` run, most of these never reach a `try`/`catch` around
+`runAsync` / `runEphemeral`. ADK catches a failing model call and yields an event
+carrying `errorCode` and `errorMessage` — not the plugin's `failure.type` — instead
+of rethrowing, and it turns a failing tool call, including a non-retryable
+`GoogleAdkMCPToolNotFound`, into an `{ error }` tool response fed back to the model,
+so the agent keeps going. Neither fails the Workflow: a model outage that exhausts
+its Activity retries surfaces only as an error event in the run stream, so decide
+whether a run succeeded by inspecting the events the runner yields, not by catching
+a thrown error. Tool discovery is the exception —
+`<name>-listTools` runs while the request is still being built, outside that
+handler, so its failure propagates out of the runner and fails the Workflow.
+
+`GoogleAdkModelError` is the only type whose retryability varies; every other type
+above is non-retryable. A failure carrying an HTTP status is retryable when that
+status is 408, 409, 429 or 5xx, and non-retryable otherwise. A failure carrying no
+HTTP status — a transport, network or gRPC error — is retryable. An `x-should-retry`
+header overrides either verdict, and `retry-after` / `retry-after-ms` becomes the
+failure's `nextRetryDelay`.
 
 ## Troubleshooting
 

@@ -2,15 +2,10 @@
  * @license
  * Copyright 2025 Temporal Technologies Inc.
  * SPDX-License-Identifier: MIT
- *
- * E2E tests for the `TemporalMCPToolset` boundary: tool discovery and tool
- * calls route through the named server's Activities, the FULL
- * `FunctionDeclaration` (incl. parameter schema) round-trips, and `toolFilter`
- * / `prefix` shape the advertised tool names. Uses the in-memory
- * `mockMCPToolset` test double.
  */
 
 import test from 'ava';
+import { MCPToolset, type BaseToolset } from '@google/adk';
 import { ApplicationFailure } from '@temporalio/common';
 
 import { GoogleAdkPlugin } from '../index';
@@ -68,6 +63,53 @@ test.serial('callToolRoutesToActivity', async (t) => {
     })
   );
   t.deepEqual(result, { echoed: 'hello' });
+});
+
+test.serial('doesNotCloseFactorySuppliedToolset', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-mcp-shared');
+  const shared = mockMCPToolset([echoDef, reverseDef])() as BaseToolset;
+  let closes = 0;
+  shared.close = async () => {
+    closes += 1;
+  };
+  const plugin = new GoogleAdkPlugin({ mcpToolsets: { testServer: () => shared } });
+  const result = await withWorker(env, { taskQueue, plugins: [plugin] }, () =>
+    env.client.workflow.execute(mcpCallTool, {
+      taskQueue,
+      workflowId: uid('wf-mcp-shared'),
+      args: ['hello'],
+    })
+  );
+  t.deepEqual(result, { echoed: 'hello' });
+  // `mcpCallTool` drives both the listTools and the callTool Activity.
+  t.is(closes, 0);
+});
+
+test.serial('closesToolsetBuiltFromConnectionParams', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-mcp-params');
+  const plugin = new GoogleAdkPlugin({
+    mcpToolsets: {
+      testServer: () => ({ type: 'StdioConnectionParams', serverParams: { command: 'never-spawned' } }),
+    },
+  });
+  const { getTools, close } = MCPToolset.prototype;
+  let closes = 0;
+  // ADK's own `getTools` closes the session it opens, so even against a real MCP
+  // server the plugin's `close()` is observable only as a call.
+  MCPToolset.prototype.getTools = async () => [];
+  MCPToolset.prototype.close = async () => {
+    closes += 1;
+  };
+  try {
+    await withWorker(env, { taskQueue, plugins: [plugin] }, () =>
+      env.client.workflow.execute(mcpListTools, { taskQueue, workflowId: uid('wf-mcp-params') })
+    );
+  } finally {
+    Object.assign(MCPToolset.prototype, { getTools, close });
+  }
+  t.is(closes, 1);
 });
 
 test.serial('unknownToolFailsNonRetryably', async (t) => {
