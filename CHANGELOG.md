@@ -39,8 +39,7 @@ to docs, or any other relevant information.
     `new SomeMessage()` no longer compiles. Use `SomeMessage.create({ ... })` instead. Use of the
     constructor was never officially supported, and would have previously resulted in a runtime error.
 
-  - The `getTypeUrl` method on generated message types is no longer declared, though it remains
-    callable at runtime.
+  - The `getTypeUrl` method on generated message types is no longer declared.
 
   - A field holding its default value is no longer materialized as an own property on decoded
     messages. This applies both to JSON-encoded payloads, which are now spec-compliant and _omit_

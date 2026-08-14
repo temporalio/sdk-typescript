@@ -332,6 +332,8 @@ jobs:
       typescript-repo-path: ${{github.event.pull_request.head.repo.full_name}}
       version: ${{github.event.pull_request.head.ref}}
       version-is-repo-ref: true
+      # FIXME: Remove this once 1) our protobufjs v8 bump has been merged and included in a
+      # release, and 2) https://github.com/temporalio/features/pull/863 has been merged to main.
       features-repo-ref: bump-protobufjs
 
   stress-tests-no-reuse-context:
