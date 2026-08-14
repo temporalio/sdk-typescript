@@ -451,7 +451,10 @@ test('decodePayload maps non-retryable PayloadValidationError from converter to 
   t.false(err?.retryable);
   t.is(err?.message, 'Invalid operation input');
   // The original failure, including its message, is retained as the cause.
+  t.true(err?.cause instanceof ApplicationFailure);
   t.is(err?.cause, cause);
+  t.is((err?.cause as ApplicationFailure).type, PAYLOAD_VALIDATION_ERROR_TYPE);
+  t.true((err?.cause as ApplicationFailure).nonRetryable);
   t.is((err?.cause as ApplicationFailure).message, 'input payload is invalid');
 });
 
@@ -469,7 +472,10 @@ test('decodePayload maps non-retryable PayloadValidationError from codec to a ba
   t.false(err?.retryable);
   t.is(err?.message, 'Invalid operation input');
   // The original failure, including its message, is retained as the cause.
+  t.true(err?.cause instanceof ApplicationFailure);
   t.is(err?.cause, cause);
+  t.is((err?.cause as ApplicationFailure).type, PAYLOAD_VALIDATION_ERROR_TYPE);
+  t.true((err?.cause as ApplicationFailure).nonRetryable);
   t.is((err?.cause as ApplicationFailure).message, 'input payload is invalid');
 });
 
