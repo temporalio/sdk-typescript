@@ -5,10 +5,12 @@
  * @module
  */
 
+import { randomUUID } from 'crypto';
+import type { TestFn } from 'ava';
 import type { Client as LangSmithClient } from 'langsmith';
 import { Client } from '@temporalio/client';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
-import { Worker, type WorkerOptions } from '@temporalio/worker';
+import { Worker, bundleWorkflowCode, type WorkerOptions, type WorkflowBundle } from '@temporalio/worker';
 
 import { LangSmithPlugin, type LangSmithPluginOptions } from '../index';
 
@@ -168,21 +170,56 @@ export interface HarnessArgs<T> {
   body: (ctx: { client: Client; taskQueue: string; env: TestWorkflowEnvironment }) => Promise<T>;
 }
 
-/** Boot a local Temporal env with the plugin on both client and worker, run `body`, then tear down. */
+// One local Temporal server shared by all cases in a file
+let sharedEnv: TestWorkflowEnvironment | undefined;
+
+/** Register a per-file shared `TestWorkflowEnvironment`; `withTracingWorker` will reuse it. */
+export function useSharedEnv(test: TestFn<unknown>): void {
+  test.before(async () => {
+    sharedEnv = await TestWorkflowEnvironment.createLocal();
+  });
+  test.after.always(async () => {
+    await sharedEnv?.teardown();
+    sharedEnv = undefined;
+  });
+}
+
+const bundleCache = new Map<string, Promise<WorkflowBundle>>();
+
+function getBundle(plugin: LangSmithPlugin, workflowsPath: string, optionsKey: string): Promise<WorkflowBundle> {
+  const key = `${workflowsPath}\n${optionsKey}`;
+  let bundle = bundleCache.get(key);
+  if (!bundle) {
+    // Route through the plugin so the bundle carries its workflow interceptor
+    // module + baked config, exactly as Worker.create would have built it.
+    bundle = bundleWorkflowCode(plugin.configureBundler({ workflowsPath }));
+    bundleCache.set(key, bundle);
+  }
+  return bundle;
+}
+
 export async function withTracingWorker<T>(args: HarnessArgs<T>): Promise<T> {
-  const env = await TestWorkflowEnvironment.createLocal();
+  const privateEnv = sharedEnv ? undefined : await TestWorkflowEnvironment.createLocal();
+  const env = sharedEnv ?? privateEnv!;
   try {
-    const taskQueue = args.taskQueue ?? 'langsmith-test';
+    const taskQueue = args.taskQueue ?? `langsmith-test-${randomUUID()}`;
     const plugin = new LangSmithPlugin({ ...args.options, client: args.collector.asClient() });
+
+    const { workflowsPath = WORKFLOWS_PATH, ...restWorkerOpts } = args.workerOptions ?? {};
+    const workflowBundle = await getBundle(plugin, workflowsPath, JSON.stringify(args.options ?? {}));
 
     const worker = await Worker.create({
       connection: env.nativeConnection,
       namespace: env.namespace,
       taskQueue,
-      workflowsPath: WORKFLOWS_PATH,
+      workflowBundle,
       activities: args.activities,
       plugins: [plugin],
-      ...args.workerOptions,
+      // Avoid waiting for the default 10s sticky execution timeout on worker
+      // transition: these short-lived per-case workers can otherwise stall a
+      // full 10s on task redelivery and, on loaded CI, blow the 120s AVA cap.
+      stickyQueueScheduleToStartTimeout: '1s',
+      ...restWorkerOpts,
     });
 
     const client = new Client({
@@ -193,6 +230,6 @@ export async function withTracingWorker<T>(args: HarnessArgs<T>): Promise<T> {
 
     return await worker.runUntil(args.body({ client, taskQueue, env }));
   } finally {
-    await env.teardown();
+    if (privateEnv) await privateEnv.teardown();
   }
 }

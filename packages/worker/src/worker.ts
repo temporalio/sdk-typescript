@@ -31,7 +31,7 @@ import {
   decodeFromPayloadsAtIndex,
   encodeErrorToFailure,
   encodeToPayload,
-  extstoreRetrieveOptions,
+  extstoreInboundOptions,
   extstoreStoreOptions,
   visit,
   walkActivityHeartbeat,
@@ -178,6 +178,7 @@ interface WorkflowWithLogAttributes {
   workflow: Workflow;
   logAttributes: Record<string, unknown>;
   workflowCodecRunner: WorkflowCodecRunner;
+  info: WorkflowInfo;
 }
 
 function addBuildIdIfMissing(options: CompiledWorkerOptions, bundleCode?: string): CompiledWorkerOptionsWithBuildId {
@@ -1086,12 +1087,7 @@ export class Worker {
                         `Got start event for an already running activity: ${base64TaskToken}`
                       );
                     }
-                    // Resolve external-storage references in the task payloads in place before anything
-                    // reads them: `extractActivityInfo` below decodes `start.heartbeatDetails` into `info`.
-                    const { externalStorage } = loadedDataConverter;
-                    if (externalStorage) {
-                      await visit(task, walkActivityTask, extstoreRetrieveOptions(externalStorage));
-                    }
+                    await visit(task, walkActivityTask, extstoreInboundOptions(loadedDataConverter.externalStorage));
                     info = await extractActivityInfo({
                       task,
                       dataConverter: loadedDataConverter,
@@ -1268,26 +1264,7 @@ export class Worker {
             const { externalStorage } = this.options.loadedDataConverter;
             const completion = { taskToken, result };
             if (externalStorage) {
-              let initialTarget: StorageDriverTargetInfo | undefined;
-              if (info) {
-                if (info.inWorkflow) {
-                  initialTarget = {
-                    kind: 'workflow',
-                    namespace: info.namespace,
-                    id: info.workflowExecution?.workflowId,
-                    runId: info.workflowExecution?.runId,
-                    type: info.workflowType,
-                  };
-                } else {
-                  initialTarget = {
-                    kind: 'activity',
-                    namespace: info.namespace,
-                    id: info.activityId,
-                    type: info.activityType,
-                    runId: info.activityRunId,
-                  };
-                }
-              }
+              const initialTarget = info ? activityStorageTarget(info) : undefined;
               try {
                 await visit(
                   completion,
@@ -1345,6 +1322,25 @@ export class Worker {
               if (task.task == null) {
                 throw new IllegalStateError(`Got empty task for task variant with token: ${base64TaskToken}`);
               }
+              try {
+                await visit(
+                  task,
+                  walkNexusTask,
+                  extstoreInboundOptions(this.options.loadedDataConverter.externalStorage)
+                );
+              } catch (e) {
+                this.logger.error(
+                  `Error while retrieving Nexus task payloads from external storage: ${errorMessage(e)}`,
+                  { taskToken: base64TaskToken, error: e }
+                );
+                return {
+                  taskToken: task.task.taskToken,
+                  failure: await handlerErrorToProto(
+                    this.options.loadedDataConverter,
+                    new nexus.HandlerError('INTERNAL', errorMessage(e), { cause: e, retryableOverride: true })
+                  ),
+                };
+              }
               const requestDeadline = task.requestDeadline != null ? tsToDate(task.requestDeadline) : undefined;
               return await this.handleNexusRunTask(task.task, base64TaskToken, protobufEncodedTask, requestDeadline);
             }
@@ -1371,10 +1367,27 @@ export class Worker {
       filter(<T>(result: T): result is Exclude<T, undefined> => result !== undefined),
       mergeMap(async (result) => {
         const { externalStorage } = this.options.loadedDataConverter;
+        let completion = result;
         if (externalStorage) {
-          await visit(result, walkNexusTaskCompletion, extstoreStoreOptions(externalStorage));
+          try {
+            await visit(completion, walkNexusTaskCompletion, extstoreStoreOptions(externalStorage));
+          } catch (e) {
+            this.logger.error(`Error while offloading Nexus task result to external storage: ${errorMessage(e)}`, {
+              taskToken: completion.taskToken ? formatTaskToken(completion.taskToken) : undefined,
+              error: e,
+            });
+            // Core requires a NexusHandlerFailureInfo on a Nexus failure completion, so wrap the driver
+            // error in a retryable handler error.
+            completion = {
+              taskToken: completion.taskToken,
+              failure: await handlerErrorToProto(
+                this.options.loadedDataConverter,
+                new nexus.HandlerError('INTERNAL', errorMessage(e), { cause: e, retryableOverride: true })
+              ),
+            };
+          }
         }
-        return coresdk.nexus.NexusTaskCompletion.encodeDelimited(result).finish();
+        return coresdk.nexus.NexusTaskCompletion.encodeDelimited(completion).finish();
       })
     );
   }
@@ -1523,9 +1536,7 @@ export class Worker {
         });
       }
       const { externalStorage } = this.options.loadedDataConverter;
-      if (externalStorage) {
-        await visit(activation, walkWorkflowActivation, extstoreRetrieveOptions(externalStorage));
-      }
+      await visit(activation, walkWorkflowActivation, extstoreInboundOptions(externalStorage));
       const decodedActivation = await workflowCodecRunner.decodeActivation(activation);
 
       if (workflow === undefined) {
@@ -1554,8 +1565,9 @@ export class Worker {
                 namespace,
                 id: workflowCodecRunner.workflowContext.workflowId,
                 runId: activation.runId,
+                type: workflow.info.workflowType,
               },
-              deriveContext: workflowCommandStoreTarget(namespace),
+              deriveContext: workflowCommandStoreTarget(namespace, workflow.info),
             })
           );
         }
@@ -1704,7 +1716,7 @@ export class Worker {
     });
 
     this.numCachedWorkflowsSubject.next(this.numCachedWorkflowsSubject.value + 1);
-    return { workflow, logAttributes, workflowCodecRunner };
+    return { workflow, logAttributes, workflowCodecRunner, info: workflowInfo };
   }
 
   /**
@@ -1890,7 +1902,11 @@ export class Worker {
               const heartbeat: coresdk.IActivityHeartbeat = { taskToken, details: [payload] };
               const { externalStorage } = this.options.loadedDataConverter;
               if (externalStorage) {
-                await visit(heartbeat, walkActivityHeartbeat, extstoreStoreOptions(externalStorage));
+                await visit(
+                  heartbeat,
+                  walkActivityHeartbeat,
+                  extstoreStoreOptions(externalStorage, { initialTarget: activityStorageTarget(info) })
+                );
               }
               const arr = coresdk.ActivityHeartbeat.encodeDelimited(heartbeat).finish();
               this.nativeWorker.recordActivityHeartbeat(byteArrayToBuffer(arr));
@@ -2030,10 +2046,6 @@ export class Worker {
         this.hasOutstandingNexusPoll = false;
       }
       const task = coresdk.nexus.NexusTask.decode(new Uint8Array(buffer));
-      const { externalStorage } = this.options.loadedDataConverter;
-      if (externalStorage) {
-        await visit(task, walkNexusTask, extstoreRetrieveOptions(externalStorage));
-      }
       const taskToken = task.task?.taskToken || task.cancelTask?.taskToken;
       if (taskToken == null) {
         throw new TypeError('Got a Nexus task without a task token');
@@ -2318,6 +2330,29 @@ function extractSourceMap(code: string): [string, string] {
 }
 
 /**
+ * External-storage target for payloads produced by an activity, matching the Go SDK: a
+ * workflow-bound activity targets its owning workflow execution; a standalone activity targets
+ * itself. Used for both the activity result and its heartbeat details.
+ */
+function activityStorageTarget(info: ActivityInfo): StorageDriverTargetInfo {
+  return info.inWorkflow
+    ? {
+        kind: 'workflow',
+        namespace: info.namespace,
+        id: info.workflowExecution?.workflowId,
+        runId: info.workflowExecution?.runId,
+        type: info.workflowType,
+      }
+    : {
+        kind: 'activity',
+        namespace: info.namespace,
+        id: info.activityId,
+        type: info.activityType,
+        runId: info.activityRunId,
+      };
+}
+
+/**
  * Transform an ActivityTask into ActivityInfo to pass on into an Activity
  */
 async function extractActivityInfo({
@@ -2378,7 +2413,8 @@ async function extractActivityInfo({
 }
 
 function workflowCommandStoreTarget(
-  namespace: string
+  namespace: string,
+  info: WorkflowInfo
 ): (
   message: object,
   typeName: string,
@@ -2388,7 +2424,12 @@ function workflowCommandStoreTarget(
     switch (typeName) {
       case 'coresdk.workflow_commands.StartChildWorkflowExecution': {
         const command = message as coresdk.workflow_commands.IStartChildWorkflowExecution;
-        return { kind: 'workflow', namespace: command.namespace || namespace, id: command.workflowId ?? undefined };
+        return {
+          kind: 'workflow',
+          namespace: command.namespace || namespace,
+          id: command.workflowId ?? undefined,
+          type: command.workflowType ?? undefined,
+        };
       }
       case 'coresdk.workflow_commands.SignalExternalWorkflowExecution':
       case 'coresdk.workflow_commands.RequestCancelExternalWorkflowExecution': {
@@ -2398,8 +2439,21 @@ function workflowCommandStoreTarget(
         const workflowId = command.workflowExecution?.workflowId ?? command.childWorkflowId ?? undefined;
         return { kind: 'workflow', namespace: command.workflowExecution?.namespace || namespace, id: workflowId };
       }
-      case 'coresdk.workflow_commands.ContinueAsNewWorkflowExecution':
-        return context ? { ...context, runId: undefined } : context;
+      case 'coresdk.workflow_commands.ContinueAsNewWorkflowExecution': {
+        if (context == null) return context;
+        const command = message as coresdk.workflow_commands.IContinueAsNewWorkflowExecution;
+        return { ...context, runId: undefined, type: command.workflowType || context.type };
+      }
+      case 'coresdk.workflow_commands.CompleteWorkflowExecution': {
+        const { parent } = info;
+        if (parent == null || info.continuedFromExecutionRunId != null) return context;
+        return {
+          kind: 'workflow',
+          namespace: parent.namespace || namespace,
+          id: parent.workflowId,
+          runId: parent.runId,
+        };
+      }
       default:
         return context;
     }

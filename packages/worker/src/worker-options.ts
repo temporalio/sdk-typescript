@@ -130,7 +130,6 @@ export interface WorkerOptions {
   /**
    * An array of Nexus services
    *
-   * @experimental Nexus support in Temporal SDK is experimental.
    */
   nexusServices?: nexus.ServiceHandler<any>[];
 
@@ -228,7 +227,6 @@ export interface WorkerOptions {
    *
    * @default 100 if no {@link tuner} is set
    *
-   * @experimental Nexus support in Temporal SDK is experimental.
    */
   maxConcurrentNexusTaskExecutions?: number;
 
@@ -268,6 +266,15 @@ export interface WorkerOptions {
    * If unset, no rate limiting will be applied to the task queue.
    */
   maxTaskQueueActivitiesPerSecond?: number;
+
+  /**
+   * Maximum number of Activity slots that may be reserved for eager execution when completing a Workflow Task.
+   *
+   * Must be a non-negative integer. Setting this to `0` disables eager Activity execution.
+   *
+   * @default 3
+   */
+  maxEagerActivityReservationsPerWorkflowTask?: number;
 
   /**
    * Maximum number of Workflow Tasks to execute concurrently.
@@ -360,7 +367,6 @@ export interface WorkerOptions {
    *
    * @default A fixed maximum whose value is min(10, maxConcurrentNexusTaskExecutions).
    *
-   * @experimental Nexus support in Temporal SDK is experimental.
    */
   nexusTaskPollerBehavior?: PollerBehavior;
 
@@ -385,7 +391,6 @@ export interface WorkerOptions {
    *
    * @default min(10, maxConcurrentNexusTaskExecutions)
    *
-   * @experimental Nexus support in Temporal SDK is experimental.
    */
   maxConcurrentNexusTaskPolls?: number;
 
@@ -759,6 +764,7 @@ export interface ReplayWorkerOptions
     | 'enableNonLocalActivities'
     | 'maxActivitiesPerSecond'
     | 'maxTaskQueueActivitiesPerSecond'
+    | 'maxEagerActivityReservationsPerWorkflowTask'
     | 'stickyQueueScheduleToStartTimeout'
     | 'maxCachedWorkflows'
     | 'useVersioning'
@@ -1104,6 +1110,13 @@ export function compileWorkerOptions(
   }
 
   const opts = addDefaultWorkerOptions(rawOpts, logger, metricMeter);
+  if (
+    opts.maxEagerActivityReservationsPerWorkflowTask !== undefined &&
+    (!Number.isSafeInteger(opts.maxEagerActivityReservationsPerWorkflowTask) ||
+      opts.maxEagerActivityReservationsPerWorkflowTask < 0)
+  ) {
+    throw new TypeError('maxEagerActivityReservationsPerWorkflowTask must be a non-negative integer');
+  }
   if (opts.maxCachedWorkflows !== 0 && opts.maxCachedWorkflows < 2) {
     logger.warn('maxCachedWorkflows must be either 0 (ie. cache is disabled) or greater than 1. Defaulting to 2.');
     opts.maxCachedWorkflows = 2;
@@ -1212,6 +1225,7 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
     defaultHeartbeatThrottleInterval: msToNumber(opts.defaultHeartbeatThrottleInterval),
     maxTaskQueueActivitiesPerSecond: opts.maxTaskQueueActivitiesPerSecond ?? null,
     maxActivitiesPerSecond: opts.maxActivitiesPerSecond ?? null,
+    maxEagerActivityReservationsPerWorkflowTask: opts.maxEagerActivityReservationsPerWorkflowTask ?? 3,
     shutdownGraceTime: msToNumber(opts.shutdownGraceTime),
     plugins: opts.plugins?.map((p) => p.name) ?? [],
     storageDrivers: [...new Set((opts.loadedDataConverter.externalStorage?.drivers ?? []).map((d) => d.type))],

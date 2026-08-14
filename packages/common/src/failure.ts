@@ -381,7 +381,6 @@ export class ChildWorkflowFailure extends TemporalFailure {
 /**
  * Thrown when a Nexus Operation executed inside a Workflow fails.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 @SymbolBasedInstanceOfError('NexusOperationFailure')
 export class NexusOperationFailure extends TemporalFailure {

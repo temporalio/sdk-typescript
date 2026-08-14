@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/testing",
-  "version": "1.20.0",
+  "version": "1.22.0",
   "description": "Temporal.io SDK Testing sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -13,7 +13,7 @@
   "license": "MIT",
   "scripts": {
     "build": "tsc --build",
-    "test": "ava ./lib/__tests__/test-*.js"
+    "test": "tsx ../../scripts/ava-ci.ts ./lib/__tests__/test-*.js"
   },
   "ava": {
     "timeout": "60s",

@@ -1,4 +1,12 @@
-import { executeChild, proxyActivities } from '@temporalio/workflow';
+import {
+  condition,
+  defineQuery,
+  defineSignal,
+  executeChild,
+  makeContinueAsNewFunc,
+  proxyActivities,
+  setHandler,
+} from '@temporalio/workflow';
 import type * as activities from '../activities';
 
 // Allow a few attempts so the driver-failure tests can assert that a driver failure is
@@ -59,19 +67,54 @@ export async function externalStorageHeartbeatDetailsOffload(sizeBytes: number):
 }
 
 /**
- * Child workflow that echoes back the (large) payload it receives, so its input is offloaded on
- * the parent's outbound command and its result is offloaded on the child's completion.
- */
-export async function externalStorageChildEcho(payload: Uint8Array): Promise<Uint8Array> {
-  return payload;
-}
-
-/**
  * Parent workflow that starts a child with a large argument and reads back the child's large
  * result, exercising offload/retrieval in both directions between two Workflows on the same
  * Worker. Returns the length of the payload round-tripped through the child.
  */
 export async function externalStorageParentChildOffload(sizeBytes: number): Promise<number> {
-  const result = await executeChild(externalStorageChildEcho, { args: [new Uint8Array(sizeBytes)] });
+  const result = await executeChild(externalStorageEcho, { args: [new Uint8Array(sizeBytes)] });
   return result.length;
+}
+
+/**
+ * Returns its argument unchanged. Used directly (a large arg/result round-trips through the client
+ * boundary) and as the child in {@link externalStorageParentChildOffload}.
+ */
+export async function externalStorageEcho(data: Uint8Array): Promise<Uint8Array> {
+  return data;
+}
+
+/**
+ * Continues-as-new into a *different* workflow type ({@link externalStorageContinueAsNewTarget}),
+ * passing a large argument. Exercises offload of the ContinueAsNew arguments on the source
+ * workflow's completion. Those arguments belong to the new run, so they must be keyed under the
+ * new workflow type (the command's `workflowType`), not the source's.
+ */
+export async function externalStorageContinueAsNewSource(sizeBytes: number): Promise<number> {
+  const continueAsTarget = makeContinueAsNewFunc<typeof externalStorageContinueAsNewTarget>({
+    workflowType: 'externalStorageContinueAsNewTarget',
+  });
+  return await continueAsTarget(new Uint8Array(sizeBytes).fill(4));
+}
+
+/** Target of {@link externalStorageContinueAsNewSource}'s continue-as-new; returns its argument's length. */
+export async function externalStorageContinueAsNewTarget(data: Uint8Array): Promise<number> {
+  return data.length;
+}
+
+export const getBlobQuery = defineQuery<Uint8Array>('getBlob');
+export const finishSignal = defineSignal('finish');
+
+/**
+ * Serves a large blob (built from the given size) via a query, and stays open until signalled.
+ * Lets a client exercise the query retrieve path against an offloaded query result.
+ */
+export async function externalStorageQueryable(sizeBytes: number): Promise<void> {
+  const blob = new Uint8Array(sizeBytes).fill(7);
+  setHandler(getBlobQuery, () => blob);
+  let finished = false;
+  setHandler(finishSignal, () => {
+    finished = true;
+  });
+  await condition(() => finished);
 }

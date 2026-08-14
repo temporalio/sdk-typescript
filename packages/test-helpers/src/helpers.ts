@@ -73,6 +73,7 @@ export function helpers<TEnv extends AnyTestWorkflowEnvironment = TestWorkflowEn
     async createWorker(workerOpts?: Partial<WorkerOptions>): Promise<Worker> {
       return await Worker.create({
         connection: env.nativeConnection,
+        namespace: env.namespace,
         workflowBundle,
         taskQueue,
         showStackTraceSources: true,

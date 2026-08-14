@@ -1,12 +1,12 @@
 {
   "name": "@temporalio/interceptors-opentelemetry",
-  "version": "1.20.0",
+  "version": "1.22.0",
   "description": "Temporal.io SDK interceptors bundle for tracing with opentelemetry",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
   "scripts": {
     "build": "tsc --build",
-    "test": "ava ./lib/__tests__/test-*.js"
+    "test": "tsx ../../scripts/ava-ci.ts ./lib/__tests__/test-*.js"
   },
   "keywords": [
     "temporal",

@@ -1,13 +1,13 @@
 {
   "private": true,
   "name": "@temporalio/test",
-  "version": "1.20.0",
+  "version": "1.22.0",
   "description": "Temporal.io SDK Tests",
   "scripts": {
     "build": "pnpm run build:protos && pnpm run build:ts",
     "build:ts": "tsc --build",
     "build:protos": "tsx ./scripts/compile-proto.ts",
-    "test": "ava ./lib/test-*.js",
+    "test": "tsx ../../scripts/ava-ci.ts ./lib/test-*.js",
     "test:watch": "ava --watch ./lib/test-*.js",
     "test:bun": "bun run -b ava ./lib/test-*.js"
   },

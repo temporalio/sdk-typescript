@@ -6,7 +6,10 @@
  */
 import type { ConcurrencyLimit } from '../concurrency/limit';
 import type { ExternalStorage, StorageDriverTargetInfo } from '../converter/extstore';
+import { ExternalStorageNotConfiguredError } from '../errors';
+import type { Payload } from '../interfaces';
 import { ExternalStorageRunner } from './external-storage-runner';
+import { isReferencePayload } from './extstore-helpers';
 import type { ContextDeriver, VisitOptions } from './payload-visitor';
 
 /**
@@ -50,11 +53,7 @@ export function extstoreStoreOptions(
   };
 }
 
-/**
- * @internal
- * @experimental
- */
-export function extstoreRetrieveOptions(
+function extstoreRetrieveOptions(
   externalStorage: ExternalStorage,
   { limit, abortSignal }: { limit?: ConcurrencyLimit; abortSignal?: AbortSignal } = {}
 ): VisitOptions<void> {
@@ -67,4 +66,35 @@ export function extstoreRetrieveOptions(
     limit,
     abortSignal,
   };
+}
+
+/**
+ * Detection-only inbound walk used when no {@link ExternalStorage} is configured: leaves every
+ * payload untouched but throws {@link ExternalStorageNotConfiguredError} on the first reference
+ * payload.
+ */
+function extstoreDetectReferencesOptions(): VisitOptions<void> {
+  const assertNoReference = (payloads: Payload[]): Payload[] => {
+    if (payloads.some(isReferencePayload)) {
+      throw new ExternalStorageNotConfiguredError();
+    }
+    return payloads;
+  };
+  return {
+    transformPayloads: (payloads) => Promise.resolve(assertNoReference(payloads)),
+    transformPayload: (payload) => Promise.resolve(assertNoReference([payload])[0]!),
+    skipSearchAttributes: true,
+  };
+}
+
+/**
+ * The inbound External Storage pass for a worker/client boundary: resolve reference payloads when
+ * {@link ExternalStorage} is configured, otherwise fail loudly (via {@link extstoreDetectReferencesOptions})
+ * because nothing can resolve them.
+ *
+ * @internal
+ * @experimental
+ */
+export function extstoreInboundOptions(externalStorage: ExternalStorage | undefined): VisitOptions<void> {
+  return externalStorage ? extstoreRetrieveOptions(externalStorage) : extstoreDetectReferencesOptions();
 }

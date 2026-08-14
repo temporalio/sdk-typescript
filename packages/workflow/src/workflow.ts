@@ -17,6 +17,7 @@ import type {
   WorkflowUpdateValidatorType,
   SearchAttributeUpdatePair,
   WorkflowDefinitionOptionsOrGetter,
+  WorkflowDefinitionConfig,
 } from '@temporalio/common';
 import {
   compileRetryPolicy,
@@ -1765,6 +1766,9 @@ export function allHandlersFinished(): boolean {
 /**
  * Can be used to alter workflow functions with certain options specified at definition time.
  *
+ * Prefer {@link defineWorkflowOptions} for new code, especially when setting static workflow
+ * metadata such as type information.
+ *
  * @example
  * For example:
  * ```ts
@@ -1800,9 +1804,21 @@ export function setWorkflowOptions<A extends any[], RT>(
   options: WorkflowDefinitionOptionsOrGetter,
   fn: (...args: A) => Promise<RT>
 ): void {
-  Object.assign(fn, {
-    workflowDefinitionOptions: options,
-  });
+  return defineWorkflowOptions(fn, { workflowDefinitionOptions: options });
+}
+
+/**
+ * Attach per-execution options and static metadata to a Workflow function.
+ *
+ * Static options are available before the Workflow function's arguments are decoded.
+ *
+ * @experimental
+ */
+export function defineWorkflowOptions<A extends any[], RT>(
+  fn: (...args: A) => Promise<RT>,
+  config: WorkflowDefinitionConfig
+): void {
+  Object.assign(fn, config);
 }
 
 export const stackTraceQuery = defineQuery<string>('__stack_trace');

@@ -15,6 +15,7 @@ import type {
   VersioningBehavior,
   WorkflowDefinitionOptions,
   WorkflowSerializationContext,
+  PayloadTypeInfo,
 } from '@temporalio/common';
 import {
   defaultFailureConverter,
@@ -28,6 +29,7 @@ import {
   ApplicationFailure,
   mapFromPayloads,
   fromPayloadsAtIndex,
+  toPayloadWithTypeInfo,
   RawValue,
 } from '@temporalio/common';
 import {
@@ -506,6 +508,7 @@ export class Activator implements ActivationHandler {
   protected readonly stackTracesEnabled: boolean;
 
   private readonly patchActivationCallback?: (workflowInfo: WorkflowInfo, patchId: string) => boolean;
+  public typeInfo?: PayloadTypeInfo;
 
   constructor({
     info,
@@ -646,7 +649,7 @@ export class Activator implements ActivationHandler {
       executeWithLifecycleLogging(() =>
         execute({
           headers: activation.headers ?? {},
-          args: arrayFromPayloads(this.payloadConverter, activation.arguments, context),
+          args: arrayFromPayloads(this.payloadConverter, activation.arguments, context, this.typeInfo?.inputTypes),
         })
       ).then(this.completeWorkflow.bind(this), this.handleWorkflowFailure.bind(this))
     );
@@ -718,7 +721,8 @@ export class Activator implements ActivationHandler {
   public resolveChildWorkflowExecutionStart(
     activation: coresdk.workflow_activation.IResolveChildWorkflowExecutionStart
   ): void {
-    const { resolve, reject, context } = this.consumeCompletion('childWorkflowStart', getSeq(activation));
+    const seq = getSeq(activation);
+    const { resolve, reject, context } = this.consumeCompletion('childWorkflowStart', seq);
     if (activation.succeeded) {
       if (!activation.succeeded.runId) {
         throw new TypeError('Got ResolveChildWorkflowExecutionStart with no runId');
@@ -738,11 +742,13 @@ export class Activator implements ActivationHandler {
           activation.failed.workflowType
         )
       );
+      this.completions.childWorkflowComplete.delete(seq);
     } else if (activation.cancelled) {
       if (!activation.cancelled.failure) {
         throw new TypeError('Got no failure in cancelled variant');
       }
       reject(this.failureConverter.failureToError(activation.cancelled.failure, this.payloadConverter, context));
+      this.completions.childWorkflowComplete.delete(seq);
     } else {
       throw new TypeError('Got ResolveChildWorkflowExecutionStart with no status');
     }
@@ -1441,7 +1447,7 @@ export class Activator implements ActivationHandler {
     this.pushCommand(
       {
         completeWorkflowExecution: {
-          result: this.payloadConverter.toPayload(result, context),
+          result: toPayloadWithTypeInfo(this.payloadConverter, result, context, this.typeInfo?.outputType),
         },
       },
       true

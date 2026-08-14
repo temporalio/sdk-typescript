@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/workflow-streams",
-  "version": "1.20.0",
+  "version": "1.22.0",
   "description": "Temporal.io SDK Workflow Streams contrib module",
   "exports": {
     "./workflow": {
@@ -25,7 +25,7 @@
   },
   "scripts": {
     "build": "tsc --build",
-    "test": "ava ./lib/__tests__/test-*.js"
+    "test": "tsx ../../scripts/ava-ci.ts ./lib/__tests__/test-*.js"
   },
   "ava": {
     "timeout": "120s",
