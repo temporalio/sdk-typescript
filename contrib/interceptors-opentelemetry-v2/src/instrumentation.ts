@@ -130,6 +130,10 @@ export interface InstrumentOptions<T> {
 
 export type InstrumentOptionsSync<T> = Omit<InstrumentOptions<T>, 'fn'> & { fn: (span: otel.Span) => T };
 
+export type InstrumentOptionsAsyncIterable<T> = Omit<InstrumentOptions<T>, 'fn'> & {
+  fn: (span: otel.Span) => AsyncIterable<T>;
+};
+
 /**
  * Wraps `fn` in a span which ends when function returns or throws
  */
@@ -156,4 +160,100 @@ export function instrumentSync<T>({ tracer, spanName, fn, context, acceptableErr
     return tracer.startActiveSpan(spanName, {}, context, (span) => wrapWithSpanSync(span, fn, acceptableErrors));
   }
   return tracer.startActiveSpan(spanName, (span) => wrapWithSpanSync(span, fn, acceptableErrors));
+}
+
+/**
+ * Wraps an async iterable in a span whose lifetime matches iteration.
+ *
+ * The returned iterable is lazy: creating it does not open a span. The span starts on the first
+ * `next()` call, remains open while the iterator is in use, and ends on completion, early
+ * termination (`return`), or error.
+ */
+export function instrumentAsyncIterable<T>({
+  tracer,
+  spanName,
+  fn,
+  context,
+  acceptableErrors,
+}: InstrumentOptionsAsyncIterable<T>): AsyncIterable<T> {
+  return {
+    [Symbol.asyncIterator](): AsyncIterator<T> {
+      let span: otel.Span | undefined;
+      let spanContext: otel.Context | undefined;
+      let iterator: AsyncIterator<T> | undefined;
+      let finished = false;
+
+      const finish = (err?: unknown): void => {
+        if (finished || span === undefined) {
+          return;
+        }
+        finished = true;
+        if (err !== undefined) {
+          maybeAddErrorToSpan(err, span, acceptableErrors);
+        } else {
+          span.setStatus({ code: otel.SpanStatusCode.OK });
+        }
+        span.end();
+      };
+
+      const ensureStarted = (): void => {
+        if (iterator !== undefined) {
+          return;
+        }
+        const parentContext = context ?? otel.context.active();
+        span = tracer.startSpan(spanName, undefined, parentContext);
+        spanContext = otel.trace.setSpan(parentContext, span);
+        const iterable = otel.context.with(spanContext, () => fn(span!));
+        iterator = iterable[Symbol.asyncIterator]();
+      };
+
+      return {
+        async next(...args: [] | [undefined]): Promise<IteratorResult<T>> {
+          try {
+            ensureStarted();
+            const result = await otel.context.with(spanContext!, async () => iterator!.next(...args));
+            if (result.done) {
+              finish();
+            }
+            return result;
+          } catch (err) {
+            finish(err);
+            throw err;
+          }
+        },
+        async return(value?: unknown): Promise<IteratorResult<T>> {
+          if (iterator === undefined) {
+            return { done: true, value: undefined as any };
+          }
+          try {
+            const result = iterator.return
+              ? await otel.context.with(spanContext!, async () => iterator!.return!(value))
+              : ({ done: true, value: undefined } as IteratorResult<T>);
+            finish();
+            return result;
+          } catch (err) {
+            finish(err);
+            throw err;
+          }
+        },
+        async throw(err?: unknown): Promise<IteratorResult<T>> {
+          try {
+            ensureStarted();
+            if (iterator?.throw) {
+              const result = await otel.context.with(spanContext!, async () => iterator!.throw!(err));
+              if (result.done) {
+                finish();
+              }
+              return result;
+            }
+            finish(err);
+            throw err;
+          } catch (e) {
+            finish(e);
+            throw e;
+          }
+        },
+      };
+    },
+  };
 }

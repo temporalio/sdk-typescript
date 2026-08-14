@@ -108,9 +108,18 @@ export async function* mapAsyncIterable<A, B>(
       yield res;
     }
   } catch (err: unknown) {
-    if (isAbortError(err)) {
-      return;
+    if (!isAbortError(err)) {
+      throw err;
     }
-    throw err;
+  } finally {
+    // Stop producers and close the source iterable so interceptor/OTel lifecycles end on
+    // early consumer termination (break/return), not only after the source is exhausted.
+    controller.abort();
+    try {
+      await sourceIterator.return?.();
+    } catch {
+      // Ignore cleanup errors from an already-failed or exhausted source.
+    }
+    await Promise.allSettled(mappers);
   }
 }

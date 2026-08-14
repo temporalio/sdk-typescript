@@ -13,7 +13,7 @@ import { ApplicationFailure, TerminatedFailure } from '@temporalio/common';
 import { DefaultLogger, Runtime } from '@temporalio/worker';
 import type { WorkflowInfo } from '@temporalio/workflow';
 import { defaultPayloadConverter } from '@temporalio/workflow';
-import { isBun, cleanOptionalStackTrace, compareStackTrace, RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { isBun, cleanOptionalStackTrace, compareStackTrace, RUN_INTEGRATION_TESTS, Worker, waitUntil } from './helpers';
 import { defaultOptions } from './mock-native-worker';
 import {
   checkDisposeRan,
@@ -255,6 +255,149 @@ if (RUN_INTEGRATION_TESTS) {
         // consume iterator
       }
       t.is(listCalls, 1);
+    });
+  });
+
+  test.serial('WorkflowClientInterceptor list spans multi-page consumption until early break', async (t) => {
+    const taskQueue = 'test-interceptor-list-pagination';
+    const idPrefix = `list-pag-${randomUUID()}`;
+    const query = `WorkflowId STARTS_WITH "${idPrefix}"`;
+    const seeded = 10;
+    const worker = await Worker.create({
+      ...defaultOptions,
+      taskQueue,
+    });
+
+    let listEntered = 0;
+    let listExited = 0;
+    let interceptedItems = 0;
+    const client = new WorkflowClient({
+      interceptors: [
+        {
+          async *list(input, next) {
+            listEntered += 1;
+            try {
+              for await (const execution of next(input)) {
+                interceptedItems += 1;
+                yield execution;
+              }
+            } finally {
+              listExited += 1;
+            }
+          },
+        },
+      ],
+    });
+    const visibilityClient = new WorkflowClient();
+
+    await worker.runUntil(async () => {
+      await Promise.all(
+        Array.from({ length: seeded }, (_, i) =>
+          client.execute(successString, {
+            taskQueue,
+            workflowId: `${idPrefix}-${i}`,
+          })
+        )
+      );
+
+      await waitUntil(async () => {
+        let count = 0;
+        for await (const _ of visibilityClient.list({ query })) {
+          count += 1;
+        }
+        return count >= seeded;
+      }, 30_000);
+
+      t.is(listEntered, 0);
+
+      const consumed = [];
+      for await (const execution of client.list({ query, pageSize: 2 })) {
+        consumed.push(execution);
+        if (consumed.length === 6) {
+          t.is(listEntered, 1);
+          t.is(listExited, 0);
+          break;
+        }
+      }
+
+      t.is(consumed.length, 6);
+      t.is(interceptedItems, 6);
+      t.is(listEntered, 1);
+      t.is(listExited, 1);
+      t.true(seeded > consumed.length);
+    });
+  });
+
+  test.serial('WorkflowClientInterceptor list().intoHistories() composes list and fetchHistory', async (t) => {
+    const taskQueue = 'test-interceptor-list-into-histories';
+    const idPrefix = `list-hist-${randomUUID()}`;
+    const query = `WorkflowId STARTS_WITH "${idPrefix}"`;
+    const seeded = 10;
+    const worker = await Worker.create({
+      ...defaultOptions,
+      taskQueue,
+    });
+
+    let listCalls = 0;
+    let listExited = 0;
+    let fetchHistoryCalls = 0;
+    const client = new WorkflowClient({
+      interceptors: [
+        {
+          async *list(input, next) {
+            listCalls += 1;
+            try {
+              for await (const execution of next(input)) {
+                yield execution;
+              }
+            } finally {
+              listExited += 1;
+            }
+          },
+          async fetchHistory(input, next) {
+            fetchHistoryCalls += 1;
+            return next(input);
+          },
+        },
+      ],
+    });
+    const visibilityClient = new WorkflowClient();
+
+    await worker.runUntil(async () => {
+      await Promise.all(
+        Array.from({ length: seeded }, (_, i) =>
+          client.execute(successString, {
+            taskQueue,
+            workflowId: `${idPrefix}-${i}`,
+          })
+        )
+      );
+
+      await waitUntil(async () => {
+        let count = 0;
+        for await (const _ of visibilityClient.list({ query })) {
+          count += 1;
+        }
+        return count >= seeded;
+      }, 30_000);
+
+      let histories = 0;
+      for await (const { history } of client.list({ query, pageSize: 2 }).intoHistories({
+        concurrency: 2,
+      })) {
+        const events = (history as { events?: unknown[] } | undefined)?.events;
+        t.true((events?.length ?? 0) > 0);
+        histories += 1;
+        if (histories >= 7) {
+          break;
+        }
+      }
+
+      t.is(histories, 7);
+      t.is(listCalls, 1);
+      t.is(listExited, 1);
+      t.true(fetchHistoryCalls > 6);
+      t.true(seeded > histories);
     });
   });
 

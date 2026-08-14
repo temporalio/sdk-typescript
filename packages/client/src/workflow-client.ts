@@ -1881,7 +1881,10 @@ export class WorkflowClient extends BaseClient {
             workflowId,
             history: await this.getHandle(workflowId, runId).fetchHistory(),
           }),
-          { concurrency: intoHistoriesOptions?.concurrency ?? 5 }
+          {
+            concurrency: intoHistoriesOptions?.concurrency ?? 5,
+            bufferLimit: intoHistoriesOptions?.bufferLimit,
+          }
         );
       },
     };

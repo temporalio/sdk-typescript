@@ -123,6 +123,35 @@ test(`mapAsyncIterable (with concurrency) doesn't consume more input than requir
   t.is(counter, 15);
 });
 
+test(`mapAsyncIterable (with concurrency) closes the source iterable on early termination`, async (t) => {
+  let sourceExited = 0;
+  let produced = 0;
+
+  async function* source(): AsyncIterable<number> {
+    try {
+      for (;;) {
+        yield ++produced;
+      }
+    } finally {
+      sourceExited += 1;
+    }
+  }
+
+  const iterable = mapAsyncIterable(source(), sleepThatTime, { concurrency: 3 });
+  const seen: number[] = [];
+  for await (const value of iterable) {
+    seen.push(value);
+    if (seen.length === 4) {
+      break;
+    }
+  }
+
+  t.is(seen.length, 4);
+  t.is(sourceExited, 1);
+  // Producers may have pulled a few extra source items for in-flight work, but must stop after close.
+  t.true(produced < 20);
+});
+
 test(`mapAsyncIterable (with concurrency) doesn't hang on source exceptions`, async (t) => {
   async function* name(): AsyncIterable<number> {
     for (;;) {

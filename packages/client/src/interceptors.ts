@@ -130,12 +130,20 @@ export interface WorkflowDescribeInput {
   readonly workflowExecution: WorkflowExecution;
 }
 
-/** Input for WorkflowClientInterceptor.fetchHistory */
+/**
+ * Input for WorkflowClientInterceptor.fetchHistory
+ *
+ * @experimental This interceptor input type is experimental - API changes are still possible.
+ */
 export interface WorkflowFetchHistoryInput {
   readonly workflowExecution: WorkflowExecution;
 }
 
-/** Input for WorkflowClientInterceptor.list */
+/**
+ * Input for WorkflowClientInterceptor.list
+ *
+ * @experimental This interceptor input type is experimental - API changes are still possible.
+ */
 export interface WorkflowListInput {
   readonly query?: string;
   readonly pageSize?: number;
@@ -213,10 +221,17 @@ export interface WorkflowClientInterceptor {
   describe?: (input: WorkflowDescribeInput, next: Next<this, 'describe'>) => Promise<DescribeWorkflowExecutionResponse>;
   /**
    * Intercept a service call to getWorkflowExecutionHistory
+   *
+   * @experimental This interceptor method is experimental - API changes are still possible.
    */
   fetchHistory?: (input: WorkflowFetchHistoryInput, next: Next<this, 'fetchHistory'>) => Promise<History>;
   /**
    * Intercept a service call to listWorkflowExecutions
+   *
+   * One interception spans a single consumption of the returned async iterable, including
+   * pagination across multiple RPCs and early consumer termination.
+   *
+   * @experimental This interceptor method is experimental - API changes are still possible.
    */
   list?: (input: WorkflowListInput, next: Next<this, 'list'>) => AsyncIterable<WorkflowExecutionInfo>;
 }
