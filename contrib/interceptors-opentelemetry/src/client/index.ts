@@ -24,7 +24,7 @@ import type {
 import type { History } from '@temporalio/common/lib/proto-utils';
 import {
   instrument,
-  instrumentSync,
+  instrumentAsyncIterable,
   headersWithContext,
   RUN_ID_ATTR_KEY,
   WORKFLOW_ID_ATTR_KEY,
@@ -239,7 +239,7 @@ export class OpenTelemetryWorkflowClientInterceptor implements WorkflowClientInt
   }
 
   list(input: WorkflowListInput, next: Next<WorkflowClientInterceptor, 'list'>): AsyncIterable<WorkflowExecutionInfo> {
-    return instrumentSync({
+    return instrumentAsyncIterable({
       tracer: this.tracer,
       spanName: SpanName.WORKFLOW_LIST,
       fn: () => next(input),
