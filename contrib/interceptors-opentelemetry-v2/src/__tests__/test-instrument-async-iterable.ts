@@ -64,6 +64,11 @@ function setupTracer(name: string) {
   };
 }
 
+test.afterEach.always(() => {
+  otel.trace.disable();
+  otel.context.disable();
+});
+
 async function* values(items: number[]): AsyncIterable<number> {
   for (const item of items) {
     yield item;

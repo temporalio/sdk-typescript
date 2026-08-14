@@ -344,15 +344,18 @@ if (RUN_INTEGRATION_TESTS) {
     const client = new WorkflowClient({
       interceptors: [
         {
-          async *list(input, next) {
+          list(input, next) {
             listCalls += 1;
-            try {
-              for await (const execution of next(input)) {
-                yield execution;
+            const source = next(input);
+            return (async function* () {
+              try {
+                for await (const execution of source) {
+                  yield execution;
+                }
+              } finally {
+                listExited += 1;
               }
-            } finally {
-              listExited += 1;
-            }
+            })();
           },
           async fetchHistory(input, next) {
             fetchHistoryCalls += 1;
@@ -381,17 +384,26 @@ if (RUN_INTEGRATION_TESTS) {
         return count >= seeded;
       }, 30_000);
 
-      let histories = 0;
-      for await (const { history } of client.list({ query, pageSize: 2 }).intoHistories({
+      const historiesIterable = client.list({ query, pageSize: 2 }).intoHistories({
         concurrency: 2,
-      })) {
+      });
+      t.is(listCalls, 0);
+      const historiesIterator = historiesIterable[Symbol.asyncIterator]();
+      t.is(listCalls, 0);
+
+      let histories = 0;
+      while (histories < 7) {
+        const result = await historiesIterator.next();
+        t.false(result.done);
+        const { history } = result.value!;
         const events = (history as { events?: unknown[] } | undefined)?.events;
         t.true((events?.length ?? 0) > 0);
         histories += 1;
-        if (histories >= 7) {
-          break;
+        if (histories === 1) {
+          t.is(listCalls, 1);
         }
       }
+      await historiesIterator.return?.();
 
       t.is(histories, 7);
       t.is(listCalls, 1);
