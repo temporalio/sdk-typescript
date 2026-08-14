@@ -22,7 +22,7 @@ env:
   IS_MAIN_OR_RELEASE: ${{ vars.IS_TEMPORALIO_SDK_TYPESCRIPT_REPO == 'true' && github.event_name != 'pull_request' && ( github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/heads/releases')) }}
 
   # Use these variables to force specific version of CLI/Time Skipping Server for SDK tests
-  TESTS_CLI_VERSION: 'v1.7.2-standalone-nexus-operations'
+  TESTS_CLI_VERSION: 'v1.7.4-standalone-nexus-operations'
   # TESTS_TIME_SKIPPING_SERVER_VERSION: 'v1.24.1'
 
 jobs:
@@ -108,7 +108,7 @@ jobs:
   # Run integration tests.
   # Uses the native binaries built in compile-native-binaries, but build `@temporalio/*` packages locally.
   integration-tests:
-    timeout-minutes: ${{ matrix.platform == 'windows-x64' && 30 || 20 }}
+    timeout-minutes: 30
     needs:
       - compile-native-binaries-debug
     strategy:
@@ -134,6 +134,10 @@ jobs:
     # Allow Bun test failures since support is experimental
     continue-on-error: ${{ matrix.node == 'bun' }}
     name: Run Integration Tests (${{ matrix.platform }}, ${{ matrix.node == 'bun' && 'Bun' || format('Node {0}', matrix.node) }}, Reuse V8 Context ${{ matrix.reuse-v8-context }})
+    env:
+      # Per-package result JSON + full logs are written here by scripts/ava-ci.ts,
+      # archived as the test-logs-* artifact, and aggregated by the ci-summary job.
+      TEST_RESULTS_DIR: ${{ github.workspace }}/.test-results
     defaults:
       run:
         shell: bash
@@ -234,10 +238,18 @@ jobs:
 
       - name: Run Tests (Bun)
         if: matrix.node == 'bun'
-        run: bun run -b --cwd packages/test ava ./lib/test-*.js
+        working-directory: packages/test
+        # Same wrapper as the Node path, but AVA_RUNTIME=bun makes it launch ava
+        # under Bun (mirrors `bun run -b ava`), so Bun is still exercised. Bun runs
+        # the TypeScript wrapper directly (no tsx needed).
+        run: bun ../../scripts/ava-ci.ts ./lib/test-*.js
         env:
+          AVA_RUNTIME: bun
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
+
+      # (Per-package results are printed by the wrapper into the "Run Tests" log
+      # above, and aggregated across all jobs by the `ci-summary` job below.)
 
       # FIXME: Move samples tests to a custom activity
       # Sample 1: hello-world to local server
@@ -284,12 +296,112 @@ jobs:
 
       # End samples
 
+      # Archive the full per-package test logs plus the redirected Verdaccio-publish
+      # and sample-init logs (the firehose we keep off the console). Placed at the end
+      # so it captures logs written by the sample steps above too.
+      - name: Upload test logs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: test-logs-${{ matrix.platform }}-${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}
+          path: ${{ env.TEST_RESULTS_DIR }}
+          retention-days: 7
+          if-no-files-found: ignore
+          # TEST_RESULTS_DIR is a dot-directory (.test-results); upload-artifact
+          # excludes files under dot-dirs unless this is set, which would leave the
+          # ci-summary job with no results to report.
+          include-hidden-files: true
+
       - name: Upload Dev Server logs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: failure() || cancelled()
         with:
           name: integration-tests-${{ matrix.platform }}-${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-devserver-logs
           path: ${{ steps.tmp-dir.outputs.dir }}/devserver.log
+
+  cloud-integration-tests:
+    name: Cloud Integration Tests
+    if: ${{ vars.IS_TEMPORALIO_SDK_TYPESCRIPT_REPO == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    timeout-minutes: 40
+    needs:
+      - compile-native-binaries-debug
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          submodules: recursive
+
+      - name: Download core-bridge native library
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: corebridge-native-debug-linux-x64
+          path: ./packages/core-bridge/releases
+
+      - name: Setup Node and install dependencies
+        uses: ./.github/actions/setup-node-deps
+        with:
+          node-version: 24
+          platform: linux-x64
+
+      - name: Compile code
+        run: pnpm --recursive --stream --filter '!@temporalio/core-bridge' --filter '!typescript-sdk' run build
+
+      - name: Generate Cloud test certificates
+        run: |
+          cert_dir="$RUNNER_TEMP/cloud-test-certs"
+          mkdir "$cert_dir"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -keyout "$cert_dir/ca.key" -out "$cert_dir/ca.pem" \
+            -subj '/CN=Temporal TypeScript SDK Cloud CI CA'
+          openssl req -newkey rsa:2048 -nodes \
+            -keyout "$cert_dir/client.key" -out "$cert_dir/client.csr" \
+            -subj '/CN=Temporal TypeScript SDK Cloud CI'
+          openssl x509 -req -days 1 -in "$cert_dir/client.csr" \
+            -CA "$cert_dir/ca.pem" -CAkey "$cert_dir/ca.key" -CAcreateserial \
+            -out "$cert_dir/client.pem" -extfile <(printf 'extendedKeyUsage=clientAuth')
+          {
+            echo "TEMPORAL_CLOUD_CLIENT_CA_PATH=$cert_dir/ca.pem"
+            echo "TEMPORAL_TLS_CLIENT_CERT_PATH=$cert_dir/client.pem"
+            echo "TEMPORAL_TLS_CLIENT_KEY_PATH=$cert_dir/client.key"
+          } >> "$GITHUB_ENV"
+
+      - name: Create Cloud namespace
+        id: create-cloud-namespace
+        run: pnpm exec tsx .github/scripts/cloud-namespace.ts create
+        env:
+          TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
+          TEMPORAL_CLIENT_CLOUD_API_VERSION: v0.19.1
+
+      - name: Run tests against Temporal Cloud
+        # Fail a hung suite while leaving job-level time for namespace cleanup and log upload.
+        timeout-minutes: 20
+        run: pnpm --silent test:cloud | tee cloud-integration.tap
+        env:
+          RUN_INTEGRATION_TESTS: true
+          REUSE_V8_CONTEXT: true
+          TEMPORAL_TEST_ENV_CONFIG_SERVER: true
+          TEMPORAL_ADDRESS: ${{ steps.create-cloud-namespace.outputs.namespace }}.tmprl.cloud:7233
+          TEMPORAL_NAMESPACE: ${{ steps.create-cloud-namespace.outputs.namespace }}
+
+      - name: Delete Cloud namespace
+        if: ${{ always() && steps.create-cloud-namespace.outputs.namespace != '' }}
+        run: pnpm exec tsx .github/scripts/cloud-namespace.ts delete "${{ steps.create-cloud-namespace.outputs.namespace }}"
+        env:
+          TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
+          TEMPORAL_CLIENT_CLOUD_API_VERSION: v0.19.1
+
+      - name: Upload Cloud test output
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cloud-integration-tests-output
+          path: cloud-integration.tap
+          if-no-files-found: ignore
+          retention-days: 14
 
   conventions:
     name: Lint and Prune
@@ -335,3 +447,54 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  ci-summary:
+    name: CI
+    if: always()
+    needs:
+      - compile-native-binaries-debug
+      - integration-tests
+      - cloud-integration-tests
+      - conventions
+      - features-tests
+      - stress-tests-no-reuse-context
+      - stress-tests-reuse-context
+      - docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout code'
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Node
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          # This job installs no dependencies, so it runs ci-run-summary.ts through
+          # Node's native type stripping rather than tsx. That needs Node >= 23.6.
+          node-version: '24'
+
+      - name: Download test result artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: test-logs-*
+          path: all-results
+        continue-on-error: true
+
+      - name: Collect per-cell job results
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs?per_page=100" > jobs.json || echo '{}' > jobs.json
+
+      - name: Write consolidated summary
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          AGG_RESULTS_DIR: all-results
+          JOBS_JSON_FILE: jobs.json
+        run: node scripts/ci-run-summary.ts
+
+      # Make this rollup check red when any dependency failed (the summary above is
+      # written by the previous step regardless, so it always renders).
+      - name: Fail if any check failed
+        if: ${{ contains(needs.*.result, 'failure') }}
+        run: |
+          echo "One or more checks failed — see the CI Summary above."
+          exit 1

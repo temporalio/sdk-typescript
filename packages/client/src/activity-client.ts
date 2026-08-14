@@ -74,6 +74,7 @@ import {
   ActivityExecutionFailedError,
   ActivityExecutionAlreadyStartedError,
 } from './errors';
+import { type InternalActivityStartOptions, InternalActivityStartOptionsSymbol } from './internal';
 
 /**
  * Options used to configure {@link ActivityClient}
@@ -263,6 +264,8 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
     }
     validateActivityOptions(input.options);
 
+    const internalOptions = (input.options as InternalActivityStartOptions)[InternalActivityStartOptionsSymbol];
+
     try {
       const req = await this.buildStartActivityExecutionRequest(input);
       const externalStorage = this.dataConverter.externalStorage;
@@ -281,6 +284,10 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
         );
       }
       const resp = await this.workflowService.startActivityExecution(req);
+
+      if (internalOptions != null) {
+        internalOptions.responseLink = resp.link ?? undefined;
+      }
       return this.createHandle(input.options.id, resp.runId);
     } catch (err) {
       if (isGrpcServiceError(err) && err.code === grpcStatus.ALREADY_EXISTS) {
@@ -311,10 +318,12 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       ? { indexedFields: encodeUnifiedSearchAttributes(undefined, input.options.typedSearchAttributes) }
       : undefined;
 
+    const internalOptions = (input.options as InternalActivityStartOptions)[InternalActivityStartOptionsSymbol];
+
     return {
       namespace: this.options.namespace,
       identity: this.options.identity,
-      requestId: randomUUID(),
+      requestId: internalOptions?.requestId ?? randomUUID(),
       activityId: input.options.id,
       activityType: { name: input.activityType },
       taskQueue: { name: input.options.taskQueue },
@@ -331,6 +340,9 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       userMetadata: await encodeUserMetadata(this.dataConverter, input.options.summary, undefined),
       priority: input.options.priority ? compilePriority(input.options.priority) : undefined,
       startDelay: msOptionalToTs(input.options.startDelay),
+      completionCallbacks: internalOptions?.completionCallbacks,
+      links: internalOptions?.links,
+      onConflictOptions: internalOptions?.onConflictOptions,
     };
   }
 
@@ -387,7 +399,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       });
       const externalStorage = this.dataConverter.externalStorage;
       await visit(resp, walkDescribeActivityExecutionResponse, extstoreInboundOptions(externalStorage));
-      return buildActivityDescription(resp.info!, this.dataConverter);
+      return buildActivityDescription(resp.info!, resp.callbacks, this.dataConverter);
     } catch (err) {
       this.rethrowGrpcError(err, 'Failed to describe activity');
     }
@@ -634,6 +646,7 @@ function buildActivityExecutionInfo(info: temporal.api.activity.v1.IActivityExec
 
 function buildActivityDescription(
   info: temporal.api.activity.v1.IActivityExecutionInfo,
+  callbacks: temporal.api.activity.v1.ICallbackInfo[],
   dataConverter: LoadedDataConverter
 ): ActivityExecutionDescription {
   const getHeartbeatDetails: <T>() => Promise<T | undefined> = async <T>() => {
@@ -652,6 +665,7 @@ function buildActivityDescription(
   return {
     ...buildActivityExecutionInfoCommonPart(info),
     rawInfo: info,
+    rawCallbacks: callbacks,
     runState: decodePendingActivityState(info.runState),
     scheduleToCloseTimeoutMs: optionalTsToMs(info.scheduleToCloseTimeout),
     scheduleToStartTimeoutMs: optionalTsToMs(info.scheduleToStartTimeout),

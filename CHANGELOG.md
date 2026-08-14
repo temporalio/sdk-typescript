@@ -19,6 +19,74 @@ to docs, or any other relevant information.
 
 ## [Unreleased]
 
+### Added
+
+- **Experimental**: Workflow Clients can now use `TypeInfo` to encode Workflow inputs and decode Workflow results.
+- **Experimental**: `@temporalio/google-adk-agents` package for running Google ADK agents as durable Temporal Workflows.
+  ADK's OpenTelemetry agent-loop spans can be exported replay-safely from the Workflow sandbox by composing with
+  `OpenTelemetryPlugin` from `@temporalio/interceptors-opentelemetry`; see the package README's telemetry section.
+- **Experimental**: `TemporalOperationHandler` can now use Standalone Activities as asynchronous
+  Nexus Operation backing executions through `TemporalNexusClient.startActivity` and
+  `typedActivity`.
+
+### Changed
+
+- Nexus is now generally available (GA) for calling Nexus Operations from Workflows and handling
+  Workflow-backed Operations with `WorkflowRunOperationHandler`.
+- `@temporalio/ai-sdk` now requires `ai@>=7.0.59` as a peer dependency, up from `7.0.0`, since
+  earlier releases threw a `TypeError` on import in runtimes without a global `fetch`.
+
+## [1.22.0] - 2026-08-05
+
+### Added
+
+- **Experimental**: Added `TypeInfo` and `TransferTypeConverter` to `@temporalio/common` for converting
+  application values to and from serialization-friendly transfer types and supplying converter-specific hints.
+- Workers can now configure the number of activity slots reserved for eager execution per
+  workflow task with `maxEagerActivityReservationsPerWorkflowTask`. Setting it to zero disables
+  eager activity execution.
+- UpdateWorkflow-backed Nexus operations. A Temporal Nexus operation can now be backed by a Workflow
+  Update via `TemporalNexusClient.getWorkflowHandle(...).update(...)`, in addition to a Workflow run.
+  The Update request carries the Nexus request ID (for deduplication), the request links, and a
+  completion callback bearing the operation token, so the Update's completion is delivered back to the
+  Nexus caller. Only asynchronous, `ACCEPTED`-stage updates are supported (a callback URL is
+  required); an update that has already completed is returned synchronously, and a completed-with-error
+  update (e.g. a validation rejection) surfaces as a failed Nexus operation. Cancellation is
+  customizable via the `cancelWorkflowUpdate` handler option; the default rejects with a
+  `NOT_IMPLEMENTED` handler error.
+- `@temporalio/ai-sdk`: `listToolsActivity`/`callToolActivity` now reuse a single MCP client connection
+  across repeated invocations for the same server instead of creating and closing one on every call.
+  Configure the idle window via the new `mcpConnectionIdleTimeout` option on `createActivities` and
+  `AiSdkPluginOptions` (defaults to 5 minutes); pass `mcpConnectionIdleTimeout: 0` to opt out and restore
+  the original behavior for MCP servers/transports that don't tolerate a reused or concurrent session.
+
+### Changed
+
+- Updated Core to `65b25ada` (`temporal-core` 0.6.0)
+
+### Fixed
+
+- strands: Declare `zod` as a peer dependency.
+- strands: MCP connections are no longer disconnected while being used by a `callTool` or `listTools` activity.
+- workflow-streams: `WorkflowStream.onPoll` no longer serves a stale log index for a poll that
+  was parked across a `truncate()` call, which could silently skip events.
+- Workflows no longer retain completion state when a child Workflow fails or is cancelled before starting.
+- Local Activity tests now use `makeTestFunction` to manage their test environment.
+
+### Security
+
+- Bumped the vendored `quinn-proto` in `@temporalio/core-bridge`'s `Cargo.lock` from 0.11.14 to
+  0.11.15, clearing GHSA-4w2j-m93h-cj5j / RUSTSEC-2026-0185 (unbounded out-of-order stream
+  reassembly DoS) for downstream image scanners.
+
+## [1.21.1] - 2026-07-23
+
+### Fixed
+
+- strands: Add `@aws-sdk/client-s3` to the workflow bundler ignore list, fixing bundler errors when
+  using the S3-backed `context-offloader` vended plugin. The package is dynamically imported
+  worker-side and is never reached from workflow code.
+
 ## [1.21.0] - 2026-07-23
 
 ### Added
@@ -39,6 +107,9 @@ to docs, or any other relevant information.
 - `ResourceBasedController` can now be shared by resource-based tuners across multiple Workers in the same process.
 - **Experimental** New `@temporalio/strands-agents` package for building workflows with Strand Agents.
 - **Experimental**: `@temporalio/openai-agents` now supports streaming model events from Workflows.
+
+- Added opt-in `envconfig` support to the test workflow environment. This enables testing against arbitrary
+  Temporal server environments (i.e. local, staging, prod)
 
 ### Breaking Changes
 
@@ -63,6 +134,15 @@ to docs, or any other relevant information.
 - Nexus operation handlers now preserve `nexus.HandlerError` values thrown by payload codecs and converters.
 - `temporal_worker_task_slots_used` no longer counts reserved but unused task slots as in use.
 - When worker heartbeats are enabled, host CPU and memory are sampled at the configured heartbeat interval rather than every 100ms.
+
+### Fixed
+
+- strands: add `@aws-sdk/client-s3` to the workflow bundler ignore list, fixing bundler errors when
+  using the S3-backed `context-offloader` vended plugin. The package is dynamically imported
+  worker-side and is never reached from workflow code.
+
+- `TEMPORAL_TLS` existing behavior when enabled was to _disable_ TLS configuration. This has been corrected,
+  setting `TEMPORAL_TLS` now _enables_ TLS configuration
 
 ## [1.20.3] - 2026-07-13
 

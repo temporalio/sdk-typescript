@@ -241,6 +241,11 @@ export type RawActivityExecutionInfo = proto.temporal.api.activity.v1.IActivityE
 export type RawActivityExecutionListInfo = proto.temporal.api.activity.v1.IActivityExecutionListInfo;
 
 /**
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ */
+export type RawActivityExecutionCallbacks = proto.temporal.api.activity.v1.ICallbackInfo[];
+
+/**
  * Type of elements returned by {@link ActivityClient.list}
  *
  * @experimental Standalone Activities are experimental. APIs may be subject to change.
@@ -264,6 +269,7 @@ export interface ActivityExecutionInfo {
  * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityExecutionDescription extends ActivityExecutionInfo {
+  rawCallbacks: RawActivityExecutionCallbacks;
   rawInfo: RawActivityExecutionInfo;
   runState?: PendingActivityState;
   scheduleToCloseTimeoutMs?: number;
@@ -357,6 +363,7 @@ export const ActivityExecutionStatus = {
   CANCELED: 'CANCELED',
   TERMINATED: 'TERMINATED',
   TIMED_OUT: 'TIMED_OUT',
+  PAUSED: 'PAUSED',
 } as const;
 /**
  * @experimental Standalone Activities are experimental. APIs may be subject to change.
@@ -379,6 +386,7 @@ export const [encodeActivityExecutionStatus, decodeActivityExecutionStatus] = ma
     [ActivityExecutionStatus.CANCELED]: 4,
     [ActivityExecutionStatus.TERMINATED]: 5,
     [ActivityExecutionStatus.TIMED_OUT]: 6,
+    [ActivityExecutionStatus.PAUSED]: 7,
     UNSPECIFIED: 0,
   } as const,
   'ACTIVITY_EXECUTION_STATUS_'

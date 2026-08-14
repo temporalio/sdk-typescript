@@ -5,7 +5,9 @@ import { temporal } from '@temporalio/proto';
 const { EventType } = temporal.api.enums.v1;
 type TemporalLink = temporal.api.common.v1.ILink;
 type WorkflowEventLink = temporal.api.common.v1.Link.IWorkflowEvent;
+type WorkflowLink = temporal.api.common.v1.Link.IWorkflow;
 type NexusOperationLink = temporal.api.common.v1.Link.INexusOperation;
+type ActivityLink = temporal.api.common.v1.Link.IActivity;
 type EventReference = temporal.api.common.v1.Link.WorkflowEvent.IEventReference;
 type RequestIdReference = temporal.api.common.v1.Link.WorkflowEvent.IRequestIdReference;
 
@@ -20,6 +22,8 @@ const REQUEST_ID_REFERENCE_TYPE = 'RequestIdReference';
 // fullName isn't part of the generated typed unfortunately.
 const WORKFLOW_EVENT_TYPE: string = (temporal.api.common.v1.Link.WorkflowEvent as any).fullName.slice(1);
 const NEXUS_OPERATION_TYPE: string = (temporal.api.common.v1.Link.NexusOperation as any).fullName.slice(1);
+const WORKFLOW_TYPE: string = (temporal.api.common.v1.Link.Workflow as any).fullName.slice(1);
+const ACTIVITY_TYPE: string = (temporal.api.common.v1.Link.Activity as any).fullName.slice(1);
 
 export function convertTemporalLinkToNexusLink(link: TemporalLink): NexusLink {
   if (link.workflowEvent != null) {
@@ -28,6 +32,14 @@ export function convertTemporalLinkToNexusLink(link: TemporalLink): NexusLink {
 
   if (link.nexusOperation != null) {
     return convertNexusOperationLinkToNexusLink(link.nexusOperation);
+  }
+
+  if (link.workflow != null) {
+    return convertWorkflowLinkToNexusLink(link.workflow);
+  }
+
+  if (link.activity != null) {
+    return convertActivityLinkToNexusLink(link.activity);
   }
 
   throw new TypeError('Invalid Temporal link: unknown variant');
@@ -46,6 +58,11 @@ export function convertNexusLinkToTemporalLink(link: NexusLink): TemporalLink {
     case NEXUS_OPERATION_TYPE:
       return {
         nexusOperation: convertNexusLinkToNexusOperationLink(link),
+      };
+
+    case ACTIVITY_TYPE:
+      return {
+        activity: convertNexusLinkToActivityLink(link),
       };
 
     default:
@@ -75,6 +92,38 @@ export function convertWorkflowEventLinkToNexusLink(we: WorkflowEventLink): Nexu
   };
 }
 
+/**
+ * Converts a plain Workflow link (as opposed to a {@link WorkflowEventLink}) to a Nexus link.
+ *
+ * Used to point at a Workflow when there is no specific history event to reference, e.g. when an
+ * UpdateWorkflow-backed Nexus operation fails validation and no Update Accepted event exists. The
+ * resulting URL is the workflow history URL without a reference query; the link is distinguished
+ * from a workflow event link by its {@link NexusLink.type}.
+ *
+ * `runId` is required: an empty run segment produces `.../workflows/<wid>//history`, whose
+ * double slash does not resolve to a valid Temporal UI workflow page. The server populates the
+ * resolved run ID even on the plain Workflow link it returns for a validation failure, so a missing
+ * run ID is unexpected; throwing (rather than coalescing to '') lets callers drop the link instead
+ * of attaching a malformed URL.
+ */
+export function convertWorkflowLinkToNexusLink(wl: WorkflowLink): NexusLink {
+  if (!wl.namespace || !wl.workflowId || !wl.runId) {
+    throw new TypeError(
+      `Missing required fields: namespace, workflowId, or runId (namespace=${wl.namespace}, workflowId=${wl.workflowId}, runId=${wl.runId})`
+    );
+  }
+  const url = new URL(
+    `temporal:///namespaces/${encodeURIComponent(wl.namespace)}/workflows/${encodeURIComponent(
+      wl.workflowId
+    )}/${encodeURIComponent(wl.runId)}/history`
+  );
+
+  return {
+    url,
+    type: WORKFLOW_TYPE,
+  };
+}
+
 export function convertNexusOperationLinkToNexusLink(opLink: NexusOperationLink): NexusLink {
   if (!opLink.namespace || !opLink.operationId || !opLink.runId) {
     throw new TypeError('Missing required fields: namespace, operationId, or runId');
@@ -89,6 +138,23 @@ export function convertNexusOperationLinkToNexusLink(opLink: NexusOperationLink)
   return {
     url,
     type: NEXUS_OPERATION_TYPE,
+  };
+}
+
+export function convertActivityLinkToNexusLink(activityLink: ActivityLink): NexusLink {
+  if (!activityLink.namespace || !activityLink.activityId || !activityLink.runId) {
+    throw new TypeError('Missing required fields: namespace, activityId, or runId');
+  }
+
+  const url = new URL(
+    `temporal:///namespaces/${encodeURIComponent(activityLink.namespace)}/activities/${encodeURIComponent(
+      activityLink.activityId
+    )}/${encodeURIComponent(activityLink.runId)}/details`
+  );
+
+  return {
+    url,
+    type: ACTIVITY_TYPE,
   };
 }
 
@@ -141,6 +207,27 @@ function convertNexusLinkToNexusOperationLink(link: NexusLink): NexusOperationLi
   return {
     namespace,
     operationId,
+    runId,
+  };
+}
+
+function convertNexusLinkToActivityLink(link: NexusLink): ActivityLink {
+  // /namespaces/:namespace/activities/:activityId/:runId/details
+  const parts = link.url.pathname.split('/');
+  if (parts.length !== 7 || parts[1] !== 'namespaces' || parts[3] !== 'activities' || parts[6] !== 'details') {
+    throw new TypeError(`Invalid URL path: ${link.url}`);
+  }
+  const namespace = decodeURIComponent(parts[2]!);
+  const activityId = decodeURIComponent(parts[4]!);
+  const runId = decodeURIComponent(parts[5]!);
+
+  if (!namespace || !activityId || !runId) {
+    throw new TypeError('Missing required fields: namespace, activityId, or runId');
+  }
+
+  return {
+    namespace,
+    activityId,
     runId,
   };
 }

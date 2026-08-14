@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/openai-agents",
-  "version": "1.21.0",
+  "version": "1.22.0",
   "description": "Temporal OpenAI Agents SDK integration package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -20,7 +20,7 @@
   "scripts": {
     "build": "tsc --build",
     "build:watch": "tsc --build --watch",
-    "test": "ava",
+    "test": "tsx ../../scripts/ava-ci.ts",
     "test:watch": "ava --watch"
   },
   "ava": {

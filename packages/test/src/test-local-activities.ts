@@ -1,37 +1,23 @@
 import { firstValueFrom, Subject } from 'rxjs';
-import type { TestFn } from 'ava';
 import { Context as ActivityContext } from '@temporalio/activity';
 import { ApplicationFailure, defaultPayloadConverter, WorkflowFailedError } from '@temporalio/client';
-import type { LocalActivityOptions, RetryPolicy } from '@temporalio/common';
+import type { LocalActivityOptions } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { temporal } from '@temporalio/proto';
-import { workflowInterceptorModules } from '@temporalio/testing';
-import type { LogLevel } from '@temporalio/worker';
-import { bundleWorkflowCode, DefaultLogger, Runtime } from '@temporalio/worker';
 import * as workflow from '@temporalio/workflow';
-import type { BaseContext } from '@temporalio/test-helpers';
-import { test as anyTest, Worker, TestWorkflowEnvironment, helpers } from '@temporalio/test-helpers';
-import { bundlerOptions } from './helpers';
+import { Worker } from '@temporalio/test-helpers';
+import { helpers, makeTestFunction } from './helpers-integration';
 
-const test = anyTest as TestFn<BaseContext>;
-
-test.before(async (t) => {
-  // Ignore invalid log levels
-  Runtime.install({ logger: new DefaultLogger((process.env.TEST_LOG_LEVEL || 'ERROR').toUpperCase() as LogLevel) });
-  const env = await TestWorkflowEnvironment.createLocal();
-  const workflowBundle = await bundleWorkflowCode({
-    ...bundlerOptions,
-    workflowInterceptorModules: [...workflowInterceptorModules, __filename],
-    workflowsPath: __filename,
-  });
-  t.context = {
-    env,
-    workflowBundle,
-  };
-});
-
-test.after.always(async (t) => {
-  await t.context.env.teardown();
+const test = makeTestFunction({
+  workflowsPath: __filename,
+  workflowInterceptorModules: [__filename],
+  workflowEnvironmentOpts: {
+    server: {
+      // eager activities do not propagate retry policy
+      // see https://github.com/temporalio/temporal/pull/11357
+      extraArgs: ['--dynamic-config-value', 'system.enableActivityEagerExecution=false'],
+    },
+  },
 });
 
 export async function runOneLocalActivity(s: string): Promise<string> {
@@ -248,7 +234,6 @@ test.serial('Worker shutdown while running a local activity completes after comp
   });
   t.true(workflow.isCancellation(err?.cause));
   t.is(err?.cause?.message, 'Local Activity cancelled');
-  console.log('Local Waiting for worker to complete shutdown');
   await p;
 });
 
@@ -548,39 +533,6 @@ export const interceptors: workflow.WorkflowInterceptorsFactory = () => {
     ],
   };
 };
-
-export async function getRetryPolicyFromActivityInfo(
-  retryPolicy: RetryPolicy,
-  fromInsideLocal: boolean
-): Promise<object | undefined> {
-  return await (fromInsideLocal
-    ? workflow.proxyLocalActivities({ startToCloseTimeout: '1m', retry: retryPolicy }).retryPolicy()
-    : workflow.proxyActivities({ startToCloseTimeout: '1m', retry: retryPolicy }).retryPolicy());
-}
-
-test.serial('retryPolicy is set correctly', async (t) => {
-  const { executeWorkflow, createWorker } = helpers(t);
-  const worker = await createWorker({
-    activities: {
-      async retryPolicy(): Promise<object | undefined> {
-        return ActivityContext.current().info.retryPolicy;
-      },
-    },
-  });
-
-  const retryPolicy: RetryPolicy = {
-    backoffCoefficient: 1.5,
-    initialInterval: 2.0,
-    maximumAttempts: 3,
-    maximumInterval: 10.0,
-    nonRetryableErrorTypes: ['nonRetryableError'],
-  };
-
-  await worker.runUntil(async () => {
-    t.deepEqual(await executeWorkflow(getRetryPolicyFromActivityInfo, { args: [retryPolicy, true] }), retryPolicy);
-    t.deepEqual(await executeWorkflow(getRetryPolicyFromActivityInfo, { args: [retryPolicy, false] }), retryPolicy);
-  });
-});
 
 export async function runLocalActivityWithNonLocalActivitiesDisabled(): Promise<string> {
   const { echo } = workflow.proxyLocalActivities({ startToCloseTimeout: '1m' });

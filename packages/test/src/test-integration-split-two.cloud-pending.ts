@@ -71,7 +71,6 @@ test.serial('WorkflowOptions are passed correctly with defaults', configMacro, a
   t.true(encodedId != null);
 
   const checksums = searchAttributePayloadConverter.fromPayload(encodedId);
-  console.log(checksums);
   t.true(Array.isArray(checksums));
   t.regex((checksums as string[]).pop()!, /@temporalio\/worker@\d+\.\d+\.\d+/);
   t.is(execution.raw.executionConfig?.taskQueue?.name, taskQueue);

@@ -11,6 +11,7 @@ import type { PayloadCodec } from '../converter/payload-codec';
 import type { ProtoFailure } from '../failure';
 import type { LoadedDataConverter } from '../converter/data-converter';
 import type { UserMetadata } from '../user-metadata';
+import type { TypeInfo } from '../type-info';
 import type { SerializationContext } from '../converter/serialization-context';
 import type { DecodedPayload, DecodedProtoFailure, EncodedPayload, EncodedProtoFailure } from './codec-types';
 
@@ -130,27 +131,30 @@ export async function encodeToPayload(
 export async function decodeArrayFromPayloads(
   converter: LoadedDataConverter,
   payloads?: Payload[] | null,
-  context?: SerializationContext
+  context?: SerializationContext,
+  typeInfo?: readonly TypeInfo[]
 ): Promise<unknown[]> {
   const { payloadConverter, payloadCodecs } = converter;
-  return arrayFromPayloads(payloadConverter, await decodeOptional(payloadCodecs, payloads, context), context);
+  return arrayFromPayloads(payloadConverter, await decodeOptional(payloadCodecs, payloads, context), context, typeInfo);
 }
 
 /**
  * Decode `payloads` and then return {@link fromPayloadsAtIndex}.
  */
-export async function decodeFromPayloadsAtIndex<T>(
+export async function decodeFromPayloadsAtIndex<T, D = T>(
   converter: LoadedDataConverter,
   index: number,
   payloads?: Payload[] | null,
-  context?: SerializationContext
+  context?: SerializationContext,
+  typeInfo?: TypeInfo<T, D>
 ): Promise<T> {
   const { payloadConverter, payloadCodecs } = converter;
   return await fromPayloadsAtIndex(
     payloadConverter,
     index,
     await decodeOptional(payloadCodecs, payloads, context),
-    context
+    context,
+    typeInfo
   );
 }
 
@@ -195,13 +199,14 @@ export async function encodeToPayloads(
 export async function encodeToPayloadsWithContext(
   converter: LoadedDataConverter,
   context: SerializationContext | undefined,
-  values: unknown[]
+  values: unknown[],
+  typeInfo?: readonly TypeInfo[]
 ): Promise<Payload[] | undefined> {
   const { payloadConverter, payloadCodecs } = converter;
   if (values.length === 0) {
     return undefined;
   }
-  const payloads = toPayloadsWithContext(payloadConverter, context, values);
+  const payloads = toPayloadsWithContext(payloadConverter, context, values, typeInfo);
   return payloads ? await encode(payloadCodecs, payloads, context) : undefined;
 }
 

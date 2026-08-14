@@ -8,7 +8,7 @@
 import test from 'ava';
 
 import * as activities from './activities/langsmith';
-import { InMemoryRunCollector, withTracingWorker } from './helpers';
+import { InMemoryRunCollector, withTracingWorker, useSharedEnv } from './helpers';
 import * as workflows from './workflows/langsmith';
 
 // Force the tracing gate on so activity-side runs emit deterministically regardless of ambient env.
@@ -18,6 +18,8 @@ const ACTIVITIES = {
   failingActivity: activities.failingActivity,
   benignFailingActivity: activities.benignFailingActivity,
 };
+
+useSharedEnv(test);
 
 test('error marking on activity runs: marks a non-benign activity failure as "<type>: <message>"', async (t) => {
   const collector = new InMemoryRunCollector();

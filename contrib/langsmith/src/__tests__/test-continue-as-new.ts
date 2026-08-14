@@ -8,10 +8,12 @@
 import test from 'ava';
 
 import * as activities from './activities/langsmith';
-import { InMemoryRunCollector, dumpTraces, withTracingWorker } from './helpers';
+import { InMemoryRunCollector, dumpTraces, withTracingWorker, useSharedEnv } from './helpers';
 import * as workflows from './workflows/langsmith';
 
 process.env.LANGSMITH_TRACING = 'true';
+
+useSharedEnv(test);
 
 test('continue-as-new: keeps the successor on the same trace with a distinct run id', async (t) => {
   const collector = new InMemoryRunCollector();

@@ -9,7 +9,7 @@ if (major < 22 || (major === 22 && minor < 12)) {
   process.exit(0);
 }
 
-const { status } = spawnSync('npx', ['ava', './lib/__tests__/test-*.js'], {
+const { status } = spawnSync('tsx', ['../../scripts/ava-ci.ts', './lib/__tests__/test-*.js'], {
   stdio: 'inherit',
   shell: process.platform === 'win32',
 });
