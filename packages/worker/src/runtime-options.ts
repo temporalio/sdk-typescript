@@ -156,8 +156,7 @@ export type LogExporterConfig = {
 export interface ConsoleLogger {
   console: {
     /**
-     * Format for logs written directly to the console. If unset, Core preserves its existing
-     * output selection, including `TEMPORAL_CORE_PRETTY_LOGS` support.
+     * Format for logs written directly to the console. Defaults to `'compact'` when omitted.
      */
     format?: 'compact' | 'pretty' | 'json';
   };
