@@ -1,5 +1,13 @@
 import type { PayloadTypeInfo, TypeInfo } from '@temporalio/common';
-import { condition, defineSignal, defineUpdate, defineWorkflowOptions, setHandler } from '@temporalio/workflow';
+import {
+  condition,
+  defineSignal,
+  defineUpdate,
+  defineWorkflowOptions,
+  getExternalWorkflowHandle,
+  setHandler,
+  startChild,
+} from '@temporalio/workflow';
 
 export class Order {
   constructor(
@@ -80,6 +88,33 @@ export async function workflowWithTypeInfo(order: Order): Promise<Receipt> {
 }
 
 export const finishSignal = defineSignal('finish');
+
+export const orderSignal = defineSignal<[Order]>('order', {
+  typeInfo: { inputTypes: [orderTypeInfo] },
+});
+
+export async function signalTarget(): Promise<string> {
+  let summary: string | undefined;
+  setHandler(orderSignal, (order) => {
+    assertOrder(order);
+    summary = order.summary();
+  });
+  await condition(() => summary !== undefined);
+  if (summary === undefined) {
+    throw new Error('Signal handler did not set a summary');
+  }
+  return summary;
+}
+
+export async function signalExternalTarget(workflowId: string): Promise<void> {
+  await getExternalWorkflowHandle(workflowId).signal(orderSignal, new Order('order-1', 12345n));
+}
+
+export async function signalChildTarget(): Promise<string> {
+  const child = await startChild(signalTarget);
+  await child.signal(orderSignal, new Order('order-1', 12345n));
+  return await child.result();
+}
 
 export async function workflowWithSignalStart(order: Order): Promise<Receipt> {
   assertOrder(order);
