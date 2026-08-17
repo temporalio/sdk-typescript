@@ -1,6 +1,17 @@
 import { EnvValueReference, registerEnvValueReference } from '@openai/agents-core/sandbox';
 import { ApplicationFailure } from '@temporalio/common';
-import { assertSecretRefName, resolveWorkerEnvSecret } from './secret-ref';
+
+function assertEnvVarName(name: unknown): asserts name is string {
+  if (typeof name !== 'string' || name === '' || /\s/.test(name)) {
+    throw ApplicationFailure.create({
+      message: `Invalid Worker environment variable name '${String(
+        name
+      )}': must be a non-empty string free of whitespace.`,
+      type: 'SecretReferenceNameError',
+      nonRetryable: true,
+    });
+  }
+}
 
 class WorkerEnvSecretReference extends EnvValueReference {
   static readonly type = 'temporal.worker-env-secret';
@@ -23,21 +34,26 @@ class WorkerEnvSecretReference extends EnvValueReference {
         nonRetryable: true,
       });
     }
-    return resolveWorkerEnvSecret(this.name, `manifest environment value '${this.name}'`);
+    // A plain lookup walks the prototype chain: `toString` is a legal shell variable
+    // name and would otherwise resolve to `Object.prototype.toString`.
+    const resolved = Object.prototype.hasOwnProperty.call(process.env, this.name) ? process.env[this.name] : undefined;
+    if (!resolved) {
+      throw ApplicationFailure.create({
+        message:
+          'Cannot resolve the manifest environment reference: Worker environment variable ' +
+          `'${this.name}' is ${resolved === undefined ? 'not set' : 'empty'}.`,
+        type: 'SecretReferenceError',
+        nonRetryable: true,
+      });
+    }
+    return resolved;
   }
 }
 
-try {
-  registerEnvValueReference(WorkerEnvSecretReference, (payload) => {
-    assertSecretRefName(payload.name);
-    return new WorkerEnvSecretReference(payload.name);
-  });
-} catch (err) {
-  // The type tag is namespaced, so the only way to collide is a second copy of this
-  // package registering against the shared peer agents-core. Any other rejection
-  // (missing static type, non-string tag) is a real defect in this file.
-  if (!(err instanceof TypeError) || !err.message.includes('is already registered by')) throw err;
-}
+registerEnvValueReference(WorkerEnvSecretReference, (payload) => {
+  assertEnvVarName(payload.name);
+  return new WorkerEnvSecretReference(payload.name);
+});
 
 /**
  * Returns a Manifest environment value that references a Worker environment
@@ -47,8 +63,14 @@ try {
  * backend materializes the environment.
  *
  * A variable that is unset or empty fails the Activity non-retryably with a
- * `SecretReferenceError`, naming the variable. The SDK persists the `{ type, name }`
- * marker but never the resolved value, so a reference never needs `ephemeral: true`.
+ * `SecretReferenceError`, naming the variable. The Activity argument carries the
+ * `{ type, name }` marker alone, and so does the persisted session state of a
+ * sandbox client that has no `serializeSessionState` of its own. A client that
+ * defines one is handed the resolved environment instead, and must keep the
+ * value out of what it returns or that plaintext lands in history. Marking a
+ * literal value `ephemeral: true` does not do the same job: an ephemeral value
+ * stays out of persisted session state but is still written in plaintext into
+ * every sandbox Activity argument.
  *
  * ```ts
  * new Manifest({ environment: { DB_PASSWORD: envSecretRef('WORKER_DB_PASSWORD') } })
@@ -58,6 +80,6 @@ try {
  * empty or contains whitespace.
  */
 export function envSecretRef(name: string): EnvValueReference {
-  assertSecretRefName(name);
+  assertEnvVarName(name);
   return new WorkerEnvSecretReference(name);
 }

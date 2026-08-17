@@ -258,10 +258,11 @@ const session = new WorkflowSafeMemorySession({ initialItems: items });
 
 ## Worker and Client plugin setup
 
-The Worker plugin does four things:
+The Worker plugin does five things:
 
 - Registers the model Activity used by Workflow-side model calls.
 - Registers Activities for configured MCP server providers.
+- Registers Activities for configured sandbox client providers.
 - Adds Workflow, Activity, and Nexus interceptors for trace propagation.
 - Installs Workflow bundle polyfills required by the OpenAI Agents SDK.
 
@@ -510,29 +511,106 @@ export async function statefulMcpWorkflow(prompt: string): Promise<string> {
 
 Dedicated Worker startup and heartbeat failures surface as `ApplicationFailure` type (exported as `DEDICATED_WORKER_FAILURE_TYPE`).
 
-## Secret references
+## Sandbox agents
 
-A credential written into an Activity argument stays in Workflow history. Use `secretRef` and `envSecretRef` in place of the literal: each names a Worker environment variable, and only the name crosses into history.
+> **Experimental** — sandbox support is subject to change prior to General Availability.
 
-`secretRef(name)` returns a string marker for a tool credential field, and works in four of them: a hosted MCP tool's `authorization` and `headers`, a hosted shell tool's `environment.networkPolicy.domainSecrets[].value`, and a code interpreter tool's `container.network_policy.domain_secrets[].value`. The plugin never scans arbitrary strings, so **a marker placed in any other field is passed through verbatim to whatever consumes it.**
+An OpenAI Agents SDK `SandboxAgent` runs commands, edits files, and keeps a workspace inside a sandbox. This plugin dispatches each of those operations as an Activity, so a sandbox-backed agent gets the same durability as the rest of the run.
 
-`envSecretRef(name)` returns a sandbox Manifest environment value. A session can resume on any Worker, so set the variable on **every** Worker that might serve it. A Manifest environment value using the agents SDK's own `resolve()` hook is rejected — use `envSecretRef` instead.
+Register your sandbox backend client under a name on the Worker plugin:
 
 ```ts
-import { envSecretRef, secretRef } from '@temporalio/openai-agents/workflow';
-import { hostedMcpTool } from '@openai/agents-core';
-import { Manifest } from '@openai/agents-core/sandbox';
+import { UnixLocalSandboxClient } from '@openai/agents-core/sandbox/local';
+import { OpenAIProvider } from '@openai/agents-openai';
+import { OpenAIAgentsPlugin, SandboxClientProvider } from '@temporalio/openai-agents';
 
-const docsTool = hostedMcpTool({
-  serverLabel: 'docs',
-  serverUrl: 'https://mcp.example.com',
-  authorization: secretRef('DOCS_MCP_TOKEN'),
+const plugin = new OpenAIAgentsPlugin({
+  modelProvider: new OpenAIProvider(),
+  sandboxClientProviders: [new SandboxClientProvider('local', new UnixLocalSandboxClient())],
 });
+```
+
+Reference the same provider name from Workflow code:
+
+```ts
+import { SandboxAgent, shell } from '@openai/agents-core/sandbox';
+import { TemporalOpenAIRunner, temporalSandboxClient } from '@temporalio/openai-agents/workflow';
+
+export async function sandboxWorkflow(prompt: string): Promise<string> {
+  const agent = new SandboxAgent({
+    name: 'Coder',
+    model: 'gpt-4o-mini',
+    capabilities: [shell()],
+  });
+
+  const result = await new TemporalOpenAIRunner().run(agent, prompt, {
+    runConfig: { sandbox: { client: temporalSandboxClient('local') } },
+  });
+  return result.finalOutput ?? '';
+}
+```
+
+A `SandboxAgent` that runs without a `temporalSandboxClient` fails non-retryably with `ApplicationFailure` type `SandboxConfigurationError`.
+
+Any Worker registering that provider name can serve any session. Your sandbox backend client needs `resume()` for that to work, and without it an operation that has to restore the session on a Worker holding none fails non-retryably with `ApplicationFailure` type `SandboxOperationUnsupported`. `resume()` alone is not enough: the backend must also be able to reach that session's state from whichever Worker the operation lands on, and a client that keeps the workspace on the Worker's own disk — `UnixLocalSandboxClient` above — cannot do that across hosts.
+
+## Credentials
+
+A credential written into an Activity argument stays in Workflow history. Leave it out of Workflow code and supply it on the Worker instead.
+
+For hosted tools, declare the tool without its credential and configure `hostedToolCredentials` on the plugin. The callback is asked about each hosted tool by its identity and returns the credential for it. A hosted MCP tool is identified by its server label plus its server URL or connector id; two sharing both are indistinguishable here. A shell or code interpreter tool is identified by its own name and its allowed domains. The callback runs on every model invocation, so cache if it reads from a secret manager.
+
+Declare the tool in Workflow code:
+
+```ts
+import { Agent, hostedMcpTool } from '@openai/agents-core';
+
+const docsTool = hostedMcpTool({ serverLabel: 'docs', serverUrl: 'https://mcp.example.com' });
+const agent = new Agent({ name: 'DocsAgent', model: 'gpt-4o-mini', tools: [docsTool] });
+```
+
+Supply the credential on the Worker:
+
+```ts
+import { OpenAIProvider } from '@openai/agents-openai';
+import { OpenAIAgentsPlugin } from '@temporalio/openai-agents';
+
+const plugin = new OpenAIAgentsPlugin({
+  modelProvider: new OpenAIProvider(),
+  hostedToolCredentials: (identity) => {
+    if (identity.tool !== 'hostedMcp' || identity.serverLabel !== 'docs') return undefined;
+    const authorization = process.env.DOCS_MCP_TOKEN;
+    if (!authorization) throw new Error('DOCS_MCP_TOKEN is not set on this Worker');
+    return { authorization };
+  },
+});
+```
+
+Three traps, all silent:
+
+- Anything the Workflow already declared is kept, credential included. Omit the field, or it reaches history.
+- The callback is only asked about tools that have somewhere to put a credential. A hosted MCP tool needs a server label. A shell tool needs a `container_auto` environment with a domain allowlist. A code interpreter tool needs an inline container definition with a domain allowlist — naming an existing container by id skips the callback even though that container may carry an allowlist of its own. A tool that misses this is left exactly as declared and the callback never hears about it.
+- A returned field that is `undefined` — `{ authorization: process.env.MISSING }` — is not an error. The tool goes to the model provider unauthenticated. Throw instead, as the example above does. A plain `throw` fails the Workflow permanently, so during a rolling deploy a Workflow that lands on a Worker without the variable set fails rather than retrying onto one that has it; throw a retryable `ApplicationFailure` to wait for the fleet to catch up instead.
+
+For sandbox Manifest environment values, `envSecretRef(name)` names a Worker environment variable that only the Worker resolves.
+
+```ts
+import { envSecretRef } from '@temporalio/openai-agents/workflow';
+import { Manifest } from '@openai/agents-core/sandbox';
 
 const manifest = new Manifest({ environment: { DB_PASSWORD: envSecretRef('WORKER_DB_PASSWORD') } });
 ```
 
-Both read the Worker's process environment, so project the credential into `process.env` however your deployment prefers. A variable that is unset or empty fails the Activity non-retryably with a `SecretReferenceError` naming the variable — never its value.
+Set that variable on **every** Worker that might serve the session, and keep it set for the whole life of the session, teardown included:
+
+- A session can resume on any Worker; one where the variable is unset or empty fails the Activity non-retryably with a `SecretReferenceError` naming the variable, never its value.
+- Deleting a session the Worker no longer has cached resolves every reference in the manifest first, so a variable rotated away mid-run fails the cleanup after the agent has already produced its answer.
+- The name must be a non-empty string without whitespace, but there is no allowlist of which variables may be named: Workflow code picks which of the Worker's environment variables is read, so everything in that Worker's environment is within reach of the Workflow.
+- A Manifest environment value using the agents SDK's own `resolve()` hook is rejected — use `envSecretRef` instead.
+
+Marking a literal Manifest environment value `ephemeral: true` is not an alternative and offers no protection here: the value still lands in Workflow history on the first sandbox operation. `ephemeral` only keeps a value out of the session state the sandbox backend persists. The same goes for a Manifest file entry marked `ephemeral: true` — its contents reach history like any other entry's.
+
+This covers what your Workflow supplies. A variable the sandbox backend injects into a live session still reaches history, even though Workflow code never named it.
 
 ## Tracing
 
@@ -634,9 +712,9 @@ Most applications use two import paths: `@temporalio/openai-agents` in Worker an
 | `@temporalio/openai-agents/otel`                 | Worker or Client | Replay-safe OpenTelemetry setup                             |
 | `@temporalio/openai-agents/workflow-interceptor` | Worker bundling  | Manual `workflowInterceptorModules` wiring without a plugin |
 
-`@temporalio/openai-agents` exports `OpenAIAgentsPlugin`, MCP provider classes, `SandboxClientProvider`, model option types, `secretRef`, `envSecretRef`, and `DEDICATED_WORKER_FAILURE_TYPE`. `OpenAIAgentsTraceClientInterceptor` is also public for Clients that need manual interceptor wiring instead of plugin registration.
+`@temporalio/openai-agents` exports `OpenAIAgentsPlugin`, MCP provider classes, `SandboxClientProvider`, model option types, hosted tool credential types, and `DEDICATED_WORKER_FAILURE_TYPE`. `OpenAIAgentsTraceClientInterceptor` is also public for Clients that need manual interceptor wiring instead of plugin registration.
 
-`@temporalio/openai-agents/workflow` exports Workflow-safe APIs: `TemporalOpenAIRunner`, `WorkflowSafeMemorySession`, `activityAsTool`, `nexusOperationAsTool`, `agentAsTool`, `statelessMcpServer`, `statefulMcpServer`, `temporalSandboxClient`, `secretRef`, `envSecretRef`, related option/definition types, and `DEDICATED_WORKER_FAILURE_TYPE`.
+`@temporalio/openai-agents/workflow` exports Workflow-safe APIs: `TemporalOpenAIRunner`, `WorkflowSafeMemorySession`, `activityAsTool`, `nexusOperationAsTool`, `agentAsTool`, `statelessMcpServer`, `statefulMcpServer`, `temporalSandboxClient`, `envSecretRef`, related option/definition types, and `DEDICATED_WORKER_FAILURE_TYPE`.
 
 `@temporalio/openai-agents/otel` exports `createTracerProvider`, `TemporalIdGenerator`, `markReplaySafeTracerProvider`, `isReplaySafeTracerProvider`, and `TemporalOpenAIAgentsTracerProviderOptions`. Install optional peer dependency `@opentelemetry/sdk-trace-base` only when you use this OTel integration.
 
@@ -659,6 +737,7 @@ Any OpenAI Agents SDK `ModelProvider` can be passed as `modelProvider`. The prov
 | Hosted tools            | Supported                | Executed server-side by the model provider                                                     |
 | Stateless MCP servers   | Supported                | Via `StatelessMCPServerProvider` and `statelessMcpServer()`                                    |
 | Stateful MCP servers    | Supported                | Via `StatefulMCPServerProvider` and `statefulMcpServer()`                                      |
+| Sandbox agents          | Supported (experimental) | Via `SandboxClientProvider` and `temporalSandboxClient()`                                      |
 | Sessions                | Supported                | Via `WorkflowSafeMemorySession`; upstream `MemorySession` is rejected                          |
 | Run state and approvals | Supported                | Serialize with `result.state.toString()` and rehydrate with `RunState.fromString`              |
 | Guardrails              | Supported                | Guardrail callbacks must be deterministic                                                      |

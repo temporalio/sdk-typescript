@@ -209,8 +209,8 @@ export class SandboxClientProvider {
     if (this.client.serializeSessionState) {
       return await this.client.serializeSessionState(state);
     }
-    // This scrub is deliberately partial: it covers providerState only, and the manifest
-    // encoded alongside it still carries ephemeral values in plaintext.
+    // The scrub covers providerState only; the manifest encoded alongside it still
+    // carries ephemeral values in plaintext.
     const {
       manifest: _manifest,
       snapshot: _snapshot,

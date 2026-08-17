@@ -17,5 +17,4 @@ export { statefulMcpServer } from './workflow/stateful-mcp-client';
 export type { StatefulMcpServerOptions } from './workflow/stateful-mcp-client';
 export { temporalSandboxClient, TemporalSandboxClient } from './workflow/sandbox-client';
 export type { TemporalSandboxClientOptions } from './workflow/sandbox-client';
-export { secretRef } from './common/secret-ref';
 export { envSecretRef } from './common/env-secret-ref';

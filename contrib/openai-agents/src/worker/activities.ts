@@ -13,7 +13,7 @@ import {
 } from '../common/serialized-model';
 import { stripEchoedTools, stripEchoedToolsFromStreamEvent } from './echoed-tools';
 import { startAdaptiveHeartbeat } from './heartbeat';
-import { resolveToolSecretRefs } from './tool-secret-refs';
+import { injectHostedToolCredentials, type HostedToolCredentialsResolver } from './hosted-tool-credentials';
 
 export function toSerializedModelResponse(response: ModelResponse): SerializedModelResponse {
   return {
@@ -41,12 +41,15 @@ export function toSerializedModelResponse(response: ModelResponse): SerializedMo
   };
 }
 
-function fromSerializedModelRequest(wire: SerializedModelRequest): ModelRequest {
+async function fromSerializedModelRequest(
+  wire: SerializedModelRequest,
+  hostedToolCredentials: HostedToolCredentialsResolver | undefined
+): Promise<ModelRequest> {
   return {
     systemInstructions: wire.systemInstructions,
     input: wire.input as string | AgentInputItem[],
     modelSettings: wire.modelSettings,
-    tools: resolveToolSecretRefs(wire.tools),
+    tools: hostedToolCredentials ? await injectHostedToolCredentials(wire.tools, hostedToolCredentials) : wire.tools,
     toolsExplicitlyProvided: wire.toolsExplicitlyProvided,
     outputType: wire.outputType,
     handoffs: wire.handoffs,
@@ -126,72 +129,79 @@ function toModelInvocationFailure(error: unknown): ApplicationFailure {
  * Creates the model Activity functions registered with the Worker. Activities
  * use the provided ModelProvider to resolve models and execute LLM calls.
  */
-export function createModelActivity(modelProvider: ModelProvider): {
+export function createModelActivity(
+  modelProvider: ModelProvider,
+  hostedToolCredentials?: HostedToolCredentialsResolver
+): {
   invokeModelActivity: (input: InvokeModelActivityInput) => Promise<SerializedModelResponse>;
   invokeModelStreamActivity: (input: InvokeModelStreamActivityInput) => Promise<SerializedStreamEvent[]>;
 } {
   return {
     async invokeModelActivity(input: InvokeModelActivityInput): Promise<SerializedModelResponse> {
-      // Outside the try: toModelInvocationFailure would rewrap a secret-reference
-      // failure as a retryable ModelInvocationError.
-      const request = fromSerializedModelRequest(input.request);
-
-      // Start heartbeating before resolving the model — getModel() can be slow
-      // for providers that do I/O (e.g. token fetch), and we want heartbeats
-      // running through that wait.
+      // Heartbeat before anything that waits: credential injection awaits the
+      // user's callback, and getModel() can do I/O (e.g. a token fetch).
       const stopHeartbeat = startAdaptiveHeartbeat();
 
       try {
-        const model = await Promise.resolve(modelProvider.getModel(input.modelName));
-        const response = await model.getResponse(request);
-        return toSerializedModelResponse(response);
-      } catch (error) {
-        throw toModelInvocationFailure(error);
+        // Outside the inner catch: toModelInvocationFailure would rewrap a
+        // credential-injection failure as a retryable ModelInvocationError.
+        const request = await fromSerializedModelRequest(input.request, hostedToolCredentials);
+
+        try {
+          const model = await Promise.resolve(modelProvider.getModel(input.modelName));
+          const response = await model.getResponse(request);
+          return toSerializedModelResponse(response);
+        } catch (error) {
+          throw toModelInvocationFailure(error);
+        }
       } finally {
         stopHeartbeat();
       }
     },
 
     async invokeModelStreamActivity(input: InvokeModelStreamActivityInput): Promise<SerializedStreamEvent[]> {
-      // Outside the try: toModelInvocationFailure would rewrap a secret-reference
-      // failure as a retryable ModelInvocationError.
-      const request = fromSerializedModelRequest(input.request);
       const stopHeartbeat = startAdaptiveHeartbeat();
 
       try {
-        const model = await Promise.resolve(modelProvider.getModel(input.modelName));
-        const events: SerializedStreamEvent[] = [];
-        const stream = WorkflowStreamClient.fromWithinActivity(
-          input.streamingBatchInterval !== undefined
-            ? { batchInterval: input.streamingBatchInterval as Duration }
-            : undefined
-        );
-        const topic = stream.topic<StreamEvent>(input.streamingTopic);
+        // Outside the inner catch: toModelInvocationFailure would rewrap a
+        // credential-injection failure as a retryable ModelInvocationError.
+        const request = await fromSerializedModelRequest(input.request, hostedToolCredentials);
 
-        // Drain the publisher explicitly rather than via `await using` so a model
-        // error always wins over a secondary flush failure: a model error rethrows
-        // even if the drain also throws; a clean run still surfaces drain failures.
-        let modelError: unknown;
         try {
-          for await (const event of model.getStreamedResponse(request)) {
-            const stripped = stripEchoedToolsFromStreamEvent(event);
-            events.push(toSerializedStreamEvent(stripped));
-            topic.publish(stripped);
+          const model = await Promise.resolve(modelProvider.getModel(input.modelName));
+          const events: SerializedStreamEvent[] = [];
+          const stream = WorkflowStreamClient.fromWithinActivity(
+            input.streamingBatchInterval !== undefined
+              ? { batchInterval: input.streamingBatchInterval as Duration }
+              : undefined
+          );
+          const topic = stream.topic<StreamEvent>(input.streamingTopic);
+
+          // Drain the publisher explicitly rather than via `await using` so a model
+          // error always wins over a secondary flush failure: a model error rethrows
+          // even if the drain also throws; a clean run still surfaces drain failures.
+          let modelError: unknown;
+          try {
+            for await (const event of model.getStreamedResponse(request)) {
+              const stripped = stripEchoedToolsFromStreamEvent(event);
+              events.push(toSerializedStreamEvent(stripped));
+              topic.publish(stripped);
+            }
+          } catch (error) {
+            modelError = error;
           }
+
+          try {
+            await stream[Symbol.asyncDispose]();
+          } catch (drainError) {
+            if (modelError === undefined) throw drainError;
+          }
+          if (modelError !== undefined) throw modelError;
+
+          return events;
         } catch (error) {
-          modelError = error;
+          throw toModelInvocationFailure(error);
         }
-
-        try {
-          await stream[Symbol.asyncDispose]();
-        } catch (drainError) {
-          if (modelError === undefined) throw drainError;
-        }
-        if (modelError !== undefined) throw modelError;
-
-        return events;
-      } catch (error) {
-        throw toModelInvocationFailure(error);
       } finally {
         stopHeartbeat();
       }

@@ -13,6 +13,7 @@ import { isReplaySafeTracerProvider } from '../common/tracing-bridge';
 import { createModelActivity } from './activities';
 import { ensureActivityTracingProcessorRegistered } from './activity-tracing';
 import { makeAgentTracingSink } from './agent-sink-bridge';
+import type { HostedToolCredentialsResolver } from './hosted-tool-credentials';
 import type { StatelessMCPServerProvider } from './mcp-provider';
 import type { SandboxClientProvider } from './sandbox-provider';
 import type { StatefulMCPServerProvider } from './stateful-mcp-provider';
@@ -51,6 +52,17 @@ export interface OpenAIAgentsPluginOptions {
    */
   sandboxClientProviders?: SandboxClientProvider[];
   /**
+   * Resolves credentials for the hosted tools an Agent declares — a hosted MCP
+   * tool's `authorization` and `headers`, a shell or code interpreter tool's
+   * domain secrets — so Workflow code can omit them and keep them out of
+   * Workflow history. Only fields the Workflow left out are filled in.
+   *
+   * Called on each model invocation for every hosted tool that has somewhere to
+   * put a credential; cache if it reads from a secret manager. A throw fails the
+   * model Activity.
+   */
+  hostedToolCredentials?: HostedToolCredentialsResolver;
+  /**
    * Default Model Activity options (timeouts, retry, Task Queue, etc.).
    * Propagated to the Workflow via the `__openai_agents_config` header.
    */
@@ -71,7 +83,7 @@ export interface OpenAIAgentsPluginOptions {
  */
 export class OpenAIAgentsPlugin extends SimplePlugin {
   constructor(options: OpenAIAgentsPluginOptions) {
-    const modelActivities = createModelActivity(options.modelProvider);
+    const modelActivities = createModelActivity(options.modelProvider, options.hostedToolCredentials);
 
     let allActivities: Record<string, (...args: any[]) => Promise<any>> = { ...modelActivities };
 

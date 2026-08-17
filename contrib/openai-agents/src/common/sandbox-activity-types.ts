@@ -21,6 +21,9 @@ import type {
 } from '@openai/agents-core/sandbox';
 import { Manifest, isEnvValueReference, serializeEnvValueReference } from '@openai/agents-core/sandbox';
 import { ApplicationFailure } from '@temporalio/common';
+// Registers the Worker-environment reference type that decodeManifest reconstructs.
+// eslint-disable-next-line import/no-unassigned-import
+import './env-secret-ref';
 
 export const SANDBOX_CLIENT_CREATE_SUFFIX = '-sandbox-client-create';
 export const SANDBOX_CLIENT_RESUME_SUFFIX = '-sandbox-client-resume';
@@ -55,6 +58,7 @@ export function sandboxSpanName(activitySuffix: string): string {
 /**
  * Binary file contents are base64-encoded as `{ type: 'base64', data }`. Ephemeral
  * entries and environment values are preserved, so they reach the backend and appear in history.
+ * An environment value built by `envSecretRef` travels as the reference itself, never its value.
  */
 export interface EncodedManifest {
   version: number;
@@ -274,8 +278,9 @@ export function encodeManifest(manifest: Manifest): EncodedManifest {
       try {
         environment[key] = serializeEnvValueReference(env);
       } catch (err) {
-        // A reference whose class lost the registry race — a second copy of this
-        // package — would otherwise throw a bare TypeError out of Workflow code.
+        // A user-defined reference class registered on the Worker but not in the
+        // Workflow bundle would otherwise throw a bare TypeError out of Workflow
+        // code, failing the Workflow Task forever.
         if (err instanceof ApplicationFailure) throw err;
         throw ApplicationFailure.create({
           message: `Cannot encode manifest environment reference '${key}': ${

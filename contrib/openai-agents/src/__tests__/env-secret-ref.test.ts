@@ -1,4 +1,3 @@
-import { createRequire } from 'node:module';
 import test from 'ava';
 import {
   EnvValueReference,
@@ -84,6 +83,13 @@ test('envSecretRef rejects a name that is empty or contains whitespace', (t) => 
     t.true(err?.nonRetryable, JSON.stringify(name));
   }
   t.notThrows(() => envSecretRef('OK_NAME'));
+});
+
+test('a variable name inherited from Object.prototype resolves as unset, not as the inherited member', async (t) => {
+  const err = await t.throwsAsync(envSecretRef('toString').resolve(), { instanceOf: ApplicationFailure });
+
+  t.is(err?.type, 'SecretReferenceError');
+  t.true(err!.message.includes('not set'));
 });
 
 test('encodeManifest emits only the variable name for a reference, and a literal for everything else', (t) => {
@@ -261,6 +267,32 @@ test.serial('a resumed session restores reference and Worker-injected values thr
   t.deepEqual(fresh.session.state.environment, { INJECTED: 'from-backend', PLAIN, API_KEY: SECRET });
 });
 
+/** A user-defined reference registered on the Worker only, as Workflow code sees it. */
+class WorkerOnlyReference extends EnvValueReference {
+  static readonly type = 'temporal.test-worker-only';
+
+  constructor(readonly name: string) {
+    super();
+  }
+
+  serialize(): Record<string, unknown> {
+    return { name: this.name };
+  }
+
+  async resolve(): Promise<string> {
+    return SECRET;
+  }
+}
+
+test('encodeManifest rejects a reference class this bundle never registered rather than throwing a raw TypeError', (t) => {
+  const manifest = new Manifest({ environment: { API_KEY: new WorkerOnlyReference(SECRET_VAR) } });
+
+  const err = t.throws(() => encodeManifest(manifest), { instanceOf: ApplicationFailure });
+  t.is(err?.type, 'SandboxConfigurationError');
+  t.true(err?.nonRetryable);
+  t.regex(err!.message, /API_KEY/);
+});
+
 test('decodeManifest rejects an unregistered reference type rather than throwing a raw TypeError', (t) => {
   const encoded = encodeManifest(manifestWith(envSecretRef(SECRET_VAR)));
   encoded.environment.API_KEY = { type: 'temporal.not-registered', name: SECRET_VAR };
@@ -271,64 +303,25 @@ test('decodeManifest rejects an unregistered reference type rather than throwing
   t.regex(err!.message, /temporal\.not-registered/);
 });
 
-test.serial('a non-record persisted environment is discarded rather than spread into the session', async (t) => {
-  const client = new ResolvingSandboxClient();
-  const acts = activityMap(client);
-  const created: SandboxSessionResult = await withEnvValue(SECRET, async () =>
-    acts[`fake${SANDBOX_CLIENT_CREATE_SUFFIX}`]!(
-      roundTrip({ manifest: encodeManifest(manifestWith(envSecretRef(SECRET_VAR))) })
-    )
-  );
+test.serial(
+  'a persisted environment whose values are not strings is discarded rather than spread into the session',
+  async (t) => {
+    const client = new ResolvingSandboxClient();
+    const acts = activityMap(client);
+    const created: SandboxSessionResult = await withEnvValue(SECRET, async () =>
+      acts[`fake${SANDBOX_CLIENT_CREATE_SUFFIX}`]!(
+        roundTrip({ manifest: encodeManifest(manifestWith(envSecretRef(SECRET_VAR))) })
+      )
+    );
 
-  for (const [label, environment] of [
-    ['string', 'ab'],
-    ['array', ['a']],
-    ['nested object values', { NESTED: { value: 'x' } }],
-  ] as Array<[string, unknown]>) {
     const fresh = new ResolvingSandboxClient();
     await withEnvValue(SECRET, async () =>
       activityMap(fresh)[`fake${SANDBOX_SESSION_EXEC_SUFFIX}`]!({
-        state: { ...created.state, providerState: { environment } },
+        state: { ...created.state, providerState: { environment: { NESTED: { value: 'x' } } } },
         args: { cmd: 'x' },
       })
     );
-    t.deepEqual(fresh.session.state.environment, { PLAIN, API_KEY: SECRET }, label);
-  }
-});
 
-test('encodeManifest reports an unregistered reference class as a configuration failure', (t) => {
-  // Same type tag, different class — what a second copy of this package produces.
-  class ForeignReference extends EnvValueReference {
-    static readonly type = 'temporal.worker-env-secret';
-    constructor() {
-      super();
-    }
-    serialize(): Record<string, unknown> {
-      return { name: 'X' };
-    }
-    async resolve(): Promise<string> {
-      return 'x';
-    }
+    t.deepEqual(fresh.session.state.environment, { PLAIN, API_KEY: SECRET });
   }
-
-  const manifest = new Manifest({ environment: { API_KEY: new ForeignReference() } });
-  const err = t.throws(() => encodeManifest(manifest), { instanceOf: ApplicationFailure });
-  t.is(err?.type, 'SandboxConfigurationError');
-  t.true(err?.nonRetryable);
-  t.regex(err!.message, /API_KEY/);
-});
-
-test.serial('a second copy of this package registering the same type is ignored', (t) => {
-  const load = createRequire(__filename);
-  const modulePath = load.resolve('../common/env-secret-ref');
-  const original = load.cache[modulePath];
-  delete load.cache[modulePath];
-  try {
-    // Re-executing the module body registers a fresh class under the same type tag,
-    // which is what a duplicate install of this package does.
-    t.notThrows(() => load(modulePath));
-  } finally {
-    if (original) load.cache[modulePath] = original;
-    else delete load.cache[modulePath];
-  }
-});
+);

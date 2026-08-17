@@ -1,6 +1,7 @@
 import type { ToolOutputImage } from '@openai/agents-core';
 import {
   Manifest,
+  isEnvValueReference,
   type ExecCommandArgs,
   type ListDirectoryArgs,
   type MaterializeEntryArgs,
@@ -169,9 +170,11 @@ export class FakeSandboxClient implements SandboxClient {
   }
 
   async serializeSessionState(state: SandboxSessionState): Promise<Record<string, unknown>> {
-    // Persist non-ephemeral env only.
+    // Persist non-ephemeral, non-reference env only.
     const environment = Object.fromEntries(
-      Object.entries(state.environment ?? {}).filter(([key]) => !state.manifest.environment[key]?.ephemeral)
+      Object.entries(state.environment ?? {}).filter(
+        ([key]) => !state.manifest.environment[key]?.ephemeral && !isEnvValueReference(state.manifest.environment[key])
+      )
     );
     return Object.keys(environment).length > 0
       ? { workspacePath: state.workspacePath, environment }
