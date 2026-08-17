@@ -37,6 +37,11 @@ to docs, or any other relevant information.
   Workflow-backed Operations with `WorkflowRunOperationHandler`.
 - `@temporalio/ai-sdk` now requires `ai@>=7.0.59` as a peer dependency, up from `7.0.0`, since
   earlier releases threw a `TypeError` on import in runtimes without a global `fetch`.
+- A Payload Converter or Payload Codec that fails to decode a Nexus Operation's input with a
+  non-retryable `ApplicationFailure` of type `PayloadValidationError` now results in a `BAD_REQUEST`
+  Nexus Handler Error instead of `INTERNAL`, so the caller is not retried on invalid input. The
+  original `ApplicationFailure` is retained as the Handler Error's cause. Any other failure from the
+  data converter is unchanged.
 
 ## [1.22.0] - 2026-08-05
 
