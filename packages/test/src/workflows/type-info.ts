@@ -1,4 +1,4 @@
-import type { PayloadTypeInfo, TypeInfo } from '@temporalio/common';
+import type { PayloadTypeInfo, SignalTypeInfo, TypeInfo } from '@temporalio/common';
 import {
   condition,
   continueAsNew,
@@ -163,9 +163,9 @@ defineWorkflowOptions(continueAsNewWithInterceptorTypeInfo, {
 
 export const finishSignal = defineSignal('finish');
 
-export const orderSignal = defineSignal<[Order]>('order', {
-  typeInfo: { inputTypes: [orderTypeInfo] },
-});
+export const orderSignalTypeInfo: SignalTypeInfo = { inputTypes: [orderTypeInfo] };
+
+export const orderSignal = defineSignal<[Order]>('order', { typeInfo: orderSignalTypeInfo });
 
 export async function signalTarget(): Promise<string> {
   let summary: string | undefined;
@@ -184,9 +184,25 @@ export async function signalExternalTarget(workflowId: string): Promise<void> {
   await getExternalWorkflowHandle(workflowId).signal(orderSignal, new Order('order-1', 12345n));
 }
 
+export async function signalExternalTargetWithCallSiteTypeInfo(workflowId: string): Promise<void> {
+  await getExternalWorkflowHandle(workflowId).signalWithOptions('order', {
+    args: [new Order('order-1', 12345n)],
+    typeInfo: orderSignalTypeInfo,
+  });
+}
+
 export async function signalChildTarget(): Promise<string> {
   const child = await startChild(signalTarget);
   await child.signal(orderSignal, new Order('order-1', 12345n));
+  return await child.result();
+}
+
+export async function signalChildTargetWithCallSiteTypeInfo(): Promise<string> {
+  const child = await startChild(signalTarget);
+  await child.signalWithOptions('order', {
+    args: [new Order('order-1', 12345n)],
+    typeInfo: orderSignalTypeInfo,
+  });
   return await child.result();
 }
 
