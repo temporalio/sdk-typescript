@@ -1037,7 +1037,9 @@ export class WorkflowClient extends BaseClient {
       execution: input.workflowExecution,
       query: {
         queryType: input.queryType,
-        queryArgs: { payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args) },
+        queryArgs: {
+          payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args, input.typeInfo?.inputTypes),
+        },
         header: { fields: input.headers },
       },
     };
@@ -1078,7 +1080,13 @@ export class WorkflowClient extends BaseClient {
       throw new TypeError('Invalid response from server');
     }
     // We ignore anything but the first result
-    return await decodeFromPayloadsAtIndex(dataConverter, 0, response.queryResult?.payloads, context);
+    return await decodeFromPayloadsAtIndex(
+      dataConverter,
+      0,
+      response.queryResult?.payloads,
+      context,
+      input.typeInfo?.outputType
+    );
   }
 
   protected async _createUpdateWorkflowRequest(
@@ -1815,6 +1823,7 @@ export class WorkflowClient extends BaseClient {
           queryRejectCondition: encodeQueryRejectCondition(this.client.options.queryRejectCondition),
           queryType: typeof def === 'string' ? def : def.name,
           args,
+          typeInfo: typeof def === 'string' ? undefined : def.typeInfo,
           headers: {},
         }) as Promise<Ret>;
       },
