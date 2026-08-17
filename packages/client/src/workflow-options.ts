@@ -1,6 +1,7 @@
 import type {
   CommonWorkflowOptions,
   SignalDefinition,
+  SignalTypeInfo,
   WithWorkflowArgs,
   Workflow,
   VersioningOverride,
@@ -119,6 +120,13 @@ export interface WorkflowSignalWithStartOptionsWithoutArgs<SignalArgs extends an
   signal: SignalDefinition<SignalArgs> | string;
 
   /**
+   * Type information used to convert Signal arguments when {@link signal} is a Signal name.
+   *
+   * @experimental
+   */
+  signalTypeInfo?: SignalTypeInfo;
+
+  /**
    * Arguments to invoke the signal handler with
    */
   signalArgs?: SignalArgs;
@@ -130,6 +138,13 @@ export interface WorkflowSignalWithStartOptionsWithArgs<SignalArgs extends any[]
    * SignalDefinition or name of signal
    */
   signal: SignalDefinition<SignalArgs> | string;
+
+  /**
+   * Type information used to convert Signal arguments when {@link signal} is a Signal name.
+   *
+   * @experimental
+   */
+  signalTypeInfo?: SignalTypeInfo;
 
   /**
    * Arguments to invoke the signal handler with

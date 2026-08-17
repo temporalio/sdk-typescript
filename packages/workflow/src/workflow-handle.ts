@@ -1,4 +1,4 @@
-import type { BaseWorkflowHandle, SignalDefinition, Workflow } from '@temporalio/common';
+import type { BaseWorkflowHandle, SignalDefinition, Workflow, WorkflowSignalOptions } from '@temporalio/common';
 
 /**
  * Handle representing an external Workflow Execution.
@@ -21,6 +21,13 @@ export interface ExternalWorkflowHandle {
     def: SignalDefinition<Args, Name> | string,
     ...args: Args
   ): Promise<void>;
+
+  /**
+   * Signal a running Workflow by Signal name with additional options.
+   *
+   * @experimental
+   */
+  signalWithOptions<Args extends any[] = []>(signalName: string, options: WorkflowSignalOptions<Args>): Promise<void>;
 
   /**
    * Cancel the external Workflow execution.

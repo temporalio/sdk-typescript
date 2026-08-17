@@ -5,6 +5,7 @@ import type {
   HistoryAndWorkflowId,
   QueryDefinition,
   SignalDefinition,
+  SignalTypeInfo,
   UpdateDefinition,
   WithWorkflowArgs,
   Workflow,
@@ -14,6 +15,7 @@ import type {
   WorkflowTypeOptions,
   PayloadTypeInfo,
   TypeInfo,
+  WorkflowSignalOptions,
 } from '@temporalio/common';
 import {
   CancelledFailure,
@@ -598,7 +600,13 @@ export class WorkflowClient extends BaseClient {
     options: WithWorkflowArgs<T, WorkflowSignalWithStartOptions<SA>>,
     interceptors: WorkflowClientInterceptor[]
   ): Promise<string> {
-    const { signal, signalArgs, ...rest } = options;
+    const { signal, signalArgs, signalTypeInfo, ...rest } = options;
+    if (typeof signal !== 'string' && signalTypeInfo !== undefined) {
+      throw new TypeError(
+        'Cannot provide call-site Signal TypeInfo with a Signal definition. ' +
+          'Use defineSignal(..., { typeInfo }) on the Signal definition instead.'
+      );
+    }
     const { type: workflowType, typeInfo } = extractWorkflowTypeAndConfig(workflowTypeOrFunc, rest.typeInfo);
     assertRequiredWorkflowOptions(rest);
     const workflowOptions = {
@@ -618,7 +626,7 @@ export class WorkflowClient extends BaseClient {
       workflowType,
       signalName: typeof signal === 'string' ? signal : signal.name,
       signalArgs: signalArgs ?? [],
-      signalTypeInfo: typeof signal === 'string' ? undefined : signal.typeInfo,
+      signalTypeInfo: typeof signal === 'string' ? signalTypeInfo : signal.typeInfo,
     });
   }
 
@@ -1672,6 +1680,27 @@ export class WorkflowClient extends BaseClient {
       return handle;
     };
 
+    const _signal = async (
+      handle: InternalWorkflowHandle,
+      signalName: string,
+      args: unknown[],
+      typeInfo?: SignalTypeInfo
+    ): Promise<void> => {
+      const next = this._signalWorkflowHandler.bind(this);
+      const fn = composeInterceptors(interceptors, 'signal', next);
+      const input: InternalWorkflowSignalInput = {
+        workflowExecution: { workflowId, runId },
+        signalName,
+        args,
+        typeInfo,
+        headers: {},
+        // Forward any SDK-internal signal options (e.g. Nexus request links) that were attached to
+        // this handle, and let the signal handler write the response link back onto the same payload.
+        [InternalWorkflowSignalOptionsSymbol]: handle[InternalWorkflowSignalOptionsSymbol],
+      };
+      await fn(input);
+    };
+
     return {
       client: this,
       workflowId,
@@ -1754,19 +1783,18 @@ export class WorkflowClient extends BaseClient {
         return this.client.createWorkflowUpdateHandle(updateId, workflowId, runId);
       },
       async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
-        const next = this.client._signalWorkflowHandler.bind(this.client);
-        const fn = composeInterceptors(interceptors, 'signal', next);
-        const input: InternalWorkflowSignalInput = {
-          workflowExecution: { workflowId, runId },
-          signalName: typeof def === 'string' ? def : def.name,
+        await _signal(
+          this as InternalWorkflowHandle,
+          typeof def === 'string' ? def : def.name,
           args,
-          typeInfo: typeof def === 'string' ? undefined : def.typeInfo,
-          headers: {},
-          // Forward any SDK-internal signal options (e.g. Nexus request links) that were attached to
-          // this handle, and let the signal handler write the response link back onto the same payload.
-          [InternalWorkflowSignalOptionsSymbol]: (this as InternalWorkflowHandle)[InternalWorkflowSignalOptionsSymbol],
-        };
-        await fn(input);
+          typeof def === 'string' ? undefined : def.typeInfo
+        );
+      },
+      async signalWithOptions<Args extends any[]>(
+        signalName: string,
+        options: WorkflowSignalOptions<Args>
+      ): Promise<void> {
+        await _signal(this as InternalWorkflowHandle, signalName, options.args ?? [], options.typeInfo);
       },
       async query<Ret, Args extends any[]>(def: QueryDefinition<Ret, Args> | string, ...args: Args): Promise<Ret> {
         const next = this.client._queryWorkflowHandler.bind(this.client);

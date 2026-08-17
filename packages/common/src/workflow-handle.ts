@@ -1,4 +1,17 @@
-import type { Workflow, WorkflowResultType, SignalDefinition } from './interfaces';
+import type { Workflow, WorkflowResultType, SignalDefinition, SignalTypeInfo } from './interfaces';
+
+/**
+ * Options for signaling a Workflow by Signal name.
+ *
+ * @experimental
+ */
+export interface WorkflowSignalOptions<Args extends any[] = []> {
+  /** Arguments to pass to the Signal handler. */
+  args?: Args;
+
+  /** Type information used to convert Signal arguments. */
+  typeInfo?: SignalTypeInfo;
+}
 
 /**
  * Base WorkflowHandle interface, extended in workflow and client libs.
@@ -25,6 +38,13 @@ export interface BaseWorkflowHandle<T extends Workflow> {
     def: SignalDefinition<Args, Name> | string,
     ...args: Args
   ): Promise<void>;
+
+  /**
+   * Signal a running Workflow by Signal name with additional options.
+   *
+   * @experimental
+   */
+  signalWithOptions<Args extends any[] = []>(signalName: string, options: WorkflowSignalOptions<Args>): Promise<void>;
 
   /**
    * The workflowId of the current Workflow
