@@ -123,6 +123,92 @@ test(`mapAsyncIterable (with concurrency) doesn't consume more input than requir
   t.is(counter, 15);
 });
 
+test(`mapAsyncIterable (with concurrency) closes the source iterable on early termination`, async (t) => {
+  let sourceExited = 0;
+  let produced = 0;
+
+  async function* source(): AsyncIterable<number> {
+    try {
+      for (;;) {
+        yield ++produced;
+      }
+    } finally {
+      sourceExited += 1;
+    }
+  }
+
+  const iterable = mapAsyncIterable(source(), sleepThatTime, { concurrency: 3, bufferLimit: 0 });
+  const seen: number[] = [];
+  for await (const value of iterable) {
+    seen.push(value);
+    if (seen.length === 4) {
+      break;
+    }
+  }
+
+  t.is(seen.length, 4);
+  t.is(sourceExited, 1);
+  // Producers may have pulled a few extra source items for in-flight work, but must stop after close.
+  t.true(produced < 20);
+});
+
+test(`mapAsyncIterable (with concurrency) propagates source return errors on early termination`, async (t) => {
+  const cleanupError = new Error('cleanup failed');
+  let returnCalls = 0;
+  const source: AsyncIterable<number> = {
+    [Symbol.asyncIterator]() {
+      return {
+        async next() {
+          return { done: false as const, value: 1 };
+        },
+        async return() {
+          returnCalls += 1;
+          throw cleanupError;
+        },
+      };
+    },
+  };
+
+  await t.throwsAsync(
+    async () => {
+      for await (const _ of mapAsyncIterable(source, sleepThatTime, { concurrency: 2 })) {
+        break;
+      }
+    },
+    { is: cleanupError }
+  );
+  t.is(returnCalls, 1);
+});
+
+test(`mapAsyncIterable (with concurrency) does not close a naturally exhausted source`, async (t) => {
+  let nextCalls = 0;
+  let returnCalls = 0;
+  const source: AsyncIterable<number> = {
+    [Symbol.asyncIterator]() {
+      return {
+        async next() {
+          nextCalls += 1;
+          return nextCalls <= 2
+            ? { done: false as const, value: nextCalls }
+            : { done: true as const, value: undefined };
+        },
+        async return() {
+          returnCalls += 1;
+          return { done: true as const, value: undefined };
+        },
+      };
+    },
+  };
+
+  const values: number[] = [];
+  for await (const value of mapAsyncIterable(source, multBy10, { concurrency: 2 })) {
+    values.push(value);
+  }
+
+  t.deepEqual(values.sort(), [10, 20]);
+  t.is(returnCalls, 0);
+});
+
 test(`mapAsyncIterable (with concurrency) doesn't hang on source exceptions`, async (t) => {
   async function* name(): AsyncIterable<number> {
     for (;;) {
@@ -150,6 +236,33 @@ test(`mapAsyncIterable (with concurrency) doesn't hang on source exceptions`, as
     instanceOf: Error,
     message: 'Test Exception',
   });
+});
+
+test(`mapAsyncIterable (with concurrency) doesn't hang when a backpressured mapper fails`, async (t) => {
+  const mapError = new Error('Map Exception');
+  async function* source(): AsyncIterable<number> {
+    for (let value = 1; ; value++) {
+      yield value;
+    }
+  }
+
+  const iterable = mapAsyncIterable(
+    source(),
+    async (value) => {
+      if (value === 2) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+        throw mapError;
+      }
+      return value;
+    },
+    { concurrency: 2, bufferLimit: 0 }
+  );
+  const iterator = iterable[Symbol.asyncIterator]();
+
+  t.is((await iterator.next()).value, 1);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  t.is((await iterator.next()).value, 3);
+  await t.throwsAsync(iterator.next(), { is: mapError });
 });
 
 // FIXME: This test is producing rare flakes

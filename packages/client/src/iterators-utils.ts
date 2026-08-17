@@ -57,6 +57,8 @@ export async function* mapAsyncIterable<A, B>(
   const controller = new AbortController();
   const emitterEventsIterable = on(emitter, 'result', { signal: controller.signal }) as AsyncIterable<[B]>;
   const emitterError: Promise<unknown[]> = once(emitter, 'error');
+  let sourceExhausted = false;
+  let stopped = false;
 
   const bufferLimitSemaphore =
     typeof bufferLimit === 'number'
@@ -67,11 +69,13 @@ export async function* mapAsyncIterable<A, B>(
           let value = bufferLimit + concurrency;
 
           return {
-            acquire: async () => {
+            acquire: async (): Promise<boolean> => {
               while (value <= 0) {
-                await Promise.race([releaseEvents.next(), emitterError]);
+                const result = await Promise.race([releaseEvents.next(), emitterError]);
+                if (Array.isArray(result) || result.done) return false;
               }
               value--;
+              return true;
             },
             release: () => {
               value++;
@@ -83,11 +87,16 @@ export async function* mapAsyncIterable<A, B>(
 
   const mapper = async () => {
     for (;;) {
-      await bufferLimitSemaphore?.acquire();
+      if (stopped) return;
+      if (bufferLimitSemaphore && !(await bufferLimitSemaphore.acquire())) return;
       const val = await Promise.race([sourceIterator.next(), emitterError]);
 
       if (Array.isArray(val)) return;
-      if ((val as IteratorResult<[B]>)?.done) return;
+      if (stopped) return;
+      if ((val as IteratorResult<[B]>)?.done) {
+        sourceExhausted = true;
+        return;
+      }
 
       emitter.emit('result', await mapFn(val.value));
     }
@@ -102,15 +111,37 @@ export async function* mapAsyncIterable<A, B>(
     (err) => emitter.emit('error', err)
   );
 
+  const closeSource = async (suppressReturnError: boolean): Promise<void> => {
+    stopped = true;
+    controller.abort();
+    let hasReturnError = false;
+    let returnError: unknown;
+    if (!sourceExhausted) {
+      try {
+        await sourceIterator.return?.();
+      } catch (err) {
+        hasReturnError = true;
+        returnError = err;
+      }
+    }
+    await Promise.allSettled(mappers);
+    if (hasReturnError && !suppressReturnError) {
+      throw returnError;
+    }
+  };
+
+  let hasPrimaryError = false;
   try {
     for await (const [res] of emitterEventsIterable) {
       bufferLimitSemaphore?.release();
       yield res;
     }
   } catch (err: unknown) {
-    if (isAbortError(err)) {
-      return;
+    if (!isAbortError(err) || !sourceExhausted) {
+      hasPrimaryError = true;
+      throw err;
     }
-    throw err;
+  } finally {
+    await closeSource(hasPrimaryError);
   }
 }
