@@ -36,6 +36,12 @@ to docs, or any other relevant information.
 - `@temporalio/ai-sdk` now requires `ai@>=7.0.59` as a peer dependency, up from `7.0.0`, since
   earlier releases threw a `TypeError` on import in runtimes without a global `fetch`.
 
+### Fixed
+
+- **Experimental**: The external storage S3 and GCS drivers now use `hash_algorithm` and `hash_value` instead of
+  `hashAlgorithm` and `hashValue` in their claims. The GCS driver additionally uses `object_name` instead of
+  `object`. Retrieval still accepts the old key names.
+
 ## [1.22.0] - 2026-08-05
 
 ### Added
