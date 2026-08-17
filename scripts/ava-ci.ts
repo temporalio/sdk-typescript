@@ -113,7 +113,10 @@ function flushPendingFailure(): void {
 
 const TEST_LINE = /^(ok|not ok) (\d+) - (.*)$/;
 
-function handleTapLine(line: string): void {
+function handleTapLine(rawLine: string): void {
+  // ava terminates each TAP write with os.EOL; the trailing CR defeats TEST_LINE (no `m` flag, `.` excludes CR).
+  const line = rawLine.replace(/\r$/, '');
+
   // A diagnostic block immediately follows a `not ok` line and is written
   // atomically by ava, so worker output can't interleave inside it. The block is
   // delimited by `  ---` / `  ...`; some `not ok` lines have no block at all.
