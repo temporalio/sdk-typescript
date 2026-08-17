@@ -55,6 +55,22 @@ test('Can run multiple runtime concurrently', async (t) => {
 });
 
 test('Missing/invalid properties in config throws appropriately', async (t) => {
+  t.throws(
+    () =>
+      native.newRuntime({
+        ...GenericConfigs.runtime.basic,
+        logExporter: {
+          type: 'console',
+          filter: 'ERROR',
+          format: 'xml' as 'json',
+        },
+      }),
+    {
+      instanceOf: TypeError,
+      message: /Expected 'compact', 'pretty', or 'json'/,
+    }
+  );
+
   // required string = undefined ==> missing property
   t.throws(
     () =>
@@ -235,6 +251,7 @@ const GenericConfigs = {
       logExporter: {
         type: 'console',
         filter: 'ERROR',
+        format: null,
       },
       telemetry: {
         metricPrefix: 'test',
