@@ -821,6 +821,9 @@ importers:
       '@temporalio/interceptors-opentelemetry-v2':
         specifier: workspace:*
         version: link:../../contrib/interceptors-opentelemetry-v2
+      '@temporalio/langsmith':
+        specifier: workspace:*
+        version: link:../../contrib/langsmith
       '@temporalio/nexus':
         specifier: workspace:*
         version: link:../nexus

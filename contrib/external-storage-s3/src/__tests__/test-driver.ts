@@ -73,14 +73,43 @@ test('key is content-addressed and segmented by the store context', async (t) =>
 
   const digest = sha256Hex(payloadBytes(payload));
   t.is(claim.claimData.key, `v0/ns/my-ns/wt/MyWorkflow/wi/wf-1/ri/run-1/d/sha256/${digest}`);
-  t.is(claim.claimData.hashValue, digest);
-  t.is(claim.claimData.hashAlgorithm, 'sha256');
+  t.is(claim.claimData.hash_value, digest);
+  t.is(claim.claimData.hash_algorithm, 'sha256');
   t.is(claim.claimData.bucket, 'b');
 
   const [other] = await driver.store(workflowContext, [makePayload('"world"')]);
   assert(other?.claimData.key);
   t.not(other.claimData.key, claim.claimData.key);
   t.is(other.claimData.key.replace(/[0-9a-f]{64}$/, ''), claim.claimData.key.replace(/[0-9a-f]{64}$/, ''));
+});
+
+test('claim data uses the snake_case keys shared with the Go and Python S3 drivers', async (t) => {
+  const driver = new S3StorageDriver({ client: new FakeS3Client(), bucket: 'b' });
+
+  const [claim] = await driver.store(workflowContext, [makePayload('"hello"')]);
+  assert(claim);
+
+  t.deepEqual(Object.keys(claim.claimData).sort(), ['bucket', 'hash_algorithm', 'hash_value', 'key']);
+});
+
+test('retrieve accepts a claim with camelCase hash keys written by <= 1.22.0', async (t) => {
+  const client = new FakeS3Client();
+  const driver = new S3StorageDriver({ client, bucket: 'b' });
+  const original = makePayload('"hello"');
+
+  const [claim] = await driver.store(workflowContext, [original]);
+  assert(claim?.claimData.key);
+  const legacyClaim = new StorageDriverClaim({
+    bucket: 'b',
+    key: claim.claimData.key,
+    hashAlgorithm: 'sha256',
+    hashValue: sha256Hex(payloadBytes(original)),
+  });
+
+  const [retrieved] = await driver.retrieve({}, [legacyClaim]);
+  assert(retrieved);
+
+  t.deepEqual(payloadBytes(retrieved), payloadBytes(original));
 });
 
 test('key segments percent-encode anything outside the S3 safe set', async (t) => {

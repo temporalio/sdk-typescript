@@ -7,6 +7,7 @@ import type {
   SearchAttributes,
   SearchAttributeValue,
   SignalDefinition,
+  SignalDefinitionOptions,
   UntypedActivities,
   UpdateDefinition,
   WithWorkflowArgs,
@@ -489,7 +490,7 @@ function startChildWorkflowExecutionNextHandler({
   return ret;
 }
 
-function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: SignalWorkflowInput) {
+function signalWorkflowNextHandler({ seq, signalName, args, typeInfo, target, headers }: SignalWorkflowInput) {
   const activator = getActivator();
   const targetWorkflowId = target.type === 'external' ? target.workflowExecution.workflowId : target.childWorkflowId;
   const context = targetWorkflowSerializationContext(activator.info, targetWorkflowId!);
@@ -513,7 +514,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: S
     activator.pushCommand({
       signalExternalWorkflowExecution: {
         seq,
-        args: toPayloadsWithContext(activator.payloadConverter, context, args),
+        args: toPayloadsWithContext(activator.payloadConverter, context, args, typeInfo?.inputTypes),
         headers,
         signalName,
         ...(target.type === 'external'
@@ -801,6 +802,7 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
         seq: activator.nextSeqs.signalWorkflow++,
         signalName: typeof def === 'string' ? def : def.name,
         args,
+        typeInfo: typeof def === 'string' ? undefined : def.typeInfo,
         target: {
           type: 'external',
           workflowExecution: { workflowId, runId },
@@ -904,6 +906,7 @@ export async function startChild<T extends Workflow>(
         seq: activator.nextSeqs.signalWorkflow++,
         signalName: typeof def === 'string' ? def : def.name,
         args,
+        typeInfo: typeof def === 'string' ? undefined : def.typeInfo,
         target: {
           type: 'child',
           childWorkflowId: optionsWithDefaults.workflowId,
@@ -1271,13 +1274,17 @@ export function defineUpdate<Ret, Args extends any[] = [], Name extends string =
  *
  * A definition is used to register a handler in the Workflow via {@link setHandler} and to signal a Workflow using a {@link WorkflowHandle}, {@link ChildWorkflowHandle} or {@link ExternalWorkflowHandle}.
  * A definition can be reused in multiple Workflows.
+ *
+ * @param options optional type information used to convert Signal arguments
  */
 export function defineSignal<Args extends any[] = [], Name extends string = string>(
-  name: Name
+  name: Name,
+  options: SignalDefinitionOptions = {}
 ): SignalDefinition<Args, Name> {
   return {
     type: 'signal',
     name,
+    ...options,
   } as SignalDefinition<Args, Name>;
 }
 
@@ -1433,7 +1440,12 @@ export function setHandler<
     if (typeof handler === 'function') {
       const signalOptions = options as SignalHandlerOptions | undefined;
       const unfinishedPolicy = signalOptions?.unfinishedPolicy ?? HandlerUnfinishedPolicy.WARN_AND_ABANDON;
-      activator.signalHandlers.set(def.name, { handler: handler as any, description, unfinishedPolicy });
+      activator.signalHandlers.set(def.name, {
+        handler: handler as any,
+        description,
+        unfinishedPolicy,
+        typeInfo: def.typeInfo,
+      });
       activator.dispatchBufferedSignals();
     } else if (handler == null) {
       activator.signalHandlers.delete(def.name);
