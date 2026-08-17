@@ -36,6 +36,11 @@ to docs, or any other relevant information.
 - `@temporalio/ai-sdk` now requires `ai@>=7.0.59` as a peer dependency, up from `7.0.0`, since
   earlier releases threw a `TypeError` on import in runtimes without a global `fetch`.
 
+### Fixed
+
+- The [API reference](https://typescript.temporal.io) now documents `@temporalio/langsmith` and the
+  Workflow-side and OpenTelemetry subpaths of `@temporalio/openai-agents`.
+
 ## [1.22.0] - 2026-08-05
 
 ### Added
