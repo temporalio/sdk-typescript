@@ -45,6 +45,12 @@ to docs, or any other relevant information.
   original `ApplicationFailure` is retained as the Handler Error's cause. Any other failure from the
   data converter is unchanged.
 
+### Fixed
+
+- **Experimental**: The external storage S3 and GCS drivers now use `hash_algorithm` and `hash_value` instead of
+  `hashAlgorithm` and `hashValue` in their claims. The GCS driver additionally uses `object_name` instead of
+  `object`. Retrieval still accepts the old key names.
+
 ## [1.22.0] - 2026-08-05
 
 ### Added
