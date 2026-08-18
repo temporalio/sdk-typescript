@@ -56,14 +56,16 @@ function makeClient(env: TestWorkflowEnvironment): Client {
 
 test('workflow definition with call-site type information is invalid', async (t) => {
   const client = makeClient(t.context.env);
+  const options = {
+    workflowId: `wf-${randomUUID()}`,
+    taskQueue: 'unused',
+    args: [new Order('order-1', 12345n)] as [Order],
+    typeInfo: workflowTypeInfo,
+  };
 
   await t.throwsAsync(
-    client.workflow.execute(workflowWithTypeInfo, {
-      workflowId: `wf-${randomUUID()}`,
-      taskQueue: 'unused',
-      args: [new Order('order-1', 12345n)],
-      typeInfo: workflowTypeInfo,
-    }),
+    // @ts-expect-error TypeInfo must be defined on a referenced Workflow function.
+    client.workflow.execute(workflowWithTypeInfo, options),
     {
       instanceOf: TypeError,
       message: /Workflow type information cannot be supplied at the call site when using a workflow function/,

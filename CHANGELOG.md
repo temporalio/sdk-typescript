@@ -71,6 +71,8 @@ to docs, or any other relevant information.
 
 ### Changed
 
+- **Experimental**: Workflow Client APIs now reject call-site `TypeInfo` at compile time when a Workflow function is
+  supplied. Define TypeInfo on the Workflow function or use a string Workflow type for call-site metadata.
 - Nexus is now generally available (GA) for calling Nexus Operations from Workflows and handling
   Workflow-backed Operations with `WorkflowRunOperationHandler`.
 - `@temporalio/ai-sdk` now requires `ai@>=7.0.59` as a peer dependency, up from `7.0.0`, since
