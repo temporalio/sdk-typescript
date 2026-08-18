@@ -1086,19 +1086,15 @@ export function makeContinueAsNewFunc<F extends Workflow>(
     ...rest,
   };
 
-  let resolvedTypeInfo = options?.typeInfo;
-  // Reuse current workflow type information only when continuing as new to the same Workflow type.
-  if (resolvedTypeInfo == null && requiredOptions.workflowType === info.workflowType) {
-    resolvedTypeInfo = activator.typeInfo;
-  }
-
   return (...args: Parameters<F>): Promise<never> => {
     const context = currentWorkflowSerializationContext(info);
     const fn = composeInterceptors(activator.interceptors.outbound, 'continueAsNew', async (input) => {
       const { headers, args, options } = input;
+      const typeInfo =
+        options.typeInfo ?? (options.workflowType === info.workflowType ? activator.typeInfo : undefined);
       throw new ContinueAsNew({
         workflowType: options.workflowType,
-        arguments: toPayloadsWithContext(activator.payloadConverter, context, args, resolvedTypeInfo?.inputTypes),
+        arguments: toPayloadsWithContext(activator.payloadConverter, context, args, typeInfo?.inputTypes),
         headers,
         taskQueue: options.taskQueue,
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo, context),

@@ -404,6 +404,7 @@ export interface ContinueAsNewOptions {
    * Input type information for the next Workflow run.
    *
    * When continuing as new to the same Workflow type, its definition-supplied input type information is reused.
+   * Provide this option when continuing as new to a different string-named Workflow type.
    * The next Workflow must preserve the current Workflow's output contract because clients retain the original
    * handle's output type information across the run chain.
    *

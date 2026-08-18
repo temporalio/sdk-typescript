@@ -148,6 +148,17 @@ defineWorkflowOptions(continueAsNewToWorkflowWithTypeInfo, {
   staticOptions: { typeInfo: workflowTypeInfo },
 });
 
+export async function continueAsNewWithInterceptorTypeInfo(order: Order): Promise<Receipt> {
+  assertOrder(order);
+  const continueAsTypedWorkflow = makeContinueAsNewFunc<typeof workflowWithTypeInfo>({
+    workflowType: 'workflowWithTypeInfo',
+  });
+  return await continueAsTypedWorkflow(order);
+}
+defineWorkflowOptions(continueAsNewWithInterceptorTypeInfo, {
+  staticOptions: { typeInfo: workflowTypeInfo },
+});
+
 export const finishSignal = defineSignal('finish');
 
 export const orderSignal = defineSignal<[Order]>('order', {

@@ -15,6 +15,7 @@ import {
   parentWorkflowChildDefinition,
   parentWorkflowChildDefinitionInvalidCallSiteTypeInfo,
   continueAsNewToWorkflowWithTypeInfo,
+  continueAsNewWithInterceptorTypeInfo,
   finishSignal,
   finishUpdate,
   Order,
@@ -41,7 +42,10 @@ const test = makeConfigurableEnvironmentTestFn<Context>({
     const env = await createTestWorkflowEnvironment();
     const workflowBundle = await bundleWorkflowCode({
       ...bundlerOptions,
-      workflowInterceptorModules: [...workflowInterceptorModules],
+      workflowInterceptorModules: [
+        ...workflowInterceptorModules,
+        require.resolve('./workflows/type-info-interceptors'),
+      ],
       workflowsPath: require.resolve('./workflows/type-info'),
     });
     return { env, workflowBundle };
@@ -184,6 +188,22 @@ test('continue-as-new to a different workflow uses explicit input type informati
 
   await worker.runUntil(async () => {
     const result = await client.workflow.execute(continueAsNewToWorkflowWithTypeInfo, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+      args: [new Order('order-1', 12345n)],
+    });
+
+    assertReceipt(t, result);
+  });
+});
+
+test('continue-as-new uses input type information modified by an interceptor', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker();
+
+  await worker.runUntil(async () => {
+    const result = await client.workflow.execute(continueAsNewWithInterceptorTypeInfo, {
       workflowId: `wf-${randomUUID()}`,
       taskQueue: h.taskQueue,
       args: [new Order('order-1', 12345n)],
