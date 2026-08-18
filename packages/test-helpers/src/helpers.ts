@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { ExecutionContext } from 'ava';
-import type { WorkflowHandleWithFirstExecutionRunId, WorkflowStartOptions } from '@temporalio/client';
+import type { Client, WorkflowHandleWithFirstExecutionRunId, WorkflowStartOptions } from '@temporalio/client';
 import type { TestWorkflowEnvironment as RealTestWorkflowEnvironment } from '@temporalio/testing';
 import type { WorkerOptions, WorkflowBundle } from '@temporalio/worker';
 import type * as workflow from '@temporalio/workflow';
@@ -10,6 +10,31 @@ import { Worker } from './wrappers';
 export const isBun = typeof (globalThis as any).Bun !== 'undefined';
 /** Union type for all supported test environment types */
 export type AnyTestWorkflowEnvironment = TestWorkflowEnvironment | RealTestWorkflowEnvironment;
+
+/** Test Helpers intentionally accept broad Workflow options; Client still validates TypeInfo at runtime. */
+async function executeWorkflowFromTestHelper(
+  client: Client,
+  workflowFunction: workflow.Workflow,
+  options: WorkflowStartOptions
+): Promise<any> {
+  const execute = client.workflow.execute as unknown as (
+    workflowFunction: workflow.Workflow,
+    options: WorkflowStartOptions
+  ) => Promise<any>;
+  return await execute(workflowFunction, options);
+}
+
+async function startWorkflowFromTestHelper(
+  client: Client,
+  workflowFunction: workflow.Workflow,
+  options: WorkflowStartOptions
+): Promise<WorkflowHandleWithFirstExecutionRunId<workflow.Workflow>> {
+  const start = client.workflow.start as unknown as (
+    workflowFunction: workflow.Workflow,
+    options: WorkflowStartOptions
+  ) => Promise<WorkflowHandleWithFirstExecutionRunId<workflow.Workflow>>;
+  return await start(workflowFunction, options);
+}
 
 /**
  * Base context interface for test environments.
@@ -85,7 +110,7 @@ export function helpers<TEnv extends AnyTestWorkflowEnvironment = TestWorkflowEn
       workflowOpts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'> &
         Partial<Pick<WorkflowStartOptions, 'workflowId'>>
     ): Promise<any> {
-      return await env.client.workflow.execute(fn, {
+      return await executeWorkflowFromTestHelper(env.client, fn, {
         taskQueue,
         workflowId: randomUUID(),
         ...workflowOpts,
@@ -96,7 +121,7 @@ export function helpers<TEnv extends AnyTestWorkflowEnvironment = TestWorkflowEn
       workflowOpts?: Omit<WorkflowStartOptions, 'taskQueue' | 'workflowId'> &
         Partial<Pick<WorkflowStartOptions, 'workflowId'>>
     ): Promise<WorkflowHandleWithFirstExecutionRunId<workflow.Workflow>> {
-      return await env.client.workflow.start(fn, {
+      return await startWorkflowFromTestHelper(env.client, fn, {
         taskQueue,
         workflowId: randomUUID(),
         ...workflowOpts,

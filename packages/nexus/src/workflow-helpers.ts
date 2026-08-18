@@ -14,6 +14,8 @@ import type {
   ActivityOptionsFor as ClientActivityOptionsFor,
   ActivityResult,
   Client,
+  WorkflowHandleWithSignaledRunId,
+  WorkflowHandleWithStartDetails,
   WorkflowStartOptions as ClientWorkflowStartOptions,
   WorkflowSignalWithStartOptions as ClientWorkflowSignalWithStartOptions,
 } from '@temporalio/client';
@@ -55,6 +57,34 @@ import {
 
 declare const isNexusWorkflowHandle: unique symbol;
 declare const workflowResultType: unique symbol;
+
+/**
+ * Nexus currently accepts a string-or-function union, while Client overloads distinguish those references.
+ * Keep that compatibility assertion here until the Nexus TypeInfo PR adds the same public overload distinction.
+ */
+async function startWorkflowFromNexusReference<T extends Workflow>(
+  client: Client,
+  workflowTypeOrFunction: string | T,
+  options: ClientWorkflowStartOptions
+): Promise<WorkflowHandleWithStartDetails<T>> {
+  const start = client.workflow.start as unknown as (
+    workflowTypeOrFunction: string | T,
+    options: ClientWorkflowStartOptions
+  ) => Promise<WorkflowHandleWithStartDetails<T>>;
+  return await start(workflowTypeOrFunction, options);
+}
+
+async function signalWithStartFromNexusReference<T extends Workflow, SignalArgs extends any[]>(
+  client: Client,
+  workflowTypeOrFunction: string | T,
+  options: WithWorkflowArgs<T, ClientWorkflowSignalWithStartOptions<SignalArgs>>
+): Promise<WorkflowHandleWithSignaledRunId<T>> {
+  const signalWithStart = client.workflow.signalWithStart as unknown as (
+    workflowTypeOrFunction: string | T,
+    options: WithWorkflowArgs<T, ClientWorkflowSignalWithStartOptions<SignalArgs>>
+  ) => Promise<WorkflowHandleWithSignaledRunId<T>>;
+  return await signalWithStart(workflowTypeOrFunction, options);
+}
 
 /**
  * A handle to a running workflow that is returned by the {@link startWorkflow} helper.
@@ -189,7 +219,7 @@ export async function startWorkflow<T extends Workflow>(
     [InternalWorkflowStartOptionsSymbol]: internalOptions,
   };
 
-  const handle = await client.workflow.start(workflowTypeOrFunc, startOptions);
+  const handle = await startWorkflowFromNexusReference(client, workflowTypeOrFunc, startOptions);
   if (internalOptions.responseLink != null) {
     pushResponseLink(ctx, internalOptions.responseLink);
   }
@@ -329,7 +359,7 @@ export async function signalWithStartWorkflow<T extends Workflow, SignalArgs ext
     [InternalWorkflowStartOptionsSymbol]: internalOptions,
   } as unknown as WithWorkflowArgs<T, ClientWorkflowSignalWithStartOptions<SignalArgs>>;
 
-  const handle = await client.workflow.signalWithStart(workflowTypeOrFunc, signalWithStartOptions);
+  const handle = await signalWithStartFromNexusReference(client, workflowTypeOrFunc, signalWithStartOptions);
   if (internalOptions.responseLink != null) {
     pushResponseLink(ctx, internalOptions.responseLink);
   }

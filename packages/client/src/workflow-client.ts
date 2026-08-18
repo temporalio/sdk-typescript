@@ -513,6 +513,16 @@ export class WithStartWorkflowOperation<T extends Workflow> {
   private workflowHandlePromise: Promise<WorkflowHandle<T>>;
 
   constructor(
+    workflowType: string,
+    options: WorkflowStartOptions<T> & { workflowIdConflictPolicy: WorkflowIdConflictPolicy }
+  );
+  constructor(
+    workflowFunc: T,
+    options: WorkflowStartOptions<T> & { typeInfo?: never } & {
+      workflowIdConflictPolicy: WorkflowIdConflictPolicy;
+    }
+  );
+  constructor(
     public workflowTypeOrFunc: string | T,
     public options: WorkflowStartOptions<T> & { workflowIdConflictPolicy: WorkflowIdConflictPolicy }
   ) {
@@ -627,6 +637,14 @@ export class WorkflowClient extends BaseClient {
    *
    * @returns a {@link WorkflowHandle} to the started Workflow
    */
+  public start<T extends Workflow>(
+    workflowType: string,
+    options: WorkflowStartOptions<T>
+  ): Promise<WorkflowHandleWithStartDetails<T>>;
+  public start<T extends Workflow>(
+    workflowFunc: T,
+    options: WorkflowStartOptions<T> & { typeInfo?: never }
+  ): Promise<WorkflowHandleWithStartDetails<T>>;
   public async start<T extends Workflow>(
     workflowTypeOrFunc: string | T,
     options: WorkflowStartOptions<T>
@@ -664,6 +682,14 @@ export class WorkflowClient extends BaseClient {
    *
    * @returns a {@link WorkflowHandle} to the started Workflow
    */
+  public signalWithStart<WorkflowFn extends Workflow, SignalArgs extends any[] = []>(
+    workflowType: string,
+    options: WithWorkflowArgs<WorkflowFn, WorkflowSignalWithStartOptions<SignalArgs>>
+  ): Promise<WorkflowHandleWithSignaledRunId<WorkflowFn>>;
+  public signalWithStart<WorkflowFn extends Workflow, SignalArgs extends any[] = []>(
+    workflowFunc: WorkflowFn,
+    options: WithWorkflowArgs<WorkflowFn, WorkflowSignalWithStartOptions<SignalArgs>> & { typeInfo?: never }
+  ): Promise<WorkflowHandleWithSignaledRunId<WorkflowFn>>;
   public async signalWithStart<WorkflowFn extends Workflow, SignalArgs extends any[] = []>(
     workflowTypeOrFunc: string | WorkflowFn,
     options: WithWorkflowArgs<WorkflowFn, WorkflowSignalWithStartOptions<SignalArgs>>
@@ -828,6 +854,14 @@ export class WorkflowClient extends BaseClient {
    *
    * @returns the result of the Workflow execution
    */
+  public execute<T extends Workflow>(
+    workflowType: string,
+    options: WorkflowStartOptions<T>
+  ): Promise<WorkflowResultType<T>>;
+  public execute<T extends Workflow>(
+    workflowFunc: T,
+    options: WorkflowStartOptions<T> & { typeInfo?: never }
+  ): Promise<WorkflowResultType<T>>;
   public async execute<T extends Workflow>(
     workflowTypeOrFunc: string | T,
     options: WorkflowStartOptions<T>
