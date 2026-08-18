@@ -205,21 +205,25 @@ export class GcsStorageDriver implements StorageDriver {
       );
     }
 
-    return new StorageDriverClaim({ bucket, object, hashAlgorithm: 'sha256', hashValue });
+    return new StorageDriverClaim({ bucket, object_name: object, hash_algorithm: 'sha256', hash_value: hashValue });
   }
 
   private async retrievePayload(claim: StorageDriverClaim, abortSignal: AbortSignal): Promise<Payload> {
-    const { bucket, object, hashAlgorithm, hashValue: expectedHash } = claim.claimData;
+    const { bucket } = claim.claimData;
+    // TODO: drop the backwards compat check (camelCase and "object") once we have GA release
+    const object = claim.claimData.object_name ?? claim.claimData.object;
+    const hashAlgorithm = claim.claimData.hash_algorithm ?? claim.claimData.hashAlgorithm;
+    const expectedHash = claim.claimData.hash_value ?? claim.claimData.hashValue;
     if (!bucket || !object) {
       throw new ValueError(
         `GcsStorageDriver claim is missing required location information: ` +
-          `claimData must contain 'bucket' and 'object'`
+          `claimData must contain 'bucket' and 'object_name'`
       );
     }
     if (!hashAlgorithm || !expectedHash) {
       throw new ValueError(
         `GcsStorageDriver claim is missing required content hash information [bucket=${bucket}, object=${object}]: ` +
-          `claimData must contain 'hashAlgorithm' and 'hashValue'`
+          `claimData must contain 'hash_algorithm' and 'hash_value'`
       );
     }
     if (hashAlgorithm !== 'sha256') {

@@ -618,6 +618,7 @@ export class WorkflowClient extends BaseClient {
       workflowType,
       signalName: typeof signal === 'string' ? signal : signal.name,
       signalArgs: signalArgs ?? [],
+      signalTypeInfo: typeof signal === 'string' ? undefined : signal.typeInfo,
     });
   }
 
@@ -1339,7 +1340,9 @@ export class WorkflowClient extends BaseClient {
       // control is unused,
       signalName: input.signalName,
       header: { fields: input.headers },
-      input: { payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args) },
+      input: {
+        payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args, input.typeInfo?.inputTypes),
+      },
       links: internalOptions?.links,
     };
     try {
@@ -1375,7 +1378,7 @@ export class WorkflowClient extends BaseClient {
    */
   protected async _signalWithStartWorkflowHandler(input: WorkflowSignalWithStartInput): Promise<string> {
     const { identity } = this.options;
-    const { options, workflowType, signalName, signalArgs, headers } = input;
+    const { options, workflowType, signalName, signalArgs, signalTypeInfo, headers } = input;
     const dataConverter = this.dataConverter;
     const context = this.workflowSerializationContext(options.workflowId);
     const internalOptions = (options as InternalWorkflowStartOptions)[InternalWorkflowStartOptionsSymbol];
@@ -1391,7 +1394,9 @@ export class WorkflowClient extends BaseClient {
         payloads: await encodeToPayloadsWithContext(dataConverter, context, options.args, options.typeInfo?.inputTypes),
       },
       signalName,
-      signalInput: { payloads: await encodeToPayloadsWithContext(dataConverter, context, signalArgs) },
+      signalInput: {
+        payloads: await encodeToPayloadsWithContext(dataConverter, context, signalArgs, signalTypeInfo?.inputTypes),
+      },
       taskQueue: {
         kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_NORMAL,
         name: options.taskQueue,
@@ -1755,6 +1760,7 @@ export class WorkflowClient extends BaseClient {
           workflowExecution: { workflowId, runId },
           signalName: typeof def === 'string' ? def : def.name,
           args,
+          typeInfo: typeof def === 'string' ? undefined : def.typeInfo,
           headers: {},
           // Forward any SDK-internal signal options (e.g. Nexus request links) that were attached to
           // this handle, and let the signal handler write the response link back onto the same payload.

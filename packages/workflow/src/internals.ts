@@ -16,6 +16,7 @@ import type {
   WorkflowDefinitionOptions,
   WorkflowSerializationContext,
   PayloadTypeInfo,
+  TypeInfo,
 } from '@temporalio/common';
 import {
   defaultFailureConverter,
@@ -28,6 +29,7 @@ import {
   WorkflowExecutionAlreadyStartedError,
   ApplicationFailure,
   mapFromPayloads,
+  fromPayloadWithTypeInfo,
   fromPayloadsAtIndex,
   toPayloadWithTypeInfo,
   RawValue,
@@ -116,6 +118,7 @@ export interface Completion<Success, Context = never> {
   resolve(val: Success): void;
   reject(reason: Error): void;
   context?: Context;
+  outputTypeInfo?: TypeInfo;
 }
 
 export interface Condition {
@@ -758,10 +761,15 @@ export class Activator implements ActivationHandler {
     if (!activation.result) {
       throw new TypeError('Got ResolveChildWorkflowExecution activation with no result');
     }
-    const { resolve, reject, context } = this.consumeCompletion('childWorkflowComplete', getSeq(activation));
+    const { resolve, reject, context, outputTypeInfo } = this.consumeCompletion(
+      'childWorkflowComplete',
+      getSeq(activation)
+    );
     if (activation.result.completed) {
       const completed = activation.result.completed;
-      const result = completed.result ? this.payloadConverter.fromPayload(completed.result, context) : undefined;
+      const result = completed.result
+        ? fromPayloadWithTypeInfo(this.payloadConverter, completed.result, context, outputTypeInfo)
+        : undefined;
       resolve(result);
     } else if (activation.result.failed) {
       const { failure } = activation.result.failed;
@@ -1122,15 +1130,15 @@ export class Activator implements ActivationHandler {
     // If we fall through to the default signal handler then the unfinished
     // policy is WARN_AND_ABANDON; users currently have no way to silence any
     // ensuing warnings.
-    const unfinishedPolicy =
-      this.signalHandlers.get(signalName)?.unfinishedPolicy ?? HandlerUnfinishedPolicy.WARN_AND_ABANDON;
+    const signalHandler = this.signalHandlers.get(signalName);
+    const unfinishedPolicy = signalHandler?.unfinishedPolicy ?? HandlerUnfinishedPolicy.WARN_AND_ABANDON;
 
     const signalExecutionNum = this.signalHandlerExecutionSeq++;
     this.inProgressSignals.set(signalExecutionNum, { name: signalName, unfinishedPolicy });
     const execute = composeInterceptors(interceptors, 'handleSignal', this.signalWorkflowNextHandler.bind(this));
     const context = this.workflowSerializationContext();
     execute({
-      args: arrayFromPayloads(this.payloadConverter, activation.input, context),
+      args: arrayFromPayloads(this.payloadConverter, activation.input, context, signalHandler?.typeInfo?.inputTypes),
       signalName,
       headers: headers ?? {},
     })

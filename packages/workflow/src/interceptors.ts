@@ -9,6 +9,7 @@ import type {
   Duration,
   LocalActivityOptions,
   MetricTags,
+  SignalTypeInfo,
   Timestamp,
   WorkflowExecution,
 } from '@temporalio/common';
@@ -359,6 +360,7 @@ export interface SignalWorkflowInput {
   readonly seq: number;
   readonly signalName: string;
   readonly args: unknown[];
+  readonly typeInfo?: SignalTypeInfo;
   readonly headers: Headers;
   readonly target:
     | {
