@@ -3,15 +3,8 @@ import type { ExecutionContext } from 'ava';
 import type { WorkflowSignalWithStartOptions } from '@temporalio/client';
 import { Client, WithStartWorkflowOperation, WorkflowFailedError } from '@temporalio/client';
 import { workflowInterceptorModules } from '@temporalio/testing';
-import { bundleWorkflowCode } from '@temporalio/worker';
 import type { TestWorkflowEnvironment } from './helpers';
-import { bundlerOptions } from './helpers';
-import type { Context } from './helpers-integration';
-import {
-  configurableHelpers,
-  createTestWorkflowEnvironment,
-  makeConfigurableEnvironmentTestFn,
-} from './helpers-integration';
+import { configurableHelpers, makeTestFunction } from './helpers-integration';
 import {
   parentWorkflowChildDefinition,
   parentWorkflowChildDefinitionInvalidCallSiteTypeInfo,
@@ -41,22 +34,9 @@ function assertReceipt(t: ExecutionContext, receipt: Receipt): void {
   t.is(typeof receipt.totalCents, 'bigint');
 }
 
-const test = makeConfigurableEnvironmentTestFn<Context>({
-  createTestContext: async () => {
-    const env = await createTestWorkflowEnvironment();
-    const workflowBundle = await bundleWorkflowCode({
-      ...bundlerOptions,
-      workflowInterceptorModules: [
-        ...workflowInterceptorModules,
-        require.resolve('./workflows/type-info/interceptors'),
-      ],
-      workflowsPath: require.resolve('./workflows/type-info'),
-    });
-    return { env, workflowBundle };
-  },
-  teardown: async (c) => {
-    await c.env.teardown();
-  },
+const test = makeTestFunction({
+  workflowsPath: require.resolve('./workflows/type-info'),
+  workflowInterceptorModules: [...workflowInterceptorModules, require.resolve('./workflows/type-info/interceptors')],
 });
 
 function makeClient(env: TestWorkflowEnvironment): Client {
@@ -66,24 +46,9 @@ function makeClient(env: TestWorkflowEnvironment): Client {
   });
 }
 
-test('workflow definition with call-site type information is invalid', async (t) => {
-  const client = makeClient(t.context.env);
+// Workflow executions
 
-  await t.throwsAsync(
-    client.workflow.execute(workflowWithTypeInfo, {
-      workflowId: `wf-${randomUUID()}`,
-      taskQueue: 'unused',
-      args: [new Order('order-1', 12345n)],
-      typeInfo: workflowTypeInfo,
-    }),
-    {
-      instanceOf: TypeError,
-      message: /Workflow type information cannot be supplied at the call site when using a workflow function/,
-    }
-  );
-});
-
-test('workflow execute uses definition-supplied input and output type information', async (t) => {
+test('Workflow execute round-trips input and result using definition TypeInfo', async (t) => {
   const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
   const client = makeClient(t.context.env);
   const worker = await h.createWorker();
@@ -99,7 +64,7 @@ test('workflow execute uses definition-supplied input and output type informatio
   });
 });
 
-test('workflow start and result use definition-supplied input and output type information', async (t) => {
+test('Workflow start and result round-trip input and result using definition TypeInfo', async (t) => {
   const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
   const client = makeClient(t.context.env);
   const worker = await h.createWorker();
@@ -115,7 +80,7 @@ test('workflow start and result use definition-supplied input and output type in
   });
 });
 
-test('workflow execute uses call-site input and output type information for string workflow type', async (t) => {
+test('Workflow execute uses string call-site input and output TypeInfo', async (t) => {
   const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
   const client = makeClient(t.context.env);
   const worker = await h.createWorker();
@@ -132,7 +97,7 @@ test('workflow execute uses call-site input and output type information for stri
   });
 });
 
-test('workflow start and result use call-site input and output type information for string workflow type', async (t) => {
+test('Workflow start and result use string call-site input and output TypeInfo', async (t) => {
   const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
   const client = makeClient(t.context.env);
   const worker = await h.createWorker();
@@ -149,7 +114,7 @@ test('workflow start and result use call-site input and output type information 
   });
 });
 
-test('detached workflow handle uses call-site output type information', async (t) => {
+test('Detached Workflow handle decodes result using call-site output TypeInfo', async (t) => {
   const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
   const client = makeClient(t.context.env);
   const worker = await h.createWorker();
@@ -169,7 +134,26 @@ test('detached workflow handle uses call-site output type information', async (t
   });
 });
 
-test('same-type continue-as-new reuses definition-supplied input and output type information', async (t) => {
+test('Workflow execute rejects call-site TypeInfo for a Workflow definition at runtime', async (t) => {
+  const client = makeClient(t.context.env);
+
+  await t.throwsAsync(
+    client.workflow.execute(workflowWithTypeInfo, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: 'unused',
+      args: [new Order('order-1', 12345n)],
+      typeInfo: workflowTypeInfo,
+    }),
+    {
+      instanceOf: TypeError,
+      message: /Workflow type information cannot be supplied at the call site when using a workflow function/,
+    }
+  );
+});
+
+// Workflow transitions
+
+test('Continue-as-new reuses definition TypeInfo for the same Workflow', async (t) => {
   const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
   const client = makeClient(t.context.env);
   const worker = await h.createWorker();
@@ -185,7 +169,7 @@ test('same-type continue-as-new reuses definition-supplied input and output type
   });
 });
 
-test('continue-as-new to a different workflow uses explicit input type information', async (t) => {
+test('Continue-as-new uses explicit input TypeInfo for a different Workflow', async (t) => {
   const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
   const client = makeClient(t.context.env);
   const worker = await h.createWorker();
@@ -201,7 +185,7 @@ test('continue-as-new to a different workflow uses explicit input type informati
   });
 });
 
-test('continue-as-new uses input type information modified by an interceptor', async (t) => {
+test('Continue-as-new uses input TypeInfo modified by an interceptor', async (t) => {
   const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
   const client = makeClient(t.context.env);
   const worker = await h.createWorker();
@@ -217,7 +201,60 @@ test('continue-as-new uses input type information modified by an interceptor', a
   });
 });
 
-test('signal-with-start carries definition-supplied workflow type information', async (t) => {
+test('Child Workflow round-trips input and result using definition TypeInfo', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker();
+
+  await worker.runUntil(async () => {
+    const result = await client.workflow.execute(parentWorkflowChildDefinition, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+      args: [new Order('order-1', 12345n)],
+    });
+
+    assertReceipt(t, result);
+  });
+});
+
+test('Child Workflow uses string call-site input and output TypeInfo', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker();
+
+  await worker.runUntil(async () => {
+    const result = await client.workflow.execute(parentWorkflowChildString, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+      args: [new Order('order-1', 12345n)],
+    });
+
+    assertReceipt(t, result);
+  });
+});
+
+test('Child Workflow rejects call-site TypeInfo for a Workflow definition at runtime', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker();
+
+  await worker.runUntil(async () => {
+    const err = await t.throwsAsync(
+      client.workflow.execute(parentWorkflowChildDefinitionInvalidCallSiteTypeInfo, {
+        workflowId: `wf-${randomUUID()}`,
+        taskQueue: h.taskQueue,
+        args: [new Order('order-1', 12345n)],
+      }),
+      { instanceOf: WorkflowFailedError }
+    );
+
+    t.regex(err?.cause?.message ?? '', /Workflow type information cannot be supplied at the call site/);
+  });
+});
+
+// Workflows started with messages
+
+test('Signal-with-Start carries Workflow input and output TypeInfo from the definition', async (t) => {
   const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
   const client = makeClient(t.context.env);
   const worker = await h.createWorker();
@@ -235,155 +272,7 @@ test('signal-with-start carries definition-supplied workflow type information', 
   });
 });
 
-test('signal uses definition-supplied input type information', async (t) => {
-  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
-  const client = makeClient(t.context.env);
-  const worker = await h.createWorker();
-
-  await worker.runUntil(async () => {
-    const handle = await client.workflow.start(signalTarget, {
-      workflowId: `wf-${randomUUID()}`,
-      taskQueue: h.taskQueue,
-    });
-    await handle.signal(orderSignal, new Order('order-1', 12345n));
-    t.is(await handle.result(), 'order-1:12345:0');
-  });
-});
-
-test('string Signal call uses call-site input type information', async (t) => {
-  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
-  const client = makeClient(t.context.env);
-  const worker = await h.createWorker();
-
-  await worker.runUntil(async () => {
-    const handle = await client.workflow.start(signalTarget, {
-      workflowId: `wf-${randomUUID()}`,
-      taskQueue: h.taskQueue,
-    });
-    await handle.signalWithOptions('order', {
-      args: [new Order('order-1', 12345n)],
-      typeInfo: orderSignalTypeInfo,
-    });
-    t.is(await handle.result(), 'order-1:12345:0');
-  });
-});
-
-test('signal-with-start uses definition-supplied Signal input type information', async (t) => {
-  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
-  const client = makeClient(t.context.env);
-  const worker = await h.createWorker();
-
-  await worker.runUntil(async () => {
-    const handle = await client.workflow.signalWithStart(signalTarget, {
-      workflowId: `wf-${randomUUID()}`,
-      taskQueue: h.taskQueue,
-      signal: orderSignal,
-      signalArgs: [new Order('order-1', 12345n)],
-    });
-    t.is(await handle.result(), 'order-1:12345:0');
-  });
-});
-
-test('signal-with-start uses string Signal call-site input type information', async (t) => {
-  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
-  const client = makeClient(t.context.env);
-  const worker = await h.createWorker();
-
-  await worker.runUntil(async () => {
-    const handle = await client.workflow.signalWithStart(signalTarget, {
-      workflowId: `wf-${randomUUID()}`,
-      taskQueue: h.taskQueue,
-      signal: 'order',
-      signalArgs: [new Order('order-1', 12345n)],
-      signalTypeInfo: orderSignalTypeInfo,
-    });
-    t.is(await handle.result(), 'order-1:12345:0');
-  });
-});
-
-test('signal-with-start rejects call-site type information with a Signal definition at runtime', async (t) => {
-  const client = makeClient(t.context.env);
-  const options = {
-    workflowId: `wf-${randomUUID()}`,
-    taskQueue: 'unused',
-    signal: orderSignal,
-    signalArgs: [new Order('order-1', 12345n)],
-    signalTypeInfo: orderSignalTypeInfo,
-  } as unknown as WorkflowSignalWithStartOptions<[Order]>;
-
-  await t.throwsAsync(client.workflow.signalWithStart(signalTarget, options), {
-    instanceOf: TypeError,
-    message: /Cannot provide call-site Signal TypeInfo with a Signal definition/,
-  });
-});
-
-test('external Workflow signal uses definition-supplied input type information', async (t) => {
-  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
-  const client = makeClient(t.context.env);
-  const worker = await h.createWorker();
-
-  await worker.runUntil(async () => {
-    const workflowId = `wf-${randomUUID()}`;
-    const target = await client.workflow.start(signalTarget, { workflowId, taskQueue: h.taskQueue });
-    await client.workflow.execute(signalExternalTarget, {
-      workflowId: `wf-${randomUUID()}`,
-      taskQueue: h.taskQueue,
-      args: [workflowId],
-    });
-    t.is(await target.result(), 'order-1:12345:0');
-  });
-});
-
-test('external Workflow string Signal uses call-site input type information', async (t) => {
-  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
-  const client = makeClient(t.context.env);
-  const worker = await h.createWorker();
-
-  await worker.runUntil(async () => {
-    const workflowId = `wf-${randomUUID()}`;
-    const target = await client.workflow.start(signalTarget, { workflowId, taskQueue: h.taskQueue });
-    await client.workflow.execute(signalExternalTargetWithCallSiteTypeInfo, {
-      workflowId: `wf-${randomUUID()}`,
-      taskQueue: h.taskQueue,
-      args: [workflowId],
-    });
-    t.is(await target.result(), 'order-1:12345:0');
-  });
-});
-
-test('child Workflow signal uses definition-supplied input type information', async (t) => {
-  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
-  const client = makeClient(t.context.env);
-  const worker = await h.createWorker();
-
-  await worker.runUntil(async () => {
-    t.is(
-      await client.workflow.execute(signalChildTarget, {
-        workflowId: `wf-${randomUUID()}`,
-        taskQueue: h.taskQueue,
-      }),
-      'order-1:12345:0'
-    );
-  });
-});
-
-test('child Workflow string Signal uses call-site input type information', async (t) => {
-  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
-  const client = makeClient(t.context.env);
-  const worker = await h.createWorker();
-
-  await worker.runUntil(async () => {
-    t.is(
-      await client.workflow.execute(signalChildTargetWithCallSiteTypeInfo, {
-        workflowId: `wf-${randomUUID()}`,
-        taskQueue: h.taskQueue,
-      }),
-      'order-1:12345:0'
-    );
-  });
-});
-
-test('update-with-start carries definition-supplied workflow type information', async (t) => {
+test('Update-with-Start carries Workflow input and output TypeInfo from the definition', async (t) => {
   const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
   const client = makeClient(t.context.env);
   const worker = await h.createWorker();
@@ -403,53 +292,206 @@ test('update-with-start carries definition-supplied workflow type information', 
   });
 });
 
-test('child workflow uses definition-supplied input and output type information', async (t) => {
+// Signals
+
+test('Client Workflow handle converts Signal input using definition TypeInfo', async (t) => {
   const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
   const client = makeClient(t.context.env);
   const worker = await h.createWorker();
 
   await worker.runUntil(async () => {
-    const result = await client.workflow.execute(parentWorkflowChildDefinition, {
+    const handle = await client.workflow.start(signalTarget, {
       workflowId: `wf-${randomUUID()}`,
       taskQueue: h.taskQueue,
-      args: [new Order('order-1', 12345n)],
     });
-
-    assertReceipt(t, result);
+    await handle.signal(orderSignal, new Order('order-1', 12345n));
+    t.is(await handle.result(), 'order-1:12345:0');
   });
 });
 
-test('child workflow uses call-site input and output type information for string workflow type', async (t) => {
+test('Client Workflow handle converts a string Signal using call-site TypeInfo', async (t) => {
   const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
   const client = makeClient(t.context.env);
   const worker = await h.createWorker();
 
   await worker.runUntil(async () => {
-    const result = await client.workflow.execute(parentWorkflowChildString, {
+    const handle = await client.workflow.start(signalTarget, {
       workflowId: `wf-${randomUUID()}`,
       taskQueue: h.taskQueue,
-      args: [new Order('order-1', 12345n)],
     });
-
-    assertReceipt(t, result);
+    await handle.signalWithOptions('order', {
+      args: [new Order('order-1', 12345n)],
+      typeInfo: orderSignalTypeInfo,
+    });
+    t.is(await handle.result(), 'order-1:12345:0');
   });
 });
 
-test('child workflow definition with call-site type information is invalid', async (t) => {
+test('Signal-with-Start converts Signal input using definition TypeInfo', async (t) => {
   const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
   const client = makeClient(t.context.env);
   const worker = await h.createWorker();
 
   await worker.runUntil(async () => {
-    const err = await t.throwsAsync(
-      client.workflow.execute(parentWorkflowChildDefinitionInvalidCallSiteTypeInfo, {
+    const handle = await client.workflow.signalWithStart(signalTarget, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+      signal: orderSignal,
+      signalArgs: [new Order('order-1', 12345n)],
+    });
+    t.is(await handle.result(), 'order-1:12345:0');
+  });
+});
+
+test('Signal-with-Start converts a string Signal using call-site TypeInfo', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker();
+
+  await worker.runUntil(async () => {
+    const handle = await client.workflow.signalWithStart(signalTarget, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+      signal: 'order',
+      signalArgs: [new Order('order-1', 12345n)],
+      signalTypeInfo: orderSignalTypeInfo,
+    });
+    t.is(await handle.result(), 'order-1:12345:0');
+  });
+});
+
+test('Signal-with-Start rejects call-site TypeInfo for a Signal definition at runtime', async (t) => {
+  const client = makeClient(t.context.env);
+  const options = {
+    workflowId: `wf-${randomUUID()}`,
+    taskQueue: 'unused',
+    signal: orderSignal,
+    signalArgs: [new Order('order-1', 12345n)],
+    signalTypeInfo: orderSignalTypeInfo,
+  } as unknown as WorkflowSignalWithStartOptions<[Order]>;
+
+  await t.throwsAsync(client.workflow.signalWithStart(signalTarget, options), {
+    instanceOf: TypeError,
+    message: /Cannot provide call-site Signal TypeInfo with a Signal definition/,
+  });
+});
+
+test('External Workflow handle converts Signal input using definition TypeInfo', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker();
+
+  await worker.runUntil(async () => {
+    const workflowId = `wf-${randomUUID()}`;
+    const target = await client.workflow.start(signalTarget, { workflowId, taskQueue: h.taskQueue });
+    await client.workflow.execute(signalExternalTarget, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+      args: [workflowId],
+    });
+    t.is(await target.result(), 'order-1:12345:0');
+  });
+});
+
+test('External Workflow handle converts a string Signal using call-site TypeInfo', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker();
+
+  await worker.runUntil(async () => {
+    const workflowId = `wf-${randomUUID()}`;
+    const target = await client.workflow.start(signalTarget, { workflowId, taskQueue: h.taskQueue });
+    await client.workflow.execute(signalExternalTargetWithCallSiteTypeInfo, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+      args: [workflowId],
+    });
+    t.is(await target.result(), 'order-1:12345:0');
+  });
+});
+
+test('Child Workflow handle converts Signal input using definition TypeInfo', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker();
+
+  await worker.runUntil(async () => {
+    t.is(
+      await client.workflow.execute(signalChildTarget, {
         workflowId: `wf-${randomUUID()}`,
         taskQueue: h.taskQueue,
-        args: [new Order('order-1', 12345n)],
       }),
-      { instanceOf: WorkflowFailedError }
+      'order-1:12345:0'
     );
-
-    t.regex(err?.cause?.message ?? '', /Workflow type information cannot be supplied at the call site/);
   });
+});
+
+test('Child Workflow handle converts a string Signal using call-site TypeInfo', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker();
+
+  await worker.runUntil(async () => {
+    t.is(
+      await client.workflow.execute(signalChildTargetWithCallSiteTypeInfo, {
+        workflowId: `wf-${randomUUID()}`,
+        taskQueue: h.taskQueue,
+      }),
+      'order-1:12345:0'
+    );
+  });
+});
+
+// Compile-time contracts
+
+test('Signal-with-Start accepts definition, string, and union Signal references', (t) => {
+  function _assertion(client: Client, signalReference: typeof orderSignal | string) {
+    void client.workflow.signalWithStart(signalTarget, {
+      workflowId: 'workflow-id',
+      taskQueue: 'task-queue',
+      signal: orderSignal,
+      signalArgs: [new Order('order-1', 12345n)],
+    });
+
+    void client.workflow.signalWithStart(signalTarget, {
+      workflowId: 'workflow-id',
+      taskQueue: 'task-queue',
+      signal: 'order',
+      signalArgs: [new Order('order-1', 12345n)],
+      signalTypeInfo: orderSignalTypeInfo,
+    });
+
+    void client.workflow.signalWithStart<typeof signalTarget, [Order]>(signalTarget, {
+      workflowId: 'workflow-id',
+      taskQueue: 'task-queue',
+      signal: signalReference,
+      signalArgs: [new Order('order-1', 12345n)],
+    });
+  }
+
+  t.pass();
+});
+
+test('Signal-with-Start rejects call-site TypeInfo for non-string Signal references', (t) => {
+  function _assertion(client: Client, signalReference: typeof orderSignal | string) {
+    // @ts-expect-error TypeInfo for a Signal definition must be supplied by the definition.
+    void client.workflow.signalWithStart(signalTarget, {
+      workflowId: 'workflow-id',
+      taskQueue: 'task-queue',
+      signal: orderSignal,
+      signalArgs: [new Order('order-1', 12345n)],
+      signalTypeInfo: orderSignalTypeInfo,
+    });
+
+    // @ts-expect-error Call-site TypeInfo requires a Signal name, not a definition-or-name union.
+    void client.workflow.signalWithStart<typeof signalTarget, [Order]>(signalTarget, {
+      workflowId: 'workflow-id',
+      taskQueue: 'task-queue',
+      signal: signalReference,
+      signalArgs: [new Order('order-1', 12345n)],
+      signalTypeInfo: orderSignalTypeInfo,
+    });
+  }
+
+  t.pass();
 });
