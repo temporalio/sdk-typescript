@@ -166,7 +166,7 @@ export class ExternalStorageRunner {
 // ============================================================================
 
 function payloadProtoSize(payload: Payload): number {
-  return PayloadProto.encode(payload).len;
+  return PayloadProto.encode(payload).pos;
 }
 
 /**
