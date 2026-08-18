@@ -16,6 +16,7 @@ import type {
   WorkflowDefinitionOptions,
   WorkflowSerializationContext,
   PayloadTypeInfo,
+  TypeInfo,
 } from '@temporalio/common';
 import {
   defaultFailureConverter,
@@ -28,6 +29,7 @@ import {
   WorkflowExecutionAlreadyStartedError,
   ApplicationFailure,
   mapFromPayloads,
+  fromPayloadWithTypeInfo,
   fromPayloadsAtIndex,
   toPayloadWithTypeInfo,
   RawValue,
@@ -116,6 +118,7 @@ export interface Completion<Success, Context = never> {
   resolve(val: Success): void;
   reject(reason: Error): void;
   context?: Context;
+  outputTypeInfo?: TypeInfo;
 }
 
 export interface Condition {
@@ -758,10 +761,15 @@ export class Activator implements ActivationHandler {
     if (!activation.result) {
       throw new TypeError('Got ResolveChildWorkflowExecution activation with no result');
     }
-    const { resolve, reject, context } = this.consumeCompletion('childWorkflowComplete', getSeq(activation));
+    const { resolve, reject, context, outputTypeInfo } = this.consumeCompletion(
+      'childWorkflowComplete',
+      getSeq(activation)
+    );
     if (activation.result.completed) {
       const completed = activation.result.completed;
-      const result = completed.result ? this.payloadConverter.fromPayload(completed.result, context) : undefined;
+      const result = completed.result
+        ? fromPayloadWithTypeInfo(this.payloadConverter, completed.result, context, outputTypeInfo)
+        : undefined;
       resolve(result);
     } else if (activation.result.failed) {
       const { failure } = activation.result.failed;
