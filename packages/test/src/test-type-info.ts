@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { ExecutionContext } from 'ava';
+import type { WorkflowSignalWithStartOptions } from '@temporalio/client';
 import { Client, WithStartWorkflowOperation, WorkflowFailedError } from '@temporalio/client';
 import { workflowInterceptorModules } from '@temporalio/testing';
 import { bundleWorkflowCode } from '@temporalio/worker';
@@ -300,24 +301,20 @@ test('signal-with-start uses string Signal call-site input type information', as
   });
 });
 
-test('signal-with-start rejects call-site type information with a Signal definition', async (t) => {
+test('signal-with-start rejects call-site type information with a Signal definition at runtime', async (t) => {
   const client = makeClient(t.context.env);
   const options = {
     workflowId: `wf-${randomUUID()}`,
     taskQueue: 'unused',
     signal: orderSignal,
-    signalArgs: [new Order('order-1', 12345n)] as [Order],
+    signalArgs: [new Order('order-1', 12345n)],
     signalTypeInfo: orderSignalTypeInfo,
-  };
+  } as unknown as WorkflowSignalWithStartOptions<[Order]>;
 
-  await t.throwsAsync(
-    // @ts-expect-error TypeInfo must be defined on a referenced Signal definition.
-    client.workflow.signalWithStart(signalTarget, options),
-    {
-      instanceOf: TypeError,
-      message: /Cannot provide call-site Signal TypeInfo with a Signal definition/,
-    }
-  );
+  await t.throwsAsync(client.workflow.signalWithStart(signalTarget, options), {
+    instanceOf: TypeError,
+    message: /Cannot provide call-site Signal TypeInfo with a Signal definition/,
+  });
 });
 
 test('external Workflow signal uses definition-supplied input type information', async (t) => {
