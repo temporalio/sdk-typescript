@@ -1,5 +1,16 @@
 import type { PayloadTypeInfo, TypeInfo } from '@temporalio/common';
-import { condition, defineSignal, defineUpdate, defineWorkflowOptions, setHandler } from '@temporalio/workflow';
+import {
+  condition,
+  continueAsNew,
+  defineSignal,
+  defineUpdate,
+  defineWorkflowOptions,
+  executeChild,
+  getExternalWorkflowHandle,
+  makeContinueAsNewFunc,
+  setHandler,
+  startChild,
+} from '@temporalio/workflow';
 
 export class Order {
   constructor(
@@ -71,15 +82,113 @@ function assertOrder(order: Order): void {
   }
 }
 
+function assertReceipt(receipt: Receipt): void {
+  if (!(receipt instanceof Receipt)) {
+    throw new Error('Expected Receipt result');
+  }
+  if (typeof receipt.totalCents !== 'bigint') {
+    throw new Error('Expected Receipt.totalCents to be a bigint');
+  }
+}
+
 defineWorkflowOptions(workflowWithTypeInfo, {
   staticOptions: { typeInfo: workflowTypeInfo },
 });
 export async function workflowWithTypeInfo(order: Order): Promise<Receipt> {
   assertOrder(order);
+  if (order.remainingRuns > 0) {
+    await continueAsNew(new Order(order.id, order.totalCents, order.remainingRuns - 1));
+  }
   return new Receipt(order.id, order.totalCents);
 }
 
+export async function parentWorkflowChildDefinition(order: Order): Promise<Receipt> {
+  assertOrder(order);
+  const receipt = await executeChild(workflowWithTypeInfo, { args: [order] });
+  assertReceipt(receipt);
+  return receipt;
+}
+defineWorkflowOptions(parentWorkflowChildDefinition, {
+  staticOptions: { typeInfo: workflowTypeInfo },
+});
+
+export async function parentWorkflowChildString(order: Order): Promise<Receipt> {
+  assertOrder(order);
+  const receipt = await executeChild('workflowWithTypeInfo', {
+    args: [order],
+    typeInfo: workflowTypeInfo,
+  });
+  assertReceipt(receipt);
+  return receipt;
+}
+defineWorkflowOptions(parentWorkflowChildString, {
+  staticOptions: { typeInfo: workflowTypeInfo },
+});
+
+export async function parentWorkflowChildDefinitionInvalidCallSiteTypeInfo(order: Order): Promise<void> {
+  const options = {
+    args: [order],
+    typeInfo: workflowTypeInfo,
+  };
+  // @ts-expect-error TypeInfo must be defined on a referenced Workflow function.
+  await executeChild(workflowWithTypeInfo, options);
+}
+defineWorkflowOptions(parentWorkflowChildDefinitionInvalidCallSiteTypeInfo, {
+  workflowDefinitionOptions: { failureExceptionTypes: [TypeError] },
+  staticOptions: { typeInfo: workflowTypeInfo },
+});
+
+export async function continueAsNewToWorkflowWithTypeInfo(order: Order): Promise<Receipt> {
+  assertOrder(order);
+  const continueAsTypedWorkflow = makeContinueAsNewFunc<typeof workflowWithTypeInfo>({
+    workflowType: 'workflowWithTypeInfo',
+    typeInfo: { inputTypes: workflowTypeInfo.inputTypes },
+  });
+  return await continueAsTypedWorkflow(order);
+}
+defineWorkflowOptions(continueAsNewToWorkflowWithTypeInfo, {
+  staticOptions: { typeInfo: workflowTypeInfo },
+});
+
+export async function continueAsNewWithInterceptorTypeInfo(order: Order): Promise<Receipt> {
+  assertOrder(order);
+  const continueAsTypedWorkflow = makeContinueAsNewFunc<typeof workflowWithTypeInfo>({
+    workflowType: 'workflowWithTypeInfo',
+  });
+  return await continueAsTypedWorkflow(order);
+}
+defineWorkflowOptions(continueAsNewWithInterceptorTypeInfo, {
+  staticOptions: { typeInfo: workflowTypeInfo },
+});
+
 export const finishSignal = defineSignal('finish');
+
+export const orderSignal = defineSignal<[Order]>('order', {
+  typeInfo: { inputTypes: [orderTypeInfo] },
+});
+
+export async function signalTarget(): Promise<string> {
+  let summary: string | undefined;
+  setHandler(orderSignal, (order) => {
+    assertOrder(order);
+    summary = order.summary();
+  });
+  await condition(() => summary !== undefined);
+  if (summary === undefined) {
+    throw new Error('Signal handler did not set a summary');
+  }
+  return summary;
+}
+
+export async function signalExternalTarget(workflowId: string): Promise<void> {
+  await getExternalWorkflowHandle(workflowId).signal(orderSignal, new Order('order-1', 12345n));
+}
+
+export async function signalChildTarget(): Promise<string> {
+  const child = await startChild(signalTarget);
+  await child.signal(orderSignal, new Order('order-1', 12345n));
+  return await child.result();
+}
 
 export async function workflowWithSignalStart(order: Order): Promise<Receipt> {
   assertOrder(order);

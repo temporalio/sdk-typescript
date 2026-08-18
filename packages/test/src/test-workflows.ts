@@ -321,7 +321,7 @@ function makeFireTimerJob(seq: number): coresdk.workflow_activation.IWorkflowAct
 
 function makeResolveActivityJob(
   seq: number,
-  result: coresdk.activity_result.IActivityExecutionResult
+  result: coresdk.activity_result.IActivityResolution
 ): coresdk.workflow_activation.IWorkflowActivationJob {
   return {
     resolveActivity: { seq, result },
@@ -330,7 +330,7 @@ function makeResolveActivityJob(
 
 function makeResolveActivity(
   seq: number,
-  result: coresdk.activity_result.IActivityExecutionResult,
+  result: coresdk.activity_result.IActivityResolution,
   timestamp: number = Date.now()
 ): coresdk.workflow_activation.IWorkflowActivation {
   return makeActivation(timestamp, makeResolveActivityJob(seq, result));

@@ -392,9 +392,10 @@ export class JsonPayloadConverter implements PayloadConverterWithEncoding {
 }
 
 export class DefaultPayloadConverter extends CompositePayloadConverter {
-  // Match the order used in other SDKs, but exclude Protobuf converters so that the code, including
-  // `proto3-json-serializer`, doesn't take space in Workflow bundles that don't use Protobufs. To use Protobufs, use
-  // {@link DefaultPayloadConverterWithProtobufs}.
+  // Match the order used in other SDKs, with the exception of the Protobuf converter, which is
+  // excluded by default to avoid the significant bundle size increase it introduces.
+  //
+  // To use `protobufjs` for Payload conversion, use {@link DefaultPayloadConverterWithProtobufs}.
   //
   // Go SDK:
   // https://github.com/temporalio/sdk-go/blob/5e5645f0c550dcf717c095ae32c76a7087d2e985/converter/default_data_converter.go#L28

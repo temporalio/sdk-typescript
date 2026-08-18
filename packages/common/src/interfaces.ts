@@ -1,4 +1,5 @@
 import type { temporal } from '@temporalio/proto';
+import type { PayloadTypeInfo } from './type-info';
 
 export type Payload = temporal.api.common.v1.IPayload;
 
@@ -17,6 +18,7 @@ export type WorkflowSignalAnnotatedType = {
   handler: WorkflowSignalType;
   unfinishedPolicy: HandlerUnfinishedPolicy;
   description?: string;
+  typeInfo?: SignalTypeInfo;
 };
 export type WorkflowQueryType = (...args: any[]) => any;
 export type WorkflowQueryAnnotatedType = { handler: WorkflowQueryType; description?: string };
@@ -59,9 +61,23 @@ export interface UpdateDefinition<Ret, Args extends any[] = [], Name extends str
  * @remarks `Args` can be used for parameter type inference in handler functions and WorkflowHandle methods.
  * `Name` can optionally be specified with a string literal type to preserve type-level knowledge of the signal name.
  */
+export type SignalTypeInfo = Pick<PayloadTypeInfo, 'inputTypes'>;
+
+/**
+ * Options for {@link SignalDefinition}.
+ *
+ * @experimental
+ */
+export interface SignalDefinitionOptions {
+  /** Type information used to convert Signal arguments. */
+  typeInfo?: SignalTypeInfo;
+}
+
 export interface SignalDefinition<Args extends any[] = [], Name extends string = string> {
   type: 'signal';
   name: Name;
+  /** Type information used to convert Signal arguments. */
+  typeInfo?: SignalTypeInfo;
   /**
    * Virtual type brand to maintain a distinction between {@link SignalDefinition} types with different args.
    * This field is not present at run-time.
