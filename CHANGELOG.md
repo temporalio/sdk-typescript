@@ -69,6 +69,8 @@ to docs, or any other relevant information.
 - **Experimental**: Signal definitions can now provide `TypeInfo` for converting Signal arguments on Client and
   Workflow callers and in Workflow handlers.
 - **Experimental**: Workflows can now use `TypeInfo` for Child Workflow inputs and results and continue-as-new inputs.
+- **Experimental**: String-named Signal calls can now provide `TypeInfo` through explicit options on Client and
+  Workflow handles and in signal-with-start requests.
 
 ### Changed
 
