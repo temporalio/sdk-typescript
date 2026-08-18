@@ -81,6 +81,9 @@ to docs, or any other relevant information.
   Nexus Handler Error instead of `INTERNAL`, so the caller is not retried on invalid input. The
   original `ApplicationFailure` is retained as the Handler Error's cause. Any other failure from the
   data converter is unchanged.
+- `SimplePlugin` no longer appends its `workerInterceptors.workflowModules` to worker options when
+  the worker uses a prebuilt `workflowBundle`, as module paths cannot be resolved in that case;
+  they are instead applied at bundling time, through the plugin's `configureBundler` method.
 
 ### Fixed
 
