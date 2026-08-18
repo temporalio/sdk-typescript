@@ -48,7 +48,7 @@ const test = makeConfigurableEnvironmentTestFn<Context>({
       ...bundlerOptions,
       workflowInterceptorModules: [
         ...workflowInterceptorModules,
-        require.resolve('./workflows/type-info-interceptors'),
+        require.resolve('./workflows/type-info/interceptors'),
       ],
       workflowsPath: require.resolve('./workflows/type-info'),
     });
