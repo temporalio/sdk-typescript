@@ -726,10 +726,12 @@ mod config {
                 .maybe_api_key(self.api_key)
                 .maybe_metrics_meter(metrics_meter)
                 .disable_error_code_metric_tags(self.disable_error_code_metric_tags)
-                .payload_limits(PayloadLimitsOptions {
-                    payloads_warn_size: self.payloads_warn_size,
-                    memo_warn_size: self.memo_warn_size,
-                })
+                .payload_limits(
+                    PayloadLimitsOptions::builder()
+                        .payloads_warn_size(self.payloads_warn_size)
+                        .memo_warn_size(self.memo_warn_size)
+                        .build(),
+                )
                 // identity -- skipped: will be set on worker
                 // retry_config -- skipped: worker overrides anyway
                 // override_origin -- skipped: will default to tls_cfg.domain
@@ -756,24 +758,24 @@ mod config {
 
     impl From<TlsOptions> for CoreTlsOptions {
         fn from(val: TlsOptions) -> Self {
-            Self {
-                domain: val.domain,
-                server_root_ca_cert: val.server_root_ca_cert,
-                client_tls_options: val.client_tls_options.map(|pair| CoreClientTlsOptions {
-                    client_cert: pair.client_cert,
-                    client_private_key: pair.client_private_key,
-                }),
-                server_cert_verifier: None,
-            }
+            Self::builder()
+                .maybe_domain(val.domain)
+                .maybe_server_root_ca_cert(val.server_root_ca_cert)
+                .maybe_client_tls_options(val.client_tls_options.map(|pair| {
+                    CoreClientTlsOptions::builder()
+                        .client_cert(pair.client_cert)
+                        .client_private_key(pair.client_private_key)
+                        .build()
+                }))
+                .build()
         }
     }
 
     impl From<HttpConnectProxy> for HttpConnectProxyOptions {
         fn from(val: HttpConnectProxy) -> Self {
-            Self {
-                target_addr: val.target_host,
-                basic_auth: val.basic_auth.map(|auth| (auth.username, auth.password)),
-            }
+            Self::new(val.target_host)
+                .maybe_basic_auth(val.basic_auth.map(|auth| (auth.username, auth.password)))
+                .build()
         }
     }
 

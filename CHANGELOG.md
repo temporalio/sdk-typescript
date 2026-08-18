@@ -21,6 +21,8 @@ to docs, or any other relevant information.
 
 ### Added
 
+- Core logs written directly to the console can now use compact, pretty, or newline-delimited JSON
+  output via `telemetryOptions.logging.console.format`.
 - **Experimental**: Workflow Clients can now use `TypeInfo` to encode Workflow inputs and decode Workflow results.
 - **Experimental**: `@temporalio/google-adk-agents` package for running Google ADK agents as durable Temporal Workflows.
   ADK's OpenTelemetry agent-loop spans can be exported replay-safely from the Workflow sandbox by composing with
@@ -38,6 +40,17 @@ to docs, or any other relevant information.
   Workflow-backed Operations with `WorkflowRunOperationHandler`.
 - `@temporalio/ai-sdk` now requires `ai@>=7.0.59` as a peer dependency, up from `7.0.0`, since
   earlier releases threw a `TypeError` on import in runtimes without a global `fetch`.
+- A Payload Converter or Payload Codec that fails to decode a Nexus Operation's input with a
+  non-retryable `ApplicationFailure` of type `PayloadValidationError` now results in a `BAD_REQUEST`
+  Nexus Handler Error instead of `INTERNAL`, so the caller is not retried on invalid input. The
+  original `ApplicationFailure` is retained as the Handler Error's cause. Any other failure from the
+  data converter is unchanged.
+
+### Fixed
+
+- **Experimental**: The external storage S3 and GCS drivers now use `hash_algorithm` and `hash_value` instead of
+  `hashAlgorithm` and `hashValue` in their claims. The GCS driver additionally uses `object_name` instead of
+  `object`. Retrieval still accepts the old key names.
 
 ## [1.22.0] - 2026-08-05
 

@@ -9,7 +9,7 @@ import * as root from '@temporalio/proto';
 import * as testing from '@temporalio/testing';
 import type { LogEntry } from '@temporalio/worker';
 import { DefaultLogger, Runtime, Worker } from '@temporalio/worker';
-import type { ProtoFailure } from '@temporalio/common';
+import type { LoadedDataConverter, Payload, ProtoFailure } from '@temporalio/common';
 import {
   ApplicationFailure,
   CancelledFailure,
@@ -17,8 +17,14 @@ import {
   defaultPayloadConverter,
   defaultDataConverter,
 } from '@temporalio/common';
+import type { PayloadCodec } from '@temporalio/common/lib/converter/payload-codec';
 import { ServiceError } from '@temporalio/client';
-import { coerceToHandlerError, operationErrorToProto } from '@temporalio/worker/lib/nexus/conversions';
+import {
+  PAYLOAD_VALIDATION_ERROR_TYPE,
+  coerceToHandlerError,
+  decodePayload,
+  operationErrorToProto,
+} from '@temporalio/worker/lib/nexus/conversions';
 
 export interface Context {
   taskQueue: string;
@@ -396,6 +402,144 @@ test('coerceToHandlerError maps non-retryable ApplicationFailure to INTERNAL', (
 
 test('coerceToHandlerError maps unknown errors to INTERNAL', (t) => {
   t.is(coerceToHandlerError(new Error('something')).type, 'INTERNAL');
+});
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// decodePayload unit tests
+
+const encodedInputPayload = defaultPayloadConverter.toPayload('some-input') as Payload;
+
+/** A data converter whose Payload Converter always fails to decode with `err`. */
+function converterFailingWith(err: unknown): LoadedDataConverter {
+  return {
+    ...defaultDataConverter,
+    payloadConverter: {
+      toPayload<T>(value: T): Payload {
+        return defaultPayloadConverter.toPayload(value);
+      },
+      fromPayload<T>(): T {
+        throw err;
+      },
+    },
+  };
+}
+
+/** A data converter whose Payload Codec always fails to decode with `err`. */
+function codecFailingWith(err: unknown): LoadedDataConverter {
+  const codec: PayloadCodec = {
+    async encode(payloads: Payload[]): Promise<Payload[]> {
+      return payloads;
+    },
+    async decode(): Promise<Payload[]> {
+      throw err;
+    },
+  };
+  return { ...defaultDataConverter, payloadCodecs: [codec] };
+}
+
+test('decodePayload maps non-retryable PayloadValidationError from converter to a bad request handler error', async (t) => {
+  const cause = ApplicationFailure.create({
+    message: 'input payload is invalid',
+    type: PAYLOAD_VALIDATION_ERROR_TYPE,
+    nonRetryable: true,
+  });
+
+  const err = await t.throwsAsync(() => decodePayload(converterFailingWith(cause), encodedInputPayload), {
+    instanceOf: nexus.HandlerError,
+  });
+  t.is(err?.type, 'BAD_REQUEST');
+  t.false(err?.retryable);
+  t.is(err?.message, 'Invalid operation input');
+  // The original failure, including its message, is retained as the cause.
+  t.true(err?.cause instanceof ApplicationFailure);
+  t.is(err?.cause, cause);
+  t.is((err?.cause as ApplicationFailure).type, PAYLOAD_VALIDATION_ERROR_TYPE);
+  t.true((err?.cause as ApplicationFailure).nonRetryable);
+  t.is((err?.cause as ApplicationFailure).message, 'input payload is invalid');
+});
+
+test('decodePayload maps non-retryable PayloadValidationError from codec to a bad request handler error', async (t) => {
+  const cause = ApplicationFailure.create({
+    message: 'input payload is invalid',
+    type: PAYLOAD_VALIDATION_ERROR_TYPE,
+    nonRetryable: true,
+  });
+
+  const err = await t.throwsAsync(() => decodePayload(codecFailingWith(cause), encodedInputPayload), {
+    instanceOf: nexus.HandlerError,
+  });
+  t.is(err?.type, 'BAD_REQUEST');
+  t.false(err?.retryable);
+  t.is(err?.message, 'Invalid operation input');
+  // The original failure, including its message, is retained as the cause.
+  t.true(err?.cause instanceof ApplicationFailure);
+  t.is(err?.cause, cause);
+  t.is((err?.cause as ApplicationFailure).type, PAYLOAD_VALIDATION_ERROR_TYPE);
+  t.true((err?.cause as ApplicationFailure).nonRetryable);
+  t.is((err?.cause as ApplicationFailure).message, 'input payload is invalid');
+});
+
+test('decodePayload leaves non-retryable ApplicationFailure of another type as an internal handler error', async (t) => {
+  const cause = ApplicationFailure.create({
+    message: 'some other failure',
+    type: 'SomeOtherError',
+    nonRetryable: true,
+  });
+
+  const err = await t.throwsAsync(() => decodePayload(converterFailingWith(cause), encodedInputPayload), {
+    instanceOf: ApplicationFailure,
+  });
+  // The ApplicationFailure is rethrown as-is, and only later coerced into an INTERNAL handler error.
+  t.is(err, cause);
+  const handlerError = coerceToHandlerError(err);
+  t.is(handlerError.type, 'INTERNAL');
+  t.false(handlerError.retryable);
+});
+
+test('decodePayload leaves retryable PayloadValidationError as an internal handler error', async (t) => {
+  const cause = ApplicationFailure.create({
+    message: 'input payload is invalid',
+    type: PAYLOAD_VALIDATION_ERROR_TYPE,
+    nonRetryable: false,
+  });
+
+  const err = await t.throwsAsync(() => decodePayload(converterFailingWith(cause), encodedInputPayload), {
+    instanceOf: ApplicationFailure,
+  });
+  // The non-retryable condition is required; a retryable failure is rethrown as-is and coerced to INTERNAL.
+  t.is(err, cause);
+  t.is(coerceToHandlerError(err).type, 'INTERNAL');
+});
+
+test('decodePayload passes through HandlerError from converter unchanged', async (t) => {
+  const original = new nexus.HandlerError('NOT_FOUND', 'nope');
+
+  const err = await t.throwsAsync(() => decodePayload(converterFailingWith(original), encodedInputPayload), {
+    instanceOf: nexus.HandlerError,
+  });
+  t.is(err, original);
+});
+
+test('decodePayload maps other converter errors to a bad request handler error', async (t) => {
+  const cause = new Error('kaboom');
+
+  const err = await t.throwsAsync(() => decodePayload(converterFailingWith(cause), encodedInputPayload), {
+    instanceOf: nexus.HandlerError,
+  });
+  t.is(err?.type, 'BAD_REQUEST');
+  t.regex(err!.message, /Payload converter failed to decode Nexus operation input/);
+  t.is(err?.cause, cause);
+});
+
+test('decodePayload maps other codec errors to an internal handler error', async (t) => {
+  const cause = new Error('kaboom');
+
+  const err = await t.throwsAsync(() => decodePayload(codecFailingWith(cause), encodedInputPayload), {
+    instanceOf: nexus.HandlerError,
+  });
+  t.is(err?.type, 'INTERNAL');
+  t.regex(err!.message, /Payload codec failed to decode Nexus operation input/);
+  t.is(err?.cause, cause);
 });
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
