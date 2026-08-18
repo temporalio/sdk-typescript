@@ -108,15 +108,25 @@ export interface WorkflowUpdateOptions {
   readonly updateId?: string;
 }
 
-type SignalWithStartTarget<SignalArgs extends any[]> =
-  | { signal: SignalDefinition<SignalArgs>; signalTypeInfo?: never }
-  | { signal: string; signalTypeInfo?: SignalTypeInfo };
+type WorkflowSignalWithStartOptionsBase<SignalArgs extends any[]> = SignalArgs extends [any, ...any[]]
+  ? WorkflowSignalWithStartOptionsWithArgs<SignalArgs>
+  : WorkflowSignalWithStartOptionsWithoutArgs<SignalArgs>;
 
-export type WorkflowSignalWithStartOptions<SignalArgs extends any[] = []> = SignalArgs extends [any, ...any[]]
-  ? Omit<WorkflowSignalWithStartOptionsWithArgs<SignalArgs>, 'signal' | 'signalTypeInfo'> &
-      SignalWithStartTarget<SignalArgs>
-  : Omit<WorkflowSignalWithStartOptionsWithoutArgs<SignalArgs>, 'signal' | 'signalTypeInfo'> &
-      SignalWithStartTarget<SignalArgs>;
+type SignalWithStartTypeInfoOptions =
+  | { signalTypeInfo?: never }
+  | {
+      signal: string;
+
+      /**
+       * Type information used to convert Signal arguments.
+       *
+       * @experimental
+       */
+      signalTypeInfo?: SignalTypeInfo;
+    };
+
+export type WorkflowSignalWithStartOptions<SignalArgs extends any[] = []> =
+  WorkflowSignalWithStartOptionsBase<SignalArgs> & SignalWithStartTypeInfoOptions;
 
 export interface WorkflowSignalWithStartOptionsWithoutArgs<SignalArgs extends any[]>
   extends Omit<WorkflowOptions, 'requestEagerStart'> {
@@ -124,13 +134,6 @@ export interface WorkflowSignalWithStartOptionsWithoutArgs<SignalArgs extends an
    * SignalDefinition or name of signal
    */
   signal: SignalDefinition<SignalArgs> | string;
-
-  /**
-   * Type information used to convert Signal arguments when {@link signal} is a Signal name.
-   *
-   * @experimental
-   */
-  signalTypeInfo?: SignalTypeInfo;
 
   /**
    * Arguments to invoke the signal handler with
@@ -144,13 +147,6 @@ export interface WorkflowSignalWithStartOptionsWithArgs<SignalArgs extends any[]
    * SignalDefinition or name of signal
    */
   signal: SignalDefinition<SignalArgs> | string;
-
-  /**
-   * Type information used to convert Signal arguments when {@link signal} is a Signal name.
-   *
-   * @experimental
-   */
-  signalTypeInfo?: SignalTypeInfo;
 
   /**
    * Arguments to invoke the signal handler with
