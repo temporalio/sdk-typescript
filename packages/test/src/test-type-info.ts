@@ -302,15 +302,17 @@ test('signal-with-start uses string Signal call-site input type information', as
 
 test('signal-with-start rejects call-site type information with a Signal definition', async (t) => {
   const client = makeClient(t.context.env);
+  const options = {
+    workflowId: `wf-${randomUUID()}`,
+    taskQueue: 'unused',
+    signal: orderSignal,
+    signalArgs: [new Order('order-1', 12345n)] as [Order],
+    signalTypeInfo: orderSignalTypeInfo,
+  };
 
   await t.throwsAsync(
-    client.workflow.signalWithStart(signalTarget, {
-      workflowId: `wf-${randomUUID()}`,
-      taskQueue: 'unused',
-      signal: orderSignal,
-      signalArgs: [new Order('order-1', 12345n)],
-      signalTypeInfo: orderSignalTypeInfo,
-    }),
+    // @ts-expect-error TypeInfo must be defined on a referenced Signal definition.
+    client.workflow.signalWithStart(signalTarget, options),
     {
       instanceOf: TypeError,
       message: /Cannot provide call-site Signal TypeInfo with a Signal definition/,

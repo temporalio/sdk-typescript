@@ -108,9 +108,15 @@ export interface WorkflowUpdateOptions {
   readonly updateId?: string;
 }
 
+type SignalWithStartTarget<SignalArgs extends any[]> =
+  | { signal: SignalDefinition<SignalArgs>; signalTypeInfo?: never }
+  | { signal: string; signalTypeInfo?: SignalTypeInfo };
+
 export type WorkflowSignalWithStartOptions<SignalArgs extends any[] = []> = SignalArgs extends [any, ...any[]]
-  ? WorkflowSignalWithStartOptionsWithArgs<SignalArgs>
-  : WorkflowSignalWithStartOptionsWithoutArgs<SignalArgs>;
+  ? Omit<WorkflowSignalWithStartOptionsWithArgs<SignalArgs>, 'signal' | 'signalTypeInfo'> &
+      SignalWithStartTarget<SignalArgs>
+  : Omit<WorkflowSignalWithStartOptionsWithoutArgs<SignalArgs>, 'signal' | 'signalTypeInfo'> &
+      SignalWithStartTarget<SignalArgs>;
 
 export interface WorkflowSignalWithStartOptionsWithoutArgs<SignalArgs extends any[]>
   extends Omit<WorkflowOptions, 'requestEagerStart'> {
