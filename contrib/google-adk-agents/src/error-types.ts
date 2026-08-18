@@ -3,28 +3,64 @@
  * Copyright 2025 Temporal Technologies Inc.
  * SPDX-License-Identifier: MIT
  *
- * The `ApplicationFailure.type` values this plugin raises, re-exported from the
- * `./workflow` entry point so Workflow code can match `failure.type` without
- * hand-typing the strings.
+ * The `ApplicationFailure.type` values this plugin raises.
  */
 
-/** Error type when streaming is requested but `TemporalModelOptions.streamingTopic` is unset. */
+/**
+ * Error type when streaming is requested but `TemporalModelOptions.streamingTopic`
+ * is unset. Non-retryable, and thrown in the Workflow, so code calling
+ * `TemporalModel` directly catches it unwrapped. Inside an `LlmAgent` run ADK
+ * absorbs it instead — see {@link MODEL_ERROR_FAILURE_TYPE}.
+ */
 export const STREAMING_TOPIC_REQUIRED_FAILURE_TYPE = 'GoogleAdkStreamingTopicRequired';
 
-/** Error type when `BaseLlm.connect` (BIDI live streaming) is called inside a Workflow. */
+/**
+ * Error type when `BaseLlm.connect` (BIDI live streaming) is called inside a
+ * Workflow. Non-retryable, and thrown in the Workflow to whoever called `connect`,
+ * so it arrives unwrapped.
+ */
 export const UNSUPPORTED_FAILURE_TYPE = 'GoogleAdkUnsupported';
 
-/** Error type when `TemporalMCPToolset.getTools()` runs outside a Workflow without `connectionParams`. */
+/** @internal */
 export const MCP_TOOLSET_OUTSIDE_WORKFLOW_FAILURE_TYPE = 'GoogleAdkMCPToolsetOutsideWorkflow';
 
-/** Error type when an `activityAsTool` tool runs outside a Workflow. */
+/** @internal */
 export const ACTIVITY_TOOL_OUTSIDE_WORKFLOW_FAILURE_TYPE = 'GoogleAdkActivityToolOutsideWorkflow';
 
-/** Error type when the `<name>-callTool` Activity finds no tool by the requested name. */
+/**
+ * Error type when the `<name>-callTool` Activity finds no tool by the requested name
+ * in the `BaseToolset` its factory returned. Non-retryable, and raised inside that
+ * Activity, so it arrives wrapped in an `ActivityFailure`: match it through the
+ * `.cause` chain, never against the caught error's own `.type`. Inside an `LlmAgent`
+ * run ADK absorbs it instead — see {@link MODEL_ERROR_FAILURE_TYPE}.
+ *
+ * A factory returning `MCPConnectionParams` never raises it: the plugin calls the tool
+ * without resolving the name first, so the caller gets whatever the server answers.
+ */
 export const MCP_TOOL_NOT_FOUND_FAILURE_TYPE = 'GoogleAdkMCPToolNotFound';
 
 /**
- * Error type for a failed model or MCP call. When the upstream reported an HTTP
- * status it is appended as `.<status>` — e.g. `GoogleAdkModelError.429`.
+ * Error type for a failed model call and, despite the name, for a failed MCP
+ * `listTools` or `callTool` call as well. Raised inside an Activity, so it arrives
+ * wrapped in an `ActivityFailure`: match it through the `.cause` chain.
+ *
+ * A failure that carries an HTTP status has it appended as `.<status>`, for example
+ * `GoogleAdkModelError.429`, so match with `startsWith`, not `===`; such a failure is
+ * retryable for 408, 409, 429 and 5xx and non-retryable otherwise. One carrying no
+ * status is the bare type and retryable. An `x-should-retry` response header overrides
+ * either verdict.
+ *
+ * An MCP failure carries no HTTP status, so a rejected token or an unreachable server
+ * classifies as retryable rather than failing fast, and the plugin sets no retry policy:
+ * the call retries indefinitely until the caller bounds it with
+ * `TemporalMCPToolsetOptions.activity.retry.maximumAttempts`.
+ *
+ * Inside an `LlmAgent` run most of these never reach a `catch` around the runner: a
+ * failed model call becomes an error event and a failed tool call an `{ error }`
+ * tool response fed back to the model, and neither fails the Workflow, so decide
+ * whether such a run succeeded from the events the runner yields. Those events carry an
+ * `errorCode` of ADK's own rather than this type, so do not try to match it there. Tool
+ * discovery is the exception: `listTools` runs while ADK is still building the request,
+ * outside that handling, so its failure propagates and fails the Workflow.
  */
 export const MODEL_ERROR_FAILURE_TYPE = 'GoogleAdkModelError';

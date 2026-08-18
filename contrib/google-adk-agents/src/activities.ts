@@ -13,13 +13,14 @@
 
 import {
   LLMRegistry,
+  MCPSessionManager,
   MCPToolset,
   isBaseToolset,
   type BaseLlm,
-  type BaseToolset,
   type Context as AdkToolContext,
   type LlmRequest,
   type LlmResponse,
+  type MCPConnectionParams,
 } from '@google/adk';
 import type { FunctionDeclaration } from '@google/genai';
 import type { Duration } from '@temporalio/common';
@@ -33,7 +34,6 @@ import type { MCPCallToolArgs, MCPToolsetFactory } from './mcp';
 
 const DEFAULT_STREAM_BATCH_INTERVAL = '100 milliseconds';
 
-/** HTTP statuses that are retryable independent of the upstream's hints. */
 const RETRYABLE_STATUS = new Set([408, 409, 429]);
 
 /** Kept local (not imported from `plugin.ts`) to avoid an import cycle. @internal */
@@ -99,7 +99,7 @@ export function createModelActivities(options: ModelActivitiesOptions = {}): Mod
   };
 }
 
-/** Builds the per-server `<name>-listTools` / `<name>-callTool` pairs; MCP is session-per-call. @internal */
+/** Builds the per-server `<name>-listTools` / `<name>-callTool` pairs. @internal */
 export function createMCPActivities(
   toolsets: Record<string, MCPToolsetFactory> = {}
 ): Record<string, (args: never) => Promise<unknown>> {
@@ -117,17 +117,23 @@ function mcpActivitiesForName(
   return {
     [`${name}-listTools`]: async (): Promise<FunctionDeclaration[]> => {
       const stopHeartbeat = startAdaptiveHeartbeat();
+      let owned: MCPToolset | undefined;
       try {
-        return await withToolset(factory, async (toolset) => {
-          const tools = await toolset.getTools();
-          // `_getDeclaration` is underscore-prefixed by ADK convention but is a
-          // typed, documented `BaseTool` member; ADK's own default
-          // `processLlmRequest` calls it the same way.
-          return tools.map((tool) => tool._getDeclaration()).filter((d): d is FunctionDeclaration => d !== undefined);
-        });
+        const produced = factory();
+        const toolset = isBaseToolset(produced) ? produced : (owned = new MCPToolset(produced));
+        const tools = await toolset.getTools();
+        // `_getDeclaration` is underscore-prefixed by ADK convention but is a
+        // typed, documented `BaseTool` member; ADK's own default
+        // `processLlmRequest` calls it the same way.
+        return tools.map((tool) => tool._getDeclaration()).filter((d): d is FunctionDeclaration => d !== undefined);
       } catch (err) {
         throw toApplicationFailure(err);
       } finally {
+        try {
+          await owned?.close();
+        } catch {
+          /* a close failure must not mask the primary result/error */
+        }
         stopHeartbeat();
       }
     },
@@ -135,22 +141,23 @@ function mcpActivitiesForName(
     [`${name}-callTool`]: async (args: MCPCallToolArgs): Promise<unknown> => {
       const stopHeartbeat = startAdaptiveHeartbeat();
       try {
-        return await withToolset(factory, async (toolset) => {
-          const tools = await toolset.getTools();
-          const tool = tools.find((t) => t.name === args.toolName);
-          if (!tool) {
-            throw ApplicationFailure.nonRetryable(
-              `Tool '${args.toolName}' not found on MCP server '${name}'.`,
-              MCP_TOOL_NOT_FOUND_FAILURE_TYPE
-            );
-          }
-          // The MCP tool reads `toolContext.abortSignal`; supply the Activity's
-          // cancellation signal so a cancelled Workflow aborts the call.
-          const toolContext = {
-            abortSignal: ActivityContext.current().cancellationSignal,
-          } as unknown as AdkToolContext;
-          return await tool.runAsync({ args: args.args, toolContext });
-        });
+        const abortSignal = ActivityContext.current().cancellationSignal;
+        const produced = factory();
+        if (!isBaseToolset(produced)) {
+          return await callToolOverOneSession(produced, args, abortSignal);
+        }
+        const tools = await produced.getTools();
+        const tool = tools.find((t) => t.name === args.toolName);
+        if (!tool) {
+          throw ApplicationFailure.nonRetryable(
+            `Tool '${args.toolName}' not found on MCP server '${name}'.`,
+            MCP_TOOL_NOT_FOUND_FAILURE_TYPE
+          );
+        }
+        // The MCP tool reads `toolContext.abortSignal`; supply the Activity's
+        // cancellation signal so a cancelled Workflow aborts the call.
+        const toolContext = { abortSignal } as unknown as AdkToolContext;
+        return await tool.runAsync({ args: args.args, toolContext });
       } catch (err) {
         throw toApplicationFailure(err);
       } finally {
@@ -160,18 +167,18 @@ function mcpActivitiesForName(
   };
 }
 
-/** Closes only a toolset built here; a factory-supplied one may be shared with a concurrent invocation. */
-async function withToolset<T>(factory: MCPToolsetFactory, use: (toolset: BaseToolset) => Promise<T>): Promise<T> {
-  const produced = factory();
-  if (isBaseToolset(produced)) {
-    return use(produced);
-  }
-  const toolset = new MCPToolset(produced);
+async function callToolOverOneSession(
+  connectionParams: MCPConnectionParams,
+  args: MCPCallToolArgs,
+  abortSignal: AbortSignal
+): Promise<unknown> {
+  const sessions = new MCPSessionManager(connectionParams);
+  const session = await sessions.createSession();
   try {
-    return await use(toolset);
+    return await session.callTool({ name: args.toolName, arguments: args.args }, undefined, { signal: abortSignal });
   } finally {
     try {
-      await toolset.close();
+      await sessions.closeSession(session);
     } catch {
       /* a close failure must not mask the primary result/error */
     }
@@ -228,13 +235,7 @@ function startAdaptiveHeartbeat(): () => void {
   return () => clearInterval(timer);
 }
 
-/**
- * Maps a GenAI/MCP error into Temporal's retry contract: 408/409/429/5xx (or
- * `x-should-retry: true`) → retryable, other 4xx (or `x-should-retry: false`) →
- * non-retryable; `retry-after[-ms]` → `nextRetryDelay`. Existing
- * `ApplicationFailure`s pass through unchanged.
- * @internal
- */
+/** @internal */
 export function toApplicationFailure(err: unknown): ApplicationFailure {
   if (err instanceof ApplicationFailure) {
     return err;

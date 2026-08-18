@@ -56,6 +56,12 @@ test('shouldRetryFalseHeaderForcesNonRetryableOnRetryableStatus', (t) => {
   t.is(failure.nonRetryable, true);
 });
 
+test('shouldRetryFalseHeaderForcesNonRetryableOnUndefinedStatus', (t) => {
+  const failure = toApplicationFailure({ headers: { 'x-should-retry': 'false' } });
+  t.is(failure.type, 'GoogleAdkModelError');
+  t.is(failure.nonRetryable, true);
+});
+
 test('retryAfterMsHeaderSetsNextRetryDelay', (t) => {
   const failure = toApplicationFailure({ status: 429, headers: { 'retry-after-ms': '1500' } });
   t.is(failure.nextRetryDelay, '1500 milliseconds');

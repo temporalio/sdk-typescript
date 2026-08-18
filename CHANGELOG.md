@@ -22,7 +22,8 @@ to docs, or any other relevant information.
 ### Added
 
 - **Experimental**: Workflow Clients can now use `TypeInfo` to encode Workflow inputs and decode Workflow results.
-- **Experimental**: `@temporalio/google-adk-agents` package for running Google ADK agents as durable Temporal Workflows.
+- **Experimental**: `@temporalio/google-adk-agents` package for running Google ADK agents as durable Temporal Workflows,
+  requiring `@google/adk@>=1.5.0 <1.6.0` as a peer dependency.
   ADK's OpenTelemetry agent-loop spans can be exported replay-safely from the Workflow sandbox by composing with
   `OpenTelemetryPlugin` from `@temporalio/interceptors-opentelemetry`; see the package README's telemetry section.
 - **Experimental**: `TemporalOperationHandler` can now use Standalone Activities as asynchronous
