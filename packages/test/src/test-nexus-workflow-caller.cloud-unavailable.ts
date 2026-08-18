@@ -596,9 +596,7 @@ test('getClient is available in handler context - caller workflow', async (t) =>
     nexusServices: [
       nexus.serviceHandler(getClientService, {
         async getClientOp() {
-          const systemInfo = await temporalnexus
-            .getClient()
-            .connection.workflowService.getSystemInfo({ namespace: 'default' });
+          const systemInfo = await temporalnexus.getClient().connection.workflowService.getSystemInfo({});
           return systemInfo.capabilities?.nexus ?? false;
         },
       }),
