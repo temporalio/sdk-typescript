@@ -814,6 +814,8 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
   };
 }
 
+type ChildWorkflowDefinitionOptions = Omit<ChildWorkflowOptions, 'typeInfo'> & { typeInfo?: never };
+
 /**
  * Start a child Workflow execution
  *
@@ -840,7 +842,7 @@ export async function startChild<T extends Workflow>(
  */
 export async function startChild<T extends Workflow>(
   workflowFunc: T,
-  options: WithWorkflowArgs<T, ChildWorkflowOptions>
+  options: WithWorkflowArgs<T, ChildWorkflowDefinitionOptions>
 ): Promise<ChildWorkflowHandle<T>>;
 
 /**
@@ -949,7 +951,7 @@ export async function executeChild<T extends Workflow>(
  */
 export async function executeChild<T extends Workflow>(
   workflowFunc: T,
-  options: WithWorkflowArgs<T, ChildWorkflowOptions>
+  options: WithWorkflowArgs<T, ChildWorkflowDefinitionOptions>
 ): Promise<WorkflowResultType<T>>;
 
 /**

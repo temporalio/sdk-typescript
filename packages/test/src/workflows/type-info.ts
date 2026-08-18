@@ -126,10 +126,12 @@ defineWorkflowOptions(parentWorkflowChildString, {
 });
 
 export async function parentWorkflowChildDefinitionInvalidCallSiteTypeInfo(order: Order): Promise<void> {
-  await executeChild(workflowWithTypeInfo, {
+  const options = {
     args: [order],
     typeInfo: workflowTypeInfo,
-  });
+  };
+  // @ts-expect-error TypeInfo must be defined on a referenced Workflow function.
+  await executeChild(workflowWithTypeInfo, options);
 }
 defineWorkflowOptions(parentWorkflowChildDefinitionInvalidCallSiteTypeInfo, {
   workflowDefinitionOptions: { failureExceptionTypes: [TypeError] },
