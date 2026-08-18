@@ -814,7 +814,11 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
       });
     },
     signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
-      return signal(typeof def === 'string' ? def : def.name, args, typeof def === 'string' ? undefined : def.typeInfo);
+      if (typeof def === 'string') {
+        return signal(def, args);
+      } else {
+        return signal(def.name, args, def.typeInfo);
+      }
     },
     signalWithOptions<Args extends any[]>(signalName: string, options: WorkflowSignalOptions<Args>): Promise<void> {
       return signal(signalName, options.args ?? [], options.typeInfo);
@@ -921,7 +925,7 @@ export async function startChild<T extends Workflow>(
       typeInfo,
       target: {
         type: 'child',
-        childWorkflowId: optionsWithDefaults.workflowId,
+        childWorkflowId: workflowOptions.workflowId,
       },
       headers: {},
     });
@@ -934,7 +938,11 @@ export async function startChild<T extends Workflow>(
       return (await completed) as any;
     },
     async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
-      return signal(typeof def === 'string' ? def : def.name, args, typeof def === 'string' ? undefined : def.typeInfo);
+      if (typeof def === 'string') {
+        return signal(def, args);
+      } else {
+        return signal(def.name, args, def.typeInfo);
+      }
     },
     async signalWithOptions<Args extends any[]>(
       signalName: string,

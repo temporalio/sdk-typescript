@@ -27,7 +27,9 @@ export interface BaseWorkflowHandle<T extends Workflow> {
   /**
    * Signal a running Workflow.
    *
-   * @param def a signal definition as returned from {@link defineSignal}
+   * To provide call-site TypeInfo when signaling by name, use {@link signalWithOptions}.
+   *
+   * @param def a signal definition as returned from {@link defineSignal}, or a signal name
    *
    * @example
    * ```ts
@@ -40,7 +42,7 @@ export interface BaseWorkflowHandle<T extends Workflow> {
   ): Promise<void>;
 
   /**
-   * Signal a running Workflow by Signal name with additional options.
+   * Signal a running Workflow by Signal name with additional options, including call-site TypeInfo.
    *
    * @experimental
    */
