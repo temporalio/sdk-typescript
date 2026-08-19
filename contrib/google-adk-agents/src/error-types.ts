@@ -9,8 +9,7 @@
 /**
  * Error type when streaming is requested but `TemporalModelOptions.streamingTopic`
  * is unset. Non-retryable, and thrown in the Workflow, so code calling
- * `TemporalModel` directly catches it unwrapped. Inside an `LlmAgent` run ADK
- * absorbs it instead — see {@link MODEL_ERROR_FAILURE_TYPE}.
+ * `TemporalModel` directly catches it unwrapped.
  */
 export const STREAMING_TOPIC_REQUIRED_FAILURE_TYPE = 'GoogleAdkStreamingTopicRequired';
 
@@ -31,8 +30,8 @@ export const ACTIVITY_TOOL_OUTSIDE_WORKFLOW_FAILURE_TYPE = 'GoogleAdkActivityToo
  * Error type when the `<name>-callTool` Activity finds no tool by the requested name
  * in the `BaseToolset` its factory returned. Non-retryable, and raised inside that
  * Activity, so it arrives wrapped in an `ActivityFailure`: match it through the
- * `.cause` chain, never against the caught error's own `.type`. Inside an `LlmAgent`
- * run ADK absorbs it instead — see {@link MODEL_ERROR_FAILURE_TYPE}.
+ * `.cause` chain, never against the caught error's own `.type`. It reaches code that
+ * calls the tool's `runAsync` itself.
  *
  * A factory returning `MCPConnectionParams` never raises it: the plugin calls the tool
  * without resolving the name first, so the caller gets whatever the server answers.
@@ -40,27 +39,28 @@ export const ACTIVITY_TOOL_OUTSIDE_WORKFLOW_FAILURE_TYPE = 'GoogleAdkActivityToo
 export const MCP_TOOL_NOT_FOUND_FAILURE_TYPE = 'GoogleAdkMCPToolNotFound';
 
 /**
- * Error type for a failed model call and, despite the name, for a failed MCP
- * `listTools` or `callTool` call as well. Raised inside an Activity, so it arrives
- * wrapped in an `ActivityFailure`: match it through the `.cause` chain.
+ * Error type for a failed model call. Raised inside an Activity, so it arrives
+ * wrapped in an `ActivityFailure`: match it through the `.cause` chain. It reaches
+ * code that awaits `TemporalModel.generateContentAsync` itself.
  *
  * A failure that carries an HTTP status has it appended as `.<status>`, for example
  * `GoogleAdkModelError.429`, so match with `startsWith`, not `===`; such a failure is
  * retryable for 408, 409, 429 and 5xx and non-retryable otherwise. One carrying no
  * status is the bare type and retryable. An `x-should-retry` response header overrides
  * either verdict.
- *
- * An MCP failure carries no HTTP status, so a rejected token or an unreachable server
- * classifies as retryable rather than failing fast, and the plugin sets no retry policy:
- * the call retries indefinitely until the caller bounds it with
- * `TemporalMCPToolsetOptions.activity.retry.maximumAttempts`.
- *
- * Inside an `LlmAgent` run most of these never reach a `catch` around the runner: a
- * failed model call becomes an error event and a failed tool call an `{ error }`
- * tool response fed back to the model, and neither fails the Workflow, so decide
- * whether such a run succeeded from the events the runner yields. Those events carry an
- * `errorCode` of ADK's own rather than this type, so do not try to match it there. Tool
- * discovery is the exception: `listTools` runs while ADK is still building the request,
- * outside that handling, so its failure propagates and fails the Workflow.
  */
 export const MODEL_ERROR_FAILURE_TYPE = 'GoogleAdkModelError';
+
+/**
+ * Error type for a failed MCP `listTools` or `callTool` call. Raised inside an
+ * Activity, so wherever you catch it, it arrives wrapped in an `ActivityFailure`:
+ * match it through the `.cause` chain, never against the caught error's own `.type`.
+ *
+ * An HTTP status, when present, is appended and classified exactly as for
+ * {@link MODEL_ERROR_FAILURE_TYPE} — but an MCP failure rarely carries one, so a
+ * rejected token or an unreachable server classifies as retryable rather than
+ * failing fast, and the plugin sets no retry policy: the call retries indefinitely
+ * until the caller bounds it with
+ * `TemporalMCPToolsetOptions.activity.retry.maximumAttempts`.
+ */
+export const MCP_ERROR_FAILURE_TYPE = 'GoogleAdkMCPError';

@@ -1,14 +1,15 @@
 /**
+ * Worker-side API for the Google ADK Temporal plugin.
+ *
+ * @experimental The Google ADK plugin is an experimental feature; APIs may change without notice.
+ *
+ * @module
+ *
  * @license
  * Copyright 2025 Temporal Technologies Inc.
  * SPDX-License-Identifier: MIT
- *
- * Worker-side API for the Google ADK Temporal plugin.
  */
 
-/**
- * @experimental The Google ADK plugin is an experimental feature; APIs may change without notice.
- */
 export { GoogleAdkPlugin } from './plugin';
 export type { GoogleAdkPluginOptions } from './plugin';
 export type { MCPToolsetFactory } from './mcp';

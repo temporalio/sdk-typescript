@@ -1,10 +1,14 @@
 /**
+ * Workflow-safe API for the Google ADK Temporal plugin — importable from
+ * Workflow code running in the V8 sandbox.
+ *
+ * @experimental The Google ADK plugin is an experimental feature; APIs may change without notice.
+ *
+ * @module
+ *
  * @license
  * Copyright 2025 Temporal Technologies Inc.
  * SPDX-License-Identifier: MIT
- *
- * Workflow-safe API for the Google ADK Temporal plugin — importable from
- * Workflow code running in the V8 sandbox.
  */
 
 // Side-effect import: install Workflow-sandbox polyfills (gated internally on
@@ -12,9 +16,6 @@
 // eslint-disable-next-line import/no-unassigned-import
 import './load-polyfills';
 
-/**
- * @experimental The Google ADK plugin is an experimental feature; APIs may change without notice.
- */
 export { TemporalModel } from './model';
 export type { TemporalModelOptions } from './model';
 
@@ -25,6 +26,7 @@ export { activityAsTool } from './tools';
 export type { ActivityAsToolOptions } from './tools';
 
 export {
+  MCP_ERROR_FAILURE_TYPE,
   MCP_TOOL_NOT_FOUND_FAILURE_TYPE,
   MODEL_ERROR_FAILURE_TYPE,
   STREAMING_TOPIC_REQUIRED_FAILURE_TYPE,

@@ -20,9 +20,9 @@ npm install @temporalio/google-adk-agents @google/adk @google/genai
 ```
 
 The supported peer range is `@google/adk` `>=1.5.0 <1.6.0` and `@google/genai`
-`^2.9.0`. The upper bound is deliberate: an ADK release this suite has not run
-against can break the plugin's sandbox shims and fail at Workflow-bundle load with
-an error that names neither ADK nor a version.
+`^2.9.0`. The ceiling is exact by design: the plugin's Workflow-sandbox shims are
+keyed to what ADK reaches at module load, so an ADK minor outside this range can
+break the Workflow bundle.
 
 Provide Gemini credentials to the Worker as usual, for example with
 `GOOGLE_API_KEY` or `GEMINI_API_KEY`.
@@ -139,10 +139,11 @@ const agent = new LlmAgent({
 });
 ```
 
-An MCP server that keeps per-session state — a pagination cursor, a working
-directory, an authenticated session — will not work behind this plugin: every MCP
-operation opens its own session and closes it before returning, so not even two
-consecutive tool calls share one.
+Per-session MCP state — a pagination cursor, a working directory, an
+authenticated session — does not carry from one MCP operation to the next: the
+connection params above and ADK's `MCPToolset` both open a new session per
+operation rather than reusing one. Holding a session open across operations is
+the factory's job — see `MCPToolsetFactory`.
 
 ### Activities as tools
 
@@ -233,17 +234,15 @@ Cautions:
   task **retry** (a task that failed or timed out and re-executes) is not a
   replay, so its spans are re-emitted. Retries are rare in normal operation, but
   don't build alerting that assumes exact span counts.
-- The agent-loop spans carry the model request and response, and each tool
-  call's arguments and result, as span attributes. Point the span processor
-  somewhere approved for prompt content, or strip those attributes in the
-  processor.
+- The agent-loop spans carry prompt content as span attributes, and ADK's
+  `ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS=false` does not suppress it inside the
+  sandbox. Point the span processor somewhere approved for prompt content, or
+  strip those attributes there.
 - Custom payload/failure converter modules (`payloadConverterPath` /
   `failureConverterPath`) evaluate **before** the plugin's polyfill loader. If
   such a module imports `@google/adk` / `@google/genai`, import
   `@temporalio/google-adk-agents/workflow` first: it installs the sandbox
-  polyfills (`Headers`, `structuredClone`, the WHATWG streams globals, and the
-  deterministic `performance` shim ADK's telemetry chain dereferences at module
-  load) before ADK evaluates.
+  polyfills ADK needs.
 
 ## Operational notes
 
@@ -252,11 +251,10 @@ Cautions:
   observability and governance plugins before this one.
 - Model calls use Temporal retries. The plugin disables nested GenAI SDK retries
   for model requests and honors `retry-after` where available.
-- Set `heartbeatTimeout` in the Activity options to have a stalled model or MCP
-  call detected before `startToCloseTimeout` expires. The plugin then heartbeats
-  every such call at half that timeout, and a streaming model call on each chunk as
-  well. Without it there is no heartbeat, and only `startToCloseTimeout` ends a
-  stalled call.
+- `heartbeatTimeout` detects a dead worker, not a stalled call: when set, the model
+  and MCP Activities heartbeat on a timer at half that timeout — a hung call
+  included — and a streaming model call heartbeats per chunk regardless. The bound
+  on a stalled call is `startToCloseTimeout`, one minute by default.
 - Streaming topic delivery is at-least-once. The deterministic Workflow value is
   the Activity result, not the stream side channel.
 - `BaseLlm.connect` live BIDI streaming is not supported inside Workflows.

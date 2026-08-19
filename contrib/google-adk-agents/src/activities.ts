@@ -28,7 +28,7 @@ import { ApplicationFailure } from '@temporalio/common';
 import { Context as ActivityContext } from '@temporalio/activity';
 import { WorkflowStreamClient } from '@temporalio/workflow-streams/client';
 
-import { MCP_TOOL_NOT_FOUND_FAILURE_TYPE, MODEL_ERROR_FAILURE_TYPE } from './error-types';
+import { MCP_ERROR_FAILURE_TYPE, MCP_TOOL_NOT_FOUND_FAILURE_TYPE, MODEL_ERROR_FAILURE_TYPE } from './error-types';
 import type { InvokeModelArgs, InvokeModelStreamingArgs, ModelActivities, WireLlmRequest } from './model';
 import type { MCPCallToolArgs, MCPToolsetFactory } from './mcp';
 
@@ -127,7 +127,7 @@ function mcpActivitiesForName(
         // `processLlmRequest` calls it the same way.
         return tools.map((tool) => tool._getDeclaration()).filter((d): d is FunctionDeclaration => d !== undefined);
       } catch (err) {
-        throw toApplicationFailure(err);
+        throw toApplicationFailure(err, MCP_ERROR_FAILURE_TYPE);
       } finally {
         try {
           await owned?.close();
@@ -159,7 +159,7 @@ function mcpActivitiesForName(
         const toolContext = { abortSignal } as unknown as AdkToolContext;
         return await tool.runAsync({ args: args.args, toolContext });
       } catch (err) {
-        throw toApplicationFailure(err);
+        throw toApplicationFailure(err, MCP_ERROR_FAILURE_TYPE);
       } finally {
         stopHeartbeat();
       }
@@ -236,7 +236,7 @@ function startAdaptiveHeartbeat(): () => void {
 }
 
 /** @internal */
-export function toApplicationFailure(err: unknown): ApplicationFailure {
+export function toApplicationFailure(err: unknown, baseType: string = MODEL_ERROR_FAILURE_TYPE): ApplicationFailure {
   if (err instanceof ApplicationFailure) {
     return err;
   }
@@ -255,7 +255,7 @@ export function toApplicationFailure(err: unknown): ApplicationFailure {
 
   return ApplicationFailure.create({
     message,
-    type: status !== undefined ? `${MODEL_ERROR_FAILURE_TYPE}.${status}` : MODEL_ERROR_FAILURE_TYPE,
+    type: status !== undefined ? `${baseType}.${status}` : baseType,
     nonRetryable: !retryable,
     nextRetryDelay: parseRetryAfter(headers),
   });
