@@ -57,6 +57,8 @@ to docs, or any other relevant information.
 
 ### Added
 
+- **Experimental**: Activities can use `TypeInfo` to convert inputs and results when called through Workflow Activity
+  proxies and handled by Workers.
 - Core logs written directly to the console can now use compact, pretty, or newline-delimited JSON
   output via `telemetryOptions.logging.console.format`.
 - **Experimental**: Workflow Clients can now use `TypeInfo` to encode Workflow inputs and decode Workflow results.
