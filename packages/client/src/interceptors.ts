@@ -420,6 +420,8 @@ export interface ActivityStartInput {
 export interface ActivityGetResultInput {
   readonly activityId: string;
   readonly activityRunId: string;
+  /** Type information used to decode the Activity result. */
+  readonly outputType?: TypeInfo;
   readonly headers: Headers;
 }
 

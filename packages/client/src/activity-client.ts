@@ -4,10 +4,12 @@ import type {
   ActivityFunction,
   LoadedDataConverter,
   Next,
+  PayloadTypeInfo,
   Priority,
   RetryPolicy,
   SearchAttributePair,
   TypedSearchAttributes,
+  TypeInfo,
 } from '@temporalio/common';
 import {
   compilePriority,
@@ -25,10 +27,9 @@ import {
   searchAttributePayloadConverter,
 } from '@temporalio/common/lib/converter/payload-search-attributes';
 import {
-  decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
   decodeOptionalFailureToOptionalError,
-  encodeToPayloads,
+  encodeToPayloadsWithContext,
   encodeUserMetadata,
   extstoreInboundOptions,
   extstoreStoreOptions,
@@ -167,13 +168,18 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
    * {@link ActivityHandle.describe} and read the `activityRunId` field of the returned {@link ActivityExecutionDescription}.
    *
    * @param activityId ID of the Activity.
-   * @param runId Optional run ID of the specific Activity execution.
+   * @param runIdOrOptions Optional run ID, or options containing a run ID and TypeInfo used to decode the result.
    * @returns Handle to the specified activity execution.
    *
    * @experimental Standalone Activities are experimental. APIs may be subject to change.
    */
-  getHandle<R = any>(activityId: string, runId?: string): ActivityHandle<R> {
-    return this.createHandle(activityId, runId);
+  getHandle<R = any>(activityId: string, runId?: string): ActivityHandle<R>;
+  getHandle<R = any>(activityId: string, options?: GetActivityHandleOptions): ActivityHandle<R>;
+  getHandle<R = any>(activityId: string, runIdOrOptions?: string | GetActivityHandleOptions): ActivityHandle<R> {
+    if (typeof runIdOrOptions === 'string') {
+      return this.createHandle(activityId, runIdOrOptions);
+    }
+    return this.createHandle(activityId, runIdOrOptions?.runId, runIdOrOptions?.typeInfo?.outputType);
   }
 
   /**
@@ -210,7 +216,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
     });
   }
 
-  protected createHandle<R>(activityId: string, runId?: string): ActivityHandle<R> {
+  protected createHandle<R>(activityId: string, runId?: string, outputType?: TypeInfo): ActivityHandle<R> {
     if (!activityId) {
       throw new TypeError('activityId is required');
     }
@@ -224,6 +230,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
         return await this.client.interceptedHandlers.getResult({
           activityId: this.activityId,
           activityRunId: this.runId ?? '',
+          outputType,
           headers: {},
         });
       },
@@ -288,7 +295,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       if (internalOptions != null) {
         internalOptions.responseLink = resp.link ?? undefined;
       }
-      return this.createHandle(input.options.id, resp.runId);
+      return this.createHandle(input.options.id, resp.runId, input.options.typeInfo?.outputType);
     } catch (err) {
       if (isGrpcServiceError(err) && err.code === grpcStatus.ALREADY_EXISTS) {
         for (const entry of getGrpcStatusDetails(err) ?? []) {
@@ -332,7 +339,14 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       startToCloseTimeout: msOptionalToTs(input.options.startToCloseTimeout),
       heartbeatTimeout: msOptionalToTs(input.options.heartbeatTimeout),
       retryPolicy: input.options.retry ? compileRetryPolicy(input.options.retry) : undefined,
-      input: { payloads: await encodeToPayloads(this.dataConverter, ...(input.options.args || [])) },
+      input: {
+        payloads: await encodeToPayloadsWithContext(
+          this.dataConverter,
+          undefined,
+          input.options.args ?? [],
+          input.options.typeInfo?.inputTypes
+        ),
+      },
       idReusePolicy: encodeActivityIdReusePolicy(input.options.idReusePolicy),
       idConflictPolicy: encodeActivityIdConflictPolicy(input.options.idConflictPolicy),
       searchAttributes,
@@ -364,8 +378,13 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
         const externalStorage = this.dataConverter.externalStorage;
         await visit(resp, walkPollActivityExecutionResponse, extstoreInboundOptions(externalStorage));
         if (resp.outcome?.result) {
-          const [result] = await decodeArrayFromPayloads(this.dataConverter, resp.outcome.result.payloads ?? []);
-          return result;
+          return await decodeFromPayloadsAtIndex(
+            this.dataConverter,
+            0,
+            resp.outcome.result.payloads,
+            undefined,
+            input.outputType
+          );
         } else if (resp.outcome?.failure) {
           // If error conversion throws an exception, we want it to be caught and handled by rethrowGrpcError().
           // If it succeeds, we want to throw the ActivityExecutionFailedError directly, so outside of try/catch.
@@ -554,6 +573,12 @@ export interface ActivityOptions {
    */
   args?: any[] | Readonly<any[]>;
   /**
+   * Type information used to encode Activity arguments and decode its result.
+   *
+   * @experimental
+   */
+  typeInfo?: PayloadTypeInfo;
+  /**
    * If set, specifies maximum time between successful heartbeats.
    */
   heartbeatTimeout?: Duration;
@@ -604,6 +629,25 @@ export interface ActivityOptions {
    * Search attributes for the activity.
    */
   typedSearchAttributes?: SearchAttributePair[] | TypedSearchAttributes;
+}
+
+/**
+ * Options for {@link ActivityClient.getHandle}.
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ */
+export interface GetActivityHandleOptions {
+  /**
+   * If provided, targets this specific Activity run. If absent, the handle targets the latest run.
+   */
+  runId?: string;
+
+  /**
+   * Type information used to decode the Activity result.
+   *
+   * @experimental
+   */
+  typeInfo?: Pick<PayloadTypeInfo, 'outputType'>;
 }
 
 function validateActivityOptions(options: ActivityOptions): void {
