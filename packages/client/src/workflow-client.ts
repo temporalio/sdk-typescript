@@ -1837,11 +1837,11 @@ export class WorkflowClient extends BaseClient {
         await _signal(this as InternalWorkflowHandle, signalName, options.args ?? [], options.typeInfo);
       },
       async query<Ret, Args extends any[]>(def: QueryDefinition<Ret, Args> | string, ...args: Args): Promise<Ret> {
-        return await _query(
-          typeof def === 'string' ? def : def.name,
-          args,
-          typeof def === 'string' ? undefined : def.typeInfo
-        );
+        if (typeof def === 'string') {
+          return await _query(def, args);
+        } else {
+          return await _query(def.name, args, def.typeInfo);
+        }
       },
       async queryWithOptions<Ret, Args extends any[]>(
         queryName: string,
