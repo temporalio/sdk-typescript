@@ -48,6 +48,7 @@ export interface WorkflowStartInput {
 export interface WorkflowStartUpdateInput {
   readonly updateName: string;
   readonly args: unknown[];
+  readonly typeInfo?: PayloadTypeInfo;
   readonly workflowExecution: WorkflowExecution;
   readonly firstExecutionRunId?: string;
   readonly headers: Headers;
@@ -65,6 +66,7 @@ export interface WorkflowStartUpdateOutput {
   readonly updateId: string;
   readonly workflowRunId: string;
   readonly outcome?: temporal.api.update.v1.IOutcome;
+  readonly typeInfo?: PayloadTypeInfo;
 }
 
 /**
@@ -76,6 +78,7 @@ export interface WorkflowStartUpdateWithStartInput {
   readonly workflowStartHeaders: Headers;
   readonly updateName: string;
   readonly updateArgs: unknown[];
+  readonly updateTypeInfo?: PayloadTypeInfo;
   readonly updateOptions: WorkflowUpdateOptions;
   readonly updateHeaders: Headers;
 }
@@ -87,6 +90,7 @@ export interface WorkflowStartUpdateWithStartOutput {
   readonly workflowExecution: WorkflowExecution;
   readonly updateId: string;
   readonly updateOutcome?: temporal.api.update.v1.IOutcome;
+  readonly updateTypeInfo?: PayloadTypeInfo;
 }
 
 /** Input for WorkflowClientInterceptor.signal */

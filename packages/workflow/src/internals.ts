@@ -1422,7 +1422,10 @@ export class Activator implements ActivationHandler {
   private completeUpdate(protocolInstanceId: string, result: unknown, typeInfo?: TypeInfo): void {
     const context = this.workflowSerializationContext();
     this.pushCommand({
-      updateResponse: { protocolInstanceId, completed: toPayloadWithTypeInfo(this.payloadConverter, result, context, typeInfo) },
+      updateResponse: {
+        protocolInstanceId,
+        completed: toPayloadWithTypeInfo(this.payloadConverter, result, context, typeInfo),
+      },
     });
   }
 

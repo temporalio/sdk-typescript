@@ -231,7 +231,7 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
   /**
    * Get a handle to an Update of this Workflow.
    */
-  getUpdateHandle<Ret>(updateId: string): WorkflowUpdateHandle<Ret>;
+  getUpdateHandle<Ret>(updateId: string, options?: GetWorkflowUpdateHandleOptions): WorkflowUpdateHandle<Ret>;
 
   /**
    * Query a running or completed Workflow.
@@ -465,6 +465,13 @@ export interface GetWorkflowUpdateHandleOptions {
    * The ID of the Run of the Workflow targeted by the Update.
    */
   workflowRunId?: string;
+
+  /**
+   * Type information used to decode the Update result.
+   *
+   * @experimental
+   */
+  typeInfo?: Pick<PayloadTypeInfo, 'outputType'>;
 }
 
 /**
@@ -786,7 +793,20 @@ export class WorkflowClient extends BaseClient {
       startWorkflowOperation: WithStartWorkflowOperation<T>;
     }
   ): Promise<WorkflowUpdateHandle<Ret>> {
-    const { waitForStage, args, startWorkflowOperation, ...updateOptions } = updateWithStartOptions;
+    const {
+      waitForStage,
+      args,
+      startWorkflowOperation,
+      typeInfo: callSiteTypeInfo,
+      ...updateOptions
+    } = updateWithStartOptions;
+    if (typeof updateDef !== 'string' && callSiteTypeInfo !== undefined) {
+      throw new TypeError(
+        'Cannot provide call-site Update TypeInfo with an Update definition. ' +
+          'Define TypeInfo when creating the Update definition instead.'
+      );
+    }
+    const updateTypeInfo = typeof updateDef === 'string' ? callSiteTypeInfo : updateDef.typeInfo;
     const { workflowTypeOrFunc, options: workflowOptions } = startWorkflowOperation;
     const { workflowId } = workflowOptions;
 
@@ -807,6 +827,7 @@ export class WorkflowClient extends BaseClient {
       workflowStartHeaders: {},
       updateName: typeof updateDef === 'string' ? updateDef : updateDef.name,
       updateArgs: args ?? [],
+      updateTypeInfo,
       updateOptions,
       updateHeaders: {},
     };
@@ -847,7 +868,8 @@ export class WorkflowClient extends BaseClient {
       updateOutput.updateId,
       workflowId,
       updateOutput.workflowExecution.runId,
-      outcome
+      outcome,
+      updateOutput.updateTypeInfo?.outputType as TypeInfo<Ret, unknown> | undefined
     );
   }
 
@@ -1120,7 +1142,9 @@ export class WorkflowClient extends BaseClient {
         input: {
           header: { fields: input.headers },
           name: input.updateName,
-          args: { payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args) },
+          args: {
+            payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args, input.typeInfo?.inputTypes),
+          },
         },
         requestId: internalOptions?.requestId,
         completionCallbacks: internalOptions?.completionCallbacks,
@@ -1191,6 +1215,7 @@ export class WorkflowClient extends BaseClient {
 
       workflowRunId: response.updateRef!.workflowExecution!.runId!,
       outcome: response.outcome ?? undefined,
+      typeInfo: input.typeInfo,
     };
   }
 
@@ -1214,6 +1239,7 @@ export class WorkflowClient extends BaseClient {
     const updateInput: WorkflowStartUpdateInput = {
       updateName: input.updateName,
       args: input.updateArgs,
+      typeInfo: input.updateTypeInfo,
       workflowExecution: {
         workflowId: input.workflowStartOptions.workflowId,
       },
@@ -1281,6 +1307,7 @@ export class WorkflowClient extends BaseClient {
         },
         updateId: updateRequest.request!.meta!.updateId!,
         updateOutcome: updateResp.outcome ?? undefined,
+        updateTypeInfo: input.updateTypeInfo,
       };
     } catch (thrownError) {
       let err = thrownError;
@@ -1305,7 +1332,8 @@ export class WorkflowClient extends BaseClient {
     updateId: string,
     workflowId: string,
     workflowRunId?: string,
-    outcome?: temporal.api.update.v1.IOutcome
+    outcome?: temporal.api.update.v1.IOutcome,
+    typeInfo?: TypeInfo<Ret, unknown>
   ): WorkflowUpdateHandle<Ret> {
     const dataConverter = this.dataConverter;
     const context = this.workflowSerializationContext(workflowId);
@@ -1322,7 +1350,13 @@ export class WorkflowClient extends BaseClient {
             await decodeOptionalFailureToOptionalError(dataConverter, completedOutcome.failure, context)
           );
         } else {
-          return await decodeFromPayloadsAtIndex<Ret>(dataConverter, 0, completedOutcome.success?.payloads, context);
+          return await decodeFromPayloadsAtIndex<Ret, unknown>(
+            dataConverter,
+            0,
+            completedOutcome.success?.payloads,
+            context,
+            typeInfo
+          );
         }
       },
     };
@@ -1685,12 +1719,19 @@ export class WorkflowClient extends BaseClient {
     ): Promise<WorkflowUpdateHandle<Ret>> => {
       const next = this._startUpdateHandler.bind(this, waitForStage);
       const fn = composeInterceptors(interceptors, 'startUpdate', next);
-      const { args, ...opts } = options ?? {};
+      const { args, typeInfo: callSiteTypeInfo, ...opts } = options ?? {};
+      if (typeof def !== 'string' && callSiteTypeInfo !== undefined) {
+        throw new TypeError(
+          'Cannot provide call-site Update TypeInfo with an Update definition. ' +
+            'Define TypeInfo when creating the Update definition instead.'
+        );
+      }
       const input = {
         workflowExecution: { workflowId, runId },
         firstExecutionRunId,
         updateName: typeof def === 'string' ? def : def.name,
         args: args ?? [],
+        typeInfo: typeof def === 'string' ? callSiteTypeInfo : def.typeInfo,
         waitForStage,
         headers: {},
         options: opts,
@@ -1700,7 +1741,8 @@ export class WorkflowClient extends BaseClient {
         output.updateId,
         input.workflowExecution.workflowId,
         output.workflowRunId,
-        output.outcome
+        output.outcome,
+        output.typeInfo?.outputType as TypeInfo<Ret, unknown> | undefined
       );
       if (!output.outcome && waitForStage === WorkflowUpdateStage.COMPLETED) {
         await this._pollForUpdateOutcome(handle.updateId, input.workflowExecution);
@@ -1811,17 +1853,23 @@ export class WorkflowClient extends BaseClient {
           waitForStage: typeof WorkflowUpdateStage.ACCEPTED;
         }
       ): Promise<WorkflowUpdateHandle<Ret>> {
-        return await _startUpdate(def, options.waitForStage, options);
+        return await _startUpdate<Ret, Args>(def, options.waitForStage, options);
       },
       async executeUpdate<Ret, Args extends any[]>(
         def: UpdateDefinition<Ret, Args> | string,
         options?: WorkflowUpdateOptions & { args?: Args }
       ): Promise<Ret> {
-        const handle = await _startUpdate(def, WorkflowUpdateStage.COMPLETED, options);
+        const handle = await _startUpdate<Ret, Args>(def, WorkflowUpdateStage.COMPLETED, options);
         return await handle.result();
       },
-      getUpdateHandle<Ret>(updateId: string): WorkflowUpdateHandle<Ret> {
-        return this.client.createWorkflowUpdateHandle(updateId, workflowId, runId);
+      getUpdateHandle<Ret>(updateId: string, options?: GetWorkflowUpdateHandleOptions): WorkflowUpdateHandle<Ret> {
+        return this.client.createWorkflowUpdateHandle<Ret>(
+          updateId,
+          workflowId,
+          options?.workflowRunId ?? runId,
+          undefined,
+          options?.typeInfo?.outputType as TypeInfo<Ret, unknown> | undefined
+        );
       },
       async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
         if (typeof def === 'string') {

@@ -1480,7 +1480,13 @@ export function setHandler<
 
       const validator = updateOptions?.validator as WorkflowUpdateValidatorType | undefined;
       const unfinishedPolicy = updateOptions?.unfinishedPolicy ?? HandlerUnfinishedPolicy.WARN_AND_ABANDON;
-      activator.updateHandlers.set(def.name, { handler, validator, description, unfinishedPolicy, typeInfo: def.typeInfo });
+      activator.updateHandlers.set(def.name, {
+        handler,
+        validator,
+        description,
+        unfinishedPolicy,
+        typeInfo: def.typeInfo,
+      });
       activator.dispatchBufferedUpdates();
     } else if (handler == null) {
       activator.updateHandlers.delete(def.name);
