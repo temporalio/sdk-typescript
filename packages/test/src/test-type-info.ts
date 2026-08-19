@@ -1,5 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { ExecutionContext } from 'ava';
+import type { Info } from '@temporalio/activity';
+import { firstValueFrom, ReplaySubject } from 'rxjs';
 import type { WorkflowClientInterceptor, WorkflowSignalWithStartOptions } from '@temporalio/client';
 import { Client, WithStartWorkflowOperation, WorkflowFailedError } from '@temporalio/client';
 import { workflowInterceptorModules } from '@temporalio/testing';
@@ -36,11 +38,16 @@ import {
   workflowWithTypedActivity,
   workflowWithTypedLocalActivity,
   workflowWithActivityWithoutTypeInfo,
+  workflowWithAsyncTypedActivity,
   workflowWithDefaultTypedActivity,
   workflowWithInterceptorTypedActivity,
   workflowWithInterceptorTypedLocalActivity,
 } from './workflows/type-info';
-import { convertOrder, convertOrderWithoutTypeInfo } from './workflows/type-info/activities';
+import {
+  convertOrder,
+  convertOrderWithoutTypeInfo,
+  createAsyncOrderActivities,
+} from './workflows/type-info/activities';
 
 function assertReceipt(t: ExecutionContext, receipt: Receipt): void {
   t.true(receipt instanceof Receipt);
@@ -239,6 +246,26 @@ test('Worker default Activity uses TypeInfo attached to the selected fallback fu
       args: [new Order('order-1', 12345n)],
     });
     assertReceipt(t, result);
+  });
+});
+
+test('Async Activity completion by task token preserves a rich result', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const activityStarted = new ReplaySubject<Info>(1);
+  const worker = await h.createWorker({ activities: createAsyncOrderActivities(activityStarted) });
+
+  await worker.runUntil(async () => {
+    const handle = await client.workflow.start(workflowWithAsyncTypedActivity, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+      args: [new Order('order-1', 12345n)],
+    });
+    const info = await firstValueFrom(activityStarted);
+    await client.activity.complete(info.taskToken, new Receipt('order-1', 12345n), {
+      typeInfo: { outputType: workflowTypeInfo.outputType },
+    });
+    assertReceipt(t, await handle.result());
   });
 });
 

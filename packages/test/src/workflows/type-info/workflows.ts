@@ -88,6 +88,21 @@ const typedActivities = proxyActivities<typeof activities>({
   activityTypeInfo: { convertOrder: workflowTypeInfo },
 });
 
+const asyncTypedActivities = proxyActivities<activities.AsyncOrderActivities>({
+  startToCloseTimeout: '1 minute',
+  activityTypeInfo: { completeOrderAsync: workflowTypeInfo },
+});
+
+defineWorkflowOptions(workflowWithAsyncTypedActivity, {
+  staticOptions: { typeInfo: workflowTypeInfo },
+});
+export async function workflowWithAsyncTypedActivity(order: Order): Promise<Receipt> {
+  assertOrder(order);
+  const receipt = await asyncTypedActivities.completeOrderAsync(order);
+  assertReceipt(receipt);
+  return receipt;
+}
+
 const typedLocalActivities = proxyLocalActivities<typeof activities>({
   startToCloseTimeout: '1 minute',
   activityTypeInfo: { convertOrder: workflowTypeInfo },
