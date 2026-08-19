@@ -1,6 +1,6 @@
 import type { WorkflowInterceptors } from '@temporalio/workflow';
 import { workflowInfo } from '@temporalio/workflow';
-import { workflowTypeInfo } from './type-info';
+import { workflowTypeInfo } from './models';
 
 export const interceptors = (): WorkflowInterceptors => ({
   outbound: [
