@@ -117,6 +117,8 @@
 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type {
+  ActivityDefinitionOptions,
+  ActivityFunction,
   Logger,
   Duration,
   LogLevel,
@@ -133,6 +135,7 @@ import type { ActivityCancellationDetailsHolder } from '@temporalio/common/lib/a
 import type { Client } from '@temporalio/client';
 
 export {
+  ActivityDefinitionOptions,
   ActivityFunction,
   ActivityInterface, // eslint-disable-line @typescript-eslint/no-deprecated
   ApplicationFailure,
@@ -140,6 +143,20 @@ export {
   CompleteAsyncError,
   UntypedActivities,
 } from '@temporalio/common';
+
+/**
+ * Attach static metadata to an Activity function.
+ *
+ * Type information is used by a Worker to decode the Activity arguments and encode its result.
+ *
+ * @experimental
+ */
+export function setActivityOptions<Args extends any[], ReturnType>(
+  options: ActivityDefinitionOptions,
+  fn: ActivityFunction<Args, ReturnType>
+): void {
+  Object.assign(fn, { activityDefinitionOptions: options });
+}
 
 // Make it safe to use @temporalio/activity with multiple versions installed.
 const asyncLocalStorageSymbol = Symbol.for('__temporal_activity_context_storage__');
