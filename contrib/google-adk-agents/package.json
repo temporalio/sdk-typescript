@@ -44,7 +44,7 @@
       "./lib/__tests__/**/*.test.js"
     ],
     "timeout": "120s",
-    "concurrency": 1,
+    "concurrency": 4,
     "workerThreads": false
   },
   "keywords": [
