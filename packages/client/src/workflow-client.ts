@@ -1358,7 +1358,8 @@ export class WorkflowClient extends BaseClient {
             await decodeOptionalFailureToOptionalError(dataConverter, completedOutcome.failure, context)
           );
         } else {
-          // Interceptor metadata erases its application type; the handle's result type restores it at this boundary.
+          // PayloadTypeInfo stores output metadata without its application type, so TypeScript cannot know that this
+          // TypeInfo produces the Ret promised by the handle. Assert that relationship once, immediately before decoding.
           return await decodeFromPayloadsAtIndex<Ret, unknown>(
             dataConverter,
             0,
