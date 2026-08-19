@@ -60,6 +60,7 @@ to docs, or any other relevant information.
 - **Experimental**: Standalone Activity Clients can use `TypeInfo` to convert Activity inputs and results.
 - **Experimental**: Activities can use `TypeInfo` to convert inputs and results when called through Workflow Activity
   proxies and handled by Workers.
+- **Experimental**: Async Activity completion can use `TypeInfo` to convert successful Activity results.
 - Core logs written directly to the console can now use compact, pretty, or newline-delimited JSON
   output via `telemetryOptions.logging.console.format`.
 - **Experimental**: Workflow Clients can now use `TypeInfo` to encode Workflow inputs and decode Workflow results.
