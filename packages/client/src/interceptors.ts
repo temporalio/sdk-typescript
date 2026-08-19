@@ -4,7 +4,13 @@
  * @module
  */
 
-import type { Duration, PayloadTypeInfo, SearchAttributePair, SignalTypeInfo, TypedSearchAttributes } from '@temporalio/common';
+import type {
+  Duration,
+  PayloadTypeInfo,
+  SearchAttributePair,
+  SignalTypeInfo,
+  TypedSearchAttributes,
+} from '@temporalio/common';
 import { Headers, Next } from '@temporalio/common';
 import type { temporal } from '@temporalio/proto';
 import type { NexusOperationHandle } from './nexus-client';

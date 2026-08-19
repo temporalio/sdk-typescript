@@ -15,6 +15,7 @@ import type {
   WorkflowTypeOptions,
   PayloadTypeInfo,
   TypeInfo,
+  WorkflowQueryOptions,
   WorkflowSignalOptions,
 } from '@temporalio/common';
 import {
@@ -244,6 +245,13 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
    * ```
    */
   query<Ret, Args extends any[] = []>(def: QueryDefinition<Ret, Args> | string, ...args: Args): Promise<Ret>;
+
+  /**
+   * Query a running or completed Workflow by Query name with additional options, including call-site TypeInfo.
+   *
+   * @experimental
+   */
+  queryWithOptions<Ret, Args extends any[] = []>(queryName: string, options: WorkflowQueryOptions<Args>): Promise<Ret>;
 
   /**
    * Terminate a running Workflow
@@ -1721,6 +1729,19 @@ export class WorkflowClient extends BaseClient {
       await fn(input);
     };
 
+    const _query = async <Ret>(queryType: string, args: unknown[], typeInfo?: PayloadTypeInfo): Promise<Ret> => {
+      const next = this._queryWorkflowHandler.bind(this);
+      const fn = composeInterceptors(interceptors, 'query', next);
+      return (await fn({
+        workflowExecution: { workflowId, runId },
+        queryRejectCondition: encodeQueryRejectCondition(this.options.queryRejectCondition),
+        queryType,
+        args,
+        typeInfo,
+        headers: {},
+      })) as Ret;
+    };
+
     return {
       client: this,
       workflowId,
@@ -1816,16 +1837,23 @@ export class WorkflowClient extends BaseClient {
         await _signal(this as InternalWorkflowHandle, signalName, options.args ?? [], options.typeInfo);
       },
       async query<Ret, Args extends any[]>(def: QueryDefinition<Ret, Args> | string, ...args: Args): Promise<Ret> {
-        const next = this.client._queryWorkflowHandler.bind(this.client);
-        const fn = composeInterceptors(interceptors, 'query', next);
-        return fn({
-          workflowExecution: { workflowId, runId },
-          queryRejectCondition: encodeQueryRejectCondition(this.client.options.queryRejectCondition),
-          queryType: typeof def === 'string' ? def : def.name,
+        return await _query(
+          typeof def === 'string' ? def : def.name,
           args,
-          typeInfo: typeof def === 'string' ? undefined : def.typeInfo,
-          headers: {},
-        }) as Promise<Ret>;
+          typeof def === 'string' ? undefined : def.typeInfo
+        );
+      },
+      async queryWithOptions<Ret, Args extends any[]>(
+        queryName: string,
+        options: WorkflowQueryOptions<Args>
+      ): Promise<Ret> {
+        if (typeof queryName !== 'string') {
+          throw new TypeError(
+            'Query TypeInfo can only be provided when querying by name. ' +
+              'Use defineQuery(..., { typeInfo }) on the Query definition instead.'
+          );
+        }
+        return await _query(queryName, options.args ?? [], options.typeInfo);
       },
     };
   }
