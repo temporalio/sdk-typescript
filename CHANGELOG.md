@@ -57,6 +57,7 @@ to docs, or any other relevant information.
 
 ### Added
 
+- **Experimental**: Standalone Activity Clients can use `TypeInfo` to convert Activity inputs and results.
 - **Experimental**: Activities can use `TypeInfo` to convert inputs and results when called through Workflow Activity
   proxies and handled by Workers.
 - Core logs written directly to the console can now use compact, pretty, or newline-delimited JSON
