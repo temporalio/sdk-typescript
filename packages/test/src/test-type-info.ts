@@ -14,6 +14,8 @@ import {
   finishSignal,
   finishUpdate,
   Order,
+  orderQuery,
+  orderQueryTypeInfo,
   orderSignal,
   orderSignalTypeInfo,
   parentWorkflowChildString,
@@ -23,6 +25,7 @@ import {
   signalExternalTarget,
   signalExternalTargetWithCallSiteTypeInfo,
   signalTarget,
+  queryTarget,
   workflowTypeInfo,
   workflowWithSignalStart,
   workflowWithTypeInfo,
@@ -293,6 +296,113 @@ test('Update-with-Start carries Workflow input and output TypeInfo from the defi
   });
 });
 
+// Queries
+
+test('Client Workflow handle converts Query input and result using definition TypeInfo', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker();
+
+  await worker.runUntil(async () => {
+    const handle = await client.workflow.start(queryTarget, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+    });
+    assertReceipt(t, await handle.query(orderQuery, new Order('order-1', 12345n)));
+    await handle.signal(finishSignal);
+    await handle.result();
+  });
+});
+
+test('Client Workflow handle converts string Query input and result using call-site TypeInfo', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker();
+
+  await worker.runUntil(async () => {
+    const handle = await client.workflow.start(queryTarget, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+    });
+    assertReceipt(
+      t,
+      await handle.queryWithOptions<Receipt, [Order]>('order', {
+        args: [new Order('order-1', 12345n)],
+        typeInfo: orderQueryTypeInfo,
+      })
+    );
+    await handle.signal(finishSignal);
+    await handle.result();
+  });
+});
+
+test('Client Query interceptor receives definition TypeInfo', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = new Client({
+    connection: t.context.env.client.connection,
+    namespace: t.context.env.client.options.namespace,
+    interceptors: {
+      workflow: [
+        {
+          async query(input, next) {
+            t.is(input.typeInfo, orderQueryTypeInfo);
+            return await next(input);
+          },
+        },
+      ],
+    },
+  });
+  const worker = await h.createWorker();
+
+  await worker.runUntil(async () => {
+    const handle = await client.workflow.start(queryTarget, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+    });
+    assertReceipt(t, await handle.query(orderQuery, new Order('order-1', 12345n)));
+    await handle.signal(finishSignal);
+    await handle.result();
+  });
+});
+
+test('Workflow Query interceptor uses output TypeInfo from the retargeted handler', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker();
+
+  await worker.runUntil(async () => {
+    const handle = await client.workflow.start(queryTarget, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+    });
+    assertReceipt(
+      t,
+      await handle.queryWithOptions<Receipt, [Order]>('order-alias', {
+        args: [new Order('order-1', 12345n)],
+        typeInfo: orderQueryTypeInfo,
+      })
+    );
+    await handle.signal(finishSignal);
+    await handle.result();
+  });
+});
+
+test('Client Workflow handle rejects Query definitions passed to queryWithOptions', async (t) => {
+  const client = makeClient(t.context.env);
+  const handle = client.workflow.getHandle('workflow-id');
+
+  await t.throwsAsync(
+    (handle.queryWithOptions as any)(orderQuery, {
+      args: [new Order('order-1', 12345n)],
+      typeInfo: orderQueryTypeInfo,
+    }),
+    {
+      instanceOf: TypeError,
+      message: /Query TypeInfo can only be provided when querying by name/,
+    }
+  );
+});
+
 // Signals
 
 test('Client Workflow handle converts Signal input using definition TypeInfo', async (t) => {
@@ -481,6 +591,29 @@ test('Signal-with-Start accepts definition, string, and union Signal references'
       taskQueue: 'task-queue',
       signal: signalReference,
       signalArgs: [new Order('order-1', 12345n)],
+    });
+  }
+
+  t.pass();
+});
+
+test('queryWithOptions accepts only string Query names', (t) => {
+  function _assertion(client: Client, queryReference: typeof orderQuery | string) {
+    void client.workflow.getHandle('workflow-id').queryWithOptions<Receipt, [Order]>('order', {
+      args: [new Order('order-1', 12345n)],
+      typeInfo: orderQueryTypeInfo,
+    });
+
+    // @ts-expect-error Call-site TypeInfo requires a Query name, not a Query definition.
+    void client.workflow.getHandle('workflow-id').queryWithOptions(orderQuery, {
+      args: [new Order('order-1', 12345n)],
+      typeInfo: orderQueryTypeInfo,
+    });
+
+    // @ts-expect-error Call-site TypeInfo requires a Query name, not a definition-or-name union.
+    void client.workflow.getHandle('workflow-id').queryWithOptions(queryReference, {
+      args: [new Order('order-1', 12345n)],
+      typeInfo: orderQueryTypeInfo,
     });
   }
 
