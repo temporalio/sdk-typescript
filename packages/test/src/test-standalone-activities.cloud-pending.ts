@@ -1,12 +1,18 @@
 import { randomUUID } from 'crypto';
-import type { TestFn } from 'ava';
+import type { ExecutionContext, TestFn } from 'ava';
 import anyTest from 'ava';
 import * as rxjs from 'rxjs';
-import type { ActivityHandle, TypedActivityClient, ActivityOptions } from '@temporalio/client';
+import type {
+  ActivityHandle,
+  ActivityOptions,
+  ActivityClientInterceptor,
+  TypedActivityClient,
+} from '@temporalio/client';
 import {
   ActivityExecutionStatus,
   ActivityExecutionAlreadyStartedError,
   ActivityExecutionFailedError,
+  Client,
   ServiceError,
   TerminatedFailure,
   isGrpcCancelledError,
@@ -18,6 +24,8 @@ import { RUN_INTEGRATION_TESTS, waitUntil, Worker } from './helpers';
 import { echo, throwAnError } from './activities';
 import { heartbeatCancellationDetailsActivity } from './activities/heartbeat-cancellation-details';
 import { createTestWorkflowEnvironment } from './helpers-integration';
+import { convertOrder } from './workflows/type-info/activities';
+import { Order, Receipt, receiptTypeInfo, workflowTypeInfo } from './workflows/type-info/models';
 
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
 // polling/retry strategies result in the expected behavior
@@ -33,6 +41,7 @@ export interface Context {
 
 const activities = {
   echo,
+  convertOrder,
   throwAnError,
   heartbeatCancellationDetailsActivity,
   verifyStandaloneActivityInfo: async () => {
@@ -75,6 +84,23 @@ const test = anyTest as TestFn<Context>;
 
 async function waitForValue<T>(subject: rxjs.Subject<T>, value: T) {
   await rxjs.firstValueFrom(subject.pipe(rxjs.first((v) => v === value)));
+}
+
+function assertReceipt(t: ExecutionContext, receipt: Receipt): void {
+  t.true(receipt instanceof Receipt);
+  t.is(receipt.summary(), 'order-1:12345');
+  t.is(typeof receipt.totalCents, 'bigint');
+}
+
+function makeClientWithActivityInterceptors(
+  env: TestWorkflowEnvironment,
+  interceptors: ActivityClientInterceptor[]
+): Client {
+  return new Client({
+    connection: env.client.connection,
+    namespace: env.client.options.namespace,
+    interceptors: { activity: interceptors },
+  });
 }
 
 if (RUN_INTEGRATION_TESTS) {
@@ -163,6 +189,77 @@ if (RUN_INTEGRATION_TESTS) {
       args: ['hello'],
     });
     t.is(result, 'hello');
+  });
+
+  test('Start Activity preserves rich input and retained result with TypeInfo', async (t) => {
+    const client = t.context.env.client.activity;
+    const handle = await client.start<Receipt>('convertOrder', {
+      ...defaultOptions,
+      id: randomUUID(),
+      args: [new Order('order-1', 12345n)],
+      typeInfo: workflowTypeInfo,
+    });
+
+    assertReceipt(t, await handle.result());
+  });
+
+  test('Execute Activity preserves rich input and result with TypeInfo', async (t) => {
+    const client = t.context.env.client.activity;
+    const result = await client.execute<Receipt>('convertOrder', {
+      ...defaultOptions,
+      id: randomUUID(),
+      args: [new Order('order-1', 12345n)],
+      typeInfo: workflowTypeInfo,
+    });
+
+    assertReceipt(t, result);
+  });
+
+  test('Detached Activity handle decodes its result with output TypeInfo', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const handle = await client.start<Receipt>('convertOrder', {
+      ...defaultOptions,
+      id: activityId,
+      args: [new Order('order-1', 12345n)],
+      typeInfo: workflowTypeInfo,
+    });
+
+    const detachedHandle = client.getHandle<Receipt>(activityId, {
+      runId: handle.runId,
+      typeInfo: { outputType: receiptTypeInfo },
+    });
+    assertReceipt(t, await detachedHandle.result());
+  });
+
+  test('Activity interceptors can provide input and result TypeInfo', async (t) => {
+    const client = makeClientWithActivityInterceptors(t.context.env, [
+      {
+        async start(input, next) {
+          return await next({
+            ...input,
+            options: {
+              ...input.options,
+              typeInfo: { inputTypes: workflowTypeInfo.inputTypes },
+            },
+          });
+        },
+        async getResult(input, next) {
+          return await next({
+            ...input,
+            outputType: receiptTypeInfo,
+          });
+        },
+      },
+    ]);
+
+    const result = await client.activity.execute<Receipt>('convertOrder', {
+      ...defaultOptions,
+      id: randomUUID(),
+      args: [new Order('order-1', 12345n)],
+    });
+
+    assertReceipt(t, result);
   });
 
   test('Execute activity - failure', async (t) => {
