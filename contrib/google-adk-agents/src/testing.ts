@@ -127,5 +127,6 @@ class MockMCPTool extends BaseTool {
  * a real server.
  */
 export function mockMCPToolset(definitions: MockMCPToolDefinition[]): MCPToolsetFactory {
-  return () => new MockMCPToolset(definitions);
+  const toolset = new MockMCPToolset(definitions);
+  return () => toolset;
 }

@@ -25,6 +25,8 @@ import type { ActivityOptions, Duration } from '@temporalio/common';
 import { ApplicationFailure } from '@temporalio/common';
 import { inWorkflowContext, proxyActivities } from '@temporalio/workflow';
 
+import { STREAMING_TOPIC_REQUIRED_FAILURE_TYPE, UNSUPPORTED_FAILURE_TYPE } from './error-types';
+
 export interface TemporalModelOptions {
   /** Per-call Temporal Activity configuration (timeouts, retry, task queue). */
   activity?: ActivityOptions;
@@ -140,7 +142,7 @@ export class TemporalModel extends BaseLlm {
         throw ApplicationFailure.nonRetryable(
           `TemporalModel('${this.model}'): streaming was requested but no 'streamingTopic' is ` +
             'configured. Set TemporalModelOptions.streamingTopic to publish incremental chunks.',
-          'GoogleAdkStreamingTopicRequired'
+          STREAMING_TOPIC_REQUIRED_FAILURE_TYPE
         );
       }
       responses = await activities['adk-invokeModelStreaming']({
@@ -169,7 +171,7 @@ export class TemporalModel extends BaseLlm {
         'TemporalModel.connect (BIDI live streaming) is not supported inside a Temporal ' +
           'Workflow. Use StreamingMode.SSE (streamingTopic) for streaming, or run live ' +
           'connections outside the Workflow.',
-        'GoogleAdkUnsupported'
+        UNSUPPORTED_FAILURE_TYPE
       );
     }
     const real = LLMRegistry.newLlm(this.model);

@@ -16,12 +16,16 @@ wrap an existing Temporal Activity with `activityAsTool`.
 ## Install
 
 ```bash
-npm install @temporalio/google-adk-agents
+npm install @temporalio/google-adk-agents @google/adk @google/genai
 ```
 
-Peer dependency: `@google/adk` `^1.4.0` and its `@google/genai`. Provide Gemini
-credentials to the Worker as usual, for example with `GOOGLE_API_KEY` or
-`GEMINI_API_KEY`.
+The supported peer range is `@google/adk` `>=1.5.0 <1.6.0` and `@google/genai`
+`^2.9.0`. The ceiling is exact by design: the plugin's Workflow-sandbox shims are
+keyed to what ADK reaches at module load, so an ADK minor outside this range can
+break the Workflow bundle.
+
+Provide Gemini credentials to the Worker as usual, for example with
+`GOOGLE_API_KEY` or `GEMINI_API_KEY`.
 
 ## Hello world
 
@@ -135,6 +139,12 @@ const agent = new LlmAgent({
 });
 ```
 
+Per-session MCP state — a pagination cursor, a working directory, an
+authenticated session — does not carry from one MCP operation to the next: the
+connection params above and ADK's `MCPToolset` both open a new session per
+operation rather than reusing one. Holding a session open across operations is
+the factory's job — see `MCPToolsetFactory`.
+
 ### Activities as tools
 
 Use `activityAsTool` to expose an existing Temporal Activity to the agent:
@@ -192,15 +202,11 @@ const plugin = new GoogleAdkPlugin({
 
 ## Telemetry and observability
 
-ADK instruments its agent loop with OpenTelemetry: the `gcp.vertex.agent`
-tracer creates `invocation`, `invoke_agent <name>`, `call_llm` (with
-`gen_ai.usage.input_tokens` / `gen_ai.usage.output_tokens` attributes), and
-`execute_tool` spans. Under this plugin the agent loop runs inside the Workflow
-sandbox, so those spans are created there too — and **by default they are
-silently dropped**: nothing registers a tracer provider inside the sandbox, so
-ADK's tracer yields non-recording no-ops. A tracer provider configured in the
-worker process (e.g. `NodeSDK`) does not see them either; the sandbox is
-isolated from process globals.
+ADK instruments its agent loop with OpenTelemetry. Under this plugin that loop
+runs inside the Workflow sandbox, so its spans are created there too, and **by
+default they are silently dropped**: nothing registers a tracer provider inside
+the sandbox, and a provider configured in the worker process (e.g. `NodeSDK`)
+does not reach it.
 
 To export them, compose with the SDK's OpenTelemetry integration
 ([`@temporalio/interceptors-opentelemetry`](https://github.com/temporalio/sdk-typescript/tree/main/contrib/interceptors-opentelemetry)),
@@ -215,17 +221,9 @@ const worker = await Worker.create({
 });
 ```
 
-Its Workflow interceptor registers a tracer provider inside the sandbox that
-ADK's tracer binds to, and exports the spans through a Worker sink that is
-**replay-gated**: spans are recorded when Workflow code first executes;
-history replays re-run the agent-loop code but re-export nothing. Absent
-workflow task retries (see the cautions below), you get exactly one span per
-real model call or tool call, plus the interceptor's own `RunWorkflow` /
-`StartActivity` spans, nested under the same trace. The plugin
-pins `@opentelemetry/api` to a single copy in the Workflow bundle (the one
-`@google/adk` resolves — ADK pins an exact api version, so a bundle could
-otherwise contain two copies), so ADK's tracer binds to that provider no
-matter which module evaluates ADK first.
+You then get ADK's agent-loop spans nested under the same trace as the
+interceptor's own `RunWorkflow` / `StartActivity` spans. Export is replay-gated,
+so replaying a Workflow's history does not re-emit them.
 
 Cautions:
 
@@ -236,23 +234,15 @@ Cautions:
   task **retry** (a task that failed or timed out and re-executes) is not a
   replay, so its spans are re-emitted. Retries are rare in normal operation, but
   don't build alerting that assumes exact span counts.
-- `call_llm` spans carry the full request/response payloads as
-  `gcp.vertex.agent.llm_request` / `gcp.vertex.agent.llm_response` attributes.
-  Point the span processor somewhere approved for prompt content, or strip
-  those attributes in the processor.
+- The agent-loop spans carry prompt content as span attributes, and ADK's
+  `ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS=false` does not suppress it inside the
+  sandbox. Point the span processor somewhere approved for prompt content, or
+  strip those attributes there.
 - Custom payload/failure converter modules (`payloadConverterPath` /
   `failureConverterPath`) evaluate **before** the plugin's polyfill loader. If
   such a module imports `@google/adk` / `@google/genai`, import
   `@temporalio/google-adk-agents/workflow` first: it installs the sandbox
-  polyfills (`Headers`, `structuredClone`, the WHATWG streams globals, and the
-  deterministic `performance` shim ADK's telemetry chain dereferences at module
-  load) before ADK evaluates.
-
-ADK (as of 1.4.0) defines no OpenTelemetry metric instruments, so there is no
-workflow-side metric telemetry to configure. Activity-side telemetry (the real
-Gemini/MCP calls) runs in the worker process where normal Node OpenTelemetry
-setup applies, and is naturally replay-immune — completed Activities are read
-from history rather than re-executed.
+  polyfills ADK needs.
 
 ## Operational notes
 
@@ -261,7 +251,10 @@ from history rather than re-executed.
   observability and governance plugins before this one.
 - Model calls use Temporal retries. The plugin disables nested GenAI SDK retries
   for model requests and honors `retry-after` where available.
-- Heartbeats are sent only when the Activity options include `heartbeatTimeout`.
+- `heartbeatTimeout` detects a dead worker, not a stalled call: when set, the model
+  and MCP Activities heartbeat on a timer at half that timeout — a hung call
+  included — and a streaming model call heartbeats per chunk regardless. The bound
+  on a stalled call is `startToCloseTimeout`, one minute by default.
 - Streaming topic delivery is at-least-once. The deterministic Workflow value is
   the Activity result, not the stream side channel.
 - `BaseLlm.connect` live BIDI streaming is not supported inside Workflows.
