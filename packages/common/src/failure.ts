@@ -297,30 +297,18 @@ export interface ApplicationFailureOptions {
   category?: ApplicationFailureCategory;
 }
 
-/** Options for {@link createPayloadValidationError}. */
-export interface PayloadValidationErrorOptions {
-  /** Every validation violation found while converting a Payload. */
-  violations: ReadonlyArray<{
-    /** Path to the value that failed validation. */
-    path: string;
-
-    /** Human-readable reason that the value failed validation. */
-    reason: string;
-  }>;
-}
-
 /**
- * Create a non-retryable {@link ApplicationFailure} for reporting Payload validation violations.
+ * Create a non-retryable {@link ApplicationFailure} for reporting a Payload validation failure.
  *
  * Payload Converters and Payload Codecs can throw this failure when they understand a Payload but
- * reject it as invalid. The supplied options are stored as a single failure detail.
+ * reject it as invalid. The supplied value is stored as a single failure detail.
  */
-export function createPayloadValidationError(options: PayloadValidationErrorOptions): ApplicationFailure {
+export function createPayloadValidationError(details: unknown): ApplicationFailure {
   return ApplicationFailure.create({
     message: 'Payload validation failed',
     type: 'PayloadValidationError',
     nonRetryable: true,
-    details: [options],
+    details: [details],
   });
 }
 
