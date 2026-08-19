@@ -297,6 +297,33 @@ export interface ApplicationFailureOptions {
   category?: ApplicationFailureCategory;
 }
 
+/** Options for {@link createPayloadValidationError}. */
+export interface PayloadValidationErrorOptions {
+  /** Every validation violation found while converting a Payload. */
+  violations: ReadonlyArray<{
+    /** Path to the value that failed validation. */
+    path: string;
+
+    /** Human-readable reason that the value failed validation. */
+    reason: string;
+  }>;
+}
+
+/**
+ * Create a non-retryable {@link ApplicationFailure} for reporting Payload validation violations.
+ *
+ * Payload Converters and Payload Codecs can throw this failure when they understand a Payload but
+ * reject it as invalid. The supplied options are stored as a single failure detail.
+ */
+export function createPayloadValidationError(options: PayloadValidationErrorOptions): ApplicationFailure {
+  return ApplicationFailure.create({
+    message: 'Payload validation failed',
+    type: 'PayloadValidationError',
+    nonRetryable: true,
+    details: [options],
+  });
+}
+
 /**
  * This error is thrown when Cancellation has been requested. To allow Cancellation to happen, let it propagate. To
  * ignore Cancellation, catch it and continue executing. Note that Cancellation can only be requested a single time, so

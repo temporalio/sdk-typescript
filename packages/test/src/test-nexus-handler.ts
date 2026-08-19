@@ -13,6 +13,7 @@ import type { LoadedDataConverter, Payload, ProtoFailure } from '@temporalio/com
 import {
   ApplicationFailure,
   CancelledFailure,
+  createPayloadValidationError,
   defaultFailureConverter,
   defaultPayloadConverter,
   defaultDataConverter,
@@ -438,10 +439,8 @@ function codecFailingWith(err: unknown): LoadedDataConverter {
 }
 
 test('decodePayload maps non-retryable PayloadValidationError from converter to a bad request handler error', async (t) => {
-  const cause = ApplicationFailure.create({
-    message: 'input payload is invalid',
-    type: PAYLOAD_VALIDATION_ERROR_TYPE,
-    nonRetryable: true,
+  const cause = createPayloadValidationError({
+    violations: [{ path: 'input', reason: 'is invalid' }],
   });
 
   const err = await t.throwsAsync(() => decodePayload(converterFailingWith(cause), encodedInputPayload), {
@@ -455,14 +454,12 @@ test('decodePayload maps non-retryable PayloadValidationError from converter to 
   t.is(err?.cause, cause);
   t.is((err?.cause as ApplicationFailure).type, PAYLOAD_VALIDATION_ERROR_TYPE);
   t.true((err?.cause as ApplicationFailure).nonRetryable);
-  t.is((err?.cause as ApplicationFailure).message, 'input payload is invalid');
+  t.is((err?.cause as ApplicationFailure).message, 'Payload validation failed');
 });
 
 test('decodePayload maps non-retryable PayloadValidationError from codec to a bad request handler error', async (t) => {
-  const cause = ApplicationFailure.create({
-    message: 'input payload is invalid',
-    type: PAYLOAD_VALIDATION_ERROR_TYPE,
-    nonRetryable: true,
+  const cause = createPayloadValidationError({
+    violations: [{ path: 'input', reason: 'is invalid' }],
   });
 
   const err = await t.throwsAsync(() => decodePayload(codecFailingWith(cause), encodedInputPayload), {
@@ -476,7 +473,7 @@ test('decodePayload maps non-retryable PayloadValidationError from codec to a ba
   t.is(err?.cause, cause);
   t.is((err?.cause as ApplicationFailure).type, PAYLOAD_VALIDATION_ERROR_TYPE);
   t.true((err?.cause as ApplicationFailure).nonRetryable);
-  t.is((err?.cause as ApplicationFailure).message, 'input payload is invalid');
+  t.is((err?.cause as ApplicationFailure).message, 'Payload validation failed');
 });
 
 test('decodePayload leaves non-retryable ApplicationFailure of another type as an internal handler error', async (t) => {
