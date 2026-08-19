@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { ExecutionContext } from 'ava';
-import type { WorkflowSignalWithStartOptions } from '@temporalio/client';
+import type { WorkflowClientInterceptor, WorkflowSignalWithStartOptions } from '@temporalio/client';
 import { Client, WithStartWorkflowOperation, WorkflowFailedError } from '@temporalio/client';
 import { workflowInterceptorModules } from '@temporalio/testing';
 import { executeChild } from '@temporalio/workflow';
@@ -18,6 +18,7 @@ import {
   orderQueryTypeInfo,
   orderSignal,
   orderSignalTypeInfo,
+  orderUpdate,
   parentWorkflowChildString,
   Receipt,
   signalChildTarget,
@@ -26,6 +27,7 @@ import {
   signalExternalTargetWithCallSiteTypeInfo,
   signalTarget,
   queryTarget,
+  updateTarget,
   workflowTypeInfo,
   workflowWithSignalStart,
   workflowWithTypeInfo,
@@ -388,6 +390,158 @@ test('Workflow Query interceptor uses output TypeInfo from the retargeted handle
     );
     await handle.signal(finishSignal);
     await handle.result();
+  });
+});
+
+// Updates
+
+test('Update definition converts input and result', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker();
+
+  await worker.runUntil(async () => {
+    const handle = await client.workflow.start(updateTarget, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+    });
+    const update = await handle.startUpdate(orderUpdate, {
+      args: [new Order('order-1', 12345n)],
+      waitForStage: 'ACCEPTED',
+    });
+    assertReceipt(t, await update.result());
+    await handle.result();
+  });
+});
+
+test('String Update uses call-site TypeInfo for start and execute', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker();
+
+  await worker.runUntil(async () => {
+    const startHandle = await client.workflow.start(updateTarget, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+    });
+    const started = await startHandle.startUpdate<Receipt, [Order]>('order', {
+      args: [new Order('order-1', 12345n)],
+      waitForStage: 'ACCEPTED',
+      typeInfo: workflowTypeInfo,
+    });
+    assertReceipt(t, await started.result());
+    await startHandle.result();
+
+    const executeHandle = await client.workflow.start(updateTarget, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+    });
+    assertReceipt(
+      t,
+      await executeHandle.executeUpdate<Receipt, [Order]>('order', {
+        args: [new Order('order-1', 12345n)],
+        typeInfo: workflowTypeInfo,
+      })
+    );
+    await executeHandle.result();
+  });
+});
+
+test('Update-with-Start uses definition and string TypeInfo', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker();
+
+  await worker.runUntil(async () => {
+    const definitionStart = new WithStartWorkflowOperation(updateTarget, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+      workflowIdConflictPolicy: 'USE_EXISTING',
+    });
+    assertReceipt(
+      t,
+      await client.workflow.executeUpdateWithStart(orderUpdate, {
+        args: [new Order('order-1', 12345n)],
+        startWorkflowOperation: definitionStart,
+      })
+    );
+    await (await definitionStart.workflowHandle()).result();
+
+    const stringStart = new WithStartWorkflowOperation(updateTarget, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+      workflowIdConflictPolicy: 'USE_EXISTING',
+    });
+    const update = await client.workflow.startUpdateWithStart<typeof updateTarget, Receipt, [Order]>('order', {
+      args: [new Order('order-1', 12345n)],
+      waitForStage: 'ACCEPTED',
+      typeInfo: workflowTypeInfo,
+      startWorkflowOperation: stringStart,
+    });
+    assertReceipt(t, await update.result());
+    await (await stringStart.workflowHandle()).result();
+  });
+});
+
+test('Detached Update handle decodes with call-site output TypeInfo', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker();
+
+  await worker.runUntil(async () => {
+    const handle = await client.workflow.start(updateTarget, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+    });
+    const update = await handle.startUpdate(orderUpdate, {
+      args: [new Order('order-1', 12345n)],
+      waitForStage: 'ACCEPTED',
+    });
+    assertReceipt(
+      t,
+      await handle
+        .getUpdateHandle<Receipt>(update.updateId, { typeInfo: { outputType: workflowTypeInfo.outputType } })
+        .result()
+    );
+    await handle.result();
+  });
+});
+
+test('Update handle uses TypeInfo resolved by an interceptor', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const interceptor: WorkflowClientInterceptor = {
+    async startUpdate(input, next) {
+      return await next({ ...input, typeInfo: workflowTypeInfo });
+    },
+  };
+  const client = new Client({
+    connection: t.context.env.client.connection,
+    namespace: t.context.env.client.options.namespace,
+    interceptors: { workflow: [interceptor] },
+  });
+  const worker = await h.createWorker();
+
+  await worker.runUntil(async () => {
+    const handle = await client.workflow.start(updateTarget, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+    });
+    assertReceipt(t, await handle.executeUpdate('order', { args: [new Order('order-1', 12345n)] }));
+    await handle.result();
+  });
+});
+
+test('Update definition rejects call-site TypeInfo at runtime', async (t) => {
+  const client = makeClient(t.context.env);
+  const options = {
+    args: [new Order('order-1', 12345n)],
+    waitForStage: 'ACCEPTED' as const,
+    typeInfo: workflowTypeInfo,
+  } as any;
+  const handle = client.workflow.getHandle('unused');
+  await t.throwsAsync(handle.startUpdate(orderUpdate, options), {
+    instanceOf: TypeError,
+    message: /Cannot provide call-site Update TypeInfo with an Update definition/,
   });
 });
 

@@ -110,6 +110,22 @@ export async function workflowWithSignalStart(order: Order): Promise<Receipt> {
 
 export const finishUpdate = defineUpdate('finish');
 
+export const orderUpdate = defineUpdate<Receipt, [Order]>('order', { typeInfo: workflowTypeInfo });
+
+export async function updateTarget(): Promise<void> {
+  let finished = false;
+  setHandler(
+    orderUpdate,
+    (order) => {
+      assertOrder(order);
+      finished = true;
+      return new Receipt(order.id, order.totalCents);
+    },
+    { validator: assertOrder }
+  );
+  await condition(() => finished);
+}
+
 defineWorkflowOptions(workflowWithUpdateStart, {
   staticOptions: { typeInfo: workflowTypeInfo },
 });
