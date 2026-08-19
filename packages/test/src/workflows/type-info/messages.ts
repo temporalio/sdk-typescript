@@ -1,6 +1,7 @@
-import type { SignalTypeInfo } from '@temporalio/common';
+import type { PayloadTypeInfo, SignalTypeInfo, TypeInfo } from '@temporalio/common';
 import {
   condition,
+  defineQuery,
   defineSignal,
   defineUpdate,
   defineWorkflowOptions,
@@ -11,6 +12,45 @@ import {
 import { assertOrder, Order, orderTypeInfo, Receipt, workflowTypeInfo } from './models';
 
 export const finishSignal = defineSignal('finish');
+
+export const orderQueryTypeInfo: PayloadTypeInfo = {
+  inputTypes: [orderTypeInfo],
+  outputType: workflowTypeInfo.outputType,
+};
+
+// The inbound interceptor retargets this Query to `order`; this TypeInfo must never encode the result.
+const aliasQueryOutputTypeThatMustNotRun: TypeInfo<Receipt, never> = {
+  transferTypeConverter: {
+    toTransferType(): never {
+      throw new Error('The retargeted Query must not use the original output TypeInfo');
+    },
+    fromTransferType(): Receipt {
+      throw new Error('The retargeted Query must not use the original output TypeInfo');
+    },
+  },
+};
+
+const orderAliasQuery = defineQuery<Receipt, [Order]>('order-alias', {
+  typeInfo: { inputTypes: [orderTypeInfo], outputType: aliasQueryOutputTypeThatMustNotRun },
+});
+
+export const orderQuery = defineQuery<Receipt, [Order]>('order', { typeInfo: orderQueryTypeInfo });
+
+export async function queryTarget(): Promise<void> {
+  let finished = false;
+  setHandler(orderQuery, (order) => {
+    assertOrder(order);
+    return new Receipt(order.id, order.totalCents);
+  });
+  setHandler(orderAliasQuery, (order) => {
+    assertOrder(order);
+    return new Receipt(order.id, order.totalCents);
+  });
+  setHandler(finishSignal, () => {
+    finished = true;
+  });
+  await condition(() => finished);
+}
 
 export const orderSignalTypeInfo: SignalTypeInfo = { inputTypes: [orderTypeInfo] };
 

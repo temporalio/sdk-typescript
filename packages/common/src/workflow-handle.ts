@@ -1,4 +1,5 @@
-import type { Workflow, WorkflowResultType, SignalDefinition, SignalTypeInfo } from './interfaces';
+import type { SignalDefinition, SignalTypeInfo, Workflow, WorkflowResultType } from './interfaces';
+import type { PayloadTypeInfo } from './type-info';
 
 /**
  * Options for signaling a Workflow by Signal name.
@@ -11,6 +12,19 @@ export interface WorkflowSignalOptions<Args extends any[] = []> {
 
   /** Type information used to convert Signal arguments. */
   typeInfo?: SignalTypeInfo;
+}
+
+/**
+ * Options for querying a Workflow by Query name.
+ *
+ * @experimental
+ */
+export interface WorkflowQueryOptions<Args extends any[] = []> {
+  /** Arguments to pass to the Query handler. */
+  args?: Args;
+
+  /** Type information used to convert Query arguments and results. */
+  typeInfo?: PayloadTypeInfo;
 }
 
 /**

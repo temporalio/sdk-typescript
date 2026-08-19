@@ -4,6 +4,7 @@ import type {
   ActivityOptions,
   LocalActivityOptions,
   QueryDefinition,
+  QueryDefinitionOptions,
   SearchAttributes,
   SearchAttributeValue,
   SignalDefinition,
@@ -1340,11 +1341,13 @@ export function defineSignal<Args extends any[] = [], Name extends string = stri
  * A definition can be reused in multiple Workflows.
  */
 export function defineQuery<Ret, Args extends any[] = [], Name extends string = string>(
-  name: Name
+  name: Name,
+  options: QueryDefinitionOptions = {}
 ): QueryDefinition<Ret, Args, Name> {
   return {
     type: 'query',
     name,
+    ...options,
   } as QueryDefinition<Ret, Args, Name>;
 }
 
@@ -1499,7 +1502,7 @@ export function setHandler<
     }
   } else if (def.type === 'query') {
     if (typeof handler === 'function') {
-      activator.queryHandlers.set(def.name, { handler: handler as any, description });
+      activator.queryHandlers.set(def.name, { handler: handler as any, description, typeInfo: def.typeInfo });
     } else if (handler == null) {
       activator.queryHandlers.delete(def.name);
     } else {

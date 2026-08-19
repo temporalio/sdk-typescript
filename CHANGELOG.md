@@ -60,6 +60,8 @@ to docs, or any other relevant information.
 - Core logs written directly to the console can now use compact, pretty, or newline-delimited JSON
   output via `telemetryOptions.logging.console.format`.
 - **Experimental**: Workflow Clients can now use `TypeInfo` to encode Workflow inputs and decode Workflow results.
+- **Experimental**: Query definitions and string-named Client Queries can now provide `TypeInfo` for converting Query
+  arguments and results.
 - **Experimental**: `@temporalio/google-adk-agents` package for running Google ADK agents as durable Temporal Workflows,
   requiring `@google/adk@>=1.5.0 <1.6.0` as a peer dependency.
   ADK's OpenTelemetry agent-loop spans can be exported replay-safely from the Workflow sandbox by composing with

@@ -15,6 +15,7 @@ import type {
   WorkflowTypeOptions,
   PayloadTypeInfo,
   TypeInfo,
+  WorkflowQueryOptions,
   WorkflowSignalOptions,
 } from '@temporalio/common';
 import {
@@ -244,6 +245,13 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
    * ```
    */
   query<Ret, Args extends any[] = []>(def: QueryDefinition<Ret, Args> | string, ...args: Args): Promise<Ret>;
+
+  /**
+   * Query a running or completed Workflow by Query name with additional options, including call-site TypeInfo.
+   *
+   * @experimental
+   */
+  queryWithOptions<Ret, Args extends any[] = []>(queryName: string, options: WorkflowQueryOptions<Args>): Promise<Ret>;
 
   /**
    * Terminate a running Workflow
@@ -1037,7 +1045,9 @@ export class WorkflowClient extends BaseClient {
       execution: input.workflowExecution,
       query: {
         queryType: input.queryType,
-        queryArgs: { payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args) },
+        queryArgs: {
+          payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args, input.typeInfo?.inputTypes),
+        },
         header: { fields: input.headers },
       },
     };
@@ -1078,7 +1088,13 @@ export class WorkflowClient extends BaseClient {
       throw new TypeError('Invalid response from server');
     }
     // We ignore anything but the first result
-    return await decodeFromPayloadsAtIndex(dataConverter, 0, response.queryResult?.payloads, context);
+    return await decodeFromPayloadsAtIndex(
+      dataConverter,
+      0,
+      response.queryResult?.payloads,
+      context,
+      input.typeInfo?.outputType
+    );
   }
 
   protected async _createUpdateWorkflowRequest(
@@ -1713,6 +1729,19 @@ export class WorkflowClient extends BaseClient {
       await fn(input);
     };
 
+    const _query = async <Ret>(queryType: string, args: unknown[], typeInfo?: PayloadTypeInfo): Promise<Ret> => {
+      const next = this._queryWorkflowHandler.bind(this);
+      const fn = composeInterceptors(interceptors, 'query', next);
+      return (await fn({
+        workflowExecution: { workflowId, runId },
+        queryRejectCondition: encodeQueryRejectCondition(this.options.queryRejectCondition),
+        queryType,
+        args,
+        typeInfo,
+        headers: {},
+      })) as Ret;
+    };
+
     return {
       client: this,
       workflowId,
@@ -1808,15 +1837,17 @@ export class WorkflowClient extends BaseClient {
         await _signal(this as InternalWorkflowHandle, signalName, options.args ?? [], options.typeInfo);
       },
       async query<Ret, Args extends any[]>(def: QueryDefinition<Ret, Args> | string, ...args: Args): Promise<Ret> {
-        const next = this.client._queryWorkflowHandler.bind(this.client);
-        const fn = composeInterceptors(interceptors, 'query', next);
-        return fn({
-          workflowExecution: { workflowId, runId },
-          queryRejectCondition: encodeQueryRejectCondition(this.client.options.queryRejectCondition),
-          queryType: typeof def === 'string' ? def : def.name,
-          args,
-          headers: {},
-        }) as Promise<Ret>;
+        if (typeof def === 'string') {
+          return await _query(def, args);
+        } else {
+          return await _query(def.name, args, def.typeInfo);
+        }
+      },
+      async queryWithOptions<Ret, Args extends any[]>(
+        queryName: string,
+        options: WorkflowQueryOptions<Args>
+      ): Promise<Ret> {
+        return await _query(queryName, options.args ?? [], options.typeInfo);
       },
     };
   }
