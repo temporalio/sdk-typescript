@@ -13,13 +13,14 @@
 
 import {
   LLMRegistry,
+  MCPSessionManager,
   MCPToolset,
   isBaseToolset,
   type BaseLlm,
-  type BaseToolset,
   type Context as AdkToolContext,
   type LlmRequest,
   type LlmResponse,
+  type MCPConnectionParams,
 } from '@google/adk';
 import type { FunctionDeclaration } from '@google/genai';
 import type { Duration } from '@temporalio/common';
@@ -27,12 +28,12 @@ import { ApplicationFailure } from '@temporalio/common';
 import { Context as ActivityContext } from '@temporalio/activity';
 import { WorkflowStreamClient } from '@temporalio/workflow-streams/client';
 
+import { MCP_ERROR_FAILURE_TYPE, MCP_TOOL_NOT_FOUND_FAILURE_TYPE, MODEL_ERROR_FAILURE_TYPE } from './error-types';
 import type { InvokeModelArgs, InvokeModelStreamingArgs, ModelActivities, WireLlmRequest } from './model';
 import type { MCPCallToolArgs, MCPToolsetFactory } from './mcp';
 
 const DEFAULT_STREAM_BATCH_INTERVAL = '100 milliseconds';
 
-/** HTTP statuses that are retryable independent of the upstream's hints. */
 const RETRYABLE_STATUS = new Set([408, 409, 429]);
 
 /** Kept local (not imported from `plugin.ts`) to avoid an import cycle. @internal */
@@ -98,7 +99,7 @@ export function createModelActivities(options: ModelActivitiesOptions = {}): Mod
   };
 }
 
-/** Builds the per-server `<name>-listTools` / `<name>-callTool` pairs; MCP is session-per-call. @internal */
+/** Builds the per-server `<name>-listTools` / `<name>-callTool` pairs. @internal */
 export function createMCPActivities(
   toolsets: Record<string, MCPToolsetFactory> = {}
 ): Record<string, (args: never) => Promise<unknown>> {
@@ -113,27 +114,23 @@ function mcpActivitiesForName(
   name: string,
   factory: MCPToolsetFactory
 ): Record<string, (args: never) => Promise<unknown>> {
-  const resolveToolset = (): BaseToolset => {
-    const produced = factory();
-    return isBaseToolset(produced) ? produced : new MCPToolset(produced);
-  };
-
   return {
     [`${name}-listTools`]: async (): Promise<FunctionDeclaration[]> => {
       const stopHeartbeat = startAdaptiveHeartbeat();
-      let toolset: BaseToolset | undefined;
+      let owned: MCPToolset | undefined;
       try {
-        toolset = resolveToolset();
+        const produced = factory();
+        const toolset = isBaseToolset(produced) ? produced : (owned = new MCPToolset(produced));
         const tools = await toolset.getTools();
         // `_getDeclaration` is underscore-prefixed by ADK convention but is a
         // typed, documented `BaseTool` member; ADK's own default
         // `processLlmRequest` calls it the same way.
         return tools.map((tool) => tool._getDeclaration()).filter((d): d is FunctionDeclaration => d !== undefined);
       } catch (err) {
-        throw toApplicationFailure(err);
+        throw toApplicationFailure(err, MCP_ERROR_FAILURE_TYPE);
       } finally {
         try {
-          await toolset?.close();
+          await owned?.close();
         } catch {
           /* a close failure must not mask the primary result/error */
         }
@@ -143,35 +140,49 @@ function mcpActivitiesForName(
 
     [`${name}-callTool`]: async (args: MCPCallToolArgs): Promise<unknown> => {
       const stopHeartbeat = startAdaptiveHeartbeat();
-      let toolset: BaseToolset | undefined;
       try {
-        toolset = resolveToolset();
-        const tools = await toolset.getTools();
+        const abortSignal = ActivityContext.current().cancellationSignal;
+        const produced = factory();
+        if (!isBaseToolset(produced)) {
+          return await callToolOverOneSession(produced, args, abortSignal);
+        }
+        const tools = await produced.getTools();
         const tool = tools.find((t) => t.name === args.toolName);
         if (!tool) {
           throw ApplicationFailure.nonRetryable(
             `Tool '${args.toolName}' not found on MCP server '${name}'.`,
-            'GoogleAdkMCPToolNotFound'
+            MCP_TOOL_NOT_FOUND_FAILURE_TYPE
           );
         }
         // The MCP tool reads `toolContext.abortSignal`; supply the Activity's
         // cancellation signal so a cancelled Workflow aborts the call.
-        const toolContext = {
-          abortSignal: ActivityContext.current().cancellationSignal,
-        } as unknown as AdkToolContext;
+        const toolContext = { abortSignal } as unknown as AdkToolContext;
         return await tool.runAsync({ args: args.args, toolContext });
       } catch (err) {
-        throw toApplicationFailure(err);
+        throw toApplicationFailure(err, MCP_ERROR_FAILURE_TYPE);
       } finally {
-        try {
-          await toolset?.close();
-        } catch {
-          /* a close failure must not mask the primary result/error */
-        }
         stopHeartbeat();
       }
     },
   };
+}
+
+async function callToolOverOneSession(
+  connectionParams: MCPConnectionParams,
+  args: MCPCallToolArgs,
+  abortSignal: AbortSignal
+): Promise<unknown> {
+  const sessions = new MCPSessionManager(connectionParams);
+  const session = await sessions.createSession();
+  try {
+    return await session.callTool({ name: args.toolName, arguments: args.args }, undefined, { signal: abortSignal });
+  } finally {
+    try {
+      await sessions.closeSession(session);
+    } catch {
+      /* a close failure must not mask the primary result/error */
+    }
+  }
 }
 
 /**
@@ -224,14 +235,8 @@ function startAdaptiveHeartbeat(): () => void {
   return () => clearInterval(timer);
 }
 
-/**
- * Maps a GenAI/MCP error into Temporal's retry contract: 408/409/429/5xx (or
- * `x-should-retry: true`) → retryable, other 4xx (or `x-should-retry: false`) →
- * non-retryable; `retry-after[-ms]` → `nextRetryDelay`. Existing
- * `ApplicationFailure`s pass through unchanged.
- * @internal
- */
-export function toApplicationFailure(err: unknown): ApplicationFailure {
+/** @internal */
+export function toApplicationFailure(err: unknown, baseType: string = MODEL_ERROR_FAILURE_TYPE): ApplicationFailure {
   if (err instanceof ApplicationFailure) {
     return err;
   }
@@ -250,7 +255,7 @@ export function toApplicationFailure(err: unknown): ApplicationFailure {
 
   return ApplicationFailure.create({
     message,
-    type: status !== undefined ? `GoogleAdkModelError.${status}` : 'GoogleAdkModelError',
+    type: status !== undefined ? `${baseType}.${status}` : baseType,
     nonRetryable: !retryable,
     nextRetryDelay: parseRetryAfter(headers),
   });

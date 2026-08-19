@@ -13,10 +13,6 @@
  * argument schemas. The live MCP session is opened worker-side; call inputs
  * carry the tool name and the model's arguments.
  *
- * ADK MCP is session-per-call (`MCPSessionManager` opens and closes a fresh
- * client per `getTools` / `runAsync`), so the stateless list-tools + call-tool
- * model below is complete, not a simplification.
- *
  * IMPORTANT: this module is part of the Workflow-sandbox import graph (the
  * `./workflow` entry point re-exports it and user Workflows import
  * `TemporalMCPToolset`). It must therefore NOT import any worker-only module
@@ -38,6 +34,7 @@ import type { ActivityOptions } from '@temporalio/common';
 import { ApplicationFailure } from '@temporalio/common';
 import { inWorkflowContext, proxyActivities } from '@temporalio/workflow';
 
+import { MCP_TOOLSET_OUTSIDE_WORKFLOW_FAILURE_TYPE } from './error-types';
 import { activityOptionsFrom } from './model';
 
 /**
@@ -46,8 +43,15 @@ import { activityOptionsFrom } from './model';
  * URL, headers) stay on the worker and never enter workflow inputs.
  *
  * Returning a {@link BaseToolset} lets callers supply a fully-built toolset
- * (including in-memory test doubles); returning {@link MCPConnectionParams}
- * lets the plugin construct an `MCPToolset` for you.
+ * (including in-memory test doubles), at the cost of a real MCP toolset opening two
+ * sessions per tool call — against a stdio server, two subprocesses. Returning
+ * {@link MCPConnectionParams} lets the plugin open one session per call instead.
+ *
+ * The plugin calls the factory on every Activity invocation, and closes only what it
+ * builds itself from {@link MCPConnectionParams}. A toolset holding a resource should
+ * therefore be a single long-lived instance the factory returns each time, and closing
+ * it stays the factory author's job. Supplying {@link MCPConnectionParams} instead
+ * hands that lifecycle to the plugin.
  */
 export type MCPToolsetFactory = () => BaseToolset | MCPConnectionParams;
 
@@ -58,7 +62,10 @@ export interface TemporalMCPToolsetOptions {
    * (`<name>-listTools`, `<name>-callTool`).
    */
   name: string;
-  /** Restrict the advertised tools to these (post-prefix) names. */
+  /**
+   * Restrict the advertised tools to these (post-prefix) names. ADK's other
+   * `toolFilter` form, a `ToolPredicate`, is not supported.
+   */
   toolFilter?: string[];
   /** Prefix applied to advertised tool names (mirrors ADK `MCPToolset`). */
   prefix?: string;
@@ -110,7 +117,7 @@ export class TemporalMCPToolset extends BaseToolset {
           `TemporalMCPToolset('${this.options.name}').getTools() was called outside a ` +
             'Workflow without `connectionParams`. Provide connectionParams to use this ' +
             'toolset directly with ADK (non-Temporal).',
-          'GoogleAdkMCPToolsetOutsideWorkflow'
+          MCP_TOOLSET_OUTSIDE_WORKFLOW_FAILURE_TYPE
         );
       }
       const real = new MCPToolset(this.options.connectionParams, this.options.toolFilter ?? [], this.options.prefix);
@@ -136,11 +143,7 @@ export class TemporalMCPToolset extends BaseToolset {
     return tools.filter((tool) => filter.includes(tool.name));
   }
 
-  /**
-   * No-op: MCP sessions are opened and closed per Activity invocation on the
-   * worker (ADK MCP is session-per-call), so there is nothing to close on the
-   * workflow side.
-   */
+  /** No-op: the workflow-side toolset holds no MCP session to close. */
   override async close(): Promise<void> {}
 }
 
