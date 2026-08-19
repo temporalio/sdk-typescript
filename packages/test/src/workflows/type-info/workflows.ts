@@ -1,4 +1,12 @@
-import { continueAsNew, defineWorkflowOptions, executeChild, makeContinueAsNewFunc } from '@temporalio/workflow';
+import {
+  continueAsNew,
+  defineWorkflowOptions,
+  executeChild,
+  makeContinueAsNewFunc,
+  proxyActivities,
+  proxyLocalActivities,
+} from '@temporalio/workflow';
+import type * as activities from './activities';
 import { assertOrder, assertReceipt, Order, Receipt, workflowTypeInfo } from './models';
 
 defineWorkflowOptions(workflowWithTypeInfo, {
@@ -73,4 +81,86 @@ export async function continueAsNewWithInterceptorTypeInfo(order: Order): Promis
     workflowType: 'workflowWithTypeInfo',
   });
   return await continueAsTypedWorkflow(order);
+}
+
+const typedActivities = proxyActivities<typeof activities>({
+  startToCloseTimeout: '1 minute',
+  activityTypeInfo: { convertOrder: workflowTypeInfo },
+});
+
+const typedLocalActivities = proxyLocalActivities<typeof activities>({
+  startToCloseTimeout: '1 minute',
+  activityTypeInfo: { convertOrder: workflowTypeInfo },
+});
+
+defineWorkflowOptions(workflowWithTypedActivity, {
+  staticOptions: { typeInfo: workflowTypeInfo },
+});
+export async function workflowWithTypedActivity(order: Order): Promise<Receipt> {
+  assertOrder(order);
+  const receipt = await typedActivities.convertOrder(order);
+  assertReceipt(receipt);
+  return receipt;
+}
+
+defineWorkflowOptions(workflowWithTypedLocalActivity, {
+  staticOptions: { typeInfo: workflowTypeInfo },
+});
+export async function workflowWithTypedLocalActivity(order: Order): Promise<Receipt> {
+  assertOrder(order);
+  const receipt = await typedLocalActivities.convertOrder(order);
+  assertReceipt(receipt);
+  return receipt;
+}
+
+const activityWithoutTypeInfo = proxyActivities<typeof activities>({ startToCloseTimeout: '1 minute' });
+
+defineWorkflowOptions(workflowWithActivityWithoutTypeInfo, {
+  staticOptions: { typeInfo: { inputTypes: [workflowTypeInfo.inputTypes![0]] } },
+});
+export async function workflowWithActivityWithoutTypeInfo(order: Order): Promise<string> {
+  assertOrder(order);
+  return await activityWithoutTypeInfo.convertOrderWithoutTypeInfo(order);
+}
+
+const interceptorTypedActivities = proxyActivities<typeof activities>({ startToCloseTimeout: '1 minute' });
+const interceptorTypedLocalActivities = proxyLocalActivities<typeof activities>({ startToCloseTimeout: '1 minute' });
+
+defineWorkflowOptions(workflowWithInterceptorTypedActivity, {
+  staticOptions: { typeInfo: workflowTypeInfo },
+});
+export async function workflowWithInterceptorTypedActivity(order: Order): Promise<Receipt> {
+  assertOrder(order);
+  const receipt = await interceptorTypedActivities.convertOrder(order);
+  assertReceipt(receipt);
+  return receipt;
+}
+
+defineWorkflowOptions(workflowWithInterceptorTypedLocalActivity, {
+  staticOptions: { typeInfo: workflowTypeInfo },
+});
+export async function workflowWithInterceptorTypedLocalActivity(order: Order): Promise<Receipt> {
+  assertOrder(order);
+  const receipt = await interceptorTypedLocalActivities.convertOrder(order);
+  assertReceipt(receipt);
+  return receipt;
+}
+
+interface DefaultActivities {
+  convertOrderThroughDefault(order: Order): Promise<Receipt>;
+}
+
+const defaultTypedActivities = proxyActivities<DefaultActivities>({
+  startToCloseTimeout: '1 minute',
+  activityTypeInfo: { convertOrderThroughDefault: workflowTypeInfo },
+});
+
+defineWorkflowOptions(workflowWithDefaultTypedActivity, {
+  staticOptions: { typeInfo: workflowTypeInfo },
+});
+export async function workflowWithDefaultTypedActivity(order: Order): Promise<Receipt> {
+  assertOrder(order);
+  const receipt = await defaultTypedActivities.convertOrderThroughDefault(order);
+  assertReceipt(receipt);
+  return receipt;
 }

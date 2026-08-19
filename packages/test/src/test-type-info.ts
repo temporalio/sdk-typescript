@@ -3,7 +3,8 @@ import type { ExecutionContext } from 'ava';
 import type { WorkflowClientInterceptor, WorkflowSignalWithStartOptions } from '@temporalio/client';
 import { Client, WithStartWorkflowOperation, WorkflowFailedError } from '@temporalio/client';
 import { workflowInterceptorModules } from '@temporalio/testing';
-import { executeChild } from '@temporalio/workflow';
+import { executeChild, proxyActivities } from '@temporalio/workflow';
+import type * as typeInfoActivities from './workflows/type-info/activities';
 import type { TestWorkflowEnvironment } from './helpers';
 import { configurableHelpers, makeTestFunction } from './helpers-integration';
 import {
@@ -32,7 +33,14 @@ import {
   workflowWithSignalStart,
   workflowWithTypeInfo,
   workflowWithUpdateStart,
+  workflowWithTypedActivity,
+  workflowWithTypedLocalActivity,
+  workflowWithActivityWithoutTypeInfo,
+  workflowWithDefaultTypedActivity,
+  workflowWithInterceptorTypedActivity,
+  workflowWithInterceptorTypedLocalActivity,
 } from './workflows/type-info';
+import { convertOrder, convertOrderWithoutTypeInfo } from './workflows/type-info/activities';
 
 function assertReceipt(t: ExecutionContext, receipt: Receipt): void {
   t.true(receipt instanceof Receipt);
@@ -155,6 +163,98 @@ test('Workflow execute rejects call-site TypeInfo for a Workflow definition at r
       message: /Workflow type information cannot be supplied at the call site when using a workflow function/,
     }
   );
+});
+
+// Activities
+
+test('Activity round-trips rich input and result using proxy and definition TypeInfo', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker({ activities: { convertOrder } });
+
+  await worker.runUntil(async () => {
+    const result = await client.workflow.execute(workflowWithTypedActivity, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+      args: [new Order('order-1', 12345n)],
+    });
+    assertReceipt(t, result);
+  });
+});
+
+test('Local Activity round-trips rich input and result using proxy and definition TypeInfo', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker({ activities: { convertOrder } });
+
+  await worker.runUntil(async () => {
+    const result = await client.workflow.execute(workflowWithTypedLocalActivity, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+      args: [new Order('order-1', 12345n)],
+    });
+    assertReceipt(t, result);
+  });
+});
+
+test('Activity uses TypeInfo supplied by an outbound interceptor', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker({ activities: { convertOrder } });
+
+  await worker.runUntil(async () => {
+    const result = await client.workflow.execute(workflowWithInterceptorTypedActivity, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+      args: [new Order('order-1', 12345n)],
+    });
+    assertReceipt(t, result);
+  });
+});
+
+test('Local Activity uses TypeInfo supplied by an outbound interceptor', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker({ activities: { convertOrder } });
+
+  await worker.runUntil(async () => {
+    const result = await client.workflow.execute(workflowWithInterceptorTypedLocalActivity, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+      args: [new Order('order-1', 12345n)],
+    });
+    assertReceipt(t, result);
+  });
+});
+
+test('Worker default Activity uses TypeInfo attached to the selected fallback function', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker({ activities: { default: convertOrder } });
+
+  await worker.runUntil(async () => {
+    const result = await client.workflow.execute(workflowWithDefaultTypedActivity, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+      args: [new Order('order-1', 12345n)],
+    });
+    assertReceipt(t, result);
+  });
+});
+
+test('Activity without TypeInfo preserves existing best-effort conversion', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const worker = await h.createWorker({ activities: { convertOrderWithoutTypeInfo } });
+
+  await worker.runUntil(async () => {
+    const result = await client.workflow.execute(workflowWithActivityWithoutTypeInfo, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+      args: [new Order('order-1', 12345n)],
+    });
+    t.is(result, 'order-1');
+  });
 });
 
 // Workflow transitions
@@ -780,6 +880,21 @@ test('Signal-with-Start rejects call-site TypeInfo for non-string Signal referen
       signal: signalReference,
       signalArgs: [new Order('order-1', 12345n)],
       signalTypeInfo: orderSignalTypeInfo,
+    });
+  }
+
+  t.pass();
+});
+
+test('Activity TypeInfo keys must name proxied Activities', (t) => {
+  function _assertActivityTypeInfoKeys() {
+    void proxyActivities<typeof typeInfoActivities>({
+      startToCloseTimeout: '1 minute',
+      activityTypeInfo: {
+        convertOrder: workflowTypeInfo,
+        // @ts-expect-error TypeInfo cannot be supplied for a non-Activity export.
+        notAnActivity: workflowTypeInfo,
+      },
     });
   }
 
