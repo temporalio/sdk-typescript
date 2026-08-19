@@ -1,4 +1,12 @@
-import { condition, continueAsNew, defineQuery, proxyActivities, proxyLocalActivities, setHandler, startChild } from '@temporalio/workflow';
+import {
+  condition,
+  continueAsNew,
+  defineQuery,
+  proxyActivities,
+  proxyLocalActivities,
+  setHandler,
+  startChild,
+} from '@temporalio/workflow';
 
 import type * as activities from '../activities';
 import { activityStartedSignal, unblockSignal } from './definitions';

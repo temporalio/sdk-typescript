@@ -185,7 +185,9 @@ if (RUN_INTEGRATION_TESTS) {
         })
       );
       await otel.shutdown();
-      const originalSpan = spans.find(({ name }) => name === `${SpanName.WORKFLOW_START}${SPAN_DELIMITER}${workflowType}`);
+      const originalSpan = spans.find(
+        ({ name }) => name === `${SpanName.WORKFLOW_START}${SPAN_DELIMITER}${workflowType}`
+      );
       t.true(originalSpan !== undefined);
       t.log(
         spans.map((span) => ({ name: span.name, parentSpanId: span.parentSpanId, spanId: span.spanContext().spanId }))
