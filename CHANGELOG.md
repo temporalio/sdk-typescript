@@ -89,6 +89,8 @@ to docs, or any other relevant information.
 - **Experimental**: The external storage S3 and GCS drivers now use `hash_algorithm` and `hash_value` instead of
   `hashAlgorithm` and `hashValue` in their claims. The GCS driver additionally uses `object_name` instead of
   `object`. Retrieval still accepts the old key names.
+- Fixed issue where replaying a workflow with Local Activities scheduled from a nested Promise could
+  trigger a nondeterminism error.
 
 ## [1.22.0] - 2026-08-05
 
