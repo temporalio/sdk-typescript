@@ -12,6 +12,11 @@ export async function workflowWithTypeInfo(order: Order): Promise<Receipt> {
   return new Receipt(order.id, order.totalCents);
 }
 
+const executeChildWithoutTypeChecking = executeChild as unknown as (
+  workflow: typeof workflowWithTypeInfo,
+  options: { args: [Order]; typeInfo: typeof workflowTypeInfo }
+) => Promise<unknown>;
+
 defineWorkflowOptions(parentWorkflowChildDefinition, {
   staticOptions: { typeInfo: workflowTypeInfo },
 });
@@ -41,11 +46,10 @@ defineWorkflowOptions(parentWorkflowChildDefinitionInvalidCallSiteTypeInfo, {
 });
 export async function parentWorkflowChildDefinitionInvalidCallSiteTypeInfo(order: Order): Promise<void> {
   const options = {
-    args: [order],
+    args: [order] as [Order],
     typeInfo: workflowTypeInfo,
   };
-  // @ts-expect-error TypeInfo must be defined on a referenced Workflow function.
-  await executeChild(workflowWithTypeInfo, options);
+  await executeChildWithoutTypeChecking(workflowWithTypeInfo, options);
 }
 
 defineWorkflowOptions(continueAsNewToWorkflowWithTypeInfo, {

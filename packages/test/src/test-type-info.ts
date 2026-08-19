@@ -3,6 +3,7 @@ import type { ExecutionContext } from 'ava';
 import type { WorkflowSignalWithStartOptions } from '@temporalio/client';
 import { Client, WithStartWorkflowOperation, WorkflowFailedError } from '@temporalio/client';
 import { workflowInterceptorModules } from '@temporalio/testing';
+import { executeChild } from '@temporalio/workflow';
 import type { TestWorkflowEnvironment } from './helpers';
 import { configurableHelpers, makeTestFunction } from './helpers-integration';
 import {
@@ -444,8 +445,22 @@ test('Child Workflow handle converts a string Signal using call-site TypeInfo', 
 
 // Compile-time contracts
 
+// These functions are never called. The package build checks their bodies without executing SDK operations.
+
+test('Child Workflow definitions reject call-site TypeInfo', (t) => {
+  function _assertChildWorkflowTypeInfoTypes() {
+    // @ts-expect-error TypeInfo must be defined on a referenced Workflow function.
+    void executeChild(workflowWithTypeInfo, {
+      args: [new Order('order-1', 12345n)],
+      typeInfo: workflowTypeInfo,
+    });
+  }
+
+  t.pass();
+});
+
 test('Signal-with-Start accepts definition, string, and union Signal references', (t) => {
-  function _assertion(client: Client, signalReference: typeof orderSignal | string) {
+  function _assertSignalWithStartReferenceTypes(client: Client, signalReference: typeof orderSignal | string) {
     void client.workflow.signalWithStart(signalTarget, {
       workflowId: 'workflow-id',
       taskQueue: 'task-queue',
@@ -473,7 +488,7 @@ test('Signal-with-Start accepts definition, string, and union Signal references'
 });
 
 test('Signal-with-Start rejects call-site TypeInfo for non-string Signal references', (t) => {
-  function _assertion(client: Client, signalReference: typeof orderSignal | string) {
+  function _assertSignalWithStartTypeInfoTypes(client: Client, signalReference: typeof orderSignal | string) {
     // @ts-expect-error TypeInfo for a Signal definition must be supplied by the definition.
     void client.workflow.signalWithStart(signalTarget, {
       workflowId: 'workflow-id',
