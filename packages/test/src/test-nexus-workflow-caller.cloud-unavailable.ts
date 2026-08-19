@@ -10,9 +10,24 @@ import * as workflow from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { unwrapHandlerErrorCause, innermostHandlerError } from './helpers-nexus';
 import { waitUntil } from './helpers';
+import {
+  assertOrder,
+  assertReceipt,
+  Order,
+  orderTypeInfo,
+  Receipt,
+  receiptTypeInfo,
+} from './workflows/type-info/models';
+import { workflowWithTypeInfo } from './workflows/type-info/workflows';
+
+export { workflowWithTypeInfo };
 
 const recordedLogs: { [key: string]: LogEntry[] } = {};
-const test = makeTestFunction({ workflowsPath: __filename, recordedLogs });
+const test = makeTestFunction({
+  workflowsPath: __filename,
+  recordedLogs,
+  workflowInterceptorModules: [require.resolve('./workflows/type-info/nexus-interceptors')],
+});
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Service definitions
@@ -76,6 +91,17 @@ const clientOperationTypeSafetyCheckerService = nexus.service('typeSafetyService
   explicit: nexus.operation<InputB, InputB>({ name: 'my-custom-operation-name' }),
 });
 
+const typeInfoService = nexus.service('typeInfoService', {
+  convert: nexus.operation<Order, Receipt>({
+    inputType: orderTypeInfo,
+    outputType: receiptTypeInfo,
+  }),
+});
+
+const typeInfoServiceWithoutMetadata = nexus.service('typeInfoService', {
+  convert: nexus.operation<Order, Receipt>(),
+});
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Caller workflows
 
@@ -109,6 +135,31 @@ export async function loggerOpCaller(endpoint: string): Promise<string> {
 export async function getClientCaller(endpoint: string): Promise<boolean> {
   const client = workflow.createNexusServiceClient({ endpoint, service: getClientService });
   return await client.executeOperation('getClientOp', undefined);
+}
+
+workflow.defineWorkflowOptions(typeInfoCaller, {
+  staticOptions: { typeInfo: { outputType: receiptTypeInfo } },
+});
+export async function typeInfoCaller(endpoint: string, useDefinition: boolean): Promise<Receipt> {
+  const client = workflow.createNexusServiceClient({ endpoint, service: typeInfoService });
+  let result: Receipt;
+  if (useDefinition) {
+    result = await client.executeOperation(typeInfoService.operations.convert, new Order('order-1', 123n));
+  } else {
+    result = await client.executeOperation('convert', new Order('order-1', 123n));
+  }
+  assertReceipt(result);
+  return result;
+}
+
+workflow.defineWorkflowOptions(interceptorTypeInfoCaller, {
+  staticOptions: { typeInfo: { outputType: receiptTypeInfo } },
+});
+export async function interceptorTypeInfoCaller(endpoint: string): Promise<Receipt> {
+  const client = workflow.createNexusServiceClient({ endpoint, service: typeInfoServiceWithoutMetadata });
+  const result = await client.executeOperation('convert', new Order('order-1', 123n));
+  assertReceipt(result);
+  return result;
 }
 
 export async function operationInfoCaller(
@@ -312,6 +363,76 @@ test('sync Operation Handler happy path - caller workflow', async (t) => {
       args: [endpointName],
     });
     t.is(result, 'hello');
+  });
+});
+
+test('Nexus TypeInfo hydrates synchronous handler input and caller result', async (t) => {
+  const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+
+  const worker = await createWorker({
+    nexusServices: [
+      nexus.serviceHandler(typeInfoService, {
+        async convert(_ctx, input) {
+          assertOrder(input);
+          return new Receipt(input.id, input.totalCents + 1n);
+        },
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const result = await executeWorkflow(typeInfoCaller, {
+      args: [endpointName, true],
+    });
+    assertReceipt(result);
+    t.is(result.summary(), 'order-1:124');
+  });
+});
+
+test('Nexus TypeInfo hydrates asynchronous backing Workflow input and caller result', async (t) => {
+  const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+
+  const worker = await createWorker({
+    nexusServices: [
+      nexus.serviceHandler(typeInfoService, {
+        convert: new temporalnexus.WorkflowRunOperationHandler<Order, Receipt>(async (ctx, input) => {
+          return await temporalnexus.startWorkflow(ctx, workflowWithTypeInfo, {
+            workflowId: randomUUID(),
+            args: [input],
+          });
+        }),
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const result = await executeWorkflow(typeInfoCaller, { args: [endpointName, false] });
+    assertReceipt(result);
+    t.is(result.summary(), 'order-1:123');
+  });
+});
+
+test('Workflow Nexus interceptor can supply operation TypeInfo', async (t) => {
+  const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+
+  const worker = await createWorker({
+    nexusServices: [
+      nexus.serviceHandler(typeInfoService, {
+        async convert(_ctx, input) {
+          assertOrder(input);
+          return new Receipt(input.id, input.totalCents + 1n);
+        },
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const result = await executeWorkflow(interceptorTypeInfoCaller, { args: [endpointName] });
+    assertReceipt(result);
+    t.is(result.summary(), 'order-1:124');
   });
 });
 
