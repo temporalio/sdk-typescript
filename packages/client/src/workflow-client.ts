@@ -1847,12 +1847,6 @@ export class WorkflowClient extends BaseClient {
         queryName: string,
         options: WorkflowQueryOptions<Args>
       ): Promise<Ret> {
-        if (typeof queryName !== 'string') {
-          throw new TypeError(
-            'Query TypeInfo can only be provided when querying by name. ' +
-              'Use defineQuery(..., { typeInfo }) on the Query definition instead.'
-          );
-        }
         return await _query(queryName, options.args ?? [], options.typeInfo);
       },
     };

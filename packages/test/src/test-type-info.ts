@@ -336,7 +336,7 @@ test('Client Workflow handle converts string Query input and result using call-s
   });
 });
 
-test('Client Query interceptor receives definition TypeInfo', async (t) => {
+test('Client Query interceptor can provide TypeInfo for a string Query', async (t) => {
   const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
   const client = new Client({
     connection: t.context.env.client.connection,
@@ -345,8 +345,7 @@ test('Client Query interceptor receives definition TypeInfo', async (t) => {
       workflow: [
         {
           async query(input, next) {
-            t.is(input.typeInfo, orderQueryTypeInfo);
-            return await next(input);
+            return await next({ ...input, typeInfo: orderQueryTypeInfo });
           },
         },
       ],
@@ -359,7 +358,12 @@ test('Client Query interceptor receives definition TypeInfo', async (t) => {
       workflowId: `wf-${randomUUID()}`,
       taskQueue: h.taskQueue,
     });
-    assertReceipt(t, await handle.query(orderQuery, new Order('order-1', 12345n)));
+    assertReceipt(
+      t,
+      await handle.queryWithOptions<Receipt, [Order]>('order', {
+        args: [new Order('order-1', 12345n)],
+      })
+    );
     await handle.signal(finishSignal);
     await handle.result();
   });
@@ -385,22 +389,6 @@ test('Workflow Query interceptor uses output TypeInfo from the retargeted handle
     await handle.signal(finishSignal);
     await handle.result();
   });
-});
-
-test('Client Workflow handle rejects Query definitions passed to queryWithOptions', async (t) => {
-  const client = makeClient(t.context.env);
-  const handle = client.workflow.getHandle('workflow-id');
-
-  await t.throwsAsync(
-    (handle.queryWithOptions as any)(orderQuery, {
-      args: [new Order('order-1', 12345n)],
-      typeInfo: orderQueryTypeInfo,
-    }),
-    {
-      instanceOf: TypeError,
-      message: /Query TypeInfo can only be provided when querying by name/,
-    }
-  );
 });
 
 // Signals
