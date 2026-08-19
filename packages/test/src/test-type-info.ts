@@ -598,7 +598,7 @@ test('Signal-with-Start accepts definition, string, and union Signal references'
 });
 
 test('queryWithOptions accepts only string Query names', (t) => {
-  function _assertion(client: Client, queryReference: typeof orderQuery | string) {
+  function _assertQueryWithOptionsTypes(client: Client, queryReference: typeof orderQuery | string) {
     void client.workflow.getHandle('workflow-id').queryWithOptions<Receipt, [Order]>('order', {
       args: [new Order('order-1', 12345n)],
       typeInfo: orderQueryTypeInfo,

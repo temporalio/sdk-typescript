@@ -18,7 +18,8 @@ export const orderQueryTypeInfo: PayloadTypeInfo = {
   outputType: workflowTypeInfo.outputType,
 };
 
-const unexpectedQueryOutputType: TypeInfo<Receipt, never> = {
+// The inbound interceptor retargets this Query to `order`; this TypeInfo must never encode the result.
+const aliasQueryOutputTypeThatMustNotRun: TypeInfo<Receipt, never> = {
   transferTypeConverter: {
     toTransferType(): never {
       throw new Error('The retargeted Query must not use the original output TypeInfo');
@@ -30,7 +31,7 @@ const unexpectedQueryOutputType: TypeInfo<Receipt, never> = {
 };
 
 const orderAliasQuery = defineQuery<Receipt, [Order]>('order-alias', {
-  typeInfo: { inputTypes: [orderTypeInfo], outputType: unexpectedQueryOutputType },
+  typeInfo: { inputTypes: [orderTypeInfo], outputType: aliasQueryOutputTypeThatMustNotRun },
 });
 
 export const orderQuery = defineQuery<Receipt, [Order]>('order', { typeInfo: orderQueryTypeInfo });
