@@ -1,10 +1,10 @@
 import { firstValueFrom, Subject } from 'rxjs';
 import { Context as ActivityContext } from '@temporalio/activity';
 import { ApplicationFailure, defaultPayloadConverter, WorkflowFailedError } from '@temporalio/client';
-import type { LocalActivityOptions } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { temporal } from '@temporalio/proto';
 import * as workflow from '@temporalio/workflow';
+import type { LocalActivityOptions } from '@temporalio/workflow';
 import { Worker } from '@temporalio/test-helpers';
 import { helpers, makeTestFunction } from './helpers-integration';
 

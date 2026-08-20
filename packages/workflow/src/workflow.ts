@@ -1,9 +1,7 @@
 import type {
   ActivityFunction,
   ActivitySerializationContext,
-  ActivityOptions,
   ActivityTypeInfoMap,
-  LocalActivityOptions,
   PayloadTypeInfo,
   QueryDefinition,
   QueryDefinitionOptions,
@@ -29,7 +27,6 @@ import type {
 import {
   compileRetryPolicy,
   compilePriority,
-  encodeActivityCancellationType,
   encodeWorkflowIdReusePolicy,
   extractWorkflowTypeAndConfig,
   HandlerUnfinishedPolicy,
@@ -49,9 +46,11 @@ import { msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/
 import type { temporal } from '@temporalio/proto';
 import { deepMerge } from '@temporalio/common/lib/internal-workflow';
 import { throwIfReservedName } from '@temporalio/common/lib/reserved';
+import { eventGroupMarkersToProto } from './event-groups';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import { composeInterceptors } from './interceptor-composition';
 import { UpdateScope } from './update-scope';
+import type { ActivityOptions, LocalActivityOptions } from './activities';
 import type {
   ActivityInput,
   LocalActivityInput,
@@ -86,6 +85,7 @@ import { assertInWorkflowContext, getActivator, maybeGetActivator } from './glob
 import { uuid4FromRandom } from './random-helpers';
 import { untrackPromise } from './stack-helpers';
 import type { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
+import { encodeActivityCancellationType } from './activities';
 
 // Avoid a circular dependency
 registerSleepImplementation(sleep);
@@ -157,6 +157,7 @@ function timerNextHandler({ seq, durationMs, options }: TimerInput) {
             cancelTimer: {
               seq,
             },
+            eventGroupMarkers: eventGroupMarkersToProto(options?.eventGroups),
           });
           reject(err);
         })
@@ -168,6 +169,7 @@ function timerNextHandler({ seq, durationMs, options }: TimerInput) {
         startToFireTimeout: msToTs(durationMs),
       },
       userMetadata: userMetadataToPayload(activator.payloadConverter, options?.summary, undefined, context),
+      eventGroupMarkers: eventGroupMarkersToProto(options?.eventGroups),
     });
     activator.completions.timer.set(seq, {
       resolve,
@@ -263,6 +265,7 @@ function scheduleActivityNextHandler({
         priority: options.priority ? compilePriority(options.priority) : undefined,
       },
       userMetadata: userMetadataToPayload(activator.payloadConverter, options.summary, undefined, context),
+      eventGroupMarkers: eventGroupMarkersToProto(options.eventGroups),
     });
     activator.completions.activity.set(seq, {
       resolve,
@@ -333,6 +336,7 @@ async function scheduleLocalActivityNextHandler({
         cancellationType: encodeActivityCancellationType(options.cancellationType),
       },
       userMetadata: userMetadataToPayload(activator.payloadConverter, options.summary, undefined, context),
+      eventGroupMarkers: eventGroupMarkersToProto(options.eventGroups),
     });
     activator.completions.activity.set(seq, {
       resolve,
@@ -486,6 +490,7 @@ function startChildWorkflowExecutionNextHandler({
         options?.staticDetails,
         context
       ),
+      eventGroupMarkers: eventGroupMarkersToProto(options.eventGroups),
     });
     activator.completions.childWorkflowStart.set(seq, {
       resolve,
@@ -553,6 +558,8 @@ function signalWorkflowNextHandler({ seq, signalName, args, typeInfo, target, he
               childWorkflowId: target.childWorkflowId,
             }),
       },
+      // Signalling takes no options, so only the ambient scope can contribute markers.
+      eventGroupMarkers: eventGroupMarkersToProto(undefined),
     });
 
     activator.completions.signalWorkflow.set(seq, { resolve, reject, context });
@@ -873,6 +880,9 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
               runId,
             },
           },
+          // Cancelling an external Workflow takes no options, so only the ambient scope can
+          // contribute markers.
+          eventGroupMarkers: eventGroupMarkersToProto(undefined),
         });
         activator.completions.cancelWorkflow.set(seq, {
           resolve,
@@ -1188,22 +1198,27 @@ export function makeContinueAsNewFunc<F extends Workflow>(
       const { headers, args, options } = input;
       const typeInfo =
         options.typeInfo ?? (options.workflowType === info.workflowType ? activator.typeInfo : undefined);
-      throw new ContinueAsNew({
-        workflowType: options.workflowType,
-        arguments: toPayloadsWithContext(activator.payloadConverter, context, args, typeInfo?.inputTypes),
-        headers,
-        taskQueue: options.taskQueue,
-        memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo, context),
-        searchAttributes:
-          options.searchAttributes || options.typedSearchAttributes
-            ? { indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes) }
-            : undefined,
-        workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
-        workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
-        backoffStartInterval: msOptionalToTs(options.backoffStartInterval),
-        versioningIntent: versioningIntentToProto(options.versioningIntent),
-        initialVersioningBehavior: encodeInitialVersioningBehavior(options.initialVersioningBehavior),
-      });
+      throw new ContinueAsNew(
+        {
+          workflowType: options.workflowType,
+          arguments: toPayloadsWithContext(activator.payloadConverter, context, args, typeInfo?.inputTypes),
+          headers,
+          taskQueue: options.taskQueue,
+          memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo, context),
+          searchAttributes:
+            options.searchAttributes || options.typedSearchAttributes
+              ? {
+                  indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes),
+                }
+              : undefined,
+          workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
+          workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
+          backoffStartInterval: msOptionalToTs(options.backoffStartInterval),
+          versioningIntent: versioningIntentToProto(options.versioningIntent),
+          initialVersioningBehavior: encodeInitialVersioningBehavior(options.initialVersioningBehavior),
+        },
+        eventGroupMarkersToProto(options.eventGroups)
+      );
     });
     return fn({
       args,
@@ -1708,6 +1723,8 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
           indexedFields: encodeUnifiedSearchAttributes(undefined, searchAttributes),
         },
       },
+      // This API takes no options, so only the ambient scope can contribute markers.
+      eventGroupMarkers: eventGroupMarkersToProto(undefined),
     });
 
     activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {
@@ -1739,6 +1756,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
           indexedFields: mapToPayloads(searchAttributePayloadConverter, searchAttributes),
         },
       },
+      eventGroupMarkers: eventGroupMarkersToProto(undefined),
     });
 
     activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {
@@ -1866,6 +1884,7 @@ export function upsertMemo(memo: Record<string, unknown>): void {
         ),
       },
     },
+    eventGroupMarkers: eventGroupMarkersToProto(undefined),
   });
 
   activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {

@@ -85,6 +85,10 @@ to docs, or any other relevant information.
 - **Experimental**: Workflows can now use `TypeInfo` for Child Workflow inputs and results and continue-as-new inputs.
 - **Experimental**: String-named Signal calls can now provide `TypeInfo` through explicit options on Client and
   Workflow handles and in signal-with-start requests.
+- **Experimental**: Early support for _Event Groups_. **Event Groups**
+  is a new form of Workflow-level metadata that allows for improved
+  visibility into a Workflow execution's history by grouping logically
+  related Events together based on user-defined or system-inferred criteria.
 
 ### Changed
 

@@ -2197,6 +2197,10 @@ function walk_coresdk_workflow_commands_WorkflowCommand<Ctx>(
     if (c != null) walk_temporal_api_sdk_v1_UserMetadata(c, env, ctx, pending);
   }
   {
+    const a = o.eventGroupMarkers;
+    if (a) for (const v of a) walk_temporal_api_sdk_v1_EventGroupMarker(v, env, ctx, pending);
+  }
+  {
     const c = o.scheduleActivity;
     if (c != null) walk_coresdk_workflow_commands_ScheduleActivity(c, env, ctx, pending);
   }

@@ -10,7 +10,7 @@ export default tseslint.config(
     extends: [js.configs.recommended, ...tseslint.configs.recommended, prettierConfig],
     plugins: { import: importPlugin },
     languageOptions: {
-      parserOptions: { project: ['./packages/*/tsconfig.json', './contrib/*/tsconfig.json'] },
+      parserOptions: { projectService: true, tsconfigRootDir: process.cwd() },
     },
     settings: {
       'import/parsers': { '@typescript-eslint/parser': ['.ts'] },

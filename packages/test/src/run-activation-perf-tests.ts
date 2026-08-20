@@ -78,6 +78,7 @@ if (!wf.inWorkflowContext()) {
         workflowId: 'test-workflowId',
         namespace: 'default',
         firstExecutionRunId: runId,
+        originalExecutionRunId: runId,
         attempt: 1,
         taskTimeoutMs: 1000,
         taskQueue: 'test',
