@@ -926,6 +926,24 @@ test('A timer carries both directly attached and ambient markers', async (t) => 
   t.deepEqual(markersOf(singleEvent(events, 'completeWorkflowExecution')), []);
 });
 
+export async function setTimeoutMarkersWorkflow(): Promise<void> {
+  await withCoverageScopes(
+    () =>
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, 1000);
+      })
+  );
+}
+
+test('A timer started with setTimeout carries the ambient markers', async (t) => {
+  const { events, ambient } = await runCoverageWorkflow(t, setTimeoutMarkersWorkflow);
+
+  // `setTimeout` exposes no options argument, so the ambient scope is all it can carry. It reaches
+  // the same command as `sleep` only while the `NonCancellableScopesAreShieldedFromPropagation`
+  // flag is on; the pre-flag branch is reachable only under replay, where commands never ship.
+  t.deepEqual(markersOf(singleEvent(events, 'startTimer')), ambient);
+});
+
 export async function conditionMarkersWorkflow(): Promise<void> {
   // The condition never holds, so what resolves this call is the timer backing its timeout.
   await withCoverageScopes((direct) => workflow.condition(() => false, '1s', { eventGroups: [direct] }));
