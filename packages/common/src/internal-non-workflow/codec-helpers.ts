@@ -45,7 +45,7 @@ export async function encode(
 }
 
 /** Run {@link PayloadCodec.decode} on `payloads` */
-export async function decodeOptional(
+async function decodeOptional(
   codecs: PayloadCodec[],
   payloads: Payload[] | null | undefined,
   context?: SerializationContext
@@ -160,17 +160,6 @@ export async function decodeOptionalFailureToOptionalError(
   return failure
     ? failureConverter.failureToError(await decodeFailure(payloadCodecs, failure, context), payloadConverter, context)
     : undefined;
-}
-
-export async function decodeOptionalMap(
-  codecs: PayloadCodec[],
-  payloads: Record<string, Payload> | null | undefined,
-  context?: SerializationContext
-): Promise<Record<string, DecodedPayload> | null | undefined> {
-  if (payloads == null) return payloads;
-  return Object.fromEntries(
-    await Promise.all(Object.entries(payloads).map(async ([k, v]) => [k, (await decode(codecs, [v], context))[0]]))
-  );
 }
 
 /**
@@ -374,28 +363,6 @@ export async function decodeFailure(
         }
       : undefined,
   };
-}
-
-/**
- * Return a new {@link ProtoFailure} with `codec.encode()` run on all the {@link Payload}s.
- */
-export async function decodeOptionalFailure(
-  codecs: PayloadCodec[],
-  failure: ProtoFailure | null | undefined,
-  context?: SerializationContext
-): Promise<DecodedProtoFailure | null | undefined> {
-  if (failure == null) return failure;
-  return await decodeFailure(codecs, failure, context);
-}
-
-/**
- * Mark all values in the map as decoded.
- * Use this for headers, which we don't encode.
- */
-export function noopDecodeMap<K extends string>(
-  map: Record<K, Payload> | null | undefined
-): Record<K, DecodedPayload> | null | undefined {
-  return map as Record<K, DecodedPayload> | null | undefined;
 }
 
 export async function encodeUserMetadata(
