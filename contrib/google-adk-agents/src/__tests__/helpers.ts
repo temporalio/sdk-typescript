@@ -307,6 +307,27 @@ export function countScheduledActivities(
   return events.filter((e) => e.activityTaskScheduledEventAttributes?.activityType?.name === activityTypeName).length;
 }
 
+/**
+ * Resolves once history shows at least `count` `ActivityTaskScheduled` events for
+ * `activityTypeName`.
+ */
+export async function waitForScheduledActivities(
+  env: TestWorkflowEnvironment,
+  workflowId: string,
+  activityTypeName: string,
+  count = 1
+): Promise<void> {
+  const deadline = Date.now() + 10_000;
+  for (;;) {
+    const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
+    if (countScheduledActivities(events ?? [], activityTypeName) >= count) return;
+    if (Date.now() > deadline) {
+      throw new Error(`timed out waiting for ${count} ${activityTypeName} Activities to be scheduled`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+}
+
 /** An `ActivityTaskScheduled` history event, narrowed to what the helpers below read. */
 type ScheduledActivityEvent = {
   activityTaskScheduledEventAttributes?: { activityType?: { name?: string | null } | null } | null;

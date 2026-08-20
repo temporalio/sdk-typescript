@@ -58,16 +58,19 @@ test('configureBundler stubs ADK node-only packages and disallowed builtins', (t
   }
 });
 
-test('configureBundler prepends the polyfill loader to workflowInterceptorModules', (t) => {
+test('configureBundler brackets the user modules with the polyfill loader and failure interceptor', (t) => {
   const plugin = new GoogleAdkPlugin();
   const { workflowInterceptorModules } = plugin.configureBundler({
     workflowsPath: 'wf',
     workflowInterceptorModules: ['user-interceptors'],
   } as BundleOptions);
-  // Must be first so the web-global polyfills install before any other
+  // The polyfill loader must be first so the web globals install before any other
   // per-workflow module (interceptors, then the user's workflows) evaluates.
-  t.is(workflowInterceptorModules?.[0], require.resolve('../load-polyfills'));
-  t.deepEqual(workflowInterceptorModules?.slice(1), ['user-interceptors']);
+  t.deepEqual(workflowInterceptorModules, [
+    require.resolve('../load-polyfills'),
+    'user-interceptors',
+    require.resolve('../absorbed-failure'),
+  ]);
   // The module satisfies the documented interceptor-module contract (exports
   // an `interceptors` factory) while registering nothing.
   t.deepEqual(polyfillInterceptors(), {});

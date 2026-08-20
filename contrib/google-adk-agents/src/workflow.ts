@@ -19,6 +19,8 @@ import './load-polyfills';
 export { TemporalModel } from './model';
 export type { TemporalModelOptions } from './model';
 
+export { markModelFailureHandled } from './absorbed-failure';
+
 export { TemporalMCPToolset } from './mcp';
 export type { TemporalMCPToolsetOptions, MCPToolsetFactory } from './mcp';
 

@@ -25,6 +25,7 @@ import type { ActivityOptions, Duration } from '@temporalio/common';
 import { ApplicationFailure } from '@temporalio/common';
 import { inWorkflowContext, proxyActivities } from '@temporalio/workflow';
 
+import { recordAbsorbedFailure } from './absorbed-failure';
 import { STREAMING_TOPIC_REQUIRED_FAILURE_TYPE, UNSUPPORTED_FAILURE_TYPE } from './error-types';
 
 export interface TemporalModelOptions {
@@ -90,6 +91,8 @@ export interface ModelActivities {
 
 const DEFAULT_MODEL_START_TO_CLOSE: Duration = '1 minute';
 
+const ADK_AGENT_NAME_LABEL = 'adk_agent_name';
+
 /**
  * A {@link BaseLlm} whose inference is durable under Temporal.
  *
@@ -127,32 +130,40 @@ export class TemporalModel extends BaseLlm {
       return;
     }
 
-    const activities = proxyActivities<ModelActivities>({
-      ...this.options.activity,
-      startToCloseTimeout: this.options.activity?.startToCloseTimeout ?? DEFAULT_MODEL_START_TO_CLOSE,
-      summary: this.resolveSummary(llmRequest),
-    });
-
-    const wire = toWireRequest(llmRequest);
     const streamingTopic = this.options.streamingTopic;
+    // ADK's agent flow stamps this label on every request just before calling the
+    // model, and a request built by hand for a direct call carries none. Only that
+    // flow absorbs a throw, so only it needs the failure recorded.
+    const throughAgentRun = llmRequest.config?.labels?.[ADK_AGENT_NAME_LABEL] !== undefined;
 
     let responses: LlmResponse[];
-    if (stream) {
-      if (!streamingTopic) {
-        throw ApplicationFailure.nonRetryable(
-          `TemporalModel('${this.model}'): streaming was requested but no 'streamingTopic' is ` +
-            'configured. Set TemporalModelOptions.streamingTopic to publish incremental chunks.',
-          STREAMING_TOPIC_REQUIRED_FAILURE_TYPE
-        );
-      }
-      responses = await activities['adk-invokeModelStreaming']({
-        model: this.model,
-        request: wire,
-        streamingTopic,
-        batchInterval: this.options.streamingBatchInterval,
+    try {
+      const activities = proxyActivities<ModelActivities>({
+        ...this.options.activity,
+        startToCloseTimeout: this.options.activity?.startToCloseTimeout ?? DEFAULT_MODEL_START_TO_CLOSE,
+        summary: this.resolveSummary(llmRequest),
       });
-    } else {
-      responses = await activities['adk-invokeModel']({ model: this.model, request: wire });
+      const wire = toWireRequest(llmRequest);
+      if (stream) {
+        if (!streamingTopic) {
+          throw ApplicationFailure.nonRetryable(
+            `TemporalModel('${this.model}'): streaming was requested but no 'streamingTopic' is ` +
+              'configured. Set TemporalModelOptions.streamingTopic to publish incremental chunks.',
+            STREAMING_TOPIC_REQUIRED_FAILURE_TYPE
+          );
+        }
+        responses = await activities['adk-invokeModelStreaming']({
+          model: this.model,
+          request: wire,
+          streamingTopic,
+          batchInterval: this.options.streamingBatchInterval,
+        });
+      } else {
+        responses = await activities['adk-invokeModel']({ model: this.model, request: wire });
+      }
+    } catch (err) {
+      if (throughAgentRun) recordAbsorbedFailure(err);
+      throw err;
     }
 
     for (const response of responses) {
@@ -189,7 +200,7 @@ export class TemporalModel extends BaseLlm {
     if (this.options.activity?.summary !== undefined) {
       return this.options.activity.summary;
     }
-    const agentName = req.config?.labels?.['adk_agent_name'];
+    const agentName = req.config?.labels?.[ADK_AGENT_NAME_LABEL];
     if (agentName) {
       return agentName;
     }
