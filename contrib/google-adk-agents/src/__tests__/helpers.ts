@@ -224,6 +224,7 @@ export interface WithWorkerOptions {
   taskQueue: string;
   plugins: Array<WorkerPlugin & BundlerPlugin>;
   activities?: object;
+  /** Defaults to 0, so every Workflow task replays the full history. */
   maxCachedWorkflows?: number;
   /**
    * User workflow-interceptor modules to bundle; the plugin's polyfill loader
@@ -294,7 +295,7 @@ export async function withWorker<T>(
     reuseV8Context: REUSE_V8_CONTEXT,
     plugins: options.plugins,
     activities: options.activities,
-    maxCachedWorkflows: options.maxCachedWorkflows,
+    maxCachedWorkflows: options.maxCachedWorkflows ?? 0,
   });
   return worker.runUntil(fn());
 }
