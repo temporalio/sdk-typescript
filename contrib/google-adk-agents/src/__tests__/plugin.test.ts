@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * Server-free unit tests that assert the shape of `configureBundler` /
  * `configureWorker` output without bundling or executing a Workflow.
  */

@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * A stdio MCP server exposing one `echo` tool, recording its session boundaries and
  * tool requests to the file named by `MCP_STUB_LOG`. An unknown tool gets the reply a
  * real `McpServer` sends: a successful result carrying `isError: true`, never a

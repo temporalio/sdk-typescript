@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * Telemetry replay-safety. ADK creates OpenTelemetry spans (tracer
  * `gcp.vertex.agent`: `invocation`, `invoke_agent <name>`, `call_llm`, …)
  * inside the Workflow sandbox. Composing this plugin with the SDK's

@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * Workflow-side model boundary for the Google ADK Temporal plugin.
  *
  * `TemporalModel` is a drop-in `BaseLlm` (from `@google/adk`) that a user places

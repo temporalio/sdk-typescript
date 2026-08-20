@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * Terminal-outcome tests for model failures that `@google/adk` absorbs. Because the
  * absorbed failure lets the run finish normally, every case here asserts the
  * *execution's* status, not just what the Workflow returned: a failed model call must

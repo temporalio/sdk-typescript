@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- */
-
 import { builtinModules, createRequire } from 'node:module';
 
 import type { BaseLlm } from '@google/adk';

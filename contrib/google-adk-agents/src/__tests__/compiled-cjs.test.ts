@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * Regression coverage for workflow-bundle module layouts that evaluate ADK's
  * telemetry chain (`@opentelemetry/sdk-trace-base` → `@opentelemetry/core`,
  * whose browser build dereferences the `performance` global at module load)

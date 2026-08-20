@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * Regression test that consumes the COMPILED `lib` the way a published-package
  * user does: resolved BY PACKAGE NAME (`@temporalio/google-adk-agents` and its
  * `/workflow` and `/testing` subpaths) via Node package self-reference, never

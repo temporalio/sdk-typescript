@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * Surfaces the failures `@google/adk` absorbs before Workflow code can see them.
  * `LlmAgent.runAndHandleError` turns any `Error` escaping a model call into an event
  * and lets the run finish, so a Workflow whose model Activity failed returns
