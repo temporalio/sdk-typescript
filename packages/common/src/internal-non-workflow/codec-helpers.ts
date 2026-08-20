@@ -44,16 +44,6 @@ export async function encode(
   return payloads as EncodedPayload[];
 }
 
-/** Run {@link PayloadCodec.encode} on `payloads` */
-export async function encodeOptional(
-  codecs: PayloadCodec[],
-  payloads: Payload[] | null | undefined,
-  context?: SerializationContext
-): Promise<EncodedPayload[] | null | undefined> {
-  if (payloads == null) return payloads;
-  return await encode(codecs, payloads, context);
-}
-
 /** Run {@link PayloadCodec.decode} on `payloads` */
 export async function decodeOptional(
   codecs: PayloadCodec[],
@@ -83,7 +73,7 @@ async function decodeSingle(
 }
 
 /** Run {@link PayloadCodec.encode} on a single Payload */
-export async function encodeOptionalSingle(
+async function encodeOptionalSingle(
   codecs: PayloadCodec[],
   payload: Payload | null | undefined,
   context?: SerializationContext
@@ -229,23 +219,6 @@ export async function decodeMapFromPayloads<K extends string>(
       })
     )
   ) as Record<K, unknown>;
-}
-
-/** Run {@link PayloadCodec.encode} on all values in `map` */
-export async function encodeMap<K extends string>(
-  codecs: PayloadCodec[],
-  map: Record<K, Payload> | null | undefined,
-  context?: SerializationContext
-): Promise<Record<K, EncodedPayload> | null | undefined> {
-  if (map === null) return null;
-  if (map === undefined) return undefined;
-  return Object.fromEntries(
-    await Promise.all(
-      Object.entries(map).map(async ([k, payload]): Promise<[K, EncodedPayload]> => {
-        return [k as K, await encodeSingle(codecs, payload as Payload, context)];
-      })
-    )
-  ) as Record<K, EncodedPayload>;
 }
 
 /**
@@ -406,18 +379,6 @@ export async function decodeFailure(
 /**
  * Return a new {@link ProtoFailure} with `codec.encode()` run on all the {@link Payload}s.
  */
-export async function encodeOptionalFailure(
-  codecs: PayloadCodec[],
-  failure: ProtoFailure | null | undefined,
-  context?: SerializationContext
-): Promise<EncodedProtoFailure | null | undefined> {
-  if (failure == null) return failure;
-  return await encodeFailure(codecs, failure, context);
-}
-
-/**
- * Return a new {@link ProtoFailure} with `codec.encode()` run on all the {@link Payload}s.
- */
 export async function decodeOptionalFailure(
   codecs: PayloadCodec[],
   failure: ProtoFailure | null | undefined,
@@ -425,27 +386,6 @@ export async function decodeOptionalFailure(
 ): Promise<DecodedProtoFailure | null | undefined> {
   if (failure == null) return failure;
   return await decodeFailure(codecs, failure, context);
-}
-
-/**
- * Mark all values in the map as encoded.
- * Use this for headers, which we don't encode.
- */
-export function noopEncodeMap<K extends string>(
-  map: Record<K, Payload> | null | undefined
-): Record<K, EncodedPayload> | null | undefined {
-  return map as Record<K, EncodedPayload> | null | undefined;
-}
-
-export function noopEncodeSearchAttrs(
-  attrs: temporal.api.common.v1.ISearchAttributes | null | undefined
-): temporal.api.common.v1.ISearchAttributes | null | undefined {
-  if (!attrs) {
-    return attrs;
-  }
-  return {
-    indexedFields: noopEncodeMap(attrs.indexedFields),
-  };
 }
 
 /**
