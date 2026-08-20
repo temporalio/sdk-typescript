@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * Replay determinism. Runs a combined scenario (two model calls + an MCP
  * discovery + call) to produce a real history, then replays that history with
  * the plugin registered. ADK's event IDs / timestamps funnel through

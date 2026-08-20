@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * Web/Node global polyfills for the Temporal Workflow sandbox.
  *
  * `@google/adk` and `@google/genai` reference `Headers`, `structuredClone`,

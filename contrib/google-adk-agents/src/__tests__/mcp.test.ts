@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- */
-
 import { readFileSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

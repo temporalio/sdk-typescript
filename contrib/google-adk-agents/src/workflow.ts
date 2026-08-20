@@ -5,10 +5,6 @@
  * @experimental The Google ADK plugin is an experimental feature; APIs may change without notice.
  *
  * @module
- *
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
  */
 
 // Side-effect import: install Workflow-sandbox polyfills (gated internally on
@@ -18,6 +14,8 @@ import './load-polyfills';
 
 export { TemporalModel } from './model';
 export type { TemporalModelOptions } from './model';
+
+export { markModelFailureHandled } from './absorbed-failure';
 
 export { TemporalMCPToolset } from './mcp';
 export type { TemporalMCPToolsetOptions, MCPToolsetFactory } from './mcp';

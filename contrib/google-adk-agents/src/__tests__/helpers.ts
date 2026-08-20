@@ -224,6 +224,7 @@ export interface WithWorkerOptions {
   taskQueue: string;
   plugins: Array<WorkerPlugin & BundlerPlugin>;
   activities?: object;
+  /** Defaults to 0, so every Workflow task replays the full history. */
   maxCachedWorkflows?: number;
   /**
    * User workflow-interceptor modules to bundle; the plugin's polyfill loader
@@ -294,7 +295,7 @@ export async function withWorker<T>(
     reuseV8Context: REUSE_V8_CONTEXT,
     plugins: options.plugins,
     activities: options.activities,
-    maxCachedWorkflows: options.maxCachedWorkflows,
+    maxCachedWorkflows: options.maxCachedWorkflows ?? 0,
   });
   return worker.runUntil(fn());
 }
@@ -305,6 +306,27 @@ export function countScheduledActivities(
   activityTypeName: string
 ): number {
   return events.filter((e) => e.activityTaskScheduledEventAttributes?.activityType?.name === activityTypeName).length;
+}
+
+/**
+ * Resolves once history shows at least `count` `ActivityTaskScheduled` events for
+ * `activityTypeName`.
+ */
+export async function waitForScheduledActivities(
+  env: TestWorkflowEnvironment,
+  workflowId: string,
+  activityTypeName: string,
+  count = 1
+): Promise<void> {
+  const deadline = Date.now() + 10_000;
+  for (;;) {
+    const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
+    if (countScheduledActivities(events ?? [], activityTypeName) >= count) return;
+    if (Date.now() > deadline) {
+      throw new Error(`timed out waiting for ${count} ${activityTypeName} Activities to be scheduled`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
 }
 
 /** An `ActivityTaskScheduled` history event, narrowed to what the helpers below read. */

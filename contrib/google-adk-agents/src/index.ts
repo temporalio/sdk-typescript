@@ -4,10 +4,6 @@
  * @experimental The Google ADK plugin is an experimental feature; APIs may change without notice.
  *
  * @module
- *
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
  */
 
 export { GoogleAdkPlugin } from './plugin';

@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- */
-
 import { type FunctionDeclaration, type Schema, Type } from '@google/genai';
 import { BaseTool, type RunAsyncToolRequest } from '@google/adk';
 import { ApplicationFailure, type ActivityOptions } from '@temporalio/common';
