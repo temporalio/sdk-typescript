@@ -5,7 +5,8 @@ inputs:
   bun-version:
     description: 'Version of Bun to install'
     required: false
-    default: 'latest'
+    # Bun 1.4.0 fails to terminate Worker threads across every CI platform.
+    default: '1.3.14'
   platform:
     description: 'Platform identifier for cache key (e.g., linux-x64, macos-arm, windows-x64)'
     required: true
