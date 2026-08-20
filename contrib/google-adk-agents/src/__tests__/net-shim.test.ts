@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * Coverage for the `net` builtin shim. `@google/adk` >= 1.5.0 ships
  * `tools/load_web_page.js` on the barrel path, which parses its blocked-CIDR
  * tables at module load, calling `isIP` from `node:net` in the process — with

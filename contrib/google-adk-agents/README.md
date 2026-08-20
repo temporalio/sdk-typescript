@@ -115,6 +115,12 @@ const agent = new LlmAgent({
 });
 ```
 
+A model failure is non-retryable unless its status says a retry could succeed,
+so a bad request fails the Workflow on the first attempt no matter the retry
+policy. To opt out, handle the error in an ADK `onModelErrorCallback`, pass
+that same error to `markModelFailureHandled`, and return a substitute event
+built with ADK's `createEvent`.
+
 ### MCP tools
 
 Use `TemporalMCPToolset` in Workflow code and register the matching MCP factory
