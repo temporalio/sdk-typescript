@@ -15,12 +15,21 @@ import {
   visit,
   walkWorkflowActivationCompletion,
 } from '@temporalio/common/lib/internal-non-workflow';
+import { limit } from '@temporalio/common/lib/concurrency/limit';
 import { coresdk } from '@temporalio/proto';
+
+/**
+ * Maximum number of concurrent codec encodes for workflow completions. Previously,
+ * this was unbounded.
+ */
+const MAX_CONCURRENT_CODEC_ENCODES = 20;
 
 /**
  * Helper class for decoding Workflow activations and encoding Workflow completions.
  */
 export class WorkflowCodecRunner {
+  private readonly codecEncodeLimit = limit(MAX_CONCURRENT_CODEC_ENCODES);
+
   private readonly pendingCompletionContexts = {
     activity: new Map<number, ActivitySerializationContext>(),
     childWorkflowStart: new Map<number, WorkflowSerializationContext>(),
@@ -360,9 +369,9 @@ export class WorkflowCodecRunner {
         transformPayload: async (payload, context) => (await encode(this.codecs, [payload], context))[0]!,
         transformPayloads: (payloads, context) => encode(this.codecs, payloads, context),
         initialContext: this.workflowContext,
-        // Headers and search attributes are not payload-converted by workflows.
         skipHeaders: true,
         skipSearchAttributes: true,
+        limit: this.codecEncodeLimit,
         deriveContext: (message, typeName, context) => {
           if (typeName !== 'coresdk.workflow_commands.WorkflowCommand') {
             if (typeName === 'coresdk.workflow_commands.ScheduleActivity') {
