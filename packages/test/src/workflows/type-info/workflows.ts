@@ -7,6 +7,7 @@ import {
   proxyLocalActivities,
 } from '@temporalio/workflow';
 import type * as activities from './activities';
+import { activityTypeInfo } from './activity-type-info';
 import { assertOrder, assertReceipt, Order, Receipt, workflowTypeInfo } from './models';
 
 defineWorkflowOptions(workflowWithTypeInfo, {
@@ -85,12 +86,12 @@ export async function continueAsNewWithInterceptorTypeInfo(order: Order): Promis
 
 const typedActivities = proxyActivities<typeof activities>({
   startToCloseTimeout: '1 minute',
-  activityTypeInfo: { convertOrder: workflowTypeInfo },
+  activityTypeInfo,
 });
 
 const typedLocalActivities = proxyLocalActivities<typeof activities>({
   startToCloseTimeout: '1 minute',
-  activityTypeInfo: { convertOrder: workflowTypeInfo },
+  activityTypeInfo,
 });
 
 defineWorkflowOptions(workflowWithTypedActivity, {
@@ -111,16 +112,6 @@ export async function workflowWithTypedLocalActivity(order: Order): Promise<Rece
   const receipt = await typedLocalActivities.convertOrder(order);
   assertReceipt(receipt);
   return receipt;
-}
-
-const activityWithoutTypeInfo = proxyActivities<typeof activities>({ startToCloseTimeout: '1 minute' });
-
-defineWorkflowOptions(workflowWithActivityWithoutTypeInfo, {
-  staticOptions: { typeInfo: { inputTypes: [workflowTypeInfo.inputTypes![0]] } },
-});
-export async function workflowWithActivityWithoutTypeInfo(order: Order): Promise<string> {
-  assertOrder(order);
-  return await activityWithoutTypeInfo.convertOrderWithoutTypeInfo(order);
 }
 
 const interceptorTypedActivities = proxyActivities<typeof activities>({ startToCloseTimeout: '1 minute' });
