@@ -5,6 +5,7 @@ import type {
   HistoryAndWorkflowId,
   QueryDefinition,
   SignalDefinition,
+  SignalTypeInfo,
   UpdateDefinition,
   WithWorkflowArgs,
   Workflow,
@@ -14,6 +15,8 @@ import type {
   WorkflowTypeOptions,
   PayloadTypeInfo,
   TypeInfo,
+  WorkflowQueryOptions,
+  WorkflowSignalOptions,
 } from '@temporalio/common';
 import {
   CancelledFailure,
@@ -242,6 +245,13 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
    * ```
    */
   query<Ret, Args extends any[] = []>(def: QueryDefinition<Ret, Args> | string, ...args: Args): Promise<Ret>;
+
+  /**
+   * Query a running or completed Workflow by Query name with additional options, including call-site TypeInfo.
+   *
+   * @experimental
+   */
+  queryWithOptions<Ret, Args extends any[] = []>(queryName: string, options: WorkflowQueryOptions<Args>): Promise<Ret>;
 
   /**
    * Terminate a running Workflow
@@ -598,7 +608,22 @@ export class WorkflowClient extends BaseClient {
     options: WithWorkflowArgs<T, WorkflowSignalWithStartOptions<SA>>,
     interceptors: WorkflowClientInterceptor[]
   ): Promise<string> {
-    const { signal, signalArgs, ...rest } = options;
+    const { signal, signalArgs, signalTypeInfo, ...rest } = options;
+    let signalName: string;
+    let resolvedSignalTypeInfo: SignalTypeInfo | undefined;
+    if (typeof signal === 'string') {
+      signalName = signal;
+      resolvedSignalTypeInfo = signalTypeInfo;
+    } else {
+      if (signalTypeInfo !== undefined) {
+        throw new TypeError(
+          'Cannot provide call-site Signal TypeInfo with a Signal definition. ' +
+            'Use defineSignal(..., { typeInfo }) on the Signal definition instead.'
+        );
+      }
+      signalName = signal.name;
+      resolvedSignalTypeInfo = signal.typeInfo;
+    }
     const { type: workflowType, typeInfo } = extractWorkflowTypeAndConfig(workflowTypeOrFunc, rest.typeInfo);
     assertRequiredWorkflowOptions(rest);
     const workflowOptions = {
@@ -616,8 +641,9 @@ export class WorkflowClient extends BaseClient {
       options: compiledOptions,
       headers: {},
       workflowType,
-      signalName: typeof signal === 'string' ? signal : signal.name,
+      signalName,
       signalArgs: signalArgs ?? [],
+      signalTypeInfo: resolvedSignalTypeInfo,
     });
   }
 
@@ -660,6 +686,9 @@ export class WorkflowClient extends BaseClient {
    * is `USE_EXISTING`, then the Signal is issued against the already existing Workflow Execution;
    * however, if the policy is `FAIL`, then an error is thrown. If no policy is specified,
    * Signal-with-Start defaults to `USE_EXISTING`.
+   *
+   * A Signal definition supplies its own TypeInfo. When signaling by name, provide call-site TypeInfo through
+   * {@link WorkflowSignalWithStartOptions.signalTypeInfo}.
    *
    * @returns a {@link WorkflowHandle} to the started Workflow
    */
@@ -1016,7 +1045,9 @@ export class WorkflowClient extends BaseClient {
       execution: input.workflowExecution,
       query: {
         queryType: input.queryType,
-        queryArgs: { payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args) },
+        queryArgs: {
+          payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args, input.typeInfo?.inputTypes),
+        },
         header: { fields: input.headers },
       },
     };
@@ -1057,7 +1088,13 @@ export class WorkflowClient extends BaseClient {
       throw new TypeError('Invalid response from server');
     }
     // We ignore anything but the first result
-    return await decodeFromPayloadsAtIndex(dataConverter, 0, response.queryResult?.payloads, context);
+    return await decodeFromPayloadsAtIndex(
+      dataConverter,
+      0,
+      response.queryResult?.payloads,
+      context,
+      input.typeInfo?.outputType
+    );
   }
 
   protected async _createUpdateWorkflowRequest(
@@ -1339,7 +1376,9 @@ export class WorkflowClient extends BaseClient {
       // control is unused,
       signalName: input.signalName,
       header: { fields: input.headers },
-      input: { payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args) },
+      input: {
+        payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args, input.typeInfo?.inputTypes),
+      },
       links: internalOptions?.links,
     };
     try {
@@ -1375,7 +1414,7 @@ export class WorkflowClient extends BaseClient {
    */
   protected async _signalWithStartWorkflowHandler(input: WorkflowSignalWithStartInput): Promise<string> {
     const { identity } = this.options;
-    const { options, workflowType, signalName, signalArgs, headers } = input;
+    const { options, workflowType, signalName, signalArgs, signalTypeInfo, headers } = input;
     const dataConverter = this.dataConverter;
     const context = this.workflowSerializationContext(options.workflowId);
     const internalOptions = (options as InternalWorkflowStartOptions)[InternalWorkflowStartOptionsSymbol];
@@ -1391,7 +1430,9 @@ export class WorkflowClient extends BaseClient {
         payloads: await encodeToPayloadsWithContext(dataConverter, context, options.args, options.typeInfo?.inputTypes),
       },
       signalName,
-      signalInput: { payloads: await encodeToPayloadsWithContext(dataConverter, context, signalArgs) },
+      signalInput: {
+        payloads: await encodeToPayloadsWithContext(dataConverter, context, signalArgs, signalTypeInfo?.inputTypes),
+      },
       taskQueue: {
         kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_NORMAL,
         name: options.taskQueue,
@@ -1667,6 +1708,40 @@ export class WorkflowClient extends BaseClient {
       return handle;
     };
 
+    const _signal = async (
+      sourceHandle: InternalWorkflowHandle,
+      signalName: string,
+      args: unknown[],
+      typeInfo?: SignalTypeInfo
+    ): Promise<void> => {
+      const next = this._signalWorkflowHandler.bind(this);
+      const fn = composeInterceptors(interceptors, 'signal', next);
+      const input: InternalWorkflowSignalInput = {
+        workflowExecution: { workflowId, runId },
+        signalName,
+        args,
+        typeInfo,
+        headers: {},
+        // Forward any SDK-internal signal options (e.g. Nexus request links) that were attached to
+        // this handle, and let the signal handler write the response link back onto the same payload.
+        [InternalWorkflowSignalOptionsSymbol]: sourceHandle[InternalWorkflowSignalOptionsSymbol],
+      };
+      await fn(input);
+    };
+
+    const _query = async <Ret>(queryType: string, args: unknown[], typeInfo?: PayloadTypeInfo): Promise<Ret> => {
+      const next = this._queryWorkflowHandler.bind(this);
+      const fn = composeInterceptors(interceptors, 'query', next);
+      return (await fn({
+        workflowExecution: { workflowId, runId },
+        queryRejectCondition: encodeQueryRejectCondition(this.options.queryRejectCondition),
+        queryType,
+        args,
+        typeInfo,
+        headers: {},
+      })) as Ret;
+    };
+
     return {
       client: this,
       workflowId,
@@ -1749,29 +1824,30 @@ export class WorkflowClient extends BaseClient {
         return this.client.createWorkflowUpdateHandle(updateId, workflowId, runId);
       },
       async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
-        const next = this.client._signalWorkflowHandler.bind(this.client);
-        const fn = composeInterceptors(interceptors, 'signal', next);
-        const input: InternalWorkflowSignalInput = {
-          workflowExecution: { workflowId, runId },
-          signalName: typeof def === 'string' ? def : def.name,
-          args,
-          headers: {},
-          // Forward any SDK-internal signal options (e.g. Nexus request links) that were attached to
-          // this handle, and let the signal handler write the response link back onto the same payload.
-          [InternalWorkflowSignalOptionsSymbol]: (this as InternalWorkflowHandle)[InternalWorkflowSignalOptionsSymbol],
-        };
-        await fn(input);
+        if (typeof def === 'string') {
+          await _signal(this as InternalWorkflowHandle, def, args);
+        } else {
+          await _signal(this as InternalWorkflowHandle, def.name, args, def.typeInfo);
+        }
+      },
+      async signalWithOptions<Args extends any[]>(
+        signalName: string,
+        options: WorkflowSignalOptions<Args>
+      ): Promise<void> {
+        await _signal(this as InternalWorkflowHandle, signalName, options.args ?? [], options.typeInfo);
       },
       async query<Ret, Args extends any[]>(def: QueryDefinition<Ret, Args> | string, ...args: Args): Promise<Ret> {
-        const next = this.client._queryWorkflowHandler.bind(this.client);
-        const fn = composeInterceptors(interceptors, 'query', next);
-        return fn({
-          workflowExecution: { workflowId, runId },
-          queryRejectCondition: encodeQueryRejectCondition(this.client.options.queryRejectCondition),
-          queryType: typeof def === 'string' ? def : def.name,
-          args,
-          headers: {},
-        }) as Promise<Ret>;
+        if (typeof def === 'string') {
+          return await _query(def, args);
+        } else {
+          return await _query(def.name, args, def.typeInfo);
+        }
+      },
+      async queryWithOptions<Ret, Args extends any[]>(
+        queryName: string,
+        options: WorkflowQueryOptions<Args>
+      ): Promise<Ret> {
+        return await _query(queryName, options.args ?? [], options.typeInfo);
       },
     };
   }

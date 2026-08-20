@@ -4,7 +4,13 @@
  * @module
  */
 
-import type { Duration, SearchAttributePair, TypedSearchAttributes } from '@temporalio/common';
+import type {
+  Duration,
+  PayloadTypeInfo,
+  SearchAttributePair,
+  SignalTypeInfo,
+  TypedSearchAttributes,
+} from '@temporalio/common';
 import { Headers, Next } from '@temporalio/common';
 import type { temporal } from '@temporalio/proto';
 import type { NexusOperationHandle } from './nexus-client';
@@ -87,6 +93,7 @@ export interface WorkflowStartUpdateWithStartOutput {
 export interface WorkflowSignalInput {
   readonly signalName: string;
   readonly args: unknown[];
+  readonly typeInfo?: SignalTypeInfo;
   readonly workflowExecution: WorkflowExecution;
   readonly headers: Headers;
 }
@@ -96,6 +103,7 @@ export interface WorkflowSignalWithStartInput {
   readonly workflowType: string;
   readonly signalName: string;
   readonly signalArgs: unknown[];
+  readonly signalTypeInfo?: SignalTypeInfo;
   readonly headers: Headers;
   readonly options: CompiledWorkflowOptions;
 }
@@ -104,6 +112,7 @@ export interface WorkflowSignalWithStartInput {
 export interface WorkflowQueryInput {
   readonly queryType: string;
   readonly args: unknown[];
+  readonly typeInfo?: PayloadTypeInfo;
   readonly workflowExecution: WorkflowExecution;
   readonly queryRejectCondition?: temporal.api.enums.v1.QueryRejectCondition;
   readonly headers: Headers;

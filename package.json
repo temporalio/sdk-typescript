@@ -27,12 +27,14 @@
     "gen": "pnpm run gen:protos && pnpm run gen:payload-visitor",
     "gen:protos": "tsx ./packages/proto/scripts/compile-proto.ts",
     "gen:payload-visitor": "pnpm --filter @temporalio/proto run gen:payload-visitor",
+    "cloud:inventory": "tsx ./scripts/cloud-test-inventory.ts",
     "test": "pnpm --recursive --parallel --workspace-concurrency=1 --stream run test",
+    "test:cloud": "tsx ./scripts/run-cloud-tests.ts",
     "test:watch": "pnpm --recursive --stream run test:watch",
     "ci-stress": "node ./packages/test/lib/load/run-all-stress-ci-scenarios.js",
     "ci-nightly": "node ./packages/test/lib/load/run-all-nightly-scenarios.js",
     "lint": "eslint --no-error-on-unmatched-pattern --fix && prettier --write . && pnpm --recursive --stream run lint",
-    "lint:check": "eslint --no-error-on-unmatched-pattern && prettier --end-of-line auto --check .  && pnpm --recursive --stream run lint:check",
+    "lint:check": "eslint --no-error-on-unmatched-pattern && prettier --end-of-line auto --check . && pnpm --recursive --stream run lint:check",
     "lint:prune": "ts-prune --error -p tsconfig.prune.json --ignore \"used in module\" --skip \".d.ts\"",
     "commitlint": "commitlint --from origin/main",
     "format": "prettier --write . && pnpm --recursive --stream run format",
@@ -73,11 +75,6 @@
       "name": "pnpm",
       "version": "10.27.0",
       "onFail": "warn"
-    }
-  },
-  "pnpm": {
-    "patchedDependencies": {
-      "protobufjs@^7.6.4": "patches/protobufjs@7.6.2.patch"
     }
   }
 }

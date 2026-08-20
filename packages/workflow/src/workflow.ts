@@ -4,9 +4,12 @@ import type {
   ActivityOptions,
   LocalActivityOptions,
   QueryDefinition,
+  QueryDefinitionOptions,
   SearchAttributes,
   SearchAttributeValue,
   SignalDefinition,
+  SignalDefinitionOptions,
+  SignalTypeInfo,
   UntypedActivities,
   UpdateDefinition,
   WithWorkflowArgs,
@@ -18,13 +21,14 @@ import type {
   SearchAttributeUpdatePair,
   WorkflowDefinitionOptionsOrGetter,
   WorkflowDefinitionConfig,
+  WorkflowSignalOptions,
 } from '@temporalio/common';
 import {
   compileRetryPolicy,
   compilePriority,
   encodeActivityCancellationType,
   encodeWorkflowIdReusePolicy,
-  extractWorkflowType,
+  extractWorkflowTypeAndConfig,
   HandlerUnfinishedPolicy,
   mapToPayloads,
   encodeInitialVersioningBehavior,
@@ -435,7 +439,7 @@ function startChildWorkflowExecutionNextHandler({
         seq,
         workflowId,
         workflowType,
-        input: toPayloadsWithContext(activator.payloadConverter, context, options.args),
+        input: toPayloadsWithContext(activator.payloadConverter, context, options.args, options.typeInfo?.inputTypes),
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
         taskQueue: options.taskQueue || activator.info.taskQueue,
         workflowExecutionTimeout: msOptionalToTs(options.workflowExecutionTimeout),
@@ -478,6 +482,7 @@ function startChildWorkflowExecutionNextHandler({
       resolve,
       reject,
       context,
+      outputTypeInfo: options.typeInfo?.outputType,
     });
   });
   untrackPromise(startPromise);
@@ -489,7 +494,7 @@ function startChildWorkflowExecutionNextHandler({
   return ret;
 }
 
-function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: SignalWorkflowInput) {
+function signalWorkflowNextHandler({ seq, signalName, args, typeInfo, target, headers }: SignalWorkflowInput) {
   const activator = getActivator();
   const targetWorkflowId = target.type === 'external' ? target.workflowExecution.workflowId : target.childWorkflowId;
   const context = targetWorkflowSerializationContext(activator.info, targetWorkflowId!);
@@ -513,7 +518,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: S
     activator.pushCommand({
       signalExternalWorkflowExecution: {
         seq,
-        args: toPayloadsWithContext(activator.payloadConverter, context, args),
+        args: toPayloadsWithContext(activator.payloadConverter, context, args, typeInfo?.inputTypes),
         headers,
         signalName,
         ...(target.type === 'external'
@@ -746,6 +751,23 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
   const activator = assertInWorkflowContext(
     'Workflow.getExternalWorkflowHandle(...) may only be used from a Workflow Execution. Consider using Client.workflow.getHandle(...) instead.)'
   );
+  const signal = (signalName: string, args: unknown[], typeInfo?: SignalTypeInfo): Promise<void> => {
+    return composeInterceptors(
+      activator.interceptors.outbound,
+      'signalWorkflow',
+      signalWorkflowNextHandler
+    )({
+      seq: activator.nextSeqs.signalWorkflow++,
+      signalName,
+      args,
+      typeInfo,
+      target: {
+        type: 'external',
+        workflowExecution: { workflowId, runId },
+      },
+      headers: {},
+    });
+  };
   return {
     workflowId,
     runId,
@@ -793,23 +815,19 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
       });
     },
     signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
-      return composeInterceptors(
-        activator.interceptors.outbound,
-        'signalWorkflow',
-        signalWorkflowNextHandler
-      )({
-        seq: activator.nextSeqs.signalWorkflow++,
-        signalName: typeof def === 'string' ? def : def.name,
-        args,
-        target: {
-          type: 'external',
-          workflowExecution: { workflowId, runId },
-        },
-        headers: {},
-      });
+      if (typeof def === 'string') {
+        return signal(def, args);
+      } else {
+        return signal(def.name, args, def.typeInfo);
+      }
+    },
+    signalWithOptions<Args extends any[]>(signalName: string, options: WorkflowSignalOptions<Args>): Promise<void> {
+      return signal(signalName, options.args ?? [], options.typeInfo);
     },
   };
 }
+
+type ChildWorkflowDefinitionOptions = Omit<ChildWorkflowOptions, 'typeInfo'> & { typeInfo?: never };
 
 /**
  * Start a child Workflow execution
@@ -837,7 +855,7 @@ export async function startChild<T extends Workflow>(
  */
 export async function startChild<T extends Workflow>(
   workflowFunc: T,
-  options: WithWorkflowArgs<T, ChildWorkflowOptions>
+  options: WithWorkflowArgs<T, ChildWorkflowDefinitionOptions>
 ): Promise<ChildWorkflowHandle<T>>;
 
 /**
@@ -875,7 +893,14 @@ export async function startChild<T extends Workflow>(
     'Workflow.startChild(...) may only be used from a Workflow Execution. Consider using Client.workflow.start(...) instead.)'
   );
   const optionsWithDefaults = addDefaultWorkflowOptions(options ?? ({} as any));
-  const workflowType = extractWorkflowType(workflowTypeOrFunc);
+  const { type: workflowType, typeInfo } = extractWorkflowTypeAndConfig(
+    workflowTypeOrFunc,
+    optionsWithDefaults.typeInfo
+  );
+  const workflowOptions = {
+    ...optionsWithDefaults,
+    typeInfo,
+  };
   const execute = composeInterceptors(
     activator.interceptors.outbound,
     'startChildWorkflowExecution',
@@ -883,33 +908,48 @@ export async function startChild<T extends Workflow>(
   );
   const [started, completed] = await execute({
     seq: activator.nextSeqs.childWorkflow++,
-    options: optionsWithDefaults,
+    options: workflowOptions,
     headers: {},
     workflowType,
   });
   const firstExecutionRunId = await started;
 
+  const signal = (signalName: string, args: unknown[], typeInfo?: SignalTypeInfo): Promise<void> => {
+    return composeInterceptors(
+      activator.interceptors.outbound,
+      'signalWorkflow',
+      signalWorkflowNextHandler
+    )({
+      seq: activator.nextSeqs.signalWorkflow++,
+      signalName,
+      args,
+      typeInfo,
+      target: {
+        type: 'child',
+        childWorkflowId: workflowOptions.workflowId,
+      },
+      headers: {},
+    });
+  };
+
   return {
-    workflowId: optionsWithDefaults.workflowId,
+    workflowId: workflowOptions.workflowId,
     firstExecutionRunId,
     async result(): Promise<WorkflowResultType<T>> {
       return (await completed) as any;
     },
     async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
-      return composeInterceptors(
-        activator.interceptors.outbound,
-        'signalWorkflow',
-        signalWorkflowNextHandler
-      )({
-        seq: activator.nextSeqs.signalWorkflow++,
-        signalName: typeof def === 'string' ? def : def.name,
-        args,
-        target: {
-          type: 'child',
-          childWorkflowId: optionsWithDefaults.workflowId,
-        },
-        headers: {},
-      });
+      if (typeof def === 'string') {
+        return signal(def, args);
+      } else {
+        return signal(def.name, args, def.typeInfo);
+      }
+    },
+    async signalWithOptions<Args extends any[]>(
+      signalName: string,
+      options: WorkflowSignalOptions<Args>
+    ): Promise<void> {
+      return signal(signalName, options.args ?? [], options.typeInfo);
     },
   };
 }
@@ -938,7 +978,7 @@ export async function executeChild<T extends Workflow>(
  */
 export async function executeChild<T extends Workflow>(
   workflowFunc: T,
-  options: WithWorkflowArgs<T, ChildWorkflowOptions>
+  options: WithWorkflowArgs<T, ChildWorkflowDefinitionOptions>
 ): Promise<WorkflowResultType<T>>;
 
 /**
@@ -976,7 +1016,14 @@ export async function executeChild<T extends Workflow>(
     'Workflow.executeChild(...) may only be used from a Workflow Execution. Consider using Client.workflow.execute(...) instead.'
   );
   const optionsWithDefaults = addDefaultWorkflowOptions(options ?? ({} as any));
-  const workflowType = extractWorkflowType(workflowTypeOrFunc);
+  const { type: workflowType, typeInfo } = extractWorkflowTypeAndConfig(
+    workflowTypeOrFunc,
+    optionsWithDefaults.typeInfo
+  );
+  const workflowOptions = {
+    ...optionsWithDefaults,
+    typeInfo,
+  };
   const execute = composeInterceptors(
     activator.interceptors.outbound,
     'startChildWorkflowExecution',
@@ -984,7 +1031,7 @@ export async function executeChild<T extends Workflow>(
   );
   const execPromise = execute({
     seq: activator.nextSeqs.childWorkflow++,
-    options: optionsWithDefaults,
+    options: workflowOptions,
     headers: {},
     workflowType,
   });
@@ -1072,9 +1119,11 @@ export function makeContinueAsNewFunc<F extends Workflow>(
     const context = currentWorkflowSerializationContext(info);
     const fn = composeInterceptors(activator.interceptors.outbound, 'continueAsNew', async (input) => {
       const { headers, args, options } = input;
+      const typeInfo =
+        options.typeInfo ?? (options.workflowType === info.workflowType ? activator.typeInfo : undefined);
       throw new ContinueAsNew({
         workflowType: options.workflowType,
-        arguments: toPayloadsWithContext(activator.payloadConverter, context, args),
+        arguments: toPayloadsWithContext(activator.payloadConverter, context, args, typeInfo?.inputTypes),
         headers,
         taskQueue: options.taskQueue,
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo, context),
@@ -1271,13 +1320,17 @@ export function defineUpdate<Ret, Args extends any[] = [], Name extends string =
  *
  * A definition is used to register a handler in the Workflow via {@link setHandler} and to signal a Workflow using a {@link WorkflowHandle}, {@link ChildWorkflowHandle} or {@link ExternalWorkflowHandle}.
  * A definition can be reused in multiple Workflows.
+ *
+ * @param options optional type information used to convert Signal arguments
  */
 export function defineSignal<Args extends any[] = [], Name extends string = string>(
-  name: Name
+  name: Name,
+  options: SignalDefinitionOptions = {}
 ): SignalDefinition<Args, Name> {
   return {
     type: 'signal',
     name,
+    ...options,
   } as SignalDefinition<Args, Name>;
 }
 
@@ -1288,11 +1341,13 @@ export function defineSignal<Args extends any[] = [], Name extends string = stri
  * A definition can be reused in multiple Workflows.
  */
 export function defineQuery<Ret, Args extends any[] = [], Name extends string = string>(
-  name: Name
+  name: Name,
+  options: QueryDefinitionOptions = {}
 ): QueryDefinition<Ret, Args, Name> {
   return {
     type: 'query',
     name,
+    ...options,
   } as QueryDefinition<Ret, Args, Name>;
 }
 
@@ -1433,7 +1488,12 @@ export function setHandler<
     if (typeof handler === 'function') {
       const signalOptions = options as SignalHandlerOptions | undefined;
       const unfinishedPolicy = signalOptions?.unfinishedPolicy ?? HandlerUnfinishedPolicy.WARN_AND_ABANDON;
-      activator.signalHandlers.set(def.name, { handler: handler as any, description, unfinishedPolicy });
+      activator.signalHandlers.set(def.name, {
+        handler: handler as any,
+        description,
+        unfinishedPolicy,
+        typeInfo: def.typeInfo,
+      });
       activator.dispatchBufferedSignals();
     } else if (handler == null) {
       activator.signalHandlers.delete(def.name);
@@ -1442,7 +1502,7 @@ export function setHandler<
     }
   } else if (def.type === 'query') {
     if (typeof handler === 'function') {
-      activator.queryHandlers.set(def.name, { handler: handler as any, description });
+      activator.queryHandlers.set(def.name, { handler: handler as any, description, typeInfo: def.typeInfo });
     } else if (handler == null) {
       activator.queryHandlers.delete(def.name);
     } else {

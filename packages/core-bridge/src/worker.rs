@@ -691,11 +691,10 @@ mod config {
 
     impl From<WorkerDeploymentOptions> for CoreWorkerDeploymentOptions {
         fn from(val: WorkerDeploymentOptions) -> Self {
-            Self {
-                version: val.version.into(),
-                use_worker_versioning: val.use_worker_versioning,
-                default_versioning_behavior: val.default_versioning_behavior.map(Into::into),
-            }
+            Self::new(val.version.into())
+                .use_worker_versioning(val.use_worker_versioning)
+                .maybe_default_versioning_behavior(val.default_versioning_behavior.map(Into::into))
+                .build()
         }
     }
 

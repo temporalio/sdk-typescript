@@ -2,6 +2,7 @@ import test from 'ava';
 import Long from 'long';
 import { temporal } from '@temporalio/proto';
 import {
+  convertActivityLinkToNexusLink,
   convertNexusLinkToTemporalLink,
   convertNexusLinkToWorkflowEventLink,
   convertNexusOperationLinkToNexusLink,
@@ -14,6 +15,7 @@ const { EventType } = temporal.api.enums.v1;
 const WORKFLOW_EVENT_TYPE = (temporal.api.common.v1.Link.WorkflowEvent as any).fullName.slice(1);
 const NEXUS_OPERATION_TYPE = (temporal.api.common.v1.Link.NexusOperation as any).fullName.slice(1);
 const WORKFLOW_TYPE = (temporal.api.common.v1.Link.Workflow as any).fullName.slice(1);
+const ACTIVITY_TYPE = (temporal.api.common.v1.Link.Activity as any).fullName.slice(1);
 
 function makeEventRef(eventId: number, eventType: keyof typeof EventType) {
   return {
@@ -109,6 +111,35 @@ test('convertNexusOperationLinkToNexusLink escapes URL path components', (t) => 
   });
 });
 
+test('convertActivityLinkToNexusLink and back', (t) => {
+  const activity = {
+    namespace: 'ns',
+    activityId: 'activity-123',
+    runId: 'run-456',
+  };
+
+  const nexusLink = convertActivityLinkToNexusLink(activity);
+  t.is(nexusLink.type, ACTIVITY_TYPE);
+  t.is(nexusLink.url.toString(), 'temporal:///namespaces/ns/activities/activity-123/run-456/details');
+
+  const roundTrip = convertNexusLinkToTemporalLink(nexusLink);
+  t.deepEqual(roundTrip, { activity });
+});
+
+test('convertActivityLinkToNexusLink escapes URL path components', (t) => {
+  const activity = {
+    namespace: 'name/space',
+    activityId: 'activity/id',
+    runId: 'run>id',
+  };
+
+  const nexusLink = convertActivityLinkToNexusLink(activity);
+  t.is(nexusLink.url.toString(), 'temporal:///namespaces/name%2Fspace/activities/activity%2Fid/run%3Eid/details');
+
+  const roundTrip = convertNexusLinkToTemporalLink(nexusLink);
+  t.deepEqual(roundTrip, { activity });
+});
+
 test('convertWorkflowLinkToNexusLink produces a history URL with the Workflow link type', (t) => {
   const nexusLink = convertWorkflowLinkToNexusLink({
     namespace: 'ns',
@@ -155,10 +186,12 @@ test('convertTemporalLinkToNexusLink dispatches by Temporal link variant', (t) =
     runId: 'run-456',
   };
   const workflow = { namespace: 'ns', workflowId: 'wid', runId: 'rid' };
+  const activity = { namespace: 'ns', activityId: 'activity-123', runId: 'run-456' };
 
   t.is(convertTemporalLinkToNexusLink({ workflowEvent }).type, WORKFLOW_EVENT_TYPE);
   t.is(convertTemporalLinkToNexusLink({ nexusOperation }).type, NEXUS_OPERATION_TYPE);
   t.is(convertTemporalLinkToNexusLink({ workflow }).type, WORKFLOW_TYPE);
+  t.is(convertTemporalLinkToNexusLink({ activity }).type, ACTIVITY_TYPE);
 
   // workflowEvent wins when the server populates more than one variant.
   t.is(convertTemporalLinkToNexusLink({ workflowEvent, workflow }).type, WORKFLOW_EVENT_TYPE);
@@ -176,9 +209,11 @@ test('convertNexusLinkToTemporalLink dispatches by Nexus link type', (t) => {
     operationId: 'op-123',
     runId: 'run-456',
   };
+  const activity = { namespace: 'ns', activityId: 'activity-123', runId: 'run-456' };
 
   t.deepEqual(convertNexusLinkToTemporalLink(convertWorkflowEventLinkToNexusLink(workflowEvent)), { workflowEvent });
   t.deepEqual(convertNexusLinkToTemporalLink(convertNexusOperationLinkToNexusLink(nexusOperation)), { nexusOperation });
+  t.deepEqual(convertNexusLinkToTemporalLink(convertActivityLinkToNexusLink(activity)), { activity });
 });
 
 test('throws on missing required fields', (t) => {
@@ -234,6 +269,15 @@ test('throws on missing required fields', (t) => {
       }),
     { instanceOf: TypeError }
   );
+  t.throws(() => convertActivityLinkToNexusLink({ namespace: '', activityId: 'activity-123', runId: 'run-456' }), {
+    instanceOf: TypeError,
+  });
+  t.throws(() => convertActivityLinkToNexusLink({ namespace: 'ns', activityId: '', runId: 'run-456' }), {
+    instanceOf: TypeError,
+  });
+  t.throws(() => convertActivityLinkToNexusLink({ namespace: 'ns', activityId: 'activity-123', runId: '' }), {
+    instanceOf: TypeError,
+  });
 });
 
 test('throws on invalid URL scheme', (t) => {
@@ -259,6 +303,20 @@ test('throws on invalid nexus operation URL path', (t) => {
     type: NEXUS_OPERATION_TYPE,
   };
   t.throws(() => convertNexusLinkToTemporalLink(fakeLink), { instanceOf: TypeError });
+});
+
+test('throws on invalid activity URL path', (t) => {
+  const malformedLink = {
+    url: new URL('temporal:///namespaces/ns/activities/activity-123/run-456'),
+    type: ACTIVITY_TYPE,
+  };
+  t.throws(() => convertNexusLinkToTemporalLink(malformedLink), { instanceOf: TypeError });
+
+  const incompleteLink = {
+    url: new URL('temporal:///namespaces/ns/activities/activity-123//details'),
+    type: ACTIVITY_TYPE,
+  };
+  t.throws(() => convertNexusLinkToTemporalLink(incompleteLink), { instanceOf: TypeError });
 });
 
 test('throws on invalid Temporal link variant', (t) => {

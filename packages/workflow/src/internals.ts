@@ -16,6 +16,7 @@ import type {
   WorkflowDefinitionOptions,
   WorkflowSerializationContext,
   PayloadTypeInfo,
+  TypeInfo,
 } from '@temporalio/common';
 import {
   defaultFailureConverter,
@@ -28,6 +29,7 @@ import {
   WorkflowExecutionAlreadyStartedError,
   ApplicationFailure,
   mapFromPayloads,
+  fromPayloadWithTypeInfo,
   fromPayloadsAtIndex,
   toPayloadWithTypeInfo,
   RawValue,
@@ -116,6 +118,7 @@ export interface Completion<Success, Context = never> {
   resolve(val: Success): void;
   reject(reason: Error): void;
   context?: Context;
+  outputTypeInfo?: TypeInfo;
 }
 
 export interface Condition {
@@ -758,10 +761,15 @@ export class Activator implements ActivationHandler {
     if (!activation.result) {
       throw new TypeError('Got ResolveChildWorkflowExecution activation with no result');
     }
-    const { resolve, reject, context } = this.consumeCompletion('childWorkflowComplete', getSeq(activation));
+    const { resolve, reject, context, outputTypeInfo } = this.consumeCompletion(
+      'childWorkflowComplete',
+      getSeq(activation)
+    );
     if (activation.result.completed) {
       const completed = activation.result.completed;
-      const result = completed.result ? this.payloadConverter.fromPayload(completed.result, context) : undefined;
+      const result = completed.result
+        ? fromPayloadWithTypeInfo(this.payloadConverter, completed.result, context, outputTypeInfo)
+        : undefined;
       resolve(result);
     } else if (activation.result.failed) {
       const { failure } = activation.result.failed;
@@ -881,15 +889,20 @@ export class Activator implements ActivationHandler {
       queryType === STACK_TRACE_QUERY_NAME ||
       queryType === ENHANCED_STACK_TRACE_QUERY_NAME;
     const interceptors = isInternalQuery ? [] : this.interceptors.inbound;
-    const execute = composeInterceptors(interceptors, 'handleQuery', this.queryWorkflowNextHandler.bind(this));
     const context = this.workflowSerializationContext();
+    const typeInfo = this.queryHandlers.get(queryType)?.typeInfo;
+    let outputTypeInfo = typeInfo?.outputType;
+    const execute = composeInterceptors(interceptors, 'handleQuery', (input) => {
+      outputTypeInfo = this.queryHandlers.get(input.queryName)?.typeInfo?.outputType;
+      return this.queryWorkflowNextHandler(input);
+    });
     execute({
       queryName: queryType,
-      args: arrayFromPayloads(this.payloadConverter, activation.arguments, context),
+      args: arrayFromPayloads(this.payloadConverter, activation.arguments, context, typeInfo?.inputTypes),
       queryId,
       headers: headers ?? {},
     }).then(
-      (result) => this.completeQuery(queryId, result),
+      (result) => this.completeQuery(queryId, result, outputTypeInfo),
       (reason) => this.failQuery(queryId, reason)
     );
   }
@@ -1122,15 +1135,15 @@ export class Activator implements ActivationHandler {
     // If we fall through to the default signal handler then the unfinished
     // policy is WARN_AND_ABANDON; users currently have no way to silence any
     // ensuing warnings.
-    const unfinishedPolicy =
-      this.signalHandlers.get(signalName)?.unfinishedPolicy ?? HandlerUnfinishedPolicy.WARN_AND_ABANDON;
+    const signalHandler = this.signalHandlers.get(signalName);
+    const unfinishedPolicy = signalHandler?.unfinishedPolicy ?? HandlerUnfinishedPolicy.WARN_AND_ABANDON;
 
     const signalExecutionNum = this.signalHandlerExecutionSeq++;
     this.inProgressSignals.set(signalExecutionNum, { name: signalName, unfinishedPolicy });
     const execute = composeInterceptors(interceptors, 'handleSignal', this.signalWorkflowNextHandler.bind(this));
     const context = this.workflowSerializationContext();
     execute({
-      args: arrayFromPayloads(this.payloadConverter, activation.input, context),
+      args: arrayFromPayloads(this.payloadConverter, activation.input, context, signalHandler?.typeInfo?.inputTypes),
       signalName,
       headers: headers ?? {},
     })
@@ -1382,10 +1395,13 @@ export class Activator implements ActivationHandler {
     if (this.workflowTaskError) throw this.workflowTaskError;
   }
 
-  private completeQuery(queryId: string, result: unknown): void {
+  private completeQuery(queryId: string, result: unknown, typeInfo?: TypeInfo): void {
     const context = this.workflowSerializationContext();
     this.pushCommand({
-      respondToQuery: { queryId, succeeded: { response: this.payloadConverter.toPayload(result, context) } },
+      respondToQuery: {
+        queryId,
+        succeeded: { response: toPayloadWithTypeInfo(this.payloadConverter, result, context, typeInfo) },
+      },
     });
   }
 

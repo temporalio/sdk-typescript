@@ -1,5 +1,4 @@
 import type { PayloadTypeInfo, TypeInfo } from '@temporalio/common';
-import { condition, defineSignal, defineUpdate, defineWorkflowOptions, setHandler } from '@temporalio/workflow';
 
 export class Order {
   constructor(
@@ -62,7 +61,7 @@ export const workflowTypeInfo: PayloadTypeInfo = {
   outputType: receiptTypeInfo,
 };
 
-function assertOrder(order: Order): void {
+export function assertOrder(order: Order): void {
   if (!(order instanceof Order)) {
     throw new Error('Expected Order input');
   }
@@ -71,40 +70,11 @@ function assertOrder(order: Order): void {
   }
 }
 
-defineWorkflowOptions(workflowWithTypeInfo, {
-  staticOptions: { typeInfo: workflowTypeInfo },
-});
-export async function workflowWithTypeInfo(order: Order): Promise<Receipt> {
-  assertOrder(order);
-  return new Receipt(order.id, order.totalCents);
+export function assertReceipt(receipt: Receipt): void {
+  if (!(receipt instanceof Receipt)) {
+    throw new Error('Expected Receipt result');
+  }
+  if (typeof receipt.totalCents !== 'bigint') {
+    throw new Error('Expected Receipt.totalCents to be a bigint');
+  }
 }
-
-export const finishSignal = defineSignal('finish');
-
-export async function workflowWithSignalStart(order: Order): Promise<Receipt> {
-  assertOrder(order);
-  let finished = false;
-  setHandler(finishSignal, () => {
-    finished = true;
-  });
-  await condition(() => finished);
-  return new Receipt(order.id, order.totalCents);
-}
-defineWorkflowOptions(workflowWithSignalStart, {
-  staticOptions: { typeInfo: workflowTypeInfo },
-});
-
-export const finishUpdate = defineUpdate('finish');
-
-export async function workflowWithUpdateStart(order: Order): Promise<Receipt> {
-  assertOrder(order);
-  let finished = false;
-  setHandler(finishUpdate, () => {
-    finished = true;
-  });
-  await condition(() => finished);
-  return new Receipt(order.id, order.totalCents);
-}
-defineWorkflowOptions(workflowWithUpdateStart, {
-  staticOptions: { typeInfo: workflowTypeInfo },
-});
