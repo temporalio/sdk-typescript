@@ -16,8 +16,7 @@ import { limit } from '@temporalio/common/lib/concurrency/limit';
 import { coresdk } from '@temporalio/proto';
 
 /**
- * Maximum number of concurrent codec calls per activation or completion. Previously,
- * this was unbounded.
+ * Maximum number of concurrent codec calls per activation or completion.
  */
 const MAX_CONCURRENT_CODEC_OPERATIONS = 20;
 
