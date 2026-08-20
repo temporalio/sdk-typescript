@@ -33,9 +33,12 @@ import {
   writePatchActivationCallbackResult,
 } from './patch-activation-callback';
 
-// https://nodejs.org/api/worker_threads.html#event-exit
-// Bun exits with code 0 instead of 1
-export const TERMINATED_EXIT_CODE = isBun ? 0 : 1;
+function isTerminatedExitCode(exitCode: number): boolean {
+  // Before Bun 1.4.0, 0 was used for a terminated worker thread.
+  // We still allow it to retain 1.3.4 compatibility.
+  // https://nodejs.org/api/worker_threads.html#event-exit
+  return exitCode == 1 || (isBun && exitCode == 0);
+}
 
 interface Completion<T> {
   resolve(value: T): void;
@@ -181,7 +184,7 @@ export class WorkerThreadClient {
     await this.send({ type: 'destroy' });
 
     const exitCode = await (isBun ? this.terminateWithBunWorkaround() : this.workerThread.terminate());
-    if (exitCode !== null && exitCode !== TERMINATED_EXIT_CODE) {
+    if (exitCode !== null && !isTerminatedExitCode(exitCode)) {
       throw new UnexpectedError(`Failed to terminate Worker thread, exit code: ${exitCode}`);
     }
   }
