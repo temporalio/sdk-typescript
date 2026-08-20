@@ -22,13 +22,13 @@ import { coresdk } from '@temporalio/proto';
  * Maximum number of concurrent codec encodes for workflow completions. Previously,
  * this was unbounded.
  */
-const MAX_CONCURRENT_CODEC_ENCODES = 20;
+const MAX_CONCURRENT_CODEC_OPERATIONS = 20;
 
 /**
  * Helper class for decoding Workflow activations and encoding Workflow completions.
  */
 export class WorkflowCodecRunner {
-  private readonly codecEncodeLimit = limit(MAX_CONCURRENT_CODEC_ENCODES);
+  private readonly codecOperationLimit = limit(MAX_CONCURRENT_CODEC_OPERATIONS);
 
   private readonly pendingCompletionContexts = {
     activity: new Map<number, ActivitySerializationContext>(),
@@ -371,7 +371,7 @@ export class WorkflowCodecRunner {
         initialContext: this.workflowContext,
         skipHeaders: true,
         skipSearchAttributes: true,
-        limit: this.codecEncodeLimit,
+        limit: this.codecOperationLimit,
         deriveContext: (message, typeName, context) => {
           if (typeName !== 'coresdk.workflow_commands.WorkflowCommand') {
             if (typeName === 'coresdk.workflow_commands.ScheduleActivity') {
