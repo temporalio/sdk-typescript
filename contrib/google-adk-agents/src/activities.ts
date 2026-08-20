@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * Worker-side Activity implementations for the Google ADK Temporal plugin — no
  * module in the `./workflow` import graph reaches this one, so the
  * worker-runtime packages it pulls in (`@temporalio/activity`,

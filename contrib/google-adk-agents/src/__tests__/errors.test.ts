@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * Unit tests for `toApplicationFailure`'s status-based retry classification,
  * covering statuses carried on the wrapped `err.response.status` (not just the
  * top-level `err.status`), plus the header-driven retry contract

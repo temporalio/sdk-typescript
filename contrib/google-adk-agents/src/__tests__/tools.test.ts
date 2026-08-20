@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * E2E test for `activityAsTool`: an existing Temporal Activity, registered on
  * the worker, is exposed to the ADK agent as a `BaseTool`. The agent's model
  * asks for it by name, ADK dispatches the call as an Activity, and the result

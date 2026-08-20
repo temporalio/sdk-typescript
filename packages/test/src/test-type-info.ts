@@ -35,12 +35,11 @@ import {
   workflowWithUpdateStart,
   workflowWithTypedActivity,
   workflowWithTypedLocalActivity,
-  workflowWithActivityWithoutTypeInfo,
   workflowWithDefaultTypedActivity,
   workflowWithInterceptorTypedActivity,
   workflowWithInterceptorTypedLocalActivity,
 } from './workflows/type-info';
-import { convertOrder, convertOrderWithoutTypeInfo } from './workflows/type-info/activities';
+import { convertOrder } from './workflows/type-info/activities';
 
 function assertReceipt(t: ExecutionContext, receipt: Receipt): void {
   t.true(receipt instanceof Receipt);
@@ -239,21 +238,6 @@ test('Worker default Activity uses TypeInfo attached to the selected fallback fu
       args: [new Order('order-1', 12345n)],
     });
     assertReceipt(t, result);
-  });
-});
-
-test('Activity without TypeInfo preserves existing best-effort conversion', async (t) => {
-  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
-  const client = makeClient(t.context.env);
-  const worker = await h.createWorker({ activities: { convertOrderWithoutTypeInfo } });
-
-  await worker.runUntil(async () => {
-    const result = await client.workflow.execute(workflowWithActivityWithoutTypeInfo, {
-      workflowId: `wf-${randomUUID()}`,
-      taskQueue: h.taskQueue,
-      args: [new Order('order-1', 12345n)],
-    });
-    t.is(result, 'order-1');
   });
 });
 

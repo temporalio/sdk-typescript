@@ -12,19 +12,38 @@
 import { isIP } from 'node:net';
 
 import {
+  BasePlugin,
+  createEvent,
   InMemoryRunner,
   isFinalResponse,
   LlmAgent,
   LongRunningFunctionTool,
   stringifyContent,
   type LlmRequest,
+  type LlmResponse,
 } from '@google/adk';
 import { Type } from '@google/genai';
-import type { Duration } from '@temporalio/common';
-import { condition, defineSignal, defineUpdate, proxyActivities, setHandler } from '@temporalio/workflow';
+import { ActivityFailure, ApplicationFailure, type Duration } from '@temporalio/common';
+import {
+  CancellationScope,
+  condition,
+  continueAsNew,
+  defineSignal,
+  defineUpdate,
+  proxyActivities,
+  setHandler,
+  sleep,
+} from '@temporalio/workflow';
 import { WorkflowStream } from '@temporalio/workflow-streams/workflow';
 
-import { TemporalModel, TemporalMCPToolset, activityAsTool, type TemporalMCPToolsetOptions } from '../workflow';
+import {
+  markModelFailureHandled,
+  TemporalModel,
+  TemporalMCPToolset,
+  activityAsTool,
+  type TemporalMCPToolsetOptions,
+  type TemporalModelOptions,
+} from '../workflow';
 
 // Mirrors `@google/adk` >= 1.5.0 `tools/load_web_page.js` (on the barrel
 // path), which parses its blocked-CIDR tables at module load, calling
@@ -402,6 +421,265 @@ export async function agentRunnerTwoTurnsWorkflow(prompt: string): Promise<strin
     }
   }
   return texts.join('|');
+}
+
+/** Per-turn Activity options for the runner fixtures below: fail on the first attempt. */
+const SINGLE_ATTEMPT: TemporalModelOptions = { activity: { retry: { maximumAttempts: 1 } } };
+
+/**
+ * One runner-driven agent turn through `model`, returning the turn's final text —
+ * empty when the turn produced none.
+ */
+async function runAgentTurn(model: TemporalModel, prompt: string, plugins?: BasePlugin[]): Promise<string> {
+  const agent = new LlmAgent({
+    name: 'assistant',
+    model,
+    instruction: 'You are a helpful assistant.',
+  });
+  const runner = new InMemoryRunner({ agent, plugins });
+
+  let finalText = '';
+  for await (const event of runner.runEphemeral({
+    userId: 'test-user',
+    newMessage: { role: 'user', parts: [{ text: prompt }] },
+  })) {
+    if (isFinalResponse(event)) {
+      finalText = stringifyContent(event);
+    }
+  }
+  return finalText;
+}
+
+/** One runner turn through `model`, retries off. */
+export async function agentRunnerOneTurn(model: string, prompt: string): Promise<string> {
+  return runAgentTurn(new TemporalModel(model, SINGLE_ATTEMPT), prompt);
+}
+
+/** A failing runner turn, then a slow one, so a cancellation lands after an absorbed failure. */
+export async function agentRunnerFailThenSlowModel(prompt: string): Promise<string> {
+  const failed = await runAgentTurn(new TemporalModel('boom', SINGLE_ATTEMPT), prompt);
+  const cancelled = await runAgentTurn(new TemporalModel('slow-model', SINGLE_ATTEMPT), prompt);
+  return `${failed}|${cancelled}`;
+}
+
+/** An ADK plugin that substitutes a response for a failed model call. */
+class RecoveringPlugin extends BasePlugin {
+  constructor() {
+    super('recovering');
+  }
+
+  override async onModelErrorCallback({ error }: { error: Error }): Promise<LlmResponse | undefined> {
+    markModelFailureHandled(error);
+    return createEvent({
+      author: 'assistant',
+      content: { role: 'model', parts: [{ text: 'recovered' }] },
+      turnComplete: true,
+    });
+  }
+}
+
+/** A failing runner turn whose `onModelErrorCallback` recovers from the failure. */
+export async function agentRunnerRecoversFromModelError(prompt: string): Promise<string> {
+  return runAgentTurn(new TemporalModel('boom', SINGLE_ATTEMPT), prompt, [new RecoveringPlugin()]);
+}
+
+/** A failing runner turn nothing recovers, then one whose `onModelErrorCallback` does. */
+export async function agentRunnerRecoversOnlyTheSecondFailure(prompt: string): Promise<string> {
+  const unrecovered = await runAgentTurn(new TemporalModel('boom', SINGLE_ATTEMPT), prompt);
+  const recovered = await runAgentTurn(new TemporalModel('boom', SINGLE_ATTEMPT), prompt, [new RecoveringPlugin()]);
+  return `${unrecovered}|${recovered}`;
+}
+
+/**
+ * A runner turn whose `onModelErrorCallback` recovers, against a model slow enough that
+ * the failure it recovers from is the Workflow's own cancellation.
+ */
+export async function agentRunnerRecoversFromCancelledModel(prompt: string): Promise<string> {
+  return runAgentTurn(new TemporalModel('slow-model', SINGLE_ATTEMPT), prompt, [new RecoveringPlugin()]);
+}
+
+/** A runner turn whose caller-supplied `summary` callback throws before the Activity. */
+export async function agentRunnerThrowingSummary(prompt: string): Promise<string> {
+  const model = new TemporalModel('fake-model', {
+    ...SINGLE_ATTEMPT,
+    summary: () => {
+      throw ApplicationFailure.nonRetryable('summary callback exploded', 'TestSummaryFailure');
+    },
+  });
+  return runAgentTurn(model, prompt);
+}
+
+/**
+ * A runner turn against a model too slow for its 1-second timeout scope. ADK absorbs the
+ * scope's cancellation, so the turn returns no text rather than throwing, and the Workflow
+ * falls back to its own value.
+ */
+export async function agentRunnerTurnUnderTimeoutScope(prompt: string): Promise<string> {
+  const text = await CancellationScope.withTimeout('1 second', () =>
+    runAgentTurn(new TemporalModel('slow-model', SINGLE_ATTEMPT), prompt)
+  );
+  return text || 'timed out';
+}
+
+/** A turn aborted by its timeout scope, then a turn that really fails. */
+export async function agentRunnerFailureAfterTimeoutScope(prompt: string): Promise<string> {
+  const aborted = await CancellationScope.withTimeout('1 second', () =>
+    runAgentTurn(new TemporalModel('slow-model', SINGLE_ATTEMPT), prompt)
+  );
+  const failed = await runAgentTurn(new TemporalModel('boom', SINGLE_ATTEMPT), prompt);
+  return `${aborted}|${failed}`;
+}
+
+/**
+ * A direct (non-runner) model call whose Activity fails and whose caller handles it.
+ * Returns the caught failure's type, so the Workflow's result witnesses what it caught.
+ */
+export async function caughtModelCallError(): Promise<string> {
+  const llm = new TemporalModel('boom', SINGLE_ATTEMPT);
+  let text = '';
+  try {
+    for await (const response of llm.generateContentAsync(makeRequest('explode'))) {
+      text += collectText(response.content?.parts);
+    }
+  } catch (err) {
+    if (err instanceof ActivityFailure && err.cause instanceof ApplicationFailure) {
+      return err.cause.type ?? 'untyped';
+    }
+    throw err;
+  }
+  return text;
+}
+
+export const adkChatUpdate = defineUpdate<string, [string]>('adkChat');
+export const adkDoneSignal = defineSignal<[]>('adkDone');
+
+/**
+ * The update-driven agent shape: the main function parks while each Update runs one
+ * agent turn against the model it names.
+ */
+export async function agentRunnerUpdateDriven(): Promise<void> {
+  let done = false;
+  setHandler(adkChatUpdate, (model) => runAgentTurn(new TemporalModel(model, SINGLE_ATTEMPT), 'hi'));
+  setHandler(adkDoneSignal, () => {
+    done = true;
+  });
+  await condition(() => done);
+}
+
+/**
+ * A runner turn followed by `continueAsNew` to `nextModel` — the shape a long-running
+ * agent uses to trim its history.
+ */
+export async function agentRunnerContinueAsNew(model: string, nextModel?: string): Promise<string> {
+  const text = await runAgentTurn(new TemporalModel(model, SINGLE_ATTEMPT), 'hi');
+  if (nextModel !== undefined) {
+    await continueAsNew<typeof agentRunnerContinueAsNew>(nextModel);
+  }
+  return text;
+}
+
+export const adkRecoverSignal = defineSignal<[]>('adkRecover');
+
+/**
+ * A turn against a model that answers, so it emits the second `adk-invokeModel` Activity
+ * the tests wait on to know the failing turn is behind them.
+ */
+async function answeringTurn(): Promise<string> {
+  return runAgentTurn(new TemporalModel('fake-model'), 'hi');
+}
+
+/**
+ * A failing main-function turn nothing recovers, plus a Signal handler that runs its own
+ * failing turn and recovers from that one.
+ */
+export async function agentRunnerFailureThenRecoveringSignal(): Promise<string> {
+  let recovered = false;
+  setHandler(adkRecoverSignal, async () => {
+    await runAgentTurn(new TemporalModel('boom', SINGLE_ATTEMPT), 'hi', [new RecoveringPlugin()]);
+    recovered = true;
+  });
+  await runAgentTurn(
+    new TemporalModel('slow-model', { activity: { startToCloseTimeout: '1 second', retry: { maximumAttempts: 1 } } }),
+    'hi'
+  );
+  const answered = await answeringTurn();
+  await condition(() => recovered);
+  return answered;
+}
+
+export const adkStartSignal = defineSignal<[]>('adkStart');
+
+/**
+ * A Signal handler that starts a failing turn without awaiting it, so the handler returns
+ * before the failure lands, while the main function stays parked until the turn is over.
+ */
+export async function agentRunnerUnawaitedSignalTurn(): Promise<string> {
+  let finished = false;
+  setHandler(adkStartSignal, () => {
+    void runAgentTurn(new TemporalModel('boom', SINGLE_ATTEMPT), 'hi').then(() => {
+      finished = true;
+    });
+  });
+  await condition(() => finished);
+  return 'joined';
+}
+
+export const adkAwaitSignal = defineSignal<[]>('adkAwait');
+
+/**
+ * A Signal handler that awaits its own failing turn while the main function parks for good,
+ * so the Signal's frame is the only one that can raise what that turn absorbed.
+ */
+export async function agentRunnerAwaitedSignalTurn(): Promise<void> {
+  setHandler(adkAwaitSignal, async () => {
+    await runAgentTurn(new TemporalModel('boom', SINGLE_ATTEMPT), 'hi');
+  });
+  await condition(() => false);
+}
+
+interface CompensationActivities {
+  compensate(): Promise<void>;
+}
+
+/**
+ * A failing main-function turn inside a `try`/`finally` that compensates through an
+ * Activity, then a park long enough to take a Signal while the main function still runs.
+ */
+export async function agentRunnerFailureWithCompensation(): Promise<string> {
+  let nudged = false;
+  setHandler(adkDoneSignal, () => {
+    nudged = true;
+  });
+  const { compensate } = proxyActivities<CompensationActivities>({ startToCloseTimeout: '10 seconds' });
+  try {
+    await runAgentTurn(new TemporalModel('boom', SINGLE_ATTEMPT), 'hi');
+    await answeringTurn();
+    await sleep('2 seconds');
+    return nudged ? 'nudged' : 'quiet';
+  } finally {
+    await compensate();
+  }
+}
+
+export const adkContinueUpdate = defineUpdate<string, []>('adkContinue');
+
+/**
+ * A failing main-function turn, then a park, while an Update continues as new to a model
+ * that answers.
+ */
+export async function agentRunnerContinueAsNewFromUpdate(model: string): Promise<string> {
+  let done = false;
+  setHandler(adkContinueUpdate, async () => {
+    await continueAsNew<typeof agentRunnerContinueAsNewFromUpdate>('fake-model');
+    return 'continued';
+  });
+  setHandler(adkDoneSignal, () => {
+    done = true;
+  });
+  const failed = await runAgentTurn(new TemporalModel(model, SINGLE_ATTEMPT), 'hi');
+  const answered = await answeringTurn();
+  await condition(() => done);
+  return `${failed}|${answered}`;
 }
 
 /** `net` shim classifications computed at module load and at run time. */

@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * A user `interceptors.workflowModules` entry that imports `@google/adk`.
  * Interceptor modules all evaluate before any interceptor factory runs, so
  * this makes ADK's `telemetry/tracing.js` cache its tracer at module load —
