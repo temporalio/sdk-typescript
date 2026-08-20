@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * The `ApplicationFailure.type` values this plugin raises.
  */
 
@@ -40,8 +36,12 @@ export const MCP_TOOL_NOT_FOUND_FAILURE_TYPE = 'GoogleAdkMCPToolNotFound';
 
 /**
  * Error type for a failed model call. Raised inside an Activity, so it arrives
- * wrapped in an `ActivityFailure`: match it through the `.cause` chain. It reaches
- * code that awaits `TemporalModel.generateContentAsync` itself.
+ * wrapped in an `ActivityFailure`: match it through the `.cause` chain. A request
+ * carrying an `adk_agent_name` label, as an ADK agent run's requests do, has its
+ * failure recorded: it fails the Workflow — or rejects the Update whose handler ran
+ * the turn — unless an `onModelErrorCallback` recovers and calls
+ * `markModelFailureHandled(error)`. A hand-built request ordinarily carries none, and
+ * then only throws at the call site.
  *
  * A failure that carries an HTTP status has it appended as `.<status>`, for example
  * `GoogleAdkModelError.429`, so match with `startsWith`, not `===`; such a failure is

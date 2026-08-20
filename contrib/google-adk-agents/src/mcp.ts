@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * Workflow-side MCP boundary for the Google ADK Temporal plugin.
  *
  * MCP is ADK's primary external-tool protocol. `TemporalMCPToolset` is a

@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * Regression test that consumes the COMPILED `lib` the way a published-package
  * user does: resolved BY PACKAGE NAME (`@temporalio/google-adk-agents` and its
  * `/workflow` and `/testing` subpaths) via Node package self-reference, never
@@ -24,6 +20,7 @@ test('cjsRequireExposesPublicExports', (t) => {
   t.is(typeof workflow.TemporalModel, 'function');
   t.is(typeof workflow.TemporalMCPToolset, 'function');
   t.is(typeof workflow.activityAsTool, 'function');
+  t.is(typeof workflow.markModelFailureHandled, 'function');
   t.is(workflow.MODEL_ERROR_FAILURE_TYPE, 'GoogleAdkModelError');
   t.is(workflow.MCP_TOOL_NOT_FOUND_FAILURE_TYPE, 'GoogleAdkMCPToolNotFound');
   t.is(workflow.MCP_ERROR_FAILURE_TYPE, 'GoogleAdkMCPError');

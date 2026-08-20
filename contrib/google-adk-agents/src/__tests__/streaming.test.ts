@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * E2E tests for SSE streaming. With `streamingTopic` set, a streamed model call
  * publishes incremental `LlmResponse` chunks via `@temporalio/workflow-streams`
  * while the Workflow still receives the full, ordered transcript via the
