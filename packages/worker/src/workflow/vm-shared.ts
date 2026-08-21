@@ -20,7 +20,7 @@ import type { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-t
 
 // We need this import for the ambient global extensions
 import '@temporalio/workflow/lib/global-attributes'; // eslint-disable-line import/no-unassigned-import
-import { isBun } from './bun';
+import { needsBunMicrotaskModeWorkaround } from './bun';
 
 // Best effort to catch unhandled rejections from workflow code.
 // We crash the thread if we cannot find the culprit.
@@ -370,10 +370,9 @@ export abstract class BaseVMWorkflow implements Workflow {
   /**
    * Send request to the Workflow runtime's worker-interface
    *
-   * In order to properly work around Bun's lack of support for `microtaskMode: afterEvaluate` it is important to
-   * immediately schedule a task after each call into the `workflowModule`. This task ensures that any microtasks
-   * from a specific workflow will execute while the vm is still setup for said workflow.
-   * This is why there are `if (isBun) await new Promise(setImmediate)` scattered throughout this function.
+   * In Bun versions before 1.4.0, `microtaskMode: afterEvaluate` is not supported. On those versions, immediately
+   * schedule a task after each call into the `workflowModule` so that microtasks from a specific workflow execute
+   * while the VM is still set up for that workflow.
    */
   public async activate(
     activation: coresdk.workflow_activation.IWorkflowActivation
@@ -420,7 +419,7 @@ export abstract class BaseVMWorkflow implements Workflow {
       const initWorkflowJob = activation.jobs.find((job) => job.initializeWorkflow != null)?.initializeWorkflow;
       if (initWorkflowJob) {
         this.workflowModule.initialize(initWorkflowJob);
-        if (isBun) await new Promise(setImmediate);
+        if (needsBunMicrotaskModeWorkaround) await new Promise(setImmediate);
       }
 
       const hasSignals = activation.jobs.some(({ signalWorkflow }) => signalWorkflow != null);
@@ -442,7 +441,7 @@ export abstract class BaseVMWorkflow implements Workflow {
         this.workflowModule.activate(
           coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs: rest })
         );
-        if (isBun) {
+        if (needsBunMicrotaskModeWorkaround) {
           await this.tryUnblockConditionsAndMicrotasksWithManualFlush();
         } else {
           this.tryUnblockConditionsAndMicrotasks();
@@ -462,7 +461,7 @@ export abstract class BaseVMWorkflow implements Workflow {
             coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs }),
             batchIndex++
           );
-          if (isBun) {
+          if (needsBunMicrotaskModeWorkaround) {
             await this.tryUnblockConditionsAndMicrotasksWithManualFlush();
           } else {
             this.tryUnblockConditionsAndMicrotasks();
@@ -470,7 +469,7 @@ export abstract class BaseVMWorkflow implements Workflow {
         }
       }
 
-      if (isBun) await new Promise(setImmediate);
+      if (needsBunMicrotaskModeWorkaround) await new Promise(setImmediate);
       const completion = this.workflowModule.concludeActivation();
 
       // Give unhandledRejection handler a chance to be triggered.
@@ -503,9 +502,9 @@ export abstract class BaseVMWorkflow implements Workflow {
       },
     }));
     this.workflowModule.activate(activation);
-    if (isBun) await new Promise(setImmediate);
+    if (needsBunMicrotaskModeWorkaround) await new Promise(setImmediate);
     const completion = this.workflowModule.concludeActivation();
-    if (isBun) await new Promise(setImmediate);
+    if (needsBunMicrotaskModeWorkaround) await new Promise(setImmediate);
     return completion;
   }
 
