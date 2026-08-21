@@ -9,6 +9,6 @@ const bun = (globalThis as typeof globalThis & { Bun?: BunGlobal }).Bun;
 
 export const isBun = bun !== undefined;
 
-// Bun supports vm.createContext({ microtaskMode: 'afterEvaluate' }) as of 1.4.0.
+// Bun versions before 1.4.0 need compatibility paths for VM microtask handling and Worker termination.
 // https://github.com/oven-sh/bun/pull/32018
-export const needsBunMicrotaskModeWorkaround = bun !== undefined && !bun.semver.satisfies(bun.version, '>=1.4.0');
+export const isBunPre1_4 = bun !== undefined && !bun.semver.satisfies(bun.version, '>=1.4.0');

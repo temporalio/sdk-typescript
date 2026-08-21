@@ -20,7 +20,7 @@ import type { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-t
 
 // We need this import for the ambient global extensions
 import '@temporalio/workflow/lib/global-attributes'; // eslint-disable-line import/no-unassigned-import
-import { needsBunMicrotaskModeWorkaround } from './bun';
+import { isBunPre1_4 } from './bun';
 
 // Best effort to catch unhandled rejections from workflow code.
 // We crash the thread if we cannot find the culprit.
@@ -419,7 +419,7 @@ export abstract class BaseVMWorkflow implements Workflow {
       const initWorkflowJob = activation.jobs.find((job) => job.initializeWorkflow != null)?.initializeWorkflow;
       if (initWorkflowJob) {
         this.workflowModule.initialize(initWorkflowJob);
-        if (needsBunMicrotaskModeWorkaround) await new Promise(setImmediate);
+        if (isBunPre1_4) await new Promise(setImmediate);
       }
 
       const hasSignals = activation.jobs.some(({ signalWorkflow }) => signalWorkflow != null);
@@ -441,7 +441,7 @@ export abstract class BaseVMWorkflow implements Workflow {
         this.workflowModule.activate(
           coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs: rest })
         );
-        if (needsBunMicrotaskModeWorkaround) {
+        if (isBunPre1_4) {
           await this.tryUnblockConditionsAndMicrotasksWithManualFlush();
         } else {
           this.tryUnblockConditionsAndMicrotasks();
@@ -461,7 +461,7 @@ export abstract class BaseVMWorkflow implements Workflow {
             coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs }),
             batchIndex++
           );
-          if (needsBunMicrotaskModeWorkaround) {
+          if (isBunPre1_4) {
             await this.tryUnblockConditionsAndMicrotasksWithManualFlush();
           } else {
             this.tryUnblockConditionsAndMicrotasks();
@@ -469,7 +469,7 @@ export abstract class BaseVMWorkflow implements Workflow {
         }
       }
 
-      if (needsBunMicrotaskModeWorkaround) await new Promise(setImmediate);
+      if (isBunPre1_4) await new Promise(setImmediate);
       const completion = this.workflowModule.concludeActivation();
 
       // Give unhandledRejection handler a chance to be triggered.
@@ -502,9 +502,9 @@ export abstract class BaseVMWorkflow implements Workflow {
       },
     }));
     this.workflowModule.activate(activation);
-    if (needsBunMicrotaskModeWorkaround) await new Promise(setImmediate);
+    if (isBunPre1_4) await new Promise(setImmediate);
     const completion = this.workflowModule.concludeActivation();
-    if (needsBunMicrotaskModeWorkaround) await new Promise(setImmediate);
+    if (isBunPre1_4) await new Promise(setImmediate);
     return completion;
   }
 

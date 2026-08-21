@@ -5,7 +5,7 @@ import { native } from '@temporalio/core-bridge';
 import type { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import type { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
 import { BaseVMWorkflow, globalHandlers, injectGlobals, setUnhandledRejectionHandler } from './vm-shared';
-import { isBun, needsBunMicrotaskModeWorkaround } from './bun';
+import { isBun, isBunPre1_4 } from './bun';
 import type { WorkflowPatchActivationCallback } from './patch-activation-callback';
 
 interface BagHolder {
@@ -324,7 +324,7 @@ export class ReusableVMWorkflow extends BaseVMWorkflow {
     // automatically due to lack of proper microtaskMode: 'afterEvaluate' support.
     // Drain the microtask queue to prevent state leakage to the next workflow
     // that will reuse this VM context.
-    if (needsBunMicrotaskModeWorkaround) await new Promise(setImmediate);
+    if (isBunPre1_4) await new Promise(setImmediate);
     ReusableVMWorkflowCreator.workflowByRunId.delete(this.runId);
   }
 }
