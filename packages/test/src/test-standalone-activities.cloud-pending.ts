@@ -1,16 +1,23 @@
 import { randomUUID } from 'crypto';
-import type { TestFn } from 'ava';
+import type { ExecutionContext, TestFn } from 'ava';
 import anyTest from 'ava';
 import * as rxjs from 'rxjs';
-import type { ActivityHandle, TypedActivityClient, ActivityOptions } from '@temporalio/client';
+import type {
+  ActivityHandle,
+  ActivityOptions,
+  ActivityClientInterceptor,
+  TypedActivityClient,
+} from '@temporalio/client';
 import {
   ActivityExecutionStatus,
   ActivityExecutionAlreadyStartedError,
   ActivityExecutionFailedError,
+  Client,
   ServiceError,
   TerminatedFailure,
   isGrpcCancelledError,
 } from '@temporalio/client';
+import type { Payload, PayloadCodec, PayloadTypeInfo } from '@temporalio/common';
 import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
 import { activityInfo } from '@temporalio/activity';
 import type { TestWorkflowEnvironment } from './helpers';
@@ -18,6 +25,9 @@ import { RUN_INTEGRATION_TESTS, waitUntil, Worker } from './helpers';
 import { echo, throwAnError } from './activities';
 import { heartbeatCancellationDetailsActivity } from './activities/heartbeat-cancellation-details';
 import { createTestWorkflowEnvironment } from './helpers-integration';
+import { convertOrder } from './workflows/type-info/activities';
+import { activityTypeInfo } from './workflows/type-info/activity-type-info';
+import { Order, Receipt } from './workflows/type-info/models';
 
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
 // polling/retry strategies result in the expected behavior
@@ -33,6 +43,7 @@ export interface Context {
 
 const activities = {
   echo,
+  convertOrder,
   throwAnError,
   heartbeatCancellationDetailsActivity,
   verifyStandaloneActivityInfo: async () => {
@@ -71,10 +82,66 @@ const defaultOptions: Omit<ActivityOptions, 'id' | 'args'> = {
   idReusePolicy: 'ALLOW_DUPLICATE',
 };
 
+const typeInfoActivityOptions = {
+  ...defaultOptions,
+  retry: { maximumAttempts: 1 },
+};
+
 const test = anyTest as TestFn<Context>;
 
 async function waitForValue<T>(subject: rxjs.Subject<T>, value: T) {
   await rxjs.firstValueFrom(subject.pipe(rxjs.first((v) => v === value)));
+}
+
+function assertReceipt(t: ExecutionContext, receipt: Receipt): void {
+  t.true(receipt instanceof Receipt);
+  t.is(receipt.summary(), 'order-1:12345');
+  t.is(typeof receipt.totalCents, 'bigint');
+}
+
+function makeClientWithActivityInterceptors(
+  env: TestWorkflowEnvironment,
+  interceptors: ActivityClientInterceptor[]
+): Client {
+  return new Client({
+    connection: env.client.connection,
+    namespace: env.client.options.namespace,
+    interceptors: { activity: interceptors },
+  });
+}
+
+class BlockingEncodePayloadCodec implements PayloadCodec {
+  readonly encodingStarted: Promise<void>;
+  private readonly continueEncoding: Promise<void>;
+  private resolveEncodingStarted!: () => void;
+  private resolveContinueEncoding!: () => void;
+  private blockNextEncode = true;
+
+  constructor() {
+    this.encodingStarted = new Promise((resolve) => {
+      this.resolveEncodingStarted = resolve;
+    });
+    this.continueEncoding = new Promise((resolve) => {
+      this.resolveContinueEncoding = resolve;
+    });
+  }
+
+  async encode(payloads: Payload[]): Promise<Payload[]> {
+    if (this.blockNextEncode) {
+      this.blockNextEncode = false;
+      this.resolveEncodingStarted();
+      await this.continueEncoding;
+    }
+    return payloads;
+  }
+
+  async decode(payloads: Payload[]): Promise<Payload[]> {
+    return payloads;
+  }
+
+  releaseEncoding(): void {
+    this.resolveContinueEncoding();
+  }
 }
 
 if (RUN_INTEGRATION_TESTS) {
@@ -163,6 +230,99 @@ if (RUN_INTEGRATION_TESTS) {
       args: ['hello'],
     });
     t.is(result, 'hello');
+  });
+
+  test('Start Activity preserves rich input and retained result with TypeInfo', async (t) => {
+    const client = t.context.env.client.activity;
+    const handle = await client.start<Receipt>('convertOrder', {
+      ...typeInfoActivityOptions,
+      id: randomUUID(),
+      args: [new Order('order-1', 12345n)],
+      typeInfo: activityTypeInfo.convertOrder,
+    });
+
+    assertReceipt(t, await handle.result());
+  });
+
+  test('Execute Activity preserves rich input and result with TypeInfo', async (t) => {
+    const client = t.context.env.client.activity;
+    const result = await client.execute<Receipt>('convertOrder', {
+      ...typeInfoActivityOptions,
+      id: randomUUID(),
+      args: [new Order('order-1', 12345n)],
+      typeInfo: activityTypeInfo.convertOrder,
+    });
+
+    assertReceipt(t, result);
+  });
+
+  test('Detached Activity handle decodes its result with output TypeInfo', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const handle = await client.start<Receipt>('convertOrder', {
+      ...typeInfoActivityOptions,
+      id: activityId,
+      args: [new Order('order-1', 12345n)],
+      typeInfo: activityTypeInfo.convertOrder,
+    });
+
+    const detachedHandle = client.getHandleWithOptions<Receipt>(activityId, {
+      runId: handle.runId,
+      typeInfo: { outputType: activityTypeInfo.convertOrder.outputType },
+    });
+    assertReceipt(t, await detachedHandle.result());
+  });
+
+  test('Activity interceptors can provide input and result TypeInfo', async (t) => {
+    const client = makeClientWithActivityInterceptors(t.context.env, [
+      {
+        async start(input, next) {
+          return await next({
+            ...input,
+            options: {
+              ...input.options,
+              typeInfo: { inputTypes: activityTypeInfo.convertOrder.inputTypes },
+            },
+          });
+        },
+        async getResult(input, next) {
+          return await next({
+            ...input,
+            outputType: activityTypeInfo.convertOrder.outputType,
+          });
+        },
+      },
+    ]);
+
+    const result = await client.activity.execute<Receipt>('convertOrder', {
+      ...typeInfoActivityOptions,
+      id: randomUUID(),
+      args: [new Order('order-1', 12345n)],
+    });
+
+    assertReceipt(t, result);
+  });
+
+  test('Activity start snapshots output TypeInfo before asynchronous encoding', async (t) => {
+    const codec = new BlockingEncodePayloadCodec();
+    const client = new Client({
+      connection: t.context.env.client.connection,
+      namespace: t.context.env.client.options.namespace,
+      dataConverter: { payloadCodecs: [codec] },
+    });
+    const typeInfo: PayloadTypeInfo = { ...activityTypeInfo.convertOrder };
+    const start = client.activity.start<Receipt>('convertOrder', {
+      ...typeInfoActivityOptions,
+      id: randomUUID(),
+      args: [new Order('order-1', 12345n)],
+      typeInfo,
+    });
+
+    await codec.encodingStarted;
+    typeInfo.outputType = undefined;
+    codec.releaseEncoding();
+
+    assertReceipt(t, await (await start).result());
   });
 
   test('Execute activity - failure', async (t) => {
