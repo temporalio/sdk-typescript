@@ -15,7 +15,7 @@ interface BagHolder {
 const callIntoVmScript = new vm.Script(`__TEMPORAL_CALL_INTO_SCOPE()`);
 const preloadModulesScript = new vm.Script(`__TEMPORAL__.preloadModules?.()`);
 
-function generateNodeCallIntoScopeScript(): string {
+function generateCallIntoScopeScript(): string {
   return `{
     const __TEMPORAL_CALL_INTO_SCOPE = () => {
       const [holder, fn, args] = globalThis.__temporal_args;
@@ -50,59 +50,46 @@ function generateNodeCallIntoScopeScript(): string {
   }`;
 }
 
-// This is a workaround for a bug in Bun where Object.getOwnPropertyDescriptor returns
-// stale values for numeric properties after modification. We must read/write numeric
-// properties directly.
-function generateBunCallIntoScopeScript(): string {
+/**
+ * Bun's contextified VM global does not preserve numeric properties across context switches.
+ * Bun 1.4.0 routes indexed reads through the contextified sandbox, but writes and deletes are
+ * still inconsistent. Route only numeric properties through a regular object instead.
+ *
+ * https://github.com/oven-sh/bun/pull/32018
+ */
+function generateBunNumericGlobalPropertiesWorkaroundScript(): string {
   return `{
     const __TEMPORAL_IS_NUMERIC_KEY = (key) => {
-      if (typeof key === 'number') return true;
-      if (typeof key === 'string') {
-        const num = Number(key);
-        return Number.isInteger(num) && num >= 0 && String(num) === key;
-      }
-      return false;
+      if (typeof key !== 'string') return false;
+      const num = Number(key);
+      return Number.isInteger(num) && num >= 0 && String(num) === key;
     };
 
-    const __TEMPORAL_CALL_INTO_SCOPE = () => {
-      const [holder, fn, args] = globalThis.__temporal_args;
-      delete globalThis.__temporal_args;
-
-      if (globalThis.__TEMPORAL_BAG_HOLDER__ !== holder) {
-        if (globalThis.__TEMPORAL_BAG_HOLDER__ !== undefined) {
-          const bag = Object.getOwnPropertyDescriptors(globalThis);
-          for (const prop of Reflect.ownKeys(bag)) {
-            if (__TEMPORAL_IS_NUMERIC_KEY(prop)) {
-              bag[prop].value = globalThis[prop];
-            }
-          }
-          globalThis.__TEMPORAL_BAG_HOLDER__.bag = bag;
-        }
-
-        const toBeDeleted = new Set(Reflect.ownKeys(globalThis));
-
-        for (const prop of Reflect.ownKeys(holder.bag)) {
-          if (holder.bag[prop].value !== globalThis[prop]) {
-            if (__TEMPORAL_IS_NUMERIC_KEY(prop)) {
-              globalThis[prop] = holder.bag[prop].value;
-            } else {
-              Object.defineProperty(globalThis, prop, holder.bag[prop]);
-            }
-          }
-          toBeDeleted.delete(prop);
-        }
-
-        for (const prop of toBeDeleted) {
-          delete globalThis[prop];
-        }
-
-        globalThis.__TEMPORAL_BAG_HOLDER__ = holder;
-      }
-
-      return __TEMPORAL__.api[fn](...args);
-    };
-    Object.defineProperty(globalThis, '__TEMPORAL_CALL_INTO_SCOPE', {
-      value: __TEMPORAL_CALL_INTO_SCOPE, writable: false, enumerable: false, configurable: false
+    const __TEMPORAL_NUMERIC_PROPERTIES = Object.create(null);
+    const __TEMPORAL_REAL_GLOBAL = globalThis;
+    __TEMPORAL_REAL_GLOBAL.globalThis = new Proxy(__TEMPORAL_REAL_GLOBAL, {
+      get: (target, prop, receiver) => __TEMPORAL_IS_NUMERIC_KEY(prop)
+        ? Reflect.get(__TEMPORAL_NUMERIC_PROPERTIES, prop)
+        : Reflect.get(target, prop, receiver),
+      set: (target, prop, value, receiver) => __TEMPORAL_IS_NUMERIC_KEY(prop)
+        ? Reflect.set(__TEMPORAL_NUMERIC_PROPERTIES, prop, value)
+        : Reflect.set(target, prop, value, receiver),
+      deleteProperty: (target, prop) => __TEMPORAL_IS_NUMERIC_KEY(prop)
+        ? Reflect.deleteProperty(__TEMPORAL_NUMERIC_PROPERTIES, prop)
+        : Reflect.deleteProperty(target, prop),
+      defineProperty: (target, prop, descriptor) => __TEMPORAL_IS_NUMERIC_KEY(prop)
+        ? Reflect.defineProperty(__TEMPORAL_NUMERIC_PROPERTIES, prop, descriptor)
+        : Reflect.defineProperty(target, prop, descriptor),
+      getOwnPropertyDescriptor: (target, prop) => __TEMPORAL_IS_NUMERIC_KEY(prop)
+        ? Reflect.getOwnPropertyDescriptor(__TEMPORAL_NUMERIC_PROPERTIES, prop)
+        : Reflect.getOwnPropertyDescriptor(target, prop),
+      has: (target, prop) => __TEMPORAL_IS_NUMERIC_KEY(prop)
+        ? Reflect.has(__TEMPORAL_NUMERIC_PROPERTIES, prop)
+        : Reflect.has(target, prop),
+      ownKeys: (target) => [
+        ...Reflect.ownKeys(target).filter((prop) => !__TEMPORAL_IS_NUMERIC_KEY(prop)),
+        ...Reflect.ownKeys(__TEMPORAL_NUMERIC_PROPERTIES),
+      ],
     });
   }`;
 }
@@ -139,7 +126,13 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
     }
 
     this._context = vm.createContext({}, { microtaskMode: 'afterEvaluate' }) as vm.Context & typeof globalThis;
-    vm.runInContext(isBun ? generateBunCallIntoScopeScript() : generateNodeCallIntoScopeScript(), this._context, {
+    if (isBun) {
+      vm.runInContext(generateBunNumericGlobalPropertiesWorkaroundScript(), this._context, {
+        timeout: isolateExecutionTimeoutMs,
+        displayErrors: true,
+      });
+    }
+    vm.runInContext(generateCallIntoScopeScript(), this._context, {
       timeout: isolateExecutionTimeoutMs,
       displayErrors: true,
     });
