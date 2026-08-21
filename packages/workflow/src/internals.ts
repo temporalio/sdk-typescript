@@ -889,15 +889,20 @@ export class Activator implements ActivationHandler {
       queryType === STACK_TRACE_QUERY_NAME ||
       queryType === ENHANCED_STACK_TRACE_QUERY_NAME;
     const interceptors = isInternalQuery ? [] : this.interceptors.inbound;
-    const execute = composeInterceptors(interceptors, 'handleQuery', this.queryWorkflowNextHandler.bind(this));
     const context = this.workflowSerializationContext();
+    const typeInfo = this.queryHandlers.get(queryType)?.typeInfo;
+    let outputTypeInfo = typeInfo?.outputType;
+    const execute = composeInterceptors(interceptors, 'handleQuery', (input) => {
+      outputTypeInfo = this.queryHandlers.get(input.queryName)?.typeInfo?.outputType;
+      return this.queryWorkflowNextHandler(input);
+    });
     execute({
       queryName: queryType,
-      args: arrayFromPayloads(this.payloadConverter, activation.arguments, context),
+      args: arrayFromPayloads(this.payloadConverter, activation.arguments, context, typeInfo?.inputTypes),
       queryId,
       headers: headers ?? {},
     }).then(
-      (result) => this.completeQuery(queryId, result),
+      (result) => this.completeQuery(queryId, result, outputTypeInfo),
       (reason) => this.failQuery(queryId, reason)
     );
   }
@@ -939,6 +944,7 @@ export class Activator implements ActivationHandler {
         ? {
             handler: this.defaultUpdateHandler.bind(undefined, name),
             validator: undefined,
+            typeInfo: undefined,
             // Default to a warning policy.
             unfinishedPolicy: HandlerUnfinishedPolicy.WARN_AND_ABANDON,
           }
@@ -954,7 +960,7 @@ export class Activator implements ActivationHandler {
       const context = this.workflowSerializationContext();
       return {
         updateId,
-        args: arrayFromPayloads(this.payloadConverter, activation.input, context),
+        args: arrayFromPayloads(this.payloadConverter, activation.input, context, entry.typeInfo?.inputTypes),
         name,
         headers: headers ?? {},
       };
@@ -1026,7 +1032,7 @@ export class Activator implements ActivationHandler {
       const { unfinishedPolicy } = entry;
       this.inProgressUpdates.set(updateId, { name, unfinishedPolicy, id: updateId });
       const res = execute(input)
-        .then((result) => this.completeUpdate(protocolInstanceId, result))
+        .then((result) => this.completeUpdate(protocolInstanceId, result, entry.typeInfo?.outputType))
         .catch((error) => {
           if (error instanceof TemporalFailure) {
             this.rejectUpdate(protocolInstanceId, error);
@@ -1390,10 +1396,13 @@ export class Activator implements ActivationHandler {
     if (this.workflowTaskError) throw this.workflowTaskError;
   }
 
-  private completeQuery(queryId: string, result: unknown): void {
+  private completeQuery(queryId: string, result: unknown, typeInfo?: TypeInfo): void {
     const context = this.workflowSerializationContext();
     this.pushCommand({
-      respondToQuery: { queryId, succeeded: { response: this.payloadConverter.toPayload(result, context) } },
+      respondToQuery: {
+        queryId,
+        succeeded: { response: toPayloadWithTypeInfo(this.payloadConverter, result, context, typeInfo) },
+      },
     });
   }
 
@@ -1410,10 +1419,13 @@ export class Activator implements ActivationHandler {
     this.pushCommand({ updateResponse: { protocolInstanceId, accepted: {} } });
   }
 
-  private completeUpdate(protocolInstanceId: string, result: unknown): void {
+  private completeUpdate(protocolInstanceId: string, result: unknown, typeInfo?: TypeInfo): void {
     const context = this.workflowSerializationContext();
     this.pushCommand({
-      updateResponse: { protocolInstanceId, completed: this.payloadConverter.toPayload(result, context) },
+      updateResponse: {
+        protocolInstanceId,
+        completed: toPayloadWithTypeInfo(this.payloadConverter, result, context, typeInfo),
+      },
     });
   }
 

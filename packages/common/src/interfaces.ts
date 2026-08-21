@@ -12,6 +12,7 @@ export type WorkflowUpdateAnnotatedType = {
   unfinishedPolicy: HandlerUnfinishedPolicy;
   validator?: WorkflowUpdateValidatorType;
   description?: string;
+  typeInfo?: PayloadTypeInfo;
 };
 export type WorkflowSignalType = (...args: any[]) => Promise<void> | void;
 export type WorkflowSignalAnnotatedType = {
@@ -21,7 +22,11 @@ export type WorkflowSignalAnnotatedType = {
   typeInfo?: SignalTypeInfo;
 };
 export type WorkflowQueryType = (...args: any[]) => any;
-export type WorkflowQueryAnnotatedType = { handler: WorkflowQueryType; description?: string };
+export type WorkflowQueryAnnotatedType = {
+  handler: WorkflowQueryType;
+  description?: string;
+  typeInfo?: PayloadTypeInfo;
+};
 
 /**
  * Broad Workflow function definition, specific Workflows will typically use a narrower type definition, e.g:
@@ -35,6 +40,16 @@ declare const argsBrand: unique symbol;
 declare const retBrand: unique symbol;
 
 /**
+ * Options for {@link UpdateDefinition}.
+ *
+ * @experimental
+ */
+export interface UpdateDefinitionOptions {
+  /** Type information used to convert Update arguments and results. */
+  typeInfo?: PayloadTypeInfo;
+}
+
+/**
  * An interface representing a Workflow update definition, as returned from {@link defineUpdate}
  *
  * @remarks `Args` can be used for parameter type inference in handler functions and WorkflowHandle methods.
@@ -43,6 +58,8 @@ declare const retBrand: unique symbol;
 export interface UpdateDefinition<Ret, Args extends any[] = [], Name extends string = string> {
   type: 'update';
   name: Name;
+  /** Type information used to convert Update arguments and results. */
+  typeInfo?: PayloadTypeInfo;
   /**
    * Virtual type brand to maintain a distinction between {@link UpdateDefinition} types with different args.
    * This field is not present at run-time.
@@ -86,6 +103,16 @@ export interface SignalDefinition<Args extends any[] = [], Name extends string =
 }
 
 /**
+ * Options for {@link QueryDefinition}.
+ *
+ * @experimental
+ */
+export interface QueryDefinitionOptions {
+  /** Type information used to convert Query arguments and results. */
+  typeInfo?: PayloadTypeInfo;
+}
+
+/**
  * An interface representing a Workflow query definition as returned from {@link defineQuery}
  *
  * @remarks `Args` and `Ret` can be used for parameter type inference in handler functions and WorkflowHandle methods.
@@ -94,6 +121,8 @@ export interface SignalDefinition<Args extends any[] = [], Name extends string =
 export interface QueryDefinition<Ret, Args extends any[] = [], Name extends string = string> {
   type: 'query';
   name: Name;
+  /** Type information used to convert Query arguments and results. */
+  typeInfo?: PayloadTypeInfo;
   /**
    * Virtual type brand to maintain a distinction between {@link QueryDefinition} types with different args.
    * This field is not present at run-time.

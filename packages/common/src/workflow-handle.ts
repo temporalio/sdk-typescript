@@ -1,4 +1,31 @@
-import type { Workflow, WorkflowResultType, SignalDefinition } from './interfaces';
+import type { SignalDefinition, SignalTypeInfo, Workflow, WorkflowResultType } from './interfaces';
+import type { PayloadTypeInfo } from './type-info';
+
+/**
+ * Options for signaling a Workflow by Signal name.
+ *
+ * @experimental
+ */
+export interface WorkflowSignalOptions<Args extends any[] = []> {
+  /** Arguments to pass to the Signal handler. */
+  args?: Args;
+
+  /** Type information used to convert Signal arguments. */
+  typeInfo?: SignalTypeInfo;
+}
+
+/**
+ * Options for querying a Workflow by Query name.
+ *
+ * @experimental
+ */
+export interface WorkflowQueryOptions<Args extends any[] = []> {
+  /** Arguments to pass to the Query handler. */
+  args?: Args;
+
+  /** Type information used to convert Query arguments and results. */
+  typeInfo?: PayloadTypeInfo;
+}
 
 /**
  * Base WorkflowHandle interface, extended in workflow and client libs.
@@ -14,7 +41,9 @@ export interface BaseWorkflowHandle<T extends Workflow> {
   /**
    * Signal a running Workflow.
    *
-   * @param def a signal definition as returned from {@link defineSignal}
+   * To provide call-site TypeInfo when signaling by name, use {@link signalWithOptions}.
+   *
+   * @param def a signal definition as returned from {@link defineSignal}, or a signal name
    *
    * @example
    * ```ts
@@ -25,6 +54,13 @@ export interface BaseWorkflowHandle<T extends Workflow> {
     def: SignalDefinition<Args, Name> | string,
     ...args: Args
   ): Promise<void>;
+
+  /**
+   * Signal a running Workflow by Signal name with additional options, including call-site TypeInfo.
+   *
+   * @experimental
+   */
+  signalWithOptions<Args extends any[] = []>(signalName: string, options: WorkflowSignalOptions<Args>): Promise<void>;
 
   /**
    * The workflowId of the current Workflow

@@ -32,7 +32,7 @@
   "dependencies": {
     "@temporalio/common": "workspace:*",
     "@temporalio/proto": "workspace:*",
-    "nexus-rpc": "^0.0.2"
+    "nexus-rpc": "^0.0.3"
   },
   "devDependencies": {
     "ava": "^5.3.1",

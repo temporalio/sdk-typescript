@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * E2E test for human-in-the-loop. Because the ADK agent loop runs in the
  * Workflow body, a `LongRunningFunctionTool.execute` can `await` a Temporal
  * Signal or Update carrying the human's decision. Both variants are exercised.

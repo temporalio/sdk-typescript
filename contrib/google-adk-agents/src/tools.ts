@@ -1,14 +1,9 @@
-/**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- */
-
 import { type FunctionDeclaration, type Schema, Type } from '@google/genai';
 import { BaseTool, type RunAsyncToolRequest } from '@google/adk';
 import { ApplicationFailure, type ActivityOptions } from '@temporalio/common';
 import { inWorkflowContext, proxyActivities } from '@temporalio/workflow';
 
+import { ACTIVITY_TOOL_OUTSIDE_WORKFLOW_FAILURE_TYPE } from './error-types';
 import { activityOptionsFrom } from './model';
 
 /**
@@ -59,7 +54,7 @@ class ActivityTool extends BaseTool {
     if (!inWorkflowContext()) {
       throw ApplicationFailure.nonRetryable(
         `activityAsTool('${this.name}') can only run inside a Temporal Workflow.`,
-        'GoogleAdkActivityToolOutsideWorkflow'
+        ACTIVITY_TOOL_OUTSIDE_WORKFLOW_FAILURE_TYPE
       );
     }
     const activities = proxyActivities<Record<string, (args: Record<string, unknown>) => Promise<unknown>>>(

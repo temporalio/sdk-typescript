@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * Regression coverage for workflow-bundle module layouts that evaluate ADK's
  * telemetry chain (`@opentelemetry/sdk-trace-base` → `@opentelemetry/core`,
  * whose browser build dereferences the `performance` global at module load)
@@ -16,11 +12,12 @@
 import path from 'node:path';
 
 import test from 'ava';
+import { ApplicationFailure } from '@temporalio/common';
 import { Worker } from '@temporalio/worker';
 
 import { GoogleAdkPlugin } from '../index';
-import { defaultTestProvider, REUSE_V8_CONTEXT, setupTestEnv, uid, workflowsPath } from './helpers';
-import { singleModelCall } from './workflows';
+import { defaultTestProvider, findInCauseChain, REUSE_V8_CONTEXT, setupTestEnv, uid, workflowsPath } from './helpers';
+import { agentRunnerOneTurn, singleModelCall } from './workflows';
 
 const getEnv = setupTestEnv(test);
 
@@ -74,4 +71,35 @@ test.serial('converterModuleImportingAdkRunsWithWorkaround', async (t) => {
     })
   );
   t.is(result, 'fake-response:fake-model');
+});
+
+// An absorbed model failure fails the Workflow when the bundle holds ONE copy of the
+// absorbed-failure module (E2E)
+test.serial('compiledCjsBundleSurfacesAnAbsorbedModelFailure', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-cjs-fail');
+  const workflowId = uid('wf-cjs-fail');
+  // Both the plugin's interceptor-module entry and the Workflow's own import of
+  // `TemporalModel` resolve to the compiled `lib/`, so the bundle holds a single copy of
+  // the absorbed-failure module — the topology a published consumer gets, where the
+  // TypeScript-source bundle the other tests build holds two.
+  const worker = await Worker.create({
+    connection: env.nativeConnection,
+    taskQueue,
+    workflowsPath: compiledWorkflowsPath,
+    reuseV8Context: REUSE_V8_CONTEXT,
+    plugins: [new GoogleAdkPlugin({ modelProvider: defaultTestProvider() })],
+  });
+  await worker.runUntil(
+    (async () => {
+      const handle = await env.client.workflow.start(agentRunnerOneTurn, {
+        taskQueue,
+        workflowId,
+        args: ['boom', 'explode'],
+      });
+      const caught = await t.throwsAsync(handle.result());
+      t.is(findInCauseChain(caught, ApplicationFailure)?.type, 'GoogleAdkModelError.400');
+      t.is((await handle.describe()).status.name, 'FAILED');
+    })()
+  );
 });

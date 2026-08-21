@@ -4,7 +4,14 @@
  * @module
  */
 
-import type { Duration, SearchAttributePair, SignalTypeInfo, TypedSearchAttributes } from '@temporalio/common';
+import type {
+  Duration,
+  PayloadTypeInfo,
+  SearchAttributePair,
+  SignalTypeInfo,
+  TypeInfo,
+  TypedSearchAttributes,
+} from '@temporalio/common';
 import { Headers, Next } from '@temporalio/common';
 import type { temporal } from '@temporalio/proto';
 import type { NexusOperationHandle } from './nexus-client';
@@ -42,6 +49,8 @@ export interface WorkflowStartInput {
 export interface WorkflowStartUpdateInput {
   readonly updateName: string;
   readonly args: unknown[];
+  /** Type information used to encode Update arguments and decode its result. */
+  readonly typeInfo?: PayloadTypeInfo;
   readonly workflowExecution: WorkflowExecution;
   readonly firstExecutionRunId?: string;
   readonly headers: Headers;
@@ -59,6 +68,8 @@ export interface WorkflowStartUpdateOutput {
   readonly updateId: string;
   readonly workflowRunId: string;
   readonly outcome?: temporal.api.update.v1.IOutcome;
+  /** Type information used to decode the Update result. */
+  readonly outputTypeInfo?: TypeInfo;
 }
 
 /**
@@ -70,6 +81,8 @@ export interface WorkflowStartUpdateWithStartInput {
   readonly workflowStartHeaders: Headers;
   readonly updateName: string;
   readonly updateArgs: unknown[];
+  /** Type information used to encode Update arguments and decode its result. */
+  readonly updateTypeInfo?: PayloadTypeInfo;
   readonly updateOptions: WorkflowUpdateOptions;
   readonly updateHeaders: Headers;
 }
@@ -81,6 +94,8 @@ export interface WorkflowStartUpdateWithStartOutput {
   readonly workflowExecution: WorkflowExecution;
   readonly updateId: string;
   readonly updateOutcome?: temporal.api.update.v1.IOutcome;
+  /** Type information used to decode the Update result. */
+  readonly updateOutputTypeInfo?: TypeInfo;
 }
 
 /** Input for WorkflowClientInterceptor.signal */
@@ -106,6 +121,7 @@ export interface WorkflowSignalWithStartInput {
 export interface WorkflowQueryInput {
   readonly queryType: string;
   readonly args: unknown[];
+  readonly typeInfo?: PayloadTypeInfo;
   readonly workflowExecution: WorkflowExecution;
   readonly queryRejectCondition?: temporal.api.enums.v1.QueryRejectCondition;
   readonly headers: Headers;

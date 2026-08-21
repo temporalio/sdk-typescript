@@ -57,10 +57,17 @@ to docs, or any other relevant information.
 
 ### Added
 
+- `createPayloadValidationError` in `@temporalio/common` creates a non-retryable
+  `ApplicationFailure` with structured Payload validation details.
 - Core logs written directly to the console can now use compact, pretty, or newline-delimited JSON
   output via `telemetryOptions.logging.console.format`.
 - **Experimental**: Workflow Clients can now use `TypeInfo` to encode Workflow inputs and decode Workflow results.
-- **Experimental**: `@temporalio/google-adk-agents` package for running Google ADK agents as durable Temporal Workflows.
+- **Experimental**: Query definitions and string-named Client Queries can now provide `TypeInfo` for converting Query
+  arguments and results.
+- **Experimental**: Update definitions and named Update calls can use `TypeInfo` to convert Update arguments and
+  results.
+- **Experimental**: `@temporalio/google-adk-agents` package for running Google ADK agents as durable Temporal Workflows,
+  requiring `@google/adk@>=1.5.0 <1.6.0` as a peer dependency.
   ADK's OpenTelemetry agent-loop spans can be exported replay-safely from the Workflow sandbox by composing with
   `OpenTelemetryPlugin` from `@temporalio/interceptors-opentelemetry`; see the package README's telemetry section.
 - **Experimental**: `TemporalOperationHandler` can now use Standalone Activities as asynchronous
@@ -69,6 +76,8 @@ to docs, or any other relevant information.
 - **Experimental**: Signal definitions can now provide `TypeInfo` for converting Signal arguments on Client and
   Workflow callers and in Workflow handlers.
 - **Experimental**: Workflows can now use `TypeInfo` for Child Workflow inputs and results and continue-as-new inputs.
+- **Experimental**: String-named Signal calls can now provide `TypeInfo` through explicit options on Client and
+  Workflow handles and in signal-with-start requests.
 
 ### Changed
 
@@ -87,6 +96,8 @@ to docs, or any other relevant information.
 - **Experimental**: The external storage S3 and GCS drivers now use `hash_algorithm` and `hash_value` instead of
   `hashAlgorithm` and `hashValue` in their claims. The GCS driver additionally uses `object_name` instead of
   `object`. Retrieval still accepts the old key names.
+- Fixed issue where replaying a workflow with Local Activities scheduled from a nested Promise could
+  trigger a nondeterminism error.
 - `msOptionalToTs()` was incorrectly converting durations of `0` to `undefined`, resulting in incorrect behaviors
    in various places that takes optional durations where `0` is a legitimate value, e.g. `ApplicationFailure.nextRetryDelay()`. Durations of `0` are now properly preserved.
 

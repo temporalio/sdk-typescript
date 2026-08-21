@@ -242,10 +242,10 @@ importers:
         version: 4.2.0
     devDependencies:
       '@google/adk':
-        specifier: ^1.4.0
+        specifier: '>=1.5.0 <1.6.0'
         version: 1.5.0(95461112832787e84a2fde754777b659)
       '@google/genai':
-        specifier: ^2.8.0
+        specifier: ^2.9.0
         version: 2.15.0(@modelcontextprotocol/sdk@1.26.0(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)
       '@opentelemetry/api':
         specifier: ^1.9.0
@@ -327,8 +327,8 @@ importers:
         specifier: ^5.3.1
         version: 5.3.1(supports-color@8.1.1)
       nexus-rpc:
-        specifier: ^0.0.2
-        version: 0.0.2
+        specifier: ^0.0.3
+        version: 0.0.3
       rxjs:
         specifier: 7.8.1
         version: 7.8.1
@@ -388,8 +388,8 @@ importers:
         specifier: ^5.3.1
         version: 5.3.1(supports-color@8.1.1)
       nexus-rpc:
-        specifier: ^0.0.2
-        version: 0.0.2
+        specifier: ^0.0.3
+        version: 0.0.3
       rxjs:
         specifier: 7.8.1
         version: 7.8.1
@@ -428,8 +428,8 @@ importers:
         specifier: ^0.7.9
         version: 0.7.10(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.217.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.36.0(ws@8.21.1)(zod@4.4.3))(ws@8.21.1)
       nexus-rpc:
-        specifier: ^0.0.2
-        version: 0.0.2
+        specifier: ^0.0.3
+        version: 0.0.3
 
   contrib/openai-agents:
     dependencies:
@@ -498,8 +498,8 @@ importers:
         specifier: ^5.3.1
         version: 5.3.1(supports-color@8.1.1)
       nexus-rpc:
-        specifier: ^0.0.2
-        version: 0.0.2
+        specifier: ^0.0.3
+        version: 0.0.3
       openai:
         specifier: ^6.35.0
         version: 6.36.0(ws@8.21.1)(zod@4.4.3)
@@ -617,8 +617,8 @@ importers:
         specifier: ^5.3.2
         version: 5.3.2
       nexus-rpc:
-        specifier: ^0.0.2
-        version: 0.0.2
+        specifier: ^0.0.3
+        version: 0.0.3
       uuid:
         specifier: ^11.1.0
         version: 11.1.0
@@ -658,8 +658,8 @@ importers:
         specifier: 3.0.0-canary.1
         version: 3.0.0-canary.1
       nexus-rpc:
-        specifier: ^0.0.2
-        version: 0.0.2
+        specifier: ^0.0.3
+        version: 0.0.3
       protobufjs:
         specifier: ^8.7.1
         version: 8.7.1
@@ -815,6 +815,9 @@ importers:
       '@temporalio/envconfig':
         specifier: workspace:*
         version: link:../envconfig
+      '@temporalio/google-adk-agents':
+        specifier: workspace:*
+        version: link:../../contrib/google-adk-agents
       '@temporalio/interceptors-opentelemetry':
         specifier: workspace:*
         version: link:../../contrib/interceptors-opentelemetry
@@ -867,8 +870,8 @@ importers:
         specifier: ^5.3.2
         version: 5.3.2
       nexus-rpc:
-        specifier: ^0.0.2
-        version: 0.0.2
+        specifier: ^0.0.3
+        version: 0.0.3
     devDependencies:
       ava:
         specifier: ^5.3.1
@@ -929,8 +932,8 @@ importers:
         specifier: workspace:*
         version: link:../worker
       nexus-rpc:
-        specifier: ^0.0.2
-        version: 0.0.2
+        specifier: ^0.0.3
+        version: 0.0.3
 
   packages/proto:
     dependencies:
@@ -1047,8 +1050,8 @@ importers:
         specifier: 3.0.0-canary.1
         version: 3.0.0-canary.1
       nexus-rpc:
-        specifier: ^0.0.2
-        version: 0.0.2
+        specifier: ^0.0.3
+        version: 0.0.3
       pidusage:
         specifier: ^3.0.2
         version: 3.0.2
@@ -1176,8 +1179,8 @@ importers:
         specifier: ^4.6.0
         version: 4.6.0(quill-delta@5.1.0)(rxjs@7.8.1)(tslib@2.6.2)
       nexus-rpc:
-        specifier: ^0.0.2
-        version: 0.0.2
+        specifier: ^0.0.3
+        version: 0.0.3
       protobufjs:
         specifier: ^8.7.1
         version: 8.7.1
@@ -1216,8 +1219,8 @@ importers:
         specifier: workspace:*
         version: link:../proto
       nexus-rpc:
-        specifier: ^0.0.2
-        version: 0.0.2
+        specifier: ^0.0.3
+        version: 0.0.3
     devDependencies:
       ava:
         specifier: ^5.3.1
@@ -5743,8 +5746,8 @@ packages:
   neo-async@2.6.2:
     resolution: {integrity: sha512-Yd3UES5mWCSqR+qNT93S3UoYUkqAZ9lLg8a7g9rimsWmYGK8cVToA4/sF3RrshdyV3sAGMXVUmpMYOw+dLpOuw==}
 
-  nexus-rpc@0.0.2:
-    resolution: {integrity: sha512-IWjIExdVYlmwXuzHdY/Q3lXCv1gbqoAXPazQhy2w4Xgtgha3H0OOujEESVPQcFUFMWm+pAk2gKnb57g8S41JZg==}
+  nexus-rpc@0.0.3:
+    resolution: {integrity: sha512-ksIBeYHDv6FHAR1h3Vwk0kQ6REhdo1STqDHXMzu/yn/VN/XzgOor2IUjewG6paoA7IgxlIPZoOU/PD78PC6HTg==}
     engines: {node: '>= 20.0.0'}
 
   node-abi@3.94.0:
@@ -7731,19 +7734,19 @@ snapshots:
       '@azure/core-rest-pipeline': 1.25.0(supports-color@8.1.1)
       '@azure/core-tracing': 1.4.0
       '@typespec/ts-http-runtime': 0.3.8(supports-color@8.1.1)
-      tslib: 2.6.2
+      tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
 
   '@azure/abort-controller@2.2.0':
     dependencies:
-      tslib: 2.6.2
+      tslib: 2.8.1
 
   '@azure/core-auth@1.11.0(supports-color@8.1.1)':
     dependencies:
       '@azure/abort-controller': 2.2.0
       '@azure/core-util': 1.14.0(supports-color@8.1.1)
-      tslib: 2.6.2
+      tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
 
@@ -7755,7 +7758,7 @@ snapshots:
       '@azure/core-tracing': 1.4.0
       '@azure/core-util': 1.14.0(supports-color@8.1.1)
       '@azure/logger': 1.4.0(supports-color@8.1.1)
-      tslib: 2.6.2
+      tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
 
@@ -7764,13 +7767,13 @@ snapshots:
       '@azure/abort-controller': 2.2.0
       '@azure/core-util': 1.14.0(supports-color@8.1.1)
       '@azure/logger': 1.4.0(supports-color@8.1.1)
-      tslib: 2.6.2
+      tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
 
   '@azure/core-paging@1.7.0':
     dependencies:
-      tslib: 2.6.2
+      tslib: 2.8.1
 
   '@azure/core-rest-pipeline@1.25.0(supports-color@8.1.1)':
     dependencies:
@@ -7780,19 +7783,19 @@ snapshots:
       '@azure/core-util': 1.14.0(supports-color@8.1.1)
       '@azure/logger': 1.4.0(supports-color@8.1.1)
       '@typespec/ts-http-runtime': 0.3.8(supports-color@8.1.1)
-      tslib: 2.6.2
+      tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
 
   '@azure/core-tracing@1.4.0':
     dependencies:
-      tslib: 2.6.2
+      tslib: 2.8.1
 
   '@azure/core-util@1.14.0(supports-color@8.1.1)':
     dependencies:
       '@azure/abort-controller': 2.2.0
       '@typespec/ts-http-runtime': 0.3.8(supports-color@8.1.1)
-      tslib: 2.6.2
+      tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
 
@@ -7808,7 +7811,7 @@ snapshots:
       '@azure/msal-browser': 5.17.3
       '@azure/msal-node': 5.4.3
       open: 10.2.0
-      tslib: 2.6.2
+      tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
 
@@ -7821,7 +7824,7 @@ snapshots:
       '@azure/core-tracing': 1.4.0
       '@azure/core-util': 1.14.0(supports-color@8.1.1)
       '@azure/logger': 1.4.0(supports-color@8.1.1)
-      tslib: 2.6.2
+      tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
 
@@ -7844,7 +7847,7 @@ snapshots:
   '@azure/logger@1.4.0(supports-color@8.1.1)':
     dependencies:
       '@typespec/ts-http-runtime': 0.3.8(supports-color@8.1.1)
-      tslib: 2.6.2
+      tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
 
@@ -9342,7 +9345,7 @@ snapshots:
 
   '@smithy/types@4.14.3':
     dependencies:
-      tslib: 2.6.2
+      tslib: 2.8.1
 
   '@smithy/util-buffer-from@2.2.0':
     dependencies:
@@ -9761,7 +9764,7 @@ snapshots:
     dependencies:
       http-proxy-agent: 7.0.2(supports-color@8.1.1)
       https-proxy-agent: 7.0.6(supports-color@8.1.1)
-      tslib: 2.6.2
+      tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
 
@@ -12738,7 +12741,7 @@ snapshots:
 
   neo-async@2.6.2: {}
 
-  nexus-rpc@0.0.2: {}
+  nexus-rpc@0.0.3: {}
 
   node-abi@3.94.0:
     dependencies:

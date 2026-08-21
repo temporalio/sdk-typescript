@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- */
-
 import { builtinModules, createRequire } from 'node:module';
 
 import type { BaseLlm } from '@google/adk';
@@ -479,7 +473,7 @@ export class GoogleAdkPlugin extends SimplePlugin {
    * recipe applies identically on both paths and there is no separate
    * `configureWorker`/`configureReplayWorker` bundler override.
    *
-   * The recipe has three parts, all required:
+   * The recipe has four parts, all required:
    *
    *  1. **`webpackConfigHook`** adds {@link googleAdkSandboxCompatPlugin} (the
    *     `node:` strip, shim redirects, and `process` provide) and the
@@ -513,6 +507,14 @@ export class GoogleAdkPlugin extends SimplePlugin {
    *     `@google/adk`/`@google/genai` must import
    *     `@temporalio/google-adk-agents/workflow` (or `./load-polyfills`) first
    *     to install the polyfills.
+   *  4. **`workflowInterceptorModules`** also gets the `absorbed-failure` module
+   *     appended last — the module that re-raises a model failure ADK absorbed
+   *     (`markModelFailureHandled` opts one back out). Interceptor modules compose
+   *     first-is-outermost, so last means innermost, and the re-raise rejects
+   *     *through* the outer interceptors rather than past them: an observability
+   *     interceptor must not close its span OK on a Workflow about to fail. Being
+   *     last is order-dependent, not structural — so list `GoogleAdkPlugin` last in
+   *     `plugins`.
    *
    * Tradeoff: putting **all** disallowed builtins in `ignoreModules` suppresses
    * the bundler's friendly "you imported a Node builtin in your Workflow"
@@ -526,7 +528,11 @@ export class GoogleAdkPlugin extends SimplePlugin {
     return {
       ...base,
       ignoreModules,
-      workflowInterceptorModules: [require.resolve('./load-polyfills'), ...(base.workflowInterceptorModules ?? [])],
+      workflowInterceptorModules: [
+        require.resolve('./load-polyfills'),
+        ...(base.workflowInterceptorModules ?? []),
+        require.resolve('./absorbed-failure'),
+      ],
       webpackConfigHook: addSandboxCompat(base.webpackConfigHook),
     };
   }

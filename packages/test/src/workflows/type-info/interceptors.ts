@@ -1,8 +1,18 @@
 import type { WorkflowInterceptors } from '@temporalio/workflow';
 import { workflowInfo } from '@temporalio/workflow';
-import { workflowTypeInfo } from './type-info';
+import { workflowTypeInfo } from './models';
 
 export const interceptors = (): WorkflowInterceptors => ({
+  inbound: [
+    {
+      handleQuery(input, next) {
+        if (workflowInfo().workflowType !== 'queryTarget' || input.queryName !== 'order-alias') {
+          return next(input);
+        }
+        return next({ ...input, queryName: 'order' });
+      },
+    },
+  ],
   outbound: [
     {
       continueAsNew(input, next) {
