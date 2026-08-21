@@ -57,7 +57,7 @@
     "istanbul-lib-coverage": "^3.2.2",
     "long": "^5.3.2",
     "ms": "3.0.0-canary.1",
-    "nexus-rpc": "^0.0.2",
+    "nexus-rpc": "^0.0.3",
     "pidusage": "^3.0.2",
     "protobufjs": "^8.7.1",
     "protobufjs-cli": "^2.6.1",

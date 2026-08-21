@@ -944,6 +944,7 @@ export class Activator implements ActivationHandler {
         ? {
             handler: this.defaultUpdateHandler.bind(undefined, name),
             validator: undefined,
+            typeInfo: undefined,
             // Default to a warning policy.
             unfinishedPolicy: HandlerUnfinishedPolicy.WARN_AND_ABANDON,
           }
@@ -959,7 +960,7 @@ export class Activator implements ActivationHandler {
       const context = this.workflowSerializationContext();
       return {
         updateId,
-        args: arrayFromPayloads(this.payloadConverter, activation.input, context),
+        args: arrayFromPayloads(this.payloadConverter, activation.input, context, entry.typeInfo?.inputTypes),
         name,
         headers: headers ?? {},
       };
@@ -1031,7 +1032,7 @@ export class Activator implements ActivationHandler {
       const { unfinishedPolicy } = entry;
       this.inProgressUpdates.set(updateId, { name, unfinishedPolicy, id: updateId });
       const res = execute(input)
-        .then((result) => this.completeUpdate(protocolInstanceId, result))
+        .then((result) => this.completeUpdate(protocolInstanceId, result, entry.typeInfo?.outputType))
         .catch((error) => {
           if (error instanceof TemporalFailure) {
             this.rejectUpdate(protocolInstanceId, error);
@@ -1418,10 +1419,13 @@ export class Activator implements ActivationHandler {
     this.pushCommand({ updateResponse: { protocolInstanceId, accepted: {} } });
   }
 
-  private completeUpdate(protocolInstanceId: string, result: unknown): void {
+  private completeUpdate(protocolInstanceId: string, result: unknown, typeInfo?: TypeInfo): void {
     const context = this.workflowSerializationContext();
     this.pushCommand({
-      updateResponse: { protocolInstanceId, completed: this.payloadConverter.toPayload(result, context) },
+      updateResponse: {
+        protocolInstanceId,
+        completed: toPayloadWithTypeInfo(this.payloadConverter, result, context, typeInfo),
+      },
     });
   }
 
