@@ -171,7 +171,7 @@ jobs:
         uses: ./.github/actions/setup-bun-deps
         with:
           platform: ${{ matrix.platform }}
-          version: latest
+          bun-version: latest
 
       # On Windows, the 'runner.temp' variable uses backslashes as path separators, but
       # that may pose problems in later steps when we try to join that with subpaths;
