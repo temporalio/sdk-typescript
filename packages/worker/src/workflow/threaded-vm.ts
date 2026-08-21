@@ -336,10 +336,10 @@ export class VMWorkflowThreadProxy implements Workflow {
   ): Promise<coresdk.workflow_completion.IWorkflowActivationCompletion> {
     const output = await this.workerThreadClient.send({
       type: 'activate-workflow',
-      // Some activation messages get silently dropped by Bun's postMessage.
+      // Before Bun 1.4.0, some activation messages get silently dropped by Bun's postMessage.
       // To work around this bug, we encode activations
       // An example of a failing activation can be found in test-payload-converter.ts 'Worker encodes/decodes a protobuf containing a binary array'
-      activation: isBun ? coresdk.workflow_activation.WorkflowActivation.encode(activation).finish() : activation,
+      activation: isBunPre1_4 ? coresdk.workflow_activation.WorkflowActivation.encode(activation).finish() : activation,
       runId: this.runId,
     });
     if (output?.type !== 'activation-completion') {
