@@ -1,4 +1,14 @@
-import { continueAsNew, defineWorkflowOptions, executeChild, makeContinueAsNewFunc } from '@temporalio/workflow';
+import {
+  continueAsNew,
+  defineWorkflowOptions,
+  executeChild,
+  makeContinueAsNewFunc,
+  proxyActivities,
+  proxyLocalActivities,
+} from '@temporalio/workflow';
+import type { ActivityOptions } from '@temporalio/common';
+import type * as activities from './activities';
+import { activityTypeInfo } from './activity-type-info';
 import { assertOrder, assertReceipt, Order, Receipt, workflowTypeInfo } from './models';
 
 defineWorkflowOptions(workflowWithTypeInfo, {
@@ -73,4 +83,64 @@ export async function continueAsNewWithInterceptorTypeInfo(order: Order): Promis
     workflowType: 'workflowWithTypeInfo',
   });
   return await continueAsTypedWorkflow(order);
+}
+
+const boundedActivityOptions = {
+  startToCloseTimeout: '1 minute',
+  retry: { maximumAttempts: 1 },
+} satisfies ActivityOptions;
+
+const typeInfoActivityWorkflowConfig = {
+  workflowDefinitionOptions: { failureExceptionTypes: [Error] },
+  staticOptions: { typeInfo: workflowTypeInfo },
+};
+
+const typedActivities = proxyActivities<Pick<typeof activities, 'convertOrder'>>({
+  ...boundedActivityOptions,
+  activityTypeInfo,
+});
+
+const typedLocalActivities = proxyLocalActivities<Pick<typeof activities, 'convertOrder'>>({
+  ...boundedActivityOptions,
+  activityTypeInfo,
+});
+
+defineWorkflowOptions(workflowWithTypedActivity, typeInfoActivityWorkflowConfig);
+export async function workflowWithTypedActivity(order: Order): Promise<Receipt> {
+  assertOrder(order);
+  const receipt = await typedActivities.convertOrder.executeWithOptions({ startToCloseTimeout: '30 seconds' }, [order]);
+  assertReceipt(receipt);
+  return receipt;
+}
+
+defineWorkflowOptions(workflowWithTypedLocalActivity, typeInfoActivityWorkflowConfig);
+export async function workflowWithTypedLocalActivity(order: Order): Promise<Receipt> {
+  assertOrder(order);
+  const receipt = await typedLocalActivities.convertOrder.executeWithOptions({ startToCloseTimeout: '30 seconds' }, [
+    order,
+  ]);
+  assertReceipt(receipt);
+  return receipt;
+}
+
+// These proxies intentionally omit TypeInfo so the outbound interceptor is the only metadata source.
+const activitiesConfiguredByInterceptor =
+  proxyActivities<Pick<typeof activities, 'convertOrder'>>(boundedActivityOptions);
+const localActivitiesConfiguredByInterceptor =
+  proxyLocalActivities<Pick<typeof activities, 'convertOrder'>>(boundedActivityOptions);
+
+defineWorkflowOptions(workflowWithInterceptorTypedActivity, typeInfoActivityWorkflowConfig);
+export async function workflowWithInterceptorTypedActivity(order: Order): Promise<Receipt> {
+  assertOrder(order);
+  const receipt = await activitiesConfiguredByInterceptor.convertOrder(order);
+  assertReceipt(receipt);
+  return receipt;
+}
+
+defineWorkflowOptions(workflowWithInterceptorTypedLocalActivity, typeInfoActivityWorkflowConfig);
+export async function workflowWithInterceptorTypedLocalActivity(order: Order): Promise<Receipt> {
+  assertOrder(order);
+  const receipt = await localActivitiesConfiguredByInterceptor.convertOrder(order);
+  assertReceipt(receipt);
+  return receipt;
 }

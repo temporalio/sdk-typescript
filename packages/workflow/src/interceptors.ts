@@ -9,6 +9,7 @@ import type {
   Duration,
   LocalActivityOptions,
   MetricTags,
+  PayloadTypeInfo,
   SignalTypeInfo,
   Timestamp,
   TypeInfo,
@@ -244,6 +245,8 @@ export interface ActivityInput {
   readonly options: ActivityOptions;
   readonly headers: Headers;
   readonly seq: number;
+  /** TypeInfo selected for this invocation. Interceptors may replace it before calling `next`. */
+  readonly typeInfo?: PayloadTypeInfo;
 }
 
 /**
@@ -257,6 +260,8 @@ export interface LocalActivityInput {
   readonly seq: number;
   readonly originalScheduleTime?: Timestamp;
   readonly attempt: number;
+  /** TypeInfo selected for this invocation. Interceptors may replace it before calling `next`. */
+  readonly typeInfo?: PayloadTypeInfo;
 }
 
 /**
