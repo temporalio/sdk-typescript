@@ -19,13 +19,14 @@ import {
 } from '@temporalio/client';
 import type { Payload, PayloadCodec, PayloadTypeInfo } from '@temporalio/common';
 import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
+import type { Info } from '@temporalio/activity';
 import { activityInfo } from '@temporalio/activity';
 import type { TestWorkflowEnvironment } from './helpers';
 import { RUN_INTEGRATION_TESTS, waitUntil, Worker } from './helpers';
 import { echo, throwAnError } from './activities';
 import { heartbeatCancellationDetailsActivity } from './activities/heartbeat-cancellation-details';
 import { createTestWorkflowEnvironment } from './helpers-integration';
-import { convertOrder } from './workflows/type-info/activities';
+import { convertOrder, createAsyncOrderActivities } from './workflows/type-info/activities';
 import { activityTypeInfo } from './workflows/type-info/activity-type-info';
 import { Order, Receipt } from './workflows/type-info/models';
 
@@ -39,6 +40,7 @@ export interface Context {
   runPromise: Promise<void>;
   activityStartedSubject: rxjs.Subject<string>;
   activitySignalSubject: rxjs.Subject<string>;
+  asyncActivityStartedSubject: rxjs.Subject<Info>;
 }
 
 const activities = {
@@ -159,10 +161,12 @@ if (RUN_INTEGRATION_TESTS) {
 
     const activityStartedSubject = new rxjs.Subject<string>();
     const activitySignalSubject = new rxjs.Subject<string>();
+    const asyncActivityStartedSubject = new rxjs.Subject<Info>();
 
     const worker = await Worker.create({
       activities: {
         ...activities,
+        ...createAsyncOrderActivities(asyncActivityStartedSubject),
         waitForSignal: async () => {
           const activityId = activityInfo().activityId;
           const wait = waitForValue(activitySignalSubject, activityId);
@@ -186,6 +190,7 @@ if (RUN_INTEGRATION_TESTS) {
       runPromise,
       activityStartedSubject,
       activitySignalSubject,
+      asyncActivityStartedSubject,
     };
   });
 
@@ -254,6 +259,22 @@ if (RUN_INTEGRATION_TESTS) {
     });
 
     assertReceipt(t, result);
+  });
+
+  test('Async Activity completion by full ID preserves a rich result', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityStarted = rxjs.firstValueFrom(t.context.asyncActivityStartedSubject);
+    const handle = await client.start<Receipt>('completeOrderAsync', {
+      ...typeInfoActivityOptions,
+      id: randomUUID(),
+      args: [new Order('order-1', 12345n)],
+      typeInfo: activityTypeInfo.convertOrder,
+    });
+    const info = await activityStarted;
+    await client.complete({ activityId: info.activityId, runId: info.activityRunId }, new Receipt('order-1', 12345n), {
+      typeInfo: { outputType: activityTypeInfo.convertOrder.outputType },
+    });
+    assertReceipt(t, await handle.result());
   });
 
   test('Detached Activity handle decodes its result with output TypeInfo', async (t) => {

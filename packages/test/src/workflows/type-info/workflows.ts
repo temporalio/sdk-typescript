@@ -100,6 +100,19 @@ const typedActivities = proxyActivities<Pick<typeof activities, 'convertOrder'>>
   activityTypeInfo,
 });
 
+const asyncTypedActivities = proxyActivities<ReturnType<typeof activities.createAsyncOrderActivities>>({
+  ...boundedActivityOptions,
+  activityTypeInfo: { completeOrderAsync: activityTypeInfo.convertOrder },
+});
+
+defineWorkflowOptions(workflowWithAsyncTypedActivity, typeInfoActivityWorkflowConfig);
+export async function workflowWithAsyncTypedActivity(order: Order): Promise<Receipt> {
+  assertOrder(order);
+  const receipt = await asyncTypedActivities.completeOrderAsync(order);
+  assertReceipt(receipt);
+  return receipt;
+}
+
 const typedLocalActivities = proxyLocalActivities<Pick<typeof activities, 'convertOrder'>>({
   ...boundedActivityOptions,
   activityTypeInfo,

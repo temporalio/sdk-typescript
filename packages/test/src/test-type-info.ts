@@ -1,5 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { ExecutionContext } from 'ava';
+import { firstValueFrom, ReplaySubject } from 'rxjs';
+import type { Info } from '@temporalio/activity';
 import type { WorkflowClientInterceptor, WorkflowSignalWithStartOptions } from '@temporalio/client';
 import { Client, WithStartWorkflowOperation, WorkflowFailedError } from '@temporalio/client';
 import { workflowInterceptorModules } from '@temporalio/testing';
@@ -34,10 +36,12 @@ import {
   workflowWithUpdateStart,
   workflowWithTypedActivity,
   workflowWithTypedLocalActivity,
+  workflowWithAsyncTypedActivity,
   workflowWithInterceptorTypedActivity,
   workflowWithInterceptorTypedLocalActivity,
 } from './workflows/type-info';
-import { convertOrder } from './workflows/type-info/activities';
+import { convertOrder, createAsyncOrderActivities } from './workflows/type-info/activities';
+import { activityTypeInfo } from './workflows/type-info/activity-type-info';
 
 function assertReceipt(t: ExecutionContext, receipt: Receipt): void {
   t.true(receipt instanceof Receipt);
@@ -221,6 +225,26 @@ test('Local Activity uses TypeInfo supplied by an outbound interceptor', async (
       args: [new Order('order-1', 12345n)],
     });
     assertReceipt(t, result);
+  });
+});
+
+test('Async Activity completion by task token preserves a rich result', async (t) => {
+  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
+  const client = makeClient(t.context.env);
+  const activityStarted = new ReplaySubject<Info>(1);
+  const worker = await h.createWorker({ activities: createAsyncOrderActivities(activityStarted) });
+
+  await worker.runUntil(async () => {
+    const handle = await client.workflow.start(workflowWithAsyncTypedActivity, {
+      workflowId: `wf-${randomUUID()}`,
+      taskQueue: h.taskQueue,
+      args: [new Order('order-1', 12345n)],
+    });
+    const info = await firstValueFrom(activityStarted);
+    await client.activity.complete(info.taskToken, new Receipt('order-1', 12345n), {
+      typeInfo: { outputType: activityTypeInfo.convertOrder.outputType },
+    });
+    assertReceipt(t, await handle.result());
   });
 });
 
