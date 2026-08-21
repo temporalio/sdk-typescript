@@ -12,6 +12,7 @@ import type {
   SignalTypeInfo,
   UntypedActivities,
   UpdateDefinition,
+  UpdateDefinitionOptions,
   WithWorkflowArgs,
   Workflow,
   WorkflowSerializationContext,
@@ -1307,11 +1308,13 @@ function conditionInner(fn: () => boolean): Promise<void> {
  * A definition can be reused in multiple Workflows.
  */
 export function defineUpdate<Ret, Args extends any[] = [], Name extends string = string>(
-  name: Name
+  name: Name,
+  options: UpdateDefinitionOptions = {}
 ): UpdateDefinition<Ret, Args, Name> {
   return {
     type: 'update',
     name,
+    ...options,
   } as UpdateDefinition<Ret, Args, Name>;
 }
 
@@ -1477,7 +1480,13 @@ export function setHandler<
 
       const validator = updateOptions?.validator as WorkflowUpdateValidatorType | undefined;
       const unfinishedPolicy = updateOptions?.unfinishedPolicy ?? HandlerUnfinishedPolicy.WARN_AND_ABANDON;
-      activator.updateHandlers.set(def.name, { handler, validator, description, unfinishedPolicy });
+      activator.updateHandlers.set(def.name, {
+        handler,
+        validator,
+        description,
+        unfinishedPolicy,
+        typeInfo: def.typeInfo,
+      });
       activator.dispatchBufferedUpdates();
     } else if (handler == null) {
       activator.updateHandlers.delete(def.name);

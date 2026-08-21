@@ -106,6 +106,13 @@ export interface WorkflowUpdateOptions {
    * Update.
    */
   readonly updateId?: string;
+
+  /**
+   * Type information used to convert Update arguments and results when the Update is referenced by name.
+   *
+   * @experimental
+   */
+  typeInfo?: PayloadTypeInfo;
 }
 
 type WorkflowSignalWithStartOptionsBase<SignalArgs extends any[]> = SignalArgs extends [any, ...any[]]

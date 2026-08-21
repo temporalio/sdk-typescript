@@ -9,6 +9,7 @@ import type {
   PayloadTypeInfo,
   SearchAttributePair,
   SignalTypeInfo,
+  TypeInfo,
   TypedSearchAttributes,
 } from '@temporalio/common';
 import { Headers, Next } from '@temporalio/common';
@@ -48,6 +49,8 @@ export interface WorkflowStartInput {
 export interface WorkflowStartUpdateInput {
   readonly updateName: string;
   readonly args: unknown[];
+  /** Type information used to encode Update arguments and decode its result. */
+  readonly typeInfo?: PayloadTypeInfo;
   readonly workflowExecution: WorkflowExecution;
   readonly firstExecutionRunId?: string;
   readonly headers: Headers;
@@ -65,6 +68,8 @@ export interface WorkflowStartUpdateOutput {
   readonly updateId: string;
   readonly workflowRunId: string;
   readonly outcome?: temporal.api.update.v1.IOutcome;
+  /** Type information used to decode the Update result. */
+  readonly outputTypeInfo?: TypeInfo;
 }
 
 /**
@@ -76,6 +81,8 @@ export interface WorkflowStartUpdateWithStartInput {
   readonly workflowStartHeaders: Headers;
   readonly updateName: string;
   readonly updateArgs: unknown[];
+  /** Type information used to encode Update arguments and decode its result. */
+  readonly updateTypeInfo?: PayloadTypeInfo;
   readonly updateOptions: WorkflowUpdateOptions;
   readonly updateHeaders: Headers;
 }
@@ -87,6 +94,8 @@ export interface WorkflowStartUpdateWithStartOutput {
   readonly workflowExecution: WorkflowExecution;
   readonly updateId: string;
   readonly updateOutcome?: temporal.api.update.v1.IOutcome;
+  /** Type information used to decode the Update result. */
+  readonly updateOutputTypeInfo?: TypeInfo;
 }
 
 /** Input for WorkflowClientInterceptor.signal */
