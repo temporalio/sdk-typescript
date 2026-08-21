@@ -215,6 +215,7 @@ function startNexusOperationNextHandler({
           if (!completed) {
             activator.pushCommand({
               requestCancelNexusOperation: { seq },
+              eventGroupMarkers: eventGroupMarkersToProto(options?.eventGroups),
             });
           }
 

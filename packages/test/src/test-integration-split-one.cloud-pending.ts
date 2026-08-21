@@ -658,6 +658,7 @@ test.serial('Workflow can read WorkflowInfo', configMacro, async (t, config) => 
     },
     attempt: 1,
     firstExecutionRunId: handle.firstExecutionRunId,
+    originalExecutionRunId: handle.firstExecutionRunId,
     namespace: 'default',
     taskTimeoutMs: 10_000,
     runId: handle.firstExecutionRunId,

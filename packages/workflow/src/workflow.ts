@@ -242,6 +242,7 @@ function scheduleActivityNextHandler({
             requestCancelActivity: {
               seq,
             },
+            eventGroupMarkers: eventGroupMarkersToProto(options.eventGroups),
           });
         })
       );
@@ -417,7 +418,11 @@ export async function scheduleLocalActivity<R>(
       })) as Promise<R>;
     } catch (err) {
       if (err instanceof LocalActivityDoBackoff) {
-        await sleep(requiredTsToMs(err.backoff.backoffDuration, 'backoffDuration'));
+        // The retry loop starts this timer, not the workflow, so it has to be handed the groups
+        // attached to the activity; the ambient ones it picks up like any other `sleep`.
+        await sleep(requiredTsToMs(err.backoff.backoffDuration, 'backoffDuration'), {
+          eventGroups: options.eventGroups,
+        });
         if (typeof err.backoff.attempt !== 'number') {
           throw new TypeError('Invalid backoff attempt type');
         }
@@ -453,6 +458,7 @@ function startChildWorkflowExecutionNextHandler({
           if (!complete) {
             activator.pushCommand({
               cancelChildWorkflowExecution: { childWorkflowSeq: seq },
+              eventGroupMarkers: eventGroupMarkersToProto(options.eventGroups),
             });
           }
           // Nothing to cancel otherwise

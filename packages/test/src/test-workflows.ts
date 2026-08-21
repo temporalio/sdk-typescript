@@ -181,9 +181,29 @@ async function activate(t: ExecutionContext<Context>, activation: coresdk.workfl
     return currPriority;
   }, 0);
 
+  // Core always sets originating_event_id on SignalWorkflow (the Signaled event), plus
+  // original_execution_run_id on InitializeWorkflow. Protobuf defaults the signal id to 0, which
+  // lang rejects as invalid; fill anything a test omitted so these activations stay shaped like
+  // what Core would actually hand out.
+  let nextSignaledEventId = 2;
+  for (const job of jobs) {
+    if (job.initializeWorkflow) {
+      if (!job.initializeWorkflow.originalExecutionRunId) {
+        job.initializeWorkflow.originalExecutionRunId = runId;
+      }
+    }
+    if (job.signalWorkflow && isUnsetEventId(job.signalWorkflow.originatingEventId)) {
+      job.signalWorkflow.originatingEventId = Long.fromNumber(nextSignaledEventId++);
+    }
+  }
+
   const completion = await workflow.activate(coresdk.workflow_activation.WorkflowActivation.fromObject(activation));
   t.deepEqual(completion.runId, runId);
   return completion;
+}
+
+function isUnsetEventId(eventId: Long | number | null | undefined): boolean {
+  return eventId == null || Long.fromValue(eventId).isZero();
 }
 
 function compareCompletion(
@@ -192,6 +212,7 @@ function compareCompletion(
   expected: coresdk.workflow_completion.IWorkflowActivationCompletion
 ) {
   const stackTraces = extractFailureStackTraces(req, expected);
+  omitUnspecifiedEventGroupMarkers(req, expected);
   t.deepEqual(
     coresdk.workflow_completion.WorkflowActivationCompletion.create(req).toJSON(),
     coresdk.workflow_completion.WorkflowActivationCompletion.create({
@@ -203,6 +224,24 @@ function compareCompletion(
   if (stackTraces) {
     for (const { actual, expected } of stackTraces) {
       compareStackTrace(t, actual, expected);
+    }
+  }
+}
+
+// Implicit signal/update markers now appear on commands issued from those handlers. These tests
+// predate that field and do not assert it; drop it unless the expected command listed markers.
+function omitUnspecifiedEventGroupMarkers(
+  req: coresdk.workflow_completion.IWorkflowActivationCompletion,
+  expected: coresdk.workflow_completion.IWorkflowActivationCompletion
+): void {
+  const reqCommands = req.successful?.commands;
+  const expectedCommands = expected.successful?.commands;
+  if (!reqCommands || !expectedCommands || reqCommands.length !== expectedCommands.length) {
+    return;
+  }
+  for (let i = 0; i < reqCommands.length; i++) {
+    if (reqCommands[i] != null && expectedCommands[i]?.eventGroupMarkers == null) {
+      delete reqCommands[i]!.eventGroupMarkers;
     }
   }
 }
@@ -279,7 +318,11 @@ function makeInitializeWorkflowJob(
   args?: Payload[]
 ): { initializeWorkflow: coresdk.workflow_activation.IInitializeWorkflow } {
   return {
-    initializeWorkflow: { workflowId: 'test-workflowId', workflowType, arguments: args },
+    initializeWorkflow: {
+      workflowId: 'test-workflowId',
+      workflowType,
+      arguments: args,
+    },
   };
 }
 
@@ -374,9 +417,18 @@ async function makeSignalWorkflow(
   return makeActivation(timestamp, makeSignalWorkflowJob(signalName, args));
 }
 
-function makeSignalWorkflowJob(signalName: string, args: any[]): coresdk.workflow_activation.IWorkflowActivationJob {
+let nextMockSignaledEventId = 2;
+
+function makeSignalWorkflowJob(
+  signalName: string,
+  args: any[] = []
+): coresdk.workflow_activation.IWorkflowActivationJob {
   return {
-    signalWorkflow: { signalName, input: toPayloads(defaultPayloadConverter, ...args) },
+    signalWorkflow: {
+      signalName,
+      input: toPayloads(defaultPayloadConverter, ...args),
+      originatingEventId: Long.fromNumber(nextMockSignaledEventId++),
+    },
   };
 }
 
@@ -2286,9 +2338,7 @@ test('failUnlessSignaledBeforeStart', async (t) => {
   const { workflowType } = t.context;
   const completion = await activate(
     t,
-    makeActivation(undefined, makeInitializeWorkflowJob(workflowType), {
-      signalWorkflow: { signalName: 'someShallPass' },
-    })
+    makeActivation(undefined, makeInitializeWorkflowJob(workflowType), makeSignalWorkflowJob('someShallPass'))
   );
   compareCompletion(t, completion, makeSuccess(undefined, [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]));
 });
@@ -2326,13 +2376,7 @@ test('conditionRacer', async (t) => {
   {
     const completion = await activate(
       t,
-      makeActivation(
-        Date.now(),
-        {
-          signalWorkflow: { signalName: 'unblock', input: [] },
-        },
-        makeFireTimerJob(1)
-      )
+      makeActivation(Date.now(), makeSignalWorkflowJob('unblock'), makeFireTimerJob(1))
     );
     compareCompletion(
       t,
@@ -2360,15 +2404,9 @@ test('signalHandlersCanBeCleared', async (t) => {
       t,
       makeActivation(
         Date.now(),
-        {
-          signalWorkflow: { signalName: 'unblock', input: [] },
-        },
-        {
-          signalWorkflow: { signalName: 'unblock', input: [] },
-        },
-        {
-          signalWorkflow: { signalName: 'unblock', input: [] },
-        }
+        makeSignalWorkflowJob('unblock'),
+        makeSignalWorkflowJob('unblock'),
+        makeSignalWorkflowJob('unblock')
       )
     );
     compareCompletion(t, completion, makeSuccess([], [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]));
@@ -2495,13 +2533,13 @@ test('Buffered signals are dispatched to correct handler and in correct order - 
       makeActivation(
         undefined,
         makeInitializeWorkflowJob(workflowType),
-        { signalWorkflow: { signalName: 'non-existant', input: toPayloads(defaultPayloadConverter, 1) } },
-        { signalWorkflow: { signalName: 'signalA', input: toPayloads(defaultPayloadConverter, 2) } },
-        { signalWorkflow: { signalName: 'signalA', input: toPayloads(defaultPayloadConverter, 3) } },
-        { signalWorkflow: { signalName: 'signalC', input: toPayloads(defaultPayloadConverter, 4) } },
-        { signalWorkflow: { signalName: 'signalB', input: toPayloads(defaultPayloadConverter, 5) } },
-        { signalWorkflow: { signalName: 'non-existant', input: toPayloads(defaultPayloadConverter, 6) } },
-        { signalWorkflow: { signalName: 'signalB', input: toPayloads(defaultPayloadConverter, 7) } }
+        makeSignalWorkflowJob('non-existant', [1]),
+        makeSignalWorkflowJob('signalA', [2]),
+        makeSignalWorkflowJob('signalA', [3]),
+        makeSignalWorkflowJob('signalC', [4]),
+        makeSignalWorkflowJob('signalB', [5]),
+        makeSignalWorkflowJob('non-existant', [6]),
+        makeSignalWorkflowJob('signalB', [7])
       )
     );
 
@@ -2544,13 +2582,13 @@ test('Buffered signals dispatch is reentrant  - signalsOrdering2', async (t) => 
       makeActivation(
         undefined,
         makeInitializeWorkflowJob(workflowType),
-        { signalWorkflow: { signalName: 'non-existant', input: toPayloads(defaultPayloadConverter, 1) } },
-        { signalWorkflow: { signalName: 'signalA', input: toPayloads(defaultPayloadConverter, 2) } },
-        { signalWorkflow: { signalName: 'signalA', input: toPayloads(defaultPayloadConverter, 3) } },
-        { signalWorkflow: { signalName: 'signalB', input: toPayloads(defaultPayloadConverter, 4) } },
-        { signalWorkflow: { signalName: 'signalB', input: toPayloads(defaultPayloadConverter, 5) } },
-        { signalWorkflow: { signalName: 'signalC', input: toPayloads(defaultPayloadConverter, 6) } },
-        { signalWorkflow: { signalName: 'signalC', input: toPayloads(defaultPayloadConverter, 7) } }
+        makeSignalWorkflowJob('non-existant', [1]),
+        makeSignalWorkflowJob('signalA', [2]),
+        makeSignalWorkflowJob('signalA', [3]),
+        makeSignalWorkflowJob('signalB', [4]),
+        makeSignalWorkflowJob('signalB', [5]),
+        makeSignalWorkflowJob('signalC', [6]),
+        makeSignalWorkflowJob('signalC', [7])
       )
     );
     compareCompletion(
@@ -2598,11 +2636,9 @@ test("Pending promises can't unblock between signals and updates - 1.11.0+ - sig
 
   {
     const completion = await activate(t, {
-      ...makeActivation(
-        undefined,
-        { signalWorkflow: { signalName: 'fooSignal', input: [] } },
-        { doUpdate: { name: 'fooUpdate', protocolInstanceId: '2', id: 'second' } }
-      ),
+      ...makeActivation(undefined, makeSignalWorkflowJob('fooSignal'), {
+        doUpdate: { name: 'fooUpdate', protocolInstanceId: '2', id: 'second' },
+      }),
       isReplaying: false,
     });
     compareCompletion(
@@ -2642,11 +2678,9 @@ test("Pending promises can't unblock between signals and updates - pre-1.11.0 - 
 
   {
     const completion = await activate(t, {
-      ...makeActivation(
-        undefined,
-        { signalWorkflow: { signalName: 'fooSignal', input: [] } },
-        { doUpdate: { name: 'fooUpdate', protocolInstanceId: '2', id: 'second' } }
-      ),
+      ...makeActivation(undefined, makeSignalWorkflowJob('fooSignal'), {
+        doUpdate: { name: 'fooUpdate', protocolInstanceId: '2', id: 'second' },
+      }),
       isReplaying: true,
     });
     compareCompletion(

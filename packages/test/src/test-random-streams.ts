@@ -98,7 +98,11 @@ function makeActivation(
 
 function makeStartWorkflow(runId: string, workflowType: string): coresdk.workflow_activation.IWorkflowActivation {
   return makeActivation(runId, Date.now(), {
-    initializeWorkflow: { workflowId: `${runId}-workflow`, workflowType },
+    initializeWorkflow: {
+      workflowId: `${runId}-workflow`,
+      workflowType,
+      originalExecutionRunId: runId,
+    },
   });
 }
 

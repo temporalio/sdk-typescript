@@ -156,7 +156,12 @@ if (!wf.inWorkflowContext()) {
       initializeWorkflow: coresdk.workflow_activation.IInitializeWorkflow;
     } {
       return {
-        initializeWorkflow: { workflowId: info.workflowId, workflowType: info.workflowType, arguments: [] },
+        initializeWorkflow: {
+          workflowId: info.workflowId,
+          workflowType: info.workflowType,
+          arguments: [],
+          originalExecutionRunId: info.originalExecutionRunId,
+        },
       };
     }
 
