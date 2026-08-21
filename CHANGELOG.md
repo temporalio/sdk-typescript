@@ -64,6 +64,8 @@ to docs, or any other relevant information.
   Workflow-backed asynchronous handlers must configure matching TypeInfo on the backing Workflow.
 - **Experimental**: Standalone Nexus Clients can use operation `TypeInfo`, including output conversion on detached
   operation handles.
+- **Experimental**: Workflow and standalone Activities can use `TypeInfo` to convert inputs and results, including
+  Local Activities, retained and detached Client handles, and asynchronous completion.
 - Core logs written directly to the console can now use compact, pretty, or newline-delimited JSON
   output via `telemetryOptions.logging.console.format`.
 - **Experimental**: Workflow Clients can now use `TypeInfo` to encode Workflow inputs and decode Workflow results.
