@@ -23,3 +23,17 @@ test('createPayloadValidationError creates a serializable non-retryable Applicat
   t.true(decoded instanceof ApplicationFailure);
   t.deepEqual((decoded as ApplicationFailure).details, [details]);
 });
+
+test('createPayloadValidationError omits nullish details', (t) => {
+  for (const details of [null, undefined]) {
+    const error = createPayloadValidationError(details);
+
+    t.deepEqual(error.details, []);
+
+    const encoded = defaultFailureConverter.errorToFailure(error, defaultPayloadConverter);
+    const decoded = defaultFailureConverter.failureToError(encoded, defaultPayloadConverter);
+
+    t.true(decoded instanceof ApplicationFailure);
+    t.deepEqual((decoded as ApplicationFailure).details, []);
+  }
+});
