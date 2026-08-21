@@ -239,11 +239,9 @@ jobs:
 
       - name: Run Tests (Bun)
         if: matrix.node == 'bun'
-        working-directory: packages/test
-        # Same wrapper as the Node path, but AVA_RUNTIME=bun makes it launch ava
-        # under Bun (mirrors `bun run -b ava`), so Bun is still exercised. Bun runs
-        # the TypeScript wrapper directly (no tsx needed).
-        run: bun ../../scripts/ava-ci.ts ./lib/test-*.js
+        # Run every workspace package's test script, as in the Node path above.
+        # AVA_RUNTIME=bun makes each AVA wrapper launch its tests under Bun.
+        run: pnpm run test
         env:
           AVA_RUNTIME: bun
           RUN_INTEGRATION_TESTS: true
