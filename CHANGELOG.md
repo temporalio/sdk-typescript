@@ -100,6 +100,8 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- **Experimental**: Fixed compatibility with Bun 1.4, including reusable VM context switching,
+  microtask handling, and Worker thread shutdown.
 - **Experimental**: The external storage S3 and GCS drivers now use `hash_algorithm` and `hash_value` instead of
   `hashAlgorithm` and `hashValue` in their claims. The GCS driver additionally uses `object_name` instead of
   `object`. Retrieval still accepts the old key names.
