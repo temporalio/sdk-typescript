@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * Test helpers for users adopting the Google ADK Temporal plugin.
  *
  * These let you unit-test Workflows that use `TemporalModel` / `TemporalMCPToolset`
@@ -127,5 +123,6 @@ class MockMCPTool extends BaseTool {
  * a real server.
  */
 export function mockMCPToolset(definitions: MockMCPToolDefinition[]): MCPToolsetFactory {
-  return () => new MockMCPToolset(definitions);
+  const toolset = new MockMCPToolset(definitions);
+  return () => toolset;
 }

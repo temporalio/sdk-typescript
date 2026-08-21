@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import * as nexus from 'nexus-rpc';
 import type { Payload } from '@temporalio/common';
-import { ApplicationFailure, NexusOperationFailure } from '@temporalio/common';
+import { ApplicationFailure, createPayloadValidationError, NexusOperationFailure } from '@temporalio/common';
 import { Client, WorkflowFailedError } from '@temporalio/client';
 import type { PayloadCodec } from '@temporalio/common/lib/converter/payload-codec';
 import * as workflow from '@temporalio/workflow';
@@ -235,11 +235,8 @@ test('Nexus operation codec PayloadValidationError is a non-retryable bad reques
       for (const payload of payloads) {
         if (payload.data != null && Buffer.from(payload.data).toString() === '"hello"') {
           decodeAttempts++;
-          // The reserved type a codec uses to report that it understood the payload but rejects it.
-          throw ApplicationFailure.create({
-            message: 'Intentional payload validation failure for testing',
-            type: 'PayloadValidationError',
-            nonRetryable: true,
+          throw createPayloadValidationError({
+            violations: [{ path: 'input', reason: 'intentional payload validation failure for testing' }],
           });
         }
       }
@@ -288,7 +285,7 @@ test('Nexus operation codec PayloadValidationError is a non-retryable bad reques
     t.true(handlerError.cause instanceof ApplicationFailure);
     const cause = handlerError.cause as ApplicationFailure;
     t.is(cause.type, 'PayloadValidationError');
-    t.regex(cause.message, /Intentional payload validation failure for testing/);
+    t.is(cause.message, 'Payload validation failed');
   });
 
   // Non-retryable, so the input is only decoded once.
@@ -336,6 +333,6 @@ test('Nexus operation converter PayloadValidationError is a non-retryable bad re
     t.true(handlerError.cause instanceof ApplicationFailure);
     const cause = handlerError.cause as ApplicationFailure;
     t.is(cause.type, 'PayloadValidationError');
-    t.regex(cause.message, /Intentional payload validation failure for testing/);
+    t.is(cause.message, 'Payload validation failed');
   });
 });

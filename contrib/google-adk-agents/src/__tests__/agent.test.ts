@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * Native-runtime integration test — the load-bearing proof that an existing
  * ADK agent becomes durable with no rewrite. A vanilla `LlmAgent` is driven by
  * the SDK's own `InMemoryRunner.runEphemeral` loop inside a Workflow; the only

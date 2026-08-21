@@ -22,3 +22,5 @@ export * as workflowStreamsClient from '@temporalio/workflow-streams/client';
 export * as openaiAgentsWorkflow from '@temporalio/openai-agents/workflow';
 export * as openaiAgentsOtel from '@temporalio/openai-agents/otel';
 export * as langsmith from '@temporalio/langsmith';
+export * as googleAdkAgents from '@temporalio/google-adk-agents';
+export * as googleAdkAgentsWorkflow from '@temporalio/google-adk-agents/workflow';

@@ -9,6 +9,7 @@
     "@temporalio/cloud": "workspace:*",
     "@temporalio/common": "workspace:*",
     "@temporalio/envconfig": "workspace:*",
+    "@temporalio/google-adk-agents": "workspace:*",
     "@temporalio/interceptors-opentelemetry": "workspace:*",
     "@temporalio/interceptors-opentelemetry-v2": "workspace:*",
     "@temporalio/langsmith": "workspace:*",

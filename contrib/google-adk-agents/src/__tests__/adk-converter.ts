@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * A custom payload-converter module that imports `@google/adk`, following the
  * documented workaround: converter modules evaluate before interceptor modules
  * (so before the plugin's polyfill loader), and must therefore import
