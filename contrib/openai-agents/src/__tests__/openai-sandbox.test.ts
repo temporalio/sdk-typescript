@@ -1,6 +1,7 @@
 import test from 'ava';
 import { Agent, handoff } from '@openai/agents-core';
 import {
+  EnvValueReference,
   Manifest,
   SandboxAgent,
   SandboxError,
@@ -483,7 +484,7 @@ test('serializeSessionState round-trips through deserializeSessionState', async 
   t.deepEqual(restored.providerState, { workspacePath: '/tmp/fake-workspace' });
 });
 
-test('providerState fallback (no serializeSessionState) preserves environment, dropping only duplicated envelope fields', async (t) => {
+test('providerState fallback (no serializeSessionState) drops envelope fields and ephemeral keys from providerState', async (t) => {
   class NoSerializeClient extends FakeSandboxClient {
     // Inherits create/resume; deliberately drops the custom (de)serializers so
     // the provider falls back to its own state handling.
@@ -493,8 +494,10 @@ test('providerState fallback (no serializeSessionState) preserves environment, d
 
   const session = new FakeSandboxSession();
   session.state = {
-    manifest: new Manifest(),
-    environment: { SECRET: 'topsecret' },
+    manifest: new Manifest({
+      environment: { SECRET: { value: 'topsecret', ephemeral: true }, PLAIN: 'plainvalue' },
+    }),
+    environment: { SECRET: 'topsecret', PLAIN: 'plainvalue', PROVIDER_INJECTED: 'from-backend' },
     snapshot: { id: 'snap', type: 'local' },
     workspaceReady: true,
     exposedPorts: { 'port:8080': { host: 'h', port: 8080 } },
@@ -507,9 +510,8 @@ test('providerState fallback (no serializeSessionState) preserves environment, d
   const result = await createSession(acts);
   const ps = result.state.providerState;
 
-  // The resolved environment and provider-specific keys are preserved; only the
-  // envelope-owned fields (duplicated at the handle's top level) are dropped.
-  t.deepEqual(ps.environment, { SECRET: 'topsecret' });
+  t.deepEqual(ps.environment, { PLAIN: 'plainvalue', PROVIDER_INJECTED: 'from-backend' });
+  t.false(JSON.stringify(ps).includes('topsecret'));
   t.is(ps.workspaceId, 'abc-123');
   t.is(ps.manifest, undefined);
   t.is(ps.snapshot, undefined);
@@ -517,15 +519,27 @@ test('providerState fallback (no serializeSessionState) preserves environment, d
   t.is(ps.snapshotFingerprintVersion, undefined);
   t.is(ps.workspaceReady, undefined);
   t.is(ps.exposedPorts, undefined);
-  t.true(JSON.stringify(result.state).includes('topsecret'));
 
-  // The matching rehydrate fallback reconstructs the session with its environment intact.
   const fresh = activityMap(new SandboxClientProvider('fake', client));
   await fresh[`fake${SANDBOX_SESSION_EXEC_SUFFIX}`]!({ state: result.state, args: { cmd: 'x' } });
   t.is(client.resumeCalls, 1);
   t.true(client.session.state.manifest instanceof Manifest);
   t.is((client.session.state as { workspaceId?: string }).workspaceId, 'abc-123');
-  t.deepEqual(client.session.state.environment, { SECRET: 'topsecret' });
+  t.deepEqual(client.session.state.environment, { PLAIN: 'plainvalue', PROVIDER_INJECTED: 'from-backend' });
+});
+
+test('providerState fallback leaves a session without a resolved environment alone', async (t) => {
+  class NoSerializeClient extends FakeSandboxClient {
+    serializeSessionState = undefined as any;
+    deserializeSessionState = undefined as any;
+  }
+
+  const session = new FakeSandboxSession();
+  session.state = { manifest: new Manifest(), workspaceReady: true } as unknown as SandboxSessionState;
+  const acts = activityMap(new SandboxClientProvider('fake', new NoSerializeClient(session)));
+
+  const result = await createSession(acts);
+  t.false('environment' in result.state.providerState);
 });
 
 test('deserializeSessionState rejects records without a sessionId', async (t) => {
@@ -849,6 +863,54 @@ test('encodeManifest keeps binary content and all ephemeral entries/env, and is 
   t.is(decoded.environment.API_KEY!.ephemeral, true);
   t.is(decoded.environment.PLAIN!.value, 'value');
   t.deepEqual(decoded.users, [{ name: 'alice' }]);
+});
+
+test('encodeManifest rejects a resolver-backed environment value rather than serializing the unresolved value', (t) => {
+  const resolver = () => 'sk-RESOLVER-SENTINEL';
+
+  for (const [label, manifest] of [
+    ['bare resolver', new Manifest({ environment: { PLAIN: 'value', API_KEY: resolver } })],
+    ['EnvValue.resolve', new Manifest({ environment: { PLAIN: 'value', API_KEY: { value: '', resolve: resolver } } })],
+    [
+      'EnvValue.resolve over a stale value',
+      new Manifest({ environment: { PLAIN: 'value', API_KEY: { value: 'stale', resolve: resolver } } }),
+    ],
+  ] as Array<[string, Manifest]>) {
+    const err = t.throws(() => encodeManifest(manifest), { instanceOf: ApplicationFailure }, label);
+    t.is(err?.type, 'SandboxConfigurationError', label);
+    t.true(err?.nonRetryable, label);
+    t.regex(err!.message, /API_KEY/, label);
+    t.regex(err!.message, /workerEnvValue/, label);
+  }
+});
+
+test('an environment reference this build cannot handle fails as a Temporal failure, not a bare throw', (t) => {
+  class UnregisteredEnvValue extends EnvValueReference {
+    static override readonly type = 'test.unregistered';
+    constructor() {
+      super();
+    }
+    serialize(): Record<string, unknown> {
+      return {};
+    }
+    async resolve(): Promise<string> {
+      return '';
+    }
+  }
+
+  const encodeErr = t.throws(
+    () => encodeManifest(new Manifest({ environment: { API_KEY: new UnregisteredEnvValue() } })),
+    { instanceOf: ApplicationFailure },
+    'encode'
+  );
+  t.is(encodeErr?.type, 'SandboxConfigurationError');
+  t.true(encodeErr?.nonRetryable);
+  t.regex(encodeErr!.message, /API_KEY/);
+
+  const encoded = { ...encodeManifest(new Manifest()), environment: { API_KEY: { type: 'test.unregistered' } } };
+  const decodeErr = t.throws(() => decodeManifest(encoded), { instanceOf: ApplicationFailure }, 'decode');
+  t.is(decodeErr?.type, 'SandboxSessionStateInvalid');
+  t.true(decodeErr?.nonRetryable);
 });
 
 test('session envelope survives a JSON round-trip and revives a live Manifest', (t) => {

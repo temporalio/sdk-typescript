@@ -1,6 +1,12 @@
 import { Agent, type FunctionTool, type RunContext, type Tool } from '@openai/agents-core';
-import { Capability, Manifest, SandboxAgent, type SandboxSessionLike } from '@openai/agents-core/sandbox';
-import { TemporalOpenAIRunner, temporalSandboxClient } from '../../workflow';
+import {
+  Capability,
+  Manifest,
+  SandboxAgent,
+  isEnvValueReference,
+  type SandboxSessionLike,
+} from '@openai/agents-core/sandbox';
+import { TemporalOpenAIRunner, workerEnvValue, temporalSandboxClient } from '../../workflow';
 
 class TestSandboxCapability extends Capability {
   readonly type = 'test_sandbox';
@@ -66,14 +72,68 @@ export async function sandboxAgentWorkflow(): Promise<string> {
   return `${result.finalOutput}`;
 }
 
+/** A sandbox tool that interrupts for approval, so the run preserves its owned session. */
+class ApprovalSandboxCapability extends Capability {
+  readonly type = 'approval_sandbox';
+
+  override tools(): Tool<any>[] {
+    return [
+      {
+        type: 'function',
+        name: 'run_command',
+        description: 'run_command',
+        parameters: {
+          type: 'object',
+          properties: { cmd: { type: 'string' } },
+          required: ['cmd'],
+          additionalProperties: false,
+        } as any,
+        strict: true,
+        invoke: async (_ctx: RunContext<any>, input: string): Promise<string> => {
+          if (!this._session) throw new Error('approval_sandbox capability is not bound to a session');
+          return this._session.execCommand!(JSON.parse(input));
+        },
+        needsApproval: async () => true,
+        isEnabled: async () => true,
+      } as FunctionTool,
+    ];
+  }
+}
+
+export async function sandboxApprovalResumeWorkflow(): Promise<string> {
+  const agent = new SandboxAgent({
+    name: 'sandbox-approval',
+    model: 'gpt-4o-mini',
+    capabilities: [new ApprovalSandboxCapability()],
+    defaultManifest: new Manifest({
+      environment: { API_KEY: workerEnvValue('OPENAI_AGENTS_TEST_MANIFEST_SECRET') },
+    }),
+  });
+  const runner = new TemporalOpenAIRunner();
+  const runConfig = { sandbox: { client: temporalSandboxClient('fake') } };
+
+  const result = await runner.run(agent, 'run a command', { runConfig });
+  if (result.interruptions.length === 0) return 'no-interruption';
+  for (const interruption of result.interruptions) result.state.approve(interruption);
+
+  const resumed = await runner.run(agent, result.state, { runConfig });
+  return `${resumed.finalOutput}`;
+}
+
 export async function sandboxManifestResumeWorkflow(): Promise<string> {
   const client = temporalSandboxClient('fake');
-  const session = await client.create(new Manifest({ entries: { 'base.txt': { type: 'file', content: 'base' } } }));
+  const session = await client.create(
+    new Manifest({
+      entries: { 'base.txt': { type: 'file', content: 'base' } },
+      environment: { API_KEY: workerEnvValue('OPENAI_AGENTS_TEST_MANIFEST_SECRET') },
+    })
+  );
   await session.applyManifest!(new Manifest({ entries: { 'added.txt': { type: 'file', content: 'added' } } }));
   const live = 'added.txt' in session.state.manifest.entries;
   const resumed = await client.resume(session.state);
   const persisted = 'added.txt' in resumed.state.manifest.entries;
-  return `live=${live} persisted=${persisted}`;
+  const reference = isEnvValueReference(resumed.state.manifest.environment.API_KEY);
+  return `live=${live} persisted=${persisted} reference=${reference}`;
 }
 
 export async function sandboxExecWorkflow(): Promise<string> {

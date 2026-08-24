@@ -21,7 +21,17 @@ to docs, or any other relevant information.
 
 ### Added
 
-- **Experimental** The `@temporalio/openai-agents` plugin now supports running OpenAI Agents `SandboxAgent`s as Temporal Workflows; sandbox operations are dispatched as Activities.
+- **Experimental** The `@temporalio/openai-agents` plugin now supports running OpenAI Agents `SandboxAgent`s as Temporal
+  Workflows; sandbox operations are dispatched as Activities.
+- **Experimental** The `@temporalio/openai-agents` Worker plugin can supply hosted tool credentials without recording them
+  in Workflow history.
+- **Experimental** Sandbox `Manifest` environment values can reference allowlisted Worker environment variables without
+  recording their values in Workflow history.
+
+### Breaking Changes
+
+- `@temporalio/openai-agents` now requires `@openai/agents-core` and `@openai/agents-openai` `~0.14.3`. A project
+  pinned to `0.13.x` or earlier hits a peer dependency conflict until it upgrades.
 
 ## [1.21.0] - 2026-07-23
 

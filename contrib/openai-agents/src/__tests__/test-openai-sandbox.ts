@@ -8,6 +8,7 @@ import { FakeModelProvider, textResponse, toolCallResponse } from './stubs/opena
 import { FakeSandboxClient, FakeSandboxSession } from './stubs/sandbox-fakes';
 import {
   sandboxAgentWorkflow,
+  sandboxApprovalResumeWorkflow,
   sandboxArchiveLimitsWorkflow,
   sandboxExecWorkflow,
   sandboxManifestResumeWorkflow,
@@ -22,6 +23,9 @@ const test = makeTestFunction({
 });
 
 const PERMITTED_SPAN_DATA_KEYS = new Set(['sessionId', 'port', 'exitCode', 'byteLength', 'length', 'count']);
+
+const MANIFEST_SECRET_VAR = 'OPENAI_AGENTS_TEST_MANIFEST_SECRET';
+const MANIFEST_SECRET = 'sk-approval-resume-sentinel';
 
 test('SandboxAgent run exercises the full sandbox lifecycle through Activities', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
@@ -60,7 +64,8 @@ test('SandboxAgent run exercises the full sandbox lifecycle through Activities',
   t.true(session.deleteCalls >= 1, 'session.delete() not called');
 });
 
-test('applyManifest updates the Workflow-side manifest and survives resume', async (t) => {
+// Serial: a Worker installs its allowlist process-wide, so a Worker created alongside would switch it off.
+test.serial('applyManifest updates the Workflow-side manifest and survives resume', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
 
   const worker = await createWorker({
@@ -68,14 +73,45 @@ test('applyManifest updates the Workflow-side manifest and survives resume', asy
       new OpenAIAgentsPlugin({
         modelProvider: new FakeModelProvider([]),
         sandboxClientProviders: [new SandboxClientProvider('fake', new FakeSandboxClient())],
+        resolvableWorkerEnvVars: [MANIFEST_SECRET_VAR],
       }),
     ],
   });
 
   await worker.runUntil(async () => {
     const result = await executeWorkflow(sandboxManifestResumeWorkflow);
-    t.is(result, 'live=true persisted=true');
+    t.is(result, 'live=true persisted=true reference=true');
   });
+});
+
+test.serial('a SandboxAgent whose manifest carries a workerEnvValue survives an approval interruption', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+
+  const client = new FakeSandboxClient();
+  const worker = await createWorker({
+    plugins: [
+      new OpenAIAgentsPlugin({
+        modelProvider: new FakeModelProvider([
+          toolCallResponse('run_command', { cmd: 'echo hello' }),
+          textResponse('Done.'),
+        ]),
+        modelParams: { startToCloseTimeout: '30s' },
+        sandboxClientProviders: [new SandboxClientProvider('fake', client)],
+        resolvableWorkerEnvVars: [MANIFEST_SECRET_VAR],
+      }),
+    ],
+  });
+
+  process.env[MANIFEST_SECRET_VAR] = MANIFEST_SECRET;
+  try {
+    await worker.runUntil(async () => {
+      t.is(await executeWorkflow(sandboxApprovalResumeWorkflow), 'Done.');
+    });
+  } finally {
+    delete process.env[MANIFEST_SECRET_VAR];
+  }
+
+  t.true(client.resumeCalls >= 1, 'the preserved session is re-established through resume()');
 });
 
 test('setArchiveLimits is forwarded to the persistWorkspace and hydrateWorkspace Activities', async (t) => {

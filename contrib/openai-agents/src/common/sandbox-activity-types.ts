@@ -13,12 +13,15 @@ import type {
   SandboxSessionSerializationOptions,
   SandboxSessionState,
   SandboxUser,
+  SerializedEnvValueReference,
   Snapshot,
   SnapshotSpec,
   ViewImageArgs,
   WriteStdinArgs,
 } from '@openai/agents-core/sandbox';
-import { Manifest } from '@openai/agents-core/sandbox';
+import { Manifest, isEnvValueReference, serializeEnvValueReference } from '@openai/agents-core/sandbox';
+import { ApplicationFailure } from '@temporalio/common';
+import { bindWorkerEnvVarReferences } from './worker-env-vars';
 
 export const SANDBOX_CLIENT_CREATE_SUFFIX = '-sandbox-client-create';
 export const SANDBOX_CLIENT_RESUME_SUFFIX = '-sandbox-client-resume';
@@ -51,17 +54,15 @@ export function sandboxSpanName(activitySuffix: string): string {
 }
 
 /**
- * JSON-safe representation of the full manifest: binary file contents are
- * base64-encoded with the `{ type: 'base64', data }` marker. The entire manifest
- * is preserved — including ephemeral files, dirs, mounts, and ephemeral
- * environment values — so it reaches the backend unchanged and appears in
- * Temporal history.
+ * Binary file contents are base64-encoded as `{ type: 'base64', data }`. Ephemeral
+ * entries and environment values are preserved, so they reach the backend and appear in history.
+ * An environment value built by `workerEnvValue` travels as the reference itself, never its value.
  */
 export interface EncodedManifest {
   version: number;
   root: string;
   entries: Record<string, unknown>;
-  environment: Record<string, EncodedEnvValue>;
+  environment: Record<string, EncodedEnvValue | SerializedEnvValueReference>;
   users: SandboxUser[];
   groups: SandboxGroup[];
   extraPathGrants: SandboxPathGrant[];
@@ -269,8 +270,34 @@ function decodeEntries(entries: Record<string, unknown>): Record<string, Entry> 
  * cannot be bundled into the Workflow isolate.
  */
 export function encodeManifest(manifest: Manifest): EncodedManifest {
-  const environment: Record<string, EncodedEnvValue> = {};
+  const environment: Record<string, EncodedEnvValue | SerializedEnvValueReference> = {};
   for (const [key, env] of Object.entries(manifest.environment)) {
+    if (isEnvValueReference(env)) {
+      try {
+        environment[key] = serializeEnvValueReference(env);
+      } catch (err) {
+        // A bare throw on the Workflow thread retries the Workflow Task forever.
+        throw ApplicationFailure.create({
+          message: `Cannot encode manifest environment reference '${key}': ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+          type: 'SandboxConfigurationError',
+          nonRetryable: true,
+          cause: err instanceof Error ? err : undefined,
+        });
+      }
+      continue;
+    }
+    if (env.resolver !== undefined) {
+      throw ApplicationFailure.create({
+        message:
+          `Manifest environment value '${key}' uses a resolve() hook, which cannot be serialized into a ` +
+          "Temporal Activity argument. Use workerEnvValue('WORKER_ENV_VAR') to name a Worker " +
+          'environment variable, or resolve the value before building the Manifest.',
+        type: 'SandboxConfigurationError',
+        nonRetryable: true,
+      });
+    }
     const normalized = env.normalized();
     environment[key] = {
       value: normalized.value,
@@ -290,17 +317,32 @@ export function encodeManifest(manifest: Manifest): EncodedManifest {
   };
 }
 
-export function decodeManifest(encoded: EncodedManifest): Manifest {
-  return new Manifest({
-    version: encoded.version,
-    root: encoded.root,
-    entries: decodeEntries(encoded.entries),
-    environment: encoded.environment,
-    users: encoded.users,
-    groups: encoded.groups,
-    extraPathGrants: encoded.extraPathGrants,
-    remoteMountCommandAllowlist: encoded.remoteMountCommandAllowlist,
-  });
+export function decodeManifest(encoded: EncodedManifest, resolvableWorkerEnvVars?: readonly string[]): Manifest {
+  try {
+    const manifest = new Manifest({
+      version: encoded.version,
+      root: encoded.root,
+      entries: decodeEntries(encoded.entries),
+      environment: encoded.environment,
+      users: encoded.users,
+      groups: encoded.groups,
+      extraPathGrants: encoded.extraPathGrants,
+      remoteMountCommandAllowlist: encoded.remoteMountCommandAllowlist,
+    });
+    if (resolvableWorkerEnvVars !== undefined) {
+      bindWorkerEnvVarReferences(manifest.environment, resolvableWorkerEnvVars);
+    }
+    return manifest;
+  } catch (err) {
+    // A bare throw on the Workflow thread retries the Workflow Task forever.
+    if (err instanceof ApplicationFailure) throw err;
+    throw ApplicationFailure.create({
+      message: `Cannot decode the sandbox manifest: ${err instanceof Error ? err.message : String(err)}`,
+      type: 'SandboxSessionStateInvalid',
+      nonRetryable: true,
+      cause: err instanceof Error ? err : undefined,
+    });
+  }
 }
 
 /** Builds the transported session handle, with the manifest encoded via {@link encodeManifest}. */

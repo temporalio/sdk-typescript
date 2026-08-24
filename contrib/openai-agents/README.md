@@ -258,10 +258,11 @@ const session = new WorkflowSafeMemorySession({ initialItems: items });
 
 ## Worker and Client plugin setup
 
-The Worker plugin does four things:
+The Worker plugin does five things:
 
 - Registers the model Activity used by Workflow-side model calls.
 - Registers Activities for configured MCP server providers.
+- Registers Activities for configured sandbox client providers.
 - Adds Workflow, Activity, and Nexus interceptors for trace propagation.
 - Installs Workflow bundle polyfills required by the OpenAI Agents SDK.
 
@@ -510,6 +511,86 @@ export async function statefulMcpWorkflow(prompt: string): Promise<string> {
 
 Dedicated Worker startup and heartbeat failures surface as `ApplicationFailure` type (exported as `DEDICATED_WORKER_FAILURE_TYPE`).
 
+## Sandbox agents
+
+> **Experimental** — sandbox support is subject to change prior to General Availability.
+
+An OpenAI Agents SDK `SandboxAgent` runs commands, edits files, and keeps a workspace inside a sandbox. This plugin dispatches each of those operations as an Activity, so a sandbox-backed agent gets the same durability as the rest of the run.
+
+Register your sandbox backend client under a name on the Worker plugin:
+
+```ts
+import { UnixLocalSandboxClient } from '@openai/agents-core/sandbox/local';
+import { OpenAIProvider } from '@openai/agents-openai';
+import { OpenAIAgentsPlugin, SandboxClientProvider } from '@temporalio/openai-agents';
+
+const plugin = new OpenAIAgentsPlugin({
+  modelProvider: new OpenAIProvider(),
+  sandboxClientProviders: [new SandboxClientProvider('local', new UnixLocalSandboxClient())],
+});
+```
+
+Reference the same provider name from Workflow code:
+
+```ts
+import { SandboxAgent, shell } from '@openai/agents-core/sandbox';
+import { TemporalOpenAIRunner, temporalSandboxClient } from '@temporalio/openai-agents/workflow';
+
+export async function sandboxWorkflow(prompt: string): Promise<string> {
+  const agent = new SandboxAgent({
+    name: 'Coder',
+    model: 'gpt-4o-mini',
+    capabilities: [shell()],
+  });
+
+  const result = await new TemporalOpenAIRunner().run(agent, prompt, {
+    runConfig: { sandbox: { client: temporalSandboxClient('local') } },
+  });
+  return result.finalOutput ?? '';
+}
+```
+
+## Credentials
+
+A credential written into an Activity argument stays in Workflow history. Leave it out of Workflow code and supply it on the Worker instead.
+
+Declare the tool in Workflow code:
+
+```ts
+import { Agent, hostedMcpTool } from '@openai/agents-core';
+
+const docsTool = hostedMcpTool({ serverLabel: 'docs', serverUrl: 'https://mcp.example.com' });
+const agent = new Agent({ name: 'DocsAgent', model: 'gpt-4o-mini', tools: [docsTool] });
+```
+
+Supply the credential on the Worker:
+
+```ts
+import { OpenAIProvider } from '@openai/agents-openai';
+import { OpenAIAgentsPlugin } from '@temporalio/openai-agents';
+
+const plugin = new OpenAIAgentsPlugin({
+  modelProvider: new OpenAIProvider(),
+  hostedToolCredentials: (identity) => {
+    if (identity.tool !== 'hostedMcp' || identity.serverLabel !== 'docs') return undefined;
+    const authorization = process.env.DOCS_MCP_TOKEN;
+    if (!authorization) throw new Error('DOCS_MCP_TOKEN is not set on this Worker');
+    return { authorization };
+  },
+});
+```
+
+For sandbox Manifest environment values, `workerEnvValue(name)` names an allowlisted Worker environment variable that only the Worker resolves.
+
+```ts
+import { workerEnvValue } from '@temporalio/openai-agents/workflow';
+import { Manifest } from '@openai/agents-core/sandbox';
+
+const manifest = new Manifest({ environment: { DB_PASSWORD: workerEnvValue('WORKER_DB_PASSWORD') } });
+```
+
+Allow the variable on the Worker plugin with `resolvableWorkerEnvVars: ['WORKER_DB_PASSWORD']`.
+
 ## Tracing
 
 OpenAI Agents SDK tracing works across Client, Workflow, Activity, Nexus, and MCP boundaries. Workflow replay does not duplicate spans.
@@ -610,9 +691,9 @@ Most applications use two import paths: `@temporalio/openai-agents` in Worker an
 | `@temporalio/openai-agents/otel`                 | Worker or Client | Replay-safe OpenTelemetry setup                             |
 | `@temporalio/openai-agents/workflow-interceptor` | Worker bundling  | Manual `workflowInterceptorModules` wiring without a plugin |
 
-`@temporalio/openai-agents` exports `OpenAIAgentsPlugin`, MCP provider classes, model option types, and `DEDICATED_WORKER_FAILURE_TYPE`. `OpenAIAgentsTraceClientInterceptor` is also public for Clients that need manual interceptor wiring instead of plugin registration.
+`@temporalio/openai-agents` exports `OpenAIAgentsPlugin`, MCP provider classes, `SandboxClientProvider`, model option types, hosted tool credential types, and `DEDICATED_WORKER_FAILURE_TYPE`. `OpenAIAgentsTraceClientInterceptor` is also public for Clients that need manual interceptor wiring instead of plugin registration.
 
-`@temporalio/openai-agents/workflow` exports Workflow-safe APIs: `TemporalOpenAIRunner`, `WorkflowSafeMemorySession`, `activityAsTool`, `nexusOperationAsTool`, `agentAsTool`, `statelessMcpServer`, `statefulMcpServer`, related option/definition types, and `DEDICATED_WORKER_FAILURE_TYPE`.
+`@temporalio/openai-agents/workflow` exports Workflow-safe APIs: `TemporalOpenAIRunner`, `WorkflowSafeMemorySession`, `activityAsTool`, `nexusOperationAsTool`, `agentAsTool`, `statelessMcpServer`, `statefulMcpServer`, `temporalSandboxClient`, `workerEnvValue`, related option/definition types, and `DEDICATED_WORKER_FAILURE_TYPE`.
 
 `@temporalio/openai-agents/otel` exports `createTracerProvider`, `TemporalIdGenerator`, `markReplaySafeTracerProvider`, `isReplaySafeTracerProvider`, and `TemporalOpenAIAgentsTracerProviderOptions`. Install optional peer dependency `@opentelemetry/sdk-trace-base` only when you use this OTel integration.
 
@@ -635,6 +716,7 @@ Any OpenAI Agents SDK `ModelProvider` can be passed as `modelProvider`. The prov
 | Hosted tools            | Supported                | Executed server-side by the model provider                                                     |
 | Stateless MCP servers   | Supported                | Via `StatelessMCPServerProvider` and `statelessMcpServer()`                                    |
 | Stateful MCP servers    | Supported                | Via `StatefulMCPServerProvider` and `statefulMcpServer()`                                      |
+| Sandbox agents          | Supported (experimental) | Via `SandboxClientProvider` and `temporalSandboxClient()`                                      |
 | Sessions                | Supported                | Via `WorkflowSafeMemorySession`; upstream `MemorySession` is rejected                          |
 | Run state and approvals | Supported                | Serialize with `result.state.toString()` and rehydrate with `RunState.fromString`              |
 | Guardrails              | Supported                | Guardrail callbacks must be deterministic                                                      |

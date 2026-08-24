@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import {
   getCurrentTrace,
@@ -13,7 +14,13 @@ import type {
   SandboxSessionState,
 } from '@openai/agents-core/sandbox';
 import { SandboxError } from '@openai/agents-core/sandbox';
+import {
+  isStringRecord,
+  rehydratePersistedEnvironmentForRuntime,
+  sanitizeEnvironmentForPersistence,
+} from '@openai/agents-core/sandbox/internal';
 import { ApplicationFailure } from '@temporalio/common';
+import { bindWorkerEnvVarReferences, registerWorkerEnvVarContext } from '../common/worker-env-vars';
 import {
   SANDBOX_CLIENT_CREATE_SUFFIX,
   SANDBOX_CLIENT_DELETE_SUFFIX,
@@ -69,6 +76,9 @@ import {
 } from '../common/sandbox-activity-types';
 
 type ActivityFunction = (...args: any[]) => Promise<any>;
+
+const workerEnvVarStorage = new AsyncLocalStorage<readonly string[]>();
+registerWorkerEnvVarContext(() => workerEnvVarStorage.getStore());
 
 /**
  * Temporal retries every Activity exception by default, so only a
@@ -146,6 +156,8 @@ function unsupportedOperation(name: string, operation: string): never {
 export class SandboxClientProvider {
   private readonly _sessions = new Map<string, SandboxSession>();
   private readonly _resuming = new Map<string, Promise<SandboxSession>>();
+  private _resolvableWorkerEnvVars: readonly string[] = [];
+  private _workerEnvVarsConfigured = false;
   /** @internal */
   _addTemporalSpans = false;
 
@@ -154,12 +166,41 @@ export class SandboxClientProvider {
     private readonly client: SandboxClient<SandboxClientOptions, SandboxSessionState>
   ) {}
 
+  _setResolvableWorkerEnvVars(names: readonly string[]): void {
+    if (
+      this._workerEnvVarsConfigured &&
+      (this._resolvableWorkerEnvVars.length !== names.length ||
+        this._resolvableWorkerEnvVars.some((name, index) => name !== names[index]))
+    ) {
+      throw new Error(
+        `Sandbox client provider '${this.name}' cannot be shared by plugins with different Worker environment allowlists.`
+      );
+    }
+    this._resolvableWorkerEnvVars = [...names];
+    this._workerEnvVarsConfigured = true;
+  }
+
   private async rehydrateState(payload: SerializedSandboxSessionState): Promise<SandboxSessionState> {
     const record = toSdkStateRecord(payload);
     if (this.client.deserializeSessionState) {
-      return await this.client.deserializeSessionState(record);
+      const state = await workerEnvVarStorage.run(this._resolvableWorkerEnvVars, () =>
+        this.client.deserializeSessionState!(record)
+      );
+      bindWorkerEnvVarReferences(state.manifest.environment, this._resolvableWorkerEnvVars);
+      return state;
     }
-    return { ...record, manifest: decodeManifest(payload.manifest) } as SandboxSessionState;
+    // Mirrors `deserializeLocalSandboxSessionStateValues`: Worker-injected keys are not
+    // in the manifest and cannot be re-derived, so they sit under the rehydrated set.
+    const manifest = decodeManifest(payload.manifest, this._resolvableWorkerEnvVars);
+    const persisted = isStringRecord(record.environment) ? { ...record.environment } : {};
+    const injected = Object.fromEntries(
+      Object.entries(persisted).filter(([key]) => !Object.hasOwn(manifest.environment, key))
+    );
+    return {
+      ...record,
+      manifest,
+      environment: { ...injected, ...(await rehydratePersistedEnvironmentForRuntime(manifest, persisted)) },
+    } as SandboxSessionState;
   }
 
   private async session(payload: SerializedSandboxSessionState): Promise<SandboxSession> {
@@ -195,9 +236,7 @@ export class SandboxClientProvider {
     if (this.client.serializeSessionState) {
       return await this.client.serializeSessionState(state);
     }
-    // Without a real serializer, drop only the envelope-owned fields already
-    // serialized at the session handle's top level; keep everything else —
-    // including the resolved `environment` — so a resumed session is complete.
+    // The envelope carries these fields itself; what is left is what the backend added.
     const {
       manifest: _manifest,
       snapshot: _snapshot,
@@ -205,9 +244,10 @@ export class SandboxClientProvider {
       snapshotFingerprintVersion: _snapshotFingerprintVersion,
       workspaceReady: _workspaceReady,
       exposedPorts: _exposedPorts,
+      environment,
       ...rest
     } = state;
-    return rest;
+    return environment === undefined ? rest : { ...rest, environment: sanitizeEnvironmentForPersistence(state) };
   }
 
   private async sessionResult(sessionId: string, session: SandboxSession): Promise<SandboxSessionResult> {
@@ -232,7 +272,7 @@ export class SandboxClientProvider {
       ): Promise<SandboxSessionResult> => {
         if (!this.client.create) unsupportedOperation(n, 'create');
         const session = await this.client.create({
-          manifest: input.manifest && decodeManifest(input.manifest),
+          manifest: input.manifest && decodeManifest(input.manifest, this._resolvableWorkerEnvVars),
           snapshot: input.snapshot,
           options: input.options,
           concurrencyLimits: input.concurrencyLimits,
@@ -367,7 +407,7 @@ export class SandboxClientProvider {
         input: SandboxApplyManifestInput
       ): Promise<EncodedManifest> => {
         const session = await this.session(input.state);
-        const manifest = decodeManifest(input.manifest);
+        const manifest = decodeManifest(input.manifest, this._resolvableWorkerEnvVars);
         if (session.applyManifest) {
           await session.applyManifest(manifest, input.runAs);
         } else if (session.materializeEntry) {

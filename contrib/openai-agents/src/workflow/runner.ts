@@ -255,6 +255,8 @@ export class TemporalOpenAIRunner {
     if (input instanceof RunState) {
       // Round-trip through fromString so the rehydrated state's agent graph carries our converted
       // agent (with ActivityBackedModel); setCurrentAgent only swaps the top-level ref, not nested ones.
+      // It also drops upstream's live-session identity, which would otherwise resolve manifest
+      // environment references on the Workflow thread rather than in the resume Activity.
       const restored = (await RunState.fromString(converted, input.toString())) as RunState<TContext, TAgent>;
       // Suppress upstream Runner.run's withTrace(state._trace, ...) branch; we want the current Workflow's trace.
       restored.clearTrace();
