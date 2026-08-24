@@ -95,8 +95,7 @@ to docs, or any other relevant information.
   nothing to history, so it backs a synchronous operation: return the result with
   `TemporalOperationResult.sync(...)`; there is no operation token and nothing to cancel. The link the
   server returns for the Workflow that processed the Query is attached to the operation's outbound
-  links, so the caller's NexusOperation history event points back at that Workflow. Requires a server
-  that populates `QueryWorkflowResponse.link`; older servers leave it unset and no link is attached.
+  links, so the caller's NexusOperation history event points back at that Workflow.
 - **Experimental**: Signal definitions can now provide `TypeInfo` for converting Signal arguments on Client and
   Workflow callers and in Workflow handlers.
 - **Experimental**: Workflows can now use `TypeInfo` for Child Workflow inputs and results and continue-as-new inputs.
@@ -127,6 +126,7 @@ to docs, or any other relevant information.
 - `SimplePlugin` no longer appends its `workerInterceptors.workflowModules` to worker options when
   the worker uses a prebuilt `workflowBundle`, as module paths cannot be resolved in that case;
   they are instead applied at bundling time, through the plugin's `configureBundler` method.
+- The dev server used by the test suite is now `v1.8.3-server-1.32.0-162.0`.
 
 ### Fixed
 

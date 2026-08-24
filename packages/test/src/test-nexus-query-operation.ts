@@ -19,7 +19,6 @@ const test = makeTestFunction({
   workflowsPath: __filename,
   workflowEnvironmentOpts: {
     server: {
-      executable: { type: 'cached-download', version: 'v1.8.3-server-1.32.0-162.0' },
       extraArgs: ['--dynamic-config-value', 'system.refreshNexusEndpointsMinWait="0s"'],
     },
   },
