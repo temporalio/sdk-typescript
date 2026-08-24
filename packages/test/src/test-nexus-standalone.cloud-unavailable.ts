@@ -25,6 +25,14 @@ import { generateWorkflowRunOperationToken } from '@temporalio/nexus/lib/token';
 import type { Context } from './helpers-integration';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { waitUntil } from './helpers';
+import {
+  assertOrder,
+  assertReceipt,
+  Order,
+  orderTypeInfo,
+  Receipt,
+  receiptTypeInfo,
+} from './workflows/type-info/models';
 
 const { EventType } = temporal.api.enums.v1;
 
@@ -64,6 +72,17 @@ const testService = nexus.service('testService', {
   blockingAsync: nexus.operation<{ echo: string; wfId?: string }, string>(),
 });
 
+const standaloneTypeInfoService = nexus.service('standaloneTypeInfoService', {
+  convert: nexus.operation<Order, Receipt>({
+    inputType: orderTypeInfo,
+    outputType: receiptTypeInfo,
+  }),
+});
+
+const standaloneTypeInfoServiceWithoutMetadata = nexus.service('standaloneTypeInfoService', {
+  convert: nexus.operation<Order, Receipt>(),
+});
+
 // Creates a test handler and a promise that can be used to wait until the workflow
 // started by blockingAsync has been started.
 function makeTestHandler() {
@@ -100,6 +119,15 @@ function makeTestHandler() {
       ),
     }),
   };
+}
+
+function makeStandaloneTypeInfoHandler() {
+  return nexus.serviceHandler(standaloneTypeInfoService, {
+    async convert(_ctx, input) {
+      assertOrder(input);
+      return new Receipt(input.id, input.totalCents + 1n);
+    },
+  });
 }
 
 function assertWorkflowCallbackLinksToNexusOperation(
@@ -148,6 +176,113 @@ test('start sync operation and get result', async (t) => {
     t.is(typeof handle.operationId, 'string');
     const result = await handle.result();
     t.is(result.value, 'hello');
+  });
+});
+
+test('TypeInfo hydrates standalone start input and retained handle result', async (t) => {
+  const { createWorker, registerNexusEndpoint } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+  const worker = await createWorker({ nexusServices: [makeStandaloneTypeInfoHandler()] });
+
+  await worker.runUntil(async () => {
+    const service = t.context.env.client.nexus.createServiceClient({
+      endpoint: endpointName,
+      service: standaloneTypeInfoService,
+    });
+    const handle = await service.startOperation(
+      standaloneTypeInfoService.operations.convert,
+      new Order('order-1', 41n),
+      {
+        id: `type-info-start-${randomUUID()}`,
+        scheduleToCloseTimeout: '10s',
+      }
+    );
+    const result = await handle.result();
+    assertReceipt(result);
+    t.is(result.summary(), 'order-1:42');
+  });
+});
+
+test('Detached standalone Nexus handle hydrates result using output TypeInfo', async (t) => {
+  const { createWorker, registerNexusEndpoint } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+  const worker = await createWorker({ nexusServices: [makeStandaloneTypeInfoHandler()] });
+
+  await worker.runUntil(async () => {
+    const client = t.context.env.client;
+    const service = client.nexus.createServiceClient({ endpoint: endpointName, service: standaloneTypeInfoService });
+    const id = `type-info-detached-${randomUUID()}`;
+    const handle = await service.startOperation(
+      standaloneTypeInfoService.operations.convert,
+      new Order('order-1', 41n),
+      { id, scheduleToCloseTimeout: '10s' }
+    );
+
+    const detached = client.nexus.getHandle<Receipt>(id, {
+      runId: handle.runId,
+      typeInfo: { outputType: receiptTypeInfo },
+    });
+    const result = await detached.result();
+    assertReceipt(result);
+    t.is(result.summary(), 'order-1:42');
+  });
+});
+
+test('String standalone Nexus execute hydrates input and result using service TypeInfo', async (t) => {
+  const { createWorker, registerNexusEndpoint } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+  const worker = await createWorker({ nexusServices: [makeStandaloneTypeInfoHandler()] });
+
+  await worker.runUntil(async () => {
+    const service = t.context.env.client.nexus.createServiceClient({
+      endpoint: endpointName,
+      service: standaloneTypeInfoService,
+    });
+    const result = await service.executeOperation('convert', new Order('order-1', 7n), {
+      id: `type-info-execute-${randomUUID()}`,
+      scheduleToCloseTimeout: '10s',
+    });
+    assertReceipt(result);
+    t.is(result.summary(), 'order-1:8');
+  });
+});
+
+test('Standalone Nexus interceptors can supply operation TypeInfo', async (t) => {
+  const { createWorker, registerNexusEndpoint } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+  const worker = await createWorker({ nexusServices: [makeStandaloneTypeInfoHandler()] });
+
+  await worker.runUntil(async () => {
+    let startInterceptorCalled = false;
+    let resultInterceptorCalled = false;
+    const interceptor: NexusClientInterceptor = {
+      async startOperation(input, next) {
+        startInterceptorCalled = true;
+        return await next({ ...input, inputType: orderTypeInfo, outputType: receiptTypeInfo });
+      },
+      async getResult(input, next) {
+        resultInterceptorCalled = true;
+        return await next(input);
+      },
+    };
+    const client = new Client({
+      connection: t.context.env.connection,
+      namespace: t.context.env.namespace,
+      interceptors: { nexus: [interceptor] },
+    });
+    const service = client.nexus.createServiceClient({
+      endpoint: endpointName,
+      service: standaloneTypeInfoServiceWithoutMetadata,
+    });
+
+    const result = await service.executeOperation('convert', new Order('order-1', 7n), {
+      id: `type-info-interceptor-${randomUUID()}`,
+      scheduleToCloseTimeout: '10s',
+    });
+    assertReceipt(result);
+    t.is(result.summary(), 'order-1:8');
+    t.true(startInterceptorCalled);
+    t.true(resultInterceptorCalled);
   });
 });
 
