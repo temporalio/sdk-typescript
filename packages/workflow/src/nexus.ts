@@ -134,8 +134,8 @@ export function createNexusServiceClient<T extends nexus.ServiceDefinition>(
       } else {
         operationDefinition = operation;
       }
-      // Casting as string preserves the existing behavior for an unknown operation property name:
-      // the resulting command produces a NexusOperationFailure.NOT_FOUND.
+      // Casting as string to cover up the fact that `opName` might be undefined.
+      // If this happens, then `execute` will produce a `NexusOperationFailure.NOT_FOUND`.
       const opName = operationDefinition?.name as string;
 
       const activator = getActivator();
