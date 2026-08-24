@@ -58,7 +58,8 @@ to docs, or any other relevant information.
 ### Added
 
 - `createPayloadValidationError` in `@temporalio/common` creates a non-retryable
-  `ApplicationFailure` with structured Payload validation details.
+  `ApplicationFailure` with structured Payload validation details when provided. Passing `null` or
+  `undefined` produces a failure without details.
 - Core logs written directly to the console can now use compact, pretty, or newline-delimited JSON
   output via `telemetryOptions.logging.console.format`.
 - **Experimental**: Workflow Clients can now use `TypeInfo` to encode Workflow inputs and decode Workflow results.

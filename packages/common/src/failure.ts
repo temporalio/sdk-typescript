@@ -301,14 +301,15 @@ export interface ApplicationFailureOptions {
  * Create a non-retryable {@link ApplicationFailure} for reporting a Payload validation failure.
  *
  * Payload Converters and Payload Codecs can throw this failure when they understand a Payload but
- * reject it as invalid. The supplied value is stored as a single failure detail.
+ * reject it as invalid. A non-nullish value is stored as a single failure detail; `null` and
+ * `undefined` produce an empty details array.
  */
 export function createPayloadValidationError(details: unknown): ApplicationFailure {
   return ApplicationFailure.create({
     message: 'Payload validation failed',
     type: 'PayloadValidationError',
     nonRetryable: true,
-    details: [details],
+    details: details == null ? [] : [details],
   });
 }
 
