@@ -25,7 +25,7 @@ import type {
 } from './workflow-worker-thread/input';
 import type { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import type { WorkerThreadOutput, WorkerThreadResponse } from './workflow-worker-thread/output';
-import { isBun, isBunPre1_4 } from './bun';
+import { isBunPre1_4 } from './bun';
 import {
   completePatchActivationCallback,
   invokePatchActivationCallbackWithSnapshot,
@@ -33,12 +33,9 @@ import {
   writePatchActivationCallbackResult,
 } from './patch-activation-callback';
 
-function isTerminatedExitCode(exitCode: number): boolean {
-  // Before Bun 1.4.0, 0 was used for a terminated worker thread.
-  // We still allow it to retain 1.3.4 compatibility.
-  // https://nodejs.org/api/worker_threads.html#event-exit
-  return exitCode === 1 || (isBun && exitCode === 0);
-}
+// https://nodejs.org/api/worker_threads.html#event-exit
+// Bun pre 1.4 exits with code 0 instead of 1
+export const TERMINATED_EXIT_CODE = isBunPre1_4 ? 0 : 1;
 
 interface Completion<T> {
   resolve(value: T): void;
@@ -184,7 +181,7 @@ export class WorkerThreadClient {
     await this.send({ type: 'destroy' });
 
     const exitCode = await (isBunPre1_4 ? this.terminateWithBunWorkaround() : this.workerThread.terminate());
-    if (exitCode !== null && !isTerminatedExitCode(exitCode)) {
+    if (exitCode !== null && exitCode !== TERMINATED_EXIT_CODE) {
       throw new UnexpectedError(`Failed to terminate Worker thread, exit code: ${exitCode}`);
     }
   }

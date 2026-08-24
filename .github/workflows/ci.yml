@@ -239,8 +239,6 @@ jobs:
 
       - name: Run Tests (Bun)
         if: matrix.node == 'bun'
-        # Run every workspace package's test script, as in the Node path above.
-        # AVA_RUNTIME=bun makes each AVA wrapper launch its tests under Bun.
         run: pnpm run test
         env:
           AVA_RUNTIME: bun

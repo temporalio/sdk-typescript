@@ -51,11 +51,14 @@ function generateCallIntoScopeScript(): string {
 }
 
 /**
- * Bun's contextified VM global does not preserve numeric properties across context switches.
- * Bun 1.4.0 routes indexed reads through the contextified sandbox, but writes and deletes are
- * still inconsistent. Route only numeric properties through a regular object instead.
+ * Bun has inconsistent handling of numeric properties on the VM-context. In
+ * Bun 1.3.x, reads from the global in the VM may not see numeric properties present on the VM context
+ * object. Bun 1.4.0 fixes those reads, but writes and deletes from inside the VM
+ * global still do not update the VM context.
  *
- * https://github.com/oven-sh/bun/pull/32018
+ * To work around this we replace the `globalThis` value exposed inside the VM with a proxy.
+ * For numeric keys, route Object field operations to a special "numeric" properties object.
+ * Non-numeric keys pass through.
  */
 function generateBunNumericGlobalPropertiesWorkaroundScript(): string {
   return `{
