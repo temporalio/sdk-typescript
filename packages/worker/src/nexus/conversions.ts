@@ -1,8 +1,8 @@
 import { status } from '@grpc/grpc-js';
 import * as nexus from 'nexus-rpc';
 import { isGrpcServiceError, ServiceError } from '@temporalio/client';
-import type { LoadedDataConverter, Payload, ProtoFailure } from '@temporalio/common';
-import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
+import type { LoadedDataConverter, Payload, ProtoFailure, TypeInfo } from '@temporalio/common';
+import { ApplicationFailure, CancelledFailure, fromPayloadWithTypeInfo } from '@temporalio/common';
 import { encodeErrorToFailure, decodeOptionalSingle } from '@temporalio/common/lib/internal-non-workflow';
 import type { temporal } from '@temporalio/proto';
 
@@ -27,9 +27,11 @@ function isPayloadValidationFailure(err: unknown): err is ApplicationFailure {
   return err instanceof ApplicationFailure && err.nonRetryable === true && err.type === PAYLOAD_VALIDATION_ERROR_TYPE;
 }
 
+/** Decode Payload Codecs and apply optional TypeInfo while translating invalid Nexus input errors. */
 export async function decodePayload(
   dataConverter: LoadedDataConverter,
-  payload: temporal.api.common.v1.IPayload | undefined
+  payload: temporal.api.common.v1.IPayload | undefined,
+  typeInfo?: TypeInfo
 ): Promise<unknown> {
   let decoded: Payload | undefined | null;
   try {
@@ -51,7 +53,7 @@ export async function decodePayload(
   }
 
   try {
-    return dataConverter.payloadConverter.fromPayload(decoded);
+    return fromPayloadWithTypeInfo(dataConverter.payloadConverter, decoded, undefined, typeInfo);
   } catch (err) {
     if (isPayloadValidationFailure(err)) {
       throw new nexus.HandlerError('BAD_REQUEST', `Invalid operation input`, {

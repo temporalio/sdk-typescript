@@ -60,6 +60,8 @@ to docs, or any other relevant information.
 - `createPayloadValidationError` in `@temporalio/common` creates a non-retryable
   `ApplicationFailure` with structured Payload validation details when provided. Passing `null` or
   `undefined` produces a failure without details.
+- **Experimental**: Nexus operation definitions can provide `TypeInfo` for Workflow callers and operation handlers.
+  Workflow-backed asynchronous handlers must configure matching TypeInfo on the backing Workflow.
 - Core logs written directly to the console can now use compact, pretty, or newline-delimited JSON
   output via `telemetryOptions.logging.console.format`.
 - **Experimental**: Workflow Clients can now use `TypeInfo` to encode Workflow inputs and decode Workflow results.
@@ -100,7 +102,7 @@ to docs, or any other relevant information.
 - Fixed issue where replaying a workflow with Local Activities scheduled from a nested Promise could
   trigger a nondeterminism error.
 - `msOptionalToTs()` was incorrectly converting durations of `0` to `undefined`, resulting in incorrect behaviors
-   in various places that takes optional durations where `0` is a legitimate value, e.g. `ApplicationFailure.nextRetryDelay()`. Durations of `0` are now properly preserved.
+  in various places that takes optional durations where `0` is a legitimate value, e.g. `ApplicationFailure.nextRetryDelay()`. Durations of `0` are now properly preserved.
 
 ## [1.22.0] - 2026-08-05
 
