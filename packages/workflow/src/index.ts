@@ -86,6 +86,7 @@ export {
   ActivityCancellationType,
   ActivityFailure,
   ActivityOptions,
+  ActivityTypeInfoMap,
   ApplicationFailure,
   CancelledFailure,
   ChildWorkflowFailure,

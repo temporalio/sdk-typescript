@@ -1,5 +1,5 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
-import type { ActivitySerializationContext, StorageDriverTargetInfo } from '@temporalio/common';
+import type { ActivitySerializationContext, PayloadTypeInfo, StorageDriverTargetInfo } from '@temporalio/common';
 import { ensureTemporalFailure } from '@temporalio/common';
 import {
   encodeErrorToFailure,
@@ -53,6 +53,20 @@ export interface AsyncCompletionOperationOptions {
    * @experimental Serialization context is an experimental feature and may change.
    */
   serializationContext?: ActivitySerializationContext;
+}
+
+/**
+ * Options for successfully completing an Activity asynchronously.
+ *
+ * @experimental
+ */
+export interface AsyncCompletionCompleteOptions {
+  /**
+   * Type information used to encode the Activity result.
+   *
+   * @experimental
+   */
+  typeInfo?: Pick<PayloadTypeInfo, 'outputType'>;
 }
 
 /**
@@ -170,21 +184,31 @@ export class AsyncCompletionClient extends BaseClient {
   /**
    * Complete an Activity by task token
    */
-  async complete(taskToken: Uint8Array, result: unknown, options?: AsyncCompletionOperationOptions): Promise<void>;
+  async complete(
+    taskToken: Uint8Array,
+    result: unknown,
+    options?: AsyncCompletionCompleteOptions & AsyncCompletionOperationOptions
+  ): Promise<void>;
   /**
    * Complete an Activity by full ID
    */
-  async complete(fullActivityId: FullActivityId, result: unknown): Promise<void>;
+  async complete(
+    fullActivityId: FullActivityId,
+    result: unknown,
+    options?: AsyncCompletionCompleteOptions
+  ): Promise<void>;
 
   async complete(
     taskTokenOrFullActivityId: Uint8Array | FullActivityId,
     result: unknown,
-    options?: AsyncCompletionOperationOptions
+    options?: AsyncCompletionCompleteOptions & AsyncCompletionOperationOptions
   ): Promise<void> {
+    const outputType = options?.typeInfo?.outputType;
     const payloads = await encodeToPayloadsWithContext(
       this.dataConverter,
       this.serializationContextFor(taskTokenOrFullActivityId, options),
-      [result]
+      [result],
+      outputType === undefined ? undefined : [outputType]
     );
     const externalStorage = this.dataConverter.externalStorage;
     try {
