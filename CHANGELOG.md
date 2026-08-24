@@ -99,6 +99,8 @@ to docs, or any other relevant information.
   `object`. Retrieval still accepts the old key names.
 - Fixed issue where replaying a workflow with Local Activities scheduled from a nested Promise could
   trigger a nondeterminism error.
+- `msOptionalToTs()` was incorrectly converting durations of `0` to `undefined`, resulting in incorrect behaviors
+   in various places that takes optional durations where `0` is a legitimate value, e.g. `ApplicationFailure.nextRetryDelay()`. Durations of `0` are now properly preserved.
 
 ## [1.22.0] - 2026-08-05
 
