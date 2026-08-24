@@ -6,7 +6,7 @@ import {
   isEnvValueReference,
   type SandboxSessionLike,
 } from '@openai/agents-core/sandbox';
-import { TemporalOpenAIRunner, envSecretRef, temporalSandboxClient } from '../../workflow';
+import { TemporalOpenAIRunner, workerEnvValue, temporalSandboxClient } from '../../workflow';
 
 class TestSandboxCapability extends Capability {
   readonly type = 'test_sandbox';
@@ -106,7 +106,7 @@ export async function sandboxApprovalResumeWorkflow(): Promise<string> {
     model: 'gpt-4o-mini',
     capabilities: [new ApprovalSandboxCapability()],
     defaultManifest: new Manifest({
-      environment: { API_KEY: envSecretRef('OPENAI_AGENTS_TEST_MANIFEST_SECRET') },
+      environment: { API_KEY: workerEnvValue('OPENAI_AGENTS_TEST_MANIFEST_SECRET') },
     }),
   });
   const runner = new TemporalOpenAIRunner();
@@ -116,8 +116,6 @@ export async function sandboxApprovalResumeWorkflow(): Promise<string> {
   if (result.interruptions.length === 0) return 'no-interruption';
   for (const interruption of result.interruptions) result.state.approve(interruption);
 
-  // TemporalOpenAIRunner round-trips the RunState, so the preserved live session is not
-  // adopted; the session is re-established Worker-side through resume().
   const resumed = await runner.run(agent, result.state, { runConfig });
   return `${resumed.finalOutput}`;
 }
@@ -127,7 +125,7 @@ export async function sandboxManifestResumeWorkflow(): Promise<string> {
   const session = await client.create(
     new Manifest({
       entries: { 'base.txt': { type: 'file', content: 'base' } },
-      environment: { API_KEY: envSecretRef('OPENAI_AGENTS_TEST_MANIFEST_SECRET') },
+      environment: { API_KEY: workerEnvValue('OPENAI_AGENTS_TEST_MANIFEST_SECRET') },
     })
   );
   await session.applyManifest!(new Manifest({ entries: { 'added.txt': { type: 'file', content: 'added' } } }));

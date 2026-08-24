@@ -24,6 +24,9 @@ const test = makeTestFunction({
 
 const PERMITTED_SPAN_DATA_KEYS = new Set(['sessionId', 'port', 'exitCode', 'byteLength', 'length', 'count']);
 
+const MANIFEST_SECRET_VAR = 'OPENAI_AGENTS_TEST_MANIFEST_SECRET';
+const MANIFEST_SECRET = 'sk-approval-resume-sentinel';
+
 test('SandboxAgent run exercises the full sandbox lifecycle through Activities', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
 
@@ -61,7 +64,8 @@ test('SandboxAgent run exercises the full sandbox lifecycle through Activities',
   t.true(session.deleteCalls >= 1, 'session.delete() not called');
 });
 
-test('applyManifest updates the Workflow-side manifest and survives resume', async (t) => {
+// Serial: a Worker installs its allowlist process-wide, so a Worker created alongside would switch it off.
+test.serial('applyManifest updates the Workflow-side manifest and survives resume', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
 
   const worker = await createWorker({
@@ -69,6 +73,7 @@ test('applyManifest updates the Workflow-side manifest and survives resume', asy
       new OpenAIAgentsPlugin({
         modelProvider: new FakeModelProvider([]),
         sandboxClientProviders: [new SandboxClientProvider('fake', new FakeSandboxClient())],
+        resolvableWorkerEnvVars: [MANIFEST_SECRET_VAR],
       }),
     ],
   });
@@ -79,7 +84,7 @@ test('applyManifest updates the Workflow-side manifest and survives resume', asy
   });
 });
 
-test('a SandboxAgent whose manifest carries an envSecretRef survives an approval interruption', async (t) => {
+test.serial('a SandboxAgent whose manifest carries a workerEnvValue survives an approval interruption', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
 
   const client = new FakeSandboxClient();
@@ -92,19 +97,18 @@ test('a SandboxAgent whose manifest carries an envSecretRef survives an approval
         ]),
         modelParams: { startToCloseTimeout: '30s' },
         sandboxClientProviders: [new SandboxClientProvider('fake', client)],
+        resolvableWorkerEnvVars: [MANIFEST_SECRET_VAR],
       }),
     ],
   });
 
-  process.env.OPENAI_AGENTS_TEST_MANIFEST_SECRET = 'sk-approval-resume-sentinel';
+  process.env[MANIFEST_SECRET_VAR] = MANIFEST_SECRET;
   try {
     await worker.runUntil(async () => {
-      // Workflow-side resolution would fail the Workflow execution with the guard's
-      // SecretReferenceError instead of returning.
       t.is(await executeWorkflow(sandboxApprovalResumeWorkflow), 'Done.');
     });
   } finally {
-    delete process.env.OPENAI_AGENTS_TEST_MANIFEST_SECRET;
+    delete process.env[MANIFEST_SECRET_VAR];
   }
 
   t.true(client.resumeCalls >= 1, 'the preserved session is re-established through resume()');

@@ -21,9 +21,7 @@ import type {
 } from '@openai/agents-core/sandbox';
 import { Manifest, isEnvValueReference, serializeEnvValueReference } from '@openai/agents-core/sandbox';
 import { ApplicationFailure } from '@temporalio/common';
-// Registers the Worker-environment reference type that decodeManifest reconstructs.
-// eslint-disable-next-line import/no-unassigned-import
-import './env-secret-ref';
+import { bindWorkerEnvVarReferences } from './worker-env-vars';
 
 export const SANDBOX_CLIENT_CREATE_SUFFIX = '-sandbox-client-create';
 export const SANDBOX_CLIENT_RESUME_SUFFIX = '-sandbox-client-resume';
@@ -58,7 +56,7 @@ export function sandboxSpanName(activitySuffix: string): string {
 /**
  * Binary file contents are base64-encoded as `{ type: 'base64', data }`. Ephemeral
  * entries and environment values are preserved, so they reach the backend and appear in history.
- * An environment value built by `envSecretRef` travels as the reference itself, never its value.
+ * An environment value built by `workerEnvValue` travels as the reference itself, never its value.
  */
 export interface EncodedManifest {
   version: number;
@@ -278,10 +276,7 @@ export function encodeManifest(manifest: Manifest): EncodedManifest {
       try {
         environment[key] = serializeEnvValueReference(env);
       } catch (err) {
-        // A user-defined reference class registered on the Worker but not in the
-        // Workflow bundle would otherwise throw a bare TypeError out of Workflow
-        // code, failing the Workflow Task forever.
-        if (err instanceof ApplicationFailure) throw err;
+        // A bare throw on the Workflow thread retries the Workflow Task forever.
         throw ApplicationFailure.create({
           message: `Cannot encode manifest environment reference '${key}': ${
             err instanceof Error ? err.message : String(err)
@@ -296,10 +291,9 @@ export function encodeManifest(manifest: Manifest): EncodedManifest {
     if (env.resolver !== undefined) {
       throw ApplicationFailure.create({
         message:
-          `Manifest environment value '${key}' uses a resolve() hook, which cannot be serialized ` +
-          'into a Temporal Activity argument, and whose resolved value the agents SDK persists into ' +
-          "session state unless the value is ephemeral. Use envSecretRef('WORKER_ENV_VAR') to " +
-          'reference a Worker environment variable, or resolve the value before building the Manifest.',
+          `Manifest environment value '${key}' uses a resolve() hook, which cannot be serialized into a ` +
+          "Temporal Activity argument. Use workerEnvValue('WORKER_ENV_VAR') to name a Worker " +
+          'environment variable, or resolve the value before building the Manifest.',
         type: 'SandboxConfigurationError',
         nonRetryable: true,
       });
@@ -323,9 +317,9 @@ export function encodeManifest(manifest: Manifest): EncodedManifest {
   };
 }
 
-export function decodeManifest(encoded: EncodedManifest): Manifest {
+export function decodeManifest(encoded: EncodedManifest, resolvableWorkerEnvVars?: readonly string[]): Manifest {
   try {
-    return new Manifest({
+    const manifest = new Manifest({
       version: encoded.version,
       root: encoded.root,
       entries: decodeEntries(encoded.entries),
@@ -335,10 +329,12 @@ export function decodeManifest(encoded: EncodedManifest): Manifest {
       extraPathGrants: encoded.extraPathGrants,
       remoteMountCommandAllowlist: encoded.remoteMountCommandAllowlist,
     });
+    if (resolvableWorkerEnvVars !== undefined) {
+      bindWorkerEnvVarReferences(manifest.environment, resolvableWorkerEnvVars);
+    }
+    return manifest;
   } catch (err) {
-    // Every construction failure here — unregistered reference type, bad path,
-    // duplicate entry — is a deterministic state error, and an unwrapped throw
-    // would retry the Workflow Task forever.
+    // A bare throw on the Workflow thread retries the Workflow Task forever.
     if (err instanceof ApplicationFailure) throw err;
     throw ApplicationFailure.create({
       message: `Cannot decode the sandbox manifest: ${err instanceof Error ? err.message : String(err)}`,

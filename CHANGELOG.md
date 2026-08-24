@@ -21,21 +21,12 @@ to docs, or any other relevant information.
 
 ### Added
 
-- **Experimental** The `@temporalio/openai-agents` plugin now supports running OpenAI Agents `SandboxAgent`s as Temporal Workflows; sandbox operations are dispatched as Activities.
-- **Experimental** `@temporalio/openai-agents` can now keep hosted tool credentials out of Workflow history: declare the
-  tool without its credential and configure `hostedToolCredentials` on the Worker plugin, and the Worker fills in a
-  hosted MCP tool's `authorization` and `headers`, or a shell or code interpreter tool's domain secrets, inside the model
-  Activity. `HostedToolCredentials`, `HostedToolCredentialsResolver`, `HostedToolDomainSecret`, and
-  `HostedToolIdentity` are exported from `@temporalio/openai-agents`.
-- **Experimental** New `envSecretRef` export from `@temporalio/openai-agents/workflow` for sandbox `Manifest`
-  environment values: it names a Worker environment variable that only the Worker resolves, so the variable name rather
-  than the credential crosses into Workflow history.
-
-### Changed
-
-- **Experimental** `@temporalio/openai-agents` no longer passes on the tool definitions the model echoes back in its
-  response, which carry the credentials the Worker resolved: the raw OpenAI `Response` arrives without its `tools` key
-  on a model response's `providerData` and inside `response_started`, `response_done`, and raw `model` stream events.
+- **Experimental** The `@temporalio/openai-agents` plugin now supports running OpenAI Agents `SandboxAgent`s as Temporal
+  Workflows; sandbox operations are dispatched as Activities.
+- **Experimental** The `@temporalio/openai-agents` Worker plugin can supply hosted tool credentials without recording them
+  in Workflow history.
+- **Experimental** Sandbox `Manifest` environment values can reference allowlisted Worker environment variables without
+  recording their values in Workflow history.
 
 ### Breaking Changes
 

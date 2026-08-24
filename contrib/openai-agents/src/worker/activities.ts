@@ -11,7 +11,6 @@ import {
   type SerializedModelResponse,
   type SerializedStreamEvent,
 } from '../common/serialized-model';
-import { stripEchoedTools, stripEchoedToolsFromStreamEvent } from './echoed-tools';
 import { startAdaptiveHeartbeat } from './heartbeat';
 import { injectHostedToolCredentials, type HostedToolCredentialsResolver } from './hosted-tool-credentials';
 
@@ -37,7 +36,7 @@ export function toSerializedModelResponse(response: ModelResponse): SerializedMo
     } as JsonValue,
     output: response.output as unknown as JsonValue[],
     responseId: response.responseId,
-    providerData: stripEchoedTools(response.providerData) as Record<string, JsonValue> | undefined,
+    providerData: response.providerData as Record<string, JsonValue> | undefined,
   };
 }
 
@@ -163,8 +162,6 @@ export function createModelActivity(
       const stopHeartbeat = startAdaptiveHeartbeat();
 
       try {
-        // Outside the inner catch: toModelInvocationFailure would rewrap a
-        // credential-injection failure as a retryable ModelInvocationError.
         const request = await fromSerializedModelRequest(input.request, hostedToolCredentials);
 
         try {
@@ -183,9 +180,8 @@ export function createModelActivity(
           let modelError: unknown;
           try {
             for await (const event of model.getStreamedResponse(request)) {
-              const stripped = stripEchoedToolsFromStreamEvent(event);
-              events.push(toSerializedStreamEvent(stripped));
-              topic.publish(stripped);
+              events.push(toSerializedStreamEvent(event));
+              topic.publish(event);
             }
           } catch (error) {
             modelError = error;

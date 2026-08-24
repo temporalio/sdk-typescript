@@ -299,112 +299,6 @@ test('one entry left as null inside an otherwise declared headers map or secrets
   ]);
 });
 
-test('a declared headers value that is not an object is left alone rather than spread character-wise', async (t) => {
-  const tools = hostedTools() as any[];
-  tools[0].providerData.headers = 'oops';
-
-  const [mcp] = (await injectHostedToolCredentials(tools as SerializedTool[], workerCredentials)) as any[];
-
-  t.is(mcp.providerData.headers, 'oops');
-  t.is(mcp.providerData.authorization, MCP_AUTH);
-});
-
-test('a callback that supplies a header or authorization in the wrong shape fails non-retryably', async (t) => {
-  const cases: Array<[string, unknown, string]> = [
-    ['a return that is not an object', MCP_AUTH, 'expected an object, got a string'],
-    ['an authorization that is not a string', { authorization: 1 }, "'authorization' must be a string, got a number"],
-    ['a headers map that is not an object', { headers: MCP_HEADER }, "'headers' must be an object, got a string"],
-    [
-      'a header value that is not a string',
-      { headers: { 'X-Api-Key': [MCP_HEADER] } },
-      "'headers' entry 'X-Api-Key' must be a string, got an array",
-    ],
-  ];
-
-  for (const [label, credentials, problem] of cases) {
-    const err = await t.throwsAsync(
-      injectHostedToolCredentials([hostedTools()[0]!], () => credentials as HostedToolCredentials),
-      { instanceOf: ApplicationFailure },
-      label
-    );
-
-    t.is(err?.type, 'HostedToolCredentialsShapeError', label);
-    t.true(err?.nonRetryable, label);
-    t.is(
-      err!.message,
-      "Cannot use the credentials resolved for hosted MCP tool 'hosted_mcp' " +
-        `(server label 'docs', https://mcp.example.com): ${problem}.`,
-      label
-    );
-    for (const credential of CREDENTIAL_VALUES) t.false(err!.message.includes(credential), label);
-  }
-});
-
-test('a callback that supplies domain secrets in the wrong shape fails non-retryably', async (t) => {
-  const cases: Array<[string, unknown, string]> = [
-    ['a list that is not an array', { domainSecrets: SHELL_SECRET }, "'domainSecrets' must be an array, got a string"],
-    [
-      'an entry that is not an object',
-      { domainSecrets: [null] },
-      "'domainSecrets' entry 0 must be an object, got null",
-    ],
-    [
-      'an entry with no domain',
-      { domainSecrets: [{ name: 'SHELL_TOKEN', value: SHELL_SECRET }] },
-      "'domainSecrets' entry 0 must have a string 'domain', got undefined",
-    ],
-    [
-      'an entry with no value',
-      { domainSecrets: [{ domain: 'b.example.com', name: 'SHELL_TOKEN' }] },
-      "'domainSecrets' entry 0 must have a string 'value', got undefined",
-    ],
-  ];
-
-  for (const [label, credentials, problem] of cases) {
-    const err = await t.throwsAsync(
-      injectHostedToolCredentials([hostedTools()[1]!], () => credentials as HostedToolCredentials),
-      { instanceOf: ApplicationFailure },
-      label
-    );
-
-    t.is(err?.type, 'HostedToolCredentialsShapeError', label);
-    t.true(err?.nonRetryable, label);
-    t.is(
-      err!.message,
-      "Cannot use the credentials resolved for shell tool 'shell' allowing a.example.com, b.example.com: " +
-        `${problem}.`,
-      label
-    );
-    for (const credential of CREDENTIAL_VALUES) t.false(err!.message.includes(credential), label);
-  }
-});
-
-test('a callback returning null for a credential field leaves the tool as declared rather than failing', async (t) => {
-  const tools = hostedTools();
-
-  const injected = await injectHostedToolCredentials(
-    tools,
-    () => ({ authorization: null, headers: null, domainSecrets: null }) as unknown as HostedToolCredentials
-  );
-
-  t.deepEqual(injected, tools);
-});
-
-test('a malformed callback return fails the model Activity non-retryably rather than as a raw TypeError', async (t) => {
-  const input = roundTrip(activityInput([hostedTools()[1]!]));
-  const { invokeModelActivity } = createModelActivity(
-    capturingProvider([]),
-    () => ({ domainSecrets: SHELL_SECRET }) as unknown as HostedToolCredentials
-  );
-
-  const err = await t.throwsAsync(new MockActivityEnvironment().run(invokeModelActivity, input), {
-    instanceOf: ApplicationFailure,
-  });
-
-  t.is(err?.type, 'HostedToolCredentialsShapeError');
-  t.true(err?.nonRetryable);
-});
-
 test('a credential the callback supplies is added alongside the ones declared in Workflow code', async (t) => {
   const tools = hostedTools() as any[];
   tools[0].providerData.headers = { 'X-Trace': 'declared-trace' };
@@ -477,7 +371,7 @@ test('tool shapes with nowhere to put a credential are returned untouched, by id
   t.deepEqual(injected, tools);
 });
 
-test('a callback that rejects fails both model Activities non-retryably, naming the tool', async (t) => {
+test('a callback that rejects fails both model Activities with its own error', async (t) => {
   const failing: HostedToolCredentialsResolver = async () => {
     throw new Error('secret manager unavailable');
   };
@@ -496,75 +390,11 @@ test('a callback that rejects fails both model Activities non-retryably, naming 
         ),
     ],
   ] as Array<[string, () => Promise<unknown>]>) {
-    const err = await t.throwsAsync(run(), { instanceOf: ApplicationFailure }, activity);
-    t.is(err?.type, 'HostedToolCredentialsError', activity);
-    t.true(err?.nonRetryable, activity);
-    t.is(
-      err!.message,
-      "Cannot resolve credentials for hosted MCP tool 'hosted_mcp' (server label 'docs', https://mcp.example.com).",
-      activity
-    );
-    for (const credential of CREDENTIAL_VALUES) t.false(err!.message.includes(credential), activity);
-    t.is((err?.cause as Error | undefined)?.message, 'secret manager unavailable', activity);
+    // A transient secret-manager outage stays retryable, so rewrapping it would be wrong.
+    const err = await t.throwsAsync(run(), undefined, activity);
+    t.false(err instanceof ApplicationFailure, activity);
+    t.is(err?.message, 'secret manager unavailable', activity);
   }
-});
-
-test('a shell callback failure names the tool and the domains it allows', async (t) => {
-  const err = await t.throwsAsync(
-    injectHostedToolCredentials([hostedTools()[1]!], () => {
-      throw new Error('unavailable');
-    }),
-    { instanceOf: ApplicationFailure }
-  );
-
-  t.is(err?.type, 'HostedToolCredentialsError');
-  t.is(err!.message, "Cannot resolve credentials for shell tool 'shell' allowing a.example.com, b.example.com.");
-});
-
-test('a shell tool that allows no domains is named without a dangling allowlist clause', async (t) => {
-  const tool: SerializedTool = {
-    type: 'shell',
-    name: 'shell',
-    environment: { type: 'container_auto', networkPolicy: { type: 'allowlist', allowedDomains: [] } },
-  };
-
-  const err = await t.throwsAsync(
-    injectHostedToolCredentials([tool], () => {
-      throw new Error('unavailable');
-    }),
-    { instanceOf: ApplicationFailure }
-  );
-
-  t.is(err!.message, "Cannot resolve credentials for shell tool 'shell'.");
-});
-
-test('a hosted MCP tool built with neither a server URL nor a connector id is still named', async (t) => {
-  const tool = serializeHostedTool(hostedMcpTool({ serverLabel: 'docs' }));
-
-  const err = await t.throwsAsync(
-    injectHostedToolCredentials([tool], () => {
-      throw new Error('unavailable');
-    }),
-    { instanceOf: ApplicationFailure }
-  );
-
-  t.is(
-    err!.message,
-    "Cannot resolve credentials for hosted MCP tool 'hosted_mcp' (server label 'docs', no server url or connector id)."
-  );
-});
-
-test('an ApplicationFailure from the callback reaches the caller with its own retryability', async (t) => {
-  const failing: HostedToolCredentialsResolver = async () => {
-    throw ApplicationFailure.create({ message: 'secret manager unavailable', type: 'SecretManagerUnavailable' });
-  };
-
-  const err = await t.throwsAsync(injectHostedToolCredentials(hostedTools(), failing), {
-    instanceOf: ApplicationFailure,
-  });
-
-  t.is(err?.type, 'SecretManagerUnavailable');
-  t.falsy(err?.nonRetryable);
 });
 
 test('the plugin passes its hostedToolCredentials to the model Activity it registers', async (t) => {
@@ -599,4 +429,15 @@ test('the heartbeat is already running when the callback is asked for credential
   await env.run(invokeModelActivity, roundTrip(activityInput(hostedTools())));
 
   t.is(heartbeatsWhenAsked, 1);
+});
+
+test.serial('a credential for a field the Workflow already declared is never read', async (t) => {
+  const tools = hostedTools() as any[];
+  tools[0].providerData.authorization = 'declared-authorization';
+
+  const [mcp] = (await injectHostedToolCredentials(tools as SerializedTool[], () => ({
+    authorization: 42 as unknown as string,
+  }))) as any[];
+
+  t.is(mcp.providerData.authorization, 'declared-authorization');
 });

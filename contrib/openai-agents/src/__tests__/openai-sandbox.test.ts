@@ -1,6 +1,7 @@
 import test from 'ava';
 import { Agent, handoff } from '@openai/agents-core';
 import {
+  EnvValueReference,
   Manifest,
   SandboxAgent,
   SandboxError,
@@ -879,7 +880,37 @@ test('encodeManifest rejects a resolver-backed environment value rather than ser
     t.is(err?.type, 'SandboxConfigurationError', label);
     t.true(err?.nonRetryable, label);
     t.regex(err!.message, /API_KEY/, label);
+    t.regex(err!.message, /workerEnvValue/, label);
   }
+});
+
+test('an environment reference this build cannot handle fails as a Temporal failure, not a bare throw', (t) => {
+  class UnregisteredEnvValue extends EnvValueReference {
+    static override readonly type = 'test.unregistered';
+    constructor() {
+      super();
+    }
+    serialize(): Record<string, unknown> {
+      return {};
+    }
+    async resolve(): Promise<string> {
+      return '';
+    }
+  }
+
+  const encodeErr = t.throws(
+    () => encodeManifest(new Manifest({ environment: { API_KEY: new UnregisteredEnvValue() } })),
+    { instanceOf: ApplicationFailure },
+    'encode'
+  );
+  t.is(encodeErr?.type, 'SandboxConfigurationError');
+  t.true(encodeErr?.nonRetryable);
+  t.regex(encodeErr!.message, /API_KEY/);
+
+  const encoded = { ...encodeManifest(new Manifest()), environment: { API_KEY: { type: 'test.unregistered' } } };
+  const decodeErr = t.throws(() => decodeManifest(encoded), { instanceOf: ApplicationFailure }, 'decode');
+  t.is(decodeErr?.type, 'SandboxSessionStateInvalid');
+  t.true(decodeErr?.nonRetryable);
 });
 
 test('session envelope survives a JSON round-trip and revives a live Manifest', (t) => {

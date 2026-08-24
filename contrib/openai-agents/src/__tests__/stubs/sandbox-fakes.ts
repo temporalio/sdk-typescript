@@ -152,9 +152,7 @@ export class FakeSandboxClient implements SandboxClient {
     if (createArgs.manifest instanceof Manifest) {
       this.session.state.manifest = createArgs.manifest;
       // create resolves the manifest's environment, ephemeral values included.
-      this.session.state.environment = Object.fromEntries(
-        Object.entries(createArgs.manifest.environment).map(([key, env]) => [key, env.value])
-      );
+      this.session.state.environment = await createArgs.manifest.resolveEnvironment();
     }
     return this.session;
   }

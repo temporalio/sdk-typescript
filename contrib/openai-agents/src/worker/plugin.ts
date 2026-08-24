@@ -55,13 +55,23 @@ export interface OpenAIAgentsPluginOptions {
    * Resolves credentials for the hosted tools an Agent declares — a hosted MCP
    * tool's `authorization` and `headers`, a shell or code interpreter tool's
    * domain secrets — so Workflow code can omit them and keep them out of
-   * Workflow history. Only fields the Workflow left out are filled in.
+   * Workflow history. See {@link HostedToolCredentialsResolver}.
    *
-   * Called on each model invocation for every hosted tool that has somewhere to
-   * put a credential; cache if it reads from a secret manager. A throw fails the
-   * model Activity.
+   * @experimental Worker-side hosted tool credentials are experimental and may change without notice.
    */
   hostedToolCredentials?: HostedToolCredentialsResolver;
+  /**
+   * Allowlist of Worker environment variable names this Worker will read on
+   * behalf of a `workerEnvValue` in a sandbox `Manifest`. Names must match
+   * exactly, except for the entry `'*'`, which allows every name.
+   *
+   * An allowlisted variable that is unset or empty reads as the empty string. A
+   * name outside the allowlist fails the Activity non-retryably.
+   *
+   * @default [] — no name is readable.
+   * @experimental Worker environment variable references are experimental and may change without notice.
+   */
+  resolvableWorkerEnvVars?: readonly string[];
   /**
    * Default Model Activity options (timeouts, retry, Task Queue, etc.).
    * Propagated to the Workflow via the `__openai_agents_config` header.
@@ -89,6 +99,7 @@ export class OpenAIAgentsPlugin extends SimplePlugin {
 
     const interceptorOpts = options.interceptorOptions;
     for (const provider of options.sandboxClientProviders ?? []) {
+      provider._setResolvableWorkerEnvVars(options.resolvableWorkerEnvVars ?? []);
       provider._addTemporalSpans = interceptorOpts?.addTemporalSpans === true;
     }
 
