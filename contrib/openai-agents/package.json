@@ -83,7 +83,7 @@
     "@openai/agents-core": "~0.14.3",
     "@openai/agents-openai": "~0.14.3",
     "@opentelemetry/sdk-trace-base": "^1.25.1",
-    "openai": "^6.35.0"
+    "openai": "^6.46.0"
   },
   "peerDependenciesMeta": {
     "@opentelemetry/sdk-trace-base": {
@@ -103,7 +103,7 @@
     "@temporalio/testing": "workspace:*",
     "ava": "^5.3.1",
     "nexus-rpc": "^0.0.3",
-    "openai": "^6.35.0"
+    "openai": "^6.46.0"
   },
   "engines": {
     "node": ">= 20.3.0"
