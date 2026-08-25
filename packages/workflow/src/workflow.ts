@@ -50,7 +50,7 @@ import { eventGroupMarkersToProto } from './event-groups';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import { composeInterceptors } from './interceptor-composition';
 import { UpdateScope } from './update-scope';
-import type { ActivityOptions, LocalActivityOptions } from './activities';
+import { type ActivityOptions, encodeActivityCancellationType, type LocalActivityOptions } from './activities';
 import type {
   ActivityInput,
   LocalActivityInput,
@@ -85,7 +85,6 @@ import { assertInWorkflowContext, getActivator, maybeGetActivator } from './glob
 import { uuid4FromRandom } from './random-helpers';
 import { untrackPromise } from './stack-helpers';
 import type { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
-import { encodeActivityCancellationType } from './activities';
 
 // Avoid a circular dependency
 registerSleepImplementation(sleep);
@@ -293,9 +292,17 @@ async function scheduleLocalActivityNextHandler({
   const activator = getActivator();
   const activityId = `${seq}`;
   const context = activitySerializationContext(activator.info, activityId, true);
-  // Eagerly fail the local activity (which will in turn fail the workflow task.
-  // Do not fail on replay where the local activities may not be registered on the replay worker.
-  if (!activator.info.unsafe.isReplaying && !activator.registeredActivityNames.has(activityType)) {
+
+  // Eagerly fail the local activity if the worker will not be able to execute it,
+  // e.g. the given activity type is not registered on the local activity worker
+  // and there is no fallback 'default' activity. This obviously doesn't apply
+  // when replaying the workflow history, as the worker won't actually have to run
+  // the activity.
+  if (
+    !activator.info.unsafe.isReplaying &&
+    !activator.registeredActivityNames.has(activityType) &&
+    !activator.registeredActivityNames.has('default')
+  ) {
     throw new ReferenceError(`Local activity of type '${activityType}' not registered on worker`);
   }
   validateLocalActivityOptions(options);
@@ -418,8 +425,6 @@ export async function scheduleLocalActivity<R>(
       })) as Promise<R>;
     } catch (err) {
       if (err instanceof LocalActivityDoBackoff) {
-        // The retry loop starts this timer, not the workflow, so it has to be handed the groups
-        // attached to the activity; the ambient ones it picks up like any other `sleep`.
         await sleep(requiredTsToMs(err.backoff.backoffDuration, 'backoffDuration'), {
           eventGroups: options.eventGroups,
         });
@@ -564,7 +569,6 @@ function signalWorkflowNextHandler({ seq, signalName, args, typeInfo, target, he
               childWorkflowId: target.childWorkflowId,
             }),
       },
-      // Signalling takes no options, so only the ambient scope can contribute markers.
       eventGroupMarkers: eventGroupMarkersToProto(undefined),
     });
 
@@ -886,8 +890,6 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
               runId,
             },
           },
-          // Cancelling an external Workflow takes no options, so only the ambient scope can
-          // contribute markers.
           eventGroupMarkers: eventGroupMarkersToProto(undefined),
         });
         activator.completions.cancelWorkflow.set(seq, {
@@ -1729,7 +1731,6 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
           indexedFields: encodeUnifiedSearchAttributes(undefined, searchAttributes),
         },
       },
-      // This API takes no options, so only the ambient scope can contribute markers.
       eventGroupMarkers: eventGroupMarkersToProto(undefined),
     });
 

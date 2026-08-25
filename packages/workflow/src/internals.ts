@@ -1274,7 +1274,6 @@ export class Activator implements ActivationHandler {
     if (usePatch && !this.sentPatches.has(patchId)) {
       this.pushCommand({
         setPatchMarker: { patchId, deprecated },
-        // The patch APIs take no options, so only the ambient scope can contribute markers.
         eventGroupMarkers: eventGroupMarkersToProto(undefined),
       });
       this.sentPatches.add(patchId);

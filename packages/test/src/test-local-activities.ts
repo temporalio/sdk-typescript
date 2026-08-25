@@ -453,6 +453,24 @@ test.serial('Local activity not registered on Worker throws ReferenceError in wo
   t.pass();
 });
 
+export async function runUnregisteredLocalActivityWithDefaultWorkflow(): Promise<string> {
+  return await workflow.proxyLocalActivities({ startToCloseTimeout: '5s' }).notRegisteredActivity();
+}
+
+test.serial('Local activity falls back to default activity when type is not registered', async (t) => {
+  const { executeWorkflow, createWorker } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      async default(): Promise<string> {
+        return 'from-default';
+      },
+    },
+  });
+  await worker.runUntil(async () => {
+    t.is(await executeWorkflow(runUnregisteredLocalActivityWithDefaultWorkflow), 'from-default');
+  });
+});
+
 test.serial('Local activity not registered on replay Worker does not throw', async (t) => {
   const { startWorkflow, createWorker } = helpers(t);
   const worker = await createWorker({

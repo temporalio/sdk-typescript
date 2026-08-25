@@ -85,7 +85,7 @@ to docs, or any other relevant information.
 - **Experimental**: Workflows can now use `TypeInfo` for Child Workflow inputs and results and continue-as-new inputs.
 - **Experimental**: String-named Signal calls can now provide `TypeInfo` through explicit options on Client and
   Workflow handles and in signal-with-start requests.
-- **Experimental**: Early support for _Event Groups_. **Event Groups**
+- **Experimental**: Experimental support for _Event Groups_. **Event Groups**
   is a new form of Workflow-level metadata that allows for improved
   visibility into a Workflow execution's history by grouping logically
   related Events together based on user-defined or system-inferred criteria.
@@ -104,6 +104,9 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- Local Activities now fall back to a registered `default` activity when the requested type is not
+  registered, matching non-local Activity dispatch. Previously the Workflow Task failed immediately
+  with `ReferenceError` even if `default` was registered.
 - **Experimental**: The external storage S3 and GCS drivers now use `hash_algorithm` and `hash_value` instead of
   `hashAlgorithm` and `hashValue` in their claims. The GCS driver additionally uses `object_name` instead of
   `object`. Retrieval still accepts the old key names.

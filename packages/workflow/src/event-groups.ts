@@ -170,7 +170,8 @@ export function createEventGroup(label: string, options?: { id?: string }): Even
   const activator = assertInWorkflowContext('createEventGroup(...) may only be used from a Workflow Execution');
 
   // When the workflow author doesn't provide an explicit `id`, derive a deterministic, replay-stable
-  // one from the label. The run id to mitigate brute-force recovery of the label from the id.
+  // one from the label. The Original Execution Run ID is used to mitigate brute-force recovery of the
+  // label from the ID, while preserving resetstability across Workflow Execution resets.
   const id = options?.id ?? sha1Hex(`${activator.info.originalExecutionRunId}${label}`);
 
   return ExplicitEventGroupMarkerImpl.withLabel(label, id);

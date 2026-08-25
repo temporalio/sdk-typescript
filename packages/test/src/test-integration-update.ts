@@ -18,7 +18,7 @@ import { loadHistory, waitUntil } from './helpers';
 
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
 // polling/retry strategies result in the expected behavior
-const LONG_POLL_EXPIRATION_INTERVAL_SECONDS = 5.0;
+const LONG_POLL_EXPIRATION_INTERVAL_MS = 5_000;
 // Must exceed the server long-poll above: a single PollWorkflowExecutionUpdate can consume that
 // whole interval, and waitUntil's 5s budget would then allow only one attempt.
 const UPDATE_ADMITTED_WAIT_MS = 20_000;
@@ -31,7 +31,7 @@ const test = makeTestFunction({
     server: {
       extraArgs: [
         '--dynamic-config-value',
-        `history.longPollExpirationInterval="${LONG_POLL_EXPIRATION_INTERVAL_SECONDS}s"`,
+        `history.longPollExpirationInterval="${LONG_POLL_EXPIRATION_INTERVAL_MS}ms"`,
       ],
     },
   },
@@ -45,7 +45,7 @@ export async function workflowWithUpdates(): Promise<string[]> {
   const state: string[] = [];
   const updateHandler = async (arg: string): Promise<string[]> => {
     if (arg === 'wait-for-longer-than-server-long-poll-timeout') {
-      await wf.sleep(LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1500);
+      await wf.sleep(Math.floor(LONG_POLL_EXPIRATION_INTERVAL_MS * 1.5));
     }
     state.push(arg);
     return state;
@@ -718,7 +718,7 @@ test('startUpdate does not return handle before update has reached requested sta
     })
     .then(() => 'update');
   const timeoutPromise = new Promise<string>((f) =>
-    setTimeout(() => f('timeout'), LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1500)
+    setTimeout(() => f('timeout'), LONG_POLL_EXPIRATION_INTERVAL_MS * 1.5)
   );
   t.is(
     await Promise.race([updatePromise, timeoutPromise]),
@@ -838,13 +838,13 @@ test('update result poll throws WorkflowUpdateRPCTimeoutOrCancelledError', async
   await worker.runUntil(async () => {
     const wfHandle = await startWorkflow(workflowWithUpdates);
     const arg = 'wait-for-longer-than-server-long-poll-timeout';
-    await t.context.env.client.withDeadline(Date.now() + LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1000, async () => {
+    await t.context.env.client.withDeadline(Date.now() + LONG_POLL_EXPIRATION_INTERVAL_MS, async () => {
       const err = await t.throwsAsync(wfHandle.executeUpdate(update, { args: [arg] }));
       t.true(err instanceof WorkflowUpdateRPCTimeoutOrCancelledError);
     });
 
     const ctrl = new AbortController();
-    setTimeout(() => ctrl.abort(), LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1000);
+    setTimeout(() => ctrl.abort(), LONG_POLL_EXPIRATION_INTERVAL_MS);
     await t.context.env.client.withAbortSignal(ctrl.signal, async () => {
       const err = await t.throwsAsync(wfHandle.executeUpdate(update, { args: [arg] }));
       t.true(err instanceof WorkflowUpdateRPCTimeoutOrCancelledError);
