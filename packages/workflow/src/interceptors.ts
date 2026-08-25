@@ -4,7 +4,15 @@
  * @module
  */
 
-import type { Duration, MetricTags, PayloadTypeInfo, SignalTypeInfo, Timestamp, TypeInfo, WorkflowExecution } from '@temporalio/common';
+import type {
+  Duration,
+  MetricTags,
+  PayloadTypeInfo,
+  SignalTypeInfo,
+  Timestamp,
+  TypeInfo,
+  WorkflowExecution,
+} from '@temporalio/common';
 import { Headers, Next } from '@temporalio/common';
 import type { coresdk } from '@temporalio/proto';
 import type { ActivityOptions, LocalActivityOptions } from './activities';

@@ -162,6 +162,7 @@ test('(Legacy) ActivityInboundLogInterceptor overrides Context.log if a logger i
 test('(Legacy) ActivityInboundLogInterceptor overrides Context.log if class is extended', async (t) => {
   class CustomActivityInboundLogInterceptor extends ActivityInboundLogInterceptor {
     protected logAttributes(): Record<string, unknown> {
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
       const { namespace: _, ...rest } = super.logAttributes();
       return {
         ...rest,
