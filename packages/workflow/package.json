@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/workflow",
-  "version": "1.21.0",
+  "version": "1.22.0",
   "description": "Temporal.io SDK Workflow sub-package",
   "keywords": [
     "temporal",
@@ -22,7 +22,7 @@
   "types": "lib/index.d.ts",
   "scripts": {
     "build": "tsc --build",
-    "test": "ava ./lib/__tests__/test-*.js"
+    "test": "tsx ../../scripts/ava-ci.ts ./lib/__tests__/test-*.js"
   },
   "ava": {
     "timeout": "60s",
@@ -32,7 +32,7 @@
   "dependencies": {
     "@temporalio/common": "workspace:*",
     "@temporalio/proto": "workspace:*",
-    "nexus-rpc": "^0.0.2"
+    "nexus-rpc": "^0.0.3"
   },
   "devDependencies": {
     "ava": "^5.3.1",

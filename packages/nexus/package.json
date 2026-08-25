@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/nexus",
-  "version": "1.21.0",
+  "version": "1.22.0",
   "description": "Temporal.io SDK Nexus sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -14,7 +14,7 @@
   "license": "MIT",
   "scripts": {
     "build": "tsc --build",
-    "test": "ava ./lib/__tests__/test-*.js"
+    "test": "tsx ../../scripts/ava-ci.ts ./lib/__tests__/test-*.js"
   },
   "ava": {
     "timeout": "60s",
@@ -25,8 +25,8 @@
     "@temporalio/client": "workspace:*",
     "@temporalio/common": "workspace:*",
     "@temporalio/proto": "workspace:*",
-    "long": "^5.2.3",
-    "nexus-rpc": "^0.0.2"
+    "long": "^5.3.2",
+    "nexus-rpc": "^0.0.3"
   },
   "devDependencies": {
     "ava": "^5.3.1"

@@ -269,7 +269,8 @@ export async function MetricTagsWorkflow(): Promise<void> {
 
 test('Metric tags in Workflow works', async (t) => {
   const { createWorker, executeWorkflow, taskQueue } = helpers(t);
-  const tags = `labelA="value-a",labelB="value-b2",labelC="value-c",labelD="value-d",labelX="value-x",labelY="value-y",namespace="default",taskQueue="${taskQueue}",workflowType="MetricTagsWorkflow"`;
+  const namespace = t.context.env.client.options.namespace;
+  const tags = `labelA="value-a",labelB="value-b2",labelC="value-c",labelD="value-d",labelX="value-x",labelY="value-y",namespace="${namespace}",taskQueue="${taskQueue}",workflowType="MetricTagsWorkflow"`;
 
   const worker = await createWorker();
   await worker.runUntil(executeWorkflow(MetricTagsWorkflow));

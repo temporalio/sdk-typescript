@@ -64,6 +64,7 @@ export type LogExporterOptions =
   | {
       type: 'console';
       filter: string;
+      format: 'compact' | 'pretty' | 'json' | null;
     }
   | {
       type: 'forward';
@@ -262,6 +263,7 @@ export interface WorkerOptions {
   defaultHeartbeatThrottleInterval: number;
   maxTaskQueueActivitiesPerSecond: Option<number>;
   maxActivitiesPerSecond: Option<number>;
+  maxEagerActivityReservationsPerWorkflowTask: number;
   shutdownGraceTime: number;
   plugins: string[];
   storageDrivers: string[];

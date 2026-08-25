@@ -546,6 +546,7 @@ mod config {
         default_heartbeat_throttle_interval: Duration,
         max_activities_per_second: Option<f64>,
         max_task_queue_activities_per_second: Option<f64>,
+        max_eager_activity_reservations_per_workflow_task: usize,
         shutdown_grace_time: Option<Duration>,
         plugins: Vec<String>,
         storage_drivers: Vec<String>,
@@ -639,6 +640,9 @@ mod config {
                     self.max_task_queue_activities_per_second,
                 )
                 .maybe_max_worker_activities_per_second(self.max_activities_per_second)
+                .max_eager_activity_reservations_per_workflow_task(
+                    self.max_eager_activity_reservations_per_workflow_task,
+                )
                 .maybe_graceful_shutdown_period(self.shutdown_grace_time)
                 .plugins(
                     self.plugins
@@ -687,11 +691,10 @@ mod config {
 
     impl From<WorkerDeploymentOptions> for CoreWorkerDeploymentOptions {
         fn from(val: WorkerDeploymentOptions) -> Self {
-            Self {
-                version: val.version.into(),
-                use_worker_versioning: val.use_worker_versioning,
-                default_versioning_behavior: val.default_versioning_behavior.map(Into::into),
-            }
+            Self::new(val.version.into())
+                .use_worker_versioning(val.use_worker_versioning)
+                .maybe_default_versioning_behavior(val.default_versioning_behavior.map(Into::into))
+                .build()
         }
     }
 

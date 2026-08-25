@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/plugin",
-  "version": "1.21.0",
+  "version": "1.22.0",
   "description": "Library for plugin creation",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -19,7 +19,7 @@
     "@temporalio/client": "workspace:*",
     "@temporalio/common": "workspace:*",
     "@temporalio/worker": "workspace:*",
-    "nexus-rpc": "^0.0.2"
+    "nexus-rpc": "^0.0.3"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

@@ -9,7 +9,9 @@ import type {
   Duration,
   LocalActivityOptions,
   MetricTags,
+  SignalTypeInfo,
   Timestamp,
+  TypeInfo,
   WorkflowExecution,
 } from '@temporalio/common';
 import { Headers, Next } from '@temporalio/common';
@@ -157,7 +159,6 @@ export interface WorkflowOutboundCallsInterceptor {
   /**
    * Called when Workflow starts a Nexus Operation.
    *
-   * @experimental Nexus support in Temporal SDK is experimental.
    */
   startNexusOperation?: (
     input: StartNexusOperationInput,
@@ -261,10 +262,13 @@ export interface LocalActivityInput {
 /**
  * Input for {@link WorkflowOutboundCallsInterceptor.startNexusOperation}.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface StartNexusOperationInput {
   readonly input: unknown;
+  /** Type information used to encode the operation's single input value. */
+  readonly inputType?: TypeInfo;
+  /** Type information retained to decode the operation result. */
+  readonly outputType?: TypeInfo;
   readonly endpoint: string;
   readonly service: string;
   readonly options: StartNexusOperationOptions;
@@ -276,7 +280,6 @@ export interface StartNexusOperationInput {
 /**
  * Options for starting a Nexus Operation.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface StartNexusOperationOptions {
   /**
@@ -328,7 +331,6 @@ export interface StartNexusOperationOptions {
 /**
  * Output for {@link WorkflowOutboundCallsInterceptor.startNexusOperation}.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface StartNexusOperationOutput {
   /**
@@ -363,6 +365,7 @@ export interface SignalWorkflowInput {
   readonly seq: number;
   readonly signalName: string;
   readonly args: unknown[];
+  readonly typeInfo?: SignalTypeInfo;
   readonly headers: Headers;
   readonly target:
     | {

@@ -2,14 +2,8 @@ import { Model } from '@strands-agents/sdk';
 import type { BaseModelConfig, Message, ModelStreamEvent, StreamOptions } from '@strands-agents/sdk';
 import * as workflow from '@temporalio/workflow';
 import type { ActivityOptions } from '@temporalio/workflow';
-import { ApplicationFailure } from '@temporalio/common';
 import type { Duration } from '@temporalio/common/lib/time';
-import type { InvokeModelInput, InvokeModelStreamingInput, ModelActivity } from './model-activity';
-
-const STRUCTURED_OUTPUT_DISABLED =
-  'TemporalModel.structuredOutput is not supported. Use ' +
-  'TemporalAgent({ structuredOutputSchema: ... }) which routes structured ' +
-  'output through stream() via the structured-output tool.';
+import type { InvokeModelInput, InvokeModelStreamingInput } from './model-activity';
 
 /**
  * Options for {@link TemporalModel}.
@@ -84,11 +78,4 @@ export class TemporalModel extends Model<BaseModelConfig> {
       yield event;
     }
   }
-}
-
-/** Type tag used only to forward the `ModelActivity` type from the activity side. */
-export type _ModelActivityRef = ModelActivity;
-
-export function rejectStructuredOutput(): never {
-  throw ApplicationFailure.nonRetryable(STRUCTURED_OUTPUT_DISABLED);
 }

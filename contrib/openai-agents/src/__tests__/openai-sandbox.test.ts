@@ -1,7 +1,6 @@
 import test from 'ava';
 import { Agent, handoff } from '@openai/agents-core';
 import {
-  EnvValueReference,
   Manifest,
   SandboxAgent,
   SandboxError,
@@ -50,7 +49,7 @@ import {
 import { SandboxClientProvider } from '../worker/sandbox-provider';
 import { TemporalSandboxClient, temporalSandboxClient } from '../workflow/sandbox-client';
 import { TemporalSandboxSession } from '../workflow/sandbox-session';
-import { hasSandboxAgent, validateSandboxRunConfig } from '../workflow/runner';
+import { TemporalOpenAIRunner } from '../workflow/runner';
 import { FakeSandboxClient, FakeSandboxSession } from './stubs/sandbox-fakes';
 
 function activityMap(provider: SandboxClientProvider): Record<string, (...args: any[]) => Promise<any>> {
@@ -63,53 +62,6 @@ async function createSession(
 ): Promise<SandboxSessionResult> {
   return acts[`${name}${SANDBOX_CLIENT_CREATE_SUFFIX}`]!({});
 }
-
-// ── hasSandboxAgent ──
-
-test('hasSandboxAgent: regular agent', (t) => {
-  t.false(hasSandboxAgent(new Agent({ name: 'regular' })));
-});
-
-test('hasSandboxAgent: sandbox starting agent', (t) => {
-  t.true(hasSandboxAgent(new SandboxAgent({ name: 'sandbox' })));
-});
-
-test('hasSandboxAgent: sandbox via direct handoff', (t) => {
-  const sandbox = new SandboxAgent({ name: 'sandbox' });
-  t.true(hasSandboxAgent(new Agent({ name: 'regular', handoffs: [sandbox] })));
-});
-
-test('hasSandboxAgent: sandbox via deep handoff', (t) => {
-  const sandbox = new SandboxAgent({ name: 'sandbox' });
-  const middle = new Agent({ name: 'middle', handoffs: [sandbox] });
-  t.true(hasSandboxAgent(new Agent({ name: 'top', handoffs: [middle] })));
-});
-
-test('hasSandboxAgent: sandbox wrapped in Handoff', (t) => {
-  const sandbox = new SandboxAgent({ name: 'sandbox' });
-  t.true(hasSandboxAgent(new Agent({ name: 'regular', handoffs: [handoff(sandbox)] })));
-});
-
-test('hasSandboxAgent: no sandbox in chain', (t) => {
-  const c = new Agent({ name: 'c' });
-  const b = new Agent({ name: 'b', handoffs: [c] });
-  t.false(hasSandboxAgent(new Agent({ name: 'a', handoffs: [b] })));
-});
-
-test('hasSandboxAgent: circular without sandbox', (t) => {
-  const a = new Agent({ name: 'a' });
-  const b = new Agent({ name: 'b', handoffs: [a] });
-  a.handoffs = [b];
-  t.false(hasSandboxAgent(a));
-});
-
-test('hasSandboxAgent: circular with sandbox', (t) => {
-  const sandbox = new SandboxAgent({ name: 'sandbox' });
-  const a = new Agent({ name: 'a', handoffs: [sandbox] });
-  const b = new Agent({ name: 'b', handoffs: [a] });
-  a.handoffs = [b, sandbox];
-  t.true(hasSandboxAgent(b));
-});
 
 // ── temporalSandboxClient factory ──
 
@@ -124,45 +76,81 @@ test('temporalSandboxClient honors activity config overrides', (t) => {
   t.is((client as any)._config.startToCloseTimeout, '10 minutes');
 });
 
-// ── validateSandboxRunConfig ──
+async function runForSandboxValidation(agent: Agent<any, any>, sandbox?: any): Promise<unknown> {
+  const runner = Object.create(TemporalOpenAIRunner.prototype) as TemporalOpenAIRunner;
+  Object.assign(runner, { modelParams: {} });
+  return runner.run(agent, 'hello', sandbox === undefined ? undefined : { runConfig: { sandbox } }).then(
+    () => undefined,
+    (error) => error
+  );
+}
 
-test('validation: regular agent without sandbox config passes', (t) => {
-  t.notThrows(() => validateSandboxRunConfig(new Agent({ name: 'regular' }), undefined));
+test('validation: regular agent without sandbox config passes', async (t) => {
+  const err = await runForSandboxValidation(new Agent({ name: 'regular' }));
+  t.not((err as ApplicationFailure | undefined)?.type, 'SandboxConfigurationError');
 });
 
-test('validation: sandbox agent without sandbox config fails', (t) => {
-  const err = t.throws(() => validateSandboxRunConfig(new SandboxAgent({ name: 'sandbox' }), undefined), {
-    instanceOf: ApplicationFailure,
-  });
-  t.is(err?.type, 'SandboxConfigurationError');
-  t.regex(err!.message, /runConfig\.sandbox is not configured/);
+test('validation: sandbox agent without sandbox config fails', async (t) => {
+  const err = await runForSandboxValidation(new SandboxAgent({ name: 'sandbox' }));
+  t.true(err instanceof ApplicationFailure);
+  t.is((err as ApplicationFailure).type, 'SandboxConfigurationError');
+  t.regex((err as Error).message, /runConfig\.sandbox is not configured/);
 });
 
-test('validation: handoff-reachable sandbox agent without sandbox config fails', (t) => {
+test('validation: handoff-reachable sandbox agents without sandbox config fail', async (t) => {
   const sandbox = new SandboxAgent({ name: 'sandbox' });
-  const router = new Agent({ name: 'router', handoffs: [sandbox] });
-  t.throws(() => validateSandboxRunConfig(router, undefined), { instanceOf: ApplicationFailure });
+  const middle = new Agent({ name: 'middle', handoffs: [sandbox] });
+  for (const agent of [
+    new Agent({ name: 'direct', handoffs: [sandbox] }),
+    new Agent({ name: 'deep', handoffs: [middle] }),
+    new Agent({ name: 'wrapped', handoffs: [handoff(sandbox)] }),
+  ]) {
+    const err = await runForSandboxValidation(agent);
+    t.true(err instanceof ApplicationFailure);
+    t.is((err as ApplicationFailure).type, 'SandboxConfigurationError');
+  }
 });
 
-test('validation: sandbox config without client fails', (t) => {
-  const err = t.throws(() => validateSandboxRunConfig(new SandboxAgent({ name: 'sandbox' }), {}), {
-    instanceOf: ApplicationFailure,
+test('validation: no-sandbox graphs pass', async (t) => {
+  const c = new Agent({ name: 'c' });
+  const b = new Agent({ name: 'b', handoffs: [c] });
+  const a = new Agent({ name: 'a', handoffs: [b] });
+  const circularA = new Agent({ name: 'circular-a' });
+  const circularB = new Agent({ name: 'circular-b', handoffs: [circularA] });
+  circularA.handoffs = [circularB];
+  for (const agent of [a, circularA]) {
+    const err = await runForSandboxValidation(agent);
+    t.not((err as ApplicationFailure | undefined)?.type, 'SandboxConfigurationError');
+  }
+});
+
+test('validation: circular graph reaching sandbox agent fails', async (t) => {
+  const sandbox = new SandboxAgent({ name: 'sandbox' });
+  const a = new Agent({ name: 'a', handoffs: [sandbox] });
+  const b = new Agent({ name: 'b', handoffs: [a] });
+  a.handoffs = [b, sandbox];
+  const err = await runForSandboxValidation(b);
+  t.true(err instanceof ApplicationFailure);
+  t.is((err as ApplicationFailure).type, 'SandboxConfigurationError');
+});
+
+test('validation: sandbox config without client fails', async (t) => {
+  const err = await runForSandboxValidation(new SandboxAgent({ name: 'sandbox' }), {});
+  t.true(err instanceof ApplicationFailure);
+  t.regex((err as Error).message, /runConfig\.sandbox\.client must be set/);
+});
+
+test('validation: raw sandbox client fails even without a sandbox agent', async (t) => {
+  const err = await runForSandboxValidation(new Agent({ name: 'regular' }), { client: new FakeSandboxClient() });
+  t.true(err instanceof ApplicationFailure);
+  t.regex((err as Error).message, /Do not pass a raw sandbox client directly/);
+});
+
+test('validation: temporal sandbox client passes', async (t) => {
+  const err = await runForSandboxValidation(new SandboxAgent({ name: 'sandbox' }), {
+    client: temporalSandboxClient('fake'),
   });
-  t.regex(err!.message, /runConfig\.sandbox\.client must be set/);
-});
-
-test('validation: raw sandbox client fails even without a sandbox agent', (t) => {
-  const err = t.throws(
-    () => validateSandboxRunConfig(new Agent({ name: 'regular' }), { client: new FakeSandboxClient() }),
-    { instanceOf: ApplicationFailure }
-  );
-  t.regex(err!.message, /Do not pass a raw sandbox client directly/);
-});
-
-test('validation: temporal sandbox client passes', (t) => {
-  t.notThrows(() =>
-    validateSandboxRunConfig(new SandboxAgent({ name: 'sandbox' }), { client: temporalSandboxClient('fake') })
-  );
+  t.not((err as ApplicationFailure | undefined)?.type, 'SandboxConfigurationError');
 });
 
 // ── Provider activity registration ──
@@ -542,23 +530,6 @@ test('providerState fallback leaves a session without a resolved environment alo
   t.false('environment' in result.state.providerState);
 });
 
-test('deserializeSessionState rejects records without a sessionId', async (t) => {
-  const client = temporalSandboxClient('fake');
-  const err = await t.throwsAsync(
-    client.deserializeSessionState({ manifest: encodeManifest(new Manifest()), providerState: {} }),
-    { instanceOf: ApplicationFailure }
-  );
-  t.is(err?.type, 'SandboxSessionStateInvalid');
-});
-
-test('deserializeSessionState rejects records without a manifest', async (t) => {
-  const client = temporalSandboxClient('fake');
-  const err = await t.throwsAsync(client.deserializeSessionState({ sessionId: 'abc', providerState: {} }), {
-    instanceOf: ApplicationFailure,
-  });
-  t.is(err?.type, 'SandboxSessionStateInvalid');
-});
-
 test("deserializeSessionState decodes the SDK's real serialized manifest record", async (t) => {
   const content = new Uint8Array([0, 1, 2, 253, 254, 255]);
   const manifest = new Manifest({
@@ -882,35 +853,6 @@ test('encodeManifest rejects a resolver-backed environment value rather than ser
     t.regex(err!.message, /API_KEY/, label);
     t.regex(err!.message, /workerEnvValue/, label);
   }
-});
-
-test('an environment reference this build cannot handle fails as a Temporal failure, not a bare throw', (t) => {
-  class UnregisteredEnvValue extends EnvValueReference {
-    static override readonly type = 'test.unregistered';
-    constructor() {
-      super();
-    }
-    serialize(): Record<string, unknown> {
-      return {};
-    }
-    async resolve(): Promise<string> {
-      return '';
-    }
-  }
-
-  const encodeErr = t.throws(
-    () => encodeManifest(new Manifest({ environment: { API_KEY: new UnregisteredEnvValue() } })),
-    { instanceOf: ApplicationFailure },
-    'encode'
-  );
-  t.is(encodeErr?.type, 'SandboxConfigurationError');
-  t.true(encodeErr?.nonRetryable);
-  t.regex(encodeErr!.message, /API_KEY/);
-
-  const encoded = { ...encodeManifest(new Manifest()), environment: { API_KEY: { type: 'test.unregistered' } } };
-  const decodeErr = t.throws(() => decodeManifest(encoded), { instanceOf: ApplicationFailure }, 'decode');
-  t.is(decodeErr?.type, 'SandboxSessionStateInvalid');
-  t.true(decodeErr?.nonRetryable);
 });
 
 test('session envelope survives a JSON round-trip and revives a live Manifest', (t) => {

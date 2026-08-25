@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/langsmith",
-  "version": "1.21.0",
+  "version": "1.22.0",
   "description": "Temporal LangSmith observability integration package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -13,7 +13,7 @@
   },
   "scripts": {
     "build": "tsc --build",
-    "test": "ava ./lib/__tests__/test-*.js"
+    "test": "tsx ../../scripts/ava-ci.ts ./lib/__tests__/test-*.js"
   },
   "ava": {
     "files": [
@@ -62,10 +62,10 @@
     "@temporalio/testing": "workspace:*",
     "ava": "^5.3.1",
     "langsmith": "^0.7.9",
-    "nexus-rpc": "^0.0.2"
+    "nexus-rpc": "^0.0.3"
   },
   "engines": {
-    "node": ">= 20.0.0"
+    "node": ">= 20.3.0"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

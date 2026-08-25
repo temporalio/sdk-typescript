@@ -158,6 +158,9 @@ pnpm tsx scripts/test-example.ts --work-dir "./example"
 rm -rf ./example "$TMP_DIR"
 ```
 
+The publish and init steps print only a one-line summary; their full output is
+written to `.test-results/` (and the tail is dumped to the console on failure).
+
 ### Style Guide
 
 - Typescript code is linted with [eslint](https://eslint.org/)

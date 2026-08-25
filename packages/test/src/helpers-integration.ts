@@ -127,13 +127,16 @@ export function makeTestFunction<C extends Context = Context>(opts: TestFunction
 export function makeDefaultTestContextFunction(opts: TestFunctionOptions): (t: ExecutionContext) => Promise<Context> {
   return async (_t: ExecutionContext): Promise<Context> => {
     const env = await createTestWorkflowEnvironment(opts.workflowEnvironmentOpts);
-    return {
-      workflowBundle: await createTestWorkflowBundle({
+    try {
+      const workflowBundle = await createTestWorkflowBundle({
         workflowsPath: opts.workflowsPath,
         workflowInterceptorModules: opts.workflowInterceptorModules,
-      }),
-      env,
-    };
+      });
+      return { workflowBundle, env };
+    } catch (err) {
+      await env.teardown();
+      throw err;
+    }
   };
 }
 
@@ -171,7 +174,7 @@ export function helpers(t: ExecutionContext<Context>, env?: TestWorkflowEnvironm
   return {
     ...base,
     async createNativeConnection(opts?: Partial<NativeConnectionOptions>): Promise<NativeConnection> {
-      return await NativeConnection.connect({ address: testEnv.address, ...opts });
+      return await NativeConnection.connect({ ...testEnv.connectionOptions, address: testEnv.address, ...opts });
     },
     async runReplayHistory(
       opts: Partial<ReplayWorkerOptions>,

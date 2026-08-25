@@ -33,6 +33,8 @@ import { ensureTracingProcessorRegistered } from './tracing';
 import { flushOpenSpans } from './agent-sink-processor';
 import { getCurrentPluginConfig } from './plugin-config-store';
 
+const agentAsToolSandboxConfig = Symbol.for('@temporalio/openai-agents/agentAsToolSandboxConfig');
+
 export interface TemporalRunOptions<TContext = undefined> {
   /** Run context passed to agents and tools */
   context?: TContext;
@@ -132,7 +134,7 @@ function definedFields<T extends object>(obj: T | undefined): Partial<T> {
 }
 
 /** Whether a `SandboxAgent` is reachable from `agent` through its handoff graph. */
-export function hasSandboxAgent(agent: Agent<any, any>, seen: Set<Agent<any, any>> = new Set()): boolean {
+function hasSandboxAgent(agent: Agent<any, any>, seen: Set<Agent<any, any>> = new Set()): boolean {
   if (agent instanceof SandboxAgent) return true;
   if (seen.has(agent)) return false;
   seen.add(agent);
@@ -147,7 +149,7 @@ export function hasSandboxAgent(agent: Agent<any, any>, seen: Set<Agent<any, any
  * `runConfig.sandbox.client` must be a `TemporalSandboxClient` so every sandbox
  * operation is dispatched as an Activity rather than run inline in the Workflow.
  */
-export function validateSandboxRunConfig(agent: Agent<any, any>, sandbox: SandboxRunConfig | undefined): void {
+function validateSandboxRunConfig(agent: Agent<any, any>, sandbox: SandboxRunConfig | undefined): void {
   if (!hasSandboxAgent(agent) && sandbox === undefined) return;
   if (sandbox === undefined) {
     throw ApplicationFailure.create({
@@ -176,6 +178,26 @@ export function validateSandboxRunConfig(agent: Agent<any, any>, sandbox: Sandbo
       type: 'SandboxConfigurationError',
       nonRetryable: true,
     });
+  }
+}
+
+function propagateAgentToolSandboxConfig(
+  agent: Agent<any, any>,
+  sandbox: SandboxRunConfig,
+  seen: Set<Agent<any, any>> = new Set()
+): void {
+  if (seen.has(agent)) return;
+  seen.add(agent);
+  agent.tools = agent.tools.map((tool) => {
+    if (tool.type !== 'function') return tool;
+    const configureSandbox = (
+      tool as typeof tool & { [agentAsToolSandboxConfig]?: (sandbox: SandboxRunConfig) => typeof tool }
+    )[agentAsToolSandboxConfig];
+    if (typeof configureSandbox !== 'function') return tool;
+    return configureSandbox(sandbox);
+  });
+  for (const handoff of agent.handoffs ?? []) {
+    propagateAgentToolSandboxConfig(handoff instanceof Handoff ? handoff.agent : handoff, sandbox, seen);
   }
 }
 
@@ -250,6 +272,9 @@ export class TemporalOpenAIRunner {
     const { model: modelOverride, ...runnerConfigOverrides } = options?.runConfig ?? {};
 
     const converted = convertAgent(agent, this.modelParams, undefined, modelOverride);
+    if (options?.runConfig?.sandbox !== undefined) {
+      propagateAgentToolSandboxConfig(converted, options.runConfig.sandbox);
+    }
 
     let preparedInput: string | AgentInputItem[] | RunState<TContext, TAgent>;
     if (input instanceof RunState) {

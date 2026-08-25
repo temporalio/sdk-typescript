@@ -1,9 +1,11 @@
 import type {
   CommonWorkflowOptions,
   SignalDefinition,
+  SignalTypeInfo,
   WithWorkflowArgs,
   Workflow,
   VersioningOverride,
+  PayloadTypeInfo,
 } from '@temporalio/common';
 import { toCanonicalString } from '@temporalio/common';
 import type { Duration } from '@temporalio/common/lib/time';
@@ -60,6 +62,13 @@ export interface WorkflowOptions extends CommonWorkflowOptions {
    * start it on a local worker running with this same client.
    */
   requestEagerStart?: boolean;
+
+  /**
+   * Type information used to encode and decode Workflow input and output.
+   *
+   * @experimental
+   */
+  typeInfo?: PayloadTypeInfo;
 }
 
 export type WithCompiledWorkflowOptions<T extends WorkflowOptions> = Replace<
@@ -97,11 +106,34 @@ export interface WorkflowUpdateOptions {
    * Update.
    */
   readonly updateId?: string;
+
+  /**
+   * Type information used to convert Update arguments and results when the Update is referenced by name.
+   *
+   * @experimental
+   */
+  typeInfo?: PayloadTypeInfo;
 }
 
-export type WorkflowSignalWithStartOptions<SignalArgs extends any[] = []> = SignalArgs extends [any, ...any[]]
+type WorkflowSignalWithStartOptionsBase<SignalArgs extends any[]> = SignalArgs extends [any, ...any[]]
   ? WorkflowSignalWithStartOptionsWithArgs<SignalArgs>
   : WorkflowSignalWithStartOptionsWithoutArgs<SignalArgs>;
+
+type SignalWithStartTypeInfoOptions =
+  | { signalTypeInfo?: never }
+  | {
+      signal: string;
+
+      /**
+       * Type information used to convert Signal arguments.
+       *
+       * @experimental
+       */
+      signalTypeInfo?: SignalTypeInfo;
+    };
+
+export type WorkflowSignalWithStartOptions<SignalArgs extends any[] = []> =
+  WorkflowSignalWithStartOptionsBase<SignalArgs> & SignalWithStartTypeInfoOptions;
 
 export interface WorkflowSignalWithStartOptionsWithoutArgs<SignalArgs extends any[]>
   extends Omit<WorkflowOptions, 'requestEagerStart'> {

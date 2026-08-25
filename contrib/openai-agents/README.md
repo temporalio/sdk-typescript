@@ -515,7 +515,7 @@ Dedicated Worker startup and heartbeat failures surface as `ApplicationFailure` 
 
 > **Experimental** — sandbox support is subject to change prior to General Availability.
 
-An OpenAI Agents SDK `SandboxAgent` runs commands, edits files, and keeps a workspace inside a sandbox. This plugin dispatches each of those operations as an Activity, so a sandbox-backed agent gets the same durability as the rest of the run.
+An OpenAI Agents SDK `SandboxAgent` runs commands, edits files, and keeps a workspace inside a sandbox. This plugin dispatches each of those operations as an Activity.
 
 Register your sandbox backend client under a name on the Worker plugin:
 
