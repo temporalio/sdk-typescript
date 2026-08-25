@@ -263,7 +263,7 @@ const GenericConfigs = {
   },
   client: {
     basic: {
-      targetUrl: 'http://127.0.0.1:7233',
+      targetUrl: process.env.TEMPORAL_ADDRESS || 'http://127.0.0.1:7233',
       clientName: 'temporal-typescript-test',
       clientVersion: '1.0.0',
       tls: null,
@@ -284,7 +284,7 @@ const GenericConfigs = {
       buildId: 'test-build-id',
       workerDeploymentOptions: null,
       useVersioning: false,
-      namespace: 'default',
+      namespace: process.env.TEMPORAL_NAMESPACE || 'default',
       tuner: {
         workflowTaskSlotSupplier: {
           type: 'fixed-size',
@@ -357,7 +357,7 @@ const GenericConfigs = {
       port: null,
       ui: false,
       uiPort: null,
-      namespace: 'default',
+      namespace: process.env.TEMPORAL_NAMESPACE || 'default',
       dbFilename: null,
       log: { format: 'text', level: 'warn' },
       extraArgs: [],
