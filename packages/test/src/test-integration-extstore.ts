@@ -221,7 +221,11 @@ test('continue-as-new offloads a large argument keyed under the target workflow 
   const sizeBytes = 4096;
 
   const worker = await createWorker({ dataConverter: { externalStorage } });
-  const client = new Client({ connection: t.context.env.connection, namespace: t.context.env.client.options.namespace, dataConverter: { externalStorage } });
+  const client = new Client({
+    connection: t.context.env.connection,
+    namespace: t.context.env.client.options.namespace,
+    dataConverter: { externalStorage },
+  });
 
   const workflowId = randomUUID();
   const handle = await client.workflow.start(externalStorageContinueAsNewSource, {
@@ -343,7 +347,11 @@ test('client offloads a large start argument and retrieves a large result', asyn
   const data = new Uint8Array(4096).fill(3);
 
   const worker = await createWorker({ dataConverter: { externalStorage } });
-  const client = new Client({ connection: t.context.env.connection, namespace: t.context.env.client.options.namespace, dataConverter: { externalStorage } });
+  const client = new Client({
+    connection: t.context.env.connection,
+    namespace: t.context.env.client.options.namespace,
+    dataConverter: { externalStorage },
+  });
 
   const workflowId = randomUUID();
   const handle = await client.workflow.start(externalStorageEcho, { taskQueue, workflowId, args: [data] });
@@ -389,7 +397,11 @@ test('client retrieves an offloaded query result', async (t) => {
   const expected = new Uint8Array(sizeBytes).fill(7);
 
   const worker = await createWorker({ dataConverter: { externalStorage } });
-  const client = new Client({ connection: t.context.env.connection, namespace: t.context.env.client.options.namespace, dataConverter: { externalStorage } });
+  const client = new Client({
+    connection: t.context.env.connection,
+    namespace: t.context.env.client.options.namespace,
+    dataConverter: { externalStorage },
+  });
 
   const workflowId = randomUUID();
   await worker.runUntil(async () => {
@@ -418,7 +430,11 @@ test('AsyncCompletionClient.complete offloads a large result', async (t) => {
     },
     plugins: [],
   } as unknown as ConnectionLike;
-  const client = new Client({ connection, namespace: t.context.env.client.options.namespace, dataConverter: { externalStorage } });
+  const client = new Client({
+    connection,
+    namespace: t.context.env.client.options.namespace,
+    dataConverter: { externalStorage },
+  });
 
   await client.activity.complete(new Uint8Array([1]), new Uint8Array(4096).fill(9));
 
@@ -429,7 +445,10 @@ test('AsyncCompletionClient.complete offloads a large result', async (t) => {
   const decoded = decodeReferencePayload(payload);
   t.is(decoded.driverName, driver.name);
   t.true(decoded.sizeBytes >= 4096);
-  t.deepEqual(driver.storeCalls[0].context.target, { kind: 'workflow', namespace: t.context.env.client.options.namespace });
+  t.deepEqual(driver.storeCalls[0].context.target, {
+    kind: 'workflow',
+    namespace: t.context.env.client.options.namespace,
+  });
 });
 
 test('AsyncCompletionClient.complete by ID targets the Workflow for a Workflow Activity', async (t) => {
@@ -440,7 +459,11 @@ test('AsyncCompletionClient.complete by ID targets the Workflow for a Workflow A
     workflowService: { respondActivityTaskCompletedById: async () => ({}) },
     plugins: [],
   } as unknown as ConnectionLike;
-  const client = new Client({ connection, namespace: t.context.env.client.options.namespace, dataConverter: { externalStorage } });
+  const client = new Client({
+    connection,
+    namespace: t.context.env.client.options.namespace,
+    dataConverter: { externalStorage },
+  });
 
   await client.activity.complete(
     { workflowId: 'wf-1', runId: 'run-1', activityId: 'act-1' },
@@ -464,7 +487,11 @@ test('AsyncCompletionClient.complete by ID targets the Activity for a Standalone
     workflowService: { respondActivityTaskCompletedById: async () => ({}) },
     plugins: [],
   } as unknown as ConnectionLike;
-  const client = new Client({ connection, namespace: t.context.env.client.options.namespace, dataConverter: { externalStorage } });
+  const client = new Client({
+    connection,
+    namespace: t.context.env.client.options.namespace,
+    dataConverter: { externalStorage },
+  });
 
   await client.activity.complete({ runId: 'run-2', activityId: 'act-2' }, new Uint8Array(4096).fill(9));
 
@@ -493,7 +520,11 @@ test('signalWithStart offloads a large workflow argument and targets the workflo
     },
     plugins: [],
   } as unknown as ConnectionLike;
-  const client = new Client({ connection, namespace: t.context.env.client.options.namespace, dataConverter: { externalStorage } });
+  const client = new Client({
+    connection,
+    namespace: t.context.env.client.options.namespace,
+    dataConverter: { externalStorage },
+  });
 
   await client.workflow.signalWithStart('myWorkflow', {
     workflowId: 'wf-1',
@@ -526,7 +557,11 @@ test('activity-client start offloads a large input and targets the activity', as
     },
     plugins: [],
   } as unknown as ConnectionLike;
-  const client = new Client({ connection, namespace: t.context.env.client.options.namespace, dataConverter: { externalStorage } });
+  const client = new Client({
+    connection,
+    namespace: t.context.env.client.options.namespace,
+    dataConverter: { externalStorage },
+  });
 
   await client.activity.start('myActivity', {
     id: 'act-1',
@@ -554,7 +589,11 @@ test('client offloads a large workflow memo and retrieves it via describe', asyn
   const memoBlob = new Uint8Array(4096).fill(5);
 
   const worker = await createWorker({ dataConverter: { externalStorage } });
-  const client = new Client({ connection: t.context.env.connection, namespace: t.context.env.client.options.namespace, dataConverter: { externalStorage } });
+  const client = new Client({
+    connection: t.context.env.connection,
+    namespace: t.context.env.client.options.namespace,
+    dataConverter: { externalStorage },
+  });
 
   const workflowId = randomUUID();
   const handle = await client.workflow.start(externalStorageEcho, {
@@ -595,7 +634,11 @@ test('schedule create offloads a large memo and describe retrieves it', async (t
     },
     plugins: [],
   } as unknown as ConnectionLike;
-  const client = new Client({ connection, namespace: t.context.env.client.options.namespace, dataConverter: { externalStorage } });
+  const client = new Client({
+    connection,
+    namespace: t.context.env.client.options.namespace,
+    dataConverter: { externalStorage },
+  });
 
   const handle = await client.schedule.create({
     scheduleId: 'sched-1',
