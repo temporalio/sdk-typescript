@@ -138,6 +138,11 @@ to docs, or any other relevant information.
 
 - Updated Core to `65b25ada` (`temporal-core` 0.6.0)
 
+### Deprecated
+
+- **Experimental**: Bun versions older than 1.4.0 are deprecated and will not be supported in a future release. Please
+  upgrade to Bun 1.4.0 or later.
+
 ### Fixed
 
 - strands: Declare `zod` as a peer dependency.
