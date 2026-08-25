@@ -2,7 +2,9 @@ import type {
   ActivityFunction,
   ActivitySerializationContext,
   ActivityOptions,
+  ActivityTypeInfoMap,
   LocalActivityOptions,
+  PayloadTypeInfo,
   QueryDefinition,
   QueryDefinitionOptions,
   SearchAttributes,
@@ -210,7 +212,14 @@ const validateLocalActivityOptions = validateActivityOptions;
 /**
  * Push a scheduleActivity command into activator accumulator and register completion
  */
-function scheduleActivityNextHandler({ options, args, headers, seq, activityType }: ActivityInput): Promise<unknown> {
+function scheduleActivityNextHandler({
+  options,
+  args,
+  headers,
+  seq,
+  activityType,
+  typeInfo,
+}: ActivityInput): Promise<unknown> {
   const activator = getActivator();
   validateActivityOptions(options);
   const activityId = options.activityId ?? `${seq}`;
@@ -240,7 +249,7 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
         seq,
         activityId,
         activityType,
-        arguments: toPayloadsWithContext(activator.payloadConverter, context, args),
+        arguments: toPayloadsWithContext(activator.payloadConverter, context, args, typeInfo?.inputTypes),
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
         taskQueue: options.taskQueue || activator.info.taskQueue,
         heartbeatTimeout: msOptionalToTs(options.heartbeatTimeout),
@@ -259,6 +268,7 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
       resolve,
       reject,
       context,
+      outputTypeInfo: typeInfo?.outputType,
     });
   });
 }
@@ -274,6 +284,7 @@ async function scheduleLocalActivityNextHandler({
   activityType,
   attempt,
   originalScheduleTime,
+  typeInfo,
 }: LocalActivityInput): Promise<unknown> {
   const activator = getActivator();
   const activityId = `${seq}`;
@@ -312,7 +323,7 @@ async function scheduleLocalActivityNextHandler({
         originalScheduleTime,
         activityId,
         activityType,
-        arguments: toPayloadsWithContext(activator.payloadConverter, context, args),
+        arguments: toPayloadsWithContext(activator.payloadConverter, context, args, typeInfo?.inputTypes),
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
         scheduleToCloseTimeout: msOptionalToTs(options.scheduleToCloseTimeout),
         startToCloseTimeout: msOptionalToTs(options.startToCloseTimeout),
@@ -327,6 +338,7 @@ async function scheduleLocalActivityNextHandler({
       resolve,
       reject,
       context,
+      outputTypeInfo: typeInfo?.outputType,
     });
   });
 }
@@ -335,7 +347,12 @@ async function scheduleLocalActivityNextHandler({
  * Schedule an activity and run outbound interceptors
  * @hidden
  */
-export function scheduleActivity<R>(activityType: string, args: any[], options: ActivityOptions): Promise<R> {
+export function scheduleActivity<R>(
+  activityType: string,
+  args: any[],
+  options: ActivityOptions,
+  typeInfo?: PayloadTypeInfo
+): Promise<R> {
   const activator = assertInWorkflowContext(
     'Workflow.scheduleActivity(...) may only be used from a Workflow Execution'
   );
@@ -351,6 +368,7 @@ export function scheduleActivity<R>(activityType: string, args: any[], options: 
     options,
     args,
     seq,
+    typeInfo,
   }) as Promise<R>;
 }
 
@@ -361,7 +379,8 @@ export function scheduleActivity<R>(activityType: string, args: any[], options: 
 export async function scheduleLocalActivity<R>(
   activityType: string,
   args: any[],
-  options: LocalActivityOptions
+  options: LocalActivityOptions,
+  typeInfo?: PayloadTypeInfo
 ): Promise<R> {
   const activator = assertInWorkflowContext(
     'Workflow.scheduleLocalActivity(...) may only be used from a Workflow Execution'
@@ -390,6 +409,7 @@ export async function scheduleLocalActivity<R>(
         seq,
         attempt,
         originalScheduleTime,
+        typeInfo,
       })) as Promise<R>;
     } catch (err) {
       if (err instanceof LocalActivityDoBackoff) {
@@ -576,6 +596,16 @@ export type ActivityInterfaceFor<T> = {
   [K in keyof T]: T[K] extends ActivityFunction ? ActivityFunctionWithOptions<T[K]> : typeof NotAnActivityMethod;
 };
 
+/**
+ * Options for {@link proxyActivities}, including optional metadata for each proxied Activity.
+ *
+ * @experimental
+ */
+export interface ActivityProxyOptions<A = UntypedActivities> extends ActivityOptions {
+  /** Type information keyed by the Activity names exposed by this proxy. */
+  activityTypeInfo?: ActivityTypeInfoMap<A>;
+}
+
 export type ActivityFunctionWithOptions<T extends ActivityFunction> = T & {
   /**
    * Execute the activity, overriding its existing options with the
@@ -596,6 +626,16 @@ export type ActivityFunctionWithOptions<T extends ActivityFunction> = T & {
 export type LocalActivityInterfaceFor<T> = {
   [K in keyof T]: T[K] extends ActivityFunction ? LocalActivityFunctionWithOptions<T[K]> : typeof NotAnActivityMethod;
 };
+
+/**
+ * Options for {@link proxyLocalActivities}, including optional metadata for each proxied Local Activity.
+ *
+ * @experimental
+ */
+export interface LocalActivityProxyOptions<A = UntypedActivities> extends LocalActivityOptions {
+  /** Type information keyed by the Local Activity names exposed by this proxy. */
+  activityTypeInfo?: ActivityTypeInfoMap<A>;
+}
 
 export type LocalActivityFunctionWithOptions<T extends ActivityFunction> = T & {
   /**
@@ -668,7 +708,7 @@ export type LocalActivityFunctionWithOptions<T extends ActivityFunction> = T & {
  * }
  * ```
  */
-export function proxyActivities<A = UntypedActivities>(options: ActivityOptions): ActivityInterfaceFor<A> {
+export function proxyActivities<A = UntypedActivities>(options: ActivityProxyOptions<A>): ActivityInterfaceFor<A> {
   if (options === undefined) {
     throw new TypeError('options must be defined');
   }
@@ -680,16 +720,29 @@ export function proxyActivities<A = UntypedActivities>(options: ActivityOptions)
       if (typeof activityType !== 'string') {
         throw new TypeError(`Only strings are supported for Activity types, got: ${String(activityType)}`);
       }
+      const activityName = activityType;
 
       function activityProxyFunction(...args: unknown[]): Promise<unknown> {
-        return scheduleActivity(activityType as string, args, options);
+        const { activityTypeInfo, ...activityOptions } = options;
+        return scheduleActivity(
+          activityName,
+          args,
+          activityOptions,
+          activityTypeInfo?.[activityName as keyof A & string]
+        );
       }
 
       activityProxyFunction.executeWithOptions = function (
         overrideOptions: ActivityOptions,
         args: any[]
       ): Promise<unknown> {
-        return scheduleActivity(activityType, args, deepMerge(options, overrideOptions));
+        const { activityTypeInfo, ...activityOptions } = options;
+        return scheduleActivity(
+          activityName,
+          args,
+          deepMerge(activityOptions, overrideOptions),
+          activityTypeInfo?.[activityName as keyof A & string]
+        );
       };
 
       return activityProxyFunction;
@@ -708,7 +761,7 @@ export function proxyActivities<A = UntypedActivities>(options: ActivityOptions)
  * @see {@link proxyActivities} for examples
  */
 export function proxyLocalActivities<A = UntypedActivities>(
-  options: LocalActivityOptions
+  options: LocalActivityProxyOptions<A>
 ): LocalActivityInterfaceFor<A> {
   if (options === undefined) {
     throw new TypeError('options must be defined');
@@ -721,16 +774,29 @@ export function proxyLocalActivities<A = UntypedActivities>(
       if (typeof activityType !== 'string') {
         throw new TypeError(`Only strings are supported for Activity types, got: ${String(activityType)}`);
       }
+      const activityName = activityType;
 
       function localActivityProxyFunction(...args: unknown[]): Promise<unknown> {
-        return scheduleLocalActivity(activityType as string, args, options);
+        const { activityTypeInfo, ...activityOptions } = options;
+        return scheduleLocalActivity(
+          activityName,
+          args,
+          activityOptions,
+          activityTypeInfo?.[activityName as keyof A & string]
+        );
       }
 
       localActivityProxyFunction.executeWithOptions = function (
         overrideOptions: LocalActivityOptions,
         args: any[]
       ): Promise<unknown> {
-        return scheduleLocalActivity(activityType, args, deepMerge(options, overrideOptions));
+        const { activityTypeInfo, ...activityOptions } = options;
+        return scheduleLocalActivity(
+          activityName,
+          args,
+          deepMerge(activityOptions, overrideOptions),
+          activityTypeInfo?.[activityName as keyof A & string]
+        );
       };
 
       return localActivityProxyFunction;

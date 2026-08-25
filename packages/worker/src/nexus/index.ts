@@ -26,6 +26,10 @@ import { coerceToHandlerError, decodePayload, handlerErrorToProto, operationErro
 
 const UNINITIALIZED = Symbol();
 
+/** nexus-rpc compiles operation definition metadata and handler methods into one object. */
+type CompiledNexusOperationHandler = nexus.OperationDefinition<unknown, unknown> &
+  nexus.OperationHandler<unknown, unknown>;
+
 export class NexusHandler {
   /**
    * Logger bound to `sdkComponent: worker`, with metadata from this Nexus task.
@@ -94,7 +98,7 @@ export class NexusHandler {
     return composeInterceptors(this.interceptors.outbound, 'getMetricTags', (a) => a)(baseTags);
   }
 
-  private getOperationHandler(ctx: nexus.OperationContext): nexus.OperationHandler<unknown, unknown> {
+  private getOperationHandler(ctx: nexus.OperationContext): CompiledNexusOperationHandler {
     const serviceHandler = this.services.get(ctx.service);
     if (serviceHandler == null) {
       throw new nexus.HandlerError('NOT_FOUND', `No service handler registered for service name '${ctx.service}'`);
@@ -108,7 +112,7 @@ export class NexusHandler {
   ): Promise<coresdk.nexus.INexusTaskCompletion> {
     try {
       const handler = this.getOperationHandler(ctx);
-      const input = await decodePayload(this.dataConverter, payload);
+      const input = await decodePayload(this.dataConverter, payload, handler.inputType);
 
       const executeNextHandler = async (interceptorInput: NexusStartOperationInput) => {
         const result = await this.invokeUserCode(
@@ -142,7 +146,7 @@ export class NexusHandler {
           completed: {
             startOperation: {
               syncSuccess: {
-                payload: await encodeToPayload(this.dataConverter, result.value),
+                payload: await encodeToPayload(this.dataConverter, result.value, undefined, handler.outputType),
                 links: ctx.outboundLinks.map(nexusLinkToProtoLink),
               },
             },

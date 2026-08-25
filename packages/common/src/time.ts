@@ -68,7 +68,7 @@ export function msToTs(str: Duration): Timestamp {
 }
 
 export function msOptionalToTs(str: Duration | undefined | null): Timestamp | undefined {
-  return str ? msToTs(str) : undefined;
+  return str != null ? msToTs(str) : undefined;
 }
 
 export function msOptionalToNumber(val: Duration | undefined): number | undefined {

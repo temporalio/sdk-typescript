@@ -699,10 +699,12 @@ export class Activator implements ActivationHandler {
     if (!activation.result) {
       throw new TypeError('Got ResolveActivity activation with no result');
     }
-    const { resolve, reject, context } = this.consumeCompletion('activity', getSeq(activation));
+    const { resolve, reject, context, outputTypeInfo } = this.consumeCompletion('activity', getSeq(activation));
     if (activation.result.completed) {
       const completed = activation.result.completed;
-      const result = completed.result ? this.payloadConverter.fromPayload(completed.result, context) : undefined;
+      const result = completed.result
+        ? fromPayloadWithTypeInfo(this.payloadConverter, completed.result, context, outputTypeInfo)
+        : undefined;
       resolve(result);
     } else if (activation.result.failed) {
       const { failure } = activation.result.failed;
@@ -788,13 +790,14 @@ export class Activator implements ActivationHandler {
 
   public resolveNexusOperationStart(activation: coresdk.workflow_activation.IResolveNexusOperationStart): void {
     const seq = getSeq(activation);
-    const { resolve, reject } = this.consumeCompletion('nexusOperationStart', seq);
+    const { resolve, reject, outputTypeInfo } = this.consumeCompletion('nexusOperationStart', seq);
 
     if (!activation.failed) {
       const completePromise = new Promise((resolve, reject) => {
         this.completions.nexusOperationComplete.set(seq, {
           resolve,
           reject,
+          outputTypeInfo,
         });
       });
       untrackPromise(completePromise);
@@ -811,16 +814,26 @@ export class Activator implements ActivationHandler {
     const context = this.workflowSerializationContext();
 
     if (activation.result?.completed) {
-      const result = this.payloadConverter.fromPayload(activation.result.completed, context);
-
       // It is possible for ResolveNexusOperation to be received without a prior ResolveNexusOperationStart,
       // e.g. because the handler completed the Operation synchronously.
       const startCompletion = this.maybeConsumeCompletion('nexusOperationStart', seq);
+      let outputTypeInfo: TypeInfo | undefined;
+      let resolveResult: (result: unknown) => void;
       if (startCompletion) {
-        startCompletion.resolve({ result: Promise.resolve(result) });
+        outputTypeInfo = startCompletion.outputTypeInfo;
+        resolveResult = (result) => startCompletion.resolve({ result: Promise.resolve(result) });
       } else {
-        this.consumeCompletion('nexusOperationComplete', seq).resolve(result);
+        const completion = this.consumeCompletion('nexusOperationComplete', seq);
+        outputTypeInfo = completion.outputTypeInfo;
+        resolveResult = completion.resolve;
       }
+      const result = fromPayloadWithTypeInfo(
+        this.payloadConverter,
+        activation.result.completed,
+        context,
+        outputTypeInfo
+      );
+      resolveResult(result);
     } else {
       let err: Error;
       if (activation.result?.failed) {

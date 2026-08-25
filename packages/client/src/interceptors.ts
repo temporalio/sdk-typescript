@@ -315,12 +315,15 @@ export interface StartNexusOperationInput {
   readonly idConflictPolicy?: NexusOperationIdConflictPolicy;
   readonly searchAttributes?: SearchAttributePair[] | TypedSearchAttributes;
   readonly headers?: Record<string, string>;
+  readonly inputType?: TypeInfo;
+  readonly outputType?: TypeInfo;
 }
 
 /** Input for {@link NexusClientInterceptor.getResult}. */
 export interface GetNexusOperationResultInput {
   readonly operationId: string;
   readonly runId?: string;
+  readonly outputType?: TypeInfo;
 }
 
 /** Input for {@link NexusClientInterceptor.describe}. */
@@ -420,6 +423,8 @@ export interface ActivityStartInput {
 export interface ActivityGetResultInput {
   readonly activityId: string;
   readonly activityRunId: string;
+  /** Type information used to decode the Activity result. */
+  readonly outputType?: TypeInfo;
   readonly headers: Headers;
 }
 

@@ -4,6 +4,7 @@ import {
   arrayFromPayloads,
   convertOptionalToPayload,
   fromPayloadsAtIndex,
+  toPayloadWithTypeInfo,
   toPayloadsWithContext,
 } from '../converter/payload-converter';
 import { PayloadConverterError } from '../errors';
@@ -113,16 +114,15 @@ export async function decodeOptionalSinglePayload<T>(
   return payloadConverter.fromPayload(decoded, context);
 }
 
-/**
- * Run {@link PayloadConverter.toPayload} on value, and then encode it.
- */
-export async function encodeToPayload(
+/** Apply optional TypeInfo, run payload conversion, and then encode the resulting Payload. */
+export async function encodeToPayload<T>(
   converter: LoadedDataConverter,
-  value: unknown,
-  context?: SerializationContext
+  value: T,
+  context?: SerializationContext,
+  typeInfo?: TypeInfo<T, unknown>
 ): Promise<Payload> {
   const { payloadConverter, payloadCodecs } = converter;
-  return await encodeSingle(payloadCodecs, payloadConverter.toPayload(value, context), context);
+  return await encodeSingle(payloadCodecs, toPayloadWithTypeInfo(payloadConverter, value, context, typeInfo), context);
 }
 
 /**

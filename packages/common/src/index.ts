@@ -8,6 +8,7 @@ import * as encoding from './encoding';
 import * as helpers from './type-helpers';
 
 export * from './activity-options';
+export * from './activity-definition-options';
 export { ActivityCancellationDetailsOptions, ActivityCancellationDetails } from './activity-cancellation-details';
 export { SuggestContinueAsNewReason } from './continue-as-new';
 export * from './converter/data-converter';

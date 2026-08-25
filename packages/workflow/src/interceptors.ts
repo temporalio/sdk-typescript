@@ -9,8 +9,10 @@ import type {
   Duration,
   LocalActivityOptions,
   MetricTags,
+  PayloadTypeInfo,
   SignalTypeInfo,
   Timestamp,
+  TypeInfo,
   WorkflowExecution,
 } from '@temporalio/common';
 import { Headers, Next } from '@temporalio/common';
@@ -243,6 +245,8 @@ export interface ActivityInput {
   readonly options: ActivityOptions;
   readonly headers: Headers;
   readonly seq: number;
+  /** TypeInfo selected for this invocation. Interceptors may replace it before calling `next`. */
+  readonly typeInfo?: PayloadTypeInfo;
 }
 
 /**
@@ -256,6 +260,8 @@ export interface LocalActivityInput {
   readonly seq: number;
   readonly originalScheduleTime?: Timestamp;
   readonly attempt: number;
+  /** TypeInfo selected for this invocation. Interceptors may replace it before calling `next`. */
+  readonly typeInfo?: PayloadTypeInfo;
 }
 
 /**
@@ -264,6 +270,10 @@ export interface LocalActivityInput {
  */
 export interface StartNexusOperationInput {
   readonly input: unknown;
+  /** Type information used to encode the operation's single input value. */
+  readonly inputType?: TypeInfo;
+  /** Type information retained to decode the operation result. */
+  readonly outputType?: TypeInfo;
   readonly endpoint: string;
   readonly service: string;
   readonly options: StartNexusOperationOptions;
