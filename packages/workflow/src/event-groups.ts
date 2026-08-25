@@ -78,7 +78,6 @@ abstract class EventGroupMarkerImpl implements EventGroupMarker {
 
 class ImplicitEventGroupMarkerImpl extends EventGroupMarkerImpl {
   static withInboundEventId(eventId: Long): EventGroupMarkerImpl {
-    if (eventId == null || eventId.toNumber() === 0) throw new Error('Invalid event ID');
     return new ImplicitEventGroupMarkerImpl({ inboundEvent: { inboundEventId: eventId } });
   }
 
@@ -86,7 +85,7 @@ class ImplicitEventGroupMarkerImpl extends EventGroupMarkerImpl {
     return new ImplicitEventGroupMarkerImpl({ inboundUpdate: { inboundUpdateId: updateId } });
   }
 
-  constructor(public readonly marker: IUnconvertedEventGroupMarker) {
+  constructor(private readonly marker: IUnconvertedEventGroupMarker) {
     super();
   }
 
@@ -113,12 +112,44 @@ class ImplicitEventGroupMarkerImpl extends EventGroupMarkerImpl {
   }
 }
 
+/**
+ * This stub provides a safe fallback for the case where we'd try to create an Implicit
+ * Event Group Marker for an inbound event, but receive an invalid event ID.
+ *
+ * To be clear, this should never happen and would indicate a bug in the SDK itself.
+ * Still, we wouldn't want that situation to result in failing the WFT, as Event Groups
+ * is a non-critical feature.
+ *
+ * Instead, we return a stub Implicit Event Group Marker that honors the interface,
+ * including the `withScope()` method with proper bookkeeping logic. This way, callers
+ * can proceed through their normal code path without having to know about this anomaly.
+ */
+class StubImplicitEventGroupMarkerImpl extends EventGroupMarkerImpl {
+  constructor() {
+    super();
+  }
+
+  applyOverActiveMarkerScopes(_active: ActiveMarkerScopes): ActiveMarkerScopes {
+    return {
+      implicitScope: undefined,
+      explicitScopes: {},
+    };
+  }
+
+  toProto(): temporal.api.sdk.v1.IEventGroupMarker {
+    // This method will never get called, since the stub will not set itself as
+    // the active implicit scope, and therefore won't get collected by
+    // mergeScopeAndDirectEventGroupMarkers() for serialization.
+    return {};
+  }
+}
+
 class ExplicitEventGroupMarkerImpl extends EventGroupMarkerImpl {
   static withLabel(label: string, id: string): EventGroupMarkerImpl {
     return new ExplicitEventGroupMarkerImpl({ label: { id, label } });
   }
 
-  constructor(public readonly marker: IUnconvertedEventGroupMarker & { label: { id: string } }) {
+  constructor(private readonly marker: IUnconvertedEventGroupMarker & { label: { id: string } }) {
     super();
   }
 
@@ -184,7 +215,10 @@ export function createEventGroup(label: string, options?: { id?: string }): Even
  * @internal
  */
 export function createInboundEventMarker(eventId: Long | null | undefined): EventGroupMarker {
-  if (eventId == null || eventId.toNumber() === 0) throw new Error('Invalid event ID');
+  if (eventId == null || eventId.toNumber() <= 0) {
+    // Invalid event ID. Don't fail the WFT — return a stub Implicit EG Marker instead.
+    return new StubImplicitEventGroupMarkerImpl();
+  }
   return ImplicitEventGroupMarkerImpl.withInboundEventId(eventId);
 }
 
@@ -244,7 +278,5 @@ function mergeScopeAndDirectEventGroupMarkers(directs: EventGroupMarker[] | unde
     merged[marker.marker.label.id!] = marker;
   }
 
-  // The active implicit marker (from the signal / update dispatch scope) always leads the
-  // resulting list, ahead of any explicit markers.
   return [...(active?.implicitScope ? [active.implicitScope] : []), ...Object.values(merged)];
 }
