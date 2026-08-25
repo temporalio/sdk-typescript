@@ -178,8 +178,10 @@ impl CoreEphemeralServerConfig {
         stderr: Stdio,
     ) -> anyhow::Result<CoreEphemeralServer> {
         match self {
-            Self::TimeSkipping(config) => config.start_server_with_output(stdout, stderr).await,
-            Self::DevServer(config) => config.start_server_with_output(stdout, stderr).await,
+            Self::TimeSkipping(config) => {
+                Ok(config.start_server_with_output(stdout, stderr).await?)
+            }
+            Self::DevServer(config) => Ok(config.start_server_with_output(stdout, stderr).await?),
         }
     }
 }

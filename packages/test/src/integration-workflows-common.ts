@@ -2,6 +2,7 @@ import type { ExecutionContext } from 'ava';
 import * as activity from '@temporalio/activity';
 import * as workflow from '@temporalio/workflow';
 import {
+  ActivityCancellationType,
   condition,
   defineQuery,
   defineSignal,
@@ -13,13 +14,7 @@ import {
 } from '@temporalio/workflow';
 import { SdkFlags } from '@temporalio/workflow/lib/flags';
 import type { ActivityCancellationDetails } from '@temporalio/common';
-import {
-  ActivityCancellationType,
-  ApplicationFailure,
-  encodingKeys,
-  METADATA_ENCODING_KEY,
-  RawValue,
-} from '@temporalio/common';
+import { ApplicationFailure, encodingKeys, METADATA_ENCODING_KEY, RawValue } from '@temporalio/common';
 import {
   TEMPORAL_RESERVED_PREFIX,
   STACK_TRACE_QUERY_NAME,

@@ -1,10 +1,10 @@
 import { firstValueFrom, Subject } from 'rxjs';
 import { Context as ActivityContext } from '@temporalio/activity';
 import { ApplicationFailure, defaultPayloadConverter, WorkflowFailedError } from '@temporalio/client';
-import type { LocalActivityOptions } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { temporal } from '@temporalio/proto';
 import * as workflow from '@temporalio/workflow';
+import type { LocalActivityOptions } from '@temporalio/workflow';
 import { Worker } from '@temporalio/test-helpers';
 import { helpers, makeTestFunction } from './helpers-integration';
 
@@ -451,6 +451,24 @@ test.serial('Local activity not registered on Worker throws ReferenceError in wo
   const worker = await createWorker();
   await worker.runUntil(executeWorkflow(runNonExisitingLocalActivity));
   t.pass();
+});
+
+export async function runUnregisteredLocalActivityWithDefaultWorkflow(): Promise<string> {
+  return await workflow.proxyLocalActivities({ startToCloseTimeout: '5s' }).notRegisteredActivity();
+}
+
+test.serial('Local activity falls back to default activity when type is not registered', async (t) => {
+  const { executeWorkflow, createWorker } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      async default(): Promise<string> {
+        return 'from-default';
+      },
+    },
+  });
+  await worker.runUntil(async () => {
+    t.is(await executeWorkflow(runUnregisteredLocalActivityWithDefaultWorkflow), 'from-default');
+  });
 });
 
 test.serial('Local activity not registered on replay Worker does not throw', async (t) => {

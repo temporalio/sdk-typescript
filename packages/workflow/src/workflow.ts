@@ -1,9 +1,7 @@
 import type {
   ActivityFunction,
   ActivitySerializationContext,
-  ActivityOptions,
   ActivityTypeInfoMap,
-  LocalActivityOptions,
   PayloadTypeInfo,
   QueryDefinition,
   QueryDefinitionOptions,
@@ -29,7 +27,6 @@ import type {
 import {
   compileRetryPolicy,
   compilePriority,
-  encodeActivityCancellationType,
   encodeWorkflowIdReusePolicy,
   extractWorkflowTypeAndConfig,
   HandlerUnfinishedPolicy,
@@ -49,9 +46,11 @@ import { msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/
 import type { temporal } from '@temporalio/proto';
 import { deepMerge } from '@temporalio/common/lib/internal-workflow';
 import { throwIfReservedName } from '@temporalio/common/lib/reserved';
+import { eventGroupMarkersToProto } from './event-groups';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import { composeInterceptors } from './interceptor-composition';
 import { UpdateScope } from './update-scope';
+import { type ActivityOptions, encodeActivityCancellationType, type LocalActivityOptions } from './activities';
 import type {
   ActivityInput,
   LocalActivityInput,
@@ -157,6 +156,7 @@ function timerNextHandler({ seq, durationMs, options }: TimerInput) {
             cancelTimer: {
               seq,
             },
+            eventGroupMarkers: eventGroupMarkersToProto(options?.eventGroups),
           });
           reject(err);
         })
@@ -168,6 +168,7 @@ function timerNextHandler({ seq, durationMs, options }: TimerInput) {
         startToFireTimeout: msToTs(durationMs),
       },
       userMetadata: userMetadataToPayload(activator.payloadConverter, options?.summary, undefined, context),
+      eventGroupMarkers: eventGroupMarkersToProto(options?.eventGroups),
     });
     activator.completions.timer.set(seq, {
       resolve,
@@ -240,6 +241,7 @@ function scheduleActivityNextHandler({
             requestCancelActivity: {
               seq,
             },
+            eventGroupMarkers: eventGroupMarkersToProto(options.eventGroups),
           });
         })
       );
@@ -263,6 +265,7 @@ function scheduleActivityNextHandler({
         priority: options.priority ? compilePriority(options.priority) : undefined,
       },
       userMetadata: userMetadataToPayload(activator.payloadConverter, options.summary, undefined, context),
+      eventGroupMarkers: eventGroupMarkersToProto(options.eventGroups),
     });
     activator.completions.activity.set(seq, {
       resolve,
@@ -289,9 +292,17 @@ async function scheduleLocalActivityNextHandler({
   const activator = getActivator();
   const activityId = `${seq}`;
   const context = activitySerializationContext(activator.info, activityId, true);
-  // Eagerly fail the local activity (which will in turn fail the workflow task.
-  // Do not fail on replay where the local activities may not be registered on the replay worker.
-  if (!activator.info.unsafe.isReplaying && !activator.registeredActivityNames.has(activityType)) {
+
+  // Eagerly fail the local activity if the worker will not be able to execute it,
+  // e.g. the given activity type is not registered on the local activity worker
+  // and there is no fallback 'default' activity. This obviously doesn't apply
+  // when replaying the workflow history, as the worker won't actually have to run
+  // the activity.
+  if (
+    !activator.info.unsafe.isReplaying &&
+    !activator.registeredActivityNames.has(activityType) &&
+    !activator.registeredActivityNames.has('default')
+  ) {
     throw new ReferenceError(`Local activity of type '${activityType}' not registered on worker`);
   }
   validateLocalActivityOptions(options);
@@ -333,6 +344,7 @@ async function scheduleLocalActivityNextHandler({
         cancellationType: encodeActivityCancellationType(options.cancellationType),
       },
       userMetadata: userMetadataToPayload(activator.payloadConverter, options.summary, undefined, context),
+      eventGroupMarkers: eventGroupMarkersToProto(options.eventGroups),
     });
     activator.completions.activity.set(seq, {
       resolve,
@@ -413,7 +425,9 @@ export async function scheduleLocalActivity<R>(
       })) as Promise<R>;
     } catch (err) {
       if (err instanceof LocalActivityDoBackoff) {
-        await sleep(requiredTsToMs(err.backoff.backoffDuration, 'backoffDuration'));
+        await sleep(requiredTsToMs(err.backoff.backoffDuration, 'backoffDuration'), {
+          eventGroups: options.eventGroups,
+        });
         if (typeof err.backoff.attempt !== 'number') {
           throw new TypeError('Invalid backoff attempt type');
         }
@@ -449,6 +463,7 @@ function startChildWorkflowExecutionNextHandler({
           if (!complete) {
             activator.pushCommand({
               cancelChildWorkflowExecution: { childWorkflowSeq: seq },
+              eventGroupMarkers: eventGroupMarkersToProto(options.eventGroups),
             });
           }
           // Nothing to cancel otherwise
@@ -486,6 +501,7 @@ function startChildWorkflowExecutionNextHandler({
         options?.staticDetails,
         context
       ),
+      eventGroupMarkers: eventGroupMarkersToProto(options.eventGroups),
     });
     activator.completions.childWorkflowStart.set(seq, {
       resolve,
@@ -553,6 +569,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, typeInfo, target, he
               childWorkflowId: target.childWorkflowId,
             }),
       },
+      eventGroupMarkers: eventGroupMarkersToProto(undefined),
     });
 
     activator.completions.signalWorkflow.set(seq, { resolve, reject, context });
@@ -873,6 +890,7 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
               runId,
             },
           },
+          eventGroupMarkers: eventGroupMarkersToProto(undefined),
         });
         activator.completions.cancelWorkflow.set(seq, {
           resolve,
@@ -1188,22 +1206,27 @@ export function makeContinueAsNewFunc<F extends Workflow>(
       const { headers, args, options } = input;
       const typeInfo =
         options.typeInfo ?? (options.workflowType === info.workflowType ? activator.typeInfo : undefined);
-      throw new ContinueAsNew({
-        workflowType: options.workflowType,
-        arguments: toPayloadsWithContext(activator.payloadConverter, context, args, typeInfo?.inputTypes),
-        headers,
-        taskQueue: options.taskQueue,
-        memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo, context),
-        searchAttributes:
-          options.searchAttributes || options.typedSearchAttributes
-            ? { indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes) }
-            : undefined,
-        workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
-        workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
-        backoffStartInterval: msOptionalToTs(options.backoffStartInterval),
-        versioningIntent: versioningIntentToProto(options.versioningIntent),
-        initialVersioningBehavior: encodeInitialVersioningBehavior(options.initialVersioningBehavior),
-      });
+      throw new ContinueAsNew(
+        {
+          workflowType: options.workflowType,
+          arguments: toPayloadsWithContext(activator.payloadConverter, context, args, typeInfo?.inputTypes),
+          headers,
+          taskQueue: options.taskQueue,
+          memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo, context),
+          searchAttributes:
+            options.searchAttributes || options.typedSearchAttributes
+              ? {
+                  indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes),
+                }
+              : undefined,
+          workflowRunTimeout: msOptionalToTs(options.workflowRunTimeout),
+          workflowTaskTimeout: msOptionalToTs(options.workflowTaskTimeout),
+          backoffStartInterval: msOptionalToTs(options.backoffStartInterval),
+          versioningIntent: versioningIntentToProto(options.versioningIntent),
+          initialVersioningBehavior: encodeInitialVersioningBehavior(options.initialVersioningBehavior),
+        },
+        eventGroupMarkersToProto(options.eventGroups)
+      );
     });
     return fn({
       args,
@@ -1708,6 +1731,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
           indexedFields: encodeUnifiedSearchAttributes(undefined, searchAttributes),
         },
       },
+      eventGroupMarkers: eventGroupMarkersToProto(undefined),
     });
 
     activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {
@@ -1739,6 +1763,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
           indexedFields: mapToPayloads(searchAttributePayloadConverter, searchAttributes),
         },
       },
+      eventGroupMarkers: eventGroupMarkersToProto(undefined),
     });
 
     activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {
@@ -1866,6 +1891,7 @@ export function upsertMemo(memo: Record<string, unknown>): void {
         ),
       },
     },
+    eventGroupMarkers: eventGroupMarkersToProto(undefined),
   });
 
   activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {

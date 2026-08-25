@@ -32,6 +32,7 @@ export interface TestWorkflowBundleOptions {
   workflowsPath: string;
   workflowInterceptorModules?: string[];
   additionalIgnoreModules?: string[];
+  payloadConverterPath?: string;
   plugins?: BundlerPlugin[];
 }
 
@@ -42,6 +43,7 @@ export async function createTestWorkflowBundle({
   workflowsPath,
   workflowInterceptorModules,
   additionalIgnoreModules = [],
+  payloadConverterPath,
   plugins,
 }: TestWorkflowBundleOptions): Promise<WorkflowBundleWithSourceMap> {
   const bundlerOptions: Partial<BundleOptions> = {
@@ -52,6 +54,7 @@ export async function createTestWorkflowBundle({
     ...bundlerOptions,
     workflowInterceptorModules: [...defaultWorkflowInterceptorModules, ...(workflowInterceptorModules ?? [])],
     workflowsPath,
+    payloadConverterPath,
     logger: new DefaultLogger('WARN'),
     plugins: plugins ?? [],
   });
