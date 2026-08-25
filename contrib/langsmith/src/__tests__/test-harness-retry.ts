@@ -1,13 +1,11 @@
 /**
- * Deterministic coverage for the stall-retry branches of `withTracingWorker`: timeout → fresh
- * queue + collector rollback, attempt-budget exhaustion, and non-stall error passthrough. Uses
- * the injectable `stallTimeoutMs`/`maxBodyAttempts` knobs to force each path with a hanging or
- * throwing body instead of a real first-workflow-task delivery stall.
+ * Deterministic coverage for `withTracingWorker`'s stall-retry branches, forced via the
+ * injectable `stallTimeoutMs`/`maxBodyAttempts` knobs with hanging/throwing bodies.
  *
  * @module
  */
 
-import anyTest, { TestFn } from 'ava';
+import anyTest, { type TestFn } from 'ava';
 
 import { HarnessStallError, InMemoryRunCollector, useSharedEnv, withTracingWorker } from './helpers';
 
