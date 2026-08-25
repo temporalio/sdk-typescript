@@ -149,7 +149,7 @@ class ExplicitEventGroupMarkerImpl extends EventGroupMarkerImpl {
     return new ExplicitEventGroupMarkerImpl({ label: { id, label } });
   }
 
-  constructor(private readonly marker: IUnconvertedEventGroupMarker & { label: { id: string } }) {
+  constructor(public readonly marker: IUnconvertedEventGroupMarker & { label: { id: string } }) {
     super();
   }
 
