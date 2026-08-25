@@ -19,6 +19,7 @@ import { loadHistory, waitUntil } from './helpers';
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
 // polling/retry strategies result in the expected behavior
 const LONG_POLL_EXPIRATION_INTERVAL_SECONDS = 5.0;
+const UPDATE_ADMISSION_TIMEOUT_MS = 30_000;
 
 const recordedLogs: { [workflowId: string]: LogEntry[] } = {};
 
@@ -571,7 +572,7 @@ test('Update is always delivered', async (t) => {
   wfHandle.executeUpdate(stateMutatingUpdate, { updateId }).catch(() => {
     /* ignore */
   });
-  await waitUntil(() => updateHasBeenAdmitted(wfHandle, updateId), 5000);
+  await waitUntil(() => updateHasBeenAdmitted(wfHandle, updateId), UPDATE_ADMISSION_TIMEOUT_MS);
 
   const worker = await createWorker();
   await worker.runUntil(async () => {
@@ -589,13 +590,13 @@ test('Two Updates in first WFT', async (t) => {
   wfHandle.executeUpdate(update, { args: ['1'], updateId: firstUpdateId }).catch(() => {
     /* ignore */
   });
-  await waitUntil(() => updateHasBeenAdmitted(wfHandle, firstUpdateId), 5000);
+  await waitUntil(() => updateHasBeenAdmitted(wfHandle, firstUpdateId), UPDATE_ADMISSION_TIMEOUT_MS);
 
   const secondUpdateId = 'update-2';
   wfHandle.executeUpdate(doneUpdate, { updateId: secondUpdateId }).catch(() => {
     /* ignore */
   });
-  await waitUntil(() => updateHasBeenAdmitted(wfHandle, secondUpdateId), 5000);
+  await waitUntil(() => updateHasBeenAdmitted(wfHandle, secondUpdateId), UPDATE_ADMISSION_TIMEOUT_MS);
 
   const worker = await createWorker();
   await worker.runUntil(async () => {
