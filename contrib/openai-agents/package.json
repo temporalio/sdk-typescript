@@ -102,7 +102,7 @@
     "@temporalio/test-helpers": "workspace:*",
     "@temporalio/testing": "workspace:*",
     "ava": "^5.3.1",
-    "nexus-rpc": "^0.0.2",
+    "nexus-rpc": "^0.0.3",
     "openai": "^6.35.0"
   },
   "engines": {

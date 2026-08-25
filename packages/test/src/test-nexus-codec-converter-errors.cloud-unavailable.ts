@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import * as nexus from 'nexus-rpc';
 import type { Payload } from '@temporalio/common';
-import { NexusOperationFailure } from '@temporalio/common';
+import { ApplicationFailure, createPayloadValidationError, NexusOperationFailure } from '@temporalio/common';
 import { Client, WorkflowFailedError } from '@temporalio/client';
 import type { PayloadCodec } from '@temporalio/common/lib/converter/payload-codec';
 import * as workflow from '@temporalio/workflow';
@@ -215,5 +215,124 @@ test('Nexus operation converter HandlerError is propagated as-is', async (t) => 
     t.is(handlerError.type, 'NOT_FOUND');
     t.false(handlerError.retryable);
     t.regex(handlerError.message, /Intentional payload converter HandlerError for testing/);
+  });
+});
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+test('Nexus operation codec PayloadValidationError is a non-retryable bad request', async (t) => {
+  const { createWorker, registerNexusEndpoint, taskQueue } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+
+  // Only fail when decoding the Nexus operation input ('hello'), so that the caller workflow's
+  // own activation payloads still decode successfully and the operation is actually reached.
+  let decodeAttempts = 0;
+  const validationCodec: PayloadCodec = {
+    async encode(payloads: Payload[]): Promise<Payload[]> {
+      return payloads;
+    },
+    async decode(payloads: Payload[]): Promise<Payload[]> {
+      for (const payload of payloads) {
+        if (payload.data != null && Buffer.from(payload.data).toString() === '"hello"') {
+          decodeAttempts++;
+          throw createPayloadValidationError({
+            violations: [{ path: 'input', reason: 'intentional payload validation failure for testing' }],
+          });
+        }
+      }
+      return payloads;
+    },
+  };
+
+  const worker = await createWorker({
+    dataConverter: { payloadCodecs: [validationCodec] },
+    nexusServices: [
+      nexus.serviceHandler(testService, {
+        async echoOp(_ctx, input) {
+          return input;
+        },
+      }),
+    ],
+  });
+
+  const customClient = new Client({
+    connection: t.context.env.connection,
+    dataConverter: { payloadCodecs: [validationCodec] },
+  });
+
+  await worker.runUntil(async () => {
+    const err = await t.throwsAsync(
+      () =>
+        customClient.workflow.execute(nexusEchoCaller, {
+          taskQueue,
+          workflowId: randomUUID(),
+          args: [endpointName],
+        }),
+      {
+        instanceOf: WorkflowFailedError,
+      }
+    );
+    t.true(err!.cause instanceof NexusOperationFailure);
+    const nexusFailure = err!.cause as NexusOperationFailure;
+    t.true(nexusFailure.cause instanceof nexus.HandlerError);
+    const handlerError = innermostHandlerError(nexusFailure.cause as nexus.HandlerError);
+    // A non-retryable validation failure means the input is invalid, so BAD_REQUEST rather than
+    // the INTERNAL any other ApplicationFailure from a codec gets.
+    t.is(handlerError.type, 'BAD_REQUEST');
+    t.false(handlerError.retryable);
+    t.is(handlerError.message, 'Invalid operation input');
+    // The wrapper message does not carry the codec's own message, so it has to survive on the cause.
+    t.true(handlerError.cause instanceof ApplicationFailure);
+    const cause = handlerError.cause as ApplicationFailure;
+    t.is(cause.type, 'PayloadValidationError');
+    t.is(cause.message, 'Payload validation failed');
+  });
+
+  // Non-retryable, so the input is only decoded once.
+  t.is(decodeAttempts, 1);
+});
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+test('Nexus operation converter PayloadValidationError is a non-retryable bad request', async (t) => {
+  const { createWorker, registerNexusEndpoint, taskQueue } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+
+  const worker = await createWorker({
+    dataConverter: { payloadConverterPath: require.resolve('./payload-validation-failing-payload-converter') },
+    nexusServices: [
+      nexus.serviceHandler(testService, {
+        async echoOp(_ctx, input) {
+          return input;
+        },
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const err = await t.throwsAsync(
+      () =>
+        t.context.env.client.workflow.execute(nexusEchoCaller, {
+          taskQueue,
+          workflowId: randomUUID(),
+          args: [endpointName],
+        }),
+      {
+        instanceOf: WorkflowFailedError,
+      }
+    );
+    t.true(err!.cause instanceof NexusOperationFailure);
+    const nexusFailure = err!.cause as NexusOperationFailure;
+    t.true(nexusFailure.cause instanceof nexus.HandlerError);
+    const handlerError = innermostHandlerError(nexusFailure.cause as nexus.HandlerError);
+    t.is(handlerError.type, 'BAD_REQUEST');
+    t.false(handlerError.retryable);
+    // A validation failure gets its own message, distinct from the generic decode failure.
+    t.is(handlerError.message, 'Invalid operation input');
+    t.notRegex(handlerError.message, /Payload converter failed to decode/);
+    t.true(handlerError.cause instanceof ApplicationFailure);
+    const cause = handlerError.cause as ApplicationFailure;
+    t.is(cause.type, 'PayloadValidationError');
+    t.is(cause.message, 'Payload validation failed');
   });
 });

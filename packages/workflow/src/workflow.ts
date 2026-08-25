@@ -2,13 +2,19 @@ import type {
   ActivityFunction,
   ActivitySerializationContext,
   ActivityOptions,
+  ActivityTypeInfoMap,
   LocalActivityOptions,
+  PayloadTypeInfo,
   QueryDefinition,
+  QueryDefinitionOptions,
   SearchAttributes,
   SearchAttributeValue,
   SignalDefinition,
+  SignalDefinitionOptions,
+  SignalTypeInfo,
   UntypedActivities,
   UpdateDefinition,
+  UpdateDefinitionOptions,
   WithWorkflowArgs,
   Workflow,
   WorkflowSerializationContext,
@@ -18,13 +24,14 @@ import type {
   SearchAttributeUpdatePair,
   WorkflowDefinitionOptionsOrGetter,
   WorkflowDefinitionConfig,
+  WorkflowSignalOptions,
 } from '@temporalio/common';
 import {
   compileRetryPolicy,
   compilePriority,
   encodeActivityCancellationType,
   encodeWorkflowIdReusePolicy,
-  extractWorkflowType,
+  extractWorkflowTypeAndConfig,
   HandlerUnfinishedPolicy,
   mapToPayloads,
   encodeInitialVersioningBehavior,
@@ -205,7 +212,14 @@ const validateLocalActivityOptions = validateActivityOptions;
 /**
  * Push a scheduleActivity command into activator accumulator and register completion
  */
-function scheduleActivityNextHandler({ options, args, headers, seq, activityType }: ActivityInput): Promise<unknown> {
+function scheduleActivityNextHandler({
+  options,
+  args,
+  headers,
+  seq,
+  activityType,
+  typeInfo,
+}: ActivityInput): Promise<unknown> {
   const activator = getActivator();
   validateActivityOptions(options);
   const activityId = options.activityId ?? `${seq}`;
@@ -235,7 +249,7 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
         seq,
         activityId,
         activityType,
-        arguments: toPayloadsWithContext(activator.payloadConverter, context, args),
+        arguments: toPayloadsWithContext(activator.payloadConverter, context, args, typeInfo?.inputTypes),
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
         taskQueue: options.taskQueue || activator.info.taskQueue,
         heartbeatTimeout: msOptionalToTs(options.heartbeatTimeout),
@@ -254,6 +268,7 @@ function scheduleActivityNextHandler({ options, args, headers, seq, activityType
       resolve,
       reject,
       context,
+      outputTypeInfo: typeInfo?.outputType,
     });
   });
 }
@@ -269,6 +284,7 @@ async function scheduleLocalActivityNextHandler({
   activityType,
   attempt,
   originalScheduleTime,
+  typeInfo,
 }: LocalActivityInput): Promise<unknown> {
   const activator = getActivator();
   const activityId = `${seq}`;
@@ -307,7 +323,7 @@ async function scheduleLocalActivityNextHandler({
         originalScheduleTime,
         activityId,
         activityType,
-        arguments: toPayloadsWithContext(activator.payloadConverter, context, args),
+        arguments: toPayloadsWithContext(activator.payloadConverter, context, args, typeInfo?.inputTypes),
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
         scheduleToCloseTimeout: msOptionalToTs(options.scheduleToCloseTimeout),
         startToCloseTimeout: msOptionalToTs(options.startToCloseTimeout),
@@ -322,6 +338,7 @@ async function scheduleLocalActivityNextHandler({
       resolve,
       reject,
       context,
+      outputTypeInfo: typeInfo?.outputType,
     });
   });
 }
@@ -330,7 +347,12 @@ async function scheduleLocalActivityNextHandler({
  * Schedule an activity and run outbound interceptors
  * @hidden
  */
-export function scheduleActivity<R>(activityType: string, args: any[], options: ActivityOptions): Promise<R> {
+export function scheduleActivity<R>(
+  activityType: string,
+  args: any[],
+  options: ActivityOptions,
+  typeInfo?: PayloadTypeInfo
+): Promise<R> {
   const activator = assertInWorkflowContext(
     'Workflow.scheduleActivity(...) may only be used from a Workflow Execution'
   );
@@ -346,6 +368,7 @@ export function scheduleActivity<R>(activityType: string, args: any[], options: 
     options,
     args,
     seq,
+    typeInfo,
   }) as Promise<R>;
 }
 
@@ -356,7 +379,8 @@ export function scheduleActivity<R>(activityType: string, args: any[], options: 
 export async function scheduleLocalActivity<R>(
   activityType: string,
   args: any[],
-  options: LocalActivityOptions
+  options: LocalActivityOptions,
+  typeInfo?: PayloadTypeInfo
 ): Promise<R> {
   const activator = assertInWorkflowContext(
     'Workflow.scheduleLocalActivity(...) may only be used from a Workflow Execution'
@@ -385,6 +409,7 @@ export async function scheduleLocalActivity<R>(
         seq,
         attempt,
         originalScheduleTime,
+        typeInfo,
       })) as Promise<R>;
     } catch (err) {
       if (err instanceof LocalActivityDoBackoff) {
@@ -435,7 +460,7 @@ function startChildWorkflowExecutionNextHandler({
         seq,
         workflowId,
         workflowType,
-        input: toPayloadsWithContext(activator.payloadConverter, context, options.args),
+        input: toPayloadsWithContext(activator.payloadConverter, context, options.args, options.typeInfo?.inputTypes),
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
         taskQueue: options.taskQueue || activator.info.taskQueue,
         workflowExecutionTimeout: msOptionalToTs(options.workflowExecutionTimeout),
@@ -478,6 +503,7 @@ function startChildWorkflowExecutionNextHandler({
       resolve,
       reject,
       context,
+      outputTypeInfo: options.typeInfo?.outputType,
     });
   });
   untrackPromise(startPromise);
@@ -489,7 +515,7 @@ function startChildWorkflowExecutionNextHandler({
   return ret;
 }
 
-function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: SignalWorkflowInput) {
+function signalWorkflowNextHandler({ seq, signalName, args, typeInfo, target, headers }: SignalWorkflowInput) {
   const activator = getActivator();
   const targetWorkflowId = target.type === 'external' ? target.workflowExecution.workflowId : target.childWorkflowId;
   const context = targetWorkflowSerializationContext(activator.info, targetWorkflowId!);
@@ -513,7 +539,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, target, headers }: S
     activator.pushCommand({
       signalExternalWorkflowExecution: {
         seq,
-        args: toPayloadsWithContext(activator.payloadConverter, context, args),
+        args: toPayloadsWithContext(activator.payloadConverter, context, args, typeInfo?.inputTypes),
         headers,
         signalName,
         ...(target.type === 'external'
@@ -570,6 +596,16 @@ export type ActivityInterfaceFor<T> = {
   [K in keyof T]: T[K] extends ActivityFunction ? ActivityFunctionWithOptions<T[K]> : typeof NotAnActivityMethod;
 };
 
+/**
+ * Options for {@link proxyActivities}, including optional metadata for each proxied Activity.
+ *
+ * @experimental
+ */
+export interface ActivityProxyOptions<A = UntypedActivities> extends ActivityOptions {
+  /** Type information keyed by the Activity names exposed by this proxy. */
+  activityTypeInfo?: ActivityTypeInfoMap<A>;
+}
+
 export type ActivityFunctionWithOptions<T extends ActivityFunction> = T & {
   /**
    * Execute the activity, overriding its existing options with the
@@ -590,6 +626,16 @@ export type ActivityFunctionWithOptions<T extends ActivityFunction> = T & {
 export type LocalActivityInterfaceFor<T> = {
   [K in keyof T]: T[K] extends ActivityFunction ? LocalActivityFunctionWithOptions<T[K]> : typeof NotAnActivityMethod;
 };
+
+/**
+ * Options for {@link proxyLocalActivities}, including optional metadata for each proxied Local Activity.
+ *
+ * @experimental
+ */
+export interface LocalActivityProxyOptions<A = UntypedActivities> extends LocalActivityOptions {
+  /** Type information keyed by the Local Activity names exposed by this proxy. */
+  activityTypeInfo?: ActivityTypeInfoMap<A>;
+}
 
 export type LocalActivityFunctionWithOptions<T extends ActivityFunction> = T & {
   /**
@@ -662,7 +708,7 @@ export type LocalActivityFunctionWithOptions<T extends ActivityFunction> = T & {
  * }
  * ```
  */
-export function proxyActivities<A = UntypedActivities>(options: ActivityOptions): ActivityInterfaceFor<A> {
+export function proxyActivities<A = UntypedActivities>(options: ActivityProxyOptions<A>): ActivityInterfaceFor<A> {
   if (options === undefined) {
     throw new TypeError('options must be defined');
   }
@@ -674,16 +720,29 @@ export function proxyActivities<A = UntypedActivities>(options: ActivityOptions)
       if (typeof activityType !== 'string') {
         throw new TypeError(`Only strings are supported for Activity types, got: ${String(activityType)}`);
       }
+      const activityName = activityType;
 
       function activityProxyFunction(...args: unknown[]): Promise<unknown> {
-        return scheduleActivity(activityType as string, args, options);
+        const { activityTypeInfo, ...activityOptions } = options;
+        return scheduleActivity(
+          activityName,
+          args,
+          activityOptions,
+          activityTypeInfo?.[activityName as keyof A & string]
+        );
       }
 
       activityProxyFunction.executeWithOptions = function (
         overrideOptions: ActivityOptions,
         args: any[]
       ): Promise<unknown> {
-        return scheduleActivity(activityType, args, deepMerge(options, overrideOptions));
+        const { activityTypeInfo, ...activityOptions } = options;
+        return scheduleActivity(
+          activityName,
+          args,
+          deepMerge(activityOptions, overrideOptions),
+          activityTypeInfo?.[activityName as keyof A & string]
+        );
       };
 
       return activityProxyFunction;
@@ -702,7 +761,7 @@ export function proxyActivities<A = UntypedActivities>(options: ActivityOptions)
  * @see {@link proxyActivities} for examples
  */
 export function proxyLocalActivities<A = UntypedActivities>(
-  options: LocalActivityOptions
+  options: LocalActivityProxyOptions<A>
 ): LocalActivityInterfaceFor<A> {
   if (options === undefined) {
     throw new TypeError('options must be defined');
@@ -715,16 +774,29 @@ export function proxyLocalActivities<A = UntypedActivities>(
       if (typeof activityType !== 'string') {
         throw new TypeError(`Only strings are supported for Activity types, got: ${String(activityType)}`);
       }
+      const activityName = activityType;
 
       function localActivityProxyFunction(...args: unknown[]): Promise<unknown> {
-        return scheduleLocalActivity(activityType as string, args, options);
+        const { activityTypeInfo, ...activityOptions } = options;
+        return scheduleLocalActivity(
+          activityName,
+          args,
+          activityOptions,
+          activityTypeInfo?.[activityName as keyof A & string]
+        );
       }
 
       localActivityProxyFunction.executeWithOptions = function (
         overrideOptions: LocalActivityOptions,
         args: any[]
       ): Promise<unknown> {
-        return scheduleLocalActivity(activityType, args, deepMerge(options, overrideOptions));
+        const { activityTypeInfo, ...activityOptions } = options;
+        return scheduleLocalActivity(
+          activityName,
+          args,
+          deepMerge(activityOptions, overrideOptions),
+          activityTypeInfo?.[activityName as keyof A & string]
+        );
       };
 
       return localActivityProxyFunction;
@@ -746,6 +818,23 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
   const activator = assertInWorkflowContext(
     'Workflow.getExternalWorkflowHandle(...) may only be used from a Workflow Execution. Consider using Client.workflow.getHandle(...) instead.)'
   );
+  const signal = (signalName: string, args: unknown[], typeInfo?: SignalTypeInfo): Promise<void> => {
+    return composeInterceptors(
+      activator.interceptors.outbound,
+      'signalWorkflow',
+      signalWorkflowNextHandler
+    )({
+      seq: activator.nextSeqs.signalWorkflow++,
+      signalName,
+      args,
+      typeInfo,
+      target: {
+        type: 'external',
+        workflowExecution: { workflowId, runId },
+      },
+      headers: {},
+    });
+  };
   return {
     workflowId,
     runId,
@@ -793,23 +882,19 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
       });
     },
     signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
-      return composeInterceptors(
-        activator.interceptors.outbound,
-        'signalWorkflow',
-        signalWorkflowNextHandler
-      )({
-        seq: activator.nextSeqs.signalWorkflow++,
-        signalName: typeof def === 'string' ? def : def.name,
-        args,
-        target: {
-          type: 'external',
-          workflowExecution: { workflowId, runId },
-        },
-        headers: {},
-      });
+      if (typeof def === 'string') {
+        return signal(def, args);
+      } else {
+        return signal(def.name, args, def.typeInfo);
+      }
+    },
+    signalWithOptions<Args extends any[]>(signalName: string, options: WorkflowSignalOptions<Args>): Promise<void> {
+      return signal(signalName, options.args ?? [], options.typeInfo);
     },
   };
 }
+
+type ChildWorkflowDefinitionOptions = Omit<ChildWorkflowOptions, 'typeInfo'> & { typeInfo?: never };
 
 /**
  * Start a child Workflow execution
@@ -837,7 +922,7 @@ export async function startChild<T extends Workflow>(
  */
 export async function startChild<T extends Workflow>(
   workflowFunc: T,
-  options: WithWorkflowArgs<T, ChildWorkflowOptions>
+  options: WithWorkflowArgs<T, ChildWorkflowDefinitionOptions>
 ): Promise<ChildWorkflowHandle<T>>;
 
 /**
@@ -875,7 +960,14 @@ export async function startChild<T extends Workflow>(
     'Workflow.startChild(...) may only be used from a Workflow Execution. Consider using Client.workflow.start(...) instead.)'
   );
   const optionsWithDefaults = addDefaultWorkflowOptions(options ?? ({} as any));
-  const workflowType = extractWorkflowType(workflowTypeOrFunc);
+  const { type: workflowType, typeInfo } = extractWorkflowTypeAndConfig(
+    workflowTypeOrFunc,
+    optionsWithDefaults.typeInfo
+  );
+  const workflowOptions = {
+    ...optionsWithDefaults,
+    typeInfo,
+  };
   const execute = composeInterceptors(
     activator.interceptors.outbound,
     'startChildWorkflowExecution',
@@ -883,33 +975,48 @@ export async function startChild<T extends Workflow>(
   );
   const [started, completed] = await execute({
     seq: activator.nextSeqs.childWorkflow++,
-    options: optionsWithDefaults,
+    options: workflowOptions,
     headers: {},
     workflowType,
   });
   const firstExecutionRunId = await started;
 
+  const signal = (signalName: string, args: unknown[], typeInfo?: SignalTypeInfo): Promise<void> => {
+    return composeInterceptors(
+      activator.interceptors.outbound,
+      'signalWorkflow',
+      signalWorkflowNextHandler
+    )({
+      seq: activator.nextSeqs.signalWorkflow++,
+      signalName,
+      args,
+      typeInfo,
+      target: {
+        type: 'child',
+        childWorkflowId: workflowOptions.workflowId,
+      },
+      headers: {},
+    });
+  };
+
   return {
-    workflowId: optionsWithDefaults.workflowId,
+    workflowId: workflowOptions.workflowId,
     firstExecutionRunId,
     async result(): Promise<WorkflowResultType<T>> {
       return (await completed) as any;
     },
     async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
-      return composeInterceptors(
-        activator.interceptors.outbound,
-        'signalWorkflow',
-        signalWorkflowNextHandler
-      )({
-        seq: activator.nextSeqs.signalWorkflow++,
-        signalName: typeof def === 'string' ? def : def.name,
-        args,
-        target: {
-          type: 'child',
-          childWorkflowId: optionsWithDefaults.workflowId,
-        },
-        headers: {},
-      });
+      if (typeof def === 'string') {
+        return signal(def, args);
+      } else {
+        return signal(def.name, args, def.typeInfo);
+      }
+    },
+    async signalWithOptions<Args extends any[]>(
+      signalName: string,
+      options: WorkflowSignalOptions<Args>
+    ): Promise<void> {
+      return signal(signalName, options.args ?? [], options.typeInfo);
     },
   };
 }
@@ -938,7 +1045,7 @@ export async function executeChild<T extends Workflow>(
  */
 export async function executeChild<T extends Workflow>(
   workflowFunc: T,
-  options: WithWorkflowArgs<T, ChildWorkflowOptions>
+  options: WithWorkflowArgs<T, ChildWorkflowDefinitionOptions>
 ): Promise<WorkflowResultType<T>>;
 
 /**
@@ -976,7 +1083,14 @@ export async function executeChild<T extends Workflow>(
     'Workflow.executeChild(...) may only be used from a Workflow Execution. Consider using Client.workflow.execute(...) instead.'
   );
   const optionsWithDefaults = addDefaultWorkflowOptions(options ?? ({} as any));
-  const workflowType = extractWorkflowType(workflowTypeOrFunc);
+  const { type: workflowType, typeInfo } = extractWorkflowTypeAndConfig(
+    workflowTypeOrFunc,
+    optionsWithDefaults.typeInfo
+  );
+  const workflowOptions = {
+    ...optionsWithDefaults,
+    typeInfo,
+  };
   const execute = composeInterceptors(
     activator.interceptors.outbound,
     'startChildWorkflowExecution',
@@ -984,7 +1098,7 @@ export async function executeChild<T extends Workflow>(
   );
   const execPromise = execute({
     seq: activator.nextSeqs.childWorkflow++,
-    options: optionsWithDefaults,
+    options: workflowOptions,
     headers: {},
     workflowType,
   });
@@ -1072,9 +1186,11 @@ export function makeContinueAsNewFunc<F extends Workflow>(
     const context = currentWorkflowSerializationContext(info);
     const fn = composeInterceptors(activator.interceptors.outbound, 'continueAsNew', async (input) => {
       const { headers, args, options } = input;
+      const typeInfo =
+        options.typeInfo ?? (options.workflowType === info.workflowType ? activator.typeInfo : undefined);
       throw new ContinueAsNew({
         workflowType: options.workflowType,
-        arguments: toPayloadsWithContext(activator.payloadConverter, context, args),
+        arguments: toPayloadsWithContext(activator.payloadConverter, context, args, typeInfo?.inputTypes),
         headers,
         taskQueue: options.taskQueue,
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo, context),
@@ -1258,11 +1374,13 @@ function conditionInner(fn: () => boolean): Promise<void> {
  * A definition can be reused in multiple Workflows.
  */
 export function defineUpdate<Ret, Args extends any[] = [], Name extends string = string>(
-  name: Name
+  name: Name,
+  options: UpdateDefinitionOptions = {}
 ): UpdateDefinition<Ret, Args, Name> {
   return {
     type: 'update',
     name,
+    ...options,
   } as UpdateDefinition<Ret, Args, Name>;
 }
 
@@ -1271,13 +1389,17 @@ export function defineUpdate<Ret, Args extends any[] = [], Name extends string =
  *
  * A definition is used to register a handler in the Workflow via {@link setHandler} and to signal a Workflow using a {@link WorkflowHandle}, {@link ChildWorkflowHandle} or {@link ExternalWorkflowHandle}.
  * A definition can be reused in multiple Workflows.
+ *
+ * @param options optional type information used to convert Signal arguments
  */
 export function defineSignal<Args extends any[] = [], Name extends string = string>(
-  name: Name
+  name: Name,
+  options: SignalDefinitionOptions = {}
 ): SignalDefinition<Args, Name> {
   return {
     type: 'signal',
     name,
+    ...options,
   } as SignalDefinition<Args, Name>;
 }
 
@@ -1288,11 +1410,13 @@ export function defineSignal<Args extends any[] = [], Name extends string = stri
  * A definition can be reused in multiple Workflows.
  */
 export function defineQuery<Ret, Args extends any[] = [], Name extends string = string>(
-  name: Name
+  name: Name,
+  options: QueryDefinitionOptions = {}
 ): QueryDefinition<Ret, Args, Name> {
   return {
     type: 'query',
     name,
+    ...options,
   } as QueryDefinition<Ret, Args, Name>;
 }
 
@@ -1422,7 +1546,13 @@ export function setHandler<
 
       const validator = updateOptions?.validator as WorkflowUpdateValidatorType | undefined;
       const unfinishedPolicy = updateOptions?.unfinishedPolicy ?? HandlerUnfinishedPolicy.WARN_AND_ABANDON;
-      activator.updateHandlers.set(def.name, { handler, validator, description, unfinishedPolicy });
+      activator.updateHandlers.set(def.name, {
+        handler,
+        validator,
+        description,
+        unfinishedPolicy,
+        typeInfo: def.typeInfo,
+      });
       activator.dispatchBufferedUpdates();
     } else if (handler == null) {
       activator.updateHandlers.delete(def.name);
@@ -1433,7 +1563,12 @@ export function setHandler<
     if (typeof handler === 'function') {
       const signalOptions = options as SignalHandlerOptions | undefined;
       const unfinishedPolicy = signalOptions?.unfinishedPolicy ?? HandlerUnfinishedPolicy.WARN_AND_ABANDON;
-      activator.signalHandlers.set(def.name, { handler: handler as any, description, unfinishedPolicy });
+      activator.signalHandlers.set(def.name, {
+        handler: handler as any,
+        description,
+        unfinishedPolicy,
+        typeInfo: def.typeInfo,
+      });
       activator.dispatchBufferedSignals();
     } else if (handler == null) {
       activator.signalHandlers.delete(def.name);
@@ -1442,7 +1577,7 @@ export function setHandler<
     }
   } else if (def.type === 'query') {
     if (typeof handler === 'function') {
-      activator.queryHandlers.set(def.name, { handler: handler as any, description });
+      activator.queryHandlers.set(def.name, { handler: handler as any, description, typeInfo: def.typeInfo });
     } else if (handler == null) {
       activator.queryHandlers.delete(def.name);
     } else {

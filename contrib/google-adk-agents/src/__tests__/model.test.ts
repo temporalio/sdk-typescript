@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * E2E tests for the `TemporalModel` model boundary. Each test boots a local
  * Temporal server + worker (with the plugin), runs a real ADK `TemporalModel`
  * inside the Workflow, and asserts on observable behavior (return values,

@@ -8,12 +8,14 @@ import {
   type PayloadConverter,
 } from '../converter/payload-converter';
 import { ProtobufBinaryPayloadConverter } from '../converter/protobuf-payload-converters';
+import type { PayloadCodec } from '../converter/payload-codec';
 import type { SerializationContext } from '../converter/serialization-context';
 import { PayloadConverterError, ValueError } from '../errors';
 import type { Payload } from '../interfaces';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
+  encodeToPayload,
   encodeToPayloadsWithContext,
 } from '../internal-non-workflow/codec-helpers';
 import type { ConverterHint, TypeInfo } from '../type-info';
@@ -120,6 +122,52 @@ test('converts an application class to a transfer type around JSON payload conve
   t.is(result.balanceInCents, account.balanceInCents);
 });
 
+test('single-payload encoding applies transfer conversion before payload codecs', async (t) => {
+  const stages: string[] = [];
+  const account = new UserAccount('account-123', 123n);
+  const typeInfo: TypeInfo<UserAccount, UserAccountData> = {
+    transferTypeConverter: {
+      toTransferType(value) {
+        stages.push('transfer');
+        return toUserAccountData(value);
+      },
+      fromTransferType: fromUserAccountData,
+    },
+  };
+  const payloadConverter: PayloadConverter = {
+    toPayload(value, context, hint) {
+      stages.push('payload-converter');
+      return defaultPayloadConverter.toPayload(value, context, hint);
+    },
+    fromPayload(payload, context, hint) {
+      return defaultPayloadConverter.fromPayload(payload, context, hint);
+    },
+  };
+  const payloadCodec: PayloadCodec = {
+    async encode(payloads) {
+      stages.push('payload-codec');
+      return payloads;
+    },
+    async decode(payloads) {
+      return payloads;
+    },
+  };
+  const converter = { ...defaultDataConverter, payloadConverter, payloadCodecs: [payloadCodec] };
+
+  const payload = await encodeToPayload(converter, account, undefined, typeInfo);
+
+  t.deepEqual(payload, defaultPayloadConverter.toPayload(toUserAccountData(account)));
+  t.deepEqual(stages, ['transfer', 'payload-converter', 'payload-codec']);
+});
+
+test('single-payload encoding preserves best-effort conversion without TypeInfo', async (t) => {
+  const value = { value: '123' };
+
+  const payload = await encodeToPayload(defaultDataConverter, value);
+
+  t.deepEqual(payload, defaultPayloadConverter.toPayload(value));
+});
+
 test('uses a converter hint to serialize and deserialize a protobuf message', async (t) => {
   const messageType = new Type('HintedValue').add(new Field('value', 1, 'string'));
   const hint = {
@@ -135,8 +183,8 @@ test('uses a converter hint to serialize and deserialize a protobuf message', as
     ),
   };
 
-  const payloads = await encodeToPayloadsWithContext(converter, undefined, [{ value: '123' }], [typeInfo]);
-  const result = await decodeFromPayloadsAtIndex(converter, 0, payloads, undefined, typeInfo);
+  const payload = await encodeToPayload(converter, { value: '123' }, undefined, typeInfo);
+  const result = await decodeFromPayloadsAtIndex(converter, 0, [payload], undefined, typeInfo);
 
   t.is(result.value, '123');
 });

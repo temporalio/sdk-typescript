@@ -15,6 +15,14 @@ A and B, but not C.
 - [Non-standard](https://github.com/protobufjs/protobuf.js/issues/1304) JSON serialization
 - Message classes with generated types and runtime-checkable instances
 
+**Update as of Aug '26:**
+
+- `protobufjs` now covers C as well. Since 8.6.0 it bundles
+  `protobufjs/ext/protojson`, a spec-compliant ProtoJSON converter derived from `proto3-json-serializer`.
+- Its own `toJSON`/`fromJSON` remain non-standard — `protojson` is a separate API alongside them, not a
+  fix to them.
+- Project activity has also picked up considerably since the original survey.
+
 ### proto3-json-serializer
 
 C
@@ -22,6 +30,11 @@ C
 - Adds spec-compliant JSON encoding to protobufjs
 - Maintained by responsive Googlers, 900k downloads/wk
 - Requires runtime-loaded messages (not compatible with generated classes)
+
+**Update as of Aug '26:**
+
+- `protobufjs` v8.6.0 introduced its own API (`protobufjs/ext/protojson`) which is derived from `proto3-json-serializer` library, so it cannot fall behind the protobufjs version we depend on.
+- `proto3-json-serializer` still declares `protobufjs: ^7.5.4` and does not support v8.
 
 ### google-protobuf
 
@@ -52,6 +65,13 @@ A and B
 - Use `protobufjs` with `proto3-json-serializer`
 - Have users use runtime-loaded messages (not generated classes) and `Class.create` (not `new Class()`, which doesn't work with runtime-loaded messages)
 - Patch `json-module` output (which adds `nested` attributes to lowercase namespaces [which causes a TS error](https://github.com/protobufjs/protobuf.js/issues/1014))
+
+**Update as of Aug '26:**
+
+- The approach remains mostly unchanged, save for a few implementation details:
+  - Spec-compliant JSON comes from `protobufjs/ext/protojson` instead of `proto3-json-serializer`.
+  - `Class.create` is now enforced rather than merely recommended: we generate the declarations with
+    `pbts --no-constructor`, so `new Class()` is a compile error instead of a runtime surprise.
 
 ```ts
 // json-module.js generated with:
@@ -111,13 +131,8 @@ function myWorkflowError(input: root.foo.bar.ProtoActivityInput) {
 
 On root in `root.foo.bar.ProtoActivityInput`, TS errors: `Cannot find namespace 'root'.`
 
-## Future work
+## Future work (as of Aug '26 - protobufjs v8.7.1)
 
-If we can get changes merged into `protobufjs` (or want to fork), we can do one or both of the below:
-
-1. Change the `json-module` output to not have `nested` attributes so we don't have to patch
-2. Add to the generated classes:
-
-- spec-compliant `to/fromJSON` methods
-- `typename` field that includes the namespace (eg `"foo.bar.MyMessage"`)
-- "this is a generated file" comment @ top
+- Considerably reduce the generated source file sizes (root.d.ts is currently 8.8MB; json-module.js is 1.3MB)
+- Make it easier for user to package their own protobuf files (maybe provide a CLI for that?)
+- Consider support of different protobuf libraries for user payloads

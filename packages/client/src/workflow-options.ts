@@ -1,6 +1,7 @@
 import type {
   CommonWorkflowOptions,
   SignalDefinition,
+  SignalTypeInfo,
   WithWorkflowArgs,
   Workflow,
   VersioningOverride,
@@ -105,11 +106,34 @@ export interface WorkflowUpdateOptions {
    * Update.
    */
   readonly updateId?: string;
+
+  /**
+   * Type information used to convert Update arguments and results when the Update is referenced by name.
+   *
+   * @experimental
+   */
+  typeInfo?: PayloadTypeInfo;
 }
 
-export type WorkflowSignalWithStartOptions<SignalArgs extends any[] = []> = SignalArgs extends [any, ...any[]]
+type WorkflowSignalWithStartOptionsBase<SignalArgs extends any[]> = SignalArgs extends [any, ...any[]]
   ? WorkflowSignalWithStartOptionsWithArgs<SignalArgs>
   : WorkflowSignalWithStartOptionsWithoutArgs<SignalArgs>;
+
+type SignalWithStartTypeInfoOptions =
+  | { signalTypeInfo?: never }
+  | {
+      signal: string;
+
+      /**
+       * Type information used to convert Signal arguments.
+       *
+       * @experimental
+       */
+      signalTypeInfo?: SignalTypeInfo;
+    };
+
+export type WorkflowSignalWithStartOptions<SignalArgs extends any[] = []> =
+  WorkflowSignalWithStartOptionsBase<SignalArgs> & SignalWithStartTypeInfoOptions;
 
 export interface WorkflowSignalWithStartOptionsWithoutArgs<SignalArgs extends any[]>
   extends Omit<WorkflowOptions, 'requestEagerStart'> {

@@ -1,4 +1,5 @@
 import type * as nexus from 'nexus-rpc';
+import { toPayloadWithTypeInfo } from '@temporalio/common';
 import { msOptionalToTs } from '@temporalio/common/lib/time';
 import { userMetadataToPayload } from '@temporalio/common/lib/user-metadata';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
@@ -127,12 +128,15 @@ export function createNexusServiceClient<T extends nexus.ServiceDefinition>(
       input: nexus.OperationInput<T['operations'][nexus.OperationKey<T['operations']>]>,
       operationOptions?: StartNexusOperationOptions
     ) {
-      const opName =
-        typeof operation === 'string'
-          ? // Casting as string to cover up the fact that `opName` might be undefined.
-            // If this happens, then `execute` will produce a `NexusOperationFailure.NOT_FOUND`.
-            (options.service.operations[operation]?.name as string)
-          : operation.name;
+      let operationDefinition: nexus.OperationDefinition<any, any> | undefined;
+      if (typeof operation === 'string') {
+        operationDefinition = options.service.operations[operation];
+      } else {
+        operationDefinition = operation;
+      }
+      // Casting as string to cover up the fact that `opName` might be undefined.
+      // If this happens, then `execute` will produce a `NexusOperationFailure.NOT_FOUND`.
+      const opName = operationDefinition?.name as string;
 
       const activator = getActivator();
       const seq = activator.nextSeqs.nexusOperation++;
@@ -158,6 +162,8 @@ export function createNexusServiceClient<T extends nexus.ServiceDefinition>(
         headers: {},
         seq,
         input,
+        inputType: operationDefinition?.inputType,
+        outputType: operationDefinition?.outputType,
       });
 
       return {
@@ -182,6 +188,8 @@ function startNexusOperationNextHandler({
   operation,
   seq,
   headers,
+  inputType,
+  outputType,
 }: StartNexusOperationInput): Promise<StartNexusOperationOutput> {
   const activator = getActivator();
   const context = {
@@ -221,7 +229,7 @@ function startNexusOperationNextHandler({
         service,
         operation,
         nexusHeader: headers,
-        input: activator.payloadConverter.toPayload(input, context),
+        input: toPayloadWithTypeInfo(activator.payloadConverter, input, context, inputType),
         scheduleToCloseTimeout: msOptionalToTs(options?.scheduleToCloseTimeout),
         scheduleToStartTimeout: msOptionalToTs(options?.scheduleToStartTimeout),
         startToCloseTimeout: msOptionalToTs(options?.startToCloseTimeout),
@@ -233,6 +241,7 @@ function startNexusOperationNextHandler({
     activator.completions.nexusOperationStart.set(seq, {
       resolve,
       reject,
+      outputTypeInfo: outputType,
     });
   });
 }

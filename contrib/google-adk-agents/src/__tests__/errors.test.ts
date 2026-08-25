@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * Unit tests for `toApplicationFailure`'s status-based retry classification,
  * covering statuses carried on the wrapped `err.response.status` (not just the
  * top-level `err.status`), plus the header-driven retry contract
@@ -14,6 +10,7 @@ import { ApplicationFailure } from '@temporalio/common';
 import { MockActivityEnvironment } from '@temporalio/testing';
 
 import { createMCPActivities, toApplicationFailure } from '../activities';
+import { MCP_ERROR_FAILURE_TYPE } from '../error-types';
 
 test('classifiesResponseStatus404AsNonRetryable', (t) => {
   const failure = toApplicationFailure({ response: { status: 404 } });
@@ -54,6 +51,18 @@ test('shouldRetryFalseHeaderForcesNonRetryableOnRetryableStatus', (t) => {
   const failure = toApplicationFailure({ status: 503, headers: { 'X-Should-Retry': 'false' } });
   t.is(failure.type, 'GoogleAdkModelError.503');
   t.is(failure.nonRetryable, true);
+});
+
+test('shouldRetryFalseHeaderForcesNonRetryableOnUndefinedStatus', (t) => {
+  const failure = toApplicationFailure({ headers: { 'x-should-retry': 'false' } });
+  t.is(failure.type, 'GoogleAdkModelError');
+  t.is(failure.nonRetryable, true);
+});
+
+test('mcpBaseTypeSetsMCPErrorTypeAndStaysRetryable', (t) => {
+  const failure = toApplicationFailure(new Error('connection refused'), MCP_ERROR_FAILURE_TYPE);
+  t.is(failure.type, MCP_ERROR_FAILURE_TYPE);
+  t.is(failure.nonRetryable, false);
 });
 
 test('retryAfterMsHeaderSetsNextRetryDelay', (t) => {
@@ -110,5 +119,21 @@ test('mcpListToolsClassifiesToolsetResolutionErrors', async (t) => {
   const mockEnv = new MockActivityEnvironment();
   const err = await t.throwsAsync(mockEnv.run(activities['bad-listTools'] as () => Promise<unknown>));
   t.true(err instanceof ApplicationFailure);
-  t.is((err as ApplicationFailure).type, 'GoogleAdkModelError.500');
+  t.is((err as ApplicationFailure).type, 'GoogleAdkMCPError.500');
+});
+
+test('mcpCallToolClassifiesToolsetResolutionErrors', async (t) => {
+  const activities = createMCPActivities({
+    bad: () => {
+      throw Object.assign(new Error('factory exploded'), { status: 500 });
+    },
+  });
+  const mockEnv = new MockActivityEnvironment();
+  const callTool = activities['bad-callTool'] as (args: {
+    toolName: string;
+    args: Record<string, unknown>;
+  }) => Promise<unknown>;
+  const err = await t.throwsAsync(mockEnv.run(callTool, { toolName: 'anyTool', args: {} }));
+  t.true(err instanceof ApplicationFailure);
+  t.is((err as ApplicationFailure).type, `${MCP_ERROR_FAILURE_TYPE}.500`);
 });

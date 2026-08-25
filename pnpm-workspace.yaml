@@ -62,6 +62,3 @@ overrides:
   'minimatch@>=7.0.0 <7.4.8': '>=7.4.8'
   serialize-javascript: '>=7.0.3'
   handlebars: '>=4.7.9'
-
-patchedDependencies:
-  protobufjs@^7.6.4: patches/protobufjs@7.6.2.patch

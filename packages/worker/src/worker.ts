@@ -10,7 +10,13 @@ import { delay, filter, first, ignoreElements, last, map, mergeMap, takeUntil, t
 import type { RawSourceMap } from 'source-map';
 import * as nexus from 'nexus-rpc';
 import type { Info as ActivityInfo } from '@temporalio/activity';
-import type { LoadedDataConverter, Payload, MetricMeter, ActivitySerializationContext } from '@temporalio/common';
+import type {
+  LoadedDataConverter,
+  Payload,
+  MetricMeter,
+  ActivitySerializationContext,
+  PayloadTypeInfo,
+} from '@temporalio/common';
 import {
   DataConverter,
   decompileRetryPolicy,
@@ -24,6 +30,7 @@ import {
   CancelledFailure,
   ActivityCancellationDetails,
   convertDeploymentVersion,
+  isActivityFunctionWithOptions,
 } from '@temporalio/common';
 import type { Decoded } from '@temporalio/common/lib/internal-non-workflow';
 import {
@@ -1108,9 +1115,18 @@ export class Worker {
                         nonRetryable: false,
                       });
                     }
+                    const typeInfo: PayloadTypeInfo | undefined = isActivityFunctionWithOptions(fn)
+                      ? fn.activityDefinitionOptions.typeInfo
+                      : undefined;
+                    const outputTypeInfo = typeInfo?.outputType;
                     let args: unknown[];
                     try {
-                      args = await decodeArrayFromPayloads(loadedDataConverter, task.start?.input, context);
+                      args = await decodeArrayFromPayloads(
+                        loadedDataConverter,
+                        task.start?.input,
+                        context,
+                        typeInfo?.inputTypes
+                      );
                     } catch (err) {
                       throw ApplicationFailure.fromError(err, {
                         message: `Failed to parse activity args for activity ${activityType}: ${errorMessage(err)}`,
@@ -1130,6 +1146,7 @@ export class Worker {
                       fn,
                       loadedDataConverter,
                       context,
+                      outputTypeInfo,
                       (details) =>
                         this.activityHeartbeatSubject.next({
                           type: 'heartbeat',

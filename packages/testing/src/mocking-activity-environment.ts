@@ -56,6 +56,7 @@ export class MockActivityEnvironment extends events.EventEmitter {
         workflowId: activityInfo.workflowExecution?.workflowId,
         isLocal: activityInfo.isLocal,
       },
+      undefined,
       heartbeatCallback,
       opts?.client,
       LoggerWithComposedMetadata.compose(opts?.logger ?? new DefaultLogger(), { sdkComponent: SdkComponent.worker }),

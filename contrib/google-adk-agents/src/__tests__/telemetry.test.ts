@@ -1,8 +1,4 @@
 /**
- * @license
- * Copyright 2025 Temporal Technologies Inc.
- * SPDX-License-Identifier: MIT
- *
  * Telemetry replay-safety. ADK creates OpenTelemetry spans (tracer
  * `gcp.vertex.agent`: `invocation`, `invoke_agent <name>`, `call_llm`, …)
  * inside the Workflow sandbox. Composing this plugin with the SDK's
@@ -16,14 +12,14 @@
 import path from 'node:path';
 
 import test, { type ExecutionContext } from 'ava';
-import { trace } from '@opentelemetry/api';
+import { SpanStatusCode, trace } from '@opentelemetry/api';
 import { Resource } from '@opentelemetry/resources';
 import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { OpenTelemetryPlugin } from '@temporalio/interceptors-opentelemetry';
 
 import { GoogleAdkPlugin } from '../index';
 import { defaultTestProvider, setupTestEnv, uid, withWorker } from './helpers';
-import { agentRunnerTwoTurnsWorkflow } from './workflows';
+import { agentRunnerOneTurn, agentRunnerTwoTurnsWorkflow } from './workflows';
 
 const getEnv = setupTestEnv(test);
 
@@ -210,4 +206,28 @@ test.serial('adkSpansDoNotLeakToProcessGlobalProvider', async (t) => {
     trace.disable();
     await provider.shutdown();
   }
+});
+
+// A composed observability interceptor sees the absorbed failure as a failure (E2E)
+test.serial('absorbedModelFailureMarksTheComposedWorkflowSpanAsError', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-otel-fail');
+  const workflowId = uid('wf-otel-fail');
+  const exporter = new InMemorySpanExporter();
+  const otelPlugin = new OpenTelemetryPlugin({
+    resource: new Resource({ 'service.name': 'adk-telemetry-test' }),
+    spanProcessor: new SimpleSpanProcessor(exporter),
+  });
+
+  await withWorker(env, { taskQueue, plugins: [otelPlugin, makeAdkPlugin()] }, async () => {
+    const handle = await env.client.workflow.start(agentRunnerOneTurn, {
+      taskQueue,
+      workflowId,
+      args: ['boom', 'explode'],
+    });
+    await t.throwsAsync(handle.result());
+  });
+
+  const executeSpan = exporter.getFinishedSpans().find((span) => span.name === 'RunWorkflow:agentRunnerOneTurn');
+  t.is(executeSpan?.status.code, SpanStatusCode.ERROR);
 });

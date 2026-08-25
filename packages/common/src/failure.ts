@@ -298,6 +298,22 @@ export interface ApplicationFailureOptions {
 }
 
 /**
+ * Create a non-retryable {@link ApplicationFailure} for reporting a Payload validation failure.
+ *
+ * Payload Converters and Payload Codecs can throw this failure when they understand a Payload but
+ * reject it as invalid. A non-nullish value is stored as a single failure detail; `null` and
+ * `undefined` produce an empty details array.
+ */
+export function createPayloadValidationError(details: unknown): ApplicationFailure {
+  return ApplicationFailure.create({
+    message: 'Payload validation failed',
+    type: 'PayloadValidationError',
+    nonRetryable: true,
+    details: details == null ? [] : [details],
+  });
+}
+
+/**
  * This error is thrown when Cancellation has been requested. To allow Cancellation to happen, let it propagate. To
  * ignore Cancellation, catch it and continue executing. Note that Cancellation can only be requested a single time, so
  * your Workflow/Activity Execution will not receive further Cancellation requests.
