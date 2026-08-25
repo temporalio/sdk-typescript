@@ -8,6 +8,7 @@ import { randomUUID } from 'crypto';
 import { ApplicationFailure, defaultPayloadConverter, type Payload } from '@temporalio/common';
 import type { WorkflowHandle } from '@temporalio/client';
 import { WorkflowUpdateFailedError } from '@temporalio/client';
+import { isBun } from '@temporalio/test-helpers';
 import {
   FlushTimeoutError,
   WorkflowStreamClient,
@@ -949,7 +950,8 @@ test('flush_retry_preserves_items_after_failures — behavioral retry coverage',
   });
 });
 
-test('flush_raises_after_max_retry_duration — timeout surfaces, client resumes', async (t) => {
+// Retry running this test with Bun once https://github.com/oven-sh/bun/issues/36828 is resolved
+(isBun ? test.skip : test)('flush_raises_after_max_retry_duration — timeout surfaces, client resumes', async (t) => {
   // When the retry window expires, stop() must rethrow FlushTimeoutError;
   // the client stays usable and subsequent publishes succeed.
   const { env } = t.context;
