@@ -5,7 +5,7 @@ import { native } from '@temporalio/core-bridge';
 import type { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import type { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
 import { BaseVMWorkflow, globalHandlers, injectGlobals, setUnhandledRejectionHandler } from './vm-shared';
-import { isBun } from './bun';
+import { isBun, isBunPre1_4 } from './bun';
 import type { WorkflowPatchActivationCallback } from './patch-activation-callback';
 
 interface BagHolder {
@@ -15,7 +15,7 @@ interface BagHolder {
 const callIntoVmScript = new vm.Script(`__TEMPORAL_CALL_INTO_SCOPE()`);
 const preloadModulesScript = new vm.Script(`__TEMPORAL__.preloadModules?.()`);
 
-function generateNodeCallIntoScopeScript(): string {
+function generateCallIntoScopeScript(): string {
   return `{
     const __TEMPORAL_CALL_INTO_SCOPE = () => {
       const [holder, fn, args] = globalThis.__temporal_args;
@@ -50,59 +50,49 @@ function generateNodeCallIntoScopeScript(): string {
   }`;
 }
 
-// This is a workaround for a bug in Bun where Object.getOwnPropertyDescriptor returns
-// stale values for numeric properties after modification. We must read/write numeric
-// properties directly.
-function generateBunCallIntoScopeScript(): string {
+/**
+ * Bun has inconsistent handling of numeric properties on the VM-context. In
+ * Bun 1.3.x, reads from the global in the VM may not see numeric properties present on the VM context
+ * object. Bun 1.4.0 fixes those reads, but writes and deletes from inside the VM
+ * global still do not update the VM context.
+ *
+ * To work around this we replace the `globalThis` value exposed inside the VM with a proxy.
+ * For numeric keys, route Object field operations to a special "numeric" properties object.
+ * Non-numeric keys pass through.
+ */
+function generateBunNumericGlobalPropertiesWorkaroundScript(): string {
   return `{
     const __TEMPORAL_IS_NUMERIC_KEY = (key) => {
-      if (typeof key === 'number') return true;
-      if (typeof key === 'string') {
-        const num = Number(key);
-        return Number.isInteger(num) && num >= 0 && String(num) === key;
-      }
-      return false;
+      if (typeof key !== 'string') return false;
+      const num = Number(key);
+      return Number.isInteger(num) && num >= 0 && String(num) === key;
     };
 
-    const __TEMPORAL_CALL_INTO_SCOPE = () => {
-      const [holder, fn, args] = globalThis.__temporal_args;
-      delete globalThis.__temporal_args;
-
-      if (globalThis.__TEMPORAL_BAG_HOLDER__ !== holder) {
-        if (globalThis.__TEMPORAL_BAG_HOLDER__ !== undefined) {
-          const bag = Object.getOwnPropertyDescriptors(globalThis);
-          for (const prop of Reflect.ownKeys(bag)) {
-            if (__TEMPORAL_IS_NUMERIC_KEY(prop)) {
-              bag[prop].value = globalThis[prop];
-            }
-          }
-          globalThis.__TEMPORAL_BAG_HOLDER__.bag = bag;
-        }
-
-        const toBeDeleted = new Set(Reflect.ownKeys(globalThis));
-
-        for (const prop of Reflect.ownKeys(holder.bag)) {
-          if (holder.bag[prop].value !== globalThis[prop]) {
-            if (__TEMPORAL_IS_NUMERIC_KEY(prop)) {
-              globalThis[prop] = holder.bag[prop].value;
-            } else {
-              Object.defineProperty(globalThis, prop, holder.bag[prop]);
-            }
-          }
-          toBeDeleted.delete(prop);
-        }
-
-        for (const prop of toBeDeleted) {
-          delete globalThis[prop];
-        }
-
-        globalThis.__TEMPORAL_BAG_HOLDER__ = holder;
-      }
-
-      return __TEMPORAL__.api[fn](...args);
-    };
-    Object.defineProperty(globalThis, '__TEMPORAL_CALL_INTO_SCOPE', {
-      value: __TEMPORAL_CALL_INTO_SCOPE, writable: false, enumerable: false, configurable: false
+    const __TEMPORAL_NUMERIC_PROPERTIES = Object.create(null);
+    const __TEMPORAL_REAL_GLOBAL = globalThis;
+    __TEMPORAL_REAL_GLOBAL.globalThis = new Proxy(__TEMPORAL_REAL_GLOBAL, {
+      get: (target, prop, receiver) => __TEMPORAL_IS_NUMERIC_KEY(prop)
+        ? Reflect.get(__TEMPORAL_NUMERIC_PROPERTIES, prop)
+        : Reflect.get(target, prop, receiver),
+      set: (target, prop, value, receiver) => __TEMPORAL_IS_NUMERIC_KEY(prop)
+        ? Reflect.set(__TEMPORAL_NUMERIC_PROPERTIES, prop, value)
+        : Reflect.set(target, prop, value, receiver),
+      deleteProperty: (target, prop) => __TEMPORAL_IS_NUMERIC_KEY(prop)
+        ? Reflect.deleteProperty(__TEMPORAL_NUMERIC_PROPERTIES, prop)
+        : Reflect.deleteProperty(target, prop),
+      defineProperty: (target, prop, descriptor) => __TEMPORAL_IS_NUMERIC_KEY(prop)
+        ? Reflect.defineProperty(__TEMPORAL_NUMERIC_PROPERTIES, prop, descriptor)
+        : Reflect.defineProperty(target, prop, descriptor),
+      getOwnPropertyDescriptor: (target, prop) => __TEMPORAL_IS_NUMERIC_KEY(prop)
+        ? Reflect.getOwnPropertyDescriptor(__TEMPORAL_NUMERIC_PROPERTIES, prop)
+        : Reflect.getOwnPropertyDescriptor(target, prop),
+      has: (target, prop) => __TEMPORAL_IS_NUMERIC_KEY(prop)
+        ? Reflect.has(__TEMPORAL_NUMERIC_PROPERTIES, prop)
+        : Reflect.has(target, prop),
+      ownKeys: (target) => [
+        ...Reflect.ownKeys(target).filter((prop) => !__TEMPORAL_IS_NUMERIC_KEY(prop)),
+        ...Reflect.ownKeys(__TEMPORAL_NUMERIC_PROPERTIES),
+      ],
     });
   }`;
 }
@@ -139,7 +129,13 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
     }
 
     this._context = vm.createContext({}, { microtaskMode: 'afterEvaluate' }) as vm.Context & typeof globalThis;
-    vm.runInContext(isBun ? generateBunCallIntoScopeScript() : generateNodeCallIntoScopeScript(), this._context, {
+    if (isBun) {
+      vm.runInContext(generateBunNumericGlobalPropertiesWorkaroundScript(), this._context, {
+        timeout: isolateExecutionTimeoutMs,
+        displayErrors: true,
+      });
+    }
+    vm.runInContext(generateCallIntoScopeScript(), this._context, {
       timeout: isolateExecutionTimeoutMs,
       displayErrors: true,
     });
@@ -327,11 +323,11 @@ type WorkflowModule = typeof internals;
 export class ReusableVMWorkflow extends BaseVMWorkflow {
   public async dispose(): Promise<void> {
     this.workflowModule.dispose();
-    // In Bun, microtasks scheduled inside the VM context may not be processed
+    // Before Bun 1.4.0, microtasks scheduled inside the VM context may not be processed
     // automatically due to lack of proper microtaskMode: 'afterEvaluate' support.
     // Drain the microtask queue to prevent state leakage to the next workflow
     // that will reuse this VM context.
-    if (isBun) await new Promise(setImmediate);
+    if (isBunPre1_4) await new Promise(setImmediate);
     ReusableVMWorkflowCreator.workflowByRunId.delete(this.runId);
   }
 }
