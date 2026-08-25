@@ -24,13 +24,9 @@ class DependencyError extends Error {
 if (RUN_INTEGRATION_TESTS) {
   const recordedLogs: { [workflowId: string]: LogEntry[] } = {};
   let nativeConnection: NativeConnection;
-  let connection: Connection;
-  const address = process.env.TEMPORAL_ADDRESS || '127.0.0.1:7233';
-  const namespace = process.env.TEMPORAL_NAMESPACE || 'default';
 
   test.before(async (_) => {
-    connection = await Connection.connect({ address });
-    await registerDefaultCustomSearchAttributes(connection);
+    await registerDefaultCustomSearchAttributes(await Connection.connect({}));
     Runtime.install({
       logger: new DefaultLogger('DEBUG', (entry: LogEntry) => {
         const workflowId = (entry.meta as any)?.workflowInfo?.workflowId;
@@ -44,7 +40,7 @@ if (RUN_INTEGRATION_TESTS) {
     // but in the mean time, another test tries to create another resource. which results in a rust side
     // finalization error. Holding on to a nativeConnection object avoids that situation. That's a dirty hack.
     // Proper fix will be implemented in a distinct PR.
-    nativeConnection = await NativeConnection.connect({ address });
+    nativeConnection = await NativeConnection.connect({});
   });
 
   test.after.always(async () => {
@@ -101,13 +97,11 @@ if (RUN_INTEGRATION_TESTS) {
     };
 
     const worker = await Worker.create({
-      connection: nativeConnection,
-      namespace,
       ...defaultOptions,
       taskQueue,
       sinks,
     });
-    const client = new WorkflowClient({ connection, namespace });
+    const client = new WorkflowClient();
     const wf = await worker.runUntil(async () => {
       const wf = await client.start(workflows.sinksWorkflow, { taskQueue, workflowId: randomUUID() });
       await wf.result();
@@ -119,7 +113,7 @@ if (RUN_INTEGRATION_TESTS) {
     t.true(historySize > 300);
 
     const info: WorkflowInfo = {
-      namespace,
+      namespace: 'default',
       firstExecutionRunId: wf.firstExecutionRunId,
       attempt: 1,
       taskTimeoutMs: 10_000,
@@ -224,10 +218,8 @@ if (RUN_INTEGRATION_TESTS) {
       },
     };
 
-    const client = new WorkflowClient({ connection, namespace });
+    const client = new WorkflowClient();
     const worker = await Worker.create({
-      connection: nativeConnection,
-      namespace,
       ...defaultOptions,
       taskQueue,
       sinks,
@@ -270,15 +262,13 @@ if (RUN_INTEGRATION_TESTS) {
     };
 
     const worker = await Worker.create({
-      connection: nativeConnection,
-      namespace,
       ...defaultOptions,
       taskQueue,
       sinks,
       maxCachedWorkflows: 0,
       maxConcurrentWorkflowTaskExecutions: 2,
     });
-    const client = new WorkflowClient({ connection, namespace });
+    const client = new WorkflowClient();
     await worker.runUntil(client.execute(workflows.logSinkTester, { taskQueue, workflowId: randomUUID() }));
 
     // Note that task may be replayed more than once and record the first messages multiple times.
@@ -317,11 +307,9 @@ if (RUN_INTEGRATION_TESTS) {
       },
     };
 
-    const client = new WorkflowClient({ connection, namespace });
+    const client = new WorkflowClient();
     const taskQueue = `${__filename}-${t.title}`;
     const worker = await Worker.create({
-      connection: nativeConnection,
-      namespace,
       ...defaultOptions,
       taskQueue,
       sinks,
@@ -422,12 +410,10 @@ if (RUN_INTEGRATION_TESTS) {
       },
     };
 
-    const client = new WorkflowClient({ connection, namespace });
+    const client = new WorkflowClient();
     const date = new Date();
 
     const worker = await Worker.create({
-      connection: nativeConnection,
-      namespace,
       ...defaultOptions,
       taskQueue,
       sinks,
@@ -460,7 +446,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   test('Sink functions contains upserted memo', async (t) => {
     const taskQueue = `${__filename}-${t.title}`;
-    const client = new WorkflowClient({ connection, namespace });
+    const client = new WorkflowClient();
 
     const recordedMessages = Array<{ message: string; memo: Record<string, unknown> | undefined }>();
     const sinks: InjectedSinks<workflows.CustomLoggerSinks> = {
@@ -478,8 +464,6 @@ if (RUN_INTEGRATION_TESTS) {
     };
 
     const worker = await Worker.create({
-      connection: nativeConnection,
-      namespace,
       ...defaultOptions,
       taskQueue,
       sinks,
@@ -543,12 +527,10 @@ if (RUN_INTEGRATION_TESTS) {
       },
     };
 
-    const client = new WorkflowClient({ connection, namespace });
+    const client = new WorkflowClient();
     const handle = await client.start(workflows.coreIssue589, { taskQueue, workflowId: randomUUID() });
 
     const workerOptions: WorkerOptions = {
-      connection: nativeConnection,
-      namespace,
       ...defaultOptions,
       taskQueue,
       sinks,
@@ -600,8 +582,6 @@ if (RUN_INTEGRATION_TESTS) {
     const handle = await client.start(workflows.queryAndValidatorLogging, { taskQueue, workflowId: randomUUID() });
 
     const worker = await Worker.create({
-      connection: nativeConnection,
-      namespace,
       ...defaultOptions,
       taskQueue,
       sinks,
@@ -620,8 +600,6 @@ if (RUN_INTEGRATION_TESTS) {
     t.true(messages.includes('Update handler called'), 'Update handler log should be emitted');
 
     const worker2 = await Worker.create({
-      connection: nativeConnection,
-      namespace,
       ...defaultOptions,
       taskQueue,
       sinks,
