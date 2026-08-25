@@ -14,6 +14,8 @@
 import test from 'ava';
 import { traceable } from 'langsmith/traceable';
 
+import { isGrpcServiceError } from '@temporalio/client';
+import type { TestWorkflowEnvironment } from '@temporalio/testing';
 import * as activities from './activities/comprehensive';
 import { InMemoryRunCollector, dumpTraces, withTracingWorker } from './helpers';
 import { comprehensiveNexusServiceHandler } from './stubs/nexus';
@@ -38,6 +40,28 @@ const COMPREHENSIVE_ACTIVITIES = {
 
 const WORKFLOWS_PATH = require.resolve('./workflows/comprehensive');
 
+/**
+ * Create the fixed-name endpoint, repointing it at `taskQueue` if it already exists — a stalled
+ * harness attempt re-invokes the body against the same env, so a bare create would throw
+ * `ALREADY_EXISTS` and the stale endpoint would still target the dead attempt's queue.
+ */
+async function ensureNexusEndpoint(env: TestWorkflowEnvironment, name: string, taskQueue: string): Promise<void> {
+  try {
+    await env.createNexusEndpoint(name, taskQueue);
+  } catch (err) {
+    if (!isGrpcServiceError(err) || err.code !== 6 /* ALREADY_EXISTS */) {
+      throw err;
+    }
+    const { endpoints } = await env.connection.operatorService.listNexusEndpoints({});
+    const existing = endpoints?.find((ep) => ep.spec?.name === name);
+    if (!existing?.id || !existing.version) {
+      throw err;
+    }
+    await env.deleteNexusEndpoint({ id: existing.id, version: existing.version });
+    await env.createNexusEndpoint(name, taskQueue);
+  }
+}
+
 /** Drive one full scenario under a client-side `user_pipeline` root, issuing inbound calls in a fixed sequence. */
 async function runComprehensive(addTemporalRuns: boolean): Promise<InMemoryRunCollector> {
   const collector = new InMemoryRunCollector();
@@ -50,7 +74,7 @@ async function runComprehensive(addTemporalRuns: boolean): Promise<InMemoryRunCo
       nexusServices: [comprehensiveNexusServiceHandler],
     },
     body: async ({ client, taskQueue, env }) => {
-      await env.createNexusEndpoint(COMPREHENSIVE_NEXUS_ENDPOINT, taskQueue);
+      await ensureNexusEndpoint(env, COMPREHENSIVE_NEXUS_ENDPOINT, taskQueue);
 
       const ready = activities.resetReady();
       const pipeline = traceable(

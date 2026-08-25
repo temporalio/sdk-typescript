@@ -184,6 +184,10 @@ export interface HarnessArgs<T> {
   workerOptions?: Partial<WorkerOptions>;
   /** Body run with a plugin-enabled client + worker live. */
   body: (ctx: { client: Client; taskQueue: string; env: TestWorkflowEnvironment }) => Promise<T>;
+  /** Override {@link BODY_STALL_TIMEOUT_MS} — for tests of the harness itself. */
+  stallTimeoutMs?: number;
+  /** Override {@link MAX_BODY_ATTEMPTS} — for tests of the harness itself. */
+  maxBodyAttempts?: number;
 }
 
 // One local Temporal server shared by all cases in a file
@@ -247,12 +251,13 @@ function getBundle(plugin: LangSmithPlugin, workflowsPath: string, optionsKey: s
 const BODY_STALL_TIMEOUT_MS = 30_000;
 const MAX_BODY_ATTEMPTS = 6;
 
-/** A body attempt exceeded {@link BODY_STALL_TIMEOUT_MS}; the harness retries on a fresh worker. */
-class HarnessStallError extends Error {
-  constructor(taskQueue: string, attempt: number) {
+/** A body attempt exceeded the stall timeout; the harness retries on a fresh worker. */
+export class HarnessStallError extends Error {
+  override readonly name = 'HarnessStallError';
+  constructor(taskQueue: string, attempt: number, timeoutMs: number, maxAttempts: number) {
     super(
-      `Test body did not settle within ${BODY_STALL_TIMEOUT_MS}ms on task queue ${taskQueue} ` +
-        `(attempt ${attempt}/${MAX_BODY_ATTEMPTS}); assuming the first-workflow-task delivery stall`
+      `Test body did not settle within ${timeoutMs}ms on task queue ${taskQueue} ` +
+        `(attempt ${attempt}/${maxAttempts}); assuming the first-workflow-task delivery stall`
     );
   }
 }
@@ -275,7 +280,18 @@ async function terminateLeakedWorkflows(env: TestWorkflowEnvironment, taskQueue:
   }
 }
 
+/**
+ * Run `body` against a plugin-wired Worker on a (by default) fresh task queue.
+ *
+ * On a first-workflow-task delivery stall — the body exceeding the stall timeout — the body is
+ * re-invoked on a fresh worker and a fresh task queue. Bodies must therefore tolerate
+ * re-execution: the harness terminates workflows leaked by the aborted attempt and rolls the
+ * collector back, but any other external resource a body creates (e.g. a fixed-name Nexus
+ * endpoint) is the body's responsibility to create idempotently.
+ */
 export async function withTracingWorker<T>(args: HarnessArgs<T>): Promise<T> {
+  const stallTimeoutMs = args.stallTimeoutMs ?? BODY_STALL_TIMEOUT_MS;
+  const maxBodyAttempts = args.maxBodyAttempts ?? MAX_BODY_ATTEMPTS;
   const privateEnv = sharedEnv ? undefined : await TestWorkflowEnvironment.createLocal();
   const env = sharedEnv ?? privateEnv!;
   try {
@@ -289,7 +305,9 @@ export async function withTracingWorker<T>(args: HarnessArgs<T>): Promise<T> {
     const preAttemptState = args.collector.snapshot();
 
     for (let attempt = 1; ; attempt++) {
-      const taskQueue = args.taskQueue ?? `langsmith-test-${randomUUID()}`;
+      // An explicit args.taskQueue only applies to the first attempt: retries exist to escape
+      // the stalled worker/queue pair, so they always get a fresh queue.
+      const taskQueue = attempt === 1 && args.taskQueue !== undefined ? args.taskQueue : `langsmith-test-${randomUUID()}`;
 
       const worker = await Worker.create({
         connection: env.nativeConnection,
@@ -317,7 +335,10 @@ export async function withTracingWorker<T>(args: HarnessArgs<T>): Promise<T> {
         return await worker.runUntil(async () => {
           let stallTimer: ReturnType<typeof setTimeout> | undefined;
           const stall = new Promise<never>((_, reject) => {
-            stallTimer = setTimeout(() => reject(new HarnessStallError(taskQueue, attempt)), BODY_STALL_TIMEOUT_MS);
+            stallTimer = setTimeout(
+              () => reject(new HarnessStallError(taskQueue, attempt, stallTimeoutMs, maxBodyAttempts)),
+              stallTimeoutMs
+            );
           });
           try {
             return await Promise.race([args.body({ client, taskQueue, env }), stall]);
@@ -326,7 +347,7 @@ export async function withTracingWorker<T>(args: HarnessArgs<T>): Promise<T> {
           }
         });
       } catch (err) {
-        if (!(err instanceof HarnessStallError) || attempt >= MAX_BODY_ATTEMPTS) {
+        if (!(err instanceof HarnessStallError) || attempt >= maxBodyAttempts) {
           throw err;
         }
         // Load-bearing, do not remove: surfaces in the archived test log so CI
