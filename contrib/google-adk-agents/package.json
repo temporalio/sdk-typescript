@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/google-adk-agents",
-  "version": "1.22.0",
+  "version": "1.23.0",
   "description": "Temporal plugin for the Google Agent Development Kit (@google/adk): run ADK agents as durable Temporal Workflows.",
   "main": "./lib/index.js",
   "types": "./lib/index.d.ts",
