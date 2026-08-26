@@ -8,9 +8,8 @@ export function registerWorkerEnvVarContext(context: () => readonly string[] | u
 }
 
 /**
- * Returns the value of an allowlisted Worker environment variable — the empty
- * string if it is unset, empty, or inherited rather than a real variable — and
- * `undefined` for a name the allowlist does not cover.
+ * Returns the value of an allowlisted Worker environment variable, the empty
+ * string if it is unset or empty, or `undefined` if the allowlist does not cover it.
  *
  * @internal
  */

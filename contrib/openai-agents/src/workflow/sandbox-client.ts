@@ -7,7 +7,7 @@ import type {
   SandboxSessionSerializationOptions,
 } from '@openai/agents-core/sandbox';
 import { Manifest } from '@openai/agents-core/sandbox';
-import { ApplicationFailure, type ActivityOptions, type Duration, type RetryPolicy } from '@temporalio/common';
+import { ApplicationFailure, type ActivityOptions } from '@temporalio/common';
 import { scheduleActivity } from '@temporalio/workflow';
 import {
   SANDBOX_CLIENT_CREATE_SUFFIX,
@@ -21,19 +21,11 @@ import {
   serializeSessionEnvelope,
   type EncodedManifest,
   type SandboxSessionResult,
+  type SerializedSandboxSessionState,
   type TemporalSandboxSessionState,
 } from '../common/sandbox-activity-types';
 import { TemporalSandboxSession } from './sandbox-session';
 import { maybeTemporalSpan } from './span-helpers';
-
-/** Activity options for sandbox operations dispatched by this client's sessions. */
-export interface TemporalSandboxClientOptions {
-  startToCloseTimeout?: Duration;
-  scheduleToStartTimeout?: Duration;
-  heartbeatTimeout?: Duration;
-  taskQueue?: string;
-  retryPolicy?: RetryPolicy;
-}
 
 /**
  * Workflow-side sandbox client. Holds no connection to any sandbox backend —
@@ -48,16 +40,10 @@ export class TemporalSandboxClient implements SandboxClient<SandboxClientOptions
   private readonly _name: string;
   private readonly _config: ActivityOptions;
 
-  constructor(name: string, options?: TemporalSandboxClientOptions) {
+  constructor(name: string, config?: ActivityOptions) {
     this._name = name;
     this.backendId = name;
-    this._config = {
-      startToCloseTimeout: options?.startToCloseTimeout ?? '5 minutes',
-      scheduleToStartTimeout: options?.scheduleToStartTimeout,
-      heartbeatTimeout: options?.heartbeatTimeout,
-      taskQueue: options?.taskQueue,
-      retry: options?.retryPolicy,
-    };
+    this._config = config ?? { startToCloseTimeout: '5 minutes' };
   }
 
   async create(
@@ -127,16 +113,31 @@ export class TemporalSandboxClient implements SandboxClient<SandboxClientOptions
     state: TemporalSandboxSessionState,
     options?: SandboxSessionSerializationOptions
   ): Promise<Record<string, unknown>> {
-    return maybeTemporalSpan(
+    const refreshed = await maybeTemporalSpan(
       sandboxSpanName(SANDBOX_CLIENT_SERIALIZE_SESSION_STATE_SUFFIX),
       () =>
-        scheduleActivity<Record<string, unknown>>(
+        scheduleActivity<SerializedSandboxSessionState>(
           `${this._name}${SANDBOX_CLIENT_SERIALIZE_SESSION_STATE_SUFFIX}`,
           [{ state: serializeSessionEnvelope(state.sessionId, state, state.providerState), options }],
           this._config
         ),
       { sessionId: state.sessionId }
     );
+    const revived = reviveWorkflowSessionState(refreshed);
+    if ('snapshot' in revived) state.snapshot = revived.snapshot;
+    else delete state.snapshot;
+    if ('snapshotFingerprint' in revived) state.snapshotFingerprint = revived.snapshotFingerprint;
+    else delete state.snapshotFingerprint;
+    if ('snapshotFingerprintVersion' in revived) state.snapshotFingerprintVersion = revived.snapshotFingerprintVersion;
+    else delete state.snapshotFingerprintVersion;
+    if ('exposedPorts' in revived) state.exposedPorts = revived.exposedPorts;
+    else delete state.exposedPorts;
+    state.sessionId = revived.sessionId;
+    state.manifest = revived.manifest;
+    if ('workspaceReady' in revived) state.workspaceReady = revived.workspaceReady;
+    else delete state.workspaceReady;
+    state.providerState = revived.providerState;
+    return { sessionId: refreshed.sessionId, providerState: refreshed.providerState };
   }
 
   async deserializeSessionState(state: Record<string, unknown>): Promise<TemporalSandboxSessionState> {
@@ -180,8 +181,12 @@ export class TemporalSandboxClient implements SandboxClient<SandboxClientOptions
  * operations are dispatched as Activities to the `SandboxClientProvider`
  * registered under the same name on the Worker.
  *
+ * When `config` is omitted, Activities use a five-minute start-to-close timeout.
+ * A supplied `ActivityOptions` object is used as-is without merging defaults.
+ *
  * @param name - Provider name; must match the `SandboxClientProvider` registered on the Worker side.
+ * @param config - Activity options for every sandbox operation.
  */
-export function temporalSandboxClient(name: string, options?: TemporalSandboxClientOptions): TemporalSandboxClient {
-  return new TemporalSandboxClient(name, options);
+export function temporalSandboxClient(name: string, config?: ActivityOptions): TemporalSandboxClient {
+  return new TemporalSandboxClient(name, config);
 }

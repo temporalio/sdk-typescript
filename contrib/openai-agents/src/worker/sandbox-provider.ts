@@ -309,12 +309,12 @@ export class SandboxClientProvider {
 
       [`${n}${SANDBOX_CLIENT_SERIALIZE_SESSION_STATE_SUFFIX}`]: async (
         input: SandboxSerializeSessionStateInput
-      ): Promise<Record<string, unknown>> => {
+      ): Promise<SerializedSandboxSessionState> => {
         const session = await this.session(input.state);
         const providerState = this.client.serializeSessionState
           ? await this.client.serializeSessionState(session.state, input.options)
           : await this.providerState(session.state);
-        return { sessionId: input.state.sessionId, providerState };
+        return serializeSessionEnvelope(input.state.sessionId, session.state, providerState, false);
       },
 
       [`${n}${SANDBOX_SESSION_START_SUFFIX}`]: async (input: SandboxLifecycleInput): Promise<void> => {

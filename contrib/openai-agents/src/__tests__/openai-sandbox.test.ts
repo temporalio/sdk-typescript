@@ -9,7 +9,8 @@ import {
   type SandboxSessionState,
 } from '@openai/agents-core/sandbox';
 import { deserializeManifest, serializeManifestRecord } from '@openai/agents-core/sandbox/internal';
-import { ApplicationFailure } from '@temporalio/common';
+import { ApplicationFailure, type ActivityOptions } from '@temporalio/common';
+import { setActivator } from '@temporalio/workflow/lib/global-attributes';
 import {
   SANDBOX_CLIENT_CREATE_SUFFIX,
   SANDBOX_CLIENT_DELETE_SUFFIX,
@@ -47,6 +48,7 @@ import {
   type SerializedToolOutputImage,
 } from '../common/sandbox-activity-types';
 import { SandboxClientProvider } from '../worker/sandbox-provider';
+import { workerEnvValue } from '../common/worker-env-vars';
 import { TemporalSandboxClient, temporalSandboxClient } from '../workflow/sandbox-client';
 import { TemporalSandboxSession } from '../workflow/sandbox-session';
 import { TemporalOpenAIRunner } from '../workflow/runner';
@@ -72,8 +74,22 @@ test('temporalSandboxClient returns a TemporalSandboxClient with backendId = nam
 });
 
 test('temporalSandboxClient honors activity config overrides', (t) => {
-  const client = temporalSandboxClient('my-backend', { startToCloseTimeout: '10 minutes' });
-  t.is((client as any)._config.startToCloseTimeout, '10 minutes');
+  const retry = { maximumAttempts: 3 };
+  const config: ActivityOptions = {
+    scheduleToCloseTimeout: '10 minutes',
+    scheduleToStartTimeout: '1 minute',
+    taskQueue: 'sandbox-tasks',
+    retry,
+    activityId: 'sandbox-activity',
+  };
+  const client = temporalSandboxClient('my-backend', config);
+  t.is((client as any)._config, config);
+  t.is((client as any)._config.startToCloseTimeout, undefined);
+});
+
+test('temporalSandboxClient defaults activity config only when omitted', (t) => {
+  t.deepEqual((temporalSandboxClient('my-backend') as any)._config, { startToCloseTimeout: '5 minutes' });
+  t.deepEqual((temporalSandboxClient('my-backend', {}) as any)._config, {});
 });
 
 async function runForSandboxValidation(agent: Agent<any, any>, sandbox?: any): Promise<unknown> {
@@ -472,6 +488,46 @@ test('serializeSessionState round-trips through deserializeSessionState', async 
   t.deepEqual(restored.providerState, { workspacePath: '/tmp/fake-workspace' });
 });
 
+test('serializeSessionState returns the refreshed session envelope', async (t) => {
+  const session = new FakeSandboxSession(new Manifest({ environment: { API_KEY: workerEnvValue('WORKER_SECRET') } }));
+  session.state.snapshot = { id: 'old', type: 'local' };
+  session.state.snapshotFingerprint = 'old-fingerprint';
+  session.state.snapshotFingerprintVersion = 'old-version';
+  session.state.exposedPorts = { 'port:8080': { host: 'localhost', port: 8080 } };
+  session.state.environment = { API_KEY: 'resolved-worker-secret' };
+  const client = new FakeSandboxClient(session);
+  let serializeCalls = 0;
+  client.serializeSessionState = async (state): Promise<Record<string, unknown>> => {
+    serializeCalls += 1;
+    if (serializeCalls > 1) {
+      state.snapshot = { id: 'new', type: 'local' };
+      state.snapshotFingerprint = 'new-fingerprint';
+      state.snapshotFingerprintVersion = undefined;
+      state.exposedPorts = undefined;
+    }
+    return { workspacePath: state.workspacePath };
+  };
+  const acts = activityMap(new SandboxClientProvider('fake', client));
+  const { state } = await createSession(acts);
+
+  const refreshed: SerializedSandboxSessionState = await acts[`fake${SANDBOX_CLIENT_SERIALIZE_SESSION_STATE_SUFFIX}`]!({
+    state,
+  });
+  t.deepEqual(refreshed.snapshot, { id: 'new', type: 'local' });
+  t.is(refreshed.snapshotFingerprint, 'new-fingerprint');
+  t.false('snapshotFingerprintVersion' in refreshed);
+  t.false('exposedPorts' in refreshed);
+  t.true(JSON.stringify(refreshed).includes('WORKER_SECRET'));
+  t.false(JSON.stringify(refreshed).includes('resolved-worker-secret'));
+
+  const freshClient = new FakeSandboxClient();
+  const fresh = activityMap(new SandboxClientProvider('fake', freshClient));
+  await fresh[`fake${SANDBOX_SESSION_EXEC_SUFFIX}`]!({ state: refreshed, args: { cmd: 'x' } });
+  t.deepEqual(freshClient.session.state.snapshot, { id: 'new', type: 'local' });
+  t.is(freshClient.session.state.snapshotFingerprint, 'new-fingerprint');
+  t.is(freshClient.session.state.workspacePath, '/tmp/fake-workspace');
+});
+
 test('providerState fallback (no serializeSessionState) drops envelope fields and ephemeral keys from providerState', async (t) => {
   class NoSerializeClient extends FakeSandboxClient {
     // Inherits create/resume; deliberately drops the custom (de)serializers so
@@ -757,6 +813,70 @@ test('session state (including manifest) is served synchronously from cached sta
   t.true(session.state.manifest instanceof Manifest);
   t.is(session.state.manifest.environment.FOO!.value, 'bar');
   t.is(session.state.sessionId, 'session-1');
+});
+
+test.serial('serialize refresh synchronizes the existing Workflow state object', async (t) => {
+  const session = makeWorkflowSession();
+  const state = session.state;
+  Object.assign(state, {
+    snapshot: { id: 'old', type: 'local' },
+    snapshotFingerprint: 'old-fingerprint',
+    snapshotFingerprintVersion: 'old-version',
+    exposedPorts: { 'port:8080': { host: 'localhost', port: 8080 } },
+  });
+  const refreshed = serializeSessionEnvelope(
+    state.sessionId,
+    {
+      manifest: new Manifest({ environment: { UPDATED: 'yes' } }),
+      snapshot: { id: 'new', type: 'local' },
+      snapshotFingerprint: 'new-fingerprint',
+    },
+    { workspacePath: '/tmp/refreshed' },
+    false
+  );
+
+  const client = temporalSandboxClient('fake');
+  let activityInput: any;
+  setActivator({
+    info: { workflowId: 'sandbox-workflow', runId: 'sandbox-run' },
+    bindCurrentRandom: (fn: (...args: any[]) => any) => fn,
+    nextSeqs: { activity: 1 },
+    interceptors: {
+      outbound: [
+        {
+          scheduleActivity: async (input: any) => {
+            activityInput = input;
+            return refreshed;
+          },
+        },
+      ],
+    },
+  } as any);
+  let providerState: Record<string, unknown>;
+  try {
+    providerState = await client.serializeSessionState(state);
+  } finally {
+    setActivator(undefined);
+  }
+  t.is(activityInput.activityType, `fake${SANDBOX_CLIENT_SERIALIZE_SESSION_STATE_SUFFIX}`);
+  t.is(activityInput.args[0].state.sessionId, state.sessionId);
+  t.is(session.state, state);
+  t.deepEqual(providerState, { sessionId: refreshed.sessionId, providerState: refreshed.providerState });
+  t.deepEqual(state.snapshot, { id: 'new', type: 'local' });
+  t.is(state.snapshotFingerprint, 'new-fingerprint');
+  t.false('snapshotFingerprintVersion' in state);
+  t.false('exposedPorts' in state);
+  t.false('workspaceReady' in refreshed);
+  t.false('workspaceReady' in state);
+  t.is(state.manifest.environment.UPDATED!.value, 'yes');
+  t.is(state.providerState, refreshed.providerState);
+
+  const freshClient = new FakeSandboxClient();
+  const fresh = activityMap(new SandboxClientProvider('fake', freshClient));
+  await fresh[`fake${SANDBOX_SESSION_EXEC_SUFFIX}`]!({ state: refreshed, args: { cmd: 'x' } });
+  t.is(freshClient.session.state.workspaceReady, undefined);
+  t.is(freshClient.session.state.manifest.environment.UPDATED!.value, 'yes');
+  t.is(freshClient.session.state.workspacePath, '/tmp/refreshed');
 });
 
 test('createEditor returns an editor synchronously', (t) => {

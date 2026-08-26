@@ -349,7 +349,8 @@ export function decodeManifest(encoded: EncodedManifest, resolvableWorkerEnvVars
 export function serializeSessionEnvelope(
   sessionId: string,
   state: SandboxSessionState,
-  providerState: Record<string, unknown>
+  providerState: Record<string, unknown>,
+  defaultWorkspaceReady = true
 ): SerializedSandboxSessionState {
   return {
     sessionId,
@@ -359,7 +360,11 @@ export function serializeSessionEnvelope(
     ...(state.snapshotFingerprintVersion !== undefined
       ? { snapshotFingerprintVersion: state.snapshotFingerprintVersion }
       : {}),
-    workspaceReady: state.workspaceReady ?? true,
+    ...(state.workspaceReady !== undefined
+      ? { workspaceReady: state.workspaceReady }
+      : defaultWorkspaceReady
+        ? { workspaceReady: true }
+        : {}),
     ...(state.exposedPorts ? { exposedPorts: state.exposedPorts } : {}),
     providerState,
   };
