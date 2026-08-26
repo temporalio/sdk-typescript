@@ -9,13 +9,9 @@ import {
   WorkflowExecutionAlreadyStartedError,
   WorkflowFailedError,
 } from '@temporalio/client';
-import type { Client } from '@temporalio/client';
-import { type InternalActivityStartOptions, InternalActivityStartOptionsSymbol } from '@temporalio/client/lib/internal';
 import * as temporalnexus from '@temporalio/nexus';
-import { asyncLocalStorage } from '@temporalio/nexus/lib/context';
 import { temporal } from '@temporalio/proto';
 import {
-  base64URLEncodeNoPadding,
   encodeOperationToken,
   generateWorkflowRunOperationToken,
   OperationTokenType,

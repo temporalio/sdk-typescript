@@ -17,9 +17,8 @@
  */
 
 import { BaseLlm, LLMRegistry, type BaseLlmConnection, type LlmRequest, type LlmResponse } from '@google/adk';
-import type { ActivityOptions, Duration } from '@temporalio/common';
-import { ApplicationFailure } from '@temporalio/common';
-import { inWorkflowContext, proxyActivities } from '@temporalio/workflow';
+import { ApplicationFailure, type Duration } from '@temporalio/common';
+import { type ActivityOptions, inWorkflowContext, proxyActivities } from '@temporalio/workflow';
 
 import { recordAbsorbedFailure } from './absorbed-failure';
 import { STREAMING_TOPIC_REQUIRED_FAILURE_TYPE, UNSUPPORTED_FAILURE_TYPE } from './error-types';

@@ -4,6 +4,7 @@ import { msOptionalToTs } from '@temporalio/common/lib/time';
 import { userMetadataToPayload } from '@temporalio/common/lib/user-metadata';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
 import type { coresdk } from '@temporalio/proto';
+import { eventGroupMarkersToProto } from './event-groups';
 import { CancellationScope } from './cancellation-scope';
 import { getActivator } from './global-attributes';
 import { composeInterceptors } from './interceptor-composition';
@@ -214,6 +215,7 @@ function startNexusOperationNextHandler({
           if (!completed) {
             activator.pushCommand({
               requestCancelNexusOperation: { seq },
+              eventGroupMarkers: eventGroupMarkersToProto(options?.eventGroups),
             });
           }
 
@@ -236,6 +238,7 @@ function startNexusOperationNextHandler({
         cancellationType: encodeNexusOperationCancellationType(options?.cancellationType),
       },
       userMetadata: userMetadataToPayload(activator.payloadConverter, options?.summary, undefined, context),
+      eventGroupMarkers: eventGroupMarkersToProto(options?.eventGroups),
     });
 
     activator.completions.nexusOperationStart.set(seq, {

@@ -18,7 +18,10 @@ import { loadHistory, waitUntil } from './helpers';
 
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
 // polling/retry strategies result in the expected behavior
-const LONG_POLL_EXPIRATION_INTERVAL_SECONDS = 5.0;
+const LONG_POLL_EXPIRATION_INTERVAL_MS = 5_000;
+// Must exceed the server long-poll above: a single PollWorkflowExecutionUpdate can consume that
+// whole interval, and waitUntil's 5s budget would then allow only one attempt.
+const UPDATE_ADMITTED_WAIT_MS = 20_000;
 
 const recordedLogs: { [workflowId: string]: LogEntry[] } = {};
 
@@ -28,7 +31,7 @@ const test = makeTestFunction({
     server: {
       extraArgs: [
         '--dynamic-config-value',
-        `history.longPollExpirationInterval="${LONG_POLL_EXPIRATION_INTERVAL_SECONDS}s"`,
+        `history.longPollExpirationInterval="${LONG_POLL_EXPIRATION_INTERVAL_MS}ms"`,
       ],
     },
   },
@@ -42,7 +45,7 @@ export async function workflowWithUpdates(): Promise<string[]> {
   const state: string[] = [];
   const updateHandler = async (arg: string): Promise<string[]> => {
     if (arg === 'wait-for-longer-than-server-long-poll-timeout') {
-      await wf.sleep(LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1500);
+      await wf.sleep(Math.floor(LONG_POLL_EXPIRATION_INTERVAL_MS * 1.5));
     }
     state.push(arg);
     return state;
@@ -571,7 +574,7 @@ test('Update is always delivered', async (t) => {
   wfHandle.executeUpdate(stateMutatingUpdate, { updateId }).catch(() => {
     /* ignore */
   });
-  await waitUntil(() => updateHasBeenAdmitted(wfHandle, updateId), 5000);
+  await waitUntil(() => updateHasBeenAdmitted(wfHandle, updateId), UPDATE_ADMITTED_WAIT_MS);
 
   const worker = await createWorker();
   await worker.runUntil(async () => {
@@ -589,13 +592,13 @@ test('Two Updates in first WFT', async (t) => {
   wfHandle.executeUpdate(update, { args: ['1'], updateId: firstUpdateId }).catch(() => {
     /* ignore */
   });
-  await waitUntil(() => updateHasBeenAdmitted(wfHandle, firstUpdateId), 5000);
+  await waitUntil(() => updateHasBeenAdmitted(wfHandle, firstUpdateId), UPDATE_ADMITTED_WAIT_MS);
 
   const secondUpdateId = 'update-2';
   wfHandle.executeUpdate(doneUpdate, { updateId: secondUpdateId }).catch(() => {
     /* ignore */
   });
-  await waitUntil(() => updateHasBeenAdmitted(wfHandle, secondUpdateId), 5000);
+  await waitUntil(() => updateHasBeenAdmitted(wfHandle, secondUpdateId), UPDATE_ADMITTED_WAIT_MS);
 
   const worker = await createWorker();
   await worker.runUntil(async () => {
@@ -637,7 +640,7 @@ test('Update handler is called at same point during first execution and replay',
   wfHandle.executeUpdate(earlyExecutedUpdate, { updateId }).catch(() => {
     /* ignore */
   });
-  await waitUntil(() => updateHasBeenAdmitted(wfHandle, updateId), 5000);
+  await waitUntil(() => updateHasBeenAdmitted(wfHandle, updateId), UPDATE_ADMITTED_WAIT_MS);
 
   // Avoid waiting for sticky execution timeout on worker transition
   const worker1 = await createWorker({ maxCachedWorkflows: 0 });
@@ -715,7 +718,7 @@ test('startUpdate does not return handle before update has reached requested sta
     })
     .then(() => 'update');
   const timeoutPromise = new Promise<string>((f) =>
-    setTimeout(() => f('timeout'), LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1500)
+    setTimeout(() => f('timeout'), LONG_POLL_EXPIRATION_INTERVAL_MS * 1.5)
   );
   t.is(
     await Promise.race([updatePromise, timeoutPromise]),
@@ -835,13 +838,13 @@ test('update result poll throws WorkflowUpdateRPCTimeoutOrCancelledError', async
   await worker.runUntil(async () => {
     const wfHandle = await startWorkflow(workflowWithUpdates);
     const arg = 'wait-for-longer-than-server-long-poll-timeout';
-    await t.context.env.client.withDeadline(Date.now() + LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1000, async () => {
+    await t.context.env.client.withDeadline(Date.now() + LONG_POLL_EXPIRATION_INTERVAL_MS, async () => {
       const err = await t.throwsAsync(wfHandle.executeUpdate(update, { args: [arg] }));
       t.true(err instanceof WorkflowUpdateRPCTimeoutOrCancelledError);
     });
 
     const ctrl = new AbortController();
-    setTimeout(() => ctrl.abort(), LONG_POLL_EXPIRATION_INTERVAL_SECONDS * 1000);
+    setTimeout(() => ctrl.abort(), LONG_POLL_EXPIRATION_INTERVAL_MS);
     await t.context.env.client.withAbortSignal(ctrl.signal, async () => {
       const err = await t.throwsAsync(wfHandle.executeUpdate(update, { args: [arg] }));
       t.true(err instanceof WorkflowUpdateRPCTimeoutOrCancelledError);
@@ -887,7 +890,7 @@ test("Pending promises can't unblock between signals and updates", async (t) => 
   const updateId = 'update-id';
   await handle.signal('fooSignal');
   const updateResult = handle.executeUpdate('fooUpdate', { updateId });
-  await waitUntil(() => updateHasBeenAdmitted(handle, updateId), 5000);
+  await waitUntil(() => updateHasBeenAdmitted(handle, updateId), UPDATE_ADMITTED_WAIT_MS);
 
   const worker2 = await createWorker();
   await worker2.runUntil(async () => {
@@ -949,7 +952,7 @@ test('Signals/Updates/Activities/Timers have coherent promise completion orderin
           events.some((e) => e.eventType === temporal.api.enums.v1.EventType.EVENT_TYPE_TIMER_FIRED) &&
           events.some((e) => e.eventType === temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_EXECUTION_SIGNALED)
         );
-      }, 5000);
+      }, UPDATE_ADMITTED_WAIT_MS);
 
       await (
         await createWorker({})

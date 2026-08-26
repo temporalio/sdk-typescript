@@ -21,6 +21,7 @@ import type {
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
 import type { coresdk } from '@temporalio/proto';
+import type { EventGroupMarker } from './event-groups';
 
 /**
  * Workflow Execution information
@@ -157,6 +158,12 @@ export interface WorkflowInfo {
    * Run Id of the first Run in this Execution Chain
    */
   readonly firstExecutionRunId: string;
+
+  /**
+   * The Run Id recorded on the `WorkflowExecutionStarted` event. Unlike {@link runId}, this value is
+   * preserved across Workflow resets (a reset changes the execution's Run Id but keeps this one).
+   */
+  readonly originalExecutionRunId: string;
 
   /**
    * The last Run Id in this Execution Chain
@@ -332,7 +339,19 @@ export interface RootWorkflowInfo {
  */
 @SymbolBasedInstanceOfError('ContinueAsNew')
 export class ContinueAsNew extends Error {
-  constructor(public readonly command: coresdk.workflow_commands.IContinueAsNewWorkflowExecution) {
+  /**
+   * The `ContinueAsNew` class is exported so that user code can perform
+   * `instanceof ContinueAsNew` checks, but users should never explicitly
+   * construct instances of that class.
+   *
+   * Use the {@link continueAsNew} / {@link makeContinueAsNewFunc} functions instead.
+   *
+   * @internal
+   */
+  constructor(
+    public readonly command: coresdk.workflow_commands.IContinueAsNewWorkflowExecution,
+    public readonly eventGroupMarkers?: NonNullable<coresdk.workflow_commands.IWorkflowCommand['eventGroupMarkers']>
+  ) {
     super('Workflow continued as new');
   }
 }
@@ -411,6 +430,17 @@ export interface ContinueAsNewOptions {
    * @experimental
    */
   typeInfo?: Pick<PayloadTypeInfo, 'inputTypes'>;
+
+  /**
+   * Event group markers to attach to the continue-as-new command. The markers will be reflected
+   * on the corresponding workflow history events, and may be used by tooling (UI/CLI) to group
+   * related events together. See {@link EventGroupMarker} and {@link createEventGroup}.
+   *
+   * Note that event group markers are never propagated across workflow executions.
+   *
+   * @experimental Event Groups is an experimental API and may change without notice.
+   */
+  eventGroups?: EventGroupMarker[];
 }
 
 /**
@@ -622,6 +652,17 @@ export interface ChildWorkflowOptions extends Omit<CommonWorkflowOptions, 'workf
    * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
    */
   versioningIntent?: VersioningIntent;
+
+  /**
+   * Event group markers to attach to the child workflow start command. The markers will be
+   * reflected on the corresponding workflow history events, and may be used by tooling
+   * (UI/CLI) to group related events together. See {@link EventGroupMarker} and `createEventGroup`.
+   *
+   * Note that event group markers are never propagated across workflow executions.
+   *
+   * @experimental Event Groups is an experimental API and may change without notice.
+   */
+  eventGroups?: EventGroupMarker[];
 }
 
 export type RequiredChildWorkflowOptions = Required<Pick<ChildWorkflowOptions, 'workflowId' | 'cancellationType'>> & {

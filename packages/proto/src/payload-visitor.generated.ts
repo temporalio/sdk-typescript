@@ -312,6 +312,16 @@ export function walkWorkflowActivationJob<Ctx>(
   return pending;
 }
 
+export function walkCancelWorkflowExecution<Ctx>(
+  root: coresdk.workflow_commands.ICancelWorkflowExecution,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_coresdk_workflow_commands_CancelWorkflowExecution(root, env, context, pending);
+  return pending;
+}
+
 export function walkCompleteWorkflowExecution<Ctx>(
   root: coresdk.workflow_commands.ICompleteWorkflowExecution,
   env: WalkEnv<Ctx>,
@@ -1851,6 +1861,21 @@ function walk_coresdk_workflow_activation_WorkflowActivationJob<Ctx>(
   }
 }
 
+function walk_coresdk_workflow_commands_CancelWorkflowExecution<Ctx>(
+  o: coresdk.workflow_commands.ICancelWorkflowExecution,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'coresdk.workflow_commands.CancelWorkflowExecution', context)
+    : context;
+  {
+    const c = o.details;
+    if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+}
+
 function walk_coresdk_workflow_commands_CompleteWorkflowExecution<Ctx>(
   o: coresdk.workflow_commands.ICompleteWorkflowExecution,
   env: WalkEnv<Ctx>,
@@ -2197,6 +2222,10 @@ function walk_coresdk_workflow_commands_WorkflowCommand<Ctx>(
     if (c != null) walk_temporal_api_sdk_v1_UserMetadata(c, env, ctx, pending);
   }
   {
+    const a = o.eventGroupMarkers;
+    if (a) for (const v of a) walk_temporal_api_sdk_v1_EventGroupMarker(v, env, ctx, pending);
+  }
+  {
     const c = o.scheduleActivity;
     if (c != null) walk_coresdk_workflow_commands_ScheduleActivity(c, env, ctx, pending);
   }
@@ -2215,6 +2244,10 @@ function walk_coresdk_workflow_commands_WorkflowCommand<Ctx>(
   {
     const c = o.continueAsNewWorkflowExecution;
     if (c != null) walk_coresdk_workflow_commands_ContinueAsNewWorkflowExecution(c, env, ctx, pending);
+  }
+  {
+    const c = o.cancelWorkflowExecution;
+    if (c != null) walk_coresdk_workflow_commands_CancelWorkflowExecution(c, env, ctx, pending);
   }
   {
     const c = o.startChildWorkflowExecution;
