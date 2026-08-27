@@ -3,6 +3,7 @@ import { toPayloadWithTypeInfo } from '@temporalio/common';
 import { msOptionalToTs } from '@temporalio/common/lib/time';
 import { userMetadataToPayload } from '@temporalio/common/lib/user-metadata';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
+import { convertPayloadForWorkflowTask } from '@temporalio/common/lib/internal-workflow/payload-validation-error';
 import type { coresdk } from '@temporalio/proto';
 import { eventGroupMarkersToProto } from './event-groups';
 import { CancellationScope } from './cancellation-scope';
@@ -231,13 +232,17 @@ function startNexusOperationNextHandler({
         service,
         operation,
         nexusHeader: headers,
-        input: toPayloadWithTypeInfo(activator.payloadConverter, input, context, inputType),
+        input: convertPayloadForWorkflowTask(() =>
+          toPayloadWithTypeInfo(activator.payloadConverter, input, context, inputType)
+        ),
         scheduleToCloseTimeout: msOptionalToTs(options?.scheduleToCloseTimeout),
         scheduleToStartTimeout: msOptionalToTs(options?.scheduleToStartTimeout),
         startToCloseTimeout: msOptionalToTs(options?.startToCloseTimeout),
         cancellationType: encodeNexusOperationCancellationType(options?.cancellationType),
       },
-      userMetadata: userMetadataToPayload(activator.payloadConverter, options?.summary, undefined, context),
+      userMetadata: convertPayloadForWorkflowTask(() =>
+        userMetadataToPayload(activator.payloadConverter, options?.summary, undefined, context)
+      ),
       eventGroupMarkers: eventGroupMarkersToProto(options?.eventGroups),
     });
 

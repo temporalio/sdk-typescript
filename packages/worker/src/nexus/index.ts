@@ -10,7 +10,6 @@ import {
 } from '@temporalio/common';
 import type { temporal, coresdk } from '@temporalio/proto';
 import { asyncLocalStorage } from '@temporalio/nexus/lib/context';
-import { encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
 import { isAbortError } from '@temporalio/common/lib/type-helpers';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import type { Client } from '@temporalio/client';
@@ -22,7 +21,13 @@ import type {
   NexusInterceptorsFactory,
   NexusOutboundCallsInterceptor,
 } from '../interceptors';
-import { coerceToHandlerError, decodePayload, handlerErrorToProto, operationErrorToProto } from './conversions';
+import {
+  coerceToHandlerError,
+  decodePayload,
+  encodeNexusResult,
+  handlerErrorToProto,
+  operationErrorToProto,
+} from './conversions';
 
 const UNINITIALIZED = Symbol();
 
@@ -146,7 +151,7 @@ export class NexusHandler {
           completed: {
             startOperation: {
               syncSuccess: {
-                payload: await encodeToPayload(this.dataConverter, result.value, undefined, handler.outputType),
+                payload: await encodeNexusResult(this.dataConverter, result.value, handler.outputType),
                 links: ctx.outboundLinks.map(nexusLinkToProtoLink),
               },
             },
