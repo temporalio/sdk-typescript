@@ -126,7 +126,6 @@ to docs, or any other relevant information.
 - `SimplePlugin` no longer appends its `workerInterceptors.workflowModules` to worker options when
   the worker uses a prebuilt `workflowBundle`, as module paths cannot be resolved in that case;
   they are instead applied at bundling time, through the plugin's `configureBundler` method.
-- The dev server used by the test suite is now `v1.8.3-server-1.32.0-162.0`.
 
 ### Fixed
 
