@@ -1,4 +1,5 @@
 import type * as nexus from 'nexus-rpc';
+import { noopMetricMeter } from '@temporalio/common';
 import type { HandlerContext } from '../context';
 
 /**
@@ -24,11 +25,12 @@ export function makeStartContext(overrides: Partial<nexus.StartOperationContext>
  */
 export function makeHandlerContext(client: HandlerContext['client']): HandlerContext {
   return {
-    log: { trace() {}, debug() {}, info() {}, warn() {}, error() {}, log() {} },
-    metrics: {} as HandlerContext['metrics'],
+    log: { log() {}, trace() {}, debug() {}, info() {}, warn() {}, error() {} },
+    metrics: noopMetricMeter,
+
     client,
     namespace: 'ns',
     taskQueue: 'tq',
-    endpoint: 'endpoint',
+    endpoint: 'endpoint', 
   };
 }

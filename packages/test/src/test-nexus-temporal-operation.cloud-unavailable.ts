@@ -743,8 +743,9 @@ test('TemporalOperationHandler propagates backing activity failure', async (t) =
       { instanceOf: NexusOperationFailureError }
     );
 
-    assert(err?.cause instanceof ApplicationFailure);
-    const activityFailure = err.cause.cause;
+    // The Activity's own ApplicationFailure is the operation failure's cause; the server does not
+    // wrap it in a synthetic `OperationError` layer.
+    const activityFailure = err?.cause;
     assert(activityFailure instanceof ApplicationFailure);
     t.is(activityFailure.message, 'activity failed');
     t.is(activityFailure.type, 'Error');

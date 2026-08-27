@@ -1915,29 +1915,29 @@ export class WorkflowClient extends BaseClient {
       },
       async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
         if (typeof def === 'string') {
-          await _signal(this as InternalWorkflowHandle, def, args);
+          await _signal(this, def, args);
         } else {
-          await _signal(this as InternalWorkflowHandle, def.name, args, def.typeInfo);
+          await _signal(this, def.name, args, def.typeInfo);
         }
       },
       async signalWithOptions<Args extends any[]>(
         signalName: string,
         options: WorkflowSignalOptions<Args>
       ): Promise<void> {
-        await _signal(this as InternalWorkflowHandle, signalName, options.args ?? [], options.typeInfo);
+        await _signal(this, signalName, options.args ?? [], options.typeInfo);
       },
       async query<Ret, Args extends any[]>(def: QueryDefinition<Ret, Args> | string, ...args: Args): Promise<Ret> {
         if (typeof def === 'string') {
-          return await _query(this as InternalWorkflowHandle, def, args);
+          return await _query(this, def, args);
         } else {
-          return await _query(this as InternalWorkflowHandle, def.name, args, def.typeInfo);
+          return await _query(this, def.name, args, def.typeInfo);
         }
       },
       async queryWithOptions<Ret, Args extends any[]>(
         queryName: string,
         options: WorkflowQueryOptions<Args>
       ): Promise<Ret> {
-        return await _query(this as InternalWorkflowHandle, queryName, options.args ?? [], options.typeInfo);
+        return await _query(this, queryName, options.args ?? [], options.typeInfo);
       },
     };
   }
