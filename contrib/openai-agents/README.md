@@ -517,6 +517,8 @@ Dedicated Worker startup and heartbeat failures surface as `ApplicationFailure` 
 
 An OpenAI Agents SDK `SandboxAgent` runs commands, edits files, and keeps a workspace inside a sandbox. This plugin dispatches each of those operations as an Activity.
 
+Process handles returned by `exec` remain usable across Activities only when the sandbox backend can reconnect them after `resume`; Unix-local and Docker backends cannot.
+
 Register your sandbox backend client under a name on the Worker plugin:
 
 ```ts
