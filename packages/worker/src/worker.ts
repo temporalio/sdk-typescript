@@ -97,6 +97,7 @@ import type {
 import { compileWorkerOptions, isCodeBundleOption, isPathBundleOption, toNativeWorkerOptions } from './worker-options';
 import { WorkflowCodecRunner } from './workflow-codec-runner';
 import { defaultWorkflowInterceptorModules, WorkflowCodeBundler } from './workflow/bundler';
+import { isBunPre1_4 } from './workflow/bun';
 import type { Workflow, WorkflowCreator } from './workflow/interface';
 import { ReusableVMWorkflowCreator } from './workflow/reusable-vm';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
@@ -521,6 +522,11 @@ export class Worker {
       sdkComponent: SdkComponent.worker,
       taskQueue: options.taskQueue ?? 'default',
     });
+    if (isBunPre1_4) {
+      logger.warn(
+        'Bun versions older than 1.4.0 are deprecated and will not be supported in a future release. Please upgrade to Bun 1.4.0 or later.'
+      );
+    }
     const metricMeter = runtime.metricMeter.withTags({
       namespace: options.namespace ?? 'default',
       taskQueue: options.taskQueue ?? 'default',
@@ -1671,6 +1677,7 @@ export class Worker {
       workflowTaskTimeout,
       continuedFromExecutionRunId,
       firstExecutionRunId,
+      originalExecutionRunId,
       retryPolicy,
       attempt,
       cronSchedule,
@@ -1692,6 +1699,7 @@ export class Worker {
       taskQueue: this.options.taskQueue,
       namespace: this.options.namespace,
       firstExecutionRunId,
+      originalExecutionRunId: originalExecutionRunId ?? activation.runId,
       continuedFromExecutionRunId: continuedFromExecutionRunId || undefined,
       startTime: tsToDate(initWorkflowJob.startTime),
       runStartTime: tsToDate(activation.timestamp),

@@ -85,6 +85,10 @@ to docs, or any other relevant information.
 - **Experimental**: Workflows can now use `TypeInfo` for Child Workflow inputs and results and continue-as-new inputs.
 - **Experimental**: String-named Signal calls can now provide `TypeInfo` through explicit options on Client and
   Workflow handles and in signal-with-start requests.
+- **Experimental**: Experimental support for _Event Groups_. **Event Groups**
+  is a new form of Workflow-level metadata that allows for improved
+  visibility into a Workflow execution's history by grouping logically
+  related Events together based on user-defined or system-inferred criteria.
 
 ### Changed
 
@@ -97,9 +101,17 @@ to docs, or any other relevant information.
   Nexus Handler Error instead of `INTERNAL`, so the caller is not retried on invalid input. The
   original `ApplicationFailure` is retained as the Handler Error's cause. Any other failure from the
   data converter is unchanged.
+- `SimplePlugin` no longer appends its `workerInterceptors.workflowModules` to worker options when
+  the worker uses a prebuilt `workflowBundle`, as module paths cannot be resolved in that case;
+  they are instead applied at bundling time, through the plugin's `configureBundler` method.
 
 ### Fixed
 
+- Local Activities now fall back to a registered `default` activity when the requested type is not
+  registered, matching non-local Activity dispatch. Previously the Workflow Task failed immediately
+  with `ReferenceError` even if `default` was registered.
+- **Experimental**: Fixed compatibility with Bun 1.4, including reusable VM context switching,
+  microtask handling, and Worker thread shutdown.
 - **Experimental**: The external storage S3 and GCS drivers now use `hash_algorithm` and `hash_value` instead of
   `hashAlgorithm` and `hashValue` in their claims. The GCS driver additionally uses `object_name` instead of
   `object`. Retrieval still accepts the old key names.
@@ -135,6 +147,11 @@ to docs, or any other relevant information.
 ### Changed
 
 - Updated Core to `65b25ada` (`temporal-core` 0.6.0)
+
+### Deprecated
+
+- **Experimental**: Bun versions older than 1.4.0 are deprecated and will not be supported in a future release. Please
+  upgrade to Bun 1.4.0 or later.
 
 ### Fixed
 

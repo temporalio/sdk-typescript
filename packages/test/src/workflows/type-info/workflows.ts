@@ -1,4 +1,5 @@
 import {
+  type ActivityOptions,
   continueAsNew,
   defineWorkflowOptions,
   executeChild,
@@ -6,7 +7,6 @@ import {
   proxyActivities,
   proxyLocalActivities,
 } from '@temporalio/workflow';
-import type { ActivityOptions } from '@temporalio/common';
 import type * as activities from './activities';
 import { activityTypeInfo } from './activity-type-info';
 import { assertOrder, assertReceipt, Order, Receipt, workflowTypeInfo } from './models';
