@@ -14,6 +14,7 @@ import type { LoadedDataConverter } from '../converter/data-converter';
 import type { UserMetadata } from '../user-metadata';
 import type { TypeInfo } from '../type-info';
 import type { SerializationContext } from '../converter/serialization-context';
+import { rethrowPayloadValidationError } from '../internal-workflow/payload-validation-error';
 import type { DecodedPayload, DecodedProtoFailure, EncodedPayload, EncodedProtoFailure } from './codec-types';
 
 /**
@@ -38,10 +39,14 @@ export async function encode(
   payloads: Payload[],
   context?: SerializationContext
 ): Promise<EncodedPayload[]> {
-  for (let i = 0; i < codecs.length; i++) {
-    payloads = await codecs[i]!.encode(payloads, context);
+  try {
+    for (let i = 0; i < codecs.length; i++) {
+      payloads = await codecs[i]!.encode(payloads, context);
+    }
+    return payloads as EncodedPayload[];
+  } catch (error) {
+    rethrowPayloadValidationError(error);
   }
-  return payloads as EncodedPayload[];
 }
 
 /** Run {@link PayloadCodec.encode} on `payloads` */
@@ -122,7 +127,15 @@ export async function encodeToPayload<T>(
   typeInfo?: TypeInfo<T, unknown>
 ): Promise<Payload> {
   const { payloadConverter, payloadCodecs } = converter;
-  return await encodeSingle(payloadCodecs, toPayloadWithTypeInfo(payloadConverter, value, context, typeInfo), context);
+  try {
+    return await encodeSingle(
+      payloadCodecs,
+      toPayloadWithTypeInfo(payloadConverter, value, context, typeInfo),
+      context
+    );
+  } catch (error) {
+    rethrowPayloadValidationError(error);
+  }
 }
 
 /**
@@ -206,8 +219,12 @@ export async function encodeToPayloadsWithContext(
   if (values.length === 0) {
     return undefined;
   }
-  const payloads = toPayloadsWithContext(payloadConverter, context, values, typeInfo);
-  return payloads ? await encode(payloadCodecs, payloads, context) : undefined;
+  try {
+    const payloads = toPayloadsWithContext(payloadConverter, context, values, typeInfo);
+    return payloads ? await encode(payloadCodecs, payloads, context) : undefined;
+  } catch (error) {
+    rethrowPayloadValidationError(error);
+  }
 }
 
 /**
@@ -248,6 +265,23 @@ export async function encodeMap<K extends string>(
   ) as Record<K, EncodedPayload>;
 }
 
+/** Run {@link PayloadCodec.decode} on all values in `map` */
+export async function decodeMap<K extends string>(
+  codecs: PayloadCodec[],
+  map: Record<K, Payload> | null | undefined,
+  context?: SerializationContext
+): Promise<Record<K, DecodedPayload> | null | undefined> {
+  if (map === null) return null;
+  if (map === undefined) return undefined;
+  return Object.fromEntries(
+    await Promise.all(
+      Object.entries(map).map(async ([k, payload]): Promise<[K, DecodedPayload]> => {
+        return [k as K, await decodeSingle(codecs, payload as Payload, context)];
+      })
+    )
+  ) as Record<K, DecodedPayload>;
+}
+
 /**
  * Run {@link PayloadConverter.toPayload} and then {@link PayloadCodec.encode} on values in `map`.
  */
@@ -260,7 +294,12 @@ export async function encodeMapToPayloads<K extends string>(
   return Object.fromEntries(
     await Promise.all(
       Object.entries(map).map(async ([k, v]): Promise<[K, Payload]> => {
-        const payload = payloadConverter.toPayload(v, context);
+        let payload;
+        try {
+          payload = payloadConverter.toPayload(v, context);
+        } catch (error) {
+          rethrowPayloadValidationError(error);
+        }
         if (payload === undefined) throw new PayloadConverterError(`Failed to encode entry: ${k}: ${v}`);
         const [encodedPayload] = await encode(payloadCodecs, [payload], context);
         return [k as K, encodedPayload!];
@@ -278,7 +317,15 @@ export async function encodeErrorToFailure(
   context?: SerializationContext
 ): Promise<ProtoFailure> {
   const { failureConverter, payloadConverter, payloadCodecs } = dataConverter;
-  return await encodeFailure(payloadCodecs, failureConverter.errorToFailure(error, payloadConverter, context), context);
+  try {
+    return await encodeFailure(
+      payloadCodecs,
+      failureConverter.errorToFailure(error, payloadConverter, context),
+      context
+    );
+  } catch (conversionError) {
+    rethrowPayloadValidationError(conversionError);
+  }
 }
 
 /**
@@ -467,16 +514,22 @@ export async function encodeUserMetadata(
   if (staticSummary == null && staticDetails == null) return undefined;
 
   const { payloadConverter, payloadCodecs } = dataConverter;
-  const summary = await encodeOptionalSingle(
-    payloadCodecs,
-    convertOptionalToPayload(payloadConverter, staticSummary, context),
-    context
-  );
-  const details = await encodeOptionalSingle(
-    payloadCodecs,
-    convertOptionalToPayload(payloadConverter, staticDetails, context),
-    context
-  );
+  let summary;
+  let details;
+  try {
+    summary = await encodeOptionalSingle(
+      payloadCodecs,
+      convertOptionalToPayload(payloadConverter, staticSummary, context),
+      context
+    );
+    details = await encodeOptionalSingle(
+      payloadCodecs,
+      convertOptionalToPayload(payloadConverter, staticDetails, context),
+      context
+    );
+  } catch (error) {
+    rethrowPayloadValidationError(error);
+  }
 
   if (summary == null && details == null) return undefined;
 

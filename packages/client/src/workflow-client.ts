@@ -33,7 +33,7 @@ import {
   compilePriority,
   extractWorkflowTypeAndConfig,
 } from '@temporalio/common';
-import { encodeUserMetadata } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
+import { encodeMap, encodeUserMetadata } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
 import { encodeUnifiedSearchAttributes } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import type { History } from '@temporalio/common/lib/proto-utils';
@@ -1078,7 +1078,7 @@ export class WorkflowClient extends BaseClient {
         queryArgs: {
           payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args, input.typeInfo?.inputTypes),
         },
-        header: { fields: input.headers },
+        header: { fields: await encodeMap(dataConverter.payloadCodecs, input.headers, context) },
       },
     };
     const externalStorage = this.dataConverter.externalStorage;
@@ -1148,7 +1148,7 @@ export class WorkflowClient extends BaseClient {
           identity: this.options.identity,
         },
         input: {
-          header: { fields: input.headers },
+          header: { fields: await encodeMap(dataConverter.payloadCodecs, input.headers, context) },
           name: input.updateName,
           args: {
             payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args, input.typeInfo?.inputTypes),
@@ -1419,7 +1419,7 @@ export class WorkflowClient extends BaseClient {
       requestId: randomUUID(),
       // control is unused,
       signalName: input.signalName,
-      header: { fields: input.headers },
+      header: { fields: await encodeMap(dataConverter.payloadCodecs, input.headers, context) },
       input: {
         payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args, input.typeInfo?.inputTypes),
       },
@@ -1494,7 +1494,7 @@ export class WorkflowClient extends BaseClient {
             }
           : undefined,
       cronSchedule: options.cronSchedule,
-      header: { fields: headers },
+      header: { fields: await encodeMap(dataConverter.payloadCodecs, headers, context) },
       userMetadata: await encodeUserMetadata(dataConverter, options.staticSummary, options.staticDetails, context),
       priority: options.priority ? compilePriority(options.priority) : undefined,
       versioningOverride: options.versioningOverride ?? undefined,
@@ -1624,7 +1624,7 @@ export class WorkflowClient extends BaseClient {
             }
           : undefined,
       cronSchedule: opts.cronSchedule,
-      header: { fields: headers },
+      header: { fields: await encodeMap(dataConverter.payloadCodecs, headers, context) },
       userMetadata: await encodeUserMetadata(dataConverter, opts.staticSummary, opts.staticDetails, context),
       priority: opts.priority ? compilePriority(opts.priority) : undefined,
       versioningOverride: opts.versioningOverride ?? undefined,

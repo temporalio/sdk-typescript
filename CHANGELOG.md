@@ -112,6 +112,10 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- Payload validation failures from Payload Converters and Payload Codecs now follow the execution
+  boundary they occur in: invalid inputs fail only the target call or execution, corrupted signals
+  are dropped and counted, workflow output conversion retries the Workflow Task, and Activity output
+  conversion remains retryable.
 - Local Activities now fall back to a registered `default` activity when the requested type is not
   registered, matching non-local Activity dispatch. Previously the Workflow Task failed immediately
   with `ReferenceError` even if `default` was registered.

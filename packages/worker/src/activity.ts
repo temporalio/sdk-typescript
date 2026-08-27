@@ -19,6 +19,8 @@ import {
   SdkComponent,
 } from '@temporalio/common';
 import { encodeErrorToFailure, encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
+import { encodePayloadValidationError } from '@temporalio/common/lib/internal-non-workflow/payload-validation-error';
+import { findPayloadValidationError } from '@temporalio/common/lib/internal-workflow/payload-validation-error';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import { isAbortError } from '@temporalio/common/lib/type-helpers';
 import type { Logger } from '@temporalio/common/lib/logger';
@@ -197,11 +199,26 @@ export class Activity {
       try {
         if (this.fn === undefined) throw new IllegalStateError('Activity function is not defined');
         const result = await this.executeWithClient(this.fn, input);
-        return {
-          completed: {
-            result: await encodeToPayload(this.dataConverter, result, this.serializationContext, this.outputTypeInfo),
-          },
-        };
+        try {
+          return {
+            completed: {
+              result: await encodeToPayload(this.dataConverter, result, this.serializationContext, this.outputTypeInfo),
+            },
+          };
+        } catch (error) {
+          const payloadValidationError = findPayloadValidationError(error);
+          if (payloadValidationError === undefined) throw error;
+          return {
+            failed: {
+              failure: await encodePayloadValidationError(
+                this.dataConverter,
+                payloadValidationError,
+                this.serializationContext,
+                true
+              ),
+            },
+          };
+        }
       } catch (err) {
         if (err instanceof CompleteAsyncError) {
           return { willCompleteAsync: {} };

@@ -3,7 +3,15 @@ import * as nexus from 'nexus-rpc';
 import { isGrpcServiceError, ServiceError } from '@temporalio/client';
 import type { LoadedDataConverter, Payload, ProtoFailure, TypeInfo } from '@temporalio/common';
 import { ApplicationFailure, CancelledFailure, fromPayloadWithTypeInfo } from '@temporalio/common';
-import { encodeErrorToFailure, decodeOptionalSingle } from '@temporalio/common/lib/internal-non-workflow';
+import {
+  encodeErrorToFailure,
+  decodeOptionalSingle,
+  encodeToPayload,
+} from '@temporalio/common/lib/internal-non-workflow';
+import {
+  findPayloadValidationError,
+  payloadFreePayloadValidationFailure,
+} from '@temporalio/common/lib/internal-workflow/payload-validation-error';
 import type { temporal } from '@temporalio/proto';
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -19,14 +27,6 @@ import type { temporal } from '@temporalio/proto';
  */
 export const PAYLOAD_VALIDATION_ERROR_TYPE = 'PayloadValidationError';
 
-/**
- * Whether `err` is a non-retryable {@link ApplicationFailure} whose type is exactly
- * {@link PAYLOAD_VALIDATION_ERROR_TYPE}.
- */
-function isPayloadValidationFailure(err: unknown): err is ApplicationFailure {
-  return err instanceof ApplicationFailure && err.nonRetryable === true && err.type === PAYLOAD_VALIDATION_ERROR_TYPE;
-}
-
 /** Decode Payload Codecs and apply optional TypeInfo while translating invalid Nexus input errors. */
 export async function decodePayload(
   dataConverter: LoadedDataConverter,
@@ -37,9 +37,10 @@ export async function decodePayload(
   try {
     decoded = await decodeOptionalSingle(dataConverter.payloadCodecs, payload);
   } catch (err) {
-    if (isPayloadValidationFailure(err)) {
+    const payloadValidationError = findPayloadValidationError(err);
+    if (payloadValidationError !== undefined) {
       throw new nexus.HandlerError('BAD_REQUEST', `Invalid operation input`, {
-        cause: err,
+        cause: payloadValidationError,
       });
     }
     if (err instanceof ApplicationFailure || err instanceof nexus.HandlerError) {
@@ -55,9 +56,10 @@ export async function decodePayload(
   try {
     return fromPayloadWithTypeInfo(dataConverter.payloadConverter, decoded, undefined, typeInfo);
   } catch (err) {
-    if (isPayloadValidationFailure(err)) {
+    const payloadValidationError = findPayloadValidationError(err);
+    if (payloadValidationError !== undefined) {
       throw new nexus.HandlerError('BAD_REQUEST', `Invalid operation input`, {
-        cause: err,
+        cause: payloadValidationError,
       });
     }
     if (err instanceof ApplicationFailure || err instanceof nexus.HandlerError) {
@@ -65,6 +67,24 @@ export async function decodePayload(
     }
     throw new nexus.HandlerError('BAD_REQUEST', `Payload converter failed to decode Nexus operation input`, {
       cause: err,
+    });
+  }
+}
+
+/** Encode a Nexus handler result while preserving the retryable output-validation contract. */
+export async function encodeNexusResult(
+  dataConverter: LoadedDataConverter,
+  value: unknown,
+  typeInfo?: TypeInfo
+): Promise<Payload> {
+  try {
+    return await encodeToPayload(dataConverter, value, undefined, typeInfo);
+  } catch (error) {
+    const payloadValidationError = findPayloadValidationError(error);
+    if (payloadValidationError === undefined) throw error;
+    throw new nexus.HandlerError('INTERNAL', undefined, {
+      cause: payloadValidationError,
+      retryableOverride: true,
     });
   }
 }
@@ -96,7 +116,22 @@ export async function handlerErrorToProto(
   dataConverter: LoadedDataConverter,
   err: nexus.HandlerError
 ): Promise<ProtoFailure> {
-  return await encodeErrorToFailure(dataConverter, err);
+  try {
+    return await encodeErrorToFailure(dataConverter, err);
+  } catch (conversionError) {
+    const payloadValidationError = findPayloadValidationError(err);
+    if (payloadValidationError === undefined) throw conversionError;
+    return {
+      message: err.message,
+      stackTrace: err.stack,
+      cause: payloadFreePayloadValidationFailure(payloadValidationError),
+      nexusHandlerFailureInfo: {
+        type: err.type,
+        // NEXUS_HANDLER_ERROR_RETRY_BEHAVIOR_RETRYABLE / NON_RETRYABLE
+        retryBehavior: err.retryable ? 1 : 2,
+      },
+    };
+  }
 }
 
 export function coerceToHandlerError(err: unknown): nexus.HandlerError {

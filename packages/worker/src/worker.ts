@@ -36,6 +36,7 @@ import type { Decoded } from '@temporalio/common/lib/internal-non-workflow';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
+  decodeMap,
   encodeErrorToFailure,
   encodeToPayload,
   extstoreInboundOptions,
@@ -49,6 +50,11 @@ import {
   walkWorkflowActivation,
   walkWorkflowActivationCompletion,
 } from '@temporalio/common/lib/internal-non-workflow';
+import { encodePayloadValidationError } from '@temporalio/common/lib/internal-non-workflow/payload-validation-error';
+import {
+  isWorkflowTaskPayloadConversionError,
+  findPayloadValidationError,
+} from '@temporalio/common/lib/internal-workflow/payload-validation-error';
 import type { StorageDriverTargetInfo } from '@temporalio/common/lib/converter/extstore';
 import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 import type { Duration } from '@temporalio/common/lib/time';
@@ -1126,6 +1132,7 @@ export class Worker {
                       : undefined;
                     const outputTypeInfo = typeInfo?.outputType;
                     let args: unknown[];
+                    let headers;
                     try {
                       args = await decodeArrayFromPayloads(
                         loadedDataConverter,
@@ -1133,13 +1140,16 @@ export class Worker {
                         context,
                         typeInfo?.inputTypes
                       );
+                      headers =
+                        (await decodeMap(loadedDataConverter.payloadCodecs, task.start?.headerFields, context)) ?? {};
                     } catch (err) {
+                      const payloadValidationError = findPayloadValidationError(err);
+                      if (payloadValidationError !== undefined) throw payloadValidationError;
                       throw ApplicationFailure.fromError(err, {
                         message: `Failed to parse activity args for activity ${activityType}: ${errorMessage(err)}`,
                         nonRetryable: false,
                       });
                     }
-                    const headers = task.start?.headerFields ?? {};
                     const input = {
                       args,
                       headers,
@@ -1178,6 +1188,7 @@ export class Worker {
                     break;
                   } catch (e) {
                     const error = ensureApplicationFailure(e);
+                    const payloadValidationError = findPayloadValidationError(error);
                     this.logger.error(`Error while processing ActivityTask.start: ${errorMessage(error)}`, {
                       ...(info ? activityLogAttributes(info) : {}),
                       error: e,
@@ -1188,7 +1199,31 @@ export class Worker {
                       type: 'result',
                       result: {
                         failed: {
-                          failure: await encodeErrorToFailure(loadedDataConverter, error, context),
+                          failure:
+                            payloadValidationError && info?.isLocal
+                              ? {
+                                  message: 'Activity task failed',
+                                  source: 'TypeScriptSDK',
+                                  cause: await encodePayloadValidationError(
+                                    loadedDataConverter,
+                                    payloadValidationError,
+                                    context
+                                  ),
+                                  activityFailureInfo: {
+                                    activityType: { name: info.activityType },
+                                    activityId: info.activityId,
+                                    identity: this.options.identity,
+                                    // RETRY_STATE_NON_RETRYABLE_FAILURE
+                                    retryState: 2,
+                                  },
+                                }
+                              : payloadValidationError
+                                ? await encodePayloadValidationError(
+                                    loadedDataConverter,
+                                    payloadValidationError,
+                                    context
+                                  )
+                                : await encodeErrorToFailure(loadedDataConverter, error, context),
                         },
                       },
                     };
@@ -1552,7 +1587,7 @@ export class Worker {
           throw new IllegalStateError(
             'Received workflow activation for an untracked workflow with no init workflow job'
           );
-        workflowCodecRunner = new WorkflowCodecRunner(this.options.loadedDataConverter.payloadCodecs, {
+        workflowCodecRunner = new WorkflowCodecRunner(this.options.loadedDataConverter, {
           type: 'workflow',
           namespace: this.options.namespace,
           workflowId,
@@ -1561,6 +1596,21 @@ export class Worker {
       const { externalStorage } = this.options.loadedDataConverter;
       await visit(activation, walkWorkflowActivation, extstoreInboundOptions(externalStorage));
       const decodedActivation = await workflowCodecRunner.decodeActivation(activation);
+      const initializationFailure = workflowCodecRunner.takeInitializationFailure();
+      if (initializationFailure !== undefined) {
+        const failure = await encodePayloadValidationError(
+          this.options.loadedDataConverter,
+          initializationFailure,
+          workflowCodecRunner.workflowContext
+        );
+        const completion = coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
+          runId: activation.runId,
+          successful: { commands: [{ failWorkflowExecution: { failure } }] },
+        }).finish();
+        return { state: undefined, output: { close, completion } };
+      }
+
+      const droppedSignalFailures = workflowCodecRunner.takeDroppedSignalFailures();
 
       if (workflow === undefined) {
         const initWorkflowDetails = decodedActivation.jobs[0]?.initializeWorkflow;
@@ -1572,9 +1622,30 @@ export class Worker {
         workflow = await this.createWorkflow(decodedActivation, initWorkflowDetails, workflowCodecRunner);
       }
 
+      if (!activation.isReplaying) {
+        for (const { signalName, error } of droppedSignalFailures) {
+          this.logger.error('Failed to convert signal input; dropping signal', {
+            runId: activation.runId,
+            ...workflow.logAttributes,
+            signalName,
+            error,
+          });
+          this.metricMeter
+            .createCounter(
+              'corrupted_signals',
+              undefined,
+              'Number of signals dropped because their payloads are invalid'
+            )
+            .add(1, { workflowType: workflow.info.workflowType });
+        }
+      }
+
       let isFatalError = false;
       try {
-        const unencodedCompletion = await workflow.workflow.activate(decodedActivation);
+        const unencodedCompletion =
+          decodedActivation.jobs.length === 0
+            ? { runId: activation.runId, successful: {} }
+            : await workflow.workflow.activate(decodedActivation);
         const encodedCompletion = await workflowCodecRunner.encodeCompletion(unencodedCompletion);
         // Skip extstore.store on replay: the completion is discarded and its payloads were already offloaded on the original run.
         if (externalStorage && !this.isReplayWorker) {
@@ -1632,10 +1703,13 @@ export class Worker {
         workflowExists: workflow !== undefined,
       });
 
+      const failure = isWorkflowTaskPayloadConversionError(error)
+        ? await encodePayloadValidationError(this.options.loadedDataConverter, error.cause)
+        : await encodeErrorToFailure(this.options.loadedDataConverter, error);
       const completion = coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
         runId: activation.runId,
         failed: {
-          failure: await encodeErrorToFailure(this.options.loadedDataConverter, error),
+          failure,
         },
       }).finish();
 
@@ -2401,6 +2475,8 @@ async function extractActivityInfo({
   try {
     heartbeatDetails = await decodeFromPayloadsAtIndex(dataConverter, 0, start.heartbeatDetails, context);
   } catch (e) {
+    const payloadValidationError = findPayloadValidationError(e);
+    if (payloadValidationError !== undefined) throw payloadValidationError;
     throw ApplicationFailure.fromError(e, {
       message: `Failed to parse heartbeat details for activity ${activityId}: ${errorMessage(e)}`,
     });
