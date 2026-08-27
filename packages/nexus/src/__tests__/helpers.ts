@@ -24,7 +24,7 @@ export function makeStartContext(overrides: Partial<nexus.StartOperationContext>
  */
 export function makeHandlerContext(client: HandlerContext['client']): HandlerContext {
   return {
-    log: { trace() {}, debug() {}, info() {}, warn() {}, error() {} } as unknown as HandlerContext['log'],
+    log: { trace() {}, debug() {}, info() {}, warn() {}, error() {}, log() {} },
     metrics: {} as HandlerContext['metrics'],
     client,
     namespace: 'ns',
