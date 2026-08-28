@@ -29,6 +29,7 @@ packages:
   - contrib/external-storage-gcs
   - contrib/external-storage-gcs-google-sdk
   - contrib/workflow-streams
+  - demos/dynamic-workflow-loading
   - scripts
 
 ignoreScripts: true

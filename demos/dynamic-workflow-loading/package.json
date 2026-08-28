@@ -1,0 +1,29 @@
+{
+  "name": "@temporalio/dynamic-workflow-loading-demo",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Demo of selecting prebuilt Workflow bundles by Task Queue at Worker startup",
+  "scripts": {
+    "build": "tsc --build",
+    "build:bundles": "tsx ./src/build-workflow-bundles.ts",
+    "prepare-demo": "pnpm run build && pnpm run build:bundles",
+    "workers": "node ./lib/run-workers.js",
+    "start-workflows": "node ./lib/start-workflows.js",
+    "test": "pnpm run build && pnpm run build:bundles && node --test ./lib/*.test.js"
+  },
+  "dependencies": {
+    "@temporalio/client": "workspace:*",
+    "@temporalio/envconfig": "workspace:*",
+    "@temporalio/worker": "workspace:*",
+    "@temporalio/workflow": "workspace:*"
+  },
+  "devDependencies": {
+    "@temporalio/testing": "workspace:*",
+    "@types/node": "^20.19.39",
+    "tsx": "^4.20.6",
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">= 20.3.0"
+  }
+}

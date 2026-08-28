@@ -590,6 +590,34 @@ importers:
         specifier: ^5.3.1
         version: 5.3.1(supports-color@8.1.1)
 
+  demos/dynamic-workflow-loading:
+    dependencies:
+      '@temporalio/client':
+        specifier: workspace:*
+        version: link:../../packages/client
+      '@temporalio/envconfig':
+        specifier: workspace:*
+        version: link:../../packages/envconfig
+      '@temporalio/worker':
+        specifier: workspace:*
+        version: link:../../packages/worker
+      '@temporalio/workflow':
+        specifier: workspace:*
+        version: link:../../packages/workflow
+    devDependencies:
+      '@temporalio/testing':
+        specifier: workspace:*
+        version: link:../../packages/testing
+      '@types/node':
+        specifier: ^20.19.39
+        version: 20.19.41
+      tsx:
+        specifier: ^4.20.6
+        version: 4.20.6
+      typescript:
+        specifier: ^5.6.3
+        version: 5.6.3
+
   packages/activity:
     dependencies:
       '@temporalio/client':
