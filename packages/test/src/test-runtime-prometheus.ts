@@ -127,8 +127,9 @@ test.serial('Exporting Prometheus metrics from Core works with lots of options',
           `Actual: \n-------\n${text}\n-------`
         );
 
-        // Verify prefix exists on client request metrics
-        tt.assert(text.includes('temporal_long_request{'), `Actual: \n-------\n${text}\n-------`);
+        // Verify prefix exists on client request metrics (counter carries the `_total` suffix
+        // enabled via `countersTotalSuffix`)
+        tt.assert(text.includes('temporal_long_request_total{'), `Actual: \n-------\n${text}\n-------`);
       });
     });
   } finally {
