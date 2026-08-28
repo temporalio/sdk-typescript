@@ -395,7 +395,7 @@ export interface WorkflowResultOptions {
  */
 export interface GetWorkflowHandleOptions extends WorkflowResultOptions {
   /**
-   * Workflow function used to infer the result type and resolve static TypeInfo.
+   * Workflow function used to infer the result type and read its output TypeInfo.
    */
   workflow?: Workflow;
 
