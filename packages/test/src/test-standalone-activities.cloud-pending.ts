@@ -28,7 +28,7 @@ import { heartbeatCancellationDetailsActivity } from './activities/heartbeat-can
 import { createTestWorkflowEnvironment } from './helpers-integration';
 import { convertOrder, createAsyncOrderActivities } from './workflows/type-info/activities';
 import { activityTypeInfo } from './workflows/type-info/activity-type-info';
-import { Order, Receipt } from './workflows/type-info/models';
+import { Order, Receipt, receiptTypeInfo } from './workflows/type-info/models';
 
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
 // polling/retry strategies result in the expected behavior
@@ -289,7 +289,7 @@ if (RUN_INTEGRATION_TESTS) {
 
     const explicitHandle = client.getHandleWithOptions<Receipt>(activityId, {
       runId: handle.runId,
-      typeInfo: { outputType: activityTypeInfo.convertOrder.outputType },
+      typeInfo: { outputType: receiptTypeInfo },
     });
     assertReceipt(t, await explicitHandle.result());
 

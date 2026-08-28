@@ -16,6 +16,7 @@ import {
   finishSignal,
   finishUpdate,
   Order,
+  orderTypeInfo,
   orderQuery,
   orderQueryTypeInfo,
   orderSignal,
@@ -23,6 +24,7 @@ import {
   orderUpdate,
   parentWorkflowChildString,
   Receipt,
+  receiptTypeInfo,
   signalChildTarget,
   signalChildTargetWithCallSiteTypeInfo,
   signalExternalTarget,
@@ -143,7 +145,7 @@ test('Detached Workflow handles decode results using explicit and definition Typ
     });
 
     const explicitHandle = client.workflow.getHandle<typeof workflowWithTypeInfo>(workflowId, undefined, {
-      typeInfo: workflowTypeInfo,
+      typeInfo: { outputType: receiptTypeInfo },
     });
     assertReceipt(t, await explicitHandle.result());
 
@@ -807,6 +809,13 @@ test('Detached Activity handle options infer results from Activity definitions',
       activity: convertOrder,
       typeInfo: activityTypeInfo.convertOrder,
     });
+
+    void client.activity.getHandleWithOptions<Receipt>('activity-id', {
+      typeInfo: {
+        // @ts-expect-error Explicit TypeInfo must produce the handle result type.
+        outputType: orderTypeInfo,
+      },
+    });
   }
 
   t.pass();
@@ -825,6 +834,13 @@ test('Detached Workflow handle options infer results from Workflow definitions',
     void client.workflow.getHandle('workflow-id', undefined, {
       workflow: workflowWithTypeInfo,
       typeInfo: workflowTypeInfo,
+    });
+
+    // @ts-expect-error Explicit TypeInfo must produce the Workflow result type.
+    void client.workflow.getHandle<typeof workflowWithTypeInfo>('workflow-id', undefined, {
+      typeInfo: {
+        outputType: orderTypeInfo,
+      },
     });
   }
 

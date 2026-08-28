@@ -1,6 +1,7 @@
 import test from 'ava';
 import * as nexus from 'nexus-rpc';
 import type { Client, NexusOperationHandle } from '@temporalio/client';
+import type { TypeInfo } from '@temporalio/common';
 
 interface MyInput {
   value: string;
@@ -20,6 +21,7 @@ const otherService = nexus.service('otherService', {
 });
 
 declare const client: Client;
+declare const numberTypeInfo: TypeInfo<number>;
 
 test('executeOperation with operation definition infers output type', async (t) => {
   async function _assertion() {
@@ -93,6 +95,13 @@ test('getHandle with generic type parameter infers correctly', async (t) => {
     const _typedHandleFromOp: NexusOperationHandle<MyOutput> =
       client.nexus.getHandle<typeof myService.operations.mySyncOp>('op-1');
     const _typedOutputFromOp: MyOutput = await _typedHandleFromOp.result();
+
+    void client.nexus.getHandle<MyOutput>('op-1', {
+      typeInfo: {
+        // @ts-expect-error Explicit TypeInfo must produce the handle result type.
+        outputType: numberTypeInfo,
+      },
+    });
   }
   t.pass();
 });

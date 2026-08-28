@@ -111,7 +111,12 @@ import type {
   WorkflowUpdateOptions,
 } from './workflow-options';
 import { compileWorkflowOptions } from './workflow-options';
-import { decodeCountWorkflowExecutionsResponse, executionInfoFromRaw, rethrowKnownErrorTypes } from './helpers';
+import {
+  type OutputTypeInfo,
+  decodeCountWorkflowExecutionsResponse,
+  executionInfoFromRaw,
+  rethrowKnownErrorTypes,
+} from './helpers';
 import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base-client';
 import { BaseClient, defaultBaseClientOptions } from './base-client';
 import { mapAsyncIterable } from './iterators-utils';
@@ -1950,7 +1955,7 @@ export class WorkflowClient extends BaseClient {
   public getHandle<T extends Workflow>(
     workflowId: string,
     runId?: string,
-    options?: Replace<GetWorkflowHandleOptions, { workflow?: never }>
+    options?: Replace<GetWorkflowHandleOptions, { workflow?: never; typeInfo?: OutputTypeInfo<WorkflowResultType<T>> }>
   ): WorkflowHandle<T>;
   public getHandle<T extends Workflow>(
     workflowId: string,

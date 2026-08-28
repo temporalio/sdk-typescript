@@ -71,7 +71,7 @@ to docs, or any other relevant information.
   operation handles.
 - **Experimental**: `WorkflowClient.getHandle`, `ActivityClient.getHandleWithOptions`, and `NexusClient.getHandle` can
   infer detached handle result types and read output `TypeInfo` from supplied Workflow, Activity, and Nexus Operation
-  definitions.
+  definitions. Explicit output `TypeInfo` is checked against the declared handle result type.
 - **Experimental**: Workflow and standalone Activities can use `TypeInfo` to convert inputs and results, including
   Local Activities, retained and detached Client handles, and asynchronous completion.
 - Core logs written directly to the console can now use compact, pretty, or newline-delimited JSON
