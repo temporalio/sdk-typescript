@@ -113,6 +113,7 @@ import type {
 } from './workflow-options';
 import { compileWorkflowOptions } from './workflow-options';
 import {
+  type OutputTypeInfo,
   decodeCountWorkflowExecutionsResponse,
   executionInfoFromRaw,
   extractWorkflowExecutionAlreadyStartedRunId,
@@ -1985,7 +1986,7 @@ export class WorkflowClient extends BaseClient {
   public getHandle<T extends Workflow>(
     workflowId: string,
     runId?: string,
-    options?: Replace<GetWorkflowHandleOptions, { workflow?: never }>
+    options?: Replace<GetWorkflowHandleOptions, { workflow?: never; typeInfo?: OutputTypeInfo<WorkflowResultType<T>> }>
   ): WorkflowHandle<T>;
   public getHandle<T extends Workflow>(
     workflowId: string,

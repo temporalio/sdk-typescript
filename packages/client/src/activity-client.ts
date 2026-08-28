@@ -74,7 +74,7 @@ import {
   encodeActivityIdConflictPolicy,
   encodeActivityIdReusePolicy,
 } from './types';
-import type { ErrorDetailsName } from './helpers';
+import type { ErrorDetailsName, OutputTypeInfo } from './helpers';
 import { rethrowKnownErrorTypes, trimGrpcTypeUrl, getGrpcStatusDetails } from './helpers';
 import {
   isGrpcServiceError,
@@ -196,7 +196,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
   ): ActivityHandle<Awaited<ReturnType<A>>>;
   getHandleWithOptions<R = any>(
     activityId: string,
-    options: Replace<GetActivityHandleOptions, { activity?: never }>
+    options: Replace<GetActivityHandleOptions, { activity?: never; typeInfo?: OutputTypeInfo<R> }>
   ): ActivityHandle<R>;
   getHandleWithOptions(activityId: string, options: GetActivityHandleOptions): ActivityHandle {
     const outputType =
