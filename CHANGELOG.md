@@ -69,6 +69,9 @@ to docs, or any other relevant information.
   Workflow-backed asynchronous handlers must configure matching TypeInfo on the backing Workflow.
 - **Experimental**: Standalone Nexus Clients can use operation `TypeInfo`, including output conversion on detached
   operation handles.
+- **Experimental**: `WorkflowClient.getHandle`, `ActivityClient.getHandleWithOptions`, and `NexusClient.getHandle` can
+  infer detached handle result types and read output `TypeInfo` from supplied Workflow, Activity, and Nexus Operation
+  definitions.
 - **Experimental**: Workflow and standalone Activities can use `TypeInfo` to convert inputs and results, including
   Local Activities, retained and detached Client handles, and asynchronous completion.
 - Core logs written directly to the console can now use compact, pretty, or newline-delimited JSON
