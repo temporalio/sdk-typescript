@@ -10,6 +10,7 @@ import type {
   ExternalStorage,
   StorageDriver,
   StorageDriverRetrieveContext,
+  StorageDriverSelectContext,
   StorageDriverStoreContext,
   StorageDriverTargetInfo,
 } from '../converter/extstore';
@@ -52,6 +53,7 @@ export class ExternalStorageRunner {
 
     const { driverSelector, payloadSizeThreshold } = this.externalStorage;
     const { batchSignal, batchController } = makeBatchSignal(options.abortSignal);
+    const selectCtx: StorageDriverSelectContext = { abortSignal: batchSignal, target: options.target };
     const storeCtx: StorageDriverStoreContext = { abortSignal: batchSignal, target: options.target };
 
     interface StoreItem {
@@ -65,7 +67,7 @@ export class ExternalStorageRunner {
       const size = payloadProtoSize(payload);
       if (size < payloadSizeThreshold) continue;
 
-      const selected = driverSelector(storeCtx, payload);
+      const selected = driverSelector(selectCtx, payload);
       if (selected === null) continue;
       if (this.externalStorage.getDriver(selected.name) !== selected) {
         throw new ValueError(
