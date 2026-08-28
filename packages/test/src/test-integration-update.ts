@@ -20,8 +20,9 @@ import { loadHistory, waitUntil } from './helpers';
 // polling/retry strategies result in the expected behavior
 const LONG_POLL_EXPIRATION_INTERVAL_MS = 5_000;
 // Must exceed the server long-poll above: a single PollWorkflowExecutionUpdate can consume that
-// whole interval, and waitUntil's 5s budget would then allow only one attempt.
-const UPDATE_ADMITTED_WAIT_MS = 20_000;
+// whole interval, and waitUntil's 5s budget would then allow only one attempt. Also sized to
+// tolerate Temporal Cloud round-trip latency, which flaked the tighter 20s budget.
+const UPDATE_ADMITTED_WAIT_MS = 60_000;
 
 const recordedLogs: { [workflowId: string]: LogEntry[] } = {};
 
