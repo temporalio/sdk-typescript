@@ -31,7 +31,7 @@ import { ExternalStorageError } from '@temporalio/common';
 import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base-client';
 import { BaseClient, defaultBaseClientOptions } from './base-client';
 import { isGrpcServiceError, ServiceError } from './errors';
-import { rethrowKnownErrorTypes, extractNexusOperationAlreadyStartedRunId } from './helpers';
+import { type OutputTypeInfo, rethrowKnownErrorTypes, extractNexusOperationAlreadyStartedRunId } from './helpers';
 import type {
   CancelNexusOperationInput,
   CountNexusOperationsInput,
@@ -318,7 +318,10 @@ export class NexusClient extends BaseClient {
   ): NexusOperationHandle<nexus.OperationOutput<Op>>;
   public getHandle<T>(
     operationId: string,
-    options?: Replace<GetNexusOperationHandleOptions, { operation?: never }>
+    options?: Replace<
+      GetNexusOperationHandleOptions,
+      { operation?: never; typeInfo?: OutputTypeInfo<NexusOperationHandleResult<T>> }
+    >
   ): NexusOperationHandle<NexusOperationHandleResult<T>>;
   public getHandle(operationId: string, options?: GetNexusOperationHandleOptions): NexusOperationHandle {
     return this.createNexusOperationHandle({
