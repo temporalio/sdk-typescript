@@ -1,5 +1,6 @@
 import type { Agent, AgentInputItem } from '@openai/agents-core';
-import type { ActivityOptions, Duration } from '@temporalio/common';
+import type { Duration } from '@temporalio/common';
+import type { ActivityOptions } from '@temporalio/workflow';
 
 export interface ModelSummaryProvider {
   /**

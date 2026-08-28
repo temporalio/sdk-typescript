@@ -5,10 +5,9 @@
  */
 
 import type {
-  ActivityOptions,
   Duration,
-  LocalActivityOptions,
   MetricTags,
+  PayloadTypeInfo,
   SignalTypeInfo,
   Timestamp,
   TypeInfo,
@@ -16,6 +15,8 @@ import type {
 } from '@temporalio/common';
 import { Headers, Next } from '@temporalio/common';
 import type { coresdk } from '@temporalio/proto';
+import type { ActivityOptions, LocalActivityOptions } from './activities';
+import type { EventGroupMarker } from './event-groups';
 import type { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interfaces';
 import type { NexusOperationCancellationType } from './nexus';
 
@@ -233,6 +234,15 @@ export interface TimerOptions {
    * A fixed, single line summary of the command's purpose
    */
   readonly summary?: string;
+
+  /**
+   * Event group markers to attach to the timer command. The markers will be reflected on the
+   * corresponding workflow history events, and may be used by tooling (UI/CLI) to group
+   * related events together. See {@link EventGroupMarker} and `createEventGroup`.
+   *
+   * @experimental Event Groups is an experimental API and may change without notice.
+   */
+  readonly eventGroups?: EventGroupMarker[];
 }
 
 /**
@@ -244,6 +254,8 @@ export interface ActivityInput {
   readonly options: ActivityOptions;
   readonly headers: Headers;
   readonly seq: number;
+  /** TypeInfo selected for this invocation. Interceptors may replace it before calling `next`. */
+  readonly typeInfo?: PayloadTypeInfo;
 }
 
 /**
@@ -257,6 +269,8 @@ export interface LocalActivityInput {
   readonly seq: number;
   readonly originalScheduleTime?: Timestamp;
   readonly attempt: number;
+  /** TypeInfo selected for this invocation. Interceptors may replace it before calling `next`. */
+  readonly typeInfo?: PayloadTypeInfo;
 }
 
 /**
@@ -326,6 +340,15 @@ export interface StartNexusOperationOptions {
    * This can be in single-line Temporal markdown format.
    */
   readonly summary?: string;
+
+  /**
+   * Event group markers to attach to the schedule-Nexus-operation command. The markers will be
+   * reflected on the corresponding workflow history events, and may be used by tooling
+   * (UI/CLI) to group related events together. See {@link EventGroupMarker} and `createEventGroup`.
+   *
+   * @experimental Event Groups is an experimental API and may change without notice.
+   */
+  readonly eventGroups?: EventGroupMarker[];
 }
 
 /**

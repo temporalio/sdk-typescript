@@ -25,7 +25,7 @@ import type {
 } from './workflow-worker-thread/input';
 import type { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import type { WorkerThreadOutput, WorkerThreadResponse } from './workflow-worker-thread/output';
-import { isBun } from './bun';
+import { isBunPre1_4 } from './bun';
 import {
   completePatchActivationCallback,
   invokePatchActivationCallbackWithSnapshot,
@@ -34,8 +34,8 @@ import {
 } from './patch-activation-callback';
 
 // https://nodejs.org/api/worker_threads.html#event-exit
-// Bun exits with code 0 instead of 1
-export const TERMINATED_EXIT_CODE = isBun ? 0 : 1;
+// Bun pre 1.4 exits with code 0 instead of 1
+export const TERMINATED_EXIT_CODE = isBunPre1_4 ? 0 : 1;
 
 interface Completion<T> {
   resolve(value: T): void;
@@ -180,7 +180,7 @@ export class WorkerThreadClient {
     this.shutDownRequested = true;
     await this.send({ type: 'destroy' });
 
-    const exitCode = await (isBun ? this.terminateWithBunWorkaround() : this.workerThread.terminate());
+    const exitCode = await (isBunPre1_4 ? this.terminateWithBunWorkaround() : this.workerThread.terminate());
     if (exitCode !== null && exitCode !== TERMINATED_EXIT_CODE) {
       throw new UnexpectedError(`Failed to terminate Worker thread, exit code: ${exitCode}`);
     }
@@ -333,10 +333,10 @@ export class VMWorkflowThreadProxy implements Workflow {
   ): Promise<coresdk.workflow_completion.IWorkflowActivationCompletion> {
     const output = await this.workerThreadClient.send({
       type: 'activate-workflow',
-      // Some activation messages get silently dropped by Bun's postMessage.
+      // Before Bun 1.4.0, some activation messages get silently dropped by Bun's postMessage.
       // To work around this bug, we encode activations
       // An example of a failing activation can be found in test-payload-converter.ts 'Worker encodes/decodes a protobuf containing a binary array'
-      activation: isBun ? coresdk.workflow_activation.WorkflowActivation.encode(activation).finish() : activation,
+      activation: isBunPre1_4 ? coresdk.workflow_activation.WorkflowActivation.encode(activation).finish() : activation,
       runId: this.runId,
     });
     if (output?.type !== 'activation-completion') {

@@ -11,6 +11,7 @@ async function echoWorkflow(input: string): Promise<string> {
   return input;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const activities = {
   async echo(message?: string): Promise<string> {
     return message ?? '';

@@ -10,7 +10,13 @@ import { delay, filter, first, ignoreElements, last, map, mergeMap, takeUntil, t
 import type { RawSourceMap } from 'source-map';
 import * as nexus from 'nexus-rpc';
 import type { Info as ActivityInfo } from '@temporalio/activity';
-import type { LoadedDataConverter, Payload, MetricMeter, ActivitySerializationContext } from '@temporalio/common';
+import type {
+  LoadedDataConverter,
+  Payload,
+  MetricMeter,
+  ActivitySerializationContext,
+  PayloadTypeInfo,
+} from '@temporalio/common';
 import {
   DataConverter,
   decompileRetryPolicy,
@@ -24,6 +30,7 @@ import {
   CancelledFailure,
   ActivityCancellationDetails,
   convertDeploymentVersion,
+  isActivityFunctionWithOptions,
 } from '@temporalio/common';
 import type { Decoded } from '@temporalio/common/lib/internal-non-workflow';
 import {
@@ -90,6 +97,7 @@ import type {
 import { compileWorkerOptions, isCodeBundleOption, isPathBundleOption, toNativeWorkerOptions } from './worker-options';
 import { WorkflowCodecRunner } from './workflow-codec-runner';
 import { defaultWorkflowInterceptorModules, WorkflowCodeBundler } from './workflow/bundler';
+import { isBunPre1_4 } from './workflow/bun';
 import type { Workflow, WorkflowCreator } from './workflow/interface';
 import { ReusableVMWorkflowCreator } from './workflow/reusable-vm';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
@@ -514,6 +522,11 @@ export class Worker {
       sdkComponent: SdkComponent.worker,
       taskQueue: options.taskQueue ?? 'default',
     });
+    if (isBunPre1_4) {
+      logger.warn(
+        'Bun versions older than 1.4.0 are deprecated and will not be supported in a future release. Please upgrade to Bun 1.4.0 or later.'
+      );
+    }
     const metricMeter = runtime.metricMeter.withTags({
       namespace: options.namespace ?? 'default',
       taskQueue: options.taskQueue ?? 'default',
@@ -1108,9 +1121,18 @@ export class Worker {
                         nonRetryable: false,
                       });
                     }
+                    const typeInfo: PayloadTypeInfo | undefined = isActivityFunctionWithOptions(fn)
+                      ? fn.activityDefinitionOptions.typeInfo
+                      : undefined;
+                    const outputTypeInfo = typeInfo?.outputType;
                     let args: unknown[];
                     try {
-                      args = await decodeArrayFromPayloads(loadedDataConverter, task.start?.input, context);
+                      args = await decodeArrayFromPayloads(
+                        loadedDataConverter,
+                        task.start?.input,
+                        context,
+                        typeInfo?.inputTypes
+                      );
                     } catch (err) {
                       throw ApplicationFailure.fromError(err, {
                         message: `Failed to parse activity args for activity ${activityType}: ${errorMessage(err)}`,
@@ -1130,6 +1152,7 @@ export class Worker {
                       fn,
                       loadedDataConverter,
                       context,
+                      outputTypeInfo,
                       (details) =>
                         this.activityHeartbeatSubject.next({
                           type: 'heartbeat',
@@ -1654,6 +1677,7 @@ export class Worker {
       workflowTaskTimeout,
       continuedFromExecutionRunId,
       firstExecutionRunId,
+      originalExecutionRunId,
       retryPolicy,
       attempt,
       cronSchedule,
@@ -1675,6 +1699,7 @@ export class Worker {
       taskQueue: this.options.taskQueue,
       namespace: this.options.namespace,
       firstExecutionRunId,
+      originalExecutionRunId: originalExecutionRunId ?? activation.runId,
       continuedFromExecutionRunId: continuedFromExecutionRunId || undefined,
       startTime: tsToDate(initWorkflowJob.startTime),
       runStartTime: tsToDate(activation.timestamp),

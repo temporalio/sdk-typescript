@@ -73,6 +73,7 @@ import type {
   EnhancedStackTrace,
 } from './interfaces';
 import { ContinueAsNew } from './interfaces';
+import { createInboundEventMarker, createInboundUpdateMarker, eventGroupMarkersToProto } from './event-groups';
 import { type SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
 import pkg from './pkg';
@@ -699,10 +700,12 @@ export class Activator implements ActivationHandler {
     if (!activation.result) {
       throw new TypeError('Got ResolveActivity activation with no result');
     }
-    const { resolve, reject, context } = this.consumeCompletion('activity', getSeq(activation));
+    const { resolve, reject, context, outputTypeInfo } = this.consumeCompletion('activity', getSeq(activation));
     if (activation.result.completed) {
       const completed = activation.result.completed;
-      const result = completed.result ? this.payloadConverter.fromPayload(completed.result, context) : undefined;
+      const result = completed.result
+        ? fromPayloadWithTypeInfo(this.payloadConverter, completed.result, context, outputTypeInfo)
+        : undefined;
       resolve(result);
     } else if (activation.result.failed) {
       const { failure } = activation.result.failed;
@@ -1004,6 +1007,7 @@ export class Activator implements ActivationHandler {
     //
     // Note that there is a deliberately unhandled promise rejection below.
     // These are caught elsewhere and fail the corresponding activation.
+    const implicitMarker = createInboundUpdateMarker(updateId);
     const doUpdateImpl = async () => {
       let input: UpdateInput;
       try {
@@ -1042,7 +1046,8 @@ export class Activator implements ActivationHandler {
       );
       const { unfinishedPolicy } = entry;
       this.inProgressUpdates.set(updateId, { name, unfinishedPolicy, id: updateId });
-      const res = execute(input)
+      const res = implicitMarker
+        .withScope(() => execute(input))
         .then((result) => this.completeUpdate(protocolInstanceId, result, entry.typeInfo?.outputType))
         .catch((error) => {
           if (error instanceof TemporalFailure) {
@@ -1154,11 +1159,20 @@ export class Activator implements ActivationHandler {
     this.inProgressSignals.set(signalExecutionNum, { name: signalName, unfinishedPolicy });
     const execute = composeInterceptors(interceptors, 'handleSignal', this.signalWorkflowNextHandler.bind(this));
     const context = this.workflowSerializationContext();
-    execute({
-      args: arrayFromPayloads(this.payloadConverter, activation.input, context, signalHandler?.typeInfo?.inputTypes),
-      signalName,
-      headers: headers ?? {},
-    })
+    const implicitMarker = createInboundEventMarker(activation.originatingEventId);
+    implicitMarker
+      .withScope(() =>
+        execute({
+          args: arrayFromPayloads(
+            this.payloadConverter,
+            activation.input,
+            context,
+            signalHandler?.typeInfo?.inputTypes
+          ),
+          signalName,
+          headers: headers ?? {},
+        })
+      )
       .catch(this.handleWorkflowFailure.bind(this))
       .finally(() => this.inProgressSignals.delete(signalExecutionNum));
   }
@@ -1260,6 +1274,7 @@ export class Activator implements ActivationHandler {
     if (usePatch && !this.sentPatches.has(patchId)) {
       this.pushCommand({
         setPatchMarker: { patchId, deprecated },
+        eventGroupMarkers: eventGroupMarkersToProto(undefined),
       });
       this.sentPatches.add(patchId);
     }
@@ -1334,7 +1349,13 @@ export class Activator implements ActivationHandler {
     if (this.cancelled && isCancellation(error)) {
       this.pushCommand({ cancelWorkflowExecution: {} }, true);
     } else if (error instanceof ContinueAsNew) {
-      this.pushCommand({ continueAsNewWorkflowExecution: error.command }, true);
+      this.pushCommand(
+        {
+          continueAsNewWorkflowExecution: error.command,
+          eventGroupMarkers: error.eventGroupMarkers,
+        },
+        true
+      );
     } else if (error instanceof TemporalFailure || this.isConfiguredFailureException(error)) {
       // Fail the workflow. We do not want to issue unfinishedHandlers warnings. To achieve that, we
       // mark all handlers as completed now.

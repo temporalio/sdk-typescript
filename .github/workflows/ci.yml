@@ -171,6 +171,7 @@ jobs:
         uses: ./.github/actions/setup-bun-deps
         with:
           platform: ${{ matrix.platform }}
+          bun-version: latest
 
       # On Windows, the 'runner.temp' variable uses backslashes as path separators, but
       # that may pose problems in later steps when we try to join that with subpaths;
@@ -238,11 +239,7 @@ jobs:
 
       - name: Run Tests (Bun)
         if: matrix.node == 'bun'
-        working-directory: packages/test
-        # Same wrapper as the Node path, but AVA_RUNTIME=bun makes it launch ava
-        # under Bun (mirrors `bun run -b ava`), so Bun is still exercised. Bun runs
-        # the TypeScript wrapper directly (no tsx needed).
-        run: bun ../../scripts/ava-ci.ts ./lib/test-*.js
+        run: pnpm run test
         env:
           AVA_RUNTIME: bun
           RUN_INTEGRATION_TESTS: true

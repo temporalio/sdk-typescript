@@ -27,6 +27,18 @@ export const interceptors = (): WorkflowInterceptors => ({
           },
         });
       },
+      scheduleActivity(input, next) {
+        if (workflowInfo().workflowType !== 'workflowWithInterceptorTypedActivity') {
+          return next(input);
+        }
+        return next({ ...input, typeInfo: workflowTypeInfo });
+      },
+      scheduleLocalActivity(input, next) {
+        if (workflowInfo().workflowType !== 'workflowWithInterceptorTypedLocalActivity') {
+          return next(input);
+        }
+        return next({ ...input, typeInfo: workflowTypeInfo });
+      },
     },
   ],
 });

@@ -26,9 +26,8 @@ import {
   type ReadonlyContext,
   type RunAsyncToolRequest,
 } from '@google/adk';
-import type { ActivityOptions } from '@temporalio/common';
 import { ApplicationFailure } from '@temporalio/common';
-import { inWorkflowContext, proxyActivities } from '@temporalio/workflow';
+import { type ActivityOptions, inWorkflowContext, proxyActivities } from '@temporalio/workflow';
 
 import { MCP_TOOLSET_OUTSIDE_WORKFLOW_FAILURE_TYPE } from './error-types';
 import { activityOptionsFrom } from './model';
