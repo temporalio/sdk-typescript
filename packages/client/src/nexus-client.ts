@@ -9,6 +9,7 @@ import {
   filterNullAndUndefined,
   SymbolBasedInstanceOfError,
   typedSearchAttributePayloadConverter,
+  type Replace,
 } from '@temporalio/common/internal/internal-workflow';
 import {
   decodeFromPayloadsAtIndex,
@@ -311,15 +312,19 @@ export class NexusClient extends BaseClient {
    *
    * @experimental Nexus Standalone Operations are experimental.
    */
+  public getHandle<Op extends nexus.OperationDefinition<any, any>>(
+    operationId: string,
+    options: Replace<GetNexusOperationHandleOptions, { operation: Op; typeInfo?: never }>
+  ): NexusOperationHandle<nexus.OperationOutput<Op>>;
   public getHandle<T>(
     operationId: string,
-    options?: GetNexusOperationHandleOptions
+    options?: Replace<GetNexusOperationHandleOptions, { operation?: never }>
   ): NexusOperationHandle<NexusOperationHandleResult<T>>;
   public getHandle(operationId: string, options?: GetNexusOperationHandleOptions): NexusOperationHandle {
     return this.createNexusOperationHandle({
       operationId,
       runId: options?.runId,
-      outputType: options?.typeInfo?.outputType,
+      outputType: options?.typeInfo?.outputType ?? options?.operation?.outputType,
     });
   }
 

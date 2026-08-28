@@ -277,7 +277,7 @@ if (RUN_INTEGRATION_TESTS) {
     assertReceipt(t, await handle.result());
   });
 
-  test('Detached Activity handle decodes its result with output TypeInfo', async (t) => {
+  test('Detached Activity handles decode results using explicit and definition TypeInfo', async (t) => {
     const client = t.context.env.client.activity;
     const activityId = randomUUID();
     const handle = await client.start<Receipt>('convertOrder', {
@@ -287,11 +287,17 @@ if (RUN_INTEGRATION_TESTS) {
       typeInfo: activityTypeInfo.convertOrder,
     });
 
-    const detachedHandle = client.getHandleWithOptions<Receipt>(activityId, {
+    const explicitHandle = client.getHandleWithOptions<Receipt>(activityId, {
       runId: handle.runId,
       typeInfo: { outputType: activityTypeInfo.convertOrder.outputType },
     });
-    assertReceipt(t, await detachedHandle.result());
+    assertReceipt(t, await explicitHandle.result());
+
+    const definitionHandle = client.getHandleWithOptions(activityId, {
+      activity: convertOrder,
+      runId: handle.runId,
+    });
+    assertReceipt(t, await definitionHandle.result());
   });
 
   test('Activity interceptors can provide input and result TypeInfo', async (t) => {
