@@ -886,7 +886,7 @@ export interface ActivityOptions {
  */
 export interface GetActivityHandleOptions {
   /**
-   * Activity function used to infer the result type and resolve static TypeInfo.
+   * Activity function used to infer the result type and read its output TypeInfo.
    */
   activity?: ActivityFunction;
 
