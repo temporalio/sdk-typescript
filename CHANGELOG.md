@@ -124,6 +124,10 @@ to docs, or any other relevant information.
   trigger a nondeterminism error.
 - `msOptionalToTs()` was incorrectly converting durations of `0` to `undefined`, resulting in incorrect behaviors
   in various places that takes optional durations where `0` is a legitimate value, e.g. `ApplicationFailure.nextRetryDelay()`. Durations of `0` are now properly preserved.
+- Fixed non-sticky Workflow Task poller starvation on Workers configured with a small Workflow cache
+  (`maxCachedWorkflows`). Sticky pollers could consume every Workflow-cache permit and starve the
+  non-sticky poller, so a Worker could stop accepting new Workflows until a poll timed out (up to
+  ~60s). (Core fix: temporalio/sdk-rust#1534.)
 - Bumped the core-bridge HTTP/2 client stack (h2 0.4.13 → 0.4.19, hyper 1.8.1 → 1.11.0), picking up
   upstream fixes for stream-cancel flow-control leaks and missed wakeups on reset/trailers that can
   affect cancellation-heavy long-poll workloads.
