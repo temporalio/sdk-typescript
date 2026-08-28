@@ -1,3 +1,4 @@
+import type * as nexus from 'nexus-rpc';
 import type {
   Duration,
   PayloadTypeInfo,
@@ -452,6 +453,11 @@ export interface ListNexusOperationsOptions {
  * Options for {@link NexusClient.getHandle}.
  */
 export interface GetNexusOperationHandleOptions {
+  /**
+   * Operation definition used to infer the result type and resolve output TypeInfo.
+   */
+  operation?: nexus.OperationDefinition<any, any>;
+
   /**
    * If provided, targets this specific run of the operation. If absent, targets the latest run.
    */

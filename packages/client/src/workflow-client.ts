@@ -37,7 +37,7 @@ import { encodeUserMetadata } from '@temporalio/common/lib/internal-non-workflow
 import { encodeUnifiedSearchAttributes } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import type { History } from '@temporalio/common/lib/proto-utils';
-import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
+import { type Replace, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
@@ -394,6 +394,11 @@ export interface WorkflowResultOptions {
  * Options for {@link WorkflowClient.getHandle}
  */
 export interface GetWorkflowHandleOptions extends WorkflowResultOptions {
+  /**
+   * Workflow function used to infer the result type and resolve static TypeInfo.
+   */
+  workflow?: Workflow;
+
   /**
    * ID of the first execution in the Workflow execution chain.
    *
@@ -1939,9 +1944,21 @@ export class WorkflowClient extends BaseClient {
    */
   public getHandle<T extends Workflow>(
     workflowId: string,
+    runId: string | undefined,
+    options: Replace<GetWorkflowHandleOptions, { workflow: T; typeInfo?: never }>
+  ): WorkflowHandle<T>;
+  public getHandle<T extends Workflow>(
+    workflowId: string,
+    runId?: string,
+    options?: Replace<GetWorkflowHandleOptions, { workflow?: never }>
+  ): WorkflowHandle<T>;
+  public getHandle<T extends Workflow>(
+    workflowId: string,
     runId?: string,
     options?: GetWorkflowHandleOptions
   ): WorkflowHandle<T> {
+    const typeInfo =
+      options?.typeInfo ?? (options?.workflow ? extractWorkflowTypeAndConfig(options.workflow).typeInfo : undefined);
     const interceptors = this.getOrMakeInterceptors(workflowId, runId);
 
     return this._createWorkflowHandle({
@@ -1951,7 +1968,7 @@ export class WorkflowClient extends BaseClient {
       runIdForResult: runId ?? options?.firstExecutionRunId,
       interceptors,
       followRuns: options?.followRuns ?? true,
-      typeInfo: options?.typeInfo,
+      typeInfo,
     });
   }
 

@@ -97,6 +97,24 @@ test('getHandle with generic type parameter infers correctly', async (t) => {
   t.pass();
 });
 
+test('getHandle with operation definition infers correctly', async (t) => {
+  async function _assertion() {
+    const options = { operation: myService.operations.mySyncOp };
+    const _typedHandle = client.nexus.getHandle('op-1', options);
+    const _typedOutput: MyOutput = await _typedHandle.result();
+
+    // @ts-expect-error Supplying an Operation definition selects definition-based result inference.
+    void client.nexus.getHandle<string>('op-1', options);
+
+    // @ts-expect-error Operation definitions and call-site TypeInfo are mutually exclusive.
+    void client.nexus.getHandle('op-1', {
+      operation: myService.operations.mySyncOp,
+      typeInfo: {},
+    });
+  }
+  t.pass();
+});
+
 test('executeOperation with wrong input type produces type error', async (t) => {
   async function _assertion() {
     const nexusClient = client.nexus.createServiceClient({

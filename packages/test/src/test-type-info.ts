@@ -129,7 +129,7 @@ test('Workflow start and result use string call-site input and output TypeInfo',
   });
 });
 
-test('Detached Workflow handle decodes result using call-site output TypeInfo', async (t) => {
+test('Detached Workflow handles decode results using explicit and definition TypeInfo', async (t) => {
   const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
   const client = makeClient(t.context.env);
   const worker = await h.createWorker();
@@ -142,10 +142,13 @@ test('Detached Workflow handle decodes result using call-site output TypeInfo', 
       args: [new Order('order-1', 12345n)],
     });
 
-    const handle = client.workflow.getHandle<typeof workflowWithTypeInfo>(workflowId, undefined, {
+    const explicitHandle = client.workflow.getHandle<typeof workflowWithTypeInfo>(workflowId, undefined, {
       typeInfo: workflowTypeInfo,
     });
-    assertReceipt(t, await handle.result());
+    assertReceipt(t, await explicitHandle.result());
+
+    const definitionHandle = client.workflow.getHandle(workflowId, undefined, { workflow: workflowWithTypeInfo });
+    assertReceipt(t, await definitionHandle.result());
   });
 });
 
@@ -789,6 +792,44 @@ test('Child Workflow handle converts a string Signal using call-site TypeInfo', 
 // Compile-time contracts
 
 // These functions are never called. The package build checks their bodies without executing SDK operations.
+
+test('Detached Activity handle options infer results from Activity definitions', (t) => {
+  async function _assertActivityHandleOptionsTypes(client: Client) {
+    const options = { activity: convertOrder };
+    const result: Receipt = await client.activity.getHandleWithOptions('activity-id', options).result();
+    void result;
+
+    // @ts-expect-error Supplying an Activity definition selects definition-based result inference.
+    void client.activity.getHandleWithOptions<string>('activity-id', options);
+
+    // @ts-expect-error Activity definitions and call-site TypeInfo are mutually exclusive.
+    void client.activity.getHandleWithOptions('activity-id', {
+      activity: convertOrder,
+      typeInfo: activityTypeInfo.convertOrder,
+    });
+  }
+
+  t.pass();
+});
+
+test('Detached Workflow handle options infer results from Workflow definitions', (t) => {
+  async function _assertWorkflowHandleOptionsTypes(client: Client) {
+    const options = { workflow: workflowWithTypeInfo };
+    const result: Receipt = await client.workflow.getHandle('workflow-id', undefined, options).result();
+    void result;
+
+    // @ts-expect-error Supplying a Workflow definition selects definition-based result inference.
+    void client.workflow.getHandle<typeof signalTarget>('workflow-id', undefined, options);
+
+    // @ts-expect-error Workflow definitions and call-site TypeInfo are mutually exclusive.
+    void client.workflow.getHandle('workflow-id', undefined, {
+      workflow: workflowWithTypeInfo,
+      typeInfo: workflowTypeInfo,
+    });
+  }
+
+  t.pass();
+});
 
 test('Child Workflow definitions reject call-site TypeInfo', (t) => {
   function _assertChildWorkflowTypeInfoTypes() {
