@@ -460,7 +460,7 @@ export interface ListNexusOperationsOptions {
  */
 export interface GetNexusOperationHandleOptions {
   /**
-   * Operation definition used to infer the result type and resolve output TypeInfo.
+   * Operation definition used to infer the result type and read its output TypeInfo.
    */
   operation?: nexus.OperationDefinition<any, any>;
 
