@@ -21,7 +21,6 @@ import {
 import type { Duration } from '@temporalio/common/lib/time';
 import { msOptionalToTs, msToNumber, optionalTsToDate, optionalTsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
-import { findPayloadValidationError } from '@temporalio/common/lib/internal-workflow/payload-validation-error';
 import {
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
@@ -285,8 +284,8 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
     const invocationInputTypes = inputTypes === undefined ? undefined : [...inputTypes];
     const outputType = input.options.typeInfo?.outputType;
 
+    const req = await this.buildStartActivityExecutionRequest(input, invocationInputTypes);
     try {
-      const req = await this.buildStartActivityExecutionRequest(input, invocationInputTypes);
       const externalStorage = this.dataConverter.externalStorage;
       if (externalStorage) {
         await visit(
@@ -309,8 +308,6 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       }
       return this.createHandle(input.options.id, resp.runId, outputType);
     } catch (err) {
-      const payloadValidationError = findPayloadValidationError(err);
-      if (payloadValidationError !== undefined) throw payloadValidationError;
       if (isGrpcServiceError(err) && err.code === grpcStatus.ALREADY_EXISTS) {
         for (const entry of getGrpcStatusDetails(err) ?? []) {
           if (!entry.type_url || !entry.value) continue;
