@@ -183,7 +183,7 @@ test('handler-thrown exact and retryable same-type failures keep ordinary workfl
   });
 });
 
-test('query and update input fail independently and a corrupted signal is dropped', async (t) => {
+test.serial('query and update input fail independently and a corrupted signal is dropped', async (t) => {
   const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
   const worker = await h.createWorker({ dataConverter });
   await worker.runUntil(async () => {
@@ -253,7 +253,7 @@ test('a corrupted signal is dropped from a mixed initialization activation', asy
   });
 });
 
-test('codec query and update input are isolated and a codec-corrupted signal is replay-safe', async (t) => {
+test.serial('codec query and update input are isolated and a codec-corrupted signal is replay-safe', async (t) => {
   const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
   const codec = new FailOncePayloadCodec();
   const workerDataConverter = { ...dataConverter, payloadCodecs: [codec] };
