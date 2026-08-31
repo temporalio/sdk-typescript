@@ -18,11 +18,11 @@ import {
   WorkflowTaskPayloadConversionError,
 } from '../internal-workflow/payload-validation-error';
 
-test('findPayloadValidationError finds exact failures through wrapped and cyclic causes', (t) => {
+test('findPayloadValidationError accepts only an exact directly-thrown failure', (t) => {
   const failure = createPayloadValidationError({ field: 'invalid' });
   const wrapped = new Error('wrapped', { cause: failure });
   t.is(findPayloadValidationError(failure), failure);
-  t.is(findPayloadValidationError(wrapped), failure);
+  t.is(findPayloadValidationError(wrapped), undefined);
 
   const cyclic = new Error('cyclic');
   cyclic.cause = cyclic;

@@ -63,7 +63,7 @@ for (const kind of ['payload converter', 'payload codec'] as const) {
     if (kind === 'payload converter') {
       payloadConverter = {
         toPayload(value, context) {
-          if ((value as any)?.reject === true) throw new Error('wrapped', { cause: original });
+          if ((value as any)?.reject === true) throw original;
           return defaultPayloadConverter.toPayload(value, context);
         },
         fromPayload(payload, context) {

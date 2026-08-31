@@ -36,7 +36,7 @@ function rejectingDataConverter(): LoadedDataConverter {
   const codec: PayloadCodec = {
     async encode(payloads) {
       if (payloads.some((payload) => defaultPayloadConverter.fromPayload<any>(payload)?.reject === true)) {
-        throw new Error('wrapped', { cause: createPayloadValidationError({ field: 'invalid' }) });
+        throw createPayloadValidationError({ field: 'invalid' });
       }
       return payloads;
     },

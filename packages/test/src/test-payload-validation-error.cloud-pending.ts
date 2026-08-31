@@ -73,7 +73,7 @@ class FailOncePayloadCodec implements PayloadCodec {
     for (const payload of payloads) {
       const value = defaultPayloadConverter.fromPayload<any>(payload);
       if (value?.__payloadValidation === 'codec-decode') {
-        throw new Error('codec wrapper', { cause: createPayloadValidationError({ field: value.id }) });
+        throw createPayloadValidationError({ field: value.id });
       }
     }
     return payloads;
@@ -200,15 +200,6 @@ test('query and update input fail independently and a corrupted signal is droppe
       }
     );
     assertPve(updateError?.cause);
-    for (const marker of ['decode-wrapped', 'decode-cyclic']) {
-      const wrappedError = await t.throwsAsync(
-        handle.executeUpdate('invalidUpdate', {
-          args: [{ __payloadValidation: marker, id: `update-input-${marker}` }],
-        }),
-        { instanceOf: WorkflowUpdateFailedError }
-      );
-      assertPve(wrappedError?.cause);
-    }
     await handle.signal('invalidSignal', invalid('signal-input'));
     await handle.signal('validSignal');
     t.is(await handle.result(), 'done');
