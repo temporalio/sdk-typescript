@@ -122,13 +122,6 @@ export function rethrowPayloadValidationErrorForWorkflowTask(error: unknown): ne
 }
 
 /** @internal */
-export function rethrowPayloadValidationError(error: unknown): never {
-  const payloadValidationError = findPayloadValidationError(error);
-  if (payloadValidationError !== undefined) throw payloadValidationError;
-  throw error;
-}
-
-/** @internal */
 export function convertPayloadForWorkflowTask<T>(convert: () => T): T {
   try {
     return convert();
