@@ -23,7 +23,7 @@ import {
 import { coresdk } from '@temporalio/proto';
 import { encodePayloadValidationError } from '@temporalio/common/lib/internal-non-workflow/payload-validation-error';
 import {
-  findPayloadValidationError,
+  isPayloadValidationError,
   WorkflowTaskPayloadConversionError,
 } from '@temporalio/common/lib/internal-workflow/payload-validation-error';
 
@@ -88,16 +88,15 @@ export class WorkflowCodecRunner {
       syntheticCommands: Encoded<coresdk.workflow_commands.IWorkflowCommand>[];
     }
   ): Promise<null> {
-    const payloadValidationError = findPayloadValidationError(error);
-    if (payloadValidationError === undefined) throw error;
+    if (!isPayloadValidationError(error)) throw error;
     if (job.initializeWorkflow) {
-      state.initializationFailure = payloadValidationError;
+      state.initializationFailure = error;
       return null;
     }
     if (job.signalWorkflow) {
       state.droppedSignalFailures.push({
         signalName: job.signalWorkflow.signalName ?? undefined,
-        error: payloadValidationError,
+        error,
       });
       return null;
     }
@@ -105,7 +104,7 @@ export class WorkflowCodecRunner {
       state.syntheticCommands.push({
         respondToQuery: {
           queryId: job.queryWorkflow.queryId,
-          failed: await this.encodePayloadValidationError(payloadValidationError),
+          failed: await this.encodePayloadValidationError(error),
         },
       });
       return null;
@@ -114,12 +113,12 @@ export class WorkflowCodecRunner {
       state.syntheticCommands.push({
         updateResponse: {
           protocolInstanceId: job.doUpdate.protocolInstanceId,
-          rejected: await this.encodePayloadValidationError(payloadValidationError),
+          rejected: await this.encodePayloadValidationError(error),
         },
       });
       return null;
     }
-    throw new WorkflowTaskPayloadConversionError(payloadValidationError);
+    throw new WorkflowTaskPayloadConversionError(error);
   }
 
   private async collectDecodedJobs<T>(
@@ -152,13 +151,12 @@ export class WorkflowCodecRunner {
     command: coresdk.workflow_commands.IWorkflowCommand,
     error: unknown
   ): Promise<Encoded<coresdk.workflow_commands.IWorkflowCommand>> {
-    const payloadValidationError = findPayloadValidationError(error);
-    if (payloadValidationError === undefined) throw error;
+    if (!isPayloadValidationError(error)) throw error;
     if (command.respondToQuery) {
       return {
         respondToQuery: {
           queryId: command.respondToQuery.queryId,
-          failed: await this.encodePayloadValidationError(payloadValidationError),
+          failed: await this.encodePayloadValidationError(error),
         },
       };
     }
@@ -166,11 +164,11 @@ export class WorkflowCodecRunner {
       return {
         updateResponse: {
           protocolInstanceId: command.updateResponse.protocolInstanceId,
-          rejected: await this.encodePayloadValidationError(payloadValidationError),
+          rejected: await this.encodePayloadValidationError(error),
         },
       };
     }
-    throw new WorkflowTaskPayloadConversionError(payloadValidationError);
+    throw new WorkflowTaskPayloadConversionError(error);
   }
 
   private consumeContext<TContext extends SerializationContext>(

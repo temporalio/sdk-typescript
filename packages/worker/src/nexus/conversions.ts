@@ -9,7 +9,7 @@ import {
   encodeToPayload,
 } from '@temporalio/common/lib/internal-non-workflow';
 import {
-  findPayloadValidationError,
+  isPayloadValidationError,
   payloadFreePayloadValidationFailure,
 } from '@temporalio/common/lib/internal-workflow/payload-validation-error';
 import type { temporal } from '@temporalio/proto';
@@ -28,10 +28,9 @@ export async function decodePayload(
   try {
     decoded = await decodeOptionalSingle(dataConverter.payloadCodecs, payload);
   } catch (err) {
-    const payloadValidationError = findPayloadValidationError(err);
-    if (payloadValidationError !== undefined) {
+    if (isPayloadValidationError(err)) {
       throw new nexus.HandlerError('BAD_REQUEST', `Invalid operation input`, {
-        cause: payloadValidationError,
+        cause: err,
       });
     }
     if (err instanceof ApplicationFailure || err instanceof nexus.HandlerError) {
@@ -47,10 +46,9 @@ export async function decodePayload(
   try {
     return fromPayloadWithTypeInfo(dataConverter.payloadConverter, decoded, undefined, typeInfo);
   } catch (err) {
-    const payloadValidationError = findPayloadValidationError(err);
-    if (payloadValidationError !== undefined) {
+    if (isPayloadValidationError(err)) {
       throw new nexus.HandlerError('BAD_REQUEST', `Invalid operation input`, {
-        cause: payloadValidationError,
+        cause: err,
       });
     }
     if (err instanceof ApplicationFailure || err instanceof nexus.HandlerError) {
@@ -71,10 +69,9 @@ export async function encodeNexusResult(
   try {
     return await encodeToPayload(dataConverter, value, undefined, typeInfo);
   } catch (error) {
-    const payloadValidationError = findPayloadValidationError(error);
-    if (payloadValidationError === undefined) throw error;
+    if (!isPayloadValidationError(error)) throw error;
     throw new nexus.HandlerError('INTERNAL', undefined, {
-      cause: payloadValidationError,
+      cause: error,
       retryableOverride: true,
     });
   }
@@ -110,12 +107,11 @@ export async function handlerErrorToProto(
   try {
     return await encodeErrorToFailure(dataConverter, err);
   } catch (conversionError) {
-    const payloadValidationError = findPayloadValidationError(err);
-    if (payloadValidationError === undefined) throw conversionError;
+    if (!isPayloadValidationError(err.cause)) throw conversionError;
     return {
       message: err.message,
       stackTrace: err.stack,
-      cause: payloadFreePayloadValidationFailure(payloadValidationError),
+      cause: payloadFreePayloadValidationFailure(err.cause),
       nexusHandlerFailureInfo: {
         type: err.type,
         // NEXUS_HANDLER_ERROR_RETRY_BEHAVIOR_RETRYABLE / NON_RETRYABLE

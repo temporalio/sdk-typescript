@@ -52,7 +52,7 @@ import {
 import { encodePayloadValidationError } from '@temporalio/common/lib/internal-non-workflow/payload-validation-error';
 import {
   isWorkflowTaskPayloadConversionError,
-  findPayloadValidationError,
+  isPayloadValidationError,
 } from '@temporalio/common/lib/internal-workflow/payload-validation-error';
 import type { StorageDriverTargetInfo } from '@temporalio/common/lib/converter/extstore';
 import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
@@ -1139,8 +1139,7 @@ export class Worker {
                         typeInfo?.inputTypes
                       );
                     } catch (err) {
-                      const payloadValidationError = findPayloadValidationError(err);
-                      if (payloadValidationError !== undefined) throw payloadValidationError;
+                      if (isPayloadValidationError(err)) throw err;
                       throw ApplicationFailure.fromError(err, {
                         message: `Failed to parse activity args for activity ${activityType}: ${errorMessage(err)}`,
                         nonRetryable: false,
@@ -1185,7 +1184,7 @@ export class Worker {
                     break;
                   } catch (e) {
                     const error = ensureApplicationFailure(e);
-                    const payloadValidationError = findPayloadValidationError(error);
+                    const payloadValidationError = isPayloadValidationError(error) ? error : undefined;
                     this.logger.error(`Error while processing ActivityTask.start: ${errorMessage(error)}`, {
                       ...(info ? activityLogAttributes(info) : {}),
                       error: e,
@@ -2472,8 +2471,7 @@ async function extractActivityInfo({
   try {
     heartbeatDetails = await decodeFromPayloadsAtIndex(dataConverter, 0, start.heartbeatDetails, context);
   } catch (e) {
-    const payloadValidationError = findPayloadValidationError(e);
-    if (payloadValidationError !== undefined) throw payloadValidationError;
+    if (isPayloadValidationError(e)) throw e;
     throw ApplicationFailure.fromError(e, {
       message: `Failed to parse heartbeat details for activity ${activityId}: ${errorMessage(e)}`,
     });

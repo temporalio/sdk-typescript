@@ -41,7 +41,7 @@ import {
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import {
   convertPayloadForWorkflowTask,
-  findPayloadValidationError,
+  isPayloadValidationError,
   payloadFreePayloadValidationFailure,
   isWorkflowTaskPayloadConversionError,
 } from '@temporalio/common/lib/internal-workflow/payload-validation-error';
@@ -921,9 +921,8 @@ export class Activator implements ActivationHandler {
     try {
       args = arrayFromPayloads(this.payloadConverter, activation.arguments, context, typeInfo?.inputTypes);
     } catch (error) {
-      const payloadValidationError = findPayloadValidationError(error);
-      if (payloadValidationError === undefined) throw error;
-      this.failQuery(queryId, payloadValidationError);
+      if (!isPayloadValidationError(error)) throw error;
+      this.failQuery(queryId, error);
       return;
     }
     execute({ queryName: queryType, args, queryId, headers: headers ?? {} }).then(
@@ -1046,7 +1045,7 @@ export class Activator implements ActivationHandler {
         }
         input = makeInput();
       } catch (error) {
-        this.rejectUpdate(protocolInstanceId, findPayloadValidationError(error) ?? error);
+        this.rejectUpdate(protocolInstanceId, error);
         return;
       }
       this.acceptUpdate(protocolInstanceId);
@@ -1171,11 +1170,10 @@ export class Activator implements ActivationHandler {
     try {
       args = arrayFromPayloads(this.payloadConverter, activation.input, context, signalHandler?.typeInfo?.inputTypes);
     } catch (error) {
-      const payloadValidationError = findPayloadValidationError(error);
-      if (payloadValidationError === undefined) throw error;
+      if (!isPayloadValidationError(error)) throw error;
       log.error('Failed to convert signal input; dropping signal', {
         signalName,
-        error: payloadValidationError,
+        error,
       });
       metricMeter
         .createCounter('corrupted_signals', undefined, 'Number of signals dropped because their payloads are invalid')
@@ -1456,9 +1454,8 @@ export class Activator implements ActivationHandler {
         },
       });
     } catch (error) {
-      const payloadValidationError = findPayloadValidationError(error);
-      if (payloadValidationError === undefined) throw error;
-      this.failQuery(queryId, payloadValidationError);
+      if (!isPayloadValidationError(error)) throw error;
+      this.failQuery(queryId, error);
     }
   }
 
@@ -1485,9 +1482,8 @@ export class Activator implements ActivationHandler {
         },
       });
     } catch (error) {
-      const payloadValidationError = findPayloadValidationError(error);
-      if (payloadValidationError === undefined) throw error;
-      this.rejectUpdate(protocolInstanceId, payloadValidationError);
+      if (!isPayloadValidationError(error)) throw error;
+      this.rejectUpdate(protocolInstanceId, error);
     }
   }
 
@@ -1505,9 +1501,8 @@ export class Activator implements ActivationHandler {
     try {
       return this.errorToFailure(temporalFailure);
     } catch (conversionError) {
-      const payloadValidationError = findPayloadValidationError(temporalFailure);
-      if (payloadValidationError === undefined) throw conversionError;
-      return payloadFreePayloadValidationFailure(payloadValidationError);
+      if (!isPayloadValidationError(temporalFailure)) throw conversionError;
+      return payloadFreePayloadValidationFailure(temporalFailure);
     }
   }
 
