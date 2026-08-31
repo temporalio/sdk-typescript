@@ -231,10 +231,6 @@ for (const [name, makeCommand] of [
   ['continue-as-new', (p: Payload) => ({ continueAsNewWorkflowExecution: { arguments: [p], memo: {} } })],
   ['memo upsert', (p: Payload) => ({ modifyWorkflowProperties: { upsertedMemo: { fields: { invalid: p } } } })],
   ['command user metadata', (p: Payload) => ({ startTimer: { seq: 1 }, userMetadata: { summary: p } })],
-  [
-    'command headers',
-    (p: Payload) => ({ scheduleActivity: { seq: 1, activityId: 'activity', headers: { invalid: p } } }),
-  ],
 ] as const) {
   test(`encodeCompletion keeps Workflow Task failure semantics for ${name}`, async (t) => {
     const runner = new WorkflowCodecRunner(rejectingDataConverter(), {
@@ -280,45 +276,6 @@ test('decodeActivation binds workflow codec context for initializeWorkflow paylo
 
   t.deepEqual(traceFromPayload(decoded.jobs?.[0]?.initializeWorkflow?.arguments?.[0] as Payload), [
     'codec.decode.bound|wf-input|workflow.default.wf-1',
-  ]);
-});
-
-test('workflow headers are codec-encoded and decoded symmetrically', async (t) => {
-  const runner = new WorkflowCodecRunner([new FreePayloadCodec()], {
-    type: 'workflow',
-    namespace: 'default',
-    workflowId: 'wf-1',
-  });
-  const encoded = decodeCompletion(
-    await runner.encodeCompletion({
-      successful: {
-        commands: [
-          {
-            startChildWorkflowExecution: {
-              seq: 1,
-              workflowId: 'child-1',
-              headers: { trace: payload('header') },
-            },
-          },
-        ],
-      },
-    })
-  );
-  const encodedHeader = encoded.successful?.commands?.[0]?.startChildWorkflowExecution?.headers?.trace as Payload;
-  t.deepEqual(traceFromPayload(encodedHeader), ['codec.encode.bound|header|workflow.default.child-1']);
-
-  const childRunner = new WorkflowCodecRunner([new FreePayloadCodec()], {
-    type: 'workflow',
-    namespace: 'default',
-    workflowId: 'child-1',
-  });
-  const decoded = await childRunner.decodeActivation({
-    runId: 'run-1',
-    jobs: [{ initializeWorkflow: { headers: { trace: encodedHeader } } }],
-  });
-  t.deepEqual(traceFromPayload(decoded.jobs?.[0]?.initializeWorkflow?.headers?.trace as Payload), [
-    'codec.encode.bound|header|workflow.default.child-1',
-    'codec.decode.bound|header|workflow.default.child-1',
   ]);
 });
 

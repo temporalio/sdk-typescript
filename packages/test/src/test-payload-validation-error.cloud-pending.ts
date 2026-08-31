@@ -7,7 +7,6 @@ import {
   ActivityExecutionFailedError,
   ApplicationFailure,
   ChildWorkflowFailure,
-  Client,
   WorkflowFailedError,
   WorkflowUpdateFailedError,
 } from '@temporalio/client';
@@ -31,7 +30,6 @@ import {
   payloadValidationInputWorkflow,
   payloadValidationEagerActivityOutputWorkflow,
   payloadValidationHandlerFailureWorkflow,
-  payloadValidationHeaderWorkflow,
   payloadValidationLocalActivityInputWorkflow,
   payloadValidationLocalActivityOutputWorkflow,
   payloadValidationMessageWorkflow,
@@ -82,24 +80,6 @@ class FailOncePayloadCodec implements PayloadCodec {
   }
 }
 
-class TransformingHeaderCodec implements PayloadCodec {
-  async encode(payloads: Payload[]): Promise<Payload[]> {
-    return payloads.map((payload) => {
-      const value = defaultPayloadConverter.fromPayload<any>(payload);
-      return value?.__payloadValidation === 'header-roundtrip'
-        ? defaultPayloadConverter.toPayload({ encodedHeader: value })
-        : payload;
-    });
-  }
-
-  async decode(payloads: Payload[]): Promise<Payload[]> {
-    return payloads.map((payload) => {
-      const value = defaultPayloadConverter.fromPayload<any>(payload);
-      return value?.encodedHeader ? defaultPayloadConverter.toPayload(value.encodedHeader) : payload;
-    });
-  }
-}
-
 const test = makeConfigurableEnvironmentTestFn<Context>({
   recordedLogs,
   runtimeOpts: { telemetryOptions: { metrics: { buffer: metricsBuffer } } },
@@ -108,7 +88,6 @@ const test = makeConfigurableEnvironmentTestFn<Context>({
     const workflowBundle = await createTestWorkflowBundle({
       workflowsPath: require.resolve('./workflows/payload-validation-error'),
       payloadConverterPath: converterPath,
-      workflowInterceptorModules: [require.resolve('./workflows/payload-validation-header-interceptor')],
     });
     return { env, workflowBundle, metricsBuffer };
   },
@@ -466,15 +445,7 @@ test('outbound workflow payload paths fail one Workflow Task and then succeed', 
     },
   });
   await worker.runUntil(async () => {
-    for (const kind of [
-      'activity',
-      'local-activity',
-      'child',
-      'child-signal',
-      'memo',
-      'user-metadata',
-      'header',
-    ] as const) {
+    for (const kind of ['activity', 'local-activity', 'child', 'child-signal', 'memo', 'user-metadata'] as const) {
       const handle = await t.context.env.client.workflow.start(payloadValidationOutboundWorkflow, {
         workflowId: randomUUID(),
         taskQueue: h.taskQueue,
@@ -502,71 +473,6 @@ test('outbound workflow payload paths fail one Workflow Task and then succeed', 
     const signalHistory = await signalCaller.fetchHistory();
     t.true((signalHistory.events ?? []).some((event) => event.eventType === EventType.EVENT_TYPE_WORKFLOW_TASK_FAILED));
   });
-});
-
-test('transforming codecs round-trip client and workflow headers', async (t) => {
-  const h = configurableHelpers(t, t.context.workflowBundle, t.context.env);
-  const receivedHeaders: unknown[] = [];
-  const worker = await h.createWorker({
-    dataConverter: { ...dataConverter, payloadCodecs: [new TransformingHeaderCodec()] },
-    activities: {
-      payloadValidationActivity() {
-        return 'activity-done';
-      },
-    },
-    interceptors: {
-      activity: [
-        () => ({
-          inbound: {
-            async execute(input, next) {
-              receivedHeaders.push(defaultPayloadConverter.fromPayload(input.headers.payloadValidation));
-              return await next(input);
-            },
-          },
-        }),
-      ],
-    },
-  });
-  const clientHeader = { __payloadValidation: 'header-roundtrip', id: 'client-header' };
-  const headers = { payloadValidation: defaultPayloadConverter.toPayload(clientHeader) };
-  const client = new Client({
-    connection: t.context.env.connection,
-    namespace: t.context.env.client.options.namespace,
-    dataConverter: { payloadCodecs: [new TransformingHeaderCodec()] },
-    interceptors: {
-      workflow: [{ startWithDetails: (input, next) => next({ ...input, headers }) }],
-      activity: [{ start: (input, next) => next({ ...input, headers }) }],
-    },
-  });
-  await worker.runUntil(async () => {
-    t.deepEqual(
-      await client.workflow.execute(payloadValidationHeaderWorkflow, {
-        workflowId: randomUUID(),
-        taskQueue: h.taskQueue,
-      }),
-      clientHeader
-    );
-    t.is(
-      await client.activity.execute('payloadValidationActivity', {
-        id: randomUUID(),
-        taskQueue: h.taskQueue,
-        startToCloseTimeout: '10s',
-      }),
-      'activity-done'
-    );
-    t.is(
-      await t.context.env.client.workflow.execute(payloadValidationOutboundWorkflow, {
-        workflowId: randomUUID(),
-        taskQueue: h.taskQueue,
-        args: ['header', randomUUID(), undefined, 'header-roundtrip'],
-      }),
-      'done'
-    );
-  });
-  t.is(receivedHeaders.length, 2);
-  t.deepEqual(receivedHeaders[0], clientHeader);
-  t.like(receivedHeaders[1], { __payloadValidation: 'header-roundtrip' });
-  t.is(typeof (receivedHeaders[1] as any)?.id, 'string');
 });
 
 test('converter outbound workflow payload paths fail one Workflow Task and replay', async (t) => {

@@ -265,23 +265,6 @@ export async function encodeMap<K extends string>(
   ) as Record<K, EncodedPayload>;
 }
 
-/** Run {@link PayloadCodec.decode} on all values in `map` */
-export async function decodeMap<K extends string>(
-  codecs: PayloadCodec[],
-  map: Record<K, Payload> | null | undefined,
-  context?: SerializationContext
-): Promise<Record<K, DecodedPayload> | null | undefined> {
-  if (map === null) return null;
-  if (map === undefined) return undefined;
-  return Object.fromEntries(
-    await Promise.all(
-      Object.entries(map).map(async ([k, payload]): Promise<[K, DecodedPayload]> => {
-        return [k as K, await decodeSingle(codecs, payload as Payload, context)];
-      })
-    )
-  ) as Record<K, DecodedPayload>;
-}
-
 /**
  * Run {@link PayloadConverter.toPayload} and then {@link PayloadCodec.encode} on values in `map`.
  */

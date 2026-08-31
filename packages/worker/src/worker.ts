@@ -36,7 +36,6 @@ import type { Decoded } from '@temporalio/common/lib/internal-non-workflow';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
-  decodeMap,
   encodeErrorToFailure,
   encodeToPayload,
   extstoreInboundOptions,
@@ -1132,7 +1131,6 @@ export class Worker {
                       : undefined;
                     const outputTypeInfo = typeInfo?.outputType;
                     let args: unknown[];
-                    let headers;
                     try {
                       args = await decodeArrayFromPayloads(
                         loadedDataConverter,
@@ -1140,8 +1138,6 @@ export class Worker {
                         context,
                         typeInfo?.inputTypes
                       );
-                      headers =
-                        (await decodeMap(loadedDataConverter.payloadCodecs, task.start?.headerFields, context)) ?? {};
                     } catch (err) {
                       const payloadValidationError = findPayloadValidationError(err);
                       if (payloadValidationError !== undefined) throw payloadValidationError;
@@ -1150,6 +1146,7 @@ export class Worker {
                         nonRetryable: false,
                       });
                     }
+                    const headers = task.start?.headerFields ?? {};
                     const input = {
                       args,
                       headers,
