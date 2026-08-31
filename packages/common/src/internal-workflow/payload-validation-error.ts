@@ -5,12 +5,10 @@ import { isRecord, SymbolBasedInstanceOfError } from '../type-helpers';
 const PAYLOAD_VALIDATION_ERROR_TYPE = 'PayloadValidationError';
 
 /** @internal */
-export function findPayloadValidationError(error: unknown): ApplicationFailure | undefined {
-  return error instanceof ApplicationFailure &&
-    error.type === PAYLOAD_VALIDATION_ERROR_TYPE &&
-    error.nonRetryable === true
-    ? error
-    : undefined;
+export function isPayloadValidationError(error: unknown): error is ApplicationFailure {
+  return (
+    error instanceof ApplicationFailure && error.type === PAYLOAD_VALIDATION_ERROR_TYPE && error.nonRetryable === true
+  );
 }
 
 /** @internal */
@@ -97,9 +95,7 @@ export function isWorkflowTaskPayloadConversionError(error: unknown): error is W
   if (error instanceof WorkflowTaskPayloadConversionError) return true;
   if (!isRecord(error)) return false;
   const descriptor = Object.getOwnPropertyDescriptor(error, workflowTaskPayloadConversionMarker);
-  return (
-    descriptor?.value === true && descriptor.enumerable === false && findPayloadValidationError(error.cause) != null
-  );
+  return descriptor?.value === true && descriptor.enumerable === false && isPayloadValidationError(error.cause);
 }
 
 /** @internal */
@@ -116,9 +112,8 @@ export function findWorkflowTaskPayloadConversionError(error: unknown): Workflow
 
 /** @internal */
 export function rethrowPayloadValidationErrorForWorkflowTask(error: unknown): never {
-  const payloadValidationError = findPayloadValidationError(error);
-  if (payloadValidationError === undefined) throw error;
-  throw new WorkflowTaskPayloadConversionError(payloadValidationError);
+  if (!isPayloadValidationError(error)) throw error;
+  throw new WorkflowTaskPayloadConversionError(error);
 }
 
 /** @internal */

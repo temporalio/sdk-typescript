@@ -8,7 +8,7 @@ import { SourceMapConsumer } from 'source-map';
 import { cutoffStackTrace, IllegalStateError, convertDeploymentVersion } from '@temporalio/common';
 import { suggestContinueAsNewReasonsFromProto } from '@temporalio/common/lib/continue-as-new';
 import {
-  findPayloadValidationError,
+  isPayloadValidationError,
   findWorkflowTaskPayloadConversionError,
   payloadFreePayloadValidationFailure,
 } from '@temporalio/common/lib/internal-workflow/payload-validation-error';
@@ -483,7 +483,7 @@ export abstract class BaseVMWorkflow implements Workflow {
 
       return completion;
     } catch (err) {
-      const payloadValidationError = findPayloadValidationError(err);
+      const payloadValidationError = isPayloadValidationError(err) ? err : undefined;
       const workflowTaskPayloadConversionError = findWorkflowTaskPayloadConversionError(err);
       if (
         payloadValidationError !== undefined &&

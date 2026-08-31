@@ -11,27 +11,24 @@ import {
 import { encodePayloadValidationError } from '../internal-non-workflow/payload-validation-error';
 import {
   clonePayloadValidationErrorAsRetryable,
-  findPayloadValidationError,
+  isPayloadValidationError,
   findWorkflowTaskPayloadConversionError,
   isWorkflowTaskPayloadConversionError,
   payloadFreePayloadValidationFailure,
   WorkflowTaskPayloadConversionError,
 } from '../internal-workflow/payload-validation-error';
 
-test('findPayloadValidationError accepts only an exact directly-thrown failure', (t) => {
+test('isPayloadValidationError accepts only an exact directly-thrown failure', (t) => {
   const failure = createPayloadValidationError({ field: 'invalid' });
   const wrapped = new Error('wrapped', { cause: failure });
-  t.is(findPayloadValidationError(failure), failure);
-  t.is(findPayloadValidationError(wrapped), undefined);
+  t.true(isPayloadValidationError(failure));
+  t.false(isPayloadValidationError(wrapped));
 
   const cyclic = new Error('cyclic');
   cyclic.cause = cyclic;
-  t.is(findPayloadValidationError(cyclic), undefined);
-  t.is(findPayloadValidationError(ApplicationFailure.nonRetryable('wrong type', 'OtherError')), undefined);
-  t.is(
-    findPayloadValidationError(ApplicationFailure.retryable('retryable lookalike', 'PayloadValidationError')),
-    undefined
-  );
+  t.false(isPayloadValidationError(cyclic));
+  t.false(isPayloadValidationError(ApplicationFailure.nonRetryable('wrong type', 'OtherError')));
+  t.false(isPayloadValidationError(ApplicationFailure.retryable('retryable lookalike', 'PayloadValidationError')));
 });
 
 test('Workflow Task conversion marker rejects name and property lookalikes', (t) => {
