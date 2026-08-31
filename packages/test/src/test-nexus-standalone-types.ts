@@ -1,6 +1,11 @@
 import test from 'ava';
 import * as nexus from 'nexus-rpc';
-import type { Client, NexusOperationHandle } from '@temporalio/client';
+import type {
+  Client,
+  GetNexusOperationHandleOptions,
+  NexusOperationHandle,
+  NexusOperationHandleDefinitionOptions,
+} from '@temporalio/client';
 import type { TypeInfo } from '@temporalio/common';
 
 interface MyInput {
@@ -83,6 +88,21 @@ test('startOperation + handle.result() preserves type', async (t) => {
 test('getHandle with no type defaults to unknown', (t) => {
   function _assertion() {
     const _anyHandle: NexusOperationHandle<unknown> = client.nexus.getHandle('op-1');
+    const options: GetNexusOperationHandleOptions = { runId: 'run-id' };
+    const _typedHandle: NexusOperationHandle<MyOutput> = client.nexus.getHandle<MyOutput>('op-1', options);
+    const _indexedOptions: GetNexusOperationHandleOptions<MyOutput> & Record<string, unknown> = {
+      runId: 'run-id',
+      // @ts-expect-error An index signature cannot hide an Operation definition in non-definition options.
+      operation: myService.operations.mySyncOp,
+    };
+    function getNexusHandleFromGeneric<O extends GetNexusOperationHandleOptions<MyOutput>>(genericOptions: O) {
+      return client.nexus.getHandle<MyOutput>('op-1', genericOptions);
+    }
+    void getNexusHandleFromGeneric({
+      runId: 'run-id',
+      // @ts-expect-error A generic constraint cannot hide an Operation definition in non-definition options.
+      operation: myService.operations.mySyncOp,
+    });
   }
   t.pass();
 });
@@ -111,6 +131,16 @@ test('getHandle with operation definition infers correctly', async (t) => {
     const options = { operation: myService.operations.mySyncOp };
     const _typedHandle = client.nexus.getHandle('op-1', options);
     const _typedOutput: MyOutput = await _typedHandle.result();
+    const reusableDefinitionOptions: NexusOperationHandleDefinitionOptions<typeof myService.operations.mySyncOp> = {
+      operation: myService.operations.mySyncOp,
+    };
+    const _reusableDefinitionHandle: NexusOperationHandle<MyOutput> = client.nexus.getHandle(
+      'op-1',
+      reusableDefinitionOptions
+    );
+
+    // @ts-expect-error Supplying an Operation definition selects definition-based result inference.
+    void client.nexus.getHandle<string>('op-1', reusableDefinitionOptions);
 
     // @ts-expect-error Supplying an Operation definition selects definition-based result inference.
     void client.nexus.getHandle<string>('op-1', options);

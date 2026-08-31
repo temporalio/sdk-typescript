@@ -30,7 +30,7 @@ import { decode } from '@temporalio/common/lib/encoding';
 import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base-client';
 import { BaseClient, defaultBaseClientOptions } from './base-client';
 import { isGrpcServiceError, ServiceError } from './errors';
-import { type OutputTypeInfo, rethrowKnownErrorTypes, extractNexusOperationAlreadyStartedRunId } from './helpers';
+import { rethrowKnownErrorTypes, extractNexusOperationAlreadyStartedRunId } from './helpers';
 import type {
   CancelNexusOperationInput,
   CountNexusOperationsInput,
@@ -52,6 +52,7 @@ import type {
   DescribeNexusOperationOptions,
   GetNexusOperationHandleOptions,
   ListNexusOperationsOptions,
+  NexusOperationHandleDefinitionOptions,
   NexusOperationExecutionCancellationInfo,
   NexusOperationExecutionCount,
   NexusOperationExecutionDescription,
@@ -312,16 +313,16 @@ export class NexusClient extends BaseClient {
    */
   public getHandle<Op extends nexus.OperationDefinition<any, any>>(
     operationId: string,
-    options: Replace<GetNexusOperationHandleOptions, { operation: Op; typeInfo?: never }>
+    options: NexusOperationHandleDefinitionOptions<Op>
   ): NexusOperationHandle<nexus.OperationOutput<Op>>;
   public getHandle<T>(
     operationId: string,
-    options?: Replace<
-      GetNexusOperationHandleOptions,
-      { operation?: never; typeInfo?: OutputTypeInfo<NexusOperationHandleResult<T>> }
-    >
+    options?: Replace<GetNexusOperationHandleOptions<NexusOperationHandleResult<T>>, { operation?: never }>
   ): NexusOperationHandle<NexusOperationHandleResult<T>>;
-  public getHandle(operationId: string, options?: GetNexusOperationHandleOptions): NexusOperationHandle {
+  public getHandle(
+    operationId: string,
+    options?: Replace<GetNexusOperationHandleOptions, { operation?: nexus.OperationDefinition<any, any> }>
+  ): NexusOperationHandle {
     return this.createNexusOperationHandle({
       operationId,
       runId: options?.runId,
