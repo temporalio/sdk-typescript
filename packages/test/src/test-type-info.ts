@@ -2,7 +2,14 @@ import { randomUUID } from 'crypto';
 import type { ExecutionContext } from 'ava';
 import { firstValueFrom, ReplaySubject } from 'rxjs';
 import type { Info } from '@temporalio/activity';
-import type { WorkflowClientInterceptor, WorkflowSignalWithStartOptions } from '@temporalio/client';
+import type {
+  ActivityHandleDefinitionOptions,
+  GetActivityHandleOptions,
+  GetWorkflowHandleOptions,
+  WorkflowHandleDefinitionOptions,
+  WorkflowClientInterceptor,
+  WorkflowSignalWithStartOptions,
+} from '@temporalio/client';
 import { Client, WithStartWorkflowOperation, WorkflowFailedError } from '@temporalio/client';
 import { workflowInterceptorModules } from '@temporalio/testing';
 import { executeChild, proxyActivities } from '@temporalio/workflow';
@@ -797,6 +804,34 @@ test('Child Workflow handle converts a string Signal using call-site TypeInfo', 
 
 test('Detached Activity handle options infer results from Activity definitions', (t) => {
   async function _assertActivityHandleOptionsTypes(client: Client) {
+    const exportedOptions: GetActivityHandleOptions = { runId: 'run-id' };
+    const _exportedOptionsResult: Receipt = await client.activity
+      .getHandleWithOptions<Receipt>('activity-id', exportedOptions)
+      .result();
+    const _indexedOptions: GetActivityHandleOptions<Receipt> & Record<string, unknown> = {
+      runId: 'run-id',
+      // @ts-expect-error An index signature cannot hide an Activity definition in non-definition options.
+      activity: convertOrder,
+    };
+    function getActivityHandleFromGeneric<O extends GetActivityHandleOptions<Receipt>>(options: O) {
+      return client.activity.getHandleWithOptions<Receipt>('activity-id', options);
+    }
+    void getActivityHandleFromGeneric({
+      runId: 'run-id',
+      // @ts-expect-error A generic constraint cannot hide an Activity definition in non-definition options.
+      activity: convertOrder,
+    });
+
+    const reusableDefinitionOptions: ActivityHandleDefinitionOptions<typeof convertOrder> = {
+      activity: convertOrder,
+    };
+    const _reusableDefinitionResult: Receipt = await client.activity
+      .getHandleWithOptions('activity-id', reusableDefinitionOptions)
+      .result();
+
+    // @ts-expect-error Supplying an Activity definition selects definition-based result inference.
+    void client.activity.getHandleWithOptions<string>('activity-id', reusableDefinitionOptions);
+
     const options = { activity: convertOrder };
     const result: Receipt = await client.activity.getHandleWithOptions('activity-id', options).result();
     void result;
@@ -807,7 +842,7 @@ test('Detached Activity handle options infer results from Activity definitions',
     // @ts-expect-error Activity definitions and call-site TypeInfo are mutually exclusive.
     void client.activity.getHandleWithOptions('activity-id', {
       activity: convertOrder,
-      typeInfo: activityTypeInfo.convertOrder,
+      typeInfo: { outputType: receiptTypeInfo },
     });
 
     void client.activity.getHandleWithOptions<Receipt>('activity-id', {
@@ -823,6 +858,34 @@ test('Detached Activity handle options infer results from Activity definitions',
 
 test('Detached Workflow handle options infer results from Workflow definitions', (t) => {
   async function _assertWorkflowHandleOptionsTypes(client: Client) {
+    const exportedOptions: GetWorkflowHandleOptions = { followRuns: false };
+    const _exportedOptionsResult: Receipt = await client.workflow
+      .getHandle<typeof workflowWithTypeInfo>('workflow-id', undefined, exportedOptions)
+      .result();
+    const _indexedOptions: GetWorkflowHandleOptions<Receipt> & Record<string, unknown> = {
+      followRuns: false,
+      // @ts-expect-error An index signature cannot hide a Workflow definition in non-definition options.
+      workflow: workflowWithTypeInfo,
+    };
+    function getWorkflowHandleFromGeneric<O extends GetWorkflowHandleOptions<Receipt>>(options: O) {
+      return client.workflow.getHandle<typeof workflowWithTypeInfo>('workflow-id', undefined, options);
+    }
+    void getWorkflowHandleFromGeneric({
+      followRuns: false,
+      // @ts-expect-error A generic constraint cannot hide a Workflow definition in non-definition options.
+      workflow: workflowWithTypeInfo,
+    });
+
+    const reusableDefinitionOptions: WorkflowHandleDefinitionOptions<typeof workflowWithTypeInfo> = {
+      workflow: workflowWithTypeInfo,
+    };
+    const _reusableDefinitionResult: Receipt = await client.workflow
+      .getHandle<typeof workflowWithTypeInfo>('workflow-id', undefined, reusableDefinitionOptions)
+      .result();
+
+    // @ts-expect-error Supplying a Workflow definition selects definition-based result inference.
+    void client.workflow.getHandle<typeof signalTarget>('workflow-id', undefined, reusableDefinitionOptions);
+
     const options = { workflow: workflowWithTypeInfo };
     const result: Receipt = await client.workflow.getHandle('workflow-id', undefined, options).result();
     void result;
@@ -833,7 +896,7 @@ test('Detached Workflow handle options infer results from Workflow definitions',
     // @ts-expect-error Workflow definitions and call-site TypeInfo are mutually exclusive.
     void client.workflow.getHandle('workflow-id', undefined, {
       workflow: workflowWithTypeInfo,
-      typeInfo: workflowTypeInfo,
+      typeInfo: { outputType: receiptTypeInfo },
     });
 
     // @ts-expect-error Explicit TypeInfo must produce the Workflow result type.

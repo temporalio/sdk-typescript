@@ -1,13 +1,8 @@
 import type * as nexus from 'nexus-rpc';
-import type {
-  Duration,
-  PayloadTypeInfo,
-  SearchAttributePair,
-  SearchAttributeType,
-  TypedSearchAttributes,
-} from '@temporalio/common';
+import type { Duration, SearchAttributePair, SearchAttributeType, TypedSearchAttributes } from '@temporalio/common';
 import { makeProtoEnumConverters, type Replace } from '@temporalio/common/internal/internal-workflow';
 import type { temporal } from '@temporalio/proto';
+import type { OutputTypeInfo } from './helpers';
 
 /**
  * Defines whether to allow re-using an operation ID from a previously *completed* Nexus operation.
@@ -458,11 +453,11 @@ export interface ListNexusOperationsOptions {
 /**
  * Options for {@link NexusClient.getHandle}.
  */
-export interface GetNexusOperationHandleOptions {
+export interface GetNexusOperationHandleOptions<R = any> {
   /**
-   * Operation definition used to infer the result type and read its output TypeInfo.
+   * Operation definitions are accepted through {@link NexusOperationHandleDefinitionOptions}.
    */
-  operation?: nexus.OperationDefinition<any, any>;
+  operation?: never;
 
   /**
    * If provided, targets this specific run of the operation. If absent, targets the latest run.
@@ -472,8 +467,16 @@ export interface GetNexusOperationHandleOptions {
   /**
    * Type information for decoding the operation result.
    */
-  typeInfo?: Pick<PayloadTypeInfo, 'outputType'>;
+  typeInfo?: OutputTypeInfo<R>;
 }
+
+/**
+ * Options for getting a Nexus Operation handle using an Operation definition.
+ */
+export type NexusOperationHandleDefinitionOptions<Op extends nexus.OperationDefinition<any, any>> = Replace<
+  GetNexusOperationHandleOptions,
+  { operation: Op; typeInfo?: never }
+>;
 
 /**
  * Options for {@link NexusOperationHandle.describe}
