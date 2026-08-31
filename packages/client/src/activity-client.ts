@@ -192,13 +192,16 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
    */
   getHandleWithOptions<A extends ActivityFunction>(
     activityId: string,
-    options: Replace<GetActivityHandleOptions, { activity: A; typeInfo?: never }>
+    options: ActivityHandleDefinitionOptions<A>
   ): ActivityHandle<Awaited<ReturnType<A>>>;
   getHandleWithOptions<R = any>(
     activityId: string,
-    options: Replace<GetActivityHandleOptions, { activity?: never; typeInfo?: OutputTypeInfo<R> }>
+    options: Replace<GetActivityHandleOptions<R>, { activity?: never }>
   ): ActivityHandle<R>;
-  getHandleWithOptions(activityId: string, options: GetActivityHandleOptions): ActivityHandle {
+  getHandleWithOptions(
+    activityId: string,
+    options: Replace<GetActivityHandleOptions, { activity?: ActivityFunction }>
+  ): ActivityHandle {
     const outputType =
       options.typeInfo?.outputType ??
       (isActivityFunctionWithOptions(options.activity)
@@ -884,11 +887,11 @@ export interface ActivityOptions {
 /**
  * Options for {@link ActivityClient.getHandleWithOptions}.
  */
-export interface GetActivityHandleOptions {
+export interface GetActivityHandleOptions<R = any> {
   /**
-   * Activity function used to infer the result type and read its output TypeInfo.
+   * Activity definitions are accepted through {@link ActivityHandleDefinitionOptions}.
    */
-  activity?: ActivityFunction;
+  activity?: never;
 
   /**
    * If provided, targets this specific Activity run. If absent, the handle targets the latest run.
@@ -900,8 +903,18 @@ export interface GetActivityHandleOptions {
    *
    * @experimental
    */
-  typeInfo?: Pick<PayloadTypeInfo, 'outputType'>;
+  typeInfo?: OutputTypeInfo<R>;
 }
+
+/**
+ * Options for getting an Activity handle using an Activity definition.
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ */
+export type ActivityHandleDefinitionOptions<A extends ActivityFunction> = Replace<
+  GetActivityHandleOptions,
+  { activity: A; typeInfo?: never }
+>;
 
 /**
  * Options for {@link ActivityHandle.describe}.
