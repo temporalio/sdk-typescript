@@ -75,7 +75,7 @@ test('public client payload validation failures return locally without issuing R
   }
 });
 
-test('all public client APIs unwrap codec-added PayloadValidationError causes without RPCs', async (t) => {
+test('all public client APIs propagate codec PayloadValidationErrors without RPCs', async (t) => {
   const failure = createPayloadValidationError({ field: 'invalid' });
   let rpcCount = 0;
   const connection = {
@@ -101,7 +101,7 @@ test('all public client APIs unwrap codec-added PayloadValidationError causes wi
     payloadCodecs: [
       {
         async encode(): Promise<never> {
-          throw new Error('codec wrapper', { cause: failure });
+          throw failure;
         },
         async decode(payloads: any[]) {
           return payloads;

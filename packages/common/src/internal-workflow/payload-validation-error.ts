@@ -6,23 +6,11 @@ const PAYLOAD_VALIDATION_ERROR_TYPE = 'PayloadValidationError';
 
 /** @internal */
 export function findPayloadValidationError(error: unknown): ApplicationFailure | undefined {
-  const seen = new Set<unknown>();
-  let current = error;
-
-  while (current != null && (typeof current === 'object' || typeof current === 'function')) {
-    if (seen.has(current)) return undefined;
-    seen.add(current);
-
-    if (
-      current instanceof ApplicationFailure &&
-      current.type === PAYLOAD_VALIDATION_ERROR_TYPE &&
-      current.nonRetryable === true
-    ) {
-      return current;
-    }
-    current = (current as { cause?: unknown }).cause;
-  }
-  return undefined;
+  return error instanceof ApplicationFailure &&
+    error.type === PAYLOAD_VALIDATION_ERROR_TYPE &&
+    error.nonRetryable === true
+    ? error
+    : undefined;
 }
 
 /** @internal */

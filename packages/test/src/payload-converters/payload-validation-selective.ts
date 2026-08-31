@@ -33,16 +33,6 @@ export const payloadConverter: PayloadConverter = {
     if (value?.__payloadValidation === 'decode') {
       throw createPayloadValidationError({ field: value.id });
     }
-    if (value?.__payloadValidation === 'decode-wrapped') {
-      throw new Error('converter wrapper', { cause: createPayloadValidationError({ field: value.id }) });
-    }
-    if (value?.__payloadValidation === 'decode-cyclic') {
-      const wrapper = new Error('cyclic converter wrapper');
-      const failure = createPayloadValidationError({ field: value.id });
-      wrapper.cause = failure;
-      Object.defineProperty(failure, 'cause', { value: wrapper });
-      throw wrapper;
-    }
     return value;
   },
 };

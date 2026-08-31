@@ -5,14 +5,13 @@ import { coerceToHandlerError, encodeNexusResult } from '@temporalio/worker/lib/
 
 test('encodeNexusResult makes converter PayloadValidationError output retryable INTERNAL', async (t) => {
   const cause = createPayloadValidationError({ field: 'invalid' });
-  const wrapped = new Error('converter wrapper', { cause });
   const handlerError = await t.throwsAsync(
     encodeNexusResult(
       {
         ...defaultDataConverter,
         payloadConverter: {
           toPayload() {
-            throw wrapped;
+            throw cause;
           },
           fromPayload(payload, context) {
             return defaultPayloadConverter.fromPayload(payload, context);
