@@ -31,6 +31,6 @@ export function makeHandlerContext(client: HandlerContext['client']): HandlerCon
     client,
     namespace: 'ns',
     taskQueue: 'tq',
-    endpoint: 'endpoint', 
+    endpoint: 'endpoint',
   };
 }
