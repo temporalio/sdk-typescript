@@ -284,8 +284,8 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
     const invocationInputTypes = inputTypes === undefined ? undefined : [...inputTypes];
     const outputType = input.options.typeInfo?.outputType;
 
-    const req = await this.buildStartActivityExecutionRequest(input, invocationInputTypes);
     try {
+      const req = await this.buildStartActivityExecutionRequest(input, invocationInputTypes);
       const externalStorage = this.dataConverter.externalStorage;
       if (externalStorage) {
         await visit(
