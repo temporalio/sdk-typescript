@@ -18,15 +18,6 @@ import type { temporal } from '@temporalio/proto';
 // Payloads
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-/**
- * Error type used by a Payload Converter or Payload Codec to report that a Payload failed
- * validation, i.e. that the input is invalid rather than that the handler failed to process it.
- *
- * When a Nexus operation's input fails to decode with a non-retryable {@link ApplicationFailure} of
- * this type, the resulting Nexus Handler Error is `BAD_REQUEST` rather than `INTERNAL`.
- */
-export const PAYLOAD_VALIDATION_ERROR_TYPE = 'PayloadValidationError';
-
 /** Decode Payload Codecs and apply optional TypeInfo while translating invalid Nexus input errors. */
 export async function decodePayload(
   dataConverter: LoadedDataConverter,

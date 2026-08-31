@@ -42,10 +42,6 @@ export async function payloadValidationInputWorkflow(_input: unknown): Promise<s
   return 'handler invoked';
 }
 
-export async function payloadValidationHeaderWorkflow(input?: unknown): Promise<unknown> {
-  return input;
-}
-
 export async function payloadValidationChildInputWorkflow(id: string, marker = 'decode'): Promise<string> {
   return await executeChild(payloadValidationInputWorkflow, { args: [{ __payloadValidation: marker, id }] });
 }
@@ -126,7 +122,7 @@ export async function payloadValidationSignalTargetWorkflow(): Promise<unknown> 
 }
 
 export async function payloadValidationOutboundWorkflow(
-  kind: 'activity' | 'local-activity' | 'child' | 'signal' | 'child-signal' | 'memo' | 'user-metadata' | 'header',
+  kind: 'activity' | 'local-activity' | 'child' | 'signal' | 'child-signal' | 'memo' | 'user-metadata',
   id: string,
   targetWorkflowId?: string,
   marker = 'codec-encode-once'
@@ -156,9 +152,6 @@ export async function payloadValidationOutboundWorkflow(
       break;
     case 'user-metadata':
       await sleep(1, { summary: `${marker}:${id}` });
-      break;
-    case 'header':
-      await payloadValidationActivity({ __payloadValidationHeader: true, id, marker });
       break;
   }
   return 'done';
