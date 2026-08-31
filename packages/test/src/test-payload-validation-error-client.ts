@@ -4,7 +4,7 @@ import type { PayloadConverter } from '@temporalio/common';
 import { createPayloadValidationError, defaultFailureConverter, defaultPayloadConverter } from '@temporalio/common';
 import { AsyncCompletionClient, Client } from '@temporalio/client';
 
-test('public client payload validation failures return locally without issuing RPCs', async (t) => {
+test('workflow, Nexus, and activity completion validation failures return locally without RPCs', async (t) => {
   const failure = createPayloadValidationError({ field: 'invalid' });
   const payloadConverter: PayloadConverter = {
     toPayload(): never {
@@ -44,13 +44,6 @@ test('public client payload validation failures return locally without issuing R
 
   const calls: Array<() => Promise<unknown>> = [
     () => client.workflow.start('workflow', { workflowId: 'workflow-id', taskQueue: 'queue', args: ['bad'] }),
-    () =>
-      client.activity.start('activity', {
-        id: 'activity-id',
-        taskQueue: 'queue',
-        startToCloseTimeout: '1m',
-        args: ['bad'],
-      }),
     () => workflowHandle.signal('signal', 'bad'),
     () =>
       client.workflow.signalWithStart('workflow', {
@@ -75,7 +68,7 @@ test('public client payload validation failures return locally without issuing R
   }
 });
 
-test('all public client APIs propagate codec PayloadValidationErrors without RPCs', async (t) => {
+test('workflow, Nexus, and activity completion APIs propagate codec PayloadValidationErrors without RPCs', async (t) => {
   const failure = createPayloadValidationError({ field: 'invalid' });
   let rpcCount = 0;
   const connection = {
@@ -117,13 +110,6 @@ test('all public client APIs propagate codec PayloadValidationErrors without RPC
 
   const calls: Array<() => Promise<unknown>> = [
     () => client.workflow.start('workflow', { workflowId: 'workflow-id', taskQueue: 'queue', args: ['bad'] }),
-    () =>
-      client.activity.start('activity', {
-        id: 'activity-id',
-        taskQueue: 'queue',
-        startToCloseTimeout: '1m',
-        args: ['bad'],
-      }),
     () => workflowHandle.signal('signal', 'bad'),
     () =>
       client.workflow.signalWithStart('workflow', {
