@@ -4,6 +4,7 @@ import type { Payload } from '@temporalio/common';
 import {
   ApplicationFailure,
   createPayloadValidationError,
+  defaultFailureConverter,
   defaultPayloadConverter,
   NexusOperationFailure,
 } from '@temporalio/common';
@@ -11,6 +12,7 @@ import { Client, WorkflowFailedError } from '@temporalio/client';
 import type { PayloadCodec } from '@temporalio/common/lib/converter/payload-codec';
 import { temporal } from '@temporalio/proto';
 import * as workflow from '@temporalio/workflow';
+import { waitUntil } from './helpers';
 import { createTestWorkflowBundle, helpers, makeTestFunction } from './helpers-integration';
 import { innermostHandlerError } from './helpers-nexus';
 
@@ -363,16 +365,12 @@ test('Nexus operation output PayloadValidationError is retryable and eventually 
   const { createWorker, registerNexusEndpoint, taskQueue } = helpers(t);
   const { endpointName } = await registerNexusEndpoint();
 
-  let handlerAttempts = 0;
-  let outputEncodeAttempts = 0;
+  let failCodec = true;
   const validationCodec: PayloadCodec = {
     async encode(payloads: Payload[]): Promise<Payload[]> {
       for (const payload of payloads) {
-        if (payload.data != null && Buffer.from(payload.data).toString() === '"validation-output"') {
-          outputEncodeAttempts++;
-          if (outputEncodeAttempts === 1) {
-            throw createPayloadValidationError({ field: 'output' });
-          }
+        if (failCodec && payload.data != null && Buffer.from(payload.data).toString() === '"validation-output"') {
+          throw createPayloadValidationError({ field: 'output' });
         }
       }
       return payloads;
@@ -387,7 +385,6 @@ test('Nexus operation output PayloadValidationError is retryable and eventually 
     nexusServices: [
       nexus.serviceHandler(testService, {
         async echoOp() {
-          handlerAttempts++;
           return 'validation-output';
         },
       }),
@@ -395,16 +392,36 @@ test('Nexus operation output PayloadValidationError is retryable and eventually 
   });
 
   await worker.runUntil(async () => {
-    const result = await t.context.env.client.workflow.execute(nexusValidationOutputRetryCaller, {
+    const handle = await t.context.env.client.workflow.start(nexusValidationOutputRetryCaller, {
       taskQueue,
       workflowId: randomUUID(),
       args: [endpointName],
     });
-    t.deepEqual(result, { nexusResult: 'validation-output' });
-  });
 
-  t.is(handlerAttempts, 2);
-  t.is(outputEncodeAttempts, 2);
+    let lastAttemptFailure: temporal.api.failure.v1.IFailure | null | undefined;
+    await waitUntil(async () => {
+      const description = await handle.describe();
+      const pendingOperations = description.raw.pendingNexusOperations ?? [];
+      lastAttemptFailure = pendingOperations[0]?.lastAttemptFailure;
+      return lastAttemptFailure != null;
+    }, 10_000);
+
+    const lastAttemptError = defaultFailureConverter.failureToError(lastAttemptFailure!, defaultPayloadConverter);
+    t.true(lastAttemptError instanceof nexus.HandlerError);
+    const handlerError = innermostHandlerError(lastAttemptError as nexus.HandlerError);
+    t.is(handlerError.type, 'INTERNAL');
+    t.true(handlerError.retryable);
+    t.true(handlerError.cause instanceof ApplicationFailure);
+    const cause = handlerError.cause as ApplicationFailure;
+    t.is(cause.type, 'PayloadValidationError');
+    t.is(cause.message, 'Payload validation failed');
+    t.true(cause.nonRetryable);
+    t.deepEqual(cause.details, [{ field: 'output' }]);
+
+    failCodec = false;
+
+    t.deepEqual(await handle.result(), { nexusResult: 'validation-output' });
+  });
 });
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
