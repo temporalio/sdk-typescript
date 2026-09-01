@@ -90,12 +90,6 @@ to docs, or any other relevant information.
 - **Experimental**: `TemporalOperationHandler` can now use Standalone Activities as asynchronous
   Nexus Operation backing executions through `TemporalNexusClient.startActivity` and
   `typedActivity`.
-- **Experimental**: Workflow Queries as Nexus Operations, via
-  `TemporalNexusClient.getWorkflowHandle(...).query(...)`. A Query resolves immediately and writes
-  nothing to history, so it backs a synchronous operation: return the result with
-  `TemporalOperationResult.sync(...)`; there is no operation token and nothing to cancel. The link the
-  server returns for the Workflow that processed the Query is attached to the operation's outbound
-  links, so the caller's NexusOperation history event points back at that Workflow.
 - **Experimental**: Signal definitions can now provide `TypeInfo` for converting Signal arguments on Client and
   Workflow callers and in Workflow handlers.
 - **Experimental**: Workflows can now use `TypeInfo` for Child Workflow inputs and results and continue-as-new inputs.
@@ -108,6 +102,9 @@ to docs, or any other relevant information.
 
 ### Changed
 
+- A workflow query issued from inside a Nexus operation handler now propagates the link the server
+  returns for the workflow that processed it, so the caller's Nexus operation event points back at
+  the queried workflow. 
 - Nexus is now generally available (GA) for calling Nexus Operations from Workflows and handling
   Workflow-backed Operations with `WorkflowRunOperationHandler`.
 - A `common.v1.Link.Workflow` now serializes to `temporal:///namespaces/{ns}/workflows/{wid}/{rid}`
