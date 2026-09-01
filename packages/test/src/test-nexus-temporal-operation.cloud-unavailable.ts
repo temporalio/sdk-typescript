@@ -117,6 +117,11 @@ export async function temporalActivityOpCaller(endpoint: string, activityId: str
   return await client.executeOperation('echoActivity', activityId);
 }
 
+export async function temporalSyncOpCallerWithInput(endpoint: string, input: string): Promise<string> {
+  const client = workflow.createNexusServiceClient({ endpoint, service: temporalOpService });
+  return await client.executeOperation('syncOp', input);
+}
+
 export async function temporalDefaultCancelWorkflowCaller(endpoint: string, targetWorkflowId: string): Promise<void> {
   const client = workflow.createNexusServiceClient({ endpoint, service: temporalCancelOpService });
   await client.executeOperation('blockingOp', targetWorkflowId, {
@@ -605,6 +610,176 @@ test('TemporalOperationHandler links a standalone Nexus operation and its backin
     t.is(nexusOperationLink?.namespace, client.options.namespace);
     t.is(nexusOperationLink?.operationId, operationDescription.operationId);
     t.is(nexusOperationLink?.runId, operationDescription.runId);
+  });
+});
+
+test('TemporalOperationHandler links Activities started through a raw ActivityClient - standalone caller', async (t) => {
+  const { createWorker, registerNexusEndpoint } = helpers(t);
+  const { client } = t.context.env;
+  const { endpointName } = await registerNexusEndpoint();
+
+  const worker = await createWorker({
+    activities,
+    nexusServices: [
+      makeTemporalOpServiceHandler({
+        syncOp: new temporalnexus.TemporalOperationHandler<string, string>({
+          async start(_ctx, nexusClient, input) {
+            const { taskQueue } = temporalnexus.operationInfo();
+            const [a, b] = await Promise.all([
+              nexusClient.client.activity.start('echo', {
+                id: `${input}-a`,
+                args: [`${input}-a`],
+                taskQueue,
+                scheduleToCloseTimeout: '10s',
+              }),
+              nexusClient.client.activity.start('echo', {
+                id: `${input}-b`,
+                args: [`${input}-b`],
+                taskQueue,
+                scheduleToCloseTimeout: '10s',
+              }),
+            ]);
+            const [resultA, resultB] = await Promise.all([a.result(), b.result()]);
+            return temporalnexus.TemporalOperationResult.sync(`${resultA}|${resultB}`);
+          },
+        }),
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const input = randomUUID();
+    const nexusClient = client.nexus.createServiceClient({ endpoint: endpointName, service: temporalOpService });
+    const operation = await nexusClient.startOperation(temporalOpService.operations.syncOp, input, {
+      id: randomUUID(),
+      scheduleToCloseTimeout: '10s',
+    });
+    t.is(await operation.result(), `${input}-a|${input}-b`);
+
+    const [operationDescription, activityA, activityB] = await Promise.all([
+      operation.describe(),
+      client.activity.getHandle(`${input}-a`).describe(),
+      client.activity.getHandle(`${input}-b`).describe(),
+    ]);
+
+    // Backward: the completed operation's own description links to both Activities, not just one.
+    const linkedActivityIds = operationDescription.raw.links
+      ?.map((link) => link.activity)
+      .filter((link): link is NonNullable<typeof link> => link != null)
+      .map((link) => link.activityId);
+    t.deepEqual([...(linkedActivityIds ?? [])].sort(), [`${input}-a`, `${input}-b`].sort());
+
+    // Forward: each Activity's own record links back to the caller operation.
+    for (const activity of [activityA, activityB]) {
+      const nexusOperationLink = activity.rawInfo.links?.find((link) => link.nexusOperation != null)?.nexusOperation;
+      t.is(nexusOperationLink?.namespace, client.options.namespace);
+      t.is(nexusOperationLink?.operationId, operationDescription.operationId);
+      t.is(nexusOperationLink?.runId, operationDescription.runId);
+    }
+  });
+});
+
+test('TemporalOperationHandler links Activities started through a raw ActivityClient - Workflow caller', async (t) => {
+  const { createWorker, startWorkflow, registerNexusEndpoint } = helpers(t);
+  const { client } = t.context.env;
+  const { endpointName } = await registerNexusEndpoint();
+
+  const worker = await createWorker({
+    activities,
+    nexusServices: [
+      makeTemporalOpServiceHandler({
+        syncOp: new temporalnexus.TemporalOperationHandler<string, string>({
+          async start(_ctx, nexusClient, input) {
+            const { taskQueue } = temporalnexus.operationInfo();
+            const [a, b] = await Promise.all([
+              nexusClient.client.activity.start('echo', {
+                id: `${input}-a`,
+                args: [`${input}-a`],
+                taskQueue,
+                scheduleToCloseTimeout: '10s',
+              }),
+              nexusClient.client.activity.start('echo', {
+                id: `${input}-b`,
+                args: [`${input}-b`],
+                taskQueue,
+                scheduleToCloseTimeout: '10s',
+              }),
+            ]);
+            const [resultA, resultB] = await Promise.all([a.result(), b.result()]);
+            return temporalnexus.TemporalOperationResult.sync(`${resultA}|${resultB}`);
+          },
+        }),
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const input = randomUUID();
+    const callerHandle = await startWorkflow(temporalSyncOpCallerWithInput, { args: [endpointName, input] });
+    t.is(await callerHandle.result(), `${input}-a|${input}-b`);
+
+    const callerHistory = await callerHandle.fetchHistory();
+    const completedEvent = callerHistory.events?.find((event) => event.nexusOperationCompletedEventAttributes != null);
+    const linkedActivityIds = completedEvent?.links
+      ?.map((link) => link.activity)
+      .filter((link): link is NonNullable<typeof link> => link != null)
+      .map((link) => link.activityId);
+    t.deepEqual([...(linkedActivityIds ?? [])].sort(), [`${input}-a`, `${input}-b`].sort());
+
+    for (const suffix of ['a', 'b']) {
+      const activityId = `${input}-${suffix}`;
+      const activity = await client.activity.getHandle(activityId).describe();
+      const callerLink = activity.rawInfo.links?.find((link) => link.workflowEvent != null)?.workflowEvent;
+      t.truthy(callerLink, `expected Activity ${activityId} to link back to the caller Workflow`);
+      t.is(callerLink?.workflowId, callerHandle.workflowId);
+      t.is(callerLink?.eventRef?.eventType, EventType.EVENT_TYPE_NEXUS_OPERATION_SCHEDULED);
+    }
+  });
+});
+
+test('TemporalOperationHandler Activity started through a raw ActivityClient is redelivery-safe', async (t) => {
+  const { createWorker, startWorkflow, registerNexusEndpoint } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+
+  let activityInvocationCount = 0;
+  let hasFailedOnce = false;
+  const worker = await createWorker({
+    activities: {
+      async countedEcho(input: string): Promise<string> {
+        activityInvocationCount++;
+        return input;
+      },
+    },
+    nexusServices: [
+      makeTemporalOpServiceHandler({
+        syncOp: new temporalnexus.TemporalOperationHandler<string, string>({
+          async start(_ctx, nexusClient, input) {
+            const { taskQueue } = temporalnexus.operationInfo();
+            // Starts through the raw Activity client, not TemporalNexusClient.startActivity().
+            const handle = await nexusClient.client.activity.start('countedEcho', {
+              id: input,
+              args: [input],
+              taskQueue,
+              scheduleToCloseTimeout: '10s',
+            });
+            const result = await handle.result();
+            if (!hasFailedOnce) {
+              hasFailedOnce = true;
+              // Force a Nexus-task redelivery after the Activity has already completed.
+              throw new nexus.HandlerError('INTERNAL', 'inject retry', { retryableOverride: true });
+            }
+            return temporalnexus.TemporalOperationResult.sync(result);
+          },
+        }),
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const input = randomUUID();
+    const callerHandle = await startWorkflow(temporalSyncOpCallerWithInput, { args: [endpointName, input] });
+    t.is(await callerHandle.result(), input);
+    t.is(activityInvocationCount, 1, 'expected the Activity to run exactly once despite the handler redelivery');
   });
 });
 

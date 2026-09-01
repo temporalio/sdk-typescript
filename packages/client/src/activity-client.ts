@@ -75,7 +75,11 @@ import {
   ActivityExecutionFailedError,
   ActivityExecutionAlreadyStartedError,
 } from './errors';
-import { type InternalActivityStartOptions, InternalActivityStartOptionsSymbol } from './internal';
+import {
+  type InternalActivityStartOptions,
+  InternalActivityStartOptionsSymbol,
+  getNexusActivityStartContext,
+} from './internal';
 
 /**
  * Options used to configure {@link ActivityClient}
@@ -305,6 +309,8 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
 
       if (internalOptions != null) {
         internalOptions.responseLink = resp.link ?? undefined;
+      } else if (resp.link != null) {
+        getNexusActivityStartContext()?.pushResponseLink(resp.link);
       }
       return this.createHandle(input.options.id, resp.runId, outputType);
     } catch (err) {
@@ -338,11 +344,16 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       : undefined;
 
     const internalOptions = (input.options as InternalActivityStartOptions)[InternalActivityStartOptionsSymbol];
+    const nexusActivityStartContext = getNexusActivityStartContext();
+
+    // Raw starts inherit the handler's inbound Nexus links. Guarded starts retain their explicit wiring.
+    const ambientLinks = internalOptions ? undefined : nexusActivityStartContext?.links;
 
     return {
       namespace: this.options.namespace,
       identity: this.options.identity,
-      requestId: internalOptions?.requestId ?? randomUUID(),
+      // Reuse the handler request ID to deduplicate starts after Nexus-task redelivery.
+      requestId: internalOptions?.requestId ?? nexusActivityStartContext?.requestId ?? randomUUID(),
       activityId: input.options.id,
       activityType: { name: input.activityType },
       taskQueue: { name: input.options.taskQueue },
@@ -367,8 +378,11 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       priority: input.options.priority ? compilePriority(input.options.priority) : undefined,
       startDelay: msOptionalToTs(input.options.startDelay),
       completionCallbacks: internalOptions?.completionCallbacks,
-      links: internalOptions?.links,
-      onConflictOptions: internalOptions?.onConflictOptions,
+      links: internalOptions?.links ?? ambientLinks,
+      // Only send conflict options when there are links to attach.
+      onConflictOptions:
+        internalOptions?.onConflictOptions ??
+        (ambientLinks && ambientLinks.length > 0 ? { attachLinks: true, attachRequestId: true } : undefined),
     };
   }
 
