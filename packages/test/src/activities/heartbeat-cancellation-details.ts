@@ -32,7 +32,7 @@ export async function heartbeatCancellationDetailsActivity(
   // Pause AND reset the activity.
   if (state.pause && state.reset) {
     await client.workflowService.pauseActivity(req);
-    await client.workflowService.resetActivity(req);
+    await client.workflowService.resetActivity({ ...req, keepPaused: true });
     // Just pause.
   } else if (state.pause) {
     await client.workflowService.pauseActivity(req);
