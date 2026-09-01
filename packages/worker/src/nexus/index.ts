@@ -15,7 +15,7 @@ import { encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
 import { isAbortError } from '@temporalio/common/lib/type-helpers';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import type { Client } from '@temporalio/client';
-import { runWithNexusActivityStartContext } from '@temporalio/client/lib/internal';
+import { runWithNexusStartOperationTaskContext } from '@temporalio/client/lib/internal';
 import type { Logger } from '../logger';
 import type {
   NexusCancelOperationInput,
@@ -258,7 +258,7 @@ export class NexusHandler {
           return [];
         }
       });
-      return await runWithNexusActivityStartContext(
+      return await runWithNexusStartOperationTaskContext(
         {
           requestId: variant.requestId,
           links: inboundTemporalLinks,

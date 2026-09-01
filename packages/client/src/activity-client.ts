@@ -78,7 +78,7 @@ import {
 import {
   type InternalActivityStartOptions,
   InternalActivityStartOptionsSymbol,
-  getNexusActivityStartContext,
+  getNexusStartOperationTaskContext,
 } from './internal';
 
 /**
@@ -310,7 +310,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       if (internalOptions != null) {
         internalOptions.responseLink = resp.link ?? undefined;
       } else if (resp.link != null) {
-        getNexusActivityStartContext()?.pushResponseLink(resp.link);
+        getNexusStartOperationTaskContext()?.pushResponseLink(resp.link);
       }
       return this.createHandle(input.options.id, resp.runId, outputType);
     } catch (err) {
@@ -344,16 +344,13 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       : undefined;
 
     const internalOptions = (input.options as InternalActivityStartOptions)[InternalActivityStartOptionsSymbol];
-    const nexusActivityStartContext = getNexusActivityStartContext();
-
-    // Raw starts inherit the handler's inbound Nexus links. Guarded starts retain their explicit wiring.
-    const ambientLinks = internalOptions ? undefined : nexusActivityStartContext?.links;
+    const nexusStartOperationTaskContext = getNexusStartOperationTaskContext();
+    const ambientLinks = internalOptions ? undefined : nexusStartOperationTaskContext?.links;
 
     return {
       namespace: this.options.namespace,
       identity: this.options.identity,
-      // Reuse the handler request ID to deduplicate starts after Nexus-task redelivery.
-      requestId: internalOptions?.requestId ?? nexusActivityStartContext?.requestId ?? randomUUID(),
+      requestId: internalOptions?.requestId ?? nexusStartOperationTaskContext?.requestId ?? randomUUID(),
       activityId: input.options.id,
       activityType: { name: input.activityType },
       taskQueue: { name: input.options.taskQueue },

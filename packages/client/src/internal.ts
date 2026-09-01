@@ -204,7 +204,7 @@ export interface InternalActivityStartOptions extends ActivityOptions {
 }
 
 // ts-prune-ignore-next (imported via lib/internal)
-export type { NexusActivityStartContext } from './nexus-activity-start-context';
-export { getNexusActivityStartContext } from './nexus-activity-start-context';
+export type { NexusStartOperationTaskContext } from './nexus-start-operation-task-context';
+export { getNexusStartOperationTaskContext } from './nexus-start-operation-task-context';
 // ts-prune-ignore-next (imported via lib/internal)
-export { runWithNexusActivityStartContext } from './nexus-activity-start-context';
+export { runWithNexusStartOperationTaskContext } from './nexus-start-operation-task-context';
