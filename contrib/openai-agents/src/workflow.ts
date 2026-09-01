@@ -15,3 +15,5 @@ export type { StatefulTemporalMCPServer } from './common/mcp-types';
 export { DEDICATED_WORKER_FAILURE_TYPE } from './common/mcp-types';
 export { statefulMcpServer } from './workflow/stateful-mcp-client';
 export type { StatefulMcpServerOptions } from './workflow/stateful-mcp-client';
+export { temporalSandboxClient } from './workflow/sandbox-client';
+export { workerEnvValue } from './common/worker-env-vars';

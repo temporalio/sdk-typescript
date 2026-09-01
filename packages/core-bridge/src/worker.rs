@@ -700,10 +700,10 @@ mod config {
 
     impl From<WorkerDeploymentVersion> for CoreWorkerDeploymentVersion {
         fn from(val: WorkerDeploymentVersion) -> Self {
-            Self {
-                build_id: val.build_id,
-                deployment_name: val.deployment_name,
-            }
+            Self::builder()
+                .build_id(val.build_id)
+                .deployment_name(val.deployment_name)
+                .build()
         }
     }
 
