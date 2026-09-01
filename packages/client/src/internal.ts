@@ -202,9 +202,3 @@ export interface InternalActivityStartOptions extends ActivityOptions {
     onConflictOptions?: temporal.api.workflow.v1.IOnConflictOptions;
   };
 }
-
-// ts-prune-ignore-next (imported via lib/internal)
-export type { NexusStartOperationTaskContext } from './nexus-start-operation-task-context';
-export { getNexusStartOperationTaskContext } from './nexus-start-operation-task-context';
-// ts-prune-ignore-next (imported via lib/internal)
-export { runWithNexusStartOperationTaskContext } from './nexus-start-operation-task-context';

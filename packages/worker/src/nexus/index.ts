@@ -10,12 +10,10 @@ import {
 } from '@temporalio/common';
 import type { temporal, coresdk } from '@temporalio/proto';
 import { asyncLocalStorage } from '@temporalio/nexus/lib/context';
-import { convertNexusLinkToTemporalLink, convertTemporalLinkToNexusLink } from '@temporalio/nexus/lib/link-converter';
 import { encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
 import { isAbortError } from '@temporalio/common/lib/type-helpers';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import type { Client } from '@temporalio/client';
-import { runWithNexusStartOperationTaskContext } from '@temporalio/client/lib/internal';
 import type { Logger } from '../logger';
 import type {
   NexusCancelOperationInput,
@@ -241,36 +239,16 @@ export class NexusHandler {
       if (!variant.requestId) {
         throw new IllegalStateError('Missing requestId in Nexus start operation request');
       }
-      const ctx: nexus.StartOperationContext = {
-        ...this.context,
-        requestId: variant.requestId,
-        inboundLinks: (variant.links ?? []).map(protoLinkToNexusLink),
-        callbackUrl: variant.callback ?? undefined,
-        callbackHeaders: variant.callbackHeader ?? undefined,
-        outboundLinks: [],
-      };
-      // Make Nexus request data available to raw Activity starts in this handler invocation.
-      const inboundTemporalLinks = ctx.inboundLinks.flatMap((link) => {
-        try {
-          return [convertNexusLinkToTemporalLink(link)];
-        } catch (error) {
-          this.logger.warn('failed to convert Nexus link to Workflow event link', { error });
-          return [];
-        }
-      });
-      return await runWithNexusStartOperationTaskContext(
+      return await this.startOperation(
         {
+          ...this.context,
           requestId: variant.requestId,
-          links: inboundTemporalLinks,
-          pushResponseLink: (link) => {
-            try {
-              ctx.outboundLinks.push(convertTemporalLinkToNexusLink(link));
-            } catch (error) {
-              this.logger.warn('failed to convert Temporal link to Nexus link', { error });
-            }
-          },
+          inboundLinks: (variant.links ?? []).map(protoLinkToNexusLink),
+          callbackUrl: variant.callback ?? undefined,
+          callbackHeaders: variant.callbackHeader ?? undefined,
+          outboundLinks: [],
         },
-        () => this.startOperation(ctx, variant.payload ?? undefined)
+        variant.payload ?? undefined
       );
     } else if (task.request?.cancelOperation != null) {
       const variant = task.request?.cancelOperation;

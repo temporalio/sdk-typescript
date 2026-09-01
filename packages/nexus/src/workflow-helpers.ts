@@ -8,6 +8,7 @@ import type {
 } from '@temporalio/common';
 import type { Replace } from '@temporalio/common/lib/type-helpers';
 import type {
+  ActivityClientInterceptor,
   ActivityHandle,
   ActivityName,
   ActivityOptions as ClientActivityOptions,
@@ -17,7 +18,7 @@ import type {
   WorkflowStartOptions as ClientWorkflowStartOptions,
   WorkflowSignalWithStartOptions as ClientWorkflowSignalWithStartOptions,
 } from '@temporalio/client';
-import { WorkflowUpdateStage, type WorkflowUpdateOptions } from '@temporalio/client';
+import { ActivityClient, WorkflowUpdateStage, type WorkflowUpdateOptions } from '@temporalio/client';
 import { type temporal } from '@temporalio/proto';
 import type {
   InternalActivityStartOptions,
@@ -585,6 +586,9 @@ class TemporalNexusClientImpl implements TemporalNexusClient {
   // sdk-python's per-invocation `_started_async` on its Nexus client.
   private asyncOperationStarted = false;
 
+  // Memoizes the `client` getter below so repeated access returns the same instance.
+  private _client?: Client;
+
   constructor(private readonly startOperationContext: TemporalStartOperationContext) {}
 
   /**
@@ -611,12 +615,49 @@ class TemporalNexusClientImpl implements TemporalNexusClient {
   };
 
   /**
+   * Adds the active Nexus operation's request ID and inbound links to raw ActivityClient starts.
+   * A no-op if the start already carries its own SDK-internal start options.
+   */
+  private readonly nexusActivityStartInterceptor: ActivityClientInterceptor = {
+    start: async (input, next) => {
+      const optionsWithInternal = input.options as InternalActivityStartOptions;
+      const existingInternalOptions = optionsWithInternal[InternalActivityStartOptionsSymbol];
+      if (existingInternalOptions != null) {
+        return next(input);
+      }
+      const links = requestLinksToTemporalLinks(this.startOperationContext);
+      const internalOptions: NonNullable<InternalActivityStartOptions[typeof InternalActivityStartOptionsSymbol]> = {
+        requestId: this.startOperationContext.requestId,
+        links,
+        onConflictOptions: links.length > 0 ? { attachLinks: true, attachRequestId: true } : undefined,
+      };
+      const options: InternalActivityStartOptions = {
+        ...input.options,
+        [InternalActivityStartOptionsSymbol]: internalOptions,
+      };
+      const handle = await next({ ...input, options });
+      if (internalOptions.responseLink != null) {
+        pushResponseLink(this.startOperationContext, internalOptions.responseLink);
+      }
+      return handle;
+    },
+  };
+
+  /**
    * The Temporal Client for the active Nexus Operation.
    *
    * @experimental Temporal Operation handlers are experimental.
    */
   public get client(): Client {
-    return getClient();
+    if (this._client == null) {
+      const base = getClient();
+      const activity = new ActivityClient({
+        ...base.activity.options,
+        interceptors: [...(base.activity.options.interceptors ?? []), this.nexusActivityStartInterceptor],
+      });
+      this._client = Object.assign(Object.create(base), { activity }) as Client;
+    }
+    return this._client;
   }
 
   /**

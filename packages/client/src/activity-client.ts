@@ -53,6 +53,7 @@ import type {
 } from './interceptors';
 import type { AsyncCompletionClientOptions } from './async-completion-client';
 import { AsyncCompletionClient } from './async-completion-client';
+import type { LoadedWithDefaults } from './base-client';
 import type {
   ActivityExecutionDescription,
   ActivityExecutionInfo,
@@ -75,11 +76,7 @@ import {
   ActivityExecutionFailedError,
   ActivityExecutionAlreadyStartedError,
 } from './errors';
-import {
-  type InternalActivityStartOptions,
-  InternalActivityStartOptionsSymbol,
-  getNexusStartOperationTaskContext,
-} from './internal';
+import { type InternalActivityStartOptions, InternalActivityStartOptionsSymbol } from './internal';
 
 /**
  * Options used to configure {@link ActivityClient}
@@ -90,6 +87,8 @@ export interface ActivityClientOptions extends AsyncCompletionClientOptions {
   interceptors?: ActivityClientInterceptor[];
 }
 
+export type LoadedActivityClientOptions = LoadedWithDefaults<ActivityClientOptions>;
+
 /**
  * Client for starting and managing Activities, and for asynchronous completion and heartbeating of Activities.
  * Includes all functionality of {@link AsyncCompletionClient}.
@@ -98,6 +97,8 @@ export interface ActivityClientOptions extends AsyncCompletionClientOptions {
  * {@link Client.activity} to interact with Activities.
  */
 export class ActivityClient extends AsyncCompletionClient implements TypedActivityClient<any> {
+  declare readonly options: LoadedActivityClientOptions;
+
   private readonly interceptedHandlers: {
     [K in keyof Required<ActivityClientInterceptor>]: Next<ActivityClientInterceptor, K>;
   };
@@ -106,6 +107,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
     super(options);
 
     const interceptors = options?.interceptors ?? [];
+    this.options = { ...this.options, interceptors };
     this.interceptedHandlers = {
       start: composeInterceptors(interceptors, 'start', this.startHandler.bind(this)),
       getResult: composeInterceptors(interceptors, 'getResult', this.getResultHandler.bind(this)),
@@ -309,8 +311,6 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
 
       if (internalOptions != null) {
         internalOptions.responseLink = resp.link ?? undefined;
-      } else if (resp.link != null) {
-        getNexusStartOperationTaskContext()?.pushResponseLink(resp.link);
       }
       return this.createHandle(input.options.id, resp.runId, outputType);
     } catch (err) {
@@ -344,13 +344,11 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       : undefined;
 
     const internalOptions = (input.options as InternalActivityStartOptions)[InternalActivityStartOptionsSymbol];
-    const nexusStartOperationTaskContext = getNexusStartOperationTaskContext();
-    const ambientLinks = internalOptions ? undefined : nexusStartOperationTaskContext?.links;
 
     return {
       namespace: this.options.namespace,
       identity: this.options.identity,
-      requestId: internalOptions?.requestId ?? nexusStartOperationTaskContext?.requestId ?? randomUUID(),
+      requestId: internalOptions?.requestId ?? randomUUID(),
       activityId: input.options.id,
       activityType: { name: input.activityType },
       taskQueue: { name: input.options.taskQueue },
@@ -375,11 +373,8 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       priority: input.options.priority ? compilePriority(input.options.priority) : undefined,
       startDelay: msOptionalToTs(input.options.startDelay),
       completionCallbacks: internalOptions?.completionCallbacks,
-      links: internalOptions?.links ?? ambientLinks,
-      // Only send conflict options when there are links to attach.
-      onConflictOptions:
-        internalOptions?.onConflictOptions ??
-        (ambientLinks && ambientLinks.length > 0 ? { attachLinks: true, attachRequestId: true } : undefined),
+      links: internalOptions?.links,
+      onConflictOptions: internalOptions?.onConflictOptions,
     };
   }
 
