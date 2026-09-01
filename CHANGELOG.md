@@ -116,7 +116,7 @@ to docs, or any other relevant information.
 ### Fixed
 
 - Nexus handlers now report uncaught Workflow and standalone Activity already-started errors as
-  non-retryable `INTERNAL` Handler Errors, preventing futile retries when ID reuse or conflict
+  non-retryable `INTERNAL` Handler Errors, preventing retries when ID reuse or conflict
   policies reject duplicate execution IDs.
 - Local Activities now fall back to a registered `default` activity when the requested type is not
   registered, matching non-local Activity dispatch. Previously the Workflow Task failed immediately
