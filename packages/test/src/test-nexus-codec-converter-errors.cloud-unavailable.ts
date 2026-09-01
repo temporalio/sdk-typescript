@@ -408,7 +408,7 @@ test('Nexus operation output PayloadValidationError is retryable and eventually 
 
     const lastAttemptError = defaultFailureConverter.failureToError(lastAttemptFailure!, defaultPayloadConverter);
     t.true(lastAttemptError instanceof nexus.HandlerError);
-    const handlerError = innermostHandlerError(lastAttemptError as nexus.HandlerError);
+    const handlerError = lastAttemptError as nexus.HandlerError;
     t.is(handlerError.type, 'INTERNAL');
     t.true(handlerError.retryable);
     t.true(handlerError.cause instanceof ApplicationFailure);
