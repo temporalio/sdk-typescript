@@ -37,6 +37,15 @@ export async function nexusOutputCaller(endpoint: string): Promise<string> {
   return 'done';
 }
 
+export async function nexusValidationOutputRetryCaller(endpoint: string): Promise<{ nexusResult: string }> {
+  const client = workflow.createNexusServiceClient({
+    endpoint,
+    service: testService,
+  });
+  const handle = await client.startOperation('echoOp', 'hello');
+  return { nexusResult: await handle.result() };
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 test('Nexus operation codec failure is retried', async (t) => {
@@ -385,23 +394,17 @@ test('Nexus operation output PayloadValidationError is retryable and eventually 
     ],
   });
 
-  const customClient = new Client({
-    connection: t.context.env.connection,
-    dataConverter: { payloadCodecs: [validationCodec] },
-  });
-
   await worker.runUntil(async () => {
-    const result = await customClient.workflow.execute(nexusEchoCaller, {
+    const result = await t.context.env.client.workflow.execute(nexusValidationOutputRetryCaller, {
       taskQueue,
       workflowId: randomUUID(),
       args: [endpointName],
     });
-    t.is(result, 'validation-output');
+    t.deepEqual(result, { nexusResult: 'validation-output' });
   });
 
   t.is(handlerAttempts, 2);
-  // Two Nexus result attempts plus the successful caller Workflow result.
-  t.is(outputEncodeAttempts, 3);
+  t.is(outputEncodeAttempts, 2);
 });
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
