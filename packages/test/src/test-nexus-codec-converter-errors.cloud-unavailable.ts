@@ -35,17 +35,8 @@ export async function nexusEchoCaller(endpoint: string, input: any = 'hello'): P
 }
 
 export async function nexusOutputCaller(endpoint: string): Promise<string> {
-  await nexusEchoCaller(endpoint);
+  await nexusEchoCaller(endpoint, 'operation-input');
   return 'done';
-}
-
-export async function nexusValidationOutputRetryCaller(endpoint: string): Promise<{ nexusResult: string }> {
-  const client = workflow.createNexusServiceClient({
-    endpoint,
-    service: testService,
-  });
-  const handle = await client.startOperation('echoOp', 'hello');
-  return { nexusResult: await handle.result() };
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -392,7 +383,7 @@ test('Nexus operation output PayloadValidationError is retryable and eventually 
   });
 
   await worker.runUntil(async () => {
-    const handle = await t.context.env.client.workflow.start(nexusValidationOutputRetryCaller, {
+    const handle = await t.context.env.client.workflow.start(nexusOutputCaller, {
       taskQueue,
       workflowId: randomUUID(),
       args: [endpointName],
@@ -420,7 +411,7 @@ test('Nexus operation output PayloadValidationError is retryable and eventually 
 
     failCodec = false;
 
-    t.deepEqual(await handle.result(), { nexusResult: 'validation-output' });
+    t.is(await handle.result(), 'done');
   });
 });
 
@@ -434,9 +425,7 @@ test('workflow-side Nexus input codec PVE fails one Workflow Task and then succe
     async encode(payloads) {
       if (
         !failed &&
-        payloads.some(
-          (payload) => defaultPayloadConverter.fromPayload<any>(payload)?.__payloadValidation === 'nexus-outbound'
-        )
+        payloads.some((payload) => defaultPayloadConverter.fromPayload<string>(payload) === 'operation-input')
       ) {
         failed = true;
         throw createPayloadValidationError({ field: 'nexus-input' });
@@ -459,18 +448,23 @@ test('workflow-side Nexus input codec PVE fails one Workflow Task and then succe
   });
 
   await worker.runUntil(async () => {
-    const handle = await t.context.env.client.workflow.start(nexusEchoCaller, {
+    const handle = await t.context.env.client.workflow.start(nexusOutputCaller, {
       taskQueue,
       workflowId: randomUUID(),
-      args: [endpointName, { __payloadValidation: 'nexus-outbound' }],
+      args: [endpointName],
     });
-    t.deepEqual(await handle.result(), { __payloadValidation: 'nexus-outbound' });
+    t.is(await handle.result(), 'done');
     const history = await handle.fetchHistory();
-    t.true(
-      (history.events ?? []).some(
-        (event) => event.eventType === temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_TASK_FAILED
-      )
-    );
+    const workflowTaskFailure = (history.events ?? []).find(
+      (event) => event.eventType === temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_TASK_FAILED
+    )?.workflowTaskFailedEventAttributes?.failure;
+    const workflowTaskError = defaultFailureConverter.failureToError(workflowTaskFailure!, defaultPayloadConverter);
+    t.true(workflowTaskError instanceof ApplicationFailure);
+    const payloadValidationError = workflowTaskError as ApplicationFailure;
+    t.is(payloadValidationError.type, 'PayloadValidationError');
+    t.is(payloadValidationError.message, 'Payload validation failed');
+    t.true(payloadValidationError.nonRetryable);
+    t.deepEqual(payloadValidationError.details, [{ field: 'nexus-input' }]);
   });
 });
 
