@@ -2,6 +2,7 @@
 import test from 'ava';
 import { ValueError, type Payload } from '@temporalio/common';
 import { ExternalStorage } from '@temporalio/common/lib/converter/extstore';
+import type { StorageDriverSelectContext, StorageDriverTargetInfo } from '@temporalio/common/lib/converter/extstore';
 import { ExternalStorageRunner, isReferencePayload } from '@temporalio/common/lib/internal-non-workflow';
 import { encode } from '@temporalio/common/lib/encoding';
 import { METADATA_ENCODING_KEY } from '@temporalio/common/lib/converter/types';
@@ -163,6 +164,29 @@ test('store aborts sibling drivers on first failure', async (t) => {
 
   await t.throwsAsync(() => runner.store([makePayload(1), makePayload(2)]));
   t.true(driverBAborted);
+});
+
+test('selector receives a select context carrying the store target', async (t) => {
+  const driver = makeFakeDriver({ name: 's3' });
+  const seen: StorageDriverSelectContext[] = [];
+  const target: StorageDriverTargetInfo = { kind: 'workflow', namespace: 'ns', id: 'wf-id', type: 'MyWorkflow' };
+  const runner = new ExternalStorageRunner(
+    new ExternalStorage({
+      drivers: [driver],
+      payloadSizeThreshold: 0,
+      driverSelector: (ctx) => {
+        seen.push(ctx);
+        return driver;
+      },
+    })
+  );
+
+  await runner.store([makePayload(8)], { target });
+
+  t.is(seen.length, 1);
+  t.deepEqual(seen[0]!.target, target);
+  t.deepEqual(driver.storeCalls[0]!.context.target, target);
+  t.not(seen[0] as unknown, driver.storeCalls[0]!.context as unknown);
 });
 
 test('store/retrieve round-trip preserves order across drivers', async (t) => {

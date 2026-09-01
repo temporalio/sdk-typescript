@@ -53,11 +53,23 @@ export interface StorageDriverActivityInfo {
 export type StorageDriverTargetInfo = StorageDriverWorkflowInfo | StorageDriverActivityInfo;
 
 /**
- * Context handed to {@link StorageDriver.store} (and to the selector).
+ * Context handed to {@link StorageDriver.store}.
  *
  * @experimental
  */
 export interface StorageDriverStoreContext {
+  /** Aborts the in-flight operation; siblings are cancelled on first error. */
+  abortSignal?: AbortSignal;
+  /** Identity of the workflow / activity that produced the payloads. */
+  target?: StorageDriverTargetInfo;
+}
+
+/**
+ * Context handed to {@link StorageDriverSelector}.
+ *
+ * @experimental
+ */
+export interface StorageDriverSelectContext {
   /** Aborts the in-flight operation; siblings are cancelled on first error. */
   abortSignal?: AbortSignal;
   /** Identity of the workflow / activity that produced the payloads. */
@@ -95,7 +107,7 @@ export interface StorageDriver {
  *
  * @experimental
  */
-export type StorageDriverSelector = (context: StorageDriverStoreContext, payload: Payload) => StorageDriver | null;
+export type StorageDriverSelector = (context: StorageDriverSelectContext, payload: Payload) => StorageDriver | null;
 
 // ============================================================================
 // Configuration
