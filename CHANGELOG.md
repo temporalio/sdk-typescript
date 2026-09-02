@@ -104,7 +104,7 @@ to docs, or any other relevant information.
 
 - A workflow query issued from inside a Nexus operation handler now propagates the link the server
   returns for the workflow that processed it, so the caller's Nexus operation event points back at
-  the queried workflow. 
+  the queried workflow.
 - Nexus is now generally available (GA) for calling Nexus Operations from Workflows and handling
   Workflow-backed Operations with `WorkflowRunOperationHandler`.
 - A `common.v1.Link.Workflow` now serializes to `temporal:///namespaces/{ns}/workflows/{wid}/{rid}`
