@@ -13,8 +13,8 @@ import {
   setHandler,
 } from '@temporalio/workflow';
 import { SdkFlags } from '@temporalio/workflow/lib/flags';
-import type { ActivityCancellationDetails } from '@temporalio/common';
-import { ApplicationFailure, encodingKeys, METADATA_ENCODING_KEY, RawValue } from '@temporalio/common';
+import type { ActivityCancellationDetails, PayloadTypeInfo } from '@temporalio/common';
+import { ApplicationFailure, RawValue, rawValueTypeInfo } from '@temporalio/common';
 import {
   TEMPORAL_RESERVED_PREFIX,
   STACK_TRACE_QUERY_NAME,
@@ -479,15 +479,29 @@ export async function completableWorkflow(completes: boolean): Promise<void> {
   await workflow.condition(() => completes);
 }
 
-export async function rawValueWorkflow(value: unknown, isPayload: boolean = false): Promise<RawValue> {
-  const { rawValueActivity } = workflow.proxyActivities({ startToCloseTimeout: '10s' });
-  const rv = isPayload
-    ? RawValue.fromPayload({
-        metadata: { [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_RAW },
-        data: value as Uint8Array,
-      })
-    : new RawValue(value);
-  return await rawValueActivity(rv, isPayload);
+export const rawValuePayloadTypeInfo: PayloadTypeInfo = {
+  inputTypes: [rawValueTypeInfo],
+  outputType: rawValueTypeInfo,
+};
+
+workflow.defineWorkflowOptions(rawValueWorkflow, {
+  staticOptions: { typeInfo: rawValuePayloadTypeInfo },
+});
+export async function rawValueWorkflow(value: RawValue): Promise<RawValue> {
+  if (!(value instanceof RawValue)) {
+    throw new TypeError('Expected RawValue Workflow input');
+  }
+  const { rawValueActivity } = workflow.proxyActivities<{
+    rawValueActivity(value: RawValue): Promise<RawValue>;
+  }>({
+    startToCloseTimeout: '3s',
+    activityTypeInfo: { rawValueActivity: rawValuePayloadTypeInfo },
+  });
+  const result = await rawValueActivity(value);
+  if (!(result instanceof RawValue)) {
+    throw new TypeError('Expected RawValue Activity result');
+  }
+  return result;
 }
 
 export async function ChildWorkflowInfo(): Promise<workflow.RootWorkflowInfo | undefined> {
