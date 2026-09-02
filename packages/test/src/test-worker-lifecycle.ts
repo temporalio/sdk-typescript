@@ -6,8 +6,16 @@
  */
 import { randomUUID } from 'crypto';
 import test from 'ava';
+import {
+  createPayloadValidationError,
+  defaultFailureConverter,
+  defaultPayloadConverter,
+  type PayloadCodec,
+} from '@temporalio/common';
+import { coresdk } from '@temporalio/proto';
 import type { LogEntry, NativeConnection } from '@temporalio/worker';
 import { DefaultLogger, MetricsBuffer, Runtime } from '@temporalio/worker';
+import { WorkflowCodecRunner } from '@temporalio/worker/lib/workflow-codec-runner';
 import { isolateFreeWorker, Worker as MockWorker } from './mock-native-worker';
 
 test.serial('Worker.create debug log options are JSON serializable with buffered metrics and connection', async (t) => {
@@ -63,6 +71,79 @@ test.serial('Mocked run shuts down gracefully', async (t) => {
   } finally {
     if (Runtime._instance) await Runtime._instance.shutdown();
   }
+});
+
+test('Worker retains a failed Workflow until Core eviction', async (t) => {
+  const worker = isolateFreeWorker({ taskQueue: t.title.replace(/ /g, '_') });
+  const invalidPayload = defaultPayloadConverter.toPayload('invalid-payload');
+  const codec: PayloadCodec = {
+    async encode(payloads) {
+      if (payloads.some((payload) => defaultPayloadConverter.fromPayload(payload) === 'invalid-payload')) {
+        throw createPayloadValidationError({ field: 'nexus-input' });
+      }
+      return payloads;
+    },
+    async decode(payloads) {
+      return payloads;
+    },
+  };
+  const workflowCodecRunner = new WorkflowCodecRunner(
+    {
+      payloadConverter: defaultPayloadConverter,
+      failureConverter: defaultFailureConverter,
+      payloadCodecs: [codec],
+    },
+    { type: 'workflow', namespace: 'default', workflowId: 'workflow-id' }
+  );
+  let disposeCount = 0;
+  const workflow = {
+    workflow: {
+      async activate() {
+        return {
+          successful: {
+            commands: [{ scheduleNexusOperation: { seq: 1, input: invalidPayload } }],
+          },
+        };
+      },
+      async getAndResetSinkCalls() {
+        return [];
+      },
+      async dispose() {
+        disposeCount++;
+      },
+    },
+    logAttributes: {},
+    workflowCodecRunner,
+    info: { workflowType: 'test' },
+  };
+  const handleActivation = (worker as any).handleActivation.bind(worker);
+
+  const failed = await handleActivation(workflow, {
+    activation: coresdk.workflow_activation.WorkflowActivation.create({
+      runId: 'run-id',
+      jobs: [{ fireTimer: { seq: 1 } }],
+    }),
+    synthetic: false,
+  });
+
+  const failedCompletion = coresdk.workflow_completion.WorkflowActivationCompletion.decodeDelimited(
+    failed.output.completion
+  );
+  t.is(failedCompletion.failed?.failure?.applicationFailureInfo?.type, 'PayloadValidationError');
+  t.is(failed.state, workflow);
+  t.false(failed.output.close);
+  t.is(disposeCount, 0);
+
+  const evicted = await handleActivation(failed.state, {
+    activation: coresdk.workflow_activation.WorkflowActivation.create({
+      runId: 'run-id',
+      jobs: [{ removeFromCache: {} }],
+    }),
+    synthetic: false,
+  });
+
+  t.true(evicted.output.close);
+  t.is(disposeCount, 1);
 });
 
 test.serial('Mocked run shuts down gracefully if interrupted before running', async (t) => {
