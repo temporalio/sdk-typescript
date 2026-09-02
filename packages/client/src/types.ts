@@ -60,6 +60,10 @@ export interface WorkflowExecutionInfo {
   searchAttributes: SearchAttributes;
   typedSearchAttributes: TypedSearchAttributes;
   parentExecution?: Required<proto.temporal.api.common.v1.IWorkflowExecution>;
+  /**
+   * Root workflow execution. Its namespace is not retained and may differ from this workflow's
+   * namespace for cross-namespace child workflows. Track it separately if needed.
+   */
   rootExecution?: Required<proto.temporal.api.common.v1.IWorkflowExecution>;
   raw: RawWorkflowExecutionInfo;
   priority?: Priority;

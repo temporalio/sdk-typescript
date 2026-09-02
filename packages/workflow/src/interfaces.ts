@@ -81,6 +81,9 @@ export interface WorkflowInfo {
    * and therefore, whether the new workflow has the same root workflow as the original one
    * depends on whether it had a parent.
    *
+   * The root workflow's namespace is not retained and may differ from this workflow's namespace
+   * for cross-namespace child workflows. Track it separately if needed.
+   *
    */
   readonly root?: RootWorkflowInfo;
 
@@ -329,6 +332,10 @@ export interface ParentWorkflowInfo {
   namespace: string;
 }
 
+/**
+ * Root workflow information. The namespace is not retained and may differ from the current
+ * workflow's namespace for cross-namespace child workflows. Track it separately if needed.
+ */
 export interface RootWorkflowInfo {
   workflowId: string;
   runId: string;
