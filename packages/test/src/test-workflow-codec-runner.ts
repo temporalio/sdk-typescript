@@ -202,6 +202,44 @@ test('encodeCompletion stores activity context and decodeActivation reuses it fo
   ]);
 });
 
+test('encodeCompletion encodes event group marker labels with the command context', async (t) => {
+  const runner = new WorkflowCodecRunner([new FreePayloadCodec()], {
+    type: 'workflow',
+    namespace: 'default',
+    workflowId: 'wf-1',
+  });
+
+  const encoded = decodeCompletion(
+    await runner.encodeCompletion({
+      successful: {
+        commands: [
+          {
+            scheduleActivity: {
+              seq: 1,
+              activityId: 'act-1',
+              arguments: [payload('activity-input')],
+            },
+            eventGroupMarkers: [{ label: { id: 'group-1', label: payload('activity-marker') } }],
+          },
+          {
+            completeWorkflowExecution: {},
+            eventGroupMarkers: [{ label: { id: 'group-2', label: payload('workflow-marker') } }],
+          },
+        ],
+      },
+    })
+  );
+
+  const commands = encoded.successful?.commands ?? [];
+  t.deepEqual(traceFromPayload(commands[0]?.eventGroupMarkers?.[0]?.label?.label as Payload), [
+    'codec.encode.bound|activity-marker|activity.default.wf-1.act-1.false',
+  ]);
+  // A command that targets nothing of its own leaves its markers on the workflow context.
+  t.deepEqual(traceFromPayload(commands[1]?.eventGroupMarkers?.[0]?.label?.label as Payload), [
+    'codec.encode.bound|workflow-marker|workflow.default.wf-1',
+  ]);
+});
+
 test('encodeCompletion keeps distinct child-workflow contexts for start and completion', async (t) => {
   const runner = new WorkflowCodecRunner([new FreePayloadCodec()], {
     type: 'workflow',
