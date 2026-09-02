@@ -115,6 +115,7 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- Activity errors converted to `ApplicationFailure` now preserve native `Error.cause` chains in serialized failures.
 - Local Activities now fall back to a registered `default` activity when the requested type is not
   registered, matching non-local Activity dispatch. Previously the Workflow Task failed immediately
   with `ReferenceError` even if `default` was registered.
