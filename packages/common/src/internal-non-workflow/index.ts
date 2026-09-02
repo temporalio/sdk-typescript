@@ -11,5 +11,6 @@ export * from './external-storage-runner';
 export * from './external-storage-visitor';
 export * from './payload-visitor';
 export * from './parse-host-uri';
+export * from './payload-validation-error';
 export * from './proxy-config';
 export * from './tls-config';

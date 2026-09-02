@@ -7,6 +7,11 @@ import { TextDecoder, TextEncoder } from 'node:util';
 import { SourceMapConsumer } from 'source-map';
 import { cutoffStackTrace, IllegalStateError, convertDeploymentVersion } from '@temporalio/common';
 import { suggestContinueAsNewReasonsFromProto } from '@temporalio/common/lib/continue-as-new';
+import {
+  isPayloadValidationError,
+  findWorkflowTaskPayloadConversionError,
+  payloadFreePayloadValidationFailure,
+} from '@temporalio/common/lib/internal-workflow/payload-validation-error';
 import { tsToMs } from '@temporalio/common/lib/time';
 import { coresdk } from '@temporalio/proto';
 import type { StackTraceFileLocation } from '@temporalio/workflow';
@@ -478,13 +483,42 @@ export abstract class BaseVMWorkflow implements Workflow {
 
       return completion;
     } catch (err) {
+      const payloadValidationError = isPayloadValidationError(err) ? err : undefined;
+      const workflowTaskPayloadConversionError = findWorkflowTaskPayloadConversionError(err);
+      if (
+        payloadValidationError !== undefined &&
+        workflowTaskPayloadConversionError === undefined &&
+        activation.jobs?.some((job) => job.initializeWorkflow != null)
+      ) {
+        let failure;
+        try {
+          failure = this.activator.errorToFailure(payloadValidationError);
+        } catch (_conversionError) {
+          failure = payloadFreePayloadValidationFailure(payloadValidationError);
+        }
+        return {
+          runId: this.activator.info.runId,
+          successful: {
+            commands: [{ failWorkflowExecution: { failure } }],
+          },
+        };
+      }
+      let failure;
+      try {
+        failure = this.activator.errorToFailure(workflowTaskPayloadConversionError?.cause ?? err);
+      } catch (conversionError) {
+        if (workflowTaskPayloadConversionError === undefined || payloadValidationError === undefined) {
+          throw conversionError;
+        }
+        failure = payloadFreePayloadValidationFailure(payloadValidationError);
+      }
       return {
         runId: this.activator.info.runId,
         // FIXME: Calling `activator.errorToFailure()` directly from outside the VM is unsafe, as it
         // depends on the `failureConverter` and `payloadConverter`, which may be customized and
         // therefore aren't guaranteed not to access `global` or to cause scheduling microtasks.
         // Admitingly, the risk is very low, so we're leaving it as is for now.
-        failed: { failure: this.activator.errorToFailure(err) },
+        failed: { failure },
       };
     }
   }

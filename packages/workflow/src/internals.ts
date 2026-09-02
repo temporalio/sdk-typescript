@@ -39,6 +39,12 @@ import {
   decodeTypedSearchAttributes,
 } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
+import {
+  convertPayloadForWorkflowTask,
+  isPayloadValidationError,
+  payloadFreePayloadValidationFailure,
+  isWorkflowTaskPayloadConversionError,
+} from '@temporalio/common/lib/internal-workflow/payload-validation-error';
 import type { coresdk, temporal } from '@temporalio/proto';
 import {
   TEMPORAL_RESERVED_PREFIX,
@@ -80,6 +86,7 @@ import pkg from './pkg';
 import type { SdkFlag } from './flags';
 import { assertValidFlag } from './flags';
 import { executeWithLifecycleLogging, log } from './logs';
+import { metricMeter } from './metrics';
 
 const StartChildWorkflowExecutionFailedCause = {
   WORKFLOW_ALREADY_EXISTS: 'WORKFLOW_ALREADY_EXISTS',
@@ -910,12 +917,15 @@ export class Activator implements ActivationHandler {
       outputTypeInfo = this.queryHandlers.get(input.queryName)?.typeInfo?.outputType;
       return this.queryWorkflowNextHandler(input);
     });
-    execute({
-      queryName: queryType,
-      args: arrayFromPayloads(this.payloadConverter, activation.arguments, context, typeInfo?.inputTypes),
-      queryId,
-      headers: headers ?? {},
-    }).then(
+    let args: unknown[];
+    try {
+      args = arrayFromPayloads(this.payloadConverter, activation.arguments, context, typeInfo?.inputTypes);
+    } catch (error) {
+      if (!isPayloadValidationError(error)) throw error;
+      this.failQuery(queryId, error);
+      return;
+    }
+    execute({ queryName: queryType, args, queryId, headers: headers ?? {} }).then(
       (result) => this.completeQuery(queryId, result, outputTypeInfo),
       (reason) => this.failQuery(queryId, reason)
     );
@@ -1154,25 +1164,29 @@ export class Activator implements ActivationHandler {
     // ensuing warnings.
     const signalHandler = this.signalHandlers.get(signalName);
     const unfinishedPolicy = signalHandler?.unfinishedPolicy ?? HandlerUnfinishedPolicy.WARN_AND_ABANDON;
+    const context = this.workflowSerializationContext();
+
+    let args: unknown[];
+    try {
+      args = arrayFromPayloads(this.payloadConverter, activation.input, context, signalHandler?.typeInfo?.inputTypes);
+    } catch (error) {
+      if (!isPayloadValidationError(error)) throw error;
+      log.error('Failed to convert signal input; dropping signal', {
+        signalName,
+        error,
+      });
+      metricMeter
+        .createCounter('corrupted_signals', undefined, 'Number of signals dropped because their payloads are invalid')
+        .add(1);
+      return;
+    }
 
     const signalExecutionNum = this.signalHandlerExecutionSeq++;
     this.inProgressSignals.set(signalExecutionNum, { name: signalName, unfinishedPolicy });
     const execute = composeInterceptors(interceptors, 'handleSignal', this.signalWorkflowNextHandler.bind(this));
-    const context = this.workflowSerializationContext();
     const implicitMarker = createInboundEventMarker(activation.originatingEventId);
     implicitMarker
-      .withScope(() =>
-        execute({
-          args: arrayFromPayloads(
-            this.payloadConverter,
-            activation.input,
-            context,
-            signalHandler?.typeInfo?.inputTypes
-          ),
-          signalName,
-          headers: headers ?? {},
-        })
-      )
+      .withScope(() => execute({ args, signalName, headers: headers ?? {} }))
       .catch(this.handleWorkflowFailure.bind(this))
       .finally(() => this.inProgressSignals.delete(signalExecutionNum));
   }
@@ -1346,7 +1360,9 @@ export class Activator implements ActivationHandler {
    * Used to handle any failure emitted by the Workflow.
    */
   handleWorkflowFailure(error: unknown): void {
-    if (this.cancelled && isCancellation(error)) {
+    if (isWorkflowTaskPayloadConversionError(error)) {
+      this.recordWorkflowTaskError(error);
+    } else if (this.cancelled && isCancellation(error)) {
       this.pushCommand({ cancelWorkflowExecution: {} }, true);
     } else if (error instanceof ContinueAsNew) {
       this.pushCommand(
@@ -1364,7 +1380,7 @@ export class Activator implements ActivationHandler {
       this.pushCommand(
         {
           failWorkflowExecution: {
-            failure: this.errorToFailure(ensureTemporalFailure(error)),
+            failure: convertPayloadForWorkflowTask(() => this.errorToFailure(ensureTemporalFailure(error))),
           },
         },
         true
@@ -1430,19 +1446,24 @@ export class Activator implements ActivationHandler {
 
   private completeQuery(queryId: string, result: unknown, typeInfo?: TypeInfo): void {
     const context = this.workflowSerializationContext();
-    this.pushCommand({
-      respondToQuery: {
-        queryId,
-        succeeded: { response: toPayloadWithTypeInfo(this.payloadConverter, result, context, typeInfo) },
-      },
-    });
+    try {
+      this.pushCommand({
+        respondToQuery: {
+          queryId,
+          succeeded: { response: toPayloadWithTypeInfo(this.payloadConverter, result, context, typeInfo) },
+        },
+      });
+    } catch (error) {
+      if (!isPayloadValidationError(error)) throw error;
+      this.failQuery(queryId, error);
+    }
   }
 
   private failQuery(queryId: string, error: unknown): void {
     this.pushCommand({
       respondToQuery: {
         queryId,
-        failed: this.errorToFailure(ensureTemporalFailure(error)),
+        failed: this.errorToFailureWithPayloadValidationFallback(error),
       },
     });
   }
@@ -1453,21 +1474,36 @@ export class Activator implements ActivationHandler {
 
   private completeUpdate(protocolInstanceId: string, result: unknown, typeInfo?: TypeInfo): void {
     const context = this.workflowSerializationContext();
-    this.pushCommand({
-      updateResponse: {
-        protocolInstanceId,
-        completed: toPayloadWithTypeInfo(this.payloadConverter, result, context, typeInfo),
-      },
-    });
+    try {
+      this.pushCommand({
+        updateResponse: {
+          protocolInstanceId,
+          completed: toPayloadWithTypeInfo(this.payloadConverter, result, context, typeInfo),
+        },
+      });
+    } catch (error) {
+      if (!isPayloadValidationError(error)) throw error;
+      this.rejectUpdate(protocolInstanceId, error);
+    }
   }
 
   private rejectUpdate(protocolInstanceId: string, error: unknown): void {
     this.pushCommand({
       updateResponse: {
         protocolInstanceId,
-        rejected: this.errorToFailure(ensureTemporalFailure(error)),
+        rejected: this.errorToFailureWithPayloadValidationFallback(error),
       },
     });
+  }
+
+  private errorToFailureWithPayloadValidationFallback(error: unknown): ProtoFailure {
+    const temporalFailure = ensureTemporalFailure(error);
+    try {
+      return this.errorToFailure(temporalFailure);
+    } catch (conversionError) {
+      if (!isPayloadValidationError(temporalFailure)) throw conversionError;
+      return payloadFreePayloadValidationFailure(temporalFailure);
+    }
   }
 
   /** Consume a completion if it exists in Workflow state */
@@ -1499,7 +1535,9 @@ export class Activator implements ActivationHandler {
     this.pushCommand(
       {
         completeWorkflowExecution: {
-          result: toPayloadWithTypeInfo(this.payloadConverter, result, context, this.typeInfo?.outputType),
+          result: convertPayloadForWorkflowTask(() =>
+            toPayloadWithTypeInfo(this.payloadConverter, result, context, this.typeInfo?.outputType)
+          ),
         },
       },
       true

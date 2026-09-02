@@ -1,6 +1,11 @@
 import test from 'ava';
-import type { Payload, PayloadCodec } from '@temporalio/common';
-import { ApplicationFailure, defaultFailureConverter, defaultPayloadConverter } from '@temporalio/common';
+import type { LoadedDataConverter, Payload, PayloadCodec } from '@temporalio/common';
+import {
+  ApplicationFailure,
+  createPayloadValidationError,
+  defaultFailureConverter,
+  defaultPayloadConverter,
+} from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
 import { WorkflowCodecRunner } from '@temporalio/worker/lib/workflow-codec-runner';
 import { FreePayloadCodec, makeContextTrace } from './payload-converters/serialization-context-converter';
@@ -25,6 +30,224 @@ function decodeCompletion(
 ): coresdk.workflow_completion.WorkflowActivationCompletion {
   const bytes = coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited(completion).finish();
   return coresdk.workflow_completion.WorkflowActivationCompletion.decodeDelimited(bytes);
+}
+
+function rejectingDataConverter(): LoadedDataConverter {
+  const codec: PayloadCodec = {
+    async encode(payloads) {
+      if (payloads.some((payload) => defaultPayloadConverter.fromPayload<any>(payload)?.reject === true)) {
+        throw createPayloadValidationError({ field: 'invalid' });
+      }
+      return payloads;
+    },
+    async decode(payloads) {
+      if (payloads.some((payload) => defaultPayloadConverter.fromPayload<any>(payload)?.reject === true)) {
+        throw createPayloadValidationError({ field: 'invalid' });
+      }
+      return payloads;
+    },
+  };
+  return {
+    payloadConverter: defaultPayloadConverter,
+    failureConverter: defaultFailureConverter,
+    payloadCodecs: [codec],
+  };
+}
+
+test('decodeActivation handles payload validation failures by activation job', async (t) => {
+  const runner = new WorkflowCodecRunner(rejectingDataConverter(), {
+    type: 'workflow',
+    namespace: 'default',
+    workflowId: 'wf-1',
+  });
+  const rejectedPayload = defaultPayloadConverter.toPayload({ reject: true });
+
+  const decoded = await runner.decodeActivation({
+    runId: 'run-1',
+    jobs: [
+      { signalWorkflow: { signalName: 'bad-signal', input: [rejectedPayload] } },
+      { fireTimer: { seq: 1 } },
+      {
+        doUpdate: { id: 'update-id', protocolInstanceId: 'protocol-id', name: 'bad-update', input: [rejectedPayload] },
+      },
+      { queryWorkflow: { queryId: 'query-id', queryType: 'bad-query', arguments: [rejectedPayload] } },
+    ],
+  });
+
+  t.deepEqual(decoded.jobs?.map((job) => job.fireTimer?.seq), [1]);
+  t.deepEqual(
+    runner.takeDroppedSignalFailures().map(({ signalName }) => signalName),
+    ['bad-signal']
+  );
+
+  const completion = decodeCompletion(await runner.encodeCompletion({ successful: {} }));
+  const commands = completion.successful?.commands ?? [];
+  t.is(commands.length, 2);
+  t.is(commands[0]?.updateResponse?.protocolInstanceId, 'protocol-id');
+  t.is(commands[0]?.updateResponse?.rejected?.applicationFailureInfo?.type, 'PayloadValidationError');
+  t.is(commands[1]?.respondToQuery?.queryId, 'query-id');
+  t.is(commands[1]?.respondToQuery?.failed?.message, 'Payload validation failed');
+});
+
+test('decodeActivation records workflow initialization payload validation failure', async (t) => {
+  const runner = new WorkflowCodecRunner(rejectingDataConverter(), {
+    type: 'workflow',
+    namespace: 'default',
+    workflowId: 'wf-1',
+  });
+  const decoded = await runner.decodeActivation({
+    runId: 'run-1',
+    jobs: [{ initializeWorkflow: { arguments: [defaultPayloadConverter.toPayload({ reject: true })] } }],
+  });
+
+  t.deepEqual(decoded.jobs, []);
+  t.is(runner.takeInitializationFailure()?.type, 'PayloadValidationError');
+});
+
+test('decodeActivation does not retain job-aware state after a failed decode attempt', async (t) => {
+  let otherAttempts = 0;
+  const codec: PayloadCodec = {
+    async encode(payloads) {
+      return payloads;
+    },
+    async decode(payloads) {
+      const value = defaultPayloadConverter.fromPayload<any>(payloads[0]!);
+      if (value.kind === 'signal') throw createPayloadValidationError({ field: 'signal' });
+      if (value.kind === 'other' && otherAttempts++ === 0) throw new Error('fail once');
+      return payloads;
+    },
+  };
+  const runner = new WorkflowCodecRunner(
+    { payloadConverter: defaultPayloadConverter, failureConverter: defaultFailureConverter, payloadCodecs: [codec] },
+    { type: 'workflow', namespace: 'default', workflowId: 'wf-1' }
+  );
+  const activation = {
+    runId: 'run-1',
+    jobs: [
+      { signalWorkflow: { signalName: 'bad-signal', input: [defaultPayloadConverter.toPayload({ kind: 'signal' })] } },
+      {
+        resolveNexusOperation: {
+          seq: 1,
+          result: { completed: defaultPayloadConverter.toPayload({ kind: 'other' }) },
+        },
+      },
+    ],
+  };
+
+  await t.throwsAsync(() => runner.decodeActivation(activation));
+  await runner.decodeActivation(activation);
+  t.is(runner.takeDroppedSignalFailures().length, 1);
+});
+
+test('decodeActivation resets synthetic responses after completion encoding fails', async (t) => {
+  const runner = new WorkflowCodecRunner(rejectingDataConverter(), {
+    type: 'workflow',
+    namespace: 'default',
+    workflowId: 'wf-1',
+  });
+  const rejectedPayload = defaultPayloadConverter.toPayload({ reject: true });
+  const activation = {
+    runId: 'run-1',
+    jobs: [
+      {
+        doUpdate: { id: 'update-id', protocolInstanceId: 'protocol-id', name: 'bad-update', input: [rejectedPayload] },
+      },
+    ],
+  };
+
+  await runner.decodeActivation(activation);
+  await t.throwsAsync(() =>
+    runner.encodeCompletion({
+      successful: { commands: [{ completeWorkflowExecution: { result: rejectedPayload } }] },
+    })
+  );
+  await runner.decodeActivation(activation);
+  const completion = decodeCompletion(await runner.encodeCompletion({ successful: {} }));
+  t.is(completion.successful?.commands?.length, 1);
+  t.is(completion.successful?.commands?.[0]?.updateResponse?.protocolInstanceId, 'protocol-id');
+});
+
+test('encodeCompletion rewrites only query and update results rejected by a codec', async (t) => {
+  const runner = new WorkflowCodecRunner(rejectingDataConverter(), {
+    type: 'workflow',
+    namespace: 'default',
+    workflowId: 'wf-1',
+  });
+  const rejectedPayload = defaultPayloadConverter.toPayload({ reject: true });
+  const completion = decodeCompletion(
+    await runner.encodeCompletion({
+      successful: {
+        commands: [
+          { respondToQuery: { queryId: 'query-id', succeeded: { response: rejectedPayload } } },
+          { updateResponse: { protocolInstanceId: 'protocol-id', completed: rejectedPayload } },
+          { startTimer: { seq: 1, startToFireTimeout: {} } },
+        ],
+      },
+    })
+  );
+
+  const commands = completion.successful?.commands ?? [];
+  t.is(commands[0]?.respondToQuery?.failed?.message, 'Payload validation failed');
+  t.is(commands[1]?.updateResponse?.rejected?.applicationFailureInfo?.type, 'PayloadValidationError');
+  t.is(commands[2]?.startTimer?.seq, 1);
+});
+
+test('encodeCompletion preserves workflow-task failure semantics for other commands', async (t) => {
+  const runner = new WorkflowCodecRunner(rejectingDataConverter(), {
+    type: 'workflow',
+    namespace: 'default',
+    workflowId: 'wf-1',
+  });
+  const error = await t.throwsAsync(() =>
+    runner.encodeCompletion({
+      successful: {
+        commands: [{ completeWorkflowExecution: { result: defaultPayloadConverter.toPayload({ reject: true }) } }],
+      },
+    })
+  );
+  t.is(
+    (error instanceof ApplicationFailure ? error : (error?.cause as ApplicationFailure)).type,
+    'PayloadValidationError'
+  );
+});
+
+for (const [name, makeCommand] of [
+  ['activity scheduling', (p: Payload) => ({ scheduleActivity: { seq: 1, activityId: 'activity', arguments: [p] } })],
+  [
+    'local activity scheduling',
+    (p: Payload) => ({ scheduleLocalActivity: { seq: 1, activityId: 'activity', arguments: [p] } }),
+  ],
+  ['Nexus scheduling', (p: Payload) => ({ scheduleNexusOperation: { seq: 1, input: p } })],
+  [
+    'child workflow start',
+    (p: Payload) => ({ startChildWorkflowExecution: { seq: 1, workflowId: 'child', input: [p] } }),
+  ],
+  [
+    'external signal',
+    (p: Payload) => ({
+      signalExternalWorkflowExecution: { seq: 1, workflowExecution: { workflowId: 'target' }, args: [p] },
+    }),
+  ],
+  ['continue-as-new', (p: Payload) => ({ continueAsNewWorkflowExecution: { arguments: [p], memo: {} } })],
+  ['memo upsert', (p: Payload) => ({ modifyWorkflowProperties: { upsertedMemo: { fields: { invalid: p } } } })],
+  ['command user metadata', (p: Payload) => ({ startTimer: { seq: 1 }, userMetadata: { summary: p } })],
+] as const) {
+  test(`encodeCompletion keeps Workflow Task failure semantics for ${name}`, async (t) => {
+    const runner = new WorkflowCodecRunner(rejectingDataConverter(), {
+      type: 'workflow',
+      namespace: 'default',
+      workflowId: 'wf-1',
+    });
+    const error = await t.throwsAsync(() =>
+      runner.encodeCompletion({
+        successful: { commands: [makeCommand(defaultPayloadConverter.toPayload({ reject: true }))] },
+      })
+    );
+    t.is(
+      (error instanceof ApplicationFailure ? error : (error?.cause as ApplicationFailure)).type,
+      'PayloadValidationError'
+    );
+  });
 }
 
 test('decodeActivation binds workflow codec context for initializeWorkflow payloads', async (t) => {

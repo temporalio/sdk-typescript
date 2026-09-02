@@ -20,12 +20,7 @@ import {
 } from '@temporalio/common';
 import type { PayloadCodec } from '@temporalio/common/lib/converter/payload-codec';
 import { ServiceError } from '@temporalio/client';
-import {
-  PAYLOAD_VALIDATION_ERROR_TYPE,
-  coerceToHandlerError,
-  decodePayload,
-  operationErrorToProto,
-} from '@temporalio/worker/lib/nexus/conversions';
+import { coerceToHandlerError, decodePayload, operationErrorToProto } from '@temporalio/worker/lib/nexus/conversions';
 
 export interface Context {
   taskQueue: string;
@@ -35,6 +30,7 @@ export interface Context {
 }
 
 const test = anyTest as TestFn<Context>;
+const PAYLOAD_VALIDATION_ERROR_TYPE = 'PayloadValidationError';
 
 test.before(async (t) => {
   const logEntries = new Array<LogEntry>();

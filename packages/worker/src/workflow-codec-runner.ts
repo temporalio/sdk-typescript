@@ -1,5 +1,7 @@
 import type {
   ActivitySerializationContext,
+  ApplicationFailure,
+  LoadedDataConverter,
   PayloadCodec,
   SerializationContext,
   WorkflowSerializationContext,
@@ -19,11 +21,28 @@ import {
   noopEncodeSearchAttrs,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { coresdk } from '@temporalio/proto';
+import { encodePayloadValidationError } from '@temporalio/common/lib/internal-non-workflow/payload-validation-error';
+import {
+  isPayloadValidationError,
+  WorkflowTaskPayloadConversionError,
+} from '@temporalio/common/lib/internal-workflow/payload-validation-error';
+
+interface ActivationDecodeState {
+  initializationFailure?: ApplicationFailure;
+  droppedSignalFailures: Array<{ signalName: string | undefined; error: ApplicationFailure }>;
+  syntheticCommands: Encoded<coresdk.workflow_commands.IWorkflowCommand>[];
+}
 
 /**
  * Helper class for decoding Workflow activations and encoding Workflow completions.
  */
 export class WorkflowCodecRunner {
+  private readonly codecs: PayloadCodec[];
+  private readonly dataConverter: LoadedDataConverter | undefined;
+  private initializationFailure: ApplicationFailure | undefined;
+  private readonly droppedSignalFailures: Array<{ signalName: string | undefined; error: ApplicationFailure }> = [];
+  private readonly syntheticCommands: Encoded<coresdk.workflow_commands.IWorkflowCommand>[] = [];
+
   private readonly pendingCompletionContexts = {
     activity: new Map<number, ActivitySerializationContext>(),
     childWorkflowStart: new Map<number, WorkflowSerializationContext>(),
@@ -33,9 +52,124 @@ export class WorkflowCodecRunner {
   };
 
   constructor(
-    private readonly codecs: PayloadCodec[],
+    codecsOrDataConverter: PayloadCodec[] | LoadedDataConverter,
     public readonly workflowContext: WorkflowSerializationContext
-  ) {}
+  ) {
+    if (Array.isArray(codecsOrDataConverter)) {
+      this.codecs = codecsOrDataConverter;
+      this.dataConverter = undefined;
+    } else {
+      this.codecs = codecsOrDataConverter.payloadCodecs;
+      this.dataConverter = codecsOrDataConverter;
+    }
+  }
+
+  public takeInitializationFailure(): ApplicationFailure | undefined {
+    const failure = this.initializationFailure;
+    this.initializationFailure = undefined;
+    return failure;
+  }
+
+  public takeDroppedSignalFailures(): Array<{ signalName: string | undefined; error: ApplicationFailure }> {
+    return this.droppedSignalFailures.splice(0);
+  }
+
+  private async encodePayloadValidationError(error: ApplicationFailure) {
+    if (this.dataConverter === undefined) throw error;
+    return await encodePayloadValidationError(this.dataConverter, error, this.workflowContext);
+  }
+
+  private async handleActivationDecodeError(
+    job: coresdk.workflow_activation.IWorkflowActivationJob,
+    error: unknown,
+    state: {
+      initializationFailure?: ApplicationFailure;
+      droppedSignalFailures: Array<{ signalName: string | undefined; error: ApplicationFailure }>;
+      syntheticCommands: Encoded<coresdk.workflow_commands.IWorkflowCommand>[];
+    }
+  ): Promise<null> {
+    if (!isPayloadValidationError(error)) throw error;
+    if (job.initializeWorkflow) {
+      state.initializationFailure = error;
+      return null;
+    }
+    if (job.signalWorkflow) {
+      state.droppedSignalFailures.push({
+        signalName: job.signalWorkflow.signalName ?? undefined,
+        error,
+      });
+      return null;
+    }
+    if (job.queryWorkflow) {
+      state.syntheticCommands.push({
+        respondToQuery: {
+          queryId: job.queryWorkflow.queryId,
+          failed: await this.encodePayloadValidationError(error),
+        },
+      });
+      return null;
+    }
+    if (job.doUpdate) {
+      state.syntheticCommands.push({
+        updateResponse: {
+          protocolInstanceId: job.doUpdate.protocolInstanceId,
+          rejected: await this.encodePayloadValidationError(error),
+        },
+      });
+      return null;
+    }
+    throw new WorkflowTaskPayloadConversionError(error);
+  }
+
+  private async collectDecodedJobs<T>(
+    jobs: coresdk.workflow_activation.IWorkflowActivationJob[],
+    results: PromiseSettledResult<T>[],
+    state: ActivationDecodeState
+  ): Promise<Awaited<T>[]> {
+    const decoded = await Promise.all(
+      results.map((result, index) =>
+        result.status === 'fulfilled'
+          ? result.value
+          : this.handleActivationDecodeError(jobs[index]!, result.reason, state)
+      )
+    );
+    return decoded.filter((job): job is Awaited<T> => job !== null);
+  }
+
+  private async collectEncodedCommands(
+    commands: coresdk.workflow_commands.IWorkflowCommand[],
+    results: PromiseSettledResult<Encoded<coresdk.workflow_commands.IWorkflowCommand>>[]
+  ): Promise<Encoded<coresdk.workflow_commands.IWorkflowCommand>[]> {
+    return await Promise.all(
+      results.map((result, index) =>
+        result.status === 'fulfilled' ? result.value : this.handleCommandEncodeError(commands[index]!, result.reason)
+      )
+    );
+  }
+
+  private async handleCommandEncodeError(
+    command: coresdk.workflow_commands.IWorkflowCommand,
+    error: unknown
+  ): Promise<Encoded<coresdk.workflow_commands.IWorkflowCommand>> {
+    if (!isPayloadValidationError(error)) throw error;
+    if (command.respondToQuery) {
+      return {
+        respondToQuery: {
+          queryId: command.respondToQuery.queryId,
+          failed: await this.encodePayloadValidationError(error),
+        },
+      };
+    }
+    if (command.updateResponse) {
+      return {
+        updateResponse: {
+          protocolInstanceId: command.updateResponse.protocolInstanceId,
+          rejected: await this.encodePayloadValidationError(error),
+        },
+      };
+    }
+    throw new WorkflowTaskPayloadConversionError(error);
+  }
 
   private consumeContext<TContext extends SerializationContext>(
     map: Map<number, TContext>,
@@ -130,12 +264,16 @@ export class WorkflowCodecRunner {
   public async decodeActivation<T extends coresdk.workflow_activation.IWorkflowActivation>(
     activation: T
   ): Promise<Decoded<T>> {
-    return coresdk.workflow_activation.WorkflowActivation.fromObject(<
+    this.initializationFailure = undefined;
+    this.droppedSignalFailures.length = 0;
+    this.syntheticCommands.length = 0;
+    const state: ActivationDecodeState = { droppedSignalFailures: [], syntheticCommands: [] };
+    const decodedActivation = coresdk.workflow_activation.WorkflowActivation.fromObject(<
       Decoded<coresdk.workflow_activation.IWorkflowActivation>
     >{
       ...activation,
       jobs: activation.jobs
-        ? await Promise.all(
+        ? await Promise.allSettled(
             activation.jobs.map(async (job) => {
               const resolveActivityContext = job.resolveActivity
                 ? this.consumeContext(this.pendingCompletionContexts.activity, job.resolveActivity.seq)
@@ -380,9 +518,13 @@ export class WorkflowCodecRunner {
                   : null,
               };
             })
-          )
+          ).then((results) => this.collectDecodedJobs(activation.jobs!, results, state))
         : null,
     }) as Decoded<T>;
+    this.initializationFailure = state.initializationFailure;
+    this.droppedSignalFailures.push(...state.droppedSignalFailures);
+    this.syntheticCommands.push(...state.syntheticCommands);
+    return decodedActivation;
   }
 
   /**
@@ -403,7 +545,7 @@ export class WorkflowCodecRunner {
         ? {
             ...completion.successful,
             commands: completion.successful.commands
-              ? await Promise.all(
+              ? await Promise.allSettled(
                   completion.successful.commands.map(async (command) => {
                     let userMetadataContext: SerializationContext = this.workflowContext;
 
@@ -628,12 +770,18 @@ export class WorkflowCodecRunner {
                       ),
                     };
                   })
-                )
+                ).then((results) => this.collectEncodedCommands(completion.successful!.commands!, results))
               : null,
           }
         : null,
     };
 
+    if (encodedCompletion.successful && this.syntheticCommands.length > 0) {
+      encodedCompletion.successful.commands = [
+        ...(encodedCompletion.successful.commands ?? []),
+        ...this.syntheticCommands.splice(0),
+      ];
+    }
     return encodedCompletion;
   }
 }
