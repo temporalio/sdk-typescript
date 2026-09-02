@@ -1641,7 +1641,7 @@ export class Worker {
 
       // We do not dispose of the Workflow yet, wait to be evicted from Core.
       // This is done to simplify the Workflow lifecycle so Core is the sole driver.
-      return { state: undefined, output: { close: true, completion } };
+      return { state: workflow, output: { close: false, completion } };
     }
   }
 
