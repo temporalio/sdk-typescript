@@ -81,6 +81,8 @@ to docs, or any other relevant information.
   arguments and results.
 - **Experimental**: Update definitions and named Update calls can use `TypeInfo` to convert Update arguments and
   results.
+- **Experimental**: Added `rawValueTypeInfo`, which allows `RawValue` inputs and results to be preserved across
+  serialization boundaries when explicitly configured on TypeInfo-aware APIs.
 - **Experimental**: `@temporalio/google-adk-agents` package for running Google ADK agents as durable Temporal Workflows,
   requiring `@google/adk@>=1.5.0 <1.6.0` as a peer dependency.
   ADK's OpenTelemetry agent-loop spans can be exported replay-safely from the Workflow sandbox by composing with
