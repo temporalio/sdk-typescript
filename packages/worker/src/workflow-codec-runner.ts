@@ -96,8 +96,9 @@ export class WorkflowCodecRunner {
   public async decodeActivation<T extends coresdk.workflow_activation.IWorkflowActivation>(
     activation: T
   ): Promise<Decoded<T>> {
+    const decodedActivation = coresdk.workflow_activation.WorkflowActivation.fromObject(activation);
     await visit<coresdk.workflow_activation.IWorkflowActivation, SerializationContext | undefined>(
-      activation,
+      decodedActivation,
       walkWorkflowActivation,
       {
         transformPayload: async (payload, context) => (await decode(this.codecs, [payload], context))[0]!,
@@ -139,7 +140,7 @@ export class WorkflowCodecRunner {
         },
       }
     );
-    return activation as unknown as Decoded<T>;
+    return decodedActivation as unknown as Decoded<T>;
   }
 
   /**

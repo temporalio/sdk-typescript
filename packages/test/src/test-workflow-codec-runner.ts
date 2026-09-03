@@ -34,7 +34,7 @@ test('decodeActivation binds workflow codec context for initializeWorkflow paylo
     workflowId: 'wf-1',
   });
 
-  const decoded = await runner.decodeActivation({
+  const activation = {
     runId: 'run-1',
     jobs: [
       {
@@ -49,11 +49,13 @@ test('decodeActivation binds workflow codec context for initializeWorkflow paylo
         },
       },
     ],
-  });
+  };
+  const decoded = await runner.decodeActivation(activation);
 
   t.deepEqual(traceFromPayload(decoded.jobs?.[0]?.initializeWorkflow?.arguments?.[0] as Payload), [
     'codec.decode.bound|wf-input|workflow.default.wf-1',
   ]);
+  t.deepEqual(traceFromPayload(activation.jobs[0]?.initializeWorkflow?.arguments?.[0] as Payload), []);
 });
 
 test('decodeActivation covers every initializeWorkflow payload field but headers and search attributes', async (t) => {
