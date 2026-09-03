@@ -1,12 +1,13 @@
 import { randomUUID } from 'crypto';
-import test from 'ava';
+import type { ExecutionContext } from 'ava';
 import { WorkflowClient } from '@temporalio/client';
-import type { Payload, PayloadCodec } from '@temporalio/common';
+import type { DataConverter, Payload, PayloadCodec } from '@temporalio/common';
 import { decode } from '@temporalio/common/lib/encoding';
 import type { InjectedSinks } from '@temporalio/worker';
 import { createConcatActivity } from './activities/create-concat-activity';
-import { RUN_INTEGRATION_TESTS, u8, Worker } from './helpers';
-import { defaultOptions } from './mock-native-worker';
+import { RUN_INTEGRATION_TESTS, u8 } from './helpers';
+import type { Context } from './helpers-integration';
+import { helpers, makeTestFunction } from './helpers-integration';
 import type { LogSinks } from './workflows';
 import { twoStrings, twoStringsActivity } from './workflows';
 
@@ -36,8 +37,19 @@ class TestDecodeCodec implements PayloadCodec {
   }
 }
 
+function makeClient(t: ExecutionContext<Context>, dataConverter: DataConverter): WorkflowClient {
+  return new WorkflowClient({
+    connection: t.context.env.client.connection,
+    namespace: t.context.env.client.options.namespace,
+    dataConverter,
+  });
+}
+
 if (RUN_INTEGRATION_TESTS) {
+  const test = makeTestFunction({ workflowsPath: require.resolve('./workflows') });
+
   test('Workflow arguments and retvals are encoded', async (t) => {
+    const { createWorker, taskQueue } = helpers(t);
     const logs: string[] = [];
     const sinks: InjectedSinks<LogSinks> = {
       logger: {
@@ -50,14 +62,11 @@ if (RUN_INTEGRATION_TESTS) {
     };
 
     const dataConverter = { payloadCodecs: [new TestEncodeCodec()] };
-    const taskQueue = 'test-workflow-encoded';
-    const worker = await Worker.create({
-      ...defaultOptions,
-      taskQueue,
+    const worker = await createWorker({
       dataConverter,
       sinks,
     });
-    const client = new WorkflowClient({ dataConverter });
+    const client = makeClient(t, dataConverter);
     await worker.runUntil(async () => {
       const result = await client.execute(twoStrings, {
         args: ['arg1', 'arg2'],
@@ -71,6 +80,7 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Workflow arguments and retvals are decoded', async (t) => {
+    const { createWorker, taskQueue } = helpers(t);
     const logs: string[] = [];
     const sinks: InjectedSinks<LogSinks> = {
       logger: {
@@ -83,14 +93,11 @@ if (RUN_INTEGRATION_TESTS) {
     };
 
     const dataConverter = { payloadCodecs: [new TestDecodeCodec()] };
-    const taskQueue = 'test-workflow-decoded';
-    const worker = await Worker.create({
-      ...defaultOptions,
-      taskQueue,
+    const worker = await createWorker({
       dataConverter,
       sinks,
     });
-    const client = new WorkflowClient({ dataConverter });
+    const client = makeClient(t, dataConverter);
     await worker.runUntil(async () => {
       const result = await client.execute(twoStrings, {
         args: ['arg1', 'arg2'],
@@ -104,6 +111,7 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Activity arguments and retvals are encoded', async (t) => {
+    const { createWorker, taskQueue } = helpers(t);
     const workflowLogs: string[] = [];
     const sinks: InjectedSinks<LogSinks> = {
       logger: {
@@ -117,15 +125,12 @@ if (RUN_INTEGRATION_TESTS) {
     const activityLogs: string[] = [];
 
     const dataConverter = { payloadCodecs: [new TestEncodeCodec()] };
-    const taskQueue = 'test-activity-encoded';
-    const worker = await Worker.create({
-      ...defaultOptions,
+    const worker = await createWorker({
       activities: createConcatActivity(activityLogs),
-      taskQueue,
       dataConverter,
       sinks,
     });
-    const client = new WorkflowClient({ dataConverter });
+    const client = makeClient(t, dataConverter);
     await worker.runUntil(async () => {
       await client.execute(twoStringsActivity, {
         workflowId: randomUUID(),
@@ -137,6 +142,7 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Activity arguments and retvals are decoded', async (t) => {
+    const { createWorker, taskQueue } = helpers(t);
     const workflowLogs: string[] = [];
     const sinks: InjectedSinks<LogSinks> = {
       logger: {
@@ -150,15 +156,12 @@ if (RUN_INTEGRATION_TESTS) {
     const activityLogs: string[] = [];
 
     const dataConverter = { payloadCodecs: [new TestDecodeCodec()] };
-    const taskQueue = 'test-activity-decoded';
-    const worker = await Worker.create({
-      ...defaultOptions,
+    const worker = await createWorker({
       activities: createConcatActivity(activityLogs),
-      taskQueue,
       dataConverter,
       sinks,
     });
-    const client = new WorkflowClient({ dataConverter });
+    const client = makeClient(t, dataConverter);
     await worker.runUntil(async () => {
       await client.execute(twoStringsActivity, {
         workflowId: randomUUID(),
@@ -170,6 +173,7 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Multiple encodes happen in the correct order', async (t) => {
+    const { createWorker, taskQueue } = helpers(t);
     const logs: string[] = [];
     const sinks: InjectedSinks<LogSinks> = {
       logger: {
@@ -197,14 +201,11 @@ if (RUN_INTEGRATION_TESTS) {
         },
       ],
     };
-    const taskQueue = 'test-workflow-encoded-order';
-    const worker = await Worker.create({
-      ...defaultOptions,
-      taskQueue,
+    const worker = await createWorker({
       dataConverter,
       sinks,
     });
-    const client = new WorkflowClient({ dataConverter });
+    const client = makeClient(t, dataConverter);
     await worker.runUntil(async () => {
       const result = await client.execute(twoStrings, {
         args: ['arg1', 'arg2'],
@@ -218,6 +219,7 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Multiple decodes happen in the correct order', async (t) => {
+    const { createWorker, taskQueue } = helpers(t);
     const logs: string[] = [];
     const sinks: InjectedSinks<LogSinks> = {
       logger: {
@@ -246,14 +248,11 @@ if (RUN_INTEGRATION_TESTS) {
         new TestDecodeCodec(),
       ],
     };
-    const taskQueue = 'test-workflow-decoded-order';
-    const worker = await Worker.create({
-      ...defaultOptions,
-      taskQueue,
+    const worker = await createWorker({
       dataConverter,
       sinks,
     });
-    const client = new WorkflowClient({ dataConverter });
+    const client = makeClient(t, dataConverter);
     await worker.runUntil(async () => {
       const result = await client.execute(twoStrings, {
         args: ['arg1', 'arg2'],
