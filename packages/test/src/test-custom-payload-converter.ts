@@ -6,7 +6,7 @@ import { toPayloads } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
 import { ProtoActivityResult } from '../protos/root';
 import { protoActivity } from './activities';
-import { cleanOptionalStackTrace, RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { cleanOptionalStackTrace, Worker } from './helpers';
 import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
 import { messageInstance, payloadConverter } from './payload-converters/proto-payload-converter';
 import { createTestWorkflowEnvironment } from './helpers-integration';
@@ -28,7 +28,7 @@ function compareCompletion(
   );
 }
 
-if (RUN_INTEGRATION_TESTS) {
+function registerIntegrationTests(): void {
   test('Client and Worker work with provided dataConverter', async (t) => {
     const env = await createTestWorkflowEnvironment();
     t.teardown(() => env.teardown());
@@ -90,6 +90,8 @@ if (RUN_INTEGRATION_TESTS) {
     );
   });
 }
+
+registerIntegrationTests();
 
 test('Worker throws on invalid payloadConverterPath', async (t) => {
   t.throws(

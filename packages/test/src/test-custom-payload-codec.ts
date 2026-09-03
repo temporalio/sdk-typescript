@@ -5,7 +5,7 @@ import type { DataConverter, Payload, PayloadCodec } from '@temporalio/common';
 import { decode } from '@temporalio/common/lib/encoding';
 import type { InjectedSinks } from '@temporalio/worker';
 import { createConcatActivity } from './activities/create-concat-activity';
-import { RUN_INTEGRATION_TESTS, u8 } from './helpers';
+import { u8 } from './helpers';
 import type { Context } from './helpers-integration';
 import { helpers, makeTestFunction } from './helpers-integration';
 import type { LogSinks } from './workflows';
@@ -45,7 +45,7 @@ function makeClient(t: ExecutionContext<Context>, dataConverter: DataConverter):
   });
 }
 
-if (RUN_INTEGRATION_TESTS) {
+function registerIntegrationTests(): void {
   const test = makeTestFunction({ workflowsPath: require.resolve('./workflows') });
 
   test('Workflow arguments and retvals are encoded', async (t) => {
@@ -265,3 +265,5 @@ if (RUN_INTEGRATION_TESTS) {
     t.is(logs[0], 'decodeddecoded'); // workflow args decoded by worker
   });
 }
+
+registerIntegrationTests();
