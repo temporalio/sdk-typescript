@@ -3,6 +3,8 @@
  *
  * @module
  */
+import { performance } from 'node:perf_hooks';
+
 import { temporal } from '@temporalio/proto';
 
 import { StorageDriverClaim } from '../converter/extstore';
@@ -16,6 +18,7 @@ import type {
 } from '../converter/extstore';
 import { ValueError } from '../errors';
 import type { Payload } from '../interfaces';
+import type { ExternalStorageMetricsAccumulator } from './external-storage-metrics';
 import { decodeReferencePayload, encodeReferencePayload, isReferencePayload } from './extstore-helpers';
 
 const PayloadProto = temporal.api.common.v1.Payload;
@@ -41,7 +44,10 @@ export interface ExternalRetrieveOptions {
  * @experimental
  */
 export class ExternalStorageRunner {
-  constructor(private readonly externalStorage: ExternalStorage) {}
+  constructor(
+    private readonly externalStorage: ExternalStorage,
+    private readonly metrics?: ExternalStorageMetricsAccumulator
+  ) {}
 
   /**
    * Replace each payload above the configured size threshold with a reference payload.
@@ -86,7 +92,9 @@ export class ExternalStorageRunner {
     if (driverGroups.size === 0) return payloads;
 
     const result = payloads.slice();
+    const { metrics } = this;
     await runWithAbortOnFirstError(batchController, [...driverGroups.values()], async (group) => {
+      const startMs = metrics ? performance.now() : 0;
       const claims = await group.driver.store(
         storeCtx,
         group.items.map((it) => it.payload)
@@ -103,6 +111,10 @@ export class ExternalStorageRunner {
           claim,
           sizeBytes: item.size,
         });
+      }
+      if (metrics) {
+        const sizeBytes = group.items.reduce((sum, it) => sum + it.size, 0);
+        metrics.record(group.driver.name, group.items.length, sizeBytes, startMs, performance.now());
       }
     });
 
@@ -143,7 +155,9 @@ export class ExternalStorageRunner {
     if (driverGroups.size === 0) return payloads;
 
     const result = payloads.slice();
+    const { metrics } = this;
     await runWithAbortOnFirstError(batchController, [...driverGroups.values()], async (group) => {
+      const startMs = metrics ? performance.now() : 0;
       const retrieved = await group.driver.retrieve(
         retrieveCtx,
         group.items.map((it) => it.claim)
@@ -154,8 +168,12 @@ export class ExternalStorageRunner {
         );
       }
       for (const [j, retrievedPayload] of retrieved.entries()) {
-        const item = group.items[j]!;
-        result[item.index] = retrievedPayload;
+        result[group.items[j]!.index] = retrievedPayload;
+      }
+      // Sizing a retrieved payload re-encodes it, so only pay that cost when metrics are wanted.
+      if (metrics) {
+        const sizeBytes = retrieved.reduce((sum, p) => sum + payloadProtoSize(p), 0);
+        metrics.record(group.driver.name, group.items.length, sizeBytes, startMs, performance.now());
       }
     });
 
