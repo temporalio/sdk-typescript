@@ -45,225 +45,221 @@ function makeClient(t: ExecutionContext<Context>, dataConverter: DataConverter):
   });
 }
 
-function registerIntegrationTests(): void {
-  const test = makeTestFunction({ workflowsPath: require.resolve('./workflows') });
+const test = makeTestFunction({ workflowsPath: require.resolve('./workflows') });
 
-  test('Workflow arguments and retvals are encoded', async (t) => {
-    const { createWorker, taskQueue } = helpers(t);
-    const logs: string[] = [];
-    const sinks: InjectedSinks<LogSinks> = {
-      logger: {
-        log: {
-          fn(_, message) {
-            logs.push(message);
-          },
+test('Workflow arguments and retvals are encoded', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+  const logs: string[] = [];
+  const sinks: InjectedSinks<LogSinks> = {
+    logger: {
+      log: {
+        fn(_, message) {
+          logs.push(message);
         },
       },
-    };
+    },
+  };
 
-    const dataConverter = { payloadCodecs: [new TestEncodeCodec()] };
-    const worker = await createWorker({
-      dataConverter,
-      sinks,
-    });
-    const client = makeClient(t, dataConverter);
-    await worker.runUntil(async () => {
-      const result = await client.execute(twoStrings, {
-        args: ['arg1', 'arg2'],
-        workflowId: randomUUID(),
-        taskQueue,
-      });
-
-      t.is(result, 'encoded'); // workflow retval encoded by worker
-    });
-    t.is(logs[0], 'encodedencoded'); // workflow args encoded by client
+  const dataConverter = { payloadCodecs: [new TestEncodeCodec()] };
+  const worker = await createWorker({
+    dataConverter,
+    sinks,
   });
+  const client = makeClient(t, dataConverter);
+  await worker.runUntil(async () => {
+    const result = await client.execute(twoStrings, {
+      args: ['arg1', 'arg2'],
+      workflowId: randomUUID(),
+      taskQueue,
+    });
 
-  test('Workflow arguments and retvals are decoded', async (t) => {
-    const { createWorker, taskQueue } = helpers(t);
-    const logs: string[] = [];
-    const sinks: InjectedSinks<LogSinks> = {
-      logger: {
-        log: {
-          fn(_, message) {
-            logs.push(message);
-          },
+    t.is(result, 'encoded'); // workflow retval encoded by worker
+  });
+  t.is(logs[0], 'encodedencoded'); // workflow args encoded by client
+});
+
+test('Workflow arguments and retvals are decoded', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+  const logs: string[] = [];
+  const sinks: InjectedSinks<LogSinks> = {
+    logger: {
+      log: {
+        fn(_, message) {
+          logs.push(message);
         },
       },
-    };
+    },
+  };
 
-    const dataConverter = { payloadCodecs: [new TestDecodeCodec()] };
-    const worker = await createWorker({
-      dataConverter,
-      sinks,
-    });
-    const client = makeClient(t, dataConverter);
-    await worker.runUntil(async () => {
-      const result = await client.execute(twoStrings, {
-        args: ['arg1', 'arg2'],
-        workflowId: randomUUID(),
-        taskQueue,
-      });
-
-      t.is(result, 'decoded'); // workflow retval decoded by client
-    });
-    t.is(logs[0], 'decodeddecoded'); // workflow args decoded by worker
+  const dataConverter = { payloadCodecs: [new TestDecodeCodec()] };
+  const worker = await createWorker({
+    dataConverter,
+    sinks,
   });
+  const client = makeClient(t, dataConverter);
+  await worker.runUntil(async () => {
+    const result = await client.execute(twoStrings, {
+      args: ['arg1', 'arg2'],
+      workflowId: randomUUID(),
+      taskQueue,
+    });
 
-  test('Activity arguments and retvals are encoded', async (t) => {
-    const { createWorker, taskQueue } = helpers(t);
-    const workflowLogs: string[] = [];
-    const sinks: InjectedSinks<LogSinks> = {
-      logger: {
-        log: {
-          fn(_, message) {
-            workflowLogs.push(message);
-          },
+    t.is(result, 'decoded'); // workflow retval decoded by client
+  });
+  t.is(logs[0], 'decodeddecoded'); // workflow args decoded by worker
+});
+
+test('Activity arguments and retvals are encoded', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+  const workflowLogs: string[] = [];
+  const sinks: InjectedSinks<LogSinks> = {
+    logger: {
+      log: {
+        fn(_, message) {
+          workflowLogs.push(message);
         },
       },
-    };
-    const activityLogs: string[] = [];
+    },
+  };
+  const activityLogs: string[] = [];
 
-    const dataConverter = { payloadCodecs: [new TestEncodeCodec()] };
-    const worker = await createWorker({
-      activities: createConcatActivity(activityLogs),
-      dataConverter,
-      sinks,
-    });
-    const client = makeClient(t, dataConverter);
-    await worker.runUntil(async () => {
-      await client.execute(twoStringsActivity, {
-        workflowId: randomUUID(),
-        taskQueue,
-      });
-    });
-    t.is(workflowLogs[0], 'encoded'); // activity retval encoded by worker
-    t.is(activityLogs[0], 'Activityencodedencoded'); // activity args encoded by worker
+  const dataConverter = { payloadCodecs: [new TestEncodeCodec()] };
+  const worker = await createWorker({
+    activities: createConcatActivity(activityLogs),
+    dataConverter,
+    sinks,
   });
+  const client = makeClient(t, dataConverter);
+  await worker.runUntil(async () => {
+    await client.execute(twoStringsActivity, {
+      workflowId: randomUUID(),
+      taskQueue,
+    });
+  });
+  t.is(workflowLogs[0], 'encoded'); // activity retval encoded by worker
+  t.is(activityLogs[0], 'Activityencodedencoded'); // activity args encoded by worker
+});
 
-  test('Activity arguments and retvals are decoded', async (t) => {
-    const { createWorker, taskQueue } = helpers(t);
-    const workflowLogs: string[] = [];
-    const sinks: InjectedSinks<LogSinks> = {
-      logger: {
-        log: {
-          fn(_, message) {
-            workflowLogs.push(message);
-          },
+test('Activity arguments and retvals are decoded', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+  const workflowLogs: string[] = [];
+  const sinks: InjectedSinks<LogSinks> = {
+    logger: {
+      log: {
+        fn(_, message) {
+          workflowLogs.push(message);
         },
       },
-    };
-    const activityLogs: string[] = [];
+    },
+  };
+  const activityLogs: string[] = [];
 
-    const dataConverter = { payloadCodecs: [new TestDecodeCodec()] };
-    const worker = await createWorker({
-      activities: createConcatActivity(activityLogs),
-      dataConverter,
-      sinks,
-    });
-    const client = makeClient(t, dataConverter);
-    await worker.runUntil(async () => {
-      await client.execute(twoStringsActivity, {
-        workflowId: randomUUID(),
-        taskQueue,
-      });
-    });
-    t.is(workflowLogs[0], 'decoded'); // activity retval decoded by worker
-    t.is(activityLogs[0], 'Activitydecodeddecoded'); // activity args decoded by worker
+  const dataConverter = { payloadCodecs: [new TestDecodeCodec()] };
+  const worker = await createWorker({
+    activities: createConcatActivity(activityLogs),
+    dataConverter,
+    sinks,
   });
+  const client = makeClient(t, dataConverter);
+  await worker.runUntil(async () => {
+    await client.execute(twoStringsActivity, {
+      workflowId: randomUUID(),
+      taskQueue,
+    });
+  });
+  t.is(workflowLogs[0], 'decoded'); // activity retval decoded by worker
+  t.is(activityLogs[0], 'Activitydecodeddecoded'); // activity args decoded by worker
+});
 
-  test('Multiple encodes happen in the correct order', async (t) => {
-    const { createWorker, taskQueue } = helpers(t);
-    const logs: string[] = [];
-    const sinks: InjectedSinks<LogSinks> = {
-      logger: {
-        log: {
-          fn(_, message) {
-            logs.push(message);
-          },
+test('Multiple encodes happen in the correct order', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+  const logs: string[] = [];
+  const sinks: InjectedSinks<LogSinks> = {
+    logger: {
+      log: {
+        fn(_, message) {
+          logs.push(message);
         },
       },
-    };
+    },
+  };
 
-    const dataConverter = {
-      payloadCodecs: [
-        new TestEncodeCodec(),
-        {
-          async encode(payloads: Payload[]): Promise<Payload[]> {
-            if (decode(payloads[0]!.data!) !== '"encoded"') {
-              throw new Error('wrong order');
-            }
-            return payloads;
-          },
-          async decode(payloads: Payload[]): Promise<Payload[]> {
-            return payloads;
-          },
+  const dataConverter = {
+    payloadCodecs: [
+      new TestEncodeCodec(),
+      {
+        async encode(payloads: Payload[]): Promise<Payload[]> {
+          if (decode(payloads[0]!.data!) !== '"encoded"') {
+            throw new Error('wrong order');
+          }
+          return payloads;
         },
-      ],
-    };
-    const worker = await createWorker({
-      dataConverter,
-      sinks,
-    });
-    const client = makeClient(t, dataConverter);
-    await worker.runUntil(async () => {
-      const result = await client.execute(twoStrings, {
-        args: ['arg1', 'arg2'],
-        workflowId: randomUUID(),
-        taskQueue,
-      });
-
-      t.is(result, 'encoded'); // workflow retval encoded by worker
-    });
-    t.is(logs[0], 'encodedencoded'); // workflow args encoded by client
-  });
-
-  test('Multiple decodes happen in the correct order', async (t) => {
-    const { createWorker, taskQueue } = helpers(t);
-    const logs: string[] = [];
-    const sinks: InjectedSinks<LogSinks> = {
-      logger: {
-        log: {
-          fn(_, message) {
-            logs.push(message);
-          },
+        async decode(payloads: Payload[]): Promise<Payload[]> {
+          return payloads;
         },
       },
-    };
-
-    const dataConverter = {
-      payloadCodecs: [
-        {
-          async encode(payloads: Payload[]): Promise<Payload[]> {
-            return payloads;
-          },
-          async decode(payloads: Payload[]): Promise<Payload[]> {
-            if (decode(payloads[0]!.data!) !== '"decoded"') {
-              throw new Error('wrong order');
-            }
-
-            return payloads;
-          },
-        },
-        new TestDecodeCodec(),
-      ],
-    };
-    const worker = await createWorker({
-      dataConverter,
-      sinks,
-    });
-    const client = makeClient(t, dataConverter);
-    await worker.runUntil(async () => {
-      const result = await client.execute(twoStrings, {
-        args: ['arg1', 'arg2'],
-        workflowId: randomUUID(),
-        taskQueue,
-      });
-
-      t.is(result, 'decoded'); // workflow retval decoded by client
-    });
-    t.is(logs[0], 'decodeddecoded'); // workflow args decoded by worker
+    ],
+  };
+  const worker = await createWorker({
+    dataConverter,
+    sinks,
   });
-}
+  const client = makeClient(t, dataConverter);
+  await worker.runUntil(async () => {
+    const result = await client.execute(twoStrings, {
+      args: ['arg1', 'arg2'],
+      workflowId: randomUUID(),
+      taskQueue,
+    });
 
-registerIntegrationTests();
+    t.is(result, 'encoded'); // workflow retval encoded by worker
+  });
+  t.is(logs[0], 'encodedencoded'); // workflow args encoded by client
+});
+
+test('Multiple decodes happen in the correct order', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+  const logs: string[] = [];
+  const sinks: InjectedSinks<LogSinks> = {
+    logger: {
+      log: {
+        fn(_, message) {
+          logs.push(message);
+        },
+      },
+    },
+  };
+
+  const dataConverter = {
+    payloadCodecs: [
+      {
+        async encode(payloads: Payload[]): Promise<Payload[]> {
+          return payloads;
+        },
+        async decode(payloads: Payload[]): Promise<Payload[]> {
+          if (decode(payloads[0]!.data!) !== '"decoded"') {
+            throw new Error('wrong order');
+          }
+
+          return payloads;
+        },
+      },
+      new TestDecodeCodec(),
+    ],
+  };
+  const worker = await createWorker({
+    dataConverter,
+    sinks,
+  });
+  const client = makeClient(t, dataConverter);
+  await worker.runUntil(async () => {
+    const result = await client.execute(twoStrings, {
+      args: ['arg1', 'arg2'],
+      workflowId: randomUUID(),
+      taskQueue,
+    });
+
+    t.is(result, 'decoded'); // workflow retval decoded by client
+  });
+  t.is(logs[0], 'decodeddecoded'); // workflow args decoded by worker
+});
