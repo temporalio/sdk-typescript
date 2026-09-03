@@ -11,6 +11,7 @@ import { createPayloadValidationError, defaultPayloadConverter, type PayloadCode
 import { msToTs } from '@temporalio/common/lib/time';
 import type { LogEntry, NativeConnection } from '@temporalio/worker';
 import { DefaultLogger, MetricsBuffer, Runtime } from '@temporalio/worker';
+import { UnexpectedError } from '@temporalio/worker/lib/errors';
 import { isolateFreeWorker, Worker as MockWorker } from './mock-native-worker';
 
 test.serial('Worker.create debug log options are JSON serializable with buffered metrics and connection', async (t) => {
@@ -147,6 +148,80 @@ test('Worker retains a failed Workflow until Core eviction', async (t) => {
   } finally {
     worker.shutdown();
     await run;
+  }
+});
+
+test('Worker closes an evicted Workflow when disposal fails', async (t) => {
+  const disposeFailure = new Error('dispose failed');
+  let disposeCount = 0;
+  const worker = isolateFreeWorker(
+    {
+      taskQueue: t.title.replace(/ /g, '_'),
+      activities: {},
+    },
+    {
+      async createWorkflow() {
+        return {
+          async activate() {
+            return { successful: {} };
+          },
+          async getAndResetSinkCalls() {
+            return [];
+          },
+          async dispose() {
+            disposeCount++;
+            throw disposeFailure;
+          },
+        };
+      },
+      async destroy() {
+        // Nothing to destroy
+      },
+    }
+  );
+  const runId = randomUUID();
+  const now = msToTs(Date.now());
+  const run = worker.run();
+  try {
+    const started = await worker.native.runWorkflowActivation({
+      runId,
+      timestamp: now,
+      jobs: [
+        {
+          initializeWorkflow: {
+            workflowId: 'workflow-id',
+            workflowType: 'test',
+            randomnessSeed: Long.ONE,
+            firstExecutionRunId: runId,
+            originalExecutionRunId: runId,
+            attempt: 1,
+            startTime: now,
+            workflowTaskTimeout: msToTs('10 seconds'),
+          },
+        },
+      ],
+    });
+
+    t.truthy(started.successful);
+    t.is(worker.getStatus().numCachedWorkflows, 1);
+
+    const evicted = await worker.native.runWorkflowActivation({
+      runId,
+      jobs: [{ removeFromCache: {} }],
+    });
+
+    t.truthy(evicted.successful);
+    t.is(disposeCount, 1);
+    t.is(worker.getStatus().numCachedWorkflows, 0);
+
+    const error = await t.throwsAsync(run);
+    if (error === undefined) return;
+    t.assert(error instanceof UnexpectedError);
+    t.is(error.cause, disposeFailure);
+    t.is(worker.getState(), 'FAILED');
+  } finally {
+    if (worker.getState() === 'RUNNING') worker.shutdown();
+    await run.catch(() => undefined);
   }
 });
 
