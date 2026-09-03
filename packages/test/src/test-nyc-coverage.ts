@@ -1,10 +1,10 @@
 import { randomUUID } from 'crypto';
-import test from 'ava';
 import * as libCoverage from 'istanbul-lib-coverage';
 import { bundleWorkflowCode, Worker } from '@temporalio/worker';
-import { Client, WorkflowClient } from '@temporalio/client';
 import { WorkflowCoverage } from '@temporalio/nyc-test-coverage';
+import type { TestWorkflowEnvironment } from './helpers';
 import { RUN_INTEGRATION_TESTS } from './helpers';
+import { createTestWorkflowEnvironment, makeConfigurableEnvironmentTestFn } from './helpers-integration';
 import { successString } from './workflows';
 
 declare global {
@@ -12,7 +12,13 @@ declare global {
 }
 
 if (RUN_INTEGRATION_TESTS) {
+  const test = makeConfigurableEnvironmentTestFn<{ env: TestWorkflowEnvironment }>({
+    createTestContext: async () => ({ env: await createTestWorkflowEnvironment() }),
+    teardown: async ({ env }) => env.teardown(),
+  });
+
   test('Istanbul injector execute correctly in Worker', async (t) => {
+    const { env } = t.context;
     // Make it believe that NYC has been loaded
     (global as any).__coverage__ = {};
 
@@ -21,12 +27,13 @@ if (RUN_INTEGRATION_TESTS) {
     const taskQueue = `${t.title}-${randomUUID()}`;
     const worker = await Worker.create(
       workflowCoverage.augmentWorkerOptions({
+        connection: env.nativeConnection,
+        namespace: env.client.options.namespace,
         taskQueue,
         workflowsPath: require.resolve('./workflows'),
       })
     );
-    const client = new Client();
-    await worker.runUntil(client.workflow.execute(successString, { taskQueue, workflowId: randomUUID() }));
+    await worker.runUntil(env.client.workflow.execute(successString, { taskQueue, workflowId: randomUUID() }));
 
     workflowCoverage.mergeIntoGlobalCoverage();
     const coverageMap = libCoverage.createCoverageMap(global.__coverage__);
@@ -38,6 +45,7 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Istanbul injector execute correctly in Bundler', async (t) => {
+    const { env } = t.context;
     const workflowCoverageBundler = new WorkflowCoverage();
     const { code } = await bundleWorkflowCode(
       workflowCoverageBundler.augmentBundleOptions({
@@ -52,12 +60,13 @@ if (RUN_INTEGRATION_TESTS) {
     const taskQueue = `${t.title}-${randomUUID()}`;
     const worker = await Worker.create(
       workflowCoverageWorker.augmentWorkerOptionsWithBundle({
+        connection: env.nativeConnection,
+        namespace: env.client.options.namespace,
         taskQueue,
         workflowBundle: { code },
       })
     );
-    const client = new Client();
-    await worker.runUntil(client.workflow.execute(successString, { taskQueue, workflowId: randomUUID() }));
+    await worker.runUntil(env.client.workflow.execute(successString, { taskQueue, workflowId: randomUUID() }));
 
     workflowCoverageBundler.mergeIntoGlobalCoverage();
     workflowCoverageWorker.mergeIntoGlobalCoverage();
@@ -69,6 +78,7 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Istanbul injector exclude non-user code', async (t) => {
+    const { env } = t.context;
     // Make it believe that NYC has been loaded
     (global as any).__coverage__ = {};
 
@@ -77,12 +87,13 @@ if (RUN_INTEGRATION_TESTS) {
     const taskQueue = `${t.title}-${randomUUID()}`;
     const worker = await Worker.create(
       workflowCoverage.augmentWorkerOptions({
+        connection: env.nativeConnection,
+        namespace: env.client.options.namespace,
         taskQueue,
         workflowsPath: require.resolve('./workflows'),
       })
     );
-    const client = new WorkflowClient();
-    await worker.runUntil(client.execute(successString, { taskQueue, workflowId: randomUUID() }));
+    await worker.runUntil(env.client.workflow.execute(successString, { taskQueue, workflowId: randomUUID() }));
 
     workflowCoverage.mergeIntoGlobalCoverage();
     const coverageMap = libCoverage.createCoverageMap(global.__coverage__);
