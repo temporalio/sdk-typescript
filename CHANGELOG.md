@@ -136,6 +136,9 @@ to docs, or any other relevant information.
 - Bumped the core-bridge HTTP/2 client stack (h2 0.4.13 → 0.4.19, hyper 1.8.1 → 1.11.0), picking up
   upstream fixes for stream-cancel flow-control leaks and missed wakeups on reset/trailers that can
   affect cancellation-heavy long-poll workloads.
+- **Experimental**: A Standalone Activity started from a Nexus operation handler directly through
+  `ActivityClient`, rather than through `TemporalNexusClient.startActivity()`'s guarded call, now
+  inherits the handler's Nexus request ID and inbound links.
 
 ## [1.22.0] - 2026-08-05
 

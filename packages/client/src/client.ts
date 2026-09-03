@@ -131,6 +131,7 @@ export class Client extends BaseClient {
         workflow: this.workflow.options.interceptors,
         schedule: this.schedule.options.interceptors,
         nexus: this.nexus.options.interceptors,
+        activity: this.activity.options.interceptors,
       },
       workflow: {
         queryRejectCondition: this.workflow.options.queryRejectCondition,

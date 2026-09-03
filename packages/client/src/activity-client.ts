@@ -53,6 +53,7 @@ import type {
 } from './interceptors';
 import type { AsyncCompletionClientOptions } from './async-completion-client';
 import { AsyncCompletionClient } from './async-completion-client';
+import type { LoadedWithDefaults } from './base-client';
 import type {
   ActivityExecutionDescription,
   ActivityExecutionInfo,
@@ -86,6 +87,8 @@ export interface ActivityClientOptions extends AsyncCompletionClientOptions {
   interceptors?: ActivityClientInterceptor[];
 }
 
+export type LoadedActivityClientOptions = LoadedWithDefaults<ActivityClientOptions>;
+
 /**
  * Client for starting and managing Activities, and for asynchronous completion and heartbeating of Activities.
  * Includes all functionality of {@link AsyncCompletionClient}.
@@ -94,6 +97,8 @@ export interface ActivityClientOptions extends AsyncCompletionClientOptions {
  * {@link Client.activity} to interact with Activities.
  */
 export class ActivityClient extends AsyncCompletionClient implements TypedActivityClient<any> {
+  declare readonly options: LoadedActivityClientOptions;
+
   private readonly interceptedHandlers: {
     [K in keyof Required<ActivityClientInterceptor>]: Next<ActivityClientInterceptor, K>;
   };
@@ -102,6 +107,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
     super(options);
 
     const interceptors = options?.interceptors ?? [];
+    this.options = { ...this.options, interceptors };
     this.interceptedHandlers = {
       start: composeInterceptors(interceptors, 'start', this.startHandler.bind(this)),
       getResult: composeInterceptors(interceptors, 'getResult', this.getResultHandler.bind(this)),

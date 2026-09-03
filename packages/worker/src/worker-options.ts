@@ -885,6 +885,7 @@ function compileWorkerInterceptors({
     client: {
       workflow: client?.workflow ?? [],
       schedule: client?.schedule ?? [],
+      activity: client?.activity ?? [],
     },
     activity: [...activityInbound.map((factory) => (ctx: Context) => ({ inbound: factory(ctx) })), ...activity],
     nexus: nexus ?? [],
@@ -1077,6 +1078,7 @@ function addDefaultWorkerOptions(
       client: {
         workflow: interceptors?.client?.workflow ?? [],
         schedule: interceptors?.client?.schedule ?? [],
+        activity: interceptors?.client?.activity ?? [],
       },
       activity: interceptors?.activity ?? [],
       nexus: interceptors?.nexus ?? [],
