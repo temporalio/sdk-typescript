@@ -25,7 +25,11 @@ export interface OperationRegistryEntry<Input = unknown> {
   readonly operation: string;
   readonly inputType: string;
   readonly outputType: string;
-  /** Context for payloads owned by the operation target, when applicable. */
+  /** Generated payload visitor for the input protobuf envelope. */
+  readonly inputPayloadVisitor: string;
+  /** Generated payload visitor for the output protobuf envelope. */
+  readonly outputPayloadVisitor: string;
+  /** Context for nested payloads, determined by the operation. */
   readonly serializationContext?: (input: Input) => import('@temporalio/common').SerializationContext;
 }
 
@@ -35,6 +39,8 @@ export const operationRegistry = [
     operation: 'SignalWithStartWorkflowExecution',
     inputType: 'temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionRequest',
     outputType: 'temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionResponse',
+    inputPayloadVisitor: 'walkSignalWithStartWorkflowExecutionRequest',
+    outputPayloadVisitor: 'walkSignalWithStartWorkflowExecutionResponse',
     serializationContext: signalWithStartWorkflowSerializationContext,
   },
 ] as const;
