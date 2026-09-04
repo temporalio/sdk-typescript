@@ -19,7 +19,10 @@ import type { ActivityOptions, LocalActivityOptions } from './activities';
 import type { EventGroupMarker } from './event-groups';
 import type { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interfaces';
 import type { NexusOperationCancellationType, NexusOperationHandle } from './nexus';
-import type { SystemNexusWorkflowOutboundCallsInterceptor } from './nexus/system/generated/services';
+import type {
+  SystemNexusSpecificInterceptor,
+  SystemNexusWorkflowOutboundCallsInterceptor,
+} from './nexus/system/generated/services';
 
 export { Next, Headers };
 
@@ -310,8 +313,8 @@ export interface StartSystemNexusOperationInput {
   readonly inputType: TypeInfo;
   /** Type information that converts the transfer response to its generated public model. */
   readonly outputType?: TypeInfo;
-  /** Generated operation-specific interceptor hook to invoke before the generic hook. */
-  readonly specificInterceptor?: string;
+  /** Generated operation-specific interceptor dispatcher to invoke before the generic hook. */
+  readonly specificInterceptor?: SystemNexusSpecificInterceptor;
 }
 
 /**

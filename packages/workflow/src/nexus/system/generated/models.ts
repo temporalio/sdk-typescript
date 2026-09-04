@@ -238,6 +238,10 @@ export type SignalWithStartWorkflowRequest<
      * Headers for the request.
      */
     headers?: Record<string, unknown>;
+    /**
+     * Namespace of the workflow execution.
+     */
+    namespace: string;
   },
   (
     | {
@@ -427,6 +431,11 @@ export function signalWithStartWorkflowRequestFromProto<
       proto.header == null
         ? undefined
         : (headerFromProto(proto.header) as Record<string, unknown>),
+    namespace: requiredField(
+      proto.namespace === '' ? undefined : proto.namespace,
+      'sourced field',
+      'namespace'
+    ),
   };
 }
 
@@ -513,7 +522,7 @@ export function signalWithStartWorkflowRequestToProto<
                 : valueToPayload(model.staticDetails),
           },
     header: model.headers == null ? undefined : headerToProto(model.headers),
-    namespace: workflowNamespace(),
+    namespace: model.namespace ?? workflowNamespace(),
   };
 }
 

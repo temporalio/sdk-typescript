@@ -53,7 +53,11 @@ export async function encodeSystemNexusInput(
   if (definition == null) {
     throw new TypeError(`unsupported System Nexus operation: ${service}/${operation}`);
   }
-  const context = contextFromMetadata(payload) ?? workflowContext;
+  const metadataContext = contextFromMetadata(payload);
+  if (definition.serializationContext != null && metadataContext == null) {
+    throw new TypeError('missing System Nexus serialization context metadata');
+  }
+  const context = metadataContext ?? workflowContext;
   const properties = defaultPayloadConverter.fromPayload(payload) as Record<string, unknown>;
   normalizePayloadBytes(properties);
   const message = requestMessageType(service, operation).create(properties) as Record<string, unknown>;
