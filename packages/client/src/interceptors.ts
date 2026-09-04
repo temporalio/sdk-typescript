@@ -33,7 +33,13 @@ import type {
   WorkflowExecution,
 } from './types';
 import type { CompiledWorkflowOptions, WorkflowUpdateOptions } from './workflow-options';
-import type { ActivityHandle, ActivityOptions } from './activity-client';
+import type {
+  ActivityHandle,
+  ActivityOptions,
+  ActivityOptionsUpdate,
+  ActivityPauseOptions,
+  ActivityUnpauseOptions,
+} from './activity-client';
 
 export { Headers, Next };
 
@@ -402,6 +408,28 @@ export interface ActivityClientInterceptor {
    * Intercept a service call to countActivityExecutions
    */
   count?: (input: ActivityCountInput, next: Next<this, 'count'>) => Promise<CountActivityExecutions>;
+  /**
+   * Intercept a service call to pauseActivityExecution
+   */
+  pause?: (input: ActivityPauseInput, next: Next<this, 'pause'>) => Promise<void>;
+  /**
+   * Intercept a service call to unpauseActivityExecution
+   */
+  unpause?: (input: ActivityUnpauseInput, next: Next<this, 'unpause'>) => Promise<void>;
+  /**
+   * Intercept a service call to updateActivityExecutionOptions(restoreOriginal=false)
+   */
+  updateOptions?: (
+    input: ActivityUpdateOptionsInput,
+    next: Next<this, 'updateOptions'>
+  ) => Promise<ActivityOptionsUpdate>;
+  /**
+   * Intercept a service call to updateActivityExecutionOptions(restoreOriginal=true)
+   */
+  restoreOriginalOptions?: (
+    input: ActivityRestoreOriginalOptionsInput,
+    next: Next<this, 'restoreOriginalOptions'>
+  ) => Promise<ActivityOptionsUpdate>;
 }
 
 /**
@@ -480,5 +508,52 @@ export interface ActivityListInput {
  */
 export interface ActivityCountInput {
   readonly query: string;
+  readonly headers: Headers;
+}
+
+/**
+ * Input for {@link ActivityClientInterceptor.pause}
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ */
+export interface ActivityPauseInput {
+  readonly activityId: string;
+  readonly activityRunId: string;
+  readonly options: ActivityPauseOptions;
+  readonly headers: Headers;
+}
+
+/**
+ * Input for {@link ActivityClientInterceptor.unpause}
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ */
+export interface ActivityUnpauseInput {
+  readonly activityId: string;
+  readonly activityRunId: string;
+  readonly options: ActivityUnpauseOptions;
+  readonly headers: Headers;
+}
+
+/**
+ * Input for {@link ActivityClientInterceptor.updateOptions}
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ */
+export interface ActivityUpdateOptionsInput {
+  readonly activityId: string;
+  readonly activityRunId: string;
+  readonly options: ActivityOptionsUpdate;
+  readonly headers: Headers;
+}
+
+/**
+ * Input for {@link ActivityClientInterceptor.restoreOriginalOptions}
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ */
+export interface ActivityRestoreOriginalOptionsInput {
+  readonly activityId: string;
+  readonly activityRunId: string;
   readonly headers: Headers;
 }

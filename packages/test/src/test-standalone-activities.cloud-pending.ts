@@ -21,8 +21,9 @@ import type { Payload, PayloadCodec, PayloadTypeInfo } from '@temporalio/common'
 import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
 import type { Info } from '@temporalio/activity';
 import { activityInfo } from '@temporalio/activity';
+import { msToNumber } from '@temporalio/common/lib/time';
 import type { TestWorkflowEnvironment } from './helpers';
-import { RUN_INTEGRATION_TESTS, waitUntil, Worker } from './helpers';
+import { assertEventually, RUN_INTEGRATION_TESTS, waitUntil, Worker } from './helpers';
 import { echo, throwAnError } from './activities';
 import { heartbeatCancellationDetailsActivity } from './activities/heartbeat-cancellation-details';
 import { createTestWorkflowEnvironment } from './helpers-integration';
@@ -862,5 +863,105 @@ if (RUN_INTEGRATION_TESTS) {
     };
 
     t.pass();
+  });
+
+  test('Pause and unpause activity', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const handle = await client.start('nonexistent-activity', {
+      ...defaultOptions,
+      id: activityId,
+    });
+
+    async function assertStatus(status: ActivityExecutionStatus): Promise<void> {
+      await assertEventually(t, async (tt) => {
+        tt.is((await handle.describe()).status, status);
+      });
+    }
+
+    await assertStatus(ActivityExecutionStatus.RUNNING);
+    await handle.pause();
+    await assertStatus(ActivityExecutionStatus.PAUSED);
+    await handle.unpause();
+    await assertStatus(ActivityExecutionStatus.RUNNING);
+    await handle.terminate('test cleanup');
+  });
+
+  test('Update activity options', async (t) => {
+    const originalDuration = msToNumber('5m');
+    const updatedDuration = msToNumber('10m');
+
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const handle = await client.start('nonexistent-activity', {
+      id: activityId,
+      taskQueue: 'original-task-queue',
+      scheduleToCloseTimeout: undefined,
+      scheduleToStartTimeout: undefined,
+      startToCloseTimeout: originalDuration,
+      heartbeatTimeout: originalDuration,
+      retry: { initialInterval: originalDuration },
+      priority: { fairnessKey: 'original' },
+      startDelay: originalDuration,
+    });
+
+    const updatedOptions = await handle.updateOptions({
+      scheduleToStartTimeout: updatedDuration,
+      startToCloseTimeout: updatedDuration,
+      heartbeatTimeout: undefined,
+      retry: { maximumInterval: updatedDuration },
+      priority: null,
+      startDelay: null,
+    });
+    t.is(updatedOptions.taskQueue, 'original-task-queue');
+    t.is(updatedOptions.scheduleToCloseTimeout, undefined);
+    t.is(updatedOptions.scheduleToStartTimeout, updatedDuration);
+    t.is(updatedOptions.startToCloseTimeout, updatedDuration);
+    t.is(updatedOptions.heartbeatTimeout, originalDuration);
+    t.not(updatedOptions.retry?.initialInterval, originalDuration); // retry policy has defaults
+    t.is(updatedOptions.retry?.maximumInterval, updatedDuration);
+    t.is(updatedOptions.priority, undefined);
+    t.is(updatedOptions.startDelay, undefined);
+
+    await assertEventually(t, async (tt) => {
+      const desc = await handle.describe();
+      tt.is(desc.taskQueue, 'original-task-queue');
+      tt.is(desc.scheduleToCloseTimeoutMs, undefined);
+      tt.is(desc.scheduleToStartTimeoutMs, updatedDuration);
+      tt.is(desc.startToCloseTimeoutMs, updatedDuration);
+      tt.is(desc.heartbeatTimeoutMs, originalDuration);
+      tt.not(desc.retryPolicy.initialInterval, originalDuration);
+      tt.is(desc.retryPolicy.maximumInterval, updatedDuration);
+      tt.is(desc.priority.fairnessKey, undefined);
+      // TODO: uncomment when added
+      // tt.is(desc.startDelay, undefined);
+    });
+
+    const originalOptions = await handle.restoreOriginalOptions();
+    t.is(originalOptions.taskQueue, 'original-task-queue');
+    t.is(updatedOptions.scheduleToCloseTimeout, undefined);
+    t.is(originalOptions.scheduleToStartTimeout, undefined);
+    t.is(originalOptions.startToCloseTimeout, originalDuration);
+    t.is(originalOptions.heartbeatTimeout, originalDuration);
+    t.is(originalOptions.retry?.initialInterval, originalDuration);
+    t.not(originalOptions.retry?.maximumInterval, updatedDuration);
+    t.is(originalOptions.priority?.fairnessKey, 'original');
+    t.is(originalOptions.startDelay, originalDuration);
+
+    await assertEventually(t, async (tt) => {
+      const desc = await handle.describe();
+      tt.is(desc.taskQueue, 'original-task-queue');
+      tt.is(desc.scheduleToCloseTimeoutMs, undefined);
+      tt.is(desc.scheduleToStartTimeoutMs, undefined);
+      tt.is(desc.startToCloseTimeoutMs, originalDuration);
+      tt.is(desc.heartbeatTimeoutMs, originalDuration);
+      tt.is(desc.retryPolicy.initialInterval, originalDuration);
+      tt.not(desc.retryPolicy.maximumInterval, updatedDuration);
+      tt.is(desc.priority.fairnessKey, 'original');
+      // TODO: uncomment when added
+      // tt.is(desc.startDelay, undefined);
+    });
+
+    await handle.terminate('test cleanup');
   });
 }
