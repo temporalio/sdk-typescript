@@ -62,6 +62,9 @@ to docs, or any other relevant information.
 
 ### Added
 
+- **Experimental**: Workflows can signal another Workflow and start it when absent with
+  `signalWithStartWorkflow`.
+
 - **Experimental**: `@temporalio/openai-agents` can run OpenAI Agents `SandboxAgent`s as Temporal Workflows. SandboxAgent
   operations are Activities; hosted tool credentials and sandbox environment values that reference allowlisted Worker
   environment variables are resolved on Worker so their values are not recorded in Workflow history.

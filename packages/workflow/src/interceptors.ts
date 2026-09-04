@@ -8,6 +8,7 @@ import type {
   Duration,
   MetricTags,
   PayloadTypeInfo,
+  SerializationContext,
   SignalTypeInfo,
   Timestamp,
   TypeInfo,
@@ -19,6 +20,7 @@ import type { ActivityOptions, LocalActivityOptions } from './activities';
 import type { EventGroupMarker } from './event-groups';
 import type { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interfaces';
 import type { NexusOperationCancellationType } from './nexus';
+import type { SystemNexusWorkflowOutboundCallsInterceptor } from './nexus/system/generated/services';
 
 export { Next, Headers };
 
@@ -131,7 +133,7 @@ export interface QueryInput {
  * Implement any of these methods to intercept Workflow code calls to the Temporal APIs, like scheduling an activity
  * and starting a timer.
  */
-export interface WorkflowOutboundCallsInterceptor {
+export interface WorkflowOutboundCallsInterceptor extends SystemNexusWorkflowOutboundCallsInterceptor {
   /**
    * Called when Workflow starts a timer.
    */
@@ -165,6 +167,12 @@ export interface WorkflowOutboundCallsInterceptor {
     input: StartNexusOperationInput,
     next: Next<WorkflowOutboundCallsInterceptor, 'startNexusOperation'>
   ) => Promise<StartNexusOperationOutput>;
+
+  /** Called when Workflow starts a Temporal System Nexus operation. */
+  startSystemNexusOperation?: (
+    input: StartSystemNexusOperationInput,
+    next: Next<WorkflowOutboundCallsInterceptor, 'startSystemNexusOperation'>
+  ) => Promise<unknown>;
 
   /**
    * Called when Workflow starts a child workflow execution.
@@ -289,6 +297,22 @@ export interface StartNexusOperationInput {
   readonly operation: string;
   readonly seq: number;
   readonly headers: Record<string, string>;
+}
+
+/** Input for {@link WorkflowOutboundCallsInterceptor.startSystemNexusOperation}. */
+export interface StartSystemNexusOperationInput {
+  /** Sequence number assigned to this command before interception. @internal */
+  readonly seq?: number;
+  readonly service: string;
+  readonly operation: string;
+  /** The generated public request model. */
+  readonly input: unknown;
+  /** Converts the generated request to its protobuf envelope after interception. */
+  readonly toProto: (input: any) => unknown;
+  /** Context for nested payloads owned by the system operation target. */
+  readonly serializationContext?: (input: any) => SerializationContext;
+  /** Generated operation-specific interceptor hook to invoke before the generic hook. */
+  readonly specificInterceptor?: string;
 }
 
 /**

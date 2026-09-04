@@ -147,11 +147,15 @@ export { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
 export { metricMeter } from './metrics';
 export {
   createNexusServiceClient,
+  startSystemNexusOperation,
+  systemNexusPayloadConverter,
+  withSystemNexusSerializationContext,
   NexusServiceClientOptions,
   NexusServiceClient,
   NexusOperationHandle,
   NexusOperationCancellationType,
 } from './nexus';
+export * from './nexus/system/generated';
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Deprecated APIs
