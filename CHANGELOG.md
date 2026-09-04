@@ -60,6 +60,10 @@ to docs, or any other relevant information.
     on the legacy spelling. Note that we may choose to deprecate the legacy spelling at some point
     in the future to encourage adoption of protobufjs' roadmap.
 
+- A Worker will now refuse to load and execute a Workflow bundle produced with a different version
+  of the SDK. This practice has never been supported, but was never formally prevented, resulting
+  in various subtle, hard to diagnose issues.
+
 ### Added
 
 - **Experimental**: `@temporalio/openai-agents` can run OpenAI Agents `SandboxAgent`s as Temporal Workflows. SandboxAgent

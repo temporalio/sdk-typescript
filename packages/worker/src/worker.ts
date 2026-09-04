@@ -97,6 +97,7 @@ import type {
 import { compileWorkerOptions, isCodeBundleOption, isPathBundleOption, toNativeWorkerOptions } from './worker-options';
 import { WorkflowCodecRunner } from './workflow-codec-runner';
 import { defaultWorkflowInterceptorModules, WorkflowCodeBundler } from './workflow/bundler';
+import { assertWorkflowBundleSdkVersion } from './workflow/bundle-metadata';
 import { isBunPre1_4 } from './workflow/bun';
 import type { Workflow, WorkflowCreator } from './workflow/interface';
 import { ReusableVMWorkflowCreator } from './workflow/reusable-vm';
@@ -2303,6 +2304,8 @@ export class Worker {
 }
 
 export function parseWorkflowCode(code: string, codePath?: string): WorkflowBundleWithSourceMapAndFilename {
+  assertWorkflowBundleSdkVersion(code, pkg.version);
+
   const [actualCode, sourceMapJson] = extractSourceMap(code);
   const sourceMap: RawSourceMap = JSON.parse(sourceMapJson);
 
