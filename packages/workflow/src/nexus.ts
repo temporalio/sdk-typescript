@@ -1,5 +1,10 @@
 import type * as nexus from 'nexus-rpc';
-import { toPayloadWithTypeInfo } from '@temporalio/common';
+import {
+  defaultPayloadConverter,
+  type PayloadConverter,
+  type SerializationContext,
+  toPayloadWithTypeInfo,
+} from '@temporalio/common';
 import { msOptionalToTs } from '@temporalio/common/lib/time';
 import { userMetadataToPayload } from '@temporalio/common/lib/user-metadata';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
@@ -9,7 +14,15 @@ import { CancellationScope } from './cancellation-scope';
 import { getActivator } from './global-attributes';
 import { composeInterceptors } from './interceptor-composition';
 import { untrackPromise } from './stack-helpers';
-import type { StartNexusOperationInput, StartNexusOperationOutput, StartNexusOperationOptions } from './interceptors';
+import type {
+  StartNexusOperationInput,
+  StartNexusOperationOutput,
+  StartNexusOperationOptions,
+  StartSystemNexusOperationInput,
+} from './interceptors';
+
+const SYSTEM_NEXUS_PAYLOAD_METADATA_KEY = '__temporal_system_payload';
+const SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE = new Uint8Array([116, 114, 117, 101]); // "true"
 
 /**
  * A Nexus client for invoking Nexus Operations for a specific service from a Workflow.
@@ -179,6 +192,116 @@ export function createNexusServiceClient<T extends nexus.ServiceDefinition>(
   }
 
   return new NexusServiceClientImpl<T>();
+}
+
+/**
+ * Starts a generated Temporal System Nexus operation.
+ *
+ * Unlike ordinary Nexus operations, this is dispatched through the dedicated
+ * system-Nexus interception surface and its envelope is encoded with the default
+ * converter for transport across the workflow isolate boundary.
+ *
+ * @experimental
+ */
+export async function startSystemNexusOperation<Output = unknown>(
+  input: StartSystemNexusOperationInput
+): Promise<Output> {
+  const activator = getActivator();
+  const seq = activator.nextSeqs.nexusOperation++;
+  const genericInput: StartSystemNexusOperationInput = { ...input, seq };
+  const generic = composeInterceptors(
+    activator.interceptors.outbound,
+    'startSystemNexusOperation',
+    startSystemNexusOperationNextHandler as never
+  );
+  if (input.specificInterceptor != null) {
+    const specific = composeInterceptors(
+      activator.interceptors.outbound,
+      input.specificInterceptor as never,
+      ((request: unknown) => generic({ ...genericInput, input: request })) as never
+    ) as unknown as (request: unknown) => Promise<unknown>;
+    return (await specific(input.input)) as Output;
+  }
+  return (await generic(genericInput)) as Output;
+}
+
+function startSystemNexusOperationNextHandler(input: StartSystemNexusOperationInput): Promise<unknown> {
+  const activator = getActivator();
+  const seq = input.seq;
+  if (seq == null) throw new TypeError('System Nexus operation interceptor removed the command sequence');
+  const context = input.serializationContext?.(input.input);
+  const protoInput = withSystemNexusSerializationContext(context, () => input.toProto(input.input));
+  return new Promise<unknown>((resolve, reject) => {
+    const scope = CancellationScope.current();
+    if (scope.consideredCancelled) {
+      untrackPromise(scope.cancelRequested.catch(reject));
+      return;
+    }
+    if (scope.cancellable) {
+      untrackPromise(
+        scope.cancelRequested.catch(() => {
+          const completed =
+            !activator.completions.nexusOperationStart.has(seq) &&
+            !activator.completions.nexusOperationComplete.has(seq);
+          if (!completed) activator.pushCommand({ requestCancelNexusOperation: { seq } });
+        })
+      );
+    }
+    activator.pushCommand({
+      scheduleNexusOperation: {
+        seq,
+        endpoint: '__temporal_system',
+        service: input.service,
+        operation: input.operation,
+        nexusHeader: {},
+        input: systemNexusOuterPayload(protoInput),
+        cancellationType: encodeNexusOperationCancellationType('WAIT_CANCELLATION_COMPLETED'),
+      },
+    });
+    activator.systemNexusOperationContexts.set(seq, { service: input.service, operation: input.operation, context });
+    activator.completions.nexusOperationStart.set(seq, { resolve: (output) => resolve(output.result), reject });
+  });
+}
+
+/** Marks a default JSON/protobuf payload as a System Nexus outer envelope. */
+function systemNexusOuterPayload(value: unknown) {
+  const payload = defaultPayloadConverter.toPayload(value)!;
+  payload.metadata ??= {};
+  payload.metadata[SYSTEM_NEXUS_PAYLOAD_METADATA_KEY] = SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE;
+  return payload;
+}
+
+let currentSystemNexusSerializationContext: SerializationContext | undefined;
+
+/** @internal Used by generated System Nexus model converters. */
+export function withSystemNexusSerializationContext<T>(context: SerializationContext | undefined, fn: () => T): T {
+  const activator = getActivator();
+  const previous = currentSystemNexusSerializationContext;
+  const previousConverter = activator.systemNexusPayloadConverter;
+  currentSystemNexusSerializationContext = context;
+  activator.systemNexusPayloadConverter = context == null ? undefined : systemNexusPayloadConverterFor(context);
+  try {
+    return fn();
+  } finally {
+    currentSystemNexusSerializationContext = previous;
+    activator.systemNexusPayloadConverter = previousConverter;
+  }
+}
+
+/** @internal Returns a converter bound to the current generated System Nexus target context. */
+export function systemNexusPayloadConverter(): PayloadConverter | undefined {
+  const context = currentSystemNexusSerializationContext;
+  if (context == null) return undefined;
+  return systemNexusPayloadConverterFor(context);
+}
+
+function systemNexusPayloadConverterFor(context: SerializationContext): PayloadConverter {
+  const converter = getActivator().payloadConverter;
+  return {
+    toPayload: (value, _context, hint) => converter.toPayload(value, context, hint),
+    fromPayload: (payload, _context, hint) => converter.fromPayload(payload, context, hint),
+    validateConverterHint: converter.validateConverterHint?.bind(converter),
+  };
 }
 
 function startNexusOperationNextHandler({

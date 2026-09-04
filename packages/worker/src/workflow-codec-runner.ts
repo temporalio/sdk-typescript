@@ -14,6 +14,11 @@ import {
 } from '@temporalio/common/lib/internal-non-workflow';
 import { limit } from '@temporalio/common/lib/concurrency/limit';
 import { coresdk } from '@temporalio/proto';
+import {
+  decodeSystemNexusOutput,
+  encodeSystemNexusInput,
+  isSystemNexusEnvelope,
+} from './system-nexus-payload-converter';
 
 /**
  * Maximum number of concurrent codec calls per activation or completion.
@@ -32,6 +37,7 @@ export class WorkflowCodecRunner {
     childWorkflowComplete: new Map<number, WorkflowSerializationContext>(),
     signalWorkflow: new Map<number, WorkflowSerializationContext>(),
     cancelWorkflow: new Map<number, WorkflowSerializationContext>(),
+    nexusOperation: new Map<number, { service: string; operation: string; context: SerializationContext }>(),
   };
 
   constructor(
@@ -39,10 +45,7 @@ export class WorkflowCodecRunner {
     public readonly workflowContext: WorkflowSerializationContext
   ) {}
 
-  private consumeContext<TContext extends SerializationContext>(
-    map: Map<number, TContext>,
-    seq: number | null | undefined
-  ): TContext | undefined {
+  private consumeContext<TContext>(map: Map<number, TContext>, seq: number | null | undefined): TContext | undefined {
     if (seq == null) return undefined;
     const context = map.get(seq);
     if (context !== undefined) {
@@ -97,6 +100,21 @@ export class WorkflowCodecRunner {
     activation: T
   ): Promise<Decoded<T>> {
     const decodedActivation = coresdk.workflow_activation.WorkflowActivation.fromObject(activation);
+    const systemOutputs: Array<{
+      result: coresdk.nexus.INexusOperationResult;
+      payload: import('@temporalio/common').Payload;
+      info: { service: string; operation: string; context: SerializationContext };
+    }> = [];
+    for (const job of decodedActivation.jobs ?? []) {
+      const resolve = job.resolveNexusOperation;
+      const seq = resolve?.seq;
+      const info = seq == null ? undefined : this.consumeContext(this.pendingCompletionContexts.nexusOperation, seq);
+      const payload = resolve?.result?.completed;
+      if (resolve?.result != null && payload != null && info != null) {
+        systemOutputs.push({ result: resolve.result, payload, info });
+        resolve.result.completed = undefined;
+      }
+    }
     await visit<coresdk.workflow_activation.IWorkflowActivation, SerializationContext | undefined>(
       decodedActivation,
       walkWorkflowActivation,
@@ -140,6 +158,15 @@ export class WorkflowCodecRunner {
         },
       }
     );
+    for (const output of systemOutputs) {
+      output.result.completed = await decodeSystemNexusOutput(
+        this.codecs,
+        output.info.service,
+        output.info.operation,
+        output.payload,
+        output.info.context
+      );
+    }
     return decodedActivation as unknown as Decoded<T>;
   }
 
@@ -150,6 +177,17 @@ export class WorkflowCodecRunner {
     completion: coresdk.workflow_completion.IWorkflowActivationCompletion
   ): Promise<Encoded<coresdk.workflow_completion.IWorkflowActivationCompletion>> {
     const encodedCompletion = coresdk.workflow_completion.WorkflowActivationCompletion.fromObject(completion);
+    const systemInputs: Array<{
+      command: coresdk.workflow_commands.IScheduleNexusOperation;
+      payload: import('@temporalio/common').Payload;
+    }> = [];
+    for (const command of encodedCompletion.successful?.commands ?? []) {
+      const schedule = command.scheduleNexusOperation;
+      if (schedule?.input != null && isSystemNexusEnvelope(schedule.endpoint, schedule.input)) {
+        systemInputs.push({ command: schedule, payload: schedule.input });
+        schedule.input = undefined;
+      }
+    }
     await visit<coresdk.workflow_completion.IWorkflowActivationCompletion, SerializationContext>(
       encodedCompletion,
       walkWorkflowActivationCompletion,
@@ -217,6 +255,27 @@ export class WorkflowCodecRunner {
         },
       }
     );
+    for (const input of systemInputs) {
+      const encoded = await encodeSystemNexusInput(
+        this.codecs,
+        input.command.service,
+        input.command.operation,
+        input.payload,
+        this.workflowContext
+      );
+      if (encoded == null) {
+        input.command.input = input.payload;
+        continue;
+      }
+      input.command.input = encoded.payload;
+      if (input.command.seq != null) {
+        this.pendingCompletionContexts.nexusOperation.set(input.command.seq, {
+          service: input.command.service!,
+          operation: input.command.operation!,
+          context: encoded.context ?? this.workflowContext,
+        });
+      }
+    }
     return encodedCompletion as unknown as Encoded<coresdk.workflow_completion.IWorkflowActivationCompletion>;
   }
 }
