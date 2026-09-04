@@ -1,14 +1,16 @@
-import type { Type as ProtobufType } from 'protobufjs';
+import type { Service as ProtobufService, Type as ProtobufType } from 'protobufjs';
 import type { Payload, PayloadCodec, SerializationContext } from '@temporalio/common';
 import { defaultPayloadConverter } from '@temporalio/common';
 import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
-import { decode, encode, visit } from '@temporalio/common/lib/internal-non-workflow';
-import * as payloadVisitors from '@temporalio/common/lib/internal-non-workflow';
+import { decode, encode, visit, walkPayloadsInMessage } from '@temporalio/common/lib/internal-non-workflow';
 import * as protoRoot from '@temporalio/proto';
 import { operationRegistry } from '@temporalio/workflow/lib/nexus/system/generated/services';
 
 const protobufPayloadConverter = new ProtobufBinaryPayloadConverter(protoRoot);
-const protoRootWithLookup = protoRoot as typeof protoRoot & { lookupType(name: string): ProtobufType };
+const protoRootWithLookup = protoRoot as typeof protoRoot & {
+  lookupType(name: string): ProtobufType;
+  lookupService(name: string): ProtobufService;
+};
 export const TEMPORAL_SYSTEM_NEXUS_ENDPOINT = '__temporal_system';
 const SYSTEM_NEXUS_PAYLOAD_METADATA_KEY = '__temporal_system_payload';
 const SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE = new Uint8Array([116, 114, 117, 101]); // "true"
@@ -32,10 +34,6 @@ export function isSystemNexusEnvelope(
   return marker != null && bytesEqual(marker, SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE);
 }
 
-function payloadVisitor(name: string): unknown {
-  return (payloadVisitors as Record<string, unknown>)[name];
-}
-
 export interface EncodedSystemNexusInput {
   payload: Payload;
   context: SerializationContext | undefined;
@@ -55,18 +53,15 @@ export async function encodeSystemNexusInput(
     throw new TypeError(`unsupported System Nexus operation: ${service}/${operation}`);
   }
   const properties = defaultPayloadConverter.fromPayload(payload) as Record<string, unknown>;
-  const message = protoRootWithLookup.lookupType(definition.inputType).create(properties) as Record<string, unknown>;
-  normalizePayloadBytes(message);
+  normalizePayloadBytes(properties);
+  const message = requestMessageType(service, operation).create(properties) as Record<string, unknown>;
   const context = definition.serializationContext?.(message) ?? workflowContext;
-  const visitor = payloadVisitor(definition.inputPayloadVisitor);
-  if (visitor != null) {
-    await visit(message, visitor as never, {
-      initialContext: context,
-      transformPayload: async (value, valueContext) => (await encode(codecs, [value], valueContext))[0]!,
-      transformPayloads: (values, valueContext) => encode(codecs, values, valueContext),
-      skipSearchAttributes: true,
-    });
-  }
+  await visit(message, walkPayloadsInMessage, {
+    initialContext: context,
+    transformPayload: async (value, valueContext) => (await encode(codecs, [value], valueContext))[0]!,
+    transformPayloads: (values, valueContext) => encode(codecs, values, valueContext),
+    skipSearchAttributes: true,
+  });
   const encoded = protobufPayloadConverter.toPayload(message);
   if (encoded == null) throw new Error('failed to encode System Nexus protobuf envelope');
   return { payload: encoded, context };
@@ -83,16 +78,25 @@ export async function decodeSystemNexusOutput(
   const definition = operationDefinition(service, operation);
   if (definition == null || payload == null) return undefined;
   const message = protobufPayloadConverter.fromPayload<Record<string, unknown>>(payload);
-  const visitor = payloadVisitor(definition.outputPayloadVisitor);
-  if (visitor != null) {
-    await visit(message, visitor as never, {
-      initialContext: context,
-      transformPayload: async (value, valueContext) => (await decode(codecs, [value], valueContext))[0]!,
-      transformPayloads: (values, valueContext) => decode(codecs, values, valueContext),
-      skipSearchAttributes: true,
-    });
-  }
+  await visit(message, walkPayloadsInMessage, {
+    initialContext: context,
+    transformPayload: async (value, valueContext) => (await decode(codecs, [value], valueContext))[0]!,
+    transformPayloads: (values, valueContext) => decode(codecs, values, valueContext),
+    skipSearchAttributes: true,
+  });
   return defaultPayloadConverter.toPayload(message) ?? undefined;
+}
+
+function requestMessageType(service: string | null | undefined, operation: string | null | undefined): ProtobufType {
+  if (service == null || operation == null) {
+    throw new TypeError(`System Nexus operation is missing service or operation: ${service}/${operation}`);
+  }
+  const serviceDefinition = protoRootWithLookup.lookupService(service);
+  const method = serviceDefinition.methods[operation];
+  if (method == null) {
+    throw new TypeError(`System Nexus operation is not present in protobuf descriptors: ${service}/${operation}`);
+  }
+  return serviceDefinition.lookupType(method.requestType);
 }
 
 function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {

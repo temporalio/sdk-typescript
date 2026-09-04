@@ -263,7 +263,12 @@ async function startSystemNexusOperationNextHandler(
         cancellationType: encodeNexusOperationCancellationType('WAIT_CANCELLATION_COMPLETED'),
       },
     });
-    activator.systemNexusOperationContexts.set(seq, { service: input.service, operation: input.operation, context });
+    activator.systemNexusOperationContexts.set(seq, {
+      service: input.service,
+      operation: input.operation,
+      context,
+      outputType: input.outputType,
+    });
     activator.completions.nexusOperationStart.set(seq, { resolve, reject });
   });
   return {

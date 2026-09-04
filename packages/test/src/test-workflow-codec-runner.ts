@@ -2,6 +2,7 @@ import test from 'ava';
 import type { Payload, PayloadCodec } from '@temporalio/common';
 import { ApplicationFailure, defaultFailureConverter, defaultPayloadConverter } from '@temporalio/common';
 import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
+import { walkPayloadsInMessage } from '@temporalio/common/lib/internal-non-workflow';
 import * as protoRoot from '@temporalio/proto';
 import { coresdk } from '@temporalio/proto';
 import type { temporal } from '@temporalio/proto';
@@ -547,6 +548,28 @@ test('system Nexus signal-with-start uses the target workflow serialization cont
   t.deepEqual(traceFromPayload(request.memo?.fields?.memo as Payload), [
     'codec.encode.bound|memo|workflow.target-ns.target-id',
   ]);
+
+  const responseType = (protoRoot as typeof protoRoot & { lookupType(name: string): any }).lookupType(
+    'temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionResponse'
+  );
+  const response = new ProtobufBinaryPayloadConverter(protoRoot).toPayload(responseType.create({ runId: 'run-id' }));
+  const decoded = await runner.decodeActivation({
+    runId: 'run-1',
+    jobs: [{ resolveNexusOperation: { seq: 42, result: { completed: response } } }],
+  });
+  t.is(
+    defaultPayloadConverter.fromPayload<{ runId?: string }>(
+      decoded.jobs?.[0]?.resolveNexusOperation?.result?.completed as Payload
+    ).runId,
+    'run-id'
+  );
+});
+
+test('generic protobuf payload walking rejects an unrecognized root', (t) => {
+  t.throws(
+    () => walkPayloadsInMessage({ $type: { fullName: '.example.Unknown' } }, {} as any, undefined),
+    { message: 'Unknown root message type: example.Unknown' }
+  );
 });
 
 test('ordinary Nexus calls with a System Nexus service name are not rewritten', async (t) => {

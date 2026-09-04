@@ -309,6 +309,8 @@ export interface StartSystemNexusOperationInput {
   readonly input: unknown;
   /** Type information that converts the generated request to its transfer envelope. */
   readonly inputType: TypeInfo;
+  /** Type information that converts the transfer response to its generated public model. */
+  readonly outputType?: TypeInfo;
   /** Context for nested payloads, determined by this generated system operation. */
   readonly serializationContext?: (input: any) => SerializationContext;
   /** Generated operation-specific interceptor hook to invoke before the generic hook. */

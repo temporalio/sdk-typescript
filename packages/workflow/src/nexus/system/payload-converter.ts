@@ -3,6 +3,8 @@ import {
   type Payload,
   type PayloadConverter,
   type SerializationContext,
+  type TypeInfo,
+  fromPayloadWithTypeInfo,
 } from '@temporalio/common';
 import { operationRegistry } from './generated/services';
 
@@ -52,8 +54,13 @@ export function currentSystemNexusUserPayloadConverter(): PayloadConverter {
 export function deserializeSystemNexusOutput(
   service: string | undefined,
   operation: string | undefined,
-  payload: Payload | undefined
+  payload: Payload | undefined,
+  converter: PayloadConverter,
+  context: SerializationContext | undefined,
+  outputType: TypeInfo | undefined
 ): unknown | undefined {
   if (!isSystemNexusOperation(service, operation) || payload == null) return undefined;
-  return defaultPayloadConverter.fromPayload(payload);
+  return withSystemNexusUserPayloadConverter(converter, context, () =>
+    fromPayloadWithTypeInfo(defaultPayloadConverter, payload, undefined, outputType)
+  );
 }
