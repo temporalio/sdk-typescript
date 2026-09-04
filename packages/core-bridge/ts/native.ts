@@ -203,6 +203,8 @@ export declare function workerPollWorkflowActivation(worker: Worker): Promise<Bu
 
 export declare function workerCompleteWorkflowActivation(worker: Worker, result: Buffer): Promise<void>;
 
+export declare function workerRequestWorkflowEviction(worker: Worker, runId: string): void;
+
 export declare function workerPollActivityTask(worker: Worker): Promise<Buffer>;
 
 export declare function workerCompleteActivityTask(worker: Worker, result: Buffer): Promise<void>;

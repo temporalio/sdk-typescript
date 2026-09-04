@@ -19,6 +19,8 @@ export interface Init {
   registeredActivityNames: Set<string>;
   reuseV8Context: boolean;
   hasPatchActivationCallback: boolean;
+  /** Soft-limit basis. When absent, the thread uses V8's configured heap limit. */
+  heapSizeLimitBytes?: number;
 }
 
 /**
@@ -61,7 +63,20 @@ export interface DisposeWorkflow {
   runId: string;
 }
 
-export type WorkerThreadInput = Init | Destroy | CreateWorkflow | ActivateWorkflow | ExtractSinkCalls | DisposeWorkflow;
+/** Mark a Workflow as safe to evict after Core accepted its latest activation completion. */
+export interface MarkWorkflowIdle {
+  type: 'mark-workflow-idle';
+  runId: string;
+}
+
+export type WorkerThreadInput =
+  | Init
+  | Destroy
+  | CreateWorkflow
+  | ActivateWorkflow
+  | ExtractSinkCalls
+  | DisposeWorkflow
+  | MarkWorkflowIdle;
 
 /**
  * Request including a unique ID and input.

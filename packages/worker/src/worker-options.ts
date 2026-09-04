@@ -437,6 +437,20 @@ export interface WorkerOptions {
   maxCachedWorkflows?: number;
 
   /**
+   * Maximum old-generation heap size, in MiB, for each Workflow worker thread.
+   *
+   * The Workflow cache monitors heap usage inside each thread and proactively evicts least-recently-used idle
+   * Workflows as the thread approaches this limit. The same value is also installed as the thread's V8 hard limit,
+   * allowing the Worker to replace the thread if proactive eviction cannot prevent an out-of-memory termination.
+   *
+   * This is a per-thread limit. {@link maxCachedWorkflows} remains an independent, Worker-wide count limit.
+   * Ignored when {@link debugMode} is enabled.
+   *
+   * @default The V8 default heap limit.
+   */
+  maxWorkflowThreadHeapMiB?: number;
+
+  /**
    * Controls the number of threads to be created for executing Workflow Tasks.
    *
    * Adjusting this value is generally not useful, as a Workflow Worker's performance is mostly network bound (due to
@@ -1110,6 +1124,12 @@ export function compileWorkerOptions(
   }
 
   const opts = addDefaultWorkerOptions(rawOpts, logger, metricMeter);
+  if (
+    opts.maxWorkflowThreadHeapMiB !== undefined &&
+    (!Number.isFinite(opts.maxWorkflowThreadHeapMiB) || opts.maxWorkflowThreadHeapMiB <= 0)
+  ) {
+    throw new TypeError('maxWorkflowThreadHeapMiB must be a positive number');
+  }
   if (
     opts.maxEagerActivityReservationsPerWorkflowTask !== undefined &&
     (!Number.isSafeInteger(opts.maxEagerActivityReservationsPerWorkflowTask) ||

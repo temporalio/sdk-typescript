@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type vm from 'node:vm';
+import { Worker as NodeWorker } from 'node:worker_threads';
 import type { ExecutionContext, TestFn } from 'ava';
 import anyTest from 'ava';
 import dedent from 'dedent';
@@ -19,12 +20,17 @@ import { sleep as workflowSleep, type WorkflowInfo } from '@temporalio/workflow'
 import { DefaultLogger, LogTimestamp, type LogEntry } from '@temporalio/worker';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
 import { invokePatchActivationCallback } from '@temporalio/worker/lib/workflow/patch-activation-callback';
-import { ThreadedVMWorkflowCreator } from '@temporalio/worker/lib/workflow/threaded-vm';
+import {
+  ThreadedVMWorkflowCreator,
+  VMWorkflowThreadProxy,
+  WorkerThreadClient,
+} from '@temporalio/worker/lib/workflow/threaded-vm';
+import { WorkflowLocallyEvictedError } from '@temporalio/worker/lib/workflow/threaded-vm-errors';
 import type { WorkflowBundleWithSourceMapAndFilename } from '@temporalio/worker/lib/workflow/workflow-worker-thread/input';
 import type { PatchActivationCallback, PatchActivationInput } from '@temporalio/worker';
 import type { VMWorkflow } from '@temporalio/worker/lib/workflow/vm';
 import { VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
-import type { WorkflowCreator } from '@temporalio/worker/lib/workflow/interface';
+import type { WorkflowCreator, WorkflowThreadEvictionEvent } from '@temporalio/worker/lib/workflow/interface';
 import type { SdkFlag } from '@temporalio/workflow/lib/flags';
 import { SdkFlags } from '@temporalio/workflow/lib/flags';
 import { createUnsafeRandomSource } from '@temporalio/workflow/lib/random-helpers';
@@ -557,6 +563,100 @@ test('successString', async (t) => {
   const { workflowType } = t.context;
   const req = await activate(t, makeStartWorkflow(workflowType));
   compareCompletion(t, req, makeSuccess([makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload('success'))]));
+});
+
+test('thread heap pressure locally evicts an idle Workflow successString', async (t) => {
+  const runId = `${t.context.runId}-threaded`;
+  const evictedRunIds: string[] = [];
+  const client = new WorkerThreadClient(
+    new NodeWorker(require.resolve('@temporalio/worker/lib/workflow/workflow-worker-thread')),
+    new DefaultLogger('ERROR'),
+    undefined,
+    ({ runIds }) => evictedRunIds.push(...runIds)
+  );
+  await client.send({
+    type: 'init',
+    workflowBundle: {
+      ...t.context.workflowBundle,
+      filename: `${t.context.workflowBundle.filename}-${runId}`,
+    },
+    isolateExecutionTimeoutMs: 400,
+    reuseV8Context: REUSE_V8_CONTEXT,
+    registeredActivityNames: new Set(),
+    hasPatchActivationCallback: false,
+    // Force the soft-limit path without constraining the actual Worker Thread heap.
+    heapSizeLimitBytes: 1,
+  });
+  const workflow = await VMWorkflowThreadProxy.create(client, {
+    info: makeWorkflowInfo('successString', runId),
+    randomnessSeed: Long.fromInt(1337).toBytes(),
+    now: Date.now(),
+    showStackTraceSources: true,
+  });
+
+  try {
+    await workflow.activate(makeStartWorkflow('successString'));
+    await workflow.getAndResetSinkCalls();
+    await workflow.activationCompletionAccepted();
+
+    t.deepEqual(evictedRunIds, [runId]);
+    await t.throwsAsync(workflow.activate({ runId, jobs: [] }), { instanceOf: WorkflowLocallyEvictedError });
+  } finally {
+    await workflow.dispose();
+    await client.destroy();
+  }
+});
+
+test('thread replacement accepts new Workflows after an unexpected exit successString', async (t) => {
+  const firstRunId = `${t.context.runId}-first`;
+  const secondRunId = `${t.context.runId}-second`;
+  const creator = await ThreadedVMWorkflowCreator.create({
+    workflowBundle: {
+      ...t.context.workflowBundle,
+      filename: `${t.context.workflowBundle.filename}-${firstRunId}`,
+    },
+    threadPoolSize: 1,
+    isolateExecutionTimeoutMs: 400,
+    reuseV8Context: REUSE_V8_CONTEXT,
+    registeredActivityNames: new Set(),
+    logger: new DefaultLogger('ERROR'),
+  });
+  let resolveExit!: (event: WorkflowThreadEvictionEvent) => void;
+  const exitEvent = new Promise<WorkflowThreadEvictionEvent>((resolve) => {
+    resolveExit = resolve;
+  });
+  creator.setLifecycleHandlers(
+    (event) => resolveExit(event),
+    (error) => t.fail(`Thread replacement failed: ${error}`)
+  );
+  const firstWorkflow = await createWorkflow('successString', firstRunId, Date.now(), creator);
+
+  try {
+    const [client] = (
+      creator as unknown as {
+        workerThreadClients: Array<{ workerThread: NodeWorker }>;
+      }
+    ).workerThreadClients;
+    await client!.workerThread.terminate();
+    t.deepEqual(await exitEvent, { runIds: [firstRunId], reason: 'thread-exit' });
+
+    const secondWorkflow = await createWorkflow('successString', secondRunId, Date.now(), creator);
+    try {
+      const completion = await secondWorkflow.activate(makeStartWorkflow('successString'));
+      t.deepEqual(
+        coresdk.workflow_completion.WorkflowActivationCompletion.create(completion).toJSON(),
+        coresdk.workflow_completion.WorkflowActivationCompletion.create({
+          ...makeSuccess([makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload('success'))]),
+          runId: secondRunId,
+        }).toJSON()
+      );
+    } finally {
+      await secondWorkflow.dispose();
+    }
+  } finally {
+    await firstWorkflow.dispose();
+    await creator.destroy();
+  }
 });
 
 test('continueAsNewSuggested', async (t) => {

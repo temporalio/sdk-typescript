@@ -49,6 +49,7 @@ export class MockNativeWorker implements NativeWorkerLike {
   reject?: (err: Error) => void;
   namespace = 'mock';
   logger = new DefaultLogger('DEBUG');
+  requestedWorkflowEvictions: string[] = [];
 
   public static async create(): Promise<NativeWorkerLike> {
     return new this();
@@ -94,6 +95,10 @@ export class MockNativeWorker implements NativeWorkerLike {
   public async completeWorkflowActivation(result: Buffer): Promise<void> {
     this.workflowCompletionCallback!(result);
     this.workflowCompletionCallback = undefined;
+  }
+
+  public requestWorkflowEviction(runId: string): void {
+    this.requestedWorkflowEvictions.push(runId);
   }
 
   public async pollNexusTask(): Promise<Buffer> {
@@ -197,7 +202,7 @@ export const defaultOptions: WorkerOptions = {
   taskQueue: 'test',
 };
 
-export function isolateFreeWorker(options: WorkerOptions = defaultOptions): Worker {
+export function isolateFreeWorker(options: WorkerOptions = defaultOptions, workflowCreator?: WorkflowCreator): Worker {
   const runtime = Runtime.instance();
   const logger = LoggerWithComposedMetadata.compose(runtime.logger, {
     sdkComponent: SdkComponent.worker,
@@ -208,7 +213,7 @@ export function isolateFreeWorker(options: WorkerOptions = defaultOptions): Work
     taskQueue: options.taskQueue ?? 'default',
   });
   return new Worker(
-    {
+    workflowCreator ?? {
       async createWorkflow() {
         throw new Error('Not implemented');
       },

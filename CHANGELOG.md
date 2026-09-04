@@ -62,6 +62,9 @@ to docs, or any other relevant information.
 
 ### Added
 
+- Workers can bound each Workflow worker thread's heap with `maxWorkflowThreadHeapMiB`. Under heap pressure, the
+  Worker evicts least-recently-used idle Workflows; if a Workflow thread exits unexpectedly, it is replaced and its
+  cached Workflows are evicted from Core.
 - **Experimental**: `@temporalio/openai-agents` can run OpenAI Agents `SandboxAgent`s as Temporal Workflows. SandboxAgent
   operations are Activities; hosted tool credentials and sandbox environment values that reference allowlisted Worker
   environment variables are resolved on Worker so their values are not recorded in Workflow history.
@@ -117,6 +120,8 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- Workflow activation failures now retain Workflow state until Core eviction, preventing premature
+  execution-context disposal after converter or codec errors.
 - Nexus handlers now report uncaught Workflow and standalone Activity already-started errors as
   non-retryable `INTERNAL` Handler Errors, preventing retries when ID reuse or conflict
   policies reject duplicate execution IDs.

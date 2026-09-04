@@ -4,7 +4,7 @@ import { setTimeout } from 'timers/promises';
 import test from 'ava';
 import { Client } from '@temporalio/client';
 import { PromiseCompletionTimeoutError, Runtime } from '@temporalio/worker';
-import { TransportError, UnexpectedError } from '@temporalio/worker/lib/errors';
+import { TransportError } from '@temporalio/worker/lib/errors';
 import { isBun, RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { defaultOptions } from './mock-native-worker';
 import { fillMemory } from './workflows';
@@ -65,11 +65,11 @@ if (RUN_INTEGRATION_TESTS) {
     );
   });
 
-  (isBun ? test.skip : test.serial)('Threaded VM gracely stops and fails on ERR_WORKER_OUT_OF_MEMORY', async (t) => {
+  (isBun ? test.skip : test.serial)('Threaded VM replaces a thread after ERR_WORKER_OUT_OF_MEMORY', async (t) => {
     t.timeout(30_000);
     const taskQueue = t.title.replace(/ /g, '_');
     const client = new Client();
-    const worker = await Worker.create({ ...defaultOptions, taskQueue });
+    const worker = await Worker.create({ ...defaultOptions, taskQueue, maxWorkflowThreadHeapMiB: 128 });
 
     client.workflow
       .start(fillMemory, {
@@ -82,21 +82,12 @@ if (RUN_INTEGRATION_TESTS) {
     const workerRun = worker.run();
     try {
       await Promise.race([setTimeout(10_000), workerRun]);
+      t.is(worker.getState(), 'RUNNING');
+    } finally {
       if (worker.getState() === 'RUNNING') {
         worker.shutdown();
         await workerRun;
       }
-      t.log('Non-conclusive result: Worker did not fail as expected');
-      t.pass();
-    } catch (err) {
-      t.is((err as Error).name, UnexpectedError.name);
-      t.is(
-        (err as Error).message,
-        'Workflow Worker Thread exited prematurely: Error [ERR_WORKER_OUT_OF_MEMORY]: ' +
-          'Worker terminated due to reaching memory limit: JS heap out of memory'
-      );
-      t.is(worker.getState(), 'FAILED');
-    } finally {
       if (Runtime._instance) await Runtime._instance.shutdown();
     }
   });

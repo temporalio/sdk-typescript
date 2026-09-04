@@ -19,7 +19,12 @@ export interface SinkCallList {
   calls: SinkCall[];
 }
 
-export type WorkerThreadOutput = ActivationCompletion | SinkCallList | undefined;
+/** The requested Workflow was already discarded locally while awaiting Core's eviction marker. */
+export interface WorkflowLocallyEvicted {
+  type: 'workflow-locally-evicted';
+}
+
+export type WorkerThreadOutput = ActivationCompletion | SinkCallList | WorkflowLocallyEvicted | undefined;
 
 /**
  * Successful result for a given request
@@ -50,4 +55,12 @@ export interface WorkerThreadResponse {
   requestId: bigint;
 
   result: WorkerThreadOkResult | WorkflowThreadErrorResult;
+}
+
+/** Unsolicited notification that the thread discarded idle Workflows due to heap pressure. */
+export interface WorkflowEvictionNotification {
+  type: 'workflow-evictions';
+  runIds: string[];
+  usedHeapSize: number;
+  heapSizeLimit: number;
 }

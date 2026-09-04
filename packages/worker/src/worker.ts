@@ -101,6 +101,7 @@ import { isBunPre1_4 } from './workflow/bun';
 import type { Workflow, WorkflowCreator } from './workflow/interface';
 import { ReusableVMWorkflowCreator } from './workflow/reusable-vm';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
+import { WorkflowLocallyEvictedError, WorkflowThreadLostError } from './workflow/threaded-vm-errors';
 import { VMWorkflowCreator } from './workflow/vm';
 import { invokePatchActivationCallback } from './workflow/patch-activation-callback';
 import type { WorkflowBundleWithSourceMapAndFilename } from './workflow/workflow-worker-thread/input';
@@ -162,6 +163,7 @@ export interface NativeWorkerLike {
   pollActivityTask: OmitFirstParam<typeof native.workerPollActivityTask>;
   pollNexusTask: OmitFirstParam<typeof native.workerPollNexusTask>;
   completeWorkflowActivation: OmitFirstParam<typeof native.workerCompleteWorkflowActivation>;
+  requestWorkflowEviction: OmitFirstParam<typeof native.workerRequestWorkflowEviction>;
   completeActivityTask: OmitFirstParam<typeof native.workerCompleteActivityTask>;
   completeNexusTask: OmitFirstParam<typeof native.workerCompleteNexusTask>;
   recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
@@ -189,6 +191,8 @@ interface WorkflowWithLogAttributes {
   info: WorkflowInfo;
 }
 
+class WorkflowDisposeError extends UnexpectedError {}
+
 function addBuildIdIfMissing(options: CompiledWorkerOptions, bundleCode?: string): CompiledWorkerOptionsWithBuildId {
   const bid = options.buildId;
   if (bid != null) {
@@ -205,6 +209,7 @@ export class NativeWorker implements NativeWorkerLike {
   public readonly pollActivityTask: OmitFirstParam<typeof native.workerPollActivityTask>;
   public readonly pollNexusTask: OmitFirstParam<typeof native.workerPollNexusTask>;
   public readonly completeWorkflowActivation: OmitFirstParam<typeof native.workerCompleteWorkflowActivation>;
+  public readonly requestWorkflowEviction: OmitFirstParam<typeof native.workerRequestWorkflowEviction>;
   public readonly completeActivityTask: OmitFirstParam<typeof native.workerCompleteActivityTask>;
   public readonly completeNexusTask: OmitFirstParam<typeof native.workerCompleteNexusTask>;
   public readonly recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
@@ -239,6 +244,7 @@ export class NativeWorker implements NativeWorkerLike {
     this.pollActivityTask = native.workerPollActivityTask.bind(undefined, nativeWorker);
     this.pollNexusTask = native.workerPollNexusTask.bind(undefined, nativeWorker);
     this.completeWorkflowActivation = native.workerCompleteWorkflowActivation.bind(undefined, nativeWorker);
+    this.requestWorkflowEviction = native.workerRequestWorkflowEviction.bind(undefined, nativeWorker);
     this.completeActivityTask = native.workerCompleteActivityTask.bind(undefined, nativeWorker);
     this.completeNexusTask = native.workerCompleteNexusTask.bind(undefined, nativeWorker);
     this.recordActivityHeartbeat = native.workerRecordActivityHeartbeat.bind(undefined, nativeWorker);
@@ -621,6 +627,7 @@ export class Worker {
         registeredActivityNames,
         logger,
         patchActivationCallback: compiledOptions.patchActivationCallback,
+        maxWorkflowThreadHeapMiB: compiledOptions.maxWorkflowThreadHeapMiB,
       });
     }
   }
@@ -850,7 +857,26 @@ export class Worker {
     protected readonly plugins: WorkerPlugin[],
     protected _connection?: NativeConnection,
     protected readonly isReplayWorker: boolean = false
-  ) {}
+  ) {
+    if (workflowCreator?.setLifecycleHandlers !== undefined) {
+      workflowCreator.setLifecycleHandlers(
+        ({ runIds, reason, usedHeapSize, heapSizeLimit }) => {
+          this.logger.info('Workflow Worker Thread evicted cached Workflows', {
+            reason,
+            evictedWorkflowCount: runIds.length,
+            usedHeapSize,
+            heapSizeLimit,
+          });
+          try {
+            for (const runId of runIds) this.nativeWorker.requestWorkflowEviction(runId);
+          } catch (error) {
+            this.unexpectedErrorSubject.error(error);
+          }
+        },
+        (error) => this.unexpectedErrorSubject.error(error)
+      );
+    }
+  }
 
   /**
    * An Observable which emits each time the number of in flight activations changes
@@ -1473,7 +1499,7 @@ export class Worker {
    */
   protected handleWorkflowActivations(
     activations$: CloseableGroupedObservable<string, coresdk.workflow_activation.WorkflowActivation>
-  ): Observable<Uint8Array> {
+  ): Observable<void> {
     const syntheticEvictionActivations$ = this.workflowPollerStateSubject.pipe(
       // Core has indicated that it will not return any more poll results; evict all cached WFs.
       filter((state) => state !== 'POLLING'),
@@ -1492,17 +1518,45 @@ export class Worker {
       tap(() => {
         this.numInFlightActivationsSubject.next(this.numInFlightActivationsSubject.value + 1);
       }),
-      mergeMapWithState(this.handleActivation.bind(this), undefined),
-      tap(({ close }) => {
-        this.numInFlightActivationsSubject.next(this.numInFlightActivationsSubject.value - 1);
+      mergeMapWithState<
+        WorkflowWithLogAttributes | undefined,
+        { activation: coresdk.workflow_activation.WorkflowActivation; synthetic: boolean },
+        { completion?: Uint8Array; close: boolean; fatalError?: Error }
+      >(async (state, input) => {
+        const result = await this.handleActivation(state, input);
+        const { completion, close } = result.output;
         if (close) {
           activations$.close();
           this.numCachedWorkflowsSubject.next(this.numCachedWorkflowsSubject.value - 1);
         }
+        if (completion !== undefined) {
+          try {
+            await this.nativeWorker.completeWorkflowActivation(Buffer.from(completion, completion.byteOffset));
+          } catch (error) {
+            this.logger.error('Core reported failure in completeWorkflowActivation(). Initiating Worker shutdown.', {
+              error,
+            });
+            this.unexpectedErrorSubject.error(error);
+            return result;
+          }
+          if (!close) {
+            try {
+              await result.state?.workflow.activationCompletionAccepted?.();
+            } catch (error) {
+              if (!(error instanceof WorkflowThreadLostError || error instanceof WorkflowLocallyEvictedError)) {
+                this.unexpectedErrorSubject.error(error);
+              }
+            }
+          }
+        }
+        return result;
+      }, undefined),
+      tap(({ fatalError }) => {
+        this.numInFlightActivationsSubject.next(this.numInFlightActivationsSubject.value - 1);
+        if (fatalError !== undefined) this.unexpectedErrorSubject.error(fatalError);
       }),
       takeWhile(({ close }) => !close, true /* inclusive */),
-      map(({ completion }) => completion),
-      filter((result): result is Uint8Array => result !== undefined)
+      map(() => undefined)
     );
   }
 
@@ -1514,7 +1568,7 @@ export class Worker {
     { activation, synthetic }: { activation: coresdk.workflow_activation.WorkflowActivation; synthetic: boolean }
   ): Promise<{
     state: WorkflowWithLogAttributes | undefined;
-    output: { completion?: Uint8Array; close: boolean };
+    output: { completion?: Uint8Array; close: boolean; fatalError?: Error };
   }> {
     try {
       const removeFromCacheIx = activation.jobs.findIndex(({ removeFromCache }) => removeFromCache);
@@ -1532,7 +1586,11 @@ export class Worker {
       activation.jobs = jobs;
       if (jobs.length === 0) {
         this.logger.trace('Disposing workflow', workflow ? workflow.logAttributes : { runId: activation.runId });
-        await workflow?.workflow.dispose();
+        try {
+          await workflow?.workflow.dispose();
+        } catch (cause) {
+          throw new WorkflowDisposeError('Failed to dispose Workflow during eviction', cause);
+        }
         if (!close) {
           throw new IllegalStateError('Got a Workflow activation with no jobs');
         }
@@ -1617,31 +1675,56 @@ export class Worker {
         this.logger.trace('Completed activation', workflow.logAttributes);
       }
     } catch (error) {
+      const workflowStateLost =
+        error instanceof WorkflowLocallyEvictedError || error instanceof WorkflowThreadLostError;
+      if (workflowStateLost) {
+        this.logger.warn('Workflow Activation failed after its local Workflow state was lost', {
+          runId: activation.runId,
+          ...workflow?.logAttributes,
+          error,
+        });
+      }
+
+      if (error instanceof WorkflowDisposeError) {
+        const completion = synthetic
+          ? undefined
+          : coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
+              runId: activation.runId,
+              successful: {},
+            }).finish();
+        return { state: undefined, output: { close: true, completion, fatalError: error } };
+      }
+
       let logMessage = 'Failed to process Workflow Activation';
-      if (error instanceof UnexpectedError) {
+      if (error instanceof UnexpectedError && !workflowStateLost) {
         // Something went wrong in the workflow; we'll do our best to shut the Worker
         // down gracefully, but then we'll need to terminate the Worker ASAP.
         logMessage = 'An unexpected error occurred while processing Workflow Activation. Initiating Worker shutdown.';
         this.unexpectedErrorSubject.error(error);
       }
 
-      this.logger.error(logMessage, {
-        runId: activation.runId,
-        ...workflow?.logAttributes,
-        error,
-        workflowExists: workflow !== undefined,
-      });
+      if (!workflowStateLost) {
+        this.logger.error(logMessage, {
+          runId: activation.runId,
+          ...workflow?.logAttributes,
+          error,
+          workflowExists: workflow !== undefined,
+        });
+      }
 
       const completion = coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
         runId: activation.runId,
         failed: {
-          failure: await encodeErrorToFailure(this.options.loadedDataConverter, error),
+          failure: await encodeErrorToFailure(
+            this.options.loadedDataConverter,
+            workflowStateLost ? ApplicationFailure.fromError(error, { type: error.name }) : error
+          ),
         },
       }).finish();
 
       // We do not dispose of the Workflow yet, wait to be evicted from Core.
       // This is done to simplify the Workflow lifecycle so Core is the sole driver.
-      return { state: undefined, output: { close: true, completion } };
+      return { state: workflow, output: { close: false, completion } };
     }
   }
 
@@ -1991,16 +2074,6 @@ export class Worker {
     return this.workflowPoll$().pipe(
       closeableGroupBy((activation) => activation.runId),
       mergeMap(this.handleWorkflowActivations.bind(this)),
-      mergeMap(async (completion) => {
-        try {
-          await this.nativeWorker.completeWorkflowActivation(Buffer.from(completion, completion.byteOffset));
-        } catch (error) {
-          this.logger.error('Core reported failure in completeWorkflowActivation(). Initiating Worker shutdown.', {
-            error,
-          });
-          this.unexpectedErrorSubject.error(error);
-        }
-      }),
       tap({
         complete: () => {
           this.logger.debug('Workflow Worker terminated');
