@@ -261,6 +261,7 @@ export interface ActivityExecutionInfo {
   typedSearchAttributes: TypedSearchAttributes;
   taskQueue: string;
   executionDurationMs?: number;
+  executionTime?: Date;
 }
 
 /**
@@ -288,9 +289,20 @@ export interface ActivityExecutionDescription extends ActivityExecutionInfo {
   lastDeploymentVersion?: WorkerDeploymentVersion;
   priority: Priority;
   canceledReason?: string;
+  startDelayMs?: number;
+  totalHeartbeatCount?: Long;
+
+  hasHeartbeatDetails: boolean;
+  hasLastFailure: boolean;
+  hasInput: boolean;
+  hasResult: boolean;
+  hasOutcomeFailure: boolean;
 
   getHeartbeatDetails<T = any>(): Promise<T | undefined>;
   getLastFailure(): Promise<Error | undefined>;
+  getInput<T extends any[] = any[]>(): Promise<T | undefined>;
+  getResult<T = any>(): Promise<T | undefined>;
+  getOutcomeFailure(): Promise<Error | undefined>;
 }
 
 /**

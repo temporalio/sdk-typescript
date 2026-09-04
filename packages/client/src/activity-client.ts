@@ -27,6 +27,7 @@ import {
   searchAttributePayloadConverter,
 } from '@temporalio/common/lib/converter/payload-search-attributes';
 import {
+  decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
   decodeOptionalFailureToOptionalError,
   encodeToPayloadsWithContext,
@@ -243,11 +244,17 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
         });
       },
 
-      async describe(): Promise<ActivityExecutionDescription> {
+      async describe(options?: ActivityDescribeOptions): Promise<ActivityExecutionDescription> {
         return await this.client.interceptedHandlers.describe({
           activityId: this.activityId,
           activityRunId: this.runId ?? '',
           headers: {},
+          options: {
+            includeInput: options?.includeInput || false,
+            includeOutcome: options?.includeOutcome || false,
+            includeHeartbeatDetails: options?.includeHeartbeatDetails || false,
+            includeLastFailure: options?.includeLastFailure || false,
+          },
         });
       },
 
@@ -422,15 +429,26 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       throw new TypeError('activityId is required');
     }
 
+    function hasInfo(resp: any): resp is { info: object } {
+      return !!resp.info;
+    }
+
     try {
       const resp = await this.workflowService.describeActivityExecution({
         namespace: this.options.namespace,
         activityId: input.activityId,
         runId: input.activityRunId || undefined,
+        includeInput: input.options.includeInput,
+        includeOutcome: input.options.includeInput,
+        includeHeartbeatDetails: input.options.includeInput,
+        includeLastFailure: input.options.includeLastFailure,
       });
+      if (!hasInfo(resp)) {
+        throw new ServiceError('Missing info in describeActivityExecution response');
+      }
       const externalStorage = this.dataConverter.externalStorage;
       await visit(resp, walkDescribeActivityExecutionResponse, extstoreInboundOptions(externalStorage));
-      return buildActivityDescription(resp.info!, resp.callbacks, this.dataConverter);
+      return buildActivityDescription(resp, this.dataConverter);
     } catch (err) {
       this.rethrowGrpcError(err, 'Failed to describe activity');
     }
@@ -525,6 +543,9 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       }
       throw new ServiceError(fallbackMessage, { cause: err });
     }
+    if (err instanceof ServiceError) {
+      throw err;
+    }
     throw new ServiceError('Unexpected error while making gRPC request');
   }
 }
@@ -555,7 +576,7 @@ export interface ActivityHandle<R = any> {
   /**
    * Returns information about the Activity execution.
    */
-  describe(): Promise<ActivityExecutionDescription>;
+  describe(options?: ActivityDescribeOptions): Promise<ActivityExecutionDescription>;
   /**
    * Requests cancellation of the Activity execution. Note that cancellations are cooperative and not guaranteed to happen.
    */
@@ -662,6 +683,18 @@ export interface GetActivityHandleOptions {
   typeInfo?: Pick<PayloadTypeInfo, 'outputType'>;
 }
 
+/**
+ * Options for {@link ActivityHandle.describe}.
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ */
+export interface ActivityDescribeOptions {
+  includeInput?: boolean;
+  includeOutcome?: boolean;
+  includeHeartbeatDetails?: boolean;
+  includeLastFailure?: boolean;
+}
+
 function validateActivityOptions(options: ActivityOptions): void {
   if (!options.id) {
     throw new TypeError('id is required');
@@ -701,47 +734,45 @@ function buildActivityExecutionInfo(info: temporal.api.activity.v1.IActivityExec
 }
 
 function buildActivityDescription(
-  info: temporal.api.activity.v1.IActivityExecutionInfo,
-  callbacks: temporal.api.activity.v1.ICallbackInfo[],
+  resp: temporal.api.workflowservice.v1.DescribeActivityExecutionResponse & { info: object },
   dataConverter: LoadedDataConverter
 ): ActivityExecutionDescription {
-  const getHeartbeatDetails: <T>() => Promise<T | undefined> = async <T>() => {
-    const payloads = info.heartbeatDetails?.payloads;
-    if (payloads && payloads.length > 0) {
-      return await decodeFromPayloadsAtIndex<T>(dataConverter, 0, info.heartbeatDetails?.payloads);
-    } else {
-      return undefined;
-    }
-  };
-
-  const getLastFailure: () => Promise<Error | undefined> = async () => {
-    return await decodeOptionalFailureToOptionalError(dataConverter, info.lastFailure);
-  };
-
   return {
-    ...buildActivityExecutionInfoCommonPart(info),
-    rawInfo: info,
-    rawCallbacks: callbacks,
-    runState: decodePendingActivityState(info.runState),
-    scheduleToCloseTimeoutMs: optionalTsToMs(info.scheduleToCloseTimeout),
-    scheduleToStartTimeoutMs: optionalTsToMs(info.scheduleToStartTimeout),
-    startToCloseTimeoutMs: optionalTsToMs(info.startToCloseTimeout),
-    heartbeatTimeoutMs: optionalTsToMs(info.heartbeatTimeout),
-    retryPolicy: decompileRetryPolicy(info.retryPolicy)!,
-    lastHeartbeatTime: optionalTsToDate(info.lastHeartbeatTime),
-    lastStartedTime: optionalTsToDate(info.lastStartedTime),
-    attempt: info.attempt!,
-    expirationTime: optionalTsToDate(info.expirationTime),
-    lastWorkerIdentity: info.lastWorkerIdentity || undefined,
-    currentRetryIntervalMs: optionalTsToMs(info.currentRetryInterval),
-    lastAttemptCompleteTime: optionalTsToDate(info.lastAttemptCompleteTime),
-    nextAttemptScheduleTime: optionalTsToDate(info.nextAttemptScheduleTime),
-    lastDeploymentVersion: convertDeploymentVersion(info.lastDeploymentVersion),
-    priority: decodePriority(info.priority),
-    canceledReason: info.canceledReason || undefined,
+    ...buildActivityExecutionInfoCommonPart(resp.info),
+    rawInfo: resp.info,
+    rawCallbacks: resp.callbacks,
+    runState: decodePendingActivityState(resp.info.runState),
+    scheduleToCloseTimeoutMs: optionalTsToMs(resp.info.scheduleToCloseTimeout),
+    scheduleToStartTimeoutMs: optionalTsToMs(resp.info.scheduleToStartTimeout),
+    startToCloseTimeoutMs: optionalTsToMs(resp.info.startToCloseTimeout),
+    heartbeatTimeoutMs: optionalTsToMs(resp.info.heartbeatTimeout),
+    retryPolicy: decompileRetryPolicy(resp.info.retryPolicy)!,
+    lastHeartbeatTime: optionalTsToDate(resp.info.lastHeartbeatTime),
+    lastStartedTime: optionalTsToDate(resp.info.lastStartedTime),
+    attempt: resp.info.attempt!,
+    expirationTime: optionalTsToDate(resp.info.expirationTime),
+    lastWorkerIdentity: resp.info.lastWorkerIdentity || undefined,
+    currentRetryIntervalMs: optionalTsToMs(resp.info.currentRetryInterval),
+    lastAttemptCompleteTime: optionalTsToDate(resp.info.lastAttemptCompleteTime),
+    nextAttemptScheduleTime: optionalTsToDate(resp.info.nextAttemptScheduleTime),
+    lastDeploymentVersion: convertDeploymentVersion(resp.info.lastDeploymentVersion),
+    priority: decodePriority(resp.info.priority),
+    canceledReason: resp.info.canceledReason || undefined,
+    startDelayMs: optionalTsToMs(resp.info.startDelay),
+    totalHeartbeatCount: resp.info.totalHeartbeatCount || undefined,
 
-    getHeartbeatDetails,
-    getLastFailure,
+    hasHeartbeatDetails: (resp.info.heartbeatDetails?.payloads?.length || 0) > 0,
+    hasLastFailure: !!resp.info.lastFailure,
+    hasInput: (resp.input?.payloads?.length || 0) > 0,
+    hasResult: (resp.outcome?.result?.payloads?.length || 0) > 0,
+    hasOutcomeFailure: !!resp.outcome?.failure,
+
+    getHeartbeatDetails: async <T>() =>
+      await decodeFromPayloadsAtIndex<T>(dataConverter, 0, resp.info.heartbeatDetails?.payloads),
+    getLastFailure: async () => await decodeOptionalFailureToOptionalError(dataConverter, resp.info.lastFailure),
+    getInput: async <T>() => (await decodeArrayFromPayloads(dataConverter, resp.input?.payloads)) as T,
+    getResult: async <T>() => await decodeFromPayloadsAtIndex<T>(dataConverter, 0, resp.outcome?.result?.payloads),
+    getOutcomeFailure: async () => await decodeOptionalFailureToOptionalError(dataConverter, resp.outcome?.failure),
   };
 }
 
