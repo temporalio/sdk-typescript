@@ -11,6 +11,7 @@ import type {
   SignalWithStartWorkflowResponse,
   SignalWithStartWorkflowRequest,
 } from './models';
+import type { SystemNexusWorkflowOutboundCallsInterceptor } from './interceptors';
 
 /**
  * @experimental This API is experimental and subject to change.
@@ -47,12 +48,6 @@ export interface OperationRegistryEntry<Input = unknown> {
   ) => import('@temporalio/common').SerializationContext;
 }
 
-export type SystemNexusSpecificInterceptor = (
-  interceptor: SystemNexusWorkflowOutboundCallsInterceptor,
-  input: unknown,
-  next: (input: unknown) => Promise<workflow.NexusOperationHandle<unknown>>
-) => Promise<workflow.NexusOperationHandle<unknown>>;
-
 export const operationRegistry = [
   {
     service: 'temporal.api.workflowservice.v1.WorkflowService',
@@ -75,11 +70,3 @@ export const operationRegistry = [
     },
   },
 ] as const;
-export interface SystemNexusWorkflowOutboundCallsInterceptor {
-  signalWithStartWorkflow?: (
-    input: SignalWithStartWorkflowRequest,
-    next: (
-      input: SignalWithStartWorkflowRequest
-    ) => Promise<workflow.NexusOperationHandle<SignalWithStartWorkflowResponse>>
-  ) => Promise<workflow.NexusOperationHandle<SignalWithStartWorkflowResponse>>;
-}
