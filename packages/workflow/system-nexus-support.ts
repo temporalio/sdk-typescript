@@ -1,9 +1,9 @@
+import type Long from 'long';
 import * as common from '@temporalio/common';
 import type { google, temporal } from '@temporalio/proto';
-import * as workflow from '../workflow-exports';
-import { currentSystemNexusUserPayloadConverter } from '../payload-converter';
+import { workflowInfo } from '../../../workflow';
+import { currentSystemNexusUserPayloadConverter } from '../user-payload-converter';
 import type { SignalWithStartWorkflowRequest } from './models';
-import type Long from 'long';
 
 function int64ToNumber(value: Long | number | string | object | null | undefined): number {
   if (value == null) {
@@ -63,7 +63,7 @@ export function workflowFunctionName(value: string | common.Workflow): string {
   return typeof value === 'string' ? value : common.extractWorkflowType(value);
 }
 
-export function signalFunctionName(value: string | workflow.SignalDefinition<any[]>): string {
+export function signalFunctionName(value: string | common.SignalDefinition<any[]>): string {
   return typeof value === 'string' ? value : value.name;
 }
 
@@ -76,7 +76,7 @@ export function taskQueueToProto(taskQueue: string): temporal.api.taskqueue.v1.I
 }
 
 export function workflowNamespace(): string {
-  return workflow.workflowInfo().namespace;
+  return workflowInfo().namespace;
 }
 
 /** Serialization context for payloads owned by a signal-with-start target workflow. */
@@ -85,7 +85,7 @@ export function signalWithStartWorkflowSerializationContext(
 ): common.WorkflowSerializationContext {
   return {
     type: 'workflow',
-    namespace: request.namespace ?? workflow.workflowInfo().namespace,
+    namespace: request.namespace ?? workflowInfo().namespace,
     workflowId: request.id,
   };
 }
