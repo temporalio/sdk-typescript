@@ -127,8 +127,30 @@ export function payloadToProto(
   return payload;
 }
 
-export function configuredPayloadConverter(): common.PayloadConverter {
+function configuredPayloadConverter(): common.PayloadConverter {
   return currentSystemNexusUserPayloadConverter();
+}
+
+/** Convert application values to the protobuf payload-list representation. */
+export function payloadsToProto(
+  values: ReadonlyArray<unknown>
+): temporal.api.common.v1.IPayloads {
+  return { payloads: common.toPayloads(configuredPayloadConverter(), ...values) ?? [] };
+}
+
+/** Convert a protobuf payload-list representation to application values. */
+export function payloadsFromProto(proto: temporal.api.common.v1.IPayloads): unknown[] {
+  return common.arrayFromPayloads(configuredPayloadConverter(), proto.payloads) ?? [];
+}
+
+/** Convert one application value to a protobuf payload. */
+export function valueToPayload(value: unknown): common.Payload {
+  return configuredPayloadConverter().toPayload(value);
+}
+
+/** Convert one protobuf payload to an application value. */
+export function payloadToValue<T>(payload: common.Payload): T {
+  return configuredPayloadConverter().fromPayload<T>(payload);
 }
 
 export function failureFromProto(proto: temporal.api.failure.v1.IFailure): Error {
