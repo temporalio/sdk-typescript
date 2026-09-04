@@ -126,7 +126,8 @@ interface workflow-service {
   /// @nexus.output-transform
   ///   python-type="temporalio.workflow.ExternalWorkflowHandle[WorkflowResult]"
   ///   python="temporalio.workflow.get_external_workflow_handle(request.id, run_id=result.run_id)"
-  ///   typescript-type="workflow.ExternalWorkflowHandle"
+  ///   typescript-type="ExternalWorkflowHandle"
+  ///   typescript-type-import="../../../../workflow-handle"
   ///   typescript="workflow.getExternalWorkflowHandle(request.id, result.runId ?? undefined)"
   ///   typescript-import="@temporalio/workflow"
   ///   dotnet-type="Temporalio.Workflows.ExternalWorkflowHandle"

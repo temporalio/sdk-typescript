@@ -86,9 +86,9 @@ interface model {
   ///   typescript-name-extractor="signalFunctionName"
   ///   dotnet-name-extractor="TemporalFunctionNames.SignalName"
   ///   dotnet-call-extractor="TemporalFunctionNames.ExtractCall"
-  ///   typescript-value-type="workflow.SignalDefinition<any[]>"
-  ///   typescript-args-type="Value extends workflow.SignalDefinition<infer Args, any> ? Args : never"
-  ///   typescript-import="@temporalio/workflow"
+  ///   typescript-value-type="common.SignalDefinition<any[]>"
+  ///   typescript-args-type="Value extends common.SignalDefinition<infer Args, any> ? Args : never"
+  ///   typescript-import="@temporalio/common"
   /// @nexus.add-rpc-compatible-with "string"
   type signal-function = placeholder;
 
