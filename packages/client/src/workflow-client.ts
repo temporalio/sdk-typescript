@@ -116,8 +116,14 @@ import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base
 import { BaseClient, defaultBaseClientOptions } from './base-client';
 import { mapAsyncIterable } from './iterators-utils';
 import { WorkflowUpdateStage, encodeWorkflowUpdateStage } from './workflow-update-stage';
-import type { InternalWorkflowHandle, InternalWorkflowSignalInput, InternalWorkflowStartOptions } from './internal';
+import type {
+  InternalWorkflowHandle,
+  InternalWorkflowQueryInput,
+  InternalWorkflowSignalInput,
+  InternalWorkflowStartOptions,
+} from './internal';
 import {
+  InternalWorkflowQueryOptionsSymbol,
   InternalWorkflowSignalOptionsSymbol,
   InternalWorkflowStartOptionsSymbol,
   type InternalWorkflowUpdateOptions,
@@ -1069,6 +1075,7 @@ export class WorkflowClient extends BaseClient {
   protected async _queryWorkflowHandler(input: WorkflowQueryInput): Promise<unknown> {
     const dataConverter = this.dataConverter;
     const context = this.workflowSerializationContext(input.workflowExecution.workflowId!);
+    const internalOptions = (input as InternalWorkflowQueryInput)[InternalWorkflowQueryOptionsSymbol];
     const req: temporal.api.workflowservice.v1.IQueryWorkflowRequest = {
       queryRejectCondition: input.queryRejectCondition,
       namespace: this.options.namespace,
@@ -1108,6 +1115,12 @@ export class WorkflowClient extends BaseClient {
       this.rethrowGrpcError(err, 'Failed to query Workflow', input.workflowExecution);
     }
     await visit(response, walkQueryWorkflowResponse, extstoreInboundOptions(externalStorage));
+    if (internalOptions != null) {
+      // A Query writes nothing to history, so the server returns a link to the Workflow execution
+      // that processed it rather than to an event. Captured before the rejection check below so a
+      // rejected Query still records its link. Older servers leave it unset.
+      internalOptions.responseLink = response.link ?? undefined;
+    }
     if (response.queryRejected) {
       if (response.queryRejected.status === undefined || response.queryRejected.status === null) {
         throw new TypeError('Received queryRejected from server with no status');
@@ -1790,17 +1803,27 @@ export class WorkflowClient extends BaseClient {
       await fn(input);
     };
 
-    const _query = async <Ret>(queryType: string, args: unknown[], typeInfo?: PayloadTypeInfo): Promise<Ret> => {
+    const _query = async <Ret>(
+      sourceHandle: InternalWorkflowHandle,
+      queryType: string,
+      args: unknown[],
+      typeInfo?: PayloadTypeInfo
+    ): Promise<Ret> => {
       const next = this._queryWorkflowHandler.bind(this);
       const fn = composeInterceptors(interceptors, 'query', next);
-      return (await fn({
+      const input: InternalWorkflowQueryInput = {
         workflowExecution: { workflowId, runId },
         queryRejectCondition: encodeQueryRejectCondition(this.options.queryRejectCondition),
         queryType,
         args,
         typeInfo,
         headers: {},
-      })) as Ret;
+        // Forward any SDK-internal query options (e.g. the Nexus response-link slot) that were
+        // attached to this handle, and let the query handler write the response link back onto the
+        // same payload.
+        [InternalWorkflowQueryOptionsSymbol]: sourceHandle[InternalWorkflowQueryOptionsSymbol],
+      };
+      return (await fn(input)) as Ret;
     };
 
     return {
@@ -1892,29 +1915,29 @@ export class WorkflowClient extends BaseClient {
       },
       async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
         if (typeof def === 'string') {
-          await _signal(this as InternalWorkflowHandle, def, args);
+          await _signal(this, def, args);
         } else {
-          await _signal(this as InternalWorkflowHandle, def.name, args, def.typeInfo);
+          await _signal(this, def.name, args, def.typeInfo);
         }
       },
       async signalWithOptions<Args extends any[]>(
         signalName: string,
         options: WorkflowSignalOptions<Args>
       ): Promise<void> {
-        await _signal(this as InternalWorkflowHandle, signalName, options.args ?? [], options.typeInfo);
+        await _signal(this, signalName, options.args ?? [], options.typeInfo);
       },
       async query<Ret, Args extends any[]>(def: QueryDefinition<Ret, Args> | string, ...args: Args): Promise<Ret> {
         if (typeof def === 'string') {
-          return await _query(def, args);
+          return await _query(this, def, args);
         } else {
-          return await _query(def.name, args, def.typeInfo);
+          return await _query(this, def.name, args, def.typeInfo);
         }
       },
       async queryWithOptions<Ret, Args extends any[]>(
         queryName: string,
         options: WorkflowQueryOptions<Args>
       ): Promise<Ret> {
-        return await _query(queryName, options.args ?? [], options.typeInfo);
+        return await _query(this, queryName, options.args ?? [], options.typeInfo);
       },
     };
   }

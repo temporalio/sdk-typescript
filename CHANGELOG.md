@@ -102,8 +102,14 @@ to docs, or any other relevant information.
 
 ### Changed
 
+- A workflow query issued from inside a Nexus operation handler now propagates the link the server
+  returns for the workflow that processed it, so the caller's Nexus operation event points back at
+  the queried workflow.
 - Nexus is now generally available (GA) for calling Nexus Operations from Workflows and handling
   Workflow-backed Operations with `WorkflowRunOperationHandler`.
+- A `common.v1.Link.Workflow` now serializes to `temporal:///namespaces/{ns}/workflows/{wid}/{rid}`
+  with the optional `reason` as a query param, matching the other SDKs; previously it reused the
+  workflow event path and dropped `reason`. Inbound Workflow links are now parsed as well.
 - `@temporalio/ai-sdk` now requires `ai@>=7.0.59` as a peer dependency, up from `7.0.0`, since
   earlier releases threw a `TypeError` on import in runtimes without a global `fetch`.
 - A Payload Converter or Payload Codec that fails to decode a Nexus Operation's input with a
