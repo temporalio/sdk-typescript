@@ -22,7 +22,7 @@ import type { NexusOperationCancellationType, NexusOperationHandle } from './nex
 import type {
   SystemNexusSpecificInterceptor,
   SystemNexusWorkflowOutboundCallsInterceptor,
-} from './nexus/system/generated/services';
+} from './nexus/system/generated/interceptors';
 
 export { Next, Headers };
 
