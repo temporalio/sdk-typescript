@@ -2,7 +2,6 @@
 
 import * as common from '@temporalio/common';
 import type { temporal } from '@temporalio/proto';
-import type * as workflow from '../workflow-exports';
 import {
   retryPolicyFromProto,
   retryPolicyToProto,
@@ -134,10 +133,8 @@ export type SignalWithStartWorkflowRequest<
   WorkflowFn extends (...args: any[]) => Promise<any> = (
     ...args: any[]
   ) => Promise<any>,
-  SignalValue extends workflow.SignalDefinition<any[]> = workflow.SignalDefinition<
-    any[]
-  >,
-  SignalArgs extends any[] = SignalValue extends workflow.SignalDefinition<
+  SignalValue extends common.SignalDefinition<any[]> = common.SignalDefinition<any[]>,
+  SignalArgs extends any[] = SignalValue extends common.SignalDefinition<
     infer Args,
     any
   >
@@ -309,10 +306,8 @@ export function signalWithStartWorkflowRequestFromProto<
   WorkflowFn extends (...args: any[]) => Promise<any> = (
     ...args: any[]
   ) => Promise<any>,
-  SignalValue extends workflow.SignalDefinition<any[]> = workflow.SignalDefinition<
-    any[]
-  >,
-  SignalArgs extends any[] = SignalValue extends workflow.SignalDefinition<
+  SignalValue extends common.SignalDefinition<any[]> = common.SignalDefinition<any[]>,
+  SignalArgs extends any[] = SignalValue extends common.SignalDefinition<
     infer Args,
     any
   >
@@ -443,10 +438,8 @@ export function signalWithStartWorkflowRequestToProto<
   WorkflowFn extends (...args: any[]) => Promise<any> = (
     ...args: any[]
   ) => Promise<any>,
-  SignalValue extends workflow.SignalDefinition<any[]> = workflow.SignalDefinition<
-    any[]
-  >,
-  SignalArgs extends any[] = SignalValue extends workflow.SignalDefinition<
+  SignalValue extends common.SignalDefinition<any[]> = common.SignalDefinition<any[]>,
+  SignalArgs extends any[] = SignalValue extends common.SignalDefinition<
     infer Args,
     any
   >
