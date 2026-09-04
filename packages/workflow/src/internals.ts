@@ -199,7 +199,7 @@ export class Activator implements ActivationHandler {
   /** System Nexus operation metadata retained until its response is decoded. */
   readonly systemNexusOperationContexts = new Map<
     number,
-    { service: string; operation: string; context?: SerializationContext }
+    { service: string; operation: string; context?: SerializationContext; outputType?: TypeInfo }
   >();
 
   /**
@@ -841,7 +841,14 @@ export class Activator implements ActivationHandler {
         resolveResult = completion.resolve;
       }
       const result =
-        deserializeSystemNexusOutput(systemNexus?.service, systemNexus?.operation, activation.result.completed) ??
+        deserializeSystemNexusOutput(
+          systemNexus?.service,
+          systemNexus?.operation,
+          activation.result.completed,
+          this.payloadConverter,
+          systemNexus?.context,
+          systemNexus?.outputType
+        ) ??
         fromPayloadWithTypeInfo(this.payloadConverter, activation.result.completed, context, outputTypeInfo);
       resolveResult(result);
     } else {

@@ -39,6 +39,7 @@ export async function signalWithStartWorkflow<
         operation: 'SignalWithStartWorkflowExecution',
         input: request,
         inputType: workflowService.operations.signalWithStartWorkflow.inputType!,
+        outputType: workflowService.operations.signalWithStartWorkflow.outputType,
         serializationContext: (input) =>
           signalWithStartWorkflowSerializationContext({
             namespace: workflow.workflowInfo().namespace,
