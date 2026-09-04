@@ -1237,6 +1237,1024 @@ export function walkValidateWorkerDeploymentVersionComputeConfigRequest<Ctx>(
   return pending;
 }
 
+export function walkPayloadsInMessage<Ctx>(root: object, env: WalkEnv<Ctx>, context: Ctx): Promise<unknown>[] {
+  const typeName = (root as { $type?: { fullName?: string } }).$type?.fullName?.replace(/^\./, '');
+  switch (typeName) {
+    case 'coresdk.activity_result.ActivityExecutionResult':
+      return walkActivityExecutionResult(root as coresdk.activity_result.IActivityExecutionResult, env, context);
+    case 'coresdk.activity_result.ActivityResolution':
+      return walkActivityResolution(root as coresdk.activity_result.IActivityResolution, env, context);
+    case 'coresdk.activity_result.Cancellation':
+      return walkCoresdkActivityResultCancellation(root as coresdk.activity_result.ICancellation, env, context);
+    case 'coresdk.activity_result.Failure':
+      return walkCoresdkActivityResultFailure(root as coresdk.activity_result.IFailure, env, context);
+    case 'coresdk.activity_result.Success':
+      return walkCoresdkActivityResultSuccess(root as coresdk.activity_result.ISuccess, env, context);
+    case 'coresdk.activity_task.ActivityTask':
+      return walkActivityTask(root as coresdk.activity_task.IActivityTask, env, context);
+    case 'coresdk.activity_task.Start':
+      return walkStart(root as coresdk.activity_task.IStart, env, context);
+    case 'coresdk.ActivityHeartbeat':
+      return walkActivityHeartbeat(root as coresdk.IActivityHeartbeat, env, context);
+    case 'coresdk.ActivityTaskCompletion':
+      return walkActivityTaskCompletion(root as coresdk.IActivityTaskCompletion, env, context);
+    case 'coresdk.child_workflow.Cancellation':
+      return walkCoresdkChildWorkflowCancellation(root as coresdk.child_workflow.ICancellation, env, context);
+    case 'coresdk.child_workflow.ChildWorkflowResult':
+      return walkChildWorkflowResult(root as coresdk.child_workflow.IChildWorkflowResult, env, context);
+    case 'coresdk.child_workflow.Failure':
+      return walkCoresdkChildWorkflowFailure(root as coresdk.child_workflow.IFailure, env, context);
+    case 'coresdk.child_workflow.Success':
+      return walkCoresdkChildWorkflowSuccess(root as coresdk.child_workflow.ISuccess, env, context);
+    case 'coresdk.nexus.NexusOperationResult':
+      return walkNexusOperationResult(root as coresdk.nexus.INexusOperationResult, env, context);
+    case 'coresdk.nexus.NexusTask':
+      return walkNexusTask(root as coresdk.nexus.INexusTask, env, context);
+    case 'coresdk.nexus.NexusTaskCompletion':
+      return walkNexusTaskCompletion(root as coresdk.nexus.INexusTaskCompletion, env, context);
+    case 'coresdk.workflow_activation.DoUpdate':
+      return walkDoUpdate(root as coresdk.workflow_activation.IDoUpdate, env, context);
+    case 'coresdk.workflow_activation.InitializeWorkflow':
+      return walkInitializeWorkflow(root as coresdk.workflow_activation.IInitializeWorkflow, env, context);
+    case 'coresdk.workflow_activation.QueryWorkflow':
+      return walkQueryWorkflow(root as coresdk.workflow_activation.IQueryWorkflow, env, context);
+    case 'coresdk.workflow_activation.ResolveActivity':
+      return walkResolveActivity(root as coresdk.workflow_activation.IResolveActivity, env, context);
+    case 'coresdk.workflow_activation.ResolveChildWorkflowExecution':
+      return walkResolveChildWorkflowExecution(
+        root as coresdk.workflow_activation.IResolveChildWorkflowExecution,
+        env,
+        context
+      );
+    case 'coresdk.workflow_activation.ResolveChildWorkflowExecutionStart':
+      return walkResolveChildWorkflowExecutionStart(
+        root as coresdk.workflow_activation.IResolveChildWorkflowExecutionStart,
+        env,
+        context
+      );
+    case 'coresdk.workflow_activation.ResolveChildWorkflowExecutionStartCancelled':
+      return walkResolveChildWorkflowExecutionStartCancelled(
+        root as coresdk.workflow_activation.IResolveChildWorkflowExecutionStartCancelled,
+        env,
+        context
+      );
+    case 'coresdk.workflow_activation.ResolveNexusOperation':
+      return walkResolveNexusOperation(root as coresdk.workflow_activation.IResolveNexusOperation, env, context);
+    case 'coresdk.workflow_activation.ResolveNexusOperationStart':
+      return walkResolveNexusOperationStart(
+        root as coresdk.workflow_activation.IResolveNexusOperationStart,
+        env,
+        context
+      );
+    case 'coresdk.workflow_activation.ResolveRequestCancelExternalWorkflow':
+      return walkResolveRequestCancelExternalWorkflow(
+        root as coresdk.workflow_activation.IResolveRequestCancelExternalWorkflow,
+        env,
+        context
+      );
+    case 'coresdk.workflow_activation.ResolveSignalExternalWorkflow':
+      return walkResolveSignalExternalWorkflow(
+        root as coresdk.workflow_activation.IResolveSignalExternalWorkflow,
+        env,
+        context
+      );
+    case 'coresdk.workflow_activation.SignalWorkflow':
+      return walkSignalWorkflow(root as coresdk.workflow_activation.ISignalWorkflow, env, context);
+    case 'coresdk.workflow_activation.WorkflowActivation':
+      return walkWorkflowActivation(root as coresdk.workflow_activation.IWorkflowActivation, env, context);
+    case 'coresdk.workflow_activation.WorkflowActivationJob':
+      return walkWorkflowActivationJob(root as coresdk.workflow_activation.IWorkflowActivationJob, env, context);
+    case 'coresdk.workflow_commands.CancelWorkflowExecution':
+      return walkCancelWorkflowExecution(root as coresdk.workflow_commands.ICancelWorkflowExecution, env, context);
+    case 'coresdk.workflow_commands.CompleteWorkflowExecution':
+      return walkCompleteWorkflowExecution(root as coresdk.workflow_commands.ICompleteWorkflowExecution, env, context);
+    case 'coresdk.workflow_commands.ContinueAsNewWorkflowExecution':
+      return walkContinueAsNewWorkflowExecution(
+        root as coresdk.workflow_commands.IContinueAsNewWorkflowExecution,
+        env,
+        context
+      );
+    case 'coresdk.workflow_commands.FailWorkflowExecution':
+      return walkFailWorkflowExecution(root as coresdk.workflow_commands.IFailWorkflowExecution, env, context);
+    case 'coresdk.workflow_commands.ModifyWorkflowProperties':
+      return walkModifyWorkflowProperties(root as coresdk.workflow_commands.IModifyWorkflowProperties, env, context);
+    case 'coresdk.workflow_commands.QueryResult':
+      return walkQueryResult(root as coresdk.workflow_commands.IQueryResult, env, context);
+    case 'coresdk.workflow_commands.QuerySuccess':
+      return walkQuerySuccess(root as coresdk.workflow_commands.IQuerySuccess, env, context);
+    case 'coresdk.workflow_commands.ScheduleActivity':
+      return walkScheduleActivity(root as coresdk.workflow_commands.IScheduleActivity, env, context);
+    case 'coresdk.workflow_commands.ScheduleLocalActivity':
+      return walkScheduleLocalActivity(root as coresdk.workflow_commands.IScheduleLocalActivity, env, context);
+    case 'coresdk.workflow_commands.ScheduleNexusOperation':
+      return walkScheduleNexusOperation(root as coresdk.workflow_commands.IScheduleNexusOperation, env, context);
+    case 'coresdk.workflow_commands.SignalExternalWorkflowExecution':
+      return walkSignalExternalWorkflowExecution(
+        root as coresdk.workflow_commands.ISignalExternalWorkflowExecution,
+        env,
+        context
+      );
+    case 'coresdk.workflow_commands.StartChildWorkflowExecution':
+      return walkStartChildWorkflowExecution(
+        root as coresdk.workflow_commands.IStartChildWorkflowExecution,
+        env,
+        context
+      );
+    case 'coresdk.workflow_commands.UpdateResponse':
+      return walkUpdateResponse(root as coresdk.workflow_commands.IUpdateResponse, env, context);
+    case 'coresdk.workflow_commands.UpsertWorkflowSearchAttributes':
+      return walkUpsertWorkflowSearchAttributes(
+        root as coresdk.workflow_commands.IUpsertWorkflowSearchAttributes,
+        env,
+        context
+      );
+    case 'coresdk.workflow_commands.WorkflowCommand':
+      return walkWorkflowCommand(root as coresdk.workflow_commands.IWorkflowCommand, env, context);
+    case 'coresdk.workflow_completion.Failure':
+      return walkCoresdkWorkflowCompletionFailure(root as coresdk.workflow_completion.IFailure, env, context);
+    case 'coresdk.workflow_completion.Success':
+      return walkCoresdkWorkflowCompletionSuccess(root as coresdk.workflow_completion.ISuccess, env, context);
+    case 'coresdk.workflow_completion.WorkflowActivationCompletion':
+      return walkWorkflowActivationCompletion(
+        root as coresdk.workflow_completion.IWorkflowActivationCompletion,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.CountActivityExecutionsResponse':
+      return walkCountActivityExecutionsResponse(
+        root as temporal.api.workflowservice.v1.ICountActivityExecutionsResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.CountActivityExecutionsResponse.AggregationGroup':
+      return walkTemporalApiWorkflowserviceV1CountActivityExecutionsResponseAggregationGroup(
+        root as temporal.api.workflowservice.v1.CountActivityExecutionsResponse.IAggregationGroup,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.CountNexusOperationExecutionsResponse':
+      return walkCountNexusOperationExecutionsResponse(
+        root as temporal.api.workflowservice.v1.ICountNexusOperationExecutionsResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.CountNexusOperationExecutionsResponse.AggregationGroup':
+      return walkTemporalApiWorkflowserviceV1CountNexusOperationExecutionsResponseAggregationGroup(
+        root as temporal.api.workflowservice.v1.CountNexusOperationExecutionsResponse.IAggregationGroup,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.CountSchedulesResponse':
+      return walkCountSchedulesResponse(root as temporal.api.workflowservice.v1.ICountSchedulesResponse, env, context);
+    case 'temporal.api.workflowservice.v1.CountSchedulesResponse.AggregationGroup':
+      return walkTemporalApiWorkflowserviceV1CountSchedulesResponseAggregationGroup(
+        root as temporal.api.workflowservice.v1.CountSchedulesResponse.IAggregationGroup,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.CountWorkflowExecutionsResponse':
+      return walkCountWorkflowExecutionsResponse(
+        root as temporal.api.workflowservice.v1.ICountWorkflowExecutionsResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.CountWorkflowExecutionsResponse.AggregationGroup':
+      return walkTemporalApiWorkflowserviceV1CountWorkflowExecutionsResponseAggregationGroup(
+        root as temporal.api.workflowservice.v1.CountWorkflowExecutionsResponse.IAggregationGroup,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.CreateScheduleRequest':
+      return walkCreateScheduleRequest(root as temporal.api.workflowservice.v1.ICreateScheduleRequest, env, context);
+    case 'temporal.api.workflowservice.v1.CreateWorkerDeploymentVersionRequest':
+      return walkCreateWorkerDeploymentVersionRequest(
+        root as temporal.api.workflowservice.v1.ICreateWorkerDeploymentVersionRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.DescribeActivityExecutionResponse':
+      return walkDescribeActivityExecutionResponse(
+        root as temporal.api.workflowservice.v1.IDescribeActivityExecutionResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.DescribeDeploymentResponse':
+      return walkDescribeDeploymentResponse(
+        root as temporal.api.workflowservice.v1.IDescribeDeploymentResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.DescribeNexusOperationExecutionResponse':
+      return walkDescribeNexusOperationExecutionResponse(
+        root as temporal.api.workflowservice.v1.IDescribeNexusOperationExecutionResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.DescribeScheduleResponse':
+      return walkDescribeScheduleResponse(
+        root as temporal.api.workflowservice.v1.IDescribeScheduleResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.DescribeWorkerDeploymentVersionResponse':
+      return walkDescribeWorkerDeploymentVersionResponse(
+        root as temporal.api.workflowservice.v1.IDescribeWorkerDeploymentVersionResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.DescribeWorkflowExecutionResponse':
+      return walkDescribeWorkflowExecutionResponse(
+        root as temporal.api.workflowservice.v1.IDescribeWorkflowExecutionResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.ExecuteMultiOperationRequest':
+      return walkExecuteMultiOperationRequest(
+        root as temporal.api.workflowservice.v1.IExecuteMultiOperationRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.ExecuteMultiOperationRequest.Operation':
+      return walkOperation(
+        root as temporal.api.workflowservice.v1.ExecuteMultiOperationRequest.IOperation,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.ExecuteMultiOperationResponse':
+      return walkExecuteMultiOperationResponse(
+        root as temporal.api.workflowservice.v1.IExecuteMultiOperationResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.ExecuteMultiOperationResponse.Response':
+      return walkResponse(
+        root as temporal.api.workflowservice.v1.ExecuteMultiOperationResponse.IResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.GetCurrentDeploymentResponse':
+      return walkGetCurrentDeploymentResponse(
+        root as temporal.api.workflowservice.v1.IGetCurrentDeploymentResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.GetDeploymentReachabilityResponse':
+      return walkGetDeploymentReachabilityResponse(
+        root as temporal.api.workflowservice.v1.IGetDeploymentReachabilityResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.GetWorkflowExecutionHistoryResponse':
+      return walkGetWorkflowExecutionHistoryResponse(
+        root as temporal.api.workflowservice.v1.IGetWorkflowExecutionHistoryResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.GetWorkflowExecutionHistoryReverseResponse':
+      return walkGetWorkflowExecutionHistoryReverseResponse(
+        root as temporal.api.workflowservice.v1.IGetWorkflowExecutionHistoryReverseResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.ListActivityExecutionsResponse':
+      return walkListActivityExecutionsResponse(
+        root as temporal.api.workflowservice.v1.IListActivityExecutionsResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.ListArchivedWorkflowExecutionsResponse':
+      return walkListArchivedWorkflowExecutionsResponse(
+        root as temporal.api.workflowservice.v1.IListArchivedWorkflowExecutionsResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.ListClosedWorkflowExecutionsResponse':
+      return walkListClosedWorkflowExecutionsResponse(
+        root as temporal.api.workflowservice.v1.IListClosedWorkflowExecutionsResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.ListNexusOperationExecutionsResponse':
+      return walkListNexusOperationExecutionsResponse(
+        root as temporal.api.workflowservice.v1.IListNexusOperationExecutionsResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.ListOpenWorkflowExecutionsResponse':
+      return walkListOpenWorkflowExecutionsResponse(
+        root as temporal.api.workflowservice.v1.IListOpenWorkflowExecutionsResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.ListSchedulesResponse':
+      return walkListSchedulesResponse(root as temporal.api.workflowservice.v1.IListSchedulesResponse, env, context);
+    case 'temporal.api.workflowservice.v1.ListWorkflowExecutionsResponse':
+      return walkListWorkflowExecutionsResponse(
+        root as temporal.api.workflowservice.v1.IListWorkflowExecutionsResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.PollActivityExecutionResponse':
+      return walkPollActivityExecutionResponse(
+        root as temporal.api.workflowservice.v1.IPollActivityExecutionResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.PollActivityTaskQueueResponse':
+      return walkPollActivityTaskQueueResponse(
+        root as temporal.api.workflowservice.v1.IPollActivityTaskQueueResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.PollNexusOperationExecutionResponse':
+      return walkPollNexusOperationExecutionResponse(
+        root as temporal.api.workflowservice.v1.IPollNexusOperationExecutionResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.PollNexusTaskQueueResponse':
+      return walkPollNexusTaskQueueResponse(
+        root as temporal.api.workflowservice.v1.IPollNexusTaskQueueResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.PollWorkflowExecutionUpdateResponse':
+      return walkPollWorkflowExecutionUpdateResponse(
+        root as temporal.api.workflowservice.v1.IPollWorkflowExecutionUpdateResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.PollWorkflowTaskQueueResponse':
+      return walkPollWorkflowTaskQueueResponse(
+        root as temporal.api.workflowservice.v1.IPollWorkflowTaskQueueResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.QueryWorkflowRequest':
+      return walkQueryWorkflowRequest(root as temporal.api.workflowservice.v1.IQueryWorkflowRequest, env, context);
+    case 'temporal.api.workflowservice.v1.QueryWorkflowResponse':
+      return walkQueryWorkflowResponse(root as temporal.api.workflowservice.v1.IQueryWorkflowResponse, env, context);
+    case 'temporal.api.workflowservice.v1.RecordActivityTaskHeartbeatByIdRequest':
+      return walkRecordActivityTaskHeartbeatByIdRequest(
+        root as temporal.api.workflowservice.v1.IRecordActivityTaskHeartbeatByIdRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.RecordActivityTaskHeartbeatRequest':
+      return walkRecordActivityTaskHeartbeatRequest(
+        root as temporal.api.workflowservice.v1.IRecordActivityTaskHeartbeatRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.ResetWorkflowExecutionRequest':
+      return walkResetWorkflowExecutionRequest(
+        root as temporal.api.workflowservice.v1.IResetWorkflowExecutionRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.RespondActivityTaskCanceledByIdRequest':
+      return walkRespondActivityTaskCanceledByIdRequest(
+        root as temporal.api.workflowservice.v1.IRespondActivityTaskCanceledByIdRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.RespondActivityTaskCanceledRequest':
+      return walkRespondActivityTaskCanceledRequest(
+        root as temporal.api.workflowservice.v1.IRespondActivityTaskCanceledRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.RespondActivityTaskCompletedByIdRequest':
+      return walkRespondActivityTaskCompletedByIdRequest(
+        root as temporal.api.workflowservice.v1.IRespondActivityTaskCompletedByIdRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.RespondActivityTaskCompletedRequest':
+      return walkRespondActivityTaskCompletedRequest(
+        root as temporal.api.workflowservice.v1.IRespondActivityTaskCompletedRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.RespondActivityTaskFailedByIdRequest':
+      return walkRespondActivityTaskFailedByIdRequest(
+        root as temporal.api.workflowservice.v1.IRespondActivityTaskFailedByIdRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.RespondActivityTaskFailedByIdResponse':
+      return walkRespondActivityTaskFailedByIdResponse(
+        root as temporal.api.workflowservice.v1.IRespondActivityTaskFailedByIdResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.RespondActivityTaskFailedRequest':
+      return walkRespondActivityTaskFailedRequest(
+        root as temporal.api.workflowservice.v1.IRespondActivityTaskFailedRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.RespondActivityTaskFailedResponse':
+      return walkRespondActivityTaskFailedResponse(
+        root as temporal.api.workflowservice.v1.IRespondActivityTaskFailedResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.RespondNexusTaskCompletedRequest':
+      return walkRespondNexusTaskCompletedRequest(
+        root as temporal.api.workflowservice.v1.IRespondNexusTaskCompletedRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.RespondNexusTaskFailedRequest':
+      return walkRespondNexusTaskFailedRequest(
+        root as temporal.api.workflowservice.v1.IRespondNexusTaskFailedRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.RespondQueryTaskCompletedRequest':
+      return walkRespondQueryTaskCompletedRequest(
+        root as temporal.api.workflowservice.v1.IRespondQueryTaskCompletedRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.RespondWorkflowTaskCompletedRequest':
+      return walkRespondWorkflowTaskCompletedRequest(
+        root as temporal.api.workflowservice.v1.IRespondWorkflowTaskCompletedRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.RespondWorkflowTaskCompletedResponse':
+      return walkRespondWorkflowTaskCompletedResponse(
+        root as temporal.api.workflowservice.v1.IRespondWorkflowTaskCompletedResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.RespondWorkflowTaskFailedRequest':
+      return walkRespondWorkflowTaskFailedRequest(
+        root as temporal.api.workflowservice.v1.IRespondWorkflowTaskFailedRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.ScanWorkflowExecutionsResponse':
+      return walkScanWorkflowExecutionsResponse(
+        root as temporal.api.workflowservice.v1.IScanWorkflowExecutionsResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.SetCurrentDeploymentRequest':
+      return walkSetCurrentDeploymentRequest(
+        root as temporal.api.workflowservice.v1.ISetCurrentDeploymentRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.SetCurrentDeploymentResponse':
+      return walkSetCurrentDeploymentResponse(
+        root as temporal.api.workflowservice.v1.ISetCurrentDeploymentResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionRequest':
+      return walkSignalWithStartWorkflowExecutionRequest(
+        root as temporal.api.workflowservice.v1.ISignalWithStartWorkflowExecutionRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.SignalWorkflowExecutionRequest':
+      return walkSignalWorkflowExecutionRequest(
+        root as temporal.api.workflowservice.v1.ISignalWorkflowExecutionRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.StartActivityExecutionRequest':
+      return walkStartActivityExecutionRequest(
+        root as temporal.api.workflowservice.v1.IStartActivityExecutionRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.StartBatchOperationRequest':
+      return walkStartBatchOperationRequest(
+        root as temporal.api.workflowservice.v1.IStartBatchOperationRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.StartNexusOperationExecutionRequest':
+      return walkStartNexusOperationExecutionRequest(
+        root as temporal.api.workflowservice.v1.IStartNexusOperationExecutionRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.StartWorkflowExecutionRequest':
+      return walkStartWorkflowExecutionRequest(
+        root as temporal.api.workflowservice.v1.IStartWorkflowExecutionRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.StartWorkflowExecutionResponse':
+      return walkStartWorkflowExecutionResponse(
+        root as temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.TerminateWorkflowExecutionRequest':
+      return walkTerminateWorkflowExecutionRequest(
+        root as temporal.api.workflowservice.v1.ITerminateWorkflowExecutionRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.UpdateScheduleRequest':
+      return walkUpdateScheduleRequest(root as temporal.api.workflowservice.v1.IUpdateScheduleRequest, env, context);
+    case 'temporal.api.workflowservice.v1.UpdateWorkerDeploymentVersionComputeConfigRequest':
+      return walkUpdateWorkerDeploymentVersionComputeConfigRequest(
+        root as temporal.api.workflowservice.v1.IUpdateWorkerDeploymentVersionComputeConfigRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.UpdateWorkerDeploymentVersionMetadataRequest':
+      return walkUpdateWorkerDeploymentVersionMetadataRequest(
+        root as temporal.api.workflowservice.v1.IUpdateWorkerDeploymentVersionMetadataRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.UpdateWorkerDeploymentVersionMetadataResponse':
+      return walkUpdateWorkerDeploymentVersionMetadataResponse(
+        root as temporal.api.workflowservice.v1.IUpdateWorkerDeploymentVersionMetadataResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.UpdateWorkflowExecutionRequest':
+      return walkUpdateWorkflowExecutionRequest(
+        root as temporal.api.workflowservice.v1.IUpdateWorkflowExecutionRequest,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.UpdateWorkflowExecutionResponse':
+      return walkUpdateWorkflowExecutionResponse(
+        root as temporal.api.workflowservice.v1.IUpdateWorkflowExecutionResponse,
+        env,
+        context
+      );
+    case 'temporal.api.workflowservice.v1.ValidateWorkerDeploymentVersionComputeConfigRequest':
+      return walkValidateWorkerDeploymentVersionComputeConfigRequest(
+        root as temporal.api.workflowservice.v1.IValidateWorkerDeploymentVersionComputeConfigRequest,
+        env,
+        context
+      );
+    case 'coresdk.activity_result.DoBackoff':
+      return [];
+    case 'coresdk.activity_result.WillCompleteAsync':
+      return [];
+    case 'coresdk.activity_task.ActivityCancellationDetails':
+      return [];
+    case 'coresdk.activity_task.Cancel':
+      return [];
+    case 'coresdk.ActivitySlotInfo':
+      return [];
+    case 'coresdk.common.ExternalStorageMetrics':
+      return [];
+    case 'coresdk.common.NamespacedWorkflowExecution':
+      return [];
+    case 'coresdk.common.WorkerDeploymentVersion':
+      return [];
+    case 'coresdk.external_data.LocalActivityMarkerData':
+      return [];
+    case 'coresdk.external_data.PatchedMarkerData':
+      return [];
+    case 'coresdk.LocalActivitySlotInfo':
+      return [];
+    case 'coresdk.NamespaceInfo':
+      return [];
+    case 'coresdk.NamespaceInfo.Limits':
+      return [];
+    case 'coresdk.nexus.CancelNexusTask':
+      return [];
+    case 'coresdk.NexusSlotInfo':
+      return [];
+    case 'coresdk.workflow_activation.CancelWorkflow':
+      return [];
+    case 'coresdk.workflow_activation.FireTimer':
+      return [];
+    case 'coresdk.workflow_activation.NotifyHasPatch':
+      return [];
+    case 'coresdk.workflow_activation.RemoveFromCache':
+      return [];
+    case 'coresdk.workflow_activation.ResolveChildWorkflowExecutionStartFailure':
+      return [];
+    case 'coresdk.workflow_activation.ResolveChildWorkflowExecutionStartSuccess':
+      return [];
+    case 'coresdk.workflow_activation.UpdateRandomSeed':
+      return [];
+    case 'coresdk.workflow_commands.CancelChildWorkflowExecution':
+      return [];
+    case 'coresdk.workflow_commands.CancelSignalWorkflow':
+      return [];
+    case 'coresdk.workflow_commands.CancelTimer':
+      return [];
+    case 'coresdk.workflow_commands.RequestCancelActivity':
+      return [];
+    case 'coresdk.workflow_commands.RequestCancelExternalWorkflowExecution':
+      return [];
+    case 'coresdk.workflow_commands.RequestCancelLocalActivity':
+      return [];
+    case 'coresdk.workflow_commands.RequestCancelNexusOperation':
+      return [];
+    case 'coresdk.workflow_commands.SetPatchMarker':
+      return [];
+    case 'coresdk.workflow_commands.StartTimer':
+      return [];
+    case 'coresdk.WorkflowSlotInfo':
+      return [];
+    case 'temporal.api.workflowservice.v1.CountActivityExecutionsRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.CountNexusOperationExecutionsRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.CountSchedulesRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.CountWorkersRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.CountWorkersResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.CountWorkflowExecutionsRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.CreateScheduleResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.CreateWorkerDeploymentRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.CreateWorkerDeploymentResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.CreateWorkerDeploymentVersionResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.CreateWorkflowRuleRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.CreateWorkflowRuleResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.DeleteActivityExecutionRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.DeleteActivityExecutionResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.DeleteNexusOperationExecutionRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.DeleteNexusOperationExecutionResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.DeleteScheduleRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.DeleteScheduleResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.DeleteWorkerDeploymentRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.DeleteWorkerDeploymentResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.DeleteWorkerDeploymentVersionRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.DeleteWorkerDeploymentVersionResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.DeleteWorkflowExecutionRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.DeleteWorkflowExecutionResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.DeleteWorkflowRuleRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.DeleteWorkflowRuleResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.DeprecateNamespaceRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.DeprecateNamespaceResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.DescribeActivityExecutionRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.DescribeBatchOperationRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.DescribeBatchOperationResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.DescribeDeploymentRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.DescribeNamespaceRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.DescribeNamespaceResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.DescribeNexusOperationExecutionRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.DescribeScheduleRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.DescribeTaskQueueRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.DescribeTaskQueueResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.DescribeTaskQueueResponse.EffectiveRateLimit':
+      return [];
+    case 'temporal.api.workflowservice.v1.DescribeWorkerDeploymentRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.DescribeWorkerDeploymentResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.DescribeWorkerDeploymentVersionRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.DescribeWorkerDeploymentVersionResponse.VersionTaskQueue':
+      return [];
+    case 'temporal.api.workflowservice.v1.DescribeWorkerRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.DescribeWorkerResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.DescribeWorkflowExecutionRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.DescribeWorkflowRuleRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.DescribeWorkflowRuleResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.FetchWorkerConfigRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.FetchWorkerConfigResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.GetClusterInfoRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.GetClusterInfoResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.GetCurrentDeploymentRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.GetDeploymentReachabilityRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.GetSearchAttributesRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.GetSearchAttributesResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.GetSystemInfoRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.GetSystemInfoResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.GetSystemInfoResponse.Capabilities':
+      return [];
+    case 'temporal.api.workflowservice.v1.GetWorkerBuildIdCompatibilityRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.GetWorkerBuildIdCompatibilityResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.GetWorkerTaskReachabilityRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.GetWorkerTaskReachabilityResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.GetWorkerVersioningRulesRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.GetWorkerVersioningRulesResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.GetWorkflowExecutionHistoryRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.GetWorkflowExecutionHistoryReverseRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.ListActivityExecutionsRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.ListArchivedWorkflowExecutionsRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.ListBatchOperationsRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.ListBatchOperationsResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.ListClosedWorkflowExecutionsRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.ListDeploymentsRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.ListDeploymentsResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.ListNamespacesRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.ListNamespacesResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.ListNexusOperationExecutionsRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.ListOpenWorkflowExecutionsRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.ListScheduleMatchingTimesRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.ListScheduleMatchingTimesResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.ListSchedulesRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.ListTaskQueuePartitionsRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.ListTaskQueuePartitionsResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.ListWorkerDeploymentsRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.ListWorkerDeploymentsResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.ListWorkerDeploymentsResponse.WorkerDeploymentSummary':
+      return [];
+    case 'temporal.api.workflowservice.v1.ListWorkersRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.ListWorkersResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.ListWorkflowExecutionsRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.ListWorkflowRulesRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.ListWorkflowRulesResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.PatchScheduleRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.PatchScheduleResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.PauseActivityExecutionRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.PauseActivityExecutionResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.PauseActivityRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.PauseActivityResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.PauseWorkflowExecutionRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.PauseWorkflowExecutionResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.PollActivityExecutionRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.PollActivityTaskQueueRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.PollNexusOperationExecutionRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.PollNexusTaskQueueRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.PollWorkflowExecutionTimeSkippingRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.PollWorkflowExecutionTimeSkippingResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.PollWorkflowExecutionUpdateRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.PollWorkflowTaskQueueRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.RecordActivityTaskHeartbeatByIdResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.RecordActivityTaskHeartbeatResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.RecordWorkerHeartbeatRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.RecordWorkerHeartbeatResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.RegisterNamespaceRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.RegisterNamespaceResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.RequestCancelActivityExecutionRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.RequestCancelActivityExecutionResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.RequestCancelNexusOperationExecutionRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.RequestCancelNexusOperationExecutionResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.RequestCancelWorkflowExecutionRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.RequestCancelWorkflowExecutionResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.ResetActivityExecutionRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.ResetActivityExecutionResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.ResetActivityRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.ResetActivityResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.ResetStickyTaskQueueRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.ResetStickyTaskQueueResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.ResetWorkflowExecutionResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.RespondActivityTaskCanceledByIdResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.RespondActivityTaskCanceledResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.RespondActivityTaskCompletedByIdResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.RespondActivityTaskCompletedResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.RespondNexusTaskCompletedResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.RespondNexusTaskFailedResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.RespondQueryTaskCompletedResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.RespondWorkflowTaskCompletedRequest.Capabilities':
+      return [];
+    case 'temporal.api.workflowservice.v1.RespondWorkflowTaskFailedResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.ScanWorkflowExecutionsRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.SetWorkerDeploymentCurrentVersionRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.SetWorkerDeploymentCurrentVersionResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.SetWorkerDeploymentManagerRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.SetWorkerDeploymentManagerResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.SetWorkerDeploymentRampingVersionRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.SetWorkerDeploymentRampingVersionResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.ShutdownWorkerRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.ShutdownWorkerResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.SignalWorkflowExecutionResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.StartActivityExecutionResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.StartBatchOperationResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.StartNexusOperationExecutionResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.StopBatchOperationRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.StopBatchOperationResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.TerminateActivityExecutionRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.TerminateActivityExecutionResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.TerminateNexusOperationExecutionRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.TerminateNexusOperationExecutionResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.TerminateWorkflowExecutionResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.TriggerWorkflowRuleRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.TriggerWorkflowRuleResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.UnpauseActivityExecutionRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.UnpauseActivityExecutionResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.UnpauseActivityRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.UnpauseActivityResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.UnpauseWorkflowExecutionRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.UnpauseWorkflowExecutionResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateActivityExecutionOptionsRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateActivityExecutionOptionsResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateActivityOptionsRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateActivityOptionsResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateNamespaceRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateNamespaceResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateScheduleResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateTaskQueueConfigRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateTaskQueueConfigRequest.RateLimitUpdate':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateTaskQueueConfigResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateWorkerBuildIdCompatibilityRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateWorkerBuildIdCompatibilityRequest.AddNewCompatibleVersion':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateWorkerBuildIdCompatibilityRequest.MergeSets':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateWorkerBuildIdCompatibilityResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateWorkerConfigRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateWorkerConfigResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateWorkerDeploymentVersionComputeConfigResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateWorkerVersioningRulesRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateWorkerVersioningRulesRequest.AddCompatibleBuildIdRedirectRule':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateWorkerVersioningRulesRequest.CommitBuildId':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateWorkerVersioningRulesRequest.DeleteBuildIdAssignmentRule':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateWorkerVersioningRulesRequest.DeleteCompatibleBuildIdRedirectRule':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateWorkerVersioningRulesRequest.InsertBuildIdAssignmentRule':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateWorkerVersioningRulesRequest.ReplaceBuildIdAssignmentRule':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateWorkerVersioningRulesRequest.ReplaceCompatibleBuildIdRedirectRule':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateWorkerVersioningRulesResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateWorkflowExecutionOptionsRequest':
+      return [];
+    case 'temporal.api.workflowservice.v1.UpdateWorkflowExecutionOptionsResponse':
+      return [];
+    case 'temporal.api.workflowservice.v1.ValidateWorkerDeploymentVersionComputeConfigResponse':
+      return [];
+    default:
+      throw new Error(`Unknown root message type: ${typeName ?? '<unknown>'}`);
+  }
+}
+
 function walk_coresdk_activity_result_ActivityExecutionResult<Ctx>(
   o: coresdk.activity_result.IActivityExecutionResult,
   env: WalkEnv<Ctx>,

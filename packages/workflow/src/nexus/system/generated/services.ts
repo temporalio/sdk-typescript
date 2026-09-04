@@ -32,12 +32,6 @@ export const workflowService = nexus.service(
 export interface OperationRegistryEntry<Input = unknown> {
   readonly service: string;
   readonly operation: string;
-  readonly inputType: string;
-  readonly outputType: string;
-  /** Generated payload visitor for the input protobuf envelope. */
-  readonly inputPayloadVisitor: string;
-  /** Generated payload visitor for the output protobuf envelope. */
-  readonly outputPayloadVisitor: string;
   /** Context for nested payloads, determined by the operation. */
   readonly serializationContext?: (
     input: Input
@@ -48,12 +42,6 @@ export const operationRegistry = [
   {
     service: 'temporal.api.workflowservice.v1.WorkflowService',
     operation: 'SignalWithStartWorkflowExecution',
-    inputType:
-      'temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionRequest',
-    outputType:
-      'temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionResponse',
-    inputPayloadVisitor: 'walkSignalWithStartWorkflowExecutionRequest',
-    outputPayloadVisitor: 'walkSignalWithStartWorkflowExecutionResponse',
     serializationContext: signalWithStartWorkflowSerializationContext,
   },
 ] as const;
