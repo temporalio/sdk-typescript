@@ -12,8 +12,8 @@ import type { coresdk } from '@temporalio/proto';
 import { eventGroupMarkersToProto } from './event-groups';
 import {
   systemNexusOperationDefinition,
-  withSystemNexusUserPayloadConverter,
 } from './nexus/system/payload-converter';
+import { withSystemNexusUserPayloadConverter } from './nexus/system/user-payload-converter';
 import { CancellationScope } from './cancellation-scope';
 import { getActivator } from './global-attributes';
 import { composeInterceptors } from './interceptor-composition';
@@ -163,11 +163,15 @@ export function createNexusServiceClient<T extends nexus.ServiceDefinition>(
 
       if (options.endpoint === TEMPORAL_SYSTEM_NEXUS_ENDPOINT) {
         const definition = systemNexusOperationDefinition(options.service.name, opName);
+        const inputType = operationDefinition?.inputType;
+        if (definition == null || inputType == null) {
+          throw new TypeError(`unsupported System Nexus operation: ${options.service.name}/${opName}`);
+        }
         return (await startSystemNexusOperation({
           service: options.service.name,
           operation: opName,
           input,
-          inputType: operationDefinition?.inputType!,
+          inputType,
           outputType: operationDefinition?.outputType,
           specificInterceptor: definition?.specificInterceptor,
           seq,
