@@ -19,7 +19,7 @@ import type { coresdk } from '@temporalio/proto';
 import type { ActivityOptions, LocalActivityOptions } from './activities';
 import type { EventGroupMarker } from './event-groups';
 import type { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interfaces';
-import type { NexusOperationCancellationType } from './nexus';
+import type { NexusOperationCancellationType, NexusOperationHandle } from './nexus';
 import type { SystemNexusWorkflowOutboundCallsInterceptor } from './nexus/system/generated/services';
 
 export { Next, Headers };
@@ -172,7 +172,7 @@ export interface WorkflowOutboundCallsInterceptor extends SystemNexusWorkflowOut
   startSystemNexusOperation?: (
     input: StartSystemNexusOperationInput,
     next: Next<WorkflowOutboundCallsInterceptor, 'startSystemNexusOperation'>
-  ) => Promise<unknown>;
+  ) => Promise<NexusOperationHandle<unknown>>;
 
   /**
    * Called when Workflow starts a child workflow execution.
