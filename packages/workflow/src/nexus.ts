@@ -205,7 +205,7 @@ export function createNexusServiceClient<T extends nexus.ServiceDefinition>(
  */
 export async function startSystemNexusOperation<Output = unknown>(
   input: StartSystemNexusOperationInput
-): Promise<Output> {
+): Promise<NexusOperationHandle<Output>> {
   const activator = getActivator();
   const seq = activator.nextSeqs.nexusOperation++;
   const genericInput: StartSystemNexusOperationInput = { ...input, seq };
@@ -220,18 +220,20 @@ export async function startSystemNexusOperation<Output = unknown>(
       input.specificInterceptor as never,
       ((request: unknown) => generic({ ...genericInput, input: request })) as never
     ) as unknown as (request: unknown) => Promise<unknown>;
-    return (await specific(input.input)) as Output;
+    return (await specific(input.input)) as NexusOperationHandle<Output>;
   }
-  return (await generic(genericInput)) as Output;
+  return (await generic(genericInput)) as NexusOperationHandle<Output>;
 }
 
-function startSystemNexusOperationNextHandler(input: StartSystemNexusOperationInput): Promise<unknown> {
+async function startSystemNexusOperationNextHandler(
+  input: StartSystemNexusOperationInput
+): Promise<NexusOperationHandle<unknown>> {
   const activator = getActivator();
   const seq = input.seq;
   if (seq == null) throw new TypeError('System Nexus operation interceptor removed the command sequence');
   const context = input.serializationContext?.(input.input);
   const protoInput = withSystemNexusSerializationContext(context, () => input.toProto(input.input));
-  return new Promise<unknown>((resolve, reject) => {
+  const { token, result } = await new Promise<StartNexusOperationOutput>((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
       untrackPromise(scope.cancelRequested.catch(reject));
@@ -259,8 +261,16 @@ function startSystemNexusOperationNextHandler(input: StartSystemNexusOperationIn
       },
     });
     activator.systemNexusOperationContexts.set(seq, { service: input.service, operation: input.operation, context });
-    activator.completions.nexusOperationStart.set(seq, { resolve: (output) => resolve(output.result), reject });
+    activator.completions.nexusOperationStart.set(seq, { resolve, reject });
   });
+  return {
+    service: input.service,
+    operation: input.operation,
+    token,
+    async result(): Promise<unknown> {
+      return await result;
+    },
+  };
 }
 
 /** Marks a default JSON/protobuf payload as a System Nexus outer envelope. */
@@ -288,7 +298,7 @@ export function withSystemNexusSerializationContext<T>(context: SerializationCon
   }
 }
 
-/** @internal Returns a converter bound to the current generated System Nexus target context. */
+/** @internal Returns a converter bound to the current generated System Nexus operation context. */
 export function systemNexusPayloadConverter(): PayloadConverter | undefined {
   const context = currentSystemNexusSerializationContext;
   if (context == null) return undefined;
