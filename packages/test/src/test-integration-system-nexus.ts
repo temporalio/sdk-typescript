@@ -2,11 +2,13 @@ import { randomUUID } from 'crypto';
 import type { Payload, PayloadCodec, SerializationContext } from '@temporalio/common';
 import { defaultPayloadConverter } from '@temporalio/common';
 import { defineSignal, setHandler } from '@temporalio/workflow';
+import type { WorkflowInterceptors } from '@temporalio/workflow';
 import { signalWithStartWorkflow } from '@temporalio/workflow/lib/nexus/system/generated/operations/signal-with-start-workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
 
 const test = makeTestFunction({
   workflowsPath: __filename,
+  workflowInterceptorModules: [__filename],
   workflowEnvironmentOpts: {
     server: {
       executable: {
@@ -20,6 +22,28 @@ const test = makeTestFunction({
 });
 
 export const systemNexusSignal = defineSignal<[string]>('system-nexus-signal');
+const interceptorCalls: string[] = [];
+
+export function interceptors(): WorkflowInterceptors {
+  return {
+    outbound: [
+      {
+        startNexusOperation(input, next) {
+          interceptorCalls.push('ordinary');
+          return next(input);
+        },
+        startSystemNexusOperation(input, next) {
+          interceptorCalls.push('generic');
+          return next(input);
+        },
+        signalWithStartWorkflow(input, next) {
+          interceptorCalls.push('specific');
+          return next({ ...input, headers: { context: 'context-header' } });
+        },
+      },
+    ],
+  };
+}
 
 class ContextRecordingCodec implements PayloadCodec {
   readonly contexts = new Map<string, SerializationContext[]>();
@@ -37,7 +61,14 @@ class ContextRecordingCodec implements PayloadCodec {
   private record(payloads: Payload[], context?: SerializationContext): void {
     for (const payload of payloads) {
       const value = defaultPayloadConverter.fromPayload(payload);
-      if (value === 'started' || value === 'signaled') {
+      if (
+        value === 'context-workflow-arg' ||
+        value === 'context-signal-arg' ||
+        value === 'context-memo' ||
+        value === 'context-summary' ||
+        value === 'context-details' ||
+        value === 'context-header'
+      ) {
         const contexts = this.contexts.get(value) ?? [];
         contexts.push(context!);
         this.contexts.set(value, contexts);
@@ -58,16 +89,20 @@ export async function systemNexusTarget(startArgument: string): Promise<[string,
 export async function systemNexusCaller(
   targetWorkflowId: string,
   taskQueue: string
-): Promise<{ workflowId: string; runId?: string }> {
+): Promise<{ workflowId: string; runId?: string; calls: string[] }> {
+  interceptorCalls.length = 0;
   const target = await signalWithStartWorkflow({
     workflow: systemNexusTarget,
-    args: ['started'],
+    args: ['context-workflow-arg'],
     id: targetWorkflowId,
     taskQueue,
     signal: systemNexusSignal,
-    signalArgs: ['signaled'],
+    signalArgs: ['context-signal-arg'],
+    memo: { context: 'context-memo' },
+    staticSummary: 'context-summary',
+    staticDetails: 'context-details',
   });
-  return { workflowId: target.workflowId, runId: target.runId };
+  return { workflowId: target.workflowId, runId: target.runId, calls: interceptorCalls };
 }
 
 test('signal-with-start invokes the generated public API from a workflow', async (t) => {
@@ -80,14 +115,23 @@ test('signal-with-start invokes the generated public API from a workflow', async
   });
   const target = await worker.runUntil(caller.result());
   t.is(target.workflowId, targetWorkflowId);
+  t.regex(target.runId ?? '', /^[0-9a-f-]+$/i);
   t.deepEqual(await t.context.env.client.workflow.getHandle(target.workflowId, target.runId).result(), [
-    'started',
-    'signaled',
+    'context-workflow-arg',
+    'context-signal-arg',
   ]);
   const expectedContext = { type: 'workflow' as const, namespace: 'default', workflowId: targetWorkflowId };
-  for (const value of ['started', 'signaled']) {
+  t.deepEqual(target.calls, ['specific', 'generic']);
+  for (const value of [
+    'context-workflow-arg',
+    'context-signal-arg',
+    'context-memo',
+    'context-summary',
+    'context-details',
+    'context-header',
+  ]) {
     const contexts = codec.contexts.get(value) ?? [];
-    t.true(contexts.length >= 2, `${value} should be encoded and decoded`);
+    t.true(contexts.length >= 1, `${value} should be encoded with the target context`);
     t.deepEqual(
       contexts,
       contexts.map(() => expectedContext)

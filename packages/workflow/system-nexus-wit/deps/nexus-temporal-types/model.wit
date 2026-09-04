@@ -117,7 +117,7 @@ interface model {
   /// @nexus.proto "temporal.api.common.v1.Header" typescript-import="@temporalio/proto"
   /// @nexus.type
   ///   python="collections.abc.Mapping[str, typing.Any]"
-  ///   typescript="common.Headers"
+  ///   typescript="Record<string, unknown>"
   ///   go="map[string]any"
   ///   dotnet="IReadOnlyDictionary<string, object?>"
   ///   dotnet-from="ProtoExtensions.FromHeaderProto"
