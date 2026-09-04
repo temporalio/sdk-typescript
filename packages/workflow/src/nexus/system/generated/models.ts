@@ -237,7 +237,7 @@ export type SignalWithStartWorkflowRequest<
     /**
      * Headers for the request.
      */
-    headers?: common.Headers;
+    headers?: Record<string, unknown>;
   },
   (
     | {
@@ -426,7 +426,7 @@ export function signalWithStartWorkflowRequestFromProto<
     headers:
       proto.header == null
         ? undefined
-        : (headerFromProto(proto.header) as common.Headers),
+        : (headerFromProto(proto.header) as Record<string, unknown>),
   };
 }
 
