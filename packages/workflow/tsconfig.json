@@ -5,6 +5,5 @@
     "outDir": "./lib"
   },
   "references": [{ "path": "../common" }],
-  "include": ["./src/**/*.ts"],
-  "exclude": ["./src/nexus/system/wit/**"]
+  "include": ["./src/**/*.ts"]
 }
