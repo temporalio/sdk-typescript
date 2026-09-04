@@ -18,7 +18,7 @@ import {
   decodeSystemNexusOutput,
   encodeSystemNexusInput,
   isSystemNexusEnvelope,
-} from './system-nexus-payload-converter';
+} from './system-nexus-operations';
 
 /**
  * Maximum number of concurrent codec calls per activation or completion.

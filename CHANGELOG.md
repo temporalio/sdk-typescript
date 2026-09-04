@@ -64,6 +64,8 @@ to docs, or any other relevant information.
 
 - **Experimental**: Workflows can signal another Workflow and start it when absent with
   `signalWithStartWorkflow`.
+- **Experimental**: Workflow outbound interceptors can intercept Temporal System Nexus calls
+  generically with `startSystemNexusOperation` or specifically with `signalWithStartWorkflow`.
 
 - **Experimental**: `@temporalio/openai-agents` can run OpenAI Agents `SandboxAgent`s as Temporal Workflows. SandboxAgent
   operations are Activities; hosted tool credentials and sandbox environment values that reference allowlisted Worker
