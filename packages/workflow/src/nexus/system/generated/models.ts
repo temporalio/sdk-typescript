@@ -14,7 +14,10 @@ import {
   workflowNamespace,
   payloadFromProto,
   payloadToProto,
-  configuredPayloadConverter,
+  payloadsToProto,
+  payloadsFromProto,
+  valueToPayload,
+  payloadToValue,
   memoFromProto,
   memoToProto,
   headerFromProto,
@@ -50,7 +53,7 @@ function requestArgsFromPayloads(
   if (payloads == null) {
     return undefined;
   }
-  return common.arrayFromPayloads(configuredPayloadConverter(), payloads.payloads);
+  return payloadsFromProto(payloads);
 }
 
 function requestArgsToPayloads(
@@ -59,8 +62,7 @@ function requestArgsToPayloads(
   if (args == null) {
     return undefined;
   }
-  const payloads = common.toPayloads(configuredPayloadConverter(), ...args);
-  return payloads == null ? undefined : { payloads };
+  return payloadsToProto(args);
 }
 
 /**
@@ -404,7 +406,7 @@ export function signalWithStartWorkflowRequestFromProto<
           ? undefined
           : (payloadFromProto(proto.userMetadata.summary) as common.Payload) == null
             ? undefined
-            : configuredPayloadConverter().fromPayload<string>(
+            : payloadToValue<string>(
                 (proto.userMetadata.summary == null
                   ? undefined
                   : (payloadFromProto(proto.userMetadata.summary) as common.Payload))!
@@ -416,7 +418,7 @@ export function signalWithStartWorkflowRequestFromProto<
           ? undefined
           : (payloadFromProto(proto.userMetadata.details) as common.Payload) == null
             ? undefined
-            : configuredPayloadConverter().fromPayload<string>(
+            : payloadToValue<string>(
                 (proto.userMetadata.details == null
                   ? undefined
                   : (payloadFromProto(proto.userMetadata.details) as common.Payload))!
@@ -504,11 +506,11 @@ export function signalWithStartWorkflowRequestToProto<
             summary:
               model.staticSummary == null
                 ? undefined
-                : configuredPayloadConverter().toPayload(model.staticSummary),
+                : valueToPayload(model.staticSummary),
             details:
               model.staticDetails == null
                 ? undefined
-                : configuredPayloadConverter().toPayload(model.staticDetails),
+                : valueToPayload(model.staticDetails),
           },
     header: model.headers == null ? undefined : headerToProto(model.headers),
     namespace: workflowNamespace(),
