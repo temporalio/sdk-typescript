@@ -854,11 +854,11 @@ export class Activator implements ActivationHandler {
     } else {
       let err: Error;
       if (activation.result?.failed) {
-        err = this.failureToError(activation.result.failed);
+        err = this.failureToError(activation.result.failed, systemNexus?.context);
       } else if (activation.result?.cancelled) {
-        err = this.failureToError(activation.result.cancelled);
+        err = this.failureToError(activation.result.cancelled, systemNexus?.context);
       } else if (activation.result?.timedOut) {
-        err = this.failureToError(activation.result.timedOut);
+        err = this.failureToError(activation.result.timedOut, systemNexus?.context);
       }
 
       const completion =
@@ -1527,8 +1527,7 @@ export class Activator implements ActivationHandler {
     return this.failureConverter.errorToFailure(err, this.payloadConverter, context);
   }
 
-  failureToError(failure: ProtoFailure): Error {
-    const context = this.workflowSerializationContext();
+  failureToError(failure: ProtoFailure, context: SerializationContext = this.workflowSerializationContext()): Error {
     return this.failureConverter.failureToError(failure, this.payloadConverter, context);
   }
 

@@ -10,7 +10,10 @@ import { userMetadataToPayload } from '@temporalio/common/lib/user-metadata';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
 import type { coresdk } from '@temporalio/proto';
 import { eventGroupMarkersToProto } from './event-groups';
-import { withSystemNexusUserPayloadConverter } from './nexus/system/payload-converter';
+import {
+  systemNexusOperationDefinition,
+  withSystemNexusUserPayloadConverter,
+} from './nexus/system/payload-converter';
 import { CancellationScope } from './cancellation-scope';
 import { getActivator } from './global-attributes';
 import { composeInterceptors } from './interceptor-composition';
@@ -24,6 +27,8 @@ import type {
 
 const SYSTEM_NEXUS_PAYLOAD_METADATA_KEY = '__temporal_system_payload';
 const SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE = new Uint8Array([116, 114, 117, 101]); // "true"
+const SYSTEM_NEXUS_CONTEXT_METADATA_KEY = '__temporal_system_context';
+const TEMPORAL_SYSTEM_NEXUS_ENDPOINT = '__temporal_system';
 
 /**
  * A Nexus client for invoking Nexus Operations for a specific service from a Workflow.
@@ -156,6 +161,21 @@ export function createNexusServiceClient<T extends nexus.ServiceDefinition>(
       const activator = getActivator();
       const seq = activator.nextSeqs.nexusOperation++;
 
+      if (options.endpoint === TEMPORAL_SYSTEM_NEXUS_ENDPOINT) {
+        const specificInterceptor = Object.entries(options.service.operations).find(
+          ([, definition]) => definition === operationDefinition
+        )?.[0];
+        return (await startSystemNexusOperation({
+          service: options.service.name,
+          operation: opName,
+          input,
+          inputType: operationDefinition?.inputType!,
+          outputType: operationDefinition?.outputType,
+          specificInterceptor,
+          seq,
+        })) as NexusOperationHandle<nexus.OperationOutput<O>>;
+      }
+
       const execute = composeInterceptors(
         activator.interceptors.outbound,
         'startNexusOperation',
@@ -208,7 +228,7 @@ export async function startSystemNexusOperation<Output = unknown>(
   input: StartSystemNexusOperationInput
 ): Promise<NexusOperationHandle<Output>> {
   const activator = getActivator();
-  const seq = activator.nextSeqs.nexusOperation++;
+  const seq = input.seq ?? activator.nextSeqs.nexusOperation++;
   const genericInput: StartSystemNexusOperationInput = { ...input, seq };
   const generic = composeInterceptors(
     activator.interceptors.outbound,
@@ -232,8 +252,12 @@ async function startSystemNexusOperationNextHandler(
   const activator = getActivator();
   const seq = input.seq;
   if (seq == null) throw new TypeError('System Nexus operation interceptor removed the command sequence');
-  const context = input.serializationContext?.(input.input);
-  const outerPayloadConverter = systemNexusOuterPayloadConverter();
+  const definition = systemNexusOperationDefinition(input.service, input.operation);
+  if (definition == null) {
+    throw new TypeError(`unsupported System Nexus operation: ${input.service}/${input.operation}`);
+  }
+  const context = definition.serializationContext?.(input.input as any);
+  const outerPayloadConverter = systemNexusOuterPayloadConverter(context);
   const { token, result } = await new Promise<StartNexusOperationOutput>((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
@@ -286,12 +310,15 @@ async function startSystemNexusOperationNextHandler(
  * representation. Nested application values are handled by the generated
  * transfer-type converter while its scoped context is active.
  */
-function systemNexusOuterPayloadConverter(): PayloadConverter {
+function systemNexusOuterPayloadConverter(context: SerializationContext | undefined): PayloadConverter {
   return {
     toPayload(value) {
       const payload = defaultPayloadConverter.toPayload(value);
       payload.metadata ??= {};
       payload.metadata[SYSTEM_NEXUS_PAYLOAD_METADATA_KEY] = SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE;
+      if (context != null) {
+        payload.metadata[SYSTEM_NEXUS_CONTEXT_METADATA_KEY] = new TextEncoder().encode(JSON.stringify(context));
+      }
       return payload;
     },
     fromPayload(payload) {
