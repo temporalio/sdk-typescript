@@ -12,10 +12,11 @@ type SignalWithStartWorkflowInput<
   SignalValue extends workflow.SignalDefinition<any[]> = workflow.SignalDefinition<
     any[]
   >,
-> = Omit<
-  SignalWithStartWorkflowRequest<WorkflowFn, SignalValue>,
-  'headers' | 'namespace'
-> & { headers?: never; namespace?: never };
+> = SignalWithStartWorkflowRequest<WorkflowFn, SignalValue> extends infer Input
+  ? Input extends unknown
+    ? Omit<Input, 'headers' | 'namespace'> & { headers?: never; namespace?: never }
+    : never
+  : never;
 
 /**
  * Signal a workflow, starting it first if needed.
