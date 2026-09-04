@@ -97,6 +97,11 @@ export async function temporalAsyncOpCaller(endpoint: string): Promise<string> {
   return await client.executeOperation('asyncOp', 'hello');
 }
 
+export async function temporalAsyncOpInputCaller(endpoint: string, input: string): Promise<string> {
+  const client = workflow.createNexusServiceClient({ endpoint, service: temporalOpService });
+  return await client.executeOperation('asyncOp', input, { scheduleToCloseTimeout: '10s' });
+}
+
 export async function temporalSyncOpCaller(endpoint: string): Promise<string> {
   const client = workflow.createNexusServiceClient({ endpoint, service: temporalOpService });
   return await client.executeOperation('syncOp', 'hello');
@@ -115,6 +120,11 @@ export async function temporalRetryAfterFailedStartOpCaller(endpoint: string, wo
 export async function temporalActivityOpCaller(endpoint: string, activityId: string): Promise<string> {
   const client = workflow.createNexusServiceClient({ endpoint, service: temporalOpService });
   return await client.executeOperation('echoActivity', activityId);
+}
+
+export async function temporalBlockingActivityOpCaller(endpoint: string, activityId: string): Promise<void> {
+  const client = workflow.createNexusServiceClient({ endpoint, service: temporalOpService });
+  await client.executeOperation('blockingActivity', activityId, { scheduleToCloseTimeout: '10s' });
 }
 
 export async function temporalDefaultCancelWorkflowCaller(endpoint: string, targetWorkflowId: string): Promise<void> {
@@ -383,6 +393,195 @@ test('TemporalOperationHandler allows retry after failed async start', async (t)
       t.is(result, conflictWorkflowId);
     } finally {
       await conflictHandle.cancel();
+    }
+  });
+});
+
+test('TemporalOperationHandler workflow REJECT_DUPLICATE failure is non-retryable', async (t) => {
+  const { createWorker, startWorkflow, registerNexusEndpoint } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+  const conflictWorkflowId = randomUUID();
+  let handlerInvocations = 0;
+
+  const worker = await createWorker({
+    nexusServices: [
+      makeTemporalOpServiceHandler({
+        asyncOp: new temporalnexus.TemporalOperationHandler<string, string>({
+          async start(_ctx, nexusClient, workflowId) {
+            handlerInvocations++;
+            return await nexusClient.startWorkflow(echoWorkflow, {
+              workflowId,
+              workflowIdReusePolicy: 'REJECT_DUPLICATE',
+              args: [workflowId],
+            });
+          },
+        }),
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const existingHandle = await startWorkflow(echoWorkflow, {
+      workflowId: conflictWorkflowId,
+      args: [conflictWorkflowId],
+    });
+    await existingHandle.result();
+
+    const callerHandle = await startWorkflow(temporalAsyncOpInputCaller, {
+      args: [endpointName, conflictWorkflowId],
+    });
+    const err = await t.throwsAsync(callerHandle.result(), { instanceOf: WorkflowFailedError });
+    assert(err?.cause instanceof NexusOperationFailure);
+    assert(err.cause.cause instanceof nexus.HandlerError);
+    const inner = innermostHandlerError(err.cause.cause);
+    t.is(inner.type, 'INTERNAL');
+    t.false(inner.retryable);
+    t.is(handlerInvocations, 1);
+  });
+});
+
+test('TemporalOperationHandler workflow conflict failure is non-retryable', async (t) => {
+  const { createWorker, startWorkflow, registerNexusEndpoint } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+  const conflictWorkflowId = randomUUID();
+  let handlerInvocations = 0;
+
+  const worker = await createWorker({
+    nexusServices: [
+      makeTemporalOpServiceHandler({
+        asyncOp: new temporalnexus.TemporalOperationHandler<string, string>({
+          async start(_ctx, nexusClient, workflowId) {
+            handlerInvocations++;
+            return await nexusClient.startWorkflow(echoWorkflow, {
+              workflowId,
+              workflowIdConflictPolicy: 'FAIL',
+              args: [workflowId],
+            });
+          },
+        }),
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const existingHandle = await startWorkflow(blockingTargetWorkflow, {
+      workflowId: conflictWorkflowId,
+    });
+    try {
+      const callerHandle = await startWorkflow(temporalAsyncOpInputCaller, {
+        args: [endpointName, conflictWorkflowId],
+      });
+      const err = await t.throwsAsync(callerHandle.result(), { instanceOf: WorkflowFailedError });
+      assert(err?.cause instanceof NexusOperationFailure);
+      assert(err.cause.cause instanceof nexus.HandlerError);
+      const inner = innermostHandlerError(err.cause.cause);
+      t.is(inner.type, 'INTERNAL');
+      t.false(inner.retryable);
+      t.is(handlerInvocations, 1);
+    } finally {
+      await existingHandle.cancel();
+    }
+  });
+});
+
+test('TemporalOperationHandler activity REJECT_DUPLICATE failure is non-retryable', async (t) => {
+  const { createWorker, startWorkflow, registerNexusEndpoint, taskQueue } = helpers(t);
+  const { client } = t.context.env;
+  const { endpointName } = await registerNexusEndpoint();
+  const conflictActivityId = randomUUID();
+  let handlerInvocations = 0;
+
+  const worker = await createWorker({
+    activities,
+    nexusServices: [
+      makeTemporalOpServiceHandler({
+        echoActivity: new temporalnexus.TemporalOperationHandler<string, string>({
+          async start(_ctx, nexusClient, activityId) {
+            handlerInvocations++;
+            return await nexusClient.typedActivity<typeof activities>().startActivity('echo', {
+              id: activityId,
+              idReusePolicy: 'REJECT_DUPLICATE',
+              args: [activityId],
+              scheduleToCloseTimeout: '10s',
+            });
+          },
+        }),
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const existingHandle = await client.activity.start<string>('echo', {
+      id: conflictActivityId,
+      taskQueue,
+      args: [conflictActivityId],
+      scheduleToCloseTimeout: '10s',
+    });
+    await existingHandle.result();
+
+    const callerHandle = await startWorkflow(temporalActivityOpCaller, {
+      args: [endpointName, conflictActivityId],
+    });
+    const err = await t.throwsAsync(callerHandle.result(), { instanceOf: WorkflowFailedError });
+    assert(err?.cause instanceof NexusOperationFailure);
+    assert(err.cause.cause instanceof nexus.HandlerError);
+    const inner = innermostHandlerError(err.cause.cause);
+    t.is(inner.type, 'INTERNAL');
+    t.false(inner.retryable);
+    t.is(handlerInvocations, 1);
+  });
+});
+
+test.serial('TemporalOperationHandler activity conflict failure is non-retryable', async (t) => {
+  const { createWorker, startWorkflow, registerNexusEndpoint, taskQueue } = helpers(t);
+  const { client } = t.context.env;
+  const { endpointName } = await registerNexusEndpoint();
+  const conflictActivityId = randomUUID();
+  const [activityStarted, markActivityStarted] = createDeferred();
+  const cancellationActivities = createCancellationActivities(markActivityStarted);
+  let handlerInvocations = 0;
+
+  const worker = await createWorker({
+    activities: cancellationActivities,
+    defaultHeartbeatThrottleInterval: cancellationHeartbeatInterval,
+    nexusServices: [
+      makeTemporalOpServiceHandler({
+        blockingActivity: new temporalnexus.TemporalOperationHandler<string, void>({
+          async start(_ctx, nexusClient, activityId) {
+            handlerInvocations++;
+            return await nexusClient.startActivity('waitForCancellation', {
+              id: activityId,
+              idConflictPolicy: 'FAIL',
+              scheduleToCloseTimeout: '30s',
+            });
+          },
+        }),
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    const existingHandle = await client.activity.start<void>('waitForCancellation', {
+      id: conflictActivityId,
+      taskQueue,
+      scheduleToCloseTimeout: '30s',
+    });
+    await activityStarted;
+
+    try {
+      const callerHandle = await startWorkflow(temporalBlockingActivityOpCaller, {
+        args: [endpointName, conflictActivityId],
+      });
+      const err = await t.throwsAsync(callerHandle.result(), { instanceOf: WorkflowFailedError });
+      assert(err?.cause instanceof NexusOperationFailure);
+      assert(err.cause.cause instanceof nexus.HandlerError);
+      const inner = innermostHandlerError(err.cause.cause);
+      t.is(inner.type, 'INTERNAL');
+      t.false(inner.retryable);
+      t.is(handlerInvocations, 1);
+    } finally {
+      await existingHandle.cancel('test cleanup');
+      await t.throwsAsync(existingHandle.result(), { instanceOf: ActivityExecutionFailedError });
     }
   });
 });

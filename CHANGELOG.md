@@ -81,6 +81,8 @@ to docs, or any other relevant information.
   arguments and results.
 - **Experimental**: Update definitions and named Update calls can use `TypeInfo` to convert Update arguments and
   results.
+- **Experimental**: Added `rawValueTypeInfo`, which allows `RawValue` inputs and results to be preserved across
+  serialization boundaries when explicitly configured on TypeInfo-aware APIs.
 - **Experimental**: `@temporalio/google-adk-agents` package for running Google ADK agents as durable Temporal Workflows,
   requiring `@google/adk@>=1.5.0 <1.6.0` as a peer dependency.
   ADK's OpenTelemetry agent-loop spans can be exported replay-safely from the Workflow sandbox by composing with
@@ -115,6 +117,9 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- Nexus handlers now report uncaught Workflow and standalone Activity already-started errors as
+  non-retryable `INTERNAL` Handler Errors, preventing retries when ID reuse or conflict
+  policies reject duplicate execution IDs.
 - Local Activities now fall back to a registered `default` activity when the requested type is not
   registered, matching non-local Activity dispatch. Previously the Workflow Task failed immediately
   with `ReferenceError` even if `default` was registered.
