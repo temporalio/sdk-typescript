@@ -142,6 +142,8 @@ to docs, or any other relevant information.
 
 - **Experimental**: Workflows can signal another Workflow and start it when absent with
   `signalWithStartWorkflow`.
+- **Experimental**: Workflow outbound interceptors can intercept Temporal System Nexus calls
+  generically with `startSystemNexusOperation` or specifically with `signalWithStartWorkflow`.
 
 - `createPayloadValidationError` in `@temporalio/common` creates a non-retryable
   `ApplicationFailure` with structured Payload validation details when provided. Passing `null` or
