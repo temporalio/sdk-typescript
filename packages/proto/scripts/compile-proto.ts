@@ -9,7 +9,6 @@ import * as pbts from 'protobufjs-cli/pbts';
 const outputDir = resolve(__dirname, '../protos');
 const jsOutputFile = resolve(outputDir, 'json-module.js');
 const tempFile = resolve(outputDir, 'temp.js');
-
 const protoBaseDir = resolve(__dirname, '../../core-bridge/sdk-core/crates/protos/protos');
 
 function mtime(path: string) {

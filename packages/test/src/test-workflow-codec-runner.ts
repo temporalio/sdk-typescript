@@ -1,6 +1,7 @@
 import test from 'ava';
 import type { Payload, PayloadCodec } from '@temporalio/common';
 import { ApplicationFailure, defaultFailureConverter, defaultPayloadConverter } from '@temporalio/common';
+import { walkPayloadsInMessage } from '@temporalio/common/lib/internal-non-workflow';
 import { coresdk } from '@temporalio/proto';
 import { WorkflowCodecRunner } from '@temporalio/worker/lib/workflow-codec-runner';
 import { FreePayloadCodec, makeContextTrace } from './payload-converters/serialization-context-converter';
@@ -491,4 +492,39 @@ test('runner remains compatible with codecs that ignore context', async (t) => {
   t.deepEqual(traceFromPayload(encoded.successful?.commands?.[0]?.completeWorkflowExecution?.result as Payload), [
     'codec.encode.free|wf-output',
   ]);
+});
+
+test('generic protobuf payload walking rejects an unrecognized root', (t) => {
+  t.throws(
+    () => walkPayloadsInMessage({ $type: { fullName: '.example.Unknown' } }, {} as any, undefined),
+    { message: 'Unknown root message type: example.Unknown' }
+  );
+});
+
+test('ordinary Nexus calls with a System Nexus service name are not rewritten', async (t) => {
+  const runner = new WorkflowCodecRunner([new FreePayloadCodec()], {
+    type: 'workflow',
+    namespace: 'caller-ns',
+    workflowId: 'caller-id',
+  });
+  const encoded = decodeCompletion(
+    await runner.encodeCompletion({
+      successful: {
+        commands: [
+          {
+            scheduleNexusOperation: {
+              seq: 43,
+              endpoint: 'ordinary-endpoint',
+              service: 'temporal.api.workflowservice.v1.WorkflowService',
+              operation: 'SignalWithStartWorkflowExecution',
+              input: payload('ordinary-nexus-input'),
+            },
+          },
+        ],
+      },
+    })
+  );
+  const envelope = encoded.successful?.commands?.[0]?.scheduleNexusOperation?.input;
+  t.not(envelope?.metadata?.encoding?.[0], 98);
+  t.deepEqual(traceFromPayload(envelope), ['codec.encode.bound|ordinary-nexus-input|workflow.caller-ns.caller-id']);
 });
