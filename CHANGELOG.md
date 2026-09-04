@@ -140,6 +140,9 @@ to docs, or any other relevant information.
 
 ### Added
 
+- **Experimental**: Workflows can signal another Workflow and start it when absent with
+  `signalWithStartWorkflow`.
+
 - `createPayloadValidationError` in `@temporalio/common` creates a non-retryable
   `ApplicationFailure` with structured Payload validation details when provided. Passing `null` or
   `undefined` produces a failure without details.
