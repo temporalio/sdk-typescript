@@ -2,11 +2,8 @@ import type { Type as ProtobufType } from 'protobufjs';
 import type { Payload, PayloadCodec, SerializationContext } from '@temporalio/common';
 import { defaultPayloadConverter } from '@temporalio/common';
 import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
-import {
-  encode,
-  visit,
-  walkSignalWithStartWorkflowExecutionRequest,
-} from '@temporalio/common/lib/internal-non-workflow';
+import { decode, encode, visit } from '@temporalio/common/lib/internal-non-workflow';
+import * as payloadVisitors from '@temporalio/common/lib/internal-non-workflow';
 import * as protoRoot from '@temporalio/proto';
 import { operationRegistry } from '@temporalio/workflow/lib/nexus/system/generated/services';
 
@@ -35,13 +32,8 @@ export function isSystemNexusEnvelope(
   return marker != null && bytesEqual(marker, SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE);
 }
 
-function walker(type: string) {
-  switch (type) {
-    case 'temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionRequest':
-      return walkSignalWithStartWorkflowExecutionRequest;
-    default:
-      throw new Error(`unsupported System Nexus protobuf message type: ${type}`);
-  }
+function payloadVisitor(name: string): unknown {
+  return (payloadVisitors as Record<string, unknown>)[name];
 }
 
 export interface EncodedSystemNexusInput {
@@ -66,12 +58,15 @@ export async function encodeSystemNexusInput(
   const message = protoRootWithLookup.lookupType(definition.inputType).create(properties) as Record<string, unknown>;
   normalizePayloadBytes(message);
   const context = definition.serializationContext?.(message) ?? workflowContext;
-  await visit(message, walker(definition.inputType), {
-    initialContext: context,
-    transformPayload: async (value, valueContext) => (await encode(codecs, [value], valueContext))[0]!,
-    transformPayloads: (values, valueContext) => encode(codecs, values, valueContext),
-    skipSearchAttributes: true,
-  });
+  const visitor = payloadVisitor(definition.inputPayloadVisitor);
+  if (visitor != null) {
+    await visit(message, visitor as never, {
+      initialContext: context,
+      transformPayload: async (value, valueContext) => (await encode(codecs, [value], valueContext))[0]!,
+      transformPayloads: (values, valueContext) => encode(codecs, values, valueContext),
+      skipSearchAttributes: true,
+    });
+  }
   const encoded = protobufPayloadConverter.toPayload(message);
   if (encoded == null) throw new Error('failed to encode System Nexus protobuf envelope');
   return { payload: encoded, context };
@@ -83,13 +78,20 @@ export async function decodeSystemNexusOutput(
   service: string | null | undefined,
   operation: string | null | undefined,
   payload: Payload | null | undefined,
-  _context: SerializationContext
+  context: SerializationContext
 ): Promise<Payload | undefined> {
   const definition = operationDefinition(service, operation);
   if (definition == null || payload == null) return undefined;
   const message = protobufPayloadConverter.fromPayload<Record<string, unknown>>(payload);
-  // Signal-with-start has no payload-bearing response fields. Future generated
-  // system operations add their output walker here alongside the registry entry.
+  const visitor = payloadVisitor(definition.outputPayloadVisitor);
+  if (visitor != null) {
+    await visit(message, visitor as never, {
+      initialContext: context,
+      transformPayload: async (value, valueContext) => (await decode(codecs, [value], valueContext))[0]!,
+      transformPayloads: (values, valueContext) => decode(codecs, values, valueContext),
+      skipSearchAttributes: true,
+    });
+  }
   return defaultPayloadConverter.toPayload(message) ?? undefined;
 }
 
