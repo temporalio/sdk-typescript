@@ -1,6 +1,12 @@
 import test from 'ava';
 import * as nexus from 'nexus-rpc';
-import type { Client, NexusOperationHandle } from '@temporalio/client';
+import type {
+  Client,
+  GetNexusOperationHandleOptions,
+  NexusOperationHandle,
+  NexusOperationHandleDefinitionOptions,
+} from '@temporalio/client';
+import type { TypeInfo } from '@temporalio/common';
 
 interface MyInput {
   value: string;
@@ -20,6 +26,7 @@ const otherService = nexus.service('otherService', {
 });
 
 declare const client: Client;
+declare const numberTypeInfo: TypeInfo<number>;
 
 test('executeOperation with operation definition infers output type', async (t) => {
   async function _assertion() {
@@ -81,6 +88,21 @@ test('startOperation + handle.result() preserves type', async (t) => {
 test('getHandle with no type defaults to unknown', (t) => {
   function _assertion() {
     const _anyHandle: NexusOperationHandle<unknown> = client.nexus.getHandle('op-1');
+    const options: GetNexusOperationHandleOptions = { runId: 'run-id' };
+    const _typedHandle: NexusOperationHandle<MyOutput> = client.nexus.getHandle<MyOutput>('op-1', options);
+    const _indexedOptions: GetNexusOperationHandleOptions<MyOutput> & Record<string, unknown> = {
+      runId: 'run-id',
+      // @ts-expect-error An index signature cannot hide an Operation definition in non-definition options.
+      operation: myService.operations.mySyncOp,
+    };
+    function getNexusHandleFromGeneric<O extends GetNexusOperationHandleOptions<MyOutput>>(genericOptions: O) {
+      return client.nexus.getHandle<MyOutput>('op-1', genericOptions);
+    }
+    void getNexusHandleFromGeneric({
+      runId: 'run-id',
+      // @ts-expect-error A generic constraint cannot hide an Operation definition in non-definition options.
+      operation: myService.operations.mySyncOp,
+    });
   }
   t.pass();
 });
@@ -93,6 +115,41 @@ test('getHandle with generic type parameter infers correctly', async (t) => {
     const _typedHandleFromOp: NexusOperationHandle<MyOutput> =
       client.nexus.getHandle<typeof myService.operations.mySyncOp>('op-1');
     const _typedOutputFromOp: MyOutput = await _typedHandleFromOp.result();
+
+    void client.nexus.getHandle<MyOutput>('op-1', {
+      typeInfo: {
+        // @ts-expect-error Explicit TypeInfo must produce the handle result type.
+        outputType: numberTypeInfo,
+      },
+    });
+  }
+  t.pass();
+});
+
+test('getHandle with operation definition infers correctly', async (t) => {
+  async function _assertion() {
+    const options = { operation: myService.operations.mySyncOp };
+    const _typedHandle = client.nexus.getHandle('op-1', options);
+    const _typedOutput: MyOutput = await _typedHandle.result();
+    const reusableDefinitionOptions: NexusOperationHandleDefinitionOptions<typeof myService.operations.mySyncOp> = {
+      operation: myService.operations.mySyncOp,
+    };
+    const _reusableDefinitionHandle: NexusOperationHandle<MyOutput> = client.nexus.getHandle(
+      'op-1',
+      reusableDefinitionOptions
+    );
+
+    // @ts-expect-error Supplying an Operation definition selects definition-based result inference.
+    void client.nexus.getHandle<string>('op-1', reusableDefinitionOptions);
+
+    // @ts-expect-error Supplying an Operation definition selects definition-based result inference.
+    void client.nexus.getHandle<string>('op-1', options);
+
+    // @ts-expect-error Operation definitions and call-site TypeInfo are mutually exclusive.
+    void client.nexus.getHandle('op-1', {
+      operation: myService.operations.mySyncOp,
+      typeInfo: {},
+    });
   }
   t.pass();
 });

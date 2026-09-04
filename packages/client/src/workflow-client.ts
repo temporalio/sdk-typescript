@@ -37,7 +37,7 @@ import { encodeUserMetadata } from '@temporalio/common/lib/internal-non-workflow
 import { encodeUnifiedSearchAttributes } from '@temporalio/common/lib/converter/payload-search-attributes';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import type { History } from '@temporalio/common/lib/proto-utils';
-import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
+import { type Replace, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
@@ -111,7 +111,12 @@ import type {
   WorkflowUpdateOptions,
 } from './workflow-options';
 import { compileWorkflowOptions } from './workflow-options';
-import { decodeCountWorkflowExecutionsResponse, executionInfoFromRaw, rethrowKnownErrorTypes } from './helpers';
+import {
+  type OutputTypeInfo,
+  decodeCountWorkflowExecutionsResponse,
+  executionInfoFromRaw,
+  rethrowKnownErrorTypes,
+} from './helpers';
 import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base-client';
 import { BaseClient, defaultBaseClientOptions } from './base-client';
 import { mapAsyncIterable } from './iterators-utils';
@@ -368,7 +373,7 @@ function ensureArgs<W extends Workflow, T extends WorkflowStartOptions<W>>(
 /**
  * Options for getting a result of a Workflow execution.
  */
-export interface WorkflowResultOptions {
+export interface WorkflowResultOptions<R = any> {
   /**
    * If set to true, instructs the client to follow the chain of execution before returning a Workflow's result.
    *
@@ -387,13 +392,18 @@ export interface WorkflowResultOptions {
    *
    * @experimental
    */
-  typeInfo?: PayloadTypeInfo;
+  typeInfo?: Replace<PayloadTypeInfo, OutputTypeInfo<R>>;
 }
 
 /**
  * Options for {@link WorkflowClient.getHandle}
  */
-export interface GetWorkflowHandleOptions extends WorkflowResultOptions {
+export interface GetWorkflowHandleOptions<R = any> extends WorkflowResultOptions<R> {
+  /**
+   * Workflow definitions are accepted through {@link WorkflowHandleDefinitionOptions}.
+   */
+  workflow?: never;
+
   /**
    * ID of the first execution in the Workflow execution chain.
    *
@@ -403,6 +413,14 @@ export interface GetWorkflowHandleOptions extends WorkflowResultOptions {
    */
   firstExecutionRunId?: string;
 }
+
+/**
+ * Options for getting a Workflow handle using a Workflow definition.
+ */
+export type WorkflowHandleDefinitionOptions<T extends Workflow> = Replace<
+  GetWorkflowHandleOptions<WorkflowResultType<T>>,
+  { workflow: T; typeInfo?: never }
+>;
 
 interface WorkflowHandleOptions extends GetWorkflowHandleOptions {
   workflowId: string;
@@ -1939,9 +1957,21 @@ export class WorkflowClient extends BaseClient {
    */
   public getHandle<T extends Workflow>(
     workflowId: string,
+    runId: string | undefined,
+    options: WorkflowHandleDefinitionOptions<T>
+  ): WorkflowHandle<T>;
+  public getHandle<T extends Workflow>(
+    workflowId: string,
     runId?: string,
-    options?: GetWorkflowHandleOptions
+    options?: Replace<GetWorkflowHandleOptions<WorkflowResultType<T>>, { workflow?: never }>
+  ): WorkflowHandle<T>;
+  public getHandle<T extends Workflow>(
+    workflowId: string,
+    runId?: string,
+    options?: Replace<GetWorkflowHandleOptions, { workflow?: Workflow }>
   ): WorkflowHandle<T> {
+    const typeInfo =
+      options?.typeInfo ?? (options?.workflow ? extractWorkflowTypeAndConfig(options.workflow).typeInfo : undefined);
     const interceptors = this.getOrMakeInterceptors(workflowId, runId);
 
     return this._createWorkflowHandle({
@@ -1951,7 +1981,7 @@ export class WorkflowClient extends BaseClient {
       runIdForResult: runId ?? options?.firstExecutionRunId,
       interceptors,
       followRuns: options?.followRuns ?? true,
-      typeInfo: options?.typeInfo,
+      typeInfo,
     });
   }
 

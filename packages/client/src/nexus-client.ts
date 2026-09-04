@@ -2,7 +2,7 @@ import { status as grpcStatus } from '@grpc/grpc-js';
 import type * as nexus from 'nexus-rpc';
 import { v4 as uuid4 } from 'uuid';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
-import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
+import { type Replace, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import {
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
@@ -52,6 +52,7 @@ import type {
   DescribeNexusOperationOptions,
   GetNexusOperationHandleOptions,
   ListNexusOperationsOptions,
+  NexusOperationHandleDefinitionOptions,
   NexusOperationExecutionCancellationInfo,
   NexusOperationExecutionCount,
   NexusOperationExecutionDescription,
@@ -310,15 +311,22 @@ export class NexusClient extends BaseClient {
    *
    * @experimental Nexus Standalone Operations are experimental.
    */
+  public getHandle<Op extends nexus.OperationDefinition<any, any>>(
+    operationId: string,
+    options: NexusOperationHandleDefinitionOptions<Op>
+  ): NexusOperationHandle<nexus.OperationOutput<Op>>;
   public getHandle<T>(
     operationId: string,
-    options?: GetNexusOperationHandleOptions
+    options?: Replace<GetNexusOperationHandleOptions<NexusOperationHandleResult<T>>, { operation?: never }>
   ): NexusOperationHandle<NexusOperationHandleResult<T>>;
-  public getHandle(operationId: string, options?: GetNexusOperationHandleOptions): NexusOperationHandle {
+  public getHandle(
+    operationId: string,
+    options?: Replace<GetNexusOperationHandleOptions, { operation?: nexus.OperationDefinition<any, any> }>
+  ): NexusOperationHandle {
     return this.createNexusOperationHandle({
       operationId,
       runId: options?.runId,
-      outputType: options?.typeInfo?.outputType,
+      outputType: options?.typeInfo?.outputType ?? options?.operation?.outputType,
     });
   }
 
