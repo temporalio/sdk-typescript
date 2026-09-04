@@ -42,3 +42,32 @@ for (const value of [-1, 1.5, Number.NaN]) {
     );
   });
 }
+
+test('forwards maxWorkflowThreadHeapMiB to the compiled Worker options', (t) => {
+  const runtime = Runtime.instance();
+  const compiled = compileWorkerOptions(
+    { ...defaultOptions, maxWorkflowThreadHeapMiB: 512 },
+    runtime.logger,
+    runtime.metricMeter
+  );
+
+  t.is(compiled.maxWorkflowThreadHeapMiB, 512);
+});
+
+for (const value of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+  test(`rejects invalid Workflow thread heap limit ${value}`, (t) => {
+    const runtime = Runtime.instance();
+    t.throws(
+      () =>
+        compileWorkerOptions(
+          { ...defaultOptions, maxWorkflowThreadHeapMiB: value },
+          runtime.logger,
+          runtime.metricMeter
+        ),
+      {
+        instanceOf: TypeError,
+        message: 'maxWorkflowThreadHeapMiB must be a positive number',
+      }
+    );
+  });
+}

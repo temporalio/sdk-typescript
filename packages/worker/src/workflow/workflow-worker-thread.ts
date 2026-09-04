@@ -1,4 +1,5 @@
 import { isMainThread, parentPort as parentPortOrNull } from 'node:worker_threads';
+import * as v8 from 'node:v8';
 import { IllegalStateError } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
 import type { WorkflowInfo } from '@temporalio/workflow';
@@ -6,13 +7,15 @@ import type { Workflow, WorkflowCreator } from './interface';
 import { ReusableVMWorkflowCreator } from './reusable-vm';
 import { VMWorkflowCreator } from './vm';
 import type { PatchActivationCallbackRequest, WorkerThreadRequest } from './workflow-worker-thread/input';
-import type { WorkerThreadResponse } from './workflow-worker-thread/output';
+import type { WorkerThreadResponse, WorkflowEvictionNotification } from './workflow-worker-thread/output';
 import { isBun, isBunPre1_4 } from './bun';
 import {
   makePatchActivationWorkflowInfoSnapshot,
   PATCH_ACTIVATION_CALLBACK_BUFFER_SIZE,
   waitForPatchActivationCallbackResult,
 } from './patch-activation-callback';
+import { getWorkflowHeapEvictionBatchSize } from './workflow-thread-heap-policy';
+import { WorkflowThreadDisposalError } from './threaded-vm-errors';
 
 if (isMainThread) {
   throw new IllegalStateError(`Imported ${__filename} from main thread`);
@@ -31,6 +34,50 @@ function ok(requestId: bigint): WorkerThreadResponse {
 
 let workflowCreator: WorkflowCreator | undefined;
 let workflowGetter: (runId: string) => Workflow | undefined;
+let heapSizeLimit = 0;
+const idleWorkflows = new Map<string, undefined>();
+const locallyEvictedWorkflows = new Set<string>();
+
+function locallyEvicted(requestId: bigint): WorkerThreadResponse {
+  return { requestId, result: { type: 'ok', output: { type: 'workflow-locally-evicted' } } };
+}
+
+/**
+ * Discard a bounded LRU batch when the thread is under heap pressure.
+ *
+ * Dereferencing a Workflow does not synchronously reduce V8's used-heap counter, so attempting to loop until the
+ * low watermark would often discard the entire cache. Instead, each safe point removes the proportion of idle
+ * Workflows needed to move from the observed usage toward the low watermark. Subsequent safe points remeasure.
+ */
+async function evictWorkflowsUnderHeapPressure(): Promise<void> {
+  if (idleWorkflows.size === 0) return;
+
+  const { used_heap_size: usedHeapSize, heap_size_limit: v8HeapSizeLimit } = v8.getHeapStatistics();
+  const effectiveHeapSizeLimit = heapSizeLimit || v8HeapSizeLimit;
+  const evictionCount = getWorkflowHeapEvictionBatchSize(usedHeapSize, effectiveHeapSizeLimit, idleWorkflows.size);
+  if (evictionCount === 0) return;
+  const runIds = Array.from(idleWorkflows.keys()).slice(0, evictionCount);
+
+  for (const runId of runIds) {
+    idleWorkflows.delete(runId);
+    locallyEvictedWorkflows.add(runId);
+    try {
+      await workflowGetter(runId)?.dispose();
+    } catch (cause) {
+      // A failed dispose can leave the Workflow strongly referenced by the VM implementation. Discard the whole
+      // isolate so the parent can recreate it and request Core eviction for every Workflow the thread owned.
+      throw new WorkflowThreadDisposalError(`Failed to dispose Workflow ${runId} under heap pressure`, cause);
+    }
+  }
+
+  const notification: WorkflowEvictionNotification = {
+    type: 'workflow-evictions',
+    runIds,
+    usedHeapSize,
+    heapSizeLimit: effectiveHeapSizeLimit,
+  };
+  parentPort.postMessage(notification);
+}
 
 function requestPatchActivation(workflowInfo: WorkflowInfo, patchId: string): boolean {
   const resultBuffer = new SharedArrayBuffer(PATCH_ACTIVATION_CALLBACK_BUFFER_SIZE);
@@ -50,6 +97,7 @@ function requestPatchActivation(workflowInfo: WorkflowInfo, patchId: string): bo
 async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise<WorkerThreadResponse> {
   switch (input.type) {
     case 'init':
+      heapSizeLimit = input.heapSizeLimitBytes ?? v8.getHeapStatistics().heap_size_limit;
       if (input.reuseV8Context) {
         workflowCreator = await ReusableVMWorkflowCreator.create(
           input.workflowBundle,
@@ -75,10 +123,18 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
       if (workflowCreator === undefined) {
         throw new IllegalStateError('No WorkflowCreator in Worker thread');
       }
+      if (locallyEvictedWorkflows.has(input.options.info.runId)) {
+        throw new IllegalStateError(
+          `Tried to recreate locally evicted workflow with runId: ${input.options.info.runId}`
+        );
+      }
+      await evictWorkflowsUnderHeapPressure();
       await workflowCreator.createWorkflow(input.options);
       return ok(requestId);
     }
     case 'activate-workflow': {
+      idleWorkflows.delete(input.runId);
+      if (locallyEvictedWorkflows.has(input.runId)) return locallyEvicted(requestId);
       const workflow = workflowGetter(input.runId);
       if (workflow === undefined) {
         throw new IllegalStateError(`Tried to activate non running workflow with runId: ${input.runId}`);
@@ -107,6 +163,7 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
       };
     }
     case 'extract-sink-calls': {
+      if (locallyEvictedWorkflows.has(input.runId)) return locallyEvicted(requestId);
       const workflow = workflowGetter(input.runId);
       if (workflow === undefined) {
         throw new IllegalStateError(`Tried to activate non running workflow with runId: ${input.runId}`);
@@ -131,11 +188,27 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
       };
     }
     case 'dispose-workflow': {
+      idleWorkflows.delete(input.runId);
+      if (locallyEvictedWorkflows.delete(input.runId)) return ok(requestId);
       const workflow = workflowGetter(input.runId);
       if (workflow === undefined) {
         throw new IllegalStateError(`Tried to dispose non running workflow with runId: ${input.runId}`);
       }
-      await workflow.dispose();
+      try {
+        await workflow.dispose();
+      } catch (cause) {
+        throw new WorkflowThreadDisposalError(`Failed to dispose Workflow ${input.runId} during Core eviction`, cause);
+      }
+      return ok(requestId);
+    }
+    case 'mark-workflow-idle': {
+      if (locallyEvictedWorkflows.has(input.runId) || workflowGetter(input.runId) === undefined) {
+        return ok(requestId);
+      }
+      // Reinsertion updates Map iteration order, giving us a compact LRU queue.
+      idleWorkflows.delete(input.runId);
+      idleWorkflows.set(input.runId, undefined);
+      await evictWorkflowsUnderHeapPressure();
       return ok(requestId);
     }
   }

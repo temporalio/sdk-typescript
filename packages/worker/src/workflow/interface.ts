@@ -4,6 +4,13 @@ import { type WorkflowCreateOptions } from '@temporalio/workflow/lib/interfaces'
 
 export { WorkflowCreateOptions };
 
+export interface WorkflowThreadEvictionEvent {
+  runIds: string[];
+  reason: 'heap-pressure' | 'thread-exit';
+  usedHeapSize?: number;
+  heapSizeLimit?: number;
+}
+
 export interface Workflow {
   /**
    * Activate the Workflow.
@@ -22,6 +29,9 @@ export interface Workflow {
    * in order to extract all logs and metrics from the Workflow context.
    */
   getAndResetSinkCalls(): Promise<SinkCall[]>;
+
+  /** Notify the Workflow that Core accepted its latest activation completion. */
+  activationCompletionAccepted?(): Promise<void>;
 
   /**
    * Dispose this instance, and release its resources.
@@ -43,4 +53,10 @@ export interface WorkflowCreator {
    * Destroy and cleanup any resources
    */
   destroy(): Promise<void>;
+
+  /** Connect lifecycle events for Workflow creators that manage replaceable execution threads. */
+  setLifecycleHandlers?(
+    evictionHandler: (event: WorkflowThreadEvictionEvent) => void,
+    fatalErrorHandler: (error: Error) => void
+  ): void;
 }

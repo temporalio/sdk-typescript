@@ -45,6 +45,10 @@ pub fn init(cx: &mut ModuleContext) -> NeonResult<()> {
         "workerCompleteWorkflowActivation",
         worker_complete_workflow_activation,
     )?;
+    cx.export_function(
+        "workerRequestWorkflowEviction",
+        worker_request_workflow_eviction,
+    )?;
 
     cx.export_function("workerPollActivityTask", worker_poll_activity_task)?;
     cx.export_function("workerCompleteActivityTask", worker_complete_activity_task)?;
@@ -195,6 +199,17 @@ pub fn worker_complete_workflow_activation(
                 }
             })
     })
+}
+
+/// Ask Core to evict a cached Workflow by run ID.
+#[js_function]
+pub fn worker_request_workflow_eviction(
+    worker: OpaqueInboundHandle<Worker>,
+    run_id: String,
+) -> BridgeResult<()> {
+    let worker_ref = worker.borrow()?;
+    worker_ref.core_worker.request_workflow_eviction(&run_id);
+    Ok(())
 }
 
 /// Initiate a single activity task poll request.
