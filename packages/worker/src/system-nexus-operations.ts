@@ -4,7 +4,7 @@ import { defaultPayloadConverter } from '@temporalio/common';
 import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
 import { decode, encode, visit, walkPayloadsInMessage } from '@temporalio/common/lib/internal-non-workflow';
 import * as protoRoot from '@temporalio/proto';
-import { operationRegistry } from '@temporalio/workflow/lib/nexus/system/generated/services';
+import { operationRegistry } from '@temporalio/workflow/lib/nexus/system/generated/registry';
 
 const protobufPayloadConverter = new ProtobufBinaryPayloadConverter(protoRoot);
 const protoRootWithLookup = protoRoot as typeof protoRoot & {
