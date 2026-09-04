@@ -1,14 +1,13 @@
-/// @nexus.support dotnet="dotnet/WorkflowServiceSupport.cs"
-/// @nexus.support-namespace dotnet="Nexgen.Support"
 package temporal:nexus@1.0.0;
 
 world system {
   export workflow-service;
 }
 
-/// @nexus.endpoint "temporal-system" python="__temporal_system"
+/// @nexus.endpoint "__temporal_system"
 /// @nexus.service-name "temporal.api.workflowservice.v1.WorkflowService"
 /// @nexus.namespace dotnet="Temporalio.Workflows"
+/// @nexus.operations-class dotnet="Workflow"
 /// @nexus.delay-load-temporalio-workflow
 /// @nexus.experimental
 interface workflow-service {
@@ -50,7 +49,6 @@ interface workflow-service {
     ///   python="Signal name or callable to send with the start request."
     ///   typescript="Signal name or signal definition to send with the start request."
     ///   dotnet="Signal name or signal expression to send with the start request."
-    ///   go="Signal name to send with the start request."
     /// @nexus.proto-field "signal_name"
     signal: signal-function,
     /// @nexus.doc "Total workflow execution timeout, including retries and continue-as-new. Defaults to unlimited."
@@ -72,11 +70,9 @@ interface workflow-service {
     /// @nexus.doc "Behavior when a closed workflow with the same ID exists. Default is allow-duplicate."
     /// @nexus.proto-field "workflow_id_reuse_policy"
     /// @nexus.default "allow-duplicate"
-    /// @nexus.name go="WorkflowIDReusePolicy"
     id-reuse-policy: workflow-id-reuse-policy,
     /// @nexus.doc "Behavior when a workflow is currently running with the same ID. Set to use-existing for idempotent deduplication on workflow ID. Cannot be set if id-reuse-policy is terminate-if-running. Defaults to use-existing."
     /// @nexus.proto-field "workflow_id_conflict_policy"
-    /// @nexus.name go="WorkflowIDConflictPolicy"
     id-conflict-policy: option<workflow-id-conflict-policy>,
     /// @nexus.doc "Retry policy for the workflow."
     retry-policy: option<retry-policy>,
@@ -85,7 +81,6 @@ interface workflow-service {
     /// @nexus.doc "Memo for the workflow."
     memo: option<memo>,
     /// @nexus.doc "Typed search attributes for the workflow."
-    /// @nexus.name go="TypedSearchAttributes"
     search-attributes: option<search-attributes>,
     /// @nexus.doc "Priority of the workflow execution."
     priority: option<priority>,
@@ -121,17 +116,19 @@ interface workflow-service {
     started: option<bool>,
     /// @nexus.omit
     signal-link: placeholder,
+    /// @nexus.omit
+    first-execution-run-id: placeholder,
   }
 
   /// @nexus.doc
   ///   "Signal a workflow, starting it first if needed."
-  ///   go="Signal a workflow, starting it first if needed."
   ///   returns="A workflow handle to the started workflow."
   /// @nexus.output-transform
   ///   python-type="temporalio.workflow.ExternalWorkflowHandle[WorkflowResult]"
   ///   python="temporalio.workflow.get_external_workflow_handle(request.id, run_id=result.run_id)"
   ///   typescript-type="workflow.ExternalWorkflowHandle"
   ///   typescript="workflow.getExternalWorkflowHandle(request.id, result.runId ?? undefined)"
+  ///   typescript-import="@temporalio/workflow"
   ///   dotnet-type="Temporalio.Workflows.ExternalWorkflowHandle"
   ///   dotnet="Temporalio.Workflows.Workflow.GetExternalWorkflowHandle(request.Id, result.RunId)"
   /// @nexus.operation name="SignalWithStartWorkflowExecution"
