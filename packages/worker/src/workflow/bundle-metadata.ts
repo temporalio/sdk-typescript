@@ -5,6 +5,13 @@ interface WorkflowBundleMetadata {
   sdkVersion: string;
 }
 
+function invalidWorkflowBundleVersionAnnotation(): TypeError {
+  return new TypeError(
+    `The provided Workflow Bundle contains an invalid Temporal SDK version annotation. ` +
+      `Rebuild the bundle with the same version of '@temporalio/worker' that is being used to create the Worker.`
+  );
+}
+
 export function makeWorkflowBundleVersionAnnotation(sdkVersion: string): string {
   return `${WORKFLOW_BUNDLE_ANNOTATION_PREFIX}${JSON.stringify({ sdkVersion })}${WORKFLOW_BUNDLE_ANNOTATION_SUFFIX}`;
 }
@@ -22,10 +29,7 @@ export function getWorkflowBundleSdkVersion(code: string): string {
   }
 
   if (!firstLine.endsWith(WORKFLOW_BUNDLE_ANNOTATION_SUFFIX)) {
-    throw new TypeError(
-      `The provided Workflow Bundle contains an invalid Temporal SDK version annotation. ` +
-        `Rebuild the bundle with the same version of '@temporalio/worker' that is being used to create the Worker.`
-    );
+    throw invalidWorkflowBundleVersionAnnotation();
   }
 
   const serializedMetadata = firstLine.slice(
@@ -36,17 +40,11 @@ export function getWorkflowBundleSdkVersion(code: string): string {
   try {
     metadata = JSON.parse(serializedMetadata);
   } catch (_err) {
-    throw new TypeError(
-      `The provided Workflow Bundle contains an invalid Temporal SDK version annotation. ` +
-        `Rebuild the bundle with the same version of '@temporalio/worker' that is being used to create the Worker.`
-    );
+    throw invalidWorkflowBundleVersionAnnotation();
   }
 
   if (typeof metadata !== 'object' || metadata === null || typeof metadata.sdkVersion !== 'string') {
-    throw new TypeError(
-      `The provided Workflow Bundle contains an invalid Temporal SDK version annotation. ` +
-        `Rebuild the bundle with the same version of '@temporalio/worker' that is being used to create the Worker.`
-    );
+    throw invalidWorkflowBundleVersionAnnotation();
   }
 
   return metadata.sdkVersion;
