@@ -1,6 +1,5 @@
 /// @nexus.support
 ///   python="python/temporal_model_converters.py"
-///   typescript="typescript/temporal_model_converters.ts"
 ///   go="go/temporal_model_converters.go"
 ///   dotnet="dotnet/TemporalSupport.cs"
 /// @nexus.support-namespace dotnet="Nexgen.Support"
