@@ -4,8 +4,26 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import dedent from 'dedent';
 import test from 'ava';
-import { replaceSdkVersion } from './install.js';
+import { replaceSdkVersion, updateTsconfigNodeVersion } from './install.js';
 import { makeDir } from './make-dir.js';
+
+test('updateTsconfigNodeVersion supports comments and trailing commas', (t) => {
+  const updated = updateTsconfigNodeVersion(
+    dedent`
+      {
+        // TypeScript configuration files support JSONC.
+        "extends": "@tsconfig/node20/tsconfig.json",
+        "compilerOptions": {
+          "strict": true,
+        },
+      }
+    `,
+    '@tsconfig/node24'
+  );
+
+  t.not(updated, undefined);
+  t.is(JSON.parse(updated!).extends, '@tsconfig/node24/tsconfig.json');
+});
 
 test('replaceSdkVersion according to configured level', async (t) => {
   console.log('debug windows');
