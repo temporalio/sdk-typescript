@@ -5,6 +5,7 @@ import './runtime'; // Patch the Workflow isolate runtime for opentelemetry
 import * as otel from '@opentelemetry/api';
 import * as tracing from '@opentelemetry/sdk-trace-base';
 import { W3CTraceContextPropagator } from '@opentelemetry/core';
+import { extractWorkflowType } from '@temporalio/common';
 import type {
   ActivityInput,
   ContinueAsNewInput,
@@ -24,12 +25,14 @@ import type {
   WorkflowOutboundCallsInterceptor,
   StartNexusOperationInput,
   StartNexusOperationOutput,
+  SignalWithStartWorkflowRequest,
 } from '@temporalio/workflow';
 import {
   instrument,
   instrumentSync,
   extractContextFromHeaders,
   headersWithContext,
+  rawHeadersWithContext,
   nexusHeadersWithContext,
   UPDATE_ID_ATTR_KEY,
   NEXUS_SERVICE_ATTR_KEY,
@@ -213,6 +216,17 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
         const headers = nexusHeadersWithContext(input.headers);
         return await next({ ...input, headers });
       },
+    });
+  }
+
+  public async signalWithStartWorkflow(
+    input: SignalWithStartWorkflowRequest,
+    next: Next<WorkflowOutboundCallsInterceptor, 'signalWithStartWorkflow'>
+  ) {
+    return await instrument({
+      tracer: this.tracer,
+      spanName: `${SpanName.WORKFLOW_SIGNAL_WITH_START}${SPAN_DELIMITER}${extractWorkflowType(input.workflow)}`,
+      fn: async () => await next({ ...input, headers: rawHeadersWithContext(input.headers) }),
     });
   }
 

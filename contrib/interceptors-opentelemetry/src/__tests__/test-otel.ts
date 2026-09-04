@@ -1080,7 +1080,7 @@ test.skip('otel interceptors are complete', async (t) => {
   // Doing this instead of directly changing the `implements` to avoid leaking this in the docs
   const _wfl_inbound = {} as OpenTelemetryInboundInterceptor satisfies Required<WorkflowInboundCallsInterceptor>;
   const _wfl_outbound = {} as OpenTelemetryOutboundInterceptor satisfies Required<
-    Omit<WorkflowOutboundCallsInterceptor, 'startTimer' | 'startSystemNexusOperation' | 'signalWithStartWorkflow'>
+    Omit<WorkflowOutboundCallsInterceptor, 'startTimer' | 'startSystemNexusOperation'>
   >;
   const _act_inbound =
     {} as OpenTelemetryActivityInboundInterceptor satisfies Required<ActivityInboundCallsInterceptor>;
