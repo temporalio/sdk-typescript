@@ -133,3 +133,29 @@ test('signal-with-start rejects malformed serialization context metadata', async
     { message: 'invalid System Nexus serialization context metadata' }
   );
 });
+
+test('signal-with-start requires serialization context metadata', async (t) => {
+  const runner = new WorkflowCodecRunner([new FreePayloadCodec()], {
+    type: 'workflow',
+    namespace: 'caller-ns',
+    workflowId: 'caller-id',
+  });
+  await t.throwsAsync(
+    runner.encodeCompletion({
+      successful: {
+        commands: [
+          {
+            scheduleNexusOperation: {
+              seq: 42,
+              endpoint: '__temporal_system',
+              service: 'temporal.api.workflowservice.v1.WorkflowService',
+              operation: 'SignalWithStartWorkflowExecution',
+              input: systemNexusEnvelope({}),
+            },
+          },
+        ],
+      },
+    }),
+    { message: 'missing System Nexus serialization context metadata' }
+  );
+});
