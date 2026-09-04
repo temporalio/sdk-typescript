@@ -14,25 +14,11 @@ const protoRoot = resolve(repoRoot, 'packages/core-bridge/sdk-core/crates/protos
 
 const protoRoots = [
   resolve(protoRoot, 'api_upstream'),
-  resolve(protoRoot, 'testsrv_upstream'),
-  resolve(protoRoot, 'local'),
-  resolve(protoRoot, 'api_cloud_upstream'),
   protoRoot,
 ];
 
-const protoEntrypoints = [
-  'temporal/sdk/core/core_interface.proto',
-  'temporal/api/workflowservice/v1/service.proto',
-  'temporal/api/operatorservice/v1/service.proto',
-  'temporal/api/cloud/cloudservice/v1/service.proto',
-  'temporal/api/errordetails/v1/message.proto',
-  'temporal/api/sdk/v1/workflow_metadata.proto',
-  'temporal/api/sdk/v1/external_storage.proto',
-  'temporal/api/testservice/v1/request_response.proto',
-  'temporal/api/testservice/v1/service.proto',
-  'grpc/health/v1/health.proto',
-  'google/rpc/status.proto',
-];
+const workflowServiceRequestResponseProto =
+  'temporal/api/workflowservice/v1/request_response.proto';
 
 async function main() {
   if (nexgen == null) {
@@ -45,7 +31,7 @@ async function main() {
       ...protoRoots.flatMap((dir) => ['-I', dir]),
       '--include_imports',
       `--descriptor_set_out=${descriptor}`,
-      ...protoEntrypoints,
+      workflowServiceRequestResponseProto,
     ]);
     await promisify(execFile)(nexgen, [
       'typescript',
