@@ -2,7 +2,7 @@
 import test from 'ava';
 import type { Payload } from '@temporalio/common';
 import { ExternalStorageNotConfiguredError } from '@temporalio/common';
-import { ExternalStorage } from '@temporalio/common/lib/converter/extstore';
+import { ExternalStorage, StorageDriverClaim } from '@temporalio/common/lib/converter/extstore';
 import {
   ExternalStorageRunner,
   extstoreInboundOptions,
@@ -244,6 +244,94 @@ test('client response retrieve resolves the query result (via generic visit)', a
   await visit(response, walkQueryWorkflowResponse, extstoreInboundOptions(externalStorage));
 
   t.deepEqual(response.queryResult!.payloads![0], queryResult);
+});
+
+/**
+ * A driver whose store/retrieve calls park until `expected` of them are in flight at once, and
+ * records the peak number of concurrent calls. Parked calls release after a short timeout so a
+ * sequential walk fails the peak assertion instead of deadlocking.
+ */
+function makeConcurrencyProbe(expected: number) {
+  let inflight = 0;
+  let peak = 0;
+  let arrived: () => void;
+  const gate = new Promise<void>((resolve) => (arrived = resolve));
+  const enter = async () => {
+    inflight++;
+    peak = Math.max(peak, inflight);
+    if (inflight >= expected) arrived();
+    await Promise.race([gate, new Promise((resolve) => setTimeout(resolve, 100))]);
+    inflight--;
+  };
+  const driver = makeFakeDriver({
+    onStore: async (payloads) => {
+      await enter();
+      return payloads.map(() => new StorageDriverClaim({ id: 'x' }));
+    },
+    onRetrieve: async (claims) => {
+      await enter();
+      return claims.map(() => makePayload(0));
+    },
+  });
+  return { driver, peak: () => peak };
+}
+
+test('store operations across payload sites run concurrently, capped at 3 by default', async (t) => {
+  const { driver, peak } = makeConcurrencyProbe(3);
+  const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 96 });
+  const completion: coresdk.workflow_completion.IWorkflowActivationCompletion = {
+    successful: {
+      commands: Array.from({ length: 5 }, (_, i) => ({ scheduleActivity: { arguments: [makePayload(256, i)] } })),
+    },
+  };
+
+  await visit(
+    completion,
+    walkWorkflowActivationCompletion,
+    extstoreStoreOptions(externalStorage, { initialTarget: WORKFLOW_TARGET })
+  );
+
+  t.is(peak(), 3);
+});
+
+test('retrieve operations across payload sites run concurrently, capped at 3 by default', async (t) => {
+  // Same driver name as the probe below so the probe's storage can resolve these references.
+  const { externalStorage: sourceStorage } = externalStorageWith(makeFakeDriver());
+  const jobs = await Promise.all(
+    Array.from({ length: 5 }, async (_, i) => ({
+      resolveActivity: { result: { completed: { result: await toReference(sourceStorage, makePayload(256, i)) } } },
+    }))
+  );
+
+  const { driver, peak } = makeConcurrencyProbe(3);
+  const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 96 });
+  const activation: coresdk.workflow_activation.IWorkflowActivation = { jobs };
+
+  await visit(activation, walkWorkflowActivation, extstoreInboundOptions(externalStorage));
+
+  t.is(peak(), 3);
+});
+
+test('store concurrency is configurable via maxConcurrentOperations', async (t) => {
+  const { driver, peak } = makeConcurrencyProbe(2);
+  const externalStorage = new ExternalStorage({
+    drivers: [driver],
+    payloadSizeThreshold: 96,
+    maxConcurrentOperations: 2,
+  });
+  const completion: coresdk.workflow_completion.IWorkflowActivationCompletion = {
+    successful: {
+      commands: Array.from({ length: 5 }, (_, i) => ({ scheduleActivity: { arguments: [makePayload(256, i)] } })),
+    },
+  };
+
+  await visit(
+    completion,
+    walkWorkflowActivationCompletion,
+    extstoreStoreOptions(externalStorage, { initialTarget: WORKFLOW_TARGET })
+  );
+
+  t.is(peak(), 2);
 });
 
 test('inbound options raise TMPRL1105 on a reference when storage is not configured', async (t) => {
