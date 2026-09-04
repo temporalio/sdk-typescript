@@ -181,12 +181,16 @@ export function memoToProto(
   };
 }
 
-export function headerFromProto(proto: temporal.api.common.v1.IHeader): common.Headers {
-  return proto.fields ?? {};
+export function headerFromProto(
+  proto: temporal.api.common.v1.IHeader
+): Record<string, unknown> {
+  return common.mapFromPayloads(configuredPayloadConverter(), proto.fields) ?? {};
 }
 
-export function headerToProto(header: common.Headers): temporal.api.common.v1.IHeader {
-  return { fields: header };
+export function headerToProto(
+  header: Record<string, unknown>
+): temporal.api.common.v1.IHeader {
+  return { fields: common.mapToPayloads(configuredPayloadConverter(), header) };
 }
 
 export function durationFromProto(proto: google.protobuf.IDuration): common.Duration {
