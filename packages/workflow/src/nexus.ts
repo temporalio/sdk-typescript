@@ -10,6 +10,7 @@ import { userMetadataToPayload } from '@temporalio/common/lib/user-metadata';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
 import type { coresdk } from '@temporalio/proto';
 import { eventGroupMarkersToProto } from './event-groups';
+import { withSystemNexusUserPayloadConverter } from './nexus/system/payload-converter';
 import { CancellationScope } from './cancellation-scope';
 import { getActivator } from './global-attributes';
 import { composeInterceptors } from './interceptor-composition';
@@ -232,7 +233,7 @@ async function startSystemNexusOperationNextHandler(
   const seq = input.seq;
   if (seq == null) throw new TypeError('System Nexus operation interceptor removed the command sequence');
   const context = input.serializationContext?.(input.input);
-  const protoInput = withSystemNexusSerializationContext(context, () => input.toProto(input.input));
+  const outerPayloadConverter = systemNexusOuterPayloadConverter();
   const { token, result } = await new Promise<StartNexusOperationOutput>((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
@@ -256,7 +257,9 @@ async function startSystemNexusOperationNextHandler(
         service: input.service,
         operation: input.operation,
         nexusHeader: {},
-        input: systemNexusOuterPayload(protoInput),
+        input: withSystemNexusUserPayloadConverter(activator.payloadConverter, context, () =>
+          toPayloadWithTypeInfo(outerPayloadConverter, input.input, undefined, input.inputType)
+        ),
         cancellationType: encodeNexusOperationCancellationType('WAIT_CANCELLATION_COMPLETED'),
       },
     });
@@ -273,44 +276,22 @@ async function startSystemNexusOperationNextHandler(
   };
 }
 
-/** Marks a default JSON/protobuf payload as a System Nexus outer envelope. */
-function systemNexusOuterPayload(value: unknown) {
-  const payload = defaultPayloadConverter.toPayload(value)!;
-  payload.metadata ??= {};
-  payload.metadata[SYSTEM_NEXUS_PAYLOAD_METADATA_KEY] = SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE;
-  return payload;
-}
-
-let currentSystemNexusSerializationContext: SerializationContext | undefined;
-
-/** @internal Used by generated System Nexus model converters. */
-export function withSystemNexusSerializationContext<T>(context: SerializationContext | undefined, fn: () => T): T {
-  const activator = getActivator();
-  const previous = currentSystemNexusSerializationContext;
-  const previousConverter = activator.systemNexusPayloadConverter;
-  currentSystemNexusSerializationContext = context;
-  activator.systemNexusPayloadConverter = context == null ? undefined : systemNexusPayloadConverterFor(context);
-  try {
-    return fn();
-  } finally {
-    currentSystemNexusSerializationContext = previous;
-    activator.systemNexusPayloadConverter = previousConverter;
-  }
-}
-
-/** @internal Returns a converter bound to the current generated System Nexus operation context. */
-export function systemNexusPayloadConverter(): PayloadConverter | undefined {
-  const context = currentSystemNexusSerializationContext;
-  if (context == null) return undefined;
-  return systemNexusPayloadConverterFor(context);
-}
-
-function systemNexusPayloadConverterFor(context: SerializationContext): PayloadConverter {
-  const converter = getActivator().payloadConverter;
+/**
+ * Converts a System Nexus transfer envelope using the default JSON/protobuf
+ * representation. Nested application values are handled by the generated
+ * transfer-type converter while its scoped context is active.
+ */
+function systemNexusOuterPayloadConverter(): PayloadConverter {
   return {
-    toPayload: (value, _context, hint) => converter.toPayload(value, context, hint),
-    fromPayload: (payload, _context, hint) => converter.fromPayload(payload, context, hint),
-    validateConverterHint: converter.validateConverterHint?.bind(converter),
+    toPayload(value) {
+      const payload = defaultPayloadConverter.toPayload(value);
+      payload.metadata ??= {};
+      payload.metadata[SYSTEM_NEXUS_PAYLOAD_METADATA_KEY] = SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE;
+      return payload;
+    },
+    fromPayload(payload) {
+      return defaultPayloadConverter.fromPayload(payload);
+    },
   };
 }
 

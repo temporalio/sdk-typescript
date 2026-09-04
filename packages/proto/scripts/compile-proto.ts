@@ -2,6 +2,7 @@ import { rm, readFile, writeFile } from 'node:fs/promises';
 import { statSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
+import { execFile } from 'node:child_process';
 import * as glob from 'glob';
 import * as pbjs from 'protobufjs-cli/pbjs';
 import * as pbts from 'protobufjs-cli/pbts';
@@ -9,6 +10,10 @@ import * as pbts from 'protobufjs-cli/pbts';
 const outputDir = resolve(__dirname, '../protos');
 const jsOutputFile = resolve(outputDir, 'json-module.js');
 const tempFile = resolve(outputDir, 'temp.js');
+// Kept alongside the generated protobuf bindings so consumers which need a
+// descriptor (such as System Nexus binding generation) use precisely the same
+// proto sources and entry points.
+const descriptorOutputFile = resolve(outputDir, 'temporal_api.bin');
 
 const protoBaseDir = resolve(__dirname, '../../core-bridge/sdk-core/crates/protos/protos');
 
@@ -131,7 +136,7 @@ async function main() {
   const protoFiles = glob.sync('**/*.proto', { cwd: protoBaseDir, absolute: true, root: '' });
   const protosMTime = Math.max(...protoFiles.map(mtime));
   const compileScriptMTime = mtime(resolve(__dirname, __filename));
-  const genMTime = mtime(jsOutputFile);
+  const genMTime = Math.min(mtime(jsOutputFile), mtime(descriptorOutputFile));
 
   if (protosMTime < genMTime && compileScriptMTime < genMTime) {
     console.log('Assuming protos are up to date');
@@ -166,6 +171,14 @@ async function main() {
     ...rootDirs.flatMap((dir) => ['--path', dir]),
     ...entrypoints
   );
+
+  console.log(`Creating protobuf descriptor set`);
+  await promisify(execFile)('protoc', [
+    ...rootDirs.flatMap((dir) => ['-I', dir]),
+    '--include_imports',
+    `--descriptor_set_out=${descriptorOutputFile}`,
+    ...entrypoints,
+  ]);
 
   console.log('Done');
 }

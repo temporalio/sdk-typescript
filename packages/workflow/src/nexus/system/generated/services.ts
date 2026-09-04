@@ -3,22 +3,31 @@
 import * as nexus from 'nexus-rpc';
 import type { temporal } from '@temporalio/proto';
 import { signalWithStartWorkflowSerializationContext } from './support';
+import { signalWithStartWorkflowRequestTransferTypeConverter } from './models';
 import type { SignalWithStartWorkflowRequest } from './models';
 
 /**
  * @experimental This API is experimental and subject to change.
  */
-export const workflowService = nexus.service('temporal.api.workflowservice.v1.WorkflowService', {
-  /**
-   * Signal a workflow, starting it first if needed.
-   *
-   * @experimental This API is experimental and subject to change.
-   */
-  signalWithStartWorkflow: nexus.operation<
-    temporal.api.workflowservice.v1.ISignalWithStartWorkflowExecutionRequest,
-    temporal.api.workflowservice.v1.ISignalWithStartWorkflowExecutionResponse
-  >({ name: 'SignalWithStartWorkflowExecution' }),
-});
+export const workflowService = nexus.service(
+  'temporal.api.workflowservice.v1.WorkflowService',
+  {
+    /**
+     * Signal a workflow, starting it first if needed.
+     *
+     * @experimental This API is experimental and subject to change.
+     */
+    signalWithStartWorkflow: nexus.operation<
+      SignalWithStartWorkflowRequest,
+      temporal.api.workflowservice.v1.ISignalWithStartWorkflowExecutionResponse
+    >({
+      name: 'SignalWithStartWorkflowExecution',
+      inputType: {
+        transferTypeConverter: signalWithStartWorkflowRequestTransferTypeConverter,
+      },
+    }),
+  }
+);
 
 export interface OperationRegistryEntry<Input = unknown> {
   readonly service: string;
@@ -30,15 +39,19 @@ export interface OperationRegistryEntry<Input = unknown> {
   /** Generated payload visitor for the output protobuf envelope. */
   readonly outputPayloadVisitor: string;
   /** Context for nested payloads, determined by the operation. */
-  readonly serializationContext?: (input: Input) => import('@temporalio/common').SerializationContext;
+  readonly serializationContext?: (
+    input: Input
+  ) => import('@temporalio/common').SerializationContext;
 }
 
 export const operationRegistry = [
   {
     service: 'temporal.api.workflowservice.v1.WorkflowService',
     operation: 'SignalWithStartWorkflowExecution',
-    inputType: 'temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionRequest',
-    outputType: 'temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionResponse',
+    inputType:
+      'temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionRequest',
+    outputType:
+      'temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionResponse',
     inputPayloadVisitor: 'walkSignalWithStartWorkflowExecutionRequest',
     outputPayloadVisitor: 'walkSignalWithStartWorkflowExecutionResponse',
     serializationContext: signalWithStartWorkflowSerializationContext,
