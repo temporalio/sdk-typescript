@@ -3,13 +3,16 @@
 import * as workflow from '../../workflow-exports';
 import type { temporal } from '@temporalio/proto';
 import { workflowService } from '../services';
-import { signalWithStartWorkflowRequestToProto } from '../models';
 import type { SignalWithStartWorkflowRequest } from '../models';
 import { signalWithStartWorkflowSerializationContext } from '../support';
 
 type SignalWithStartWorkflowInput<
-  WorkflowFn extends (...args: any[]) => Promise<any> = (...args: any[]) => Promise<any>,
-  SignalValue extends workflow.SignalDefinition<any[]> = workflow.SignalDefinition<any[]>,
+  WorkflowFn extends (...args: any[]) => Promise<any> = (
+    ...args: any[]
+  ) => Promise<any>,
+  SignalValue extends workflow.SignalDefinition<any[]> = workflow.SignalDefinition<
+    any[]
+  >,
 > = SignalWithStartWorkflowRequest<WorkflowFn, SignalValue> & { headers?: never };
 
 /**
@@ -20,16 +23,22 @@ type SignalWithStartWorkflowInput<
  * @experimental This API is experimental and subject to change.
  */
 export async function signalWithStartWorkflow<
-  WorkflowFn extends (...args: any[]) => Promise<any> = (...args: any[]) => Promise<any>,
-  SignalValue extends workflow.SignalDefinition<any[]> = workflow.SignalDefinition<any[]>,
->(request: SignalWithStartWorkflowInput<WorkflowFn, SignalValue>): Promise<workflow.ExternalWorkflowHandle> {
+  WorkflowFn extends (...args: any[]) => Promise<any> = (
+    ...args: any[]
+  ) => Promise<any>,
+  SignalValue extends workflow.SignalDefinition<any[]> = workflow.SignalDefinition<
+    any[]
+  >,
+>(
+  request: SignalWithStartWorkflowInput<WorkflowFn, SignalValue>
+): Promise<workflow.ExternalWorkflowHandle> {
   const handle =
     await workflow.startSystemNexusOperation<temporal.api.workflowservice.v1.ISignalWithStartWorkflowExecutionResponse>(
       {
         service: 'temporal.api.workflowservice.v1.WorkflowService',
         operation: 'SignalWithStartWorkflowExecution',
         input: request,
-        toProto: (input) => signalWithStartWorkflowRequestToProto(input) ?? {},
+        inputType: workflowService.operations.signalWithStartWorkflow.inputType!,
         serializationContext: (input) =>
           signalWithStartWorkflowSerializationContext({
             namespace: workflow.workflowInfo().namespace,

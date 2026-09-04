@@ -148,8 +148,6 @@ export { metricMeter } from './metrics';
 export {
   createNexusServiceClient,
   startSystemNexusOperation,
-  systemNexusPayloadConverter,
-  withSystemNexusSerializationContext,
   NexusServiceClientOptions,
   NexusServiceClient,
   NexusOperationHandle,

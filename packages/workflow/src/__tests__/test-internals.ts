@@ -4,8 +4,8 @@ import { setActivator } from '../global-attributes';
 import { CancellationScope } from '../cancellation-scope';
 import { Activator } from '../internals';
 import type { WorkflowCreateOptionsInternal, WorkflowInfo } from '../interfaces';
-import { startSystemNexusOperation, withSystemNexusSerializationContext } from '../nexus';
-import { signalWithStartWorkflowRequestToProto } from '../nexus/system/generated/models';
+import { startSystemNexusOperation } from '../nexus';
+import { workflowService } from '../nexus/system/generated/services';
 
 const targetSeq = 1;
 const unrelatedSeq = 2;
@@ -143,7 +143,7 @@ test('System Nexus uses generated target context and specific then generic inter
       service: 'temporal.api.workflowservice.v1.WorkflowService',
       operation: 'SignalWithStartWorkflowExecution',
       input: { workflow: 'workflow', id: 'target-id', taskQueue: 'queue', signal: 'signal', args: ['argument'] },
-      toProto: signalWithStartWorkflowRequestToProto,
+      inputType: workflowService.operations.signalWithStartWorkflow.inputType!,
       serializationContext: () => targetContext,
       specificInterceptor: 'signalWithStartWorkflow',
     });
@@ -158,16 +158,6 @@ test('System Nexus uses generated target context and specific then generic inter
     t.is((defaultPayloadConverter.fromPayload(envelope) as { workflowId?: string }).workflowId, 'intercepted-id');
     t.true(contexts.every((context) => context === targetContext));
 
-    const proto = withSystemNexusSerializationContext(targetContext, () =>
-      signalWithStartWorkflowRequestToProto({
-        workflow: 'workflow',
-        id: 'target-id',
-        taskQueue: 'queue',
-        signal: 'signal',
-        args: ['argument'],
-      })
-    );
-    t.is(proto?.input?.payloads?.length, 1);
     t.true(contexts.every((context) => context === targetContext));
   } finally {
     CancellationScope.current = originalCurrentScope;
