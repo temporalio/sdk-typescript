@@ -176,7 +176,6 @@ interface ScopedWorkflowRandomSource {
  */
 export class Activator implements ActivationHandler {
   /** Converter temporarily scoped while generated System Nexus models are constructed. */
-  systemNexusPayloadConverter?: PayloadConverter;
 
   /**
    * Cache for modules - referenced in reusable-vm.ts

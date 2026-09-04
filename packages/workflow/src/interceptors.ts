@@ -307,8 +307,8 @@ export interface StartSystemNexusOperationInput {
   readonly operation: string;
   /** The generated public request model. */
   readonly input: unknown;
-  /** Converts the generated request to its protobuf envelope after interception. */
-  readonly toProto: (input: any) => unknown;
+  /** Type information that converts the generated request to its transfer envelope. */
+  readonly inputType: TypeInfo;
   /** Context for nested payloads, determined by this generated system operation. */
   readonly serializationContext?: (input: any) => SerializationContext;
   /** Generated operation-specific interceptor hook to invoke before the generic hook. */
