@@ -162,16 +162,14 @@ export function createNexusServiceClient<T extends nexus.ServiceDefinition>(
       const seq = activator.nextSeqs.nexusOperation++;
 
       if (options.endpoint === TEMPORAL_SYSTEM_NEXUS_ENDPOINT) {
-        const specificInterceptor = Object.entries(options.service.operations).find(
-          ([, definition]) => definition === operationDefinition
-        )?.[0];
+        const definition = systemNexusOperationDefinition(options.service.name, opName);
         return (await startSystemNexusOperation({
           service: options.service.name,
           operation: opName,
           input,
           inputType: operationDefinition?.inputType!,
           outputType: operationDefinition?.outputType,
-          specificInterceptor,
+          specificInterceptor: definition?.specificInterceptor,
           seq,
         })) as NexusOperationHandle<nexus.OperationOutput<O>>;
       }
@@ -235,15 +233,15 @@ export async function startSystemNexusOperation<Output = unknown>(
     'startSystemNexusOperation',
     startSystemNexusOperationNextHandler as never
   );
-  if (input.specificInterceptor != null) {
-    const specific = composeInterceptors(
-      activator.interceptors.outbound,
-      input.specificInterceptor as never,
-      ((request: unknown) => generic({ ...genericInput, input: request })) as never
-    ) as unknown as (request: unknown) => Promise<unknown>;
-    return (await specific(input.input)) as NexusOperationHandle<Output>;
+  if (input.specificInterceptor == null) return (await generic(genericInput)) as NexusOperationHandle<Output>;
+
+  let specific = (request: unknown) => generic({ ...genericInput, input: request });
+  for (let i = activator.interceptors.outbound.length - 1; i >= 0; --i) {
+    const interceptor = activator.interceptors.outbound[i]!;
+    const next = activator.bindCurrentRandom(specific);
+    specific = (request) => input.specificInterceptor!(interceptor, request, next);
   }
-  return (await generic(genericInput)) as NexusOperationHandle<Output>;
+  return (await specific(input.input)) as NexusOperationHandle<Output>;
 }
 
 async function startSystemNexusOperationNextHandler(

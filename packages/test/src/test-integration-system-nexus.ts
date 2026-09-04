@@ -23,6 +23,7 @@ const test = makeTestFunction({
 
 export const systemNexusSignal = defineSignal<[string]>('system-nexus-signal');
 const interceptorCalls: string[] = [];
+let interceptedNamespace: string | undefined;
 
 export function interceptors(): WorkflowInterceptors {
   return {
@@ -38,6 +39,7 @@ export function interceptors(): WorkflowInterceptors {
         },
         signalWithStartWorkflow(input, next) {
           interceptorCalls.push('specific');
+          interceptedNamespace = input.namespace;
           return next({ ...input, headers: { context: 'context-header' } });
         },
       },
@@ -89,8 +91,9 @@ export async function systemNexusTarget(startArgument: string): Promise<[string,
 export async function systemNexusCaller(
   targetWorkflowId: string,
   taskQueue: string
-): Promise<{ workflowId: string; runId?: string; calls: string[] }> {
+): Promise<{ workflowId: string; runId?: string; calls: string[]; namespace?: string }> {
   interceptorCalls.length = 0;
+  interceptedNamespace = undefined;
   const target = await signalWithStartWorkflow({
     workflow: systemNexusTarget,
     args: ['context-workflow-arg'],
@@ -102,7 +105,7 @@ export async function systemNexusCaller(
     staticSummary: 'context-summary',
     staticDetails: 'context-details',
   });
-  return { workflowId: target.workflowId, runId: target.runId, calls: interceptorCalls };
+  return { workflowId: target.workflowId, runId: target.runId, calls: interceptorCalls, namespace: interceptedNamespace };
 }
 
 test('signal-with-start invokes the generated public API from a workflow', async (t) => {
@@ -122,6 +125,7 @@ test('signal-with-start invokes the generated public API from a workflow', async
   ]);
   const expectedContext = { type: 'workflow' as const, namespace: 'default', workflowId: targetWorkflowId };
   t.deepEqual(target.calls, ['specific', 'generic']);
+  t.is(target.namespace, 'default');
   for (const value of [
     'context-workflow-arg',
     'context-signal-arg',

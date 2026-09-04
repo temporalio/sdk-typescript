@@ -2,5 +2,6 @@
 // narrow so generated operation exports do not create an index-module cycle.
 export type { SignalDefinition } from '@temporalio/common';
 export { createNexusServiceClient } from '../../nexus';
+export type { NexusOperationHandle } from '../../nexus';
 export { getExternalWorkflowHandle, workflowInfo } from '../../workflow';
 export type { ExternalWorkflowHandle } from '../../workflow-handle';
