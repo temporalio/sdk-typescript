@@ -33,7 +33,7 @@ import type {
   WorkflowExecution,
 } from './types';
 import type { CompiledWorkflowOptions, WorkflowUpdateOptions } from './workflow-options';
-import type { ActivityHandle, ActivityOptions } from './activity-client';
+import type { ActivityDescribeOptions, ActivityHandle, ActivityOptions } from './activity-client';
 
 export { Headers, Next };
 
@@ -437,6 +437,7 @@ export interface ActivityDescribeInput {
   readonly activityId: string;
   readonly activityRunId: string;
   readonly headers: Headers;
+  readonly options: Required<ActivityDescribeOptions>;
 }
 
 /**
