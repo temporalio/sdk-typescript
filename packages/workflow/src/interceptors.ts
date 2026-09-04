@@ -8,7 +8,6 @@ import type {
   Duration,
   MetricTags,
   PayloadTypeInfo,
-  SerializationContext,
   SignalTypeInfo,
   Timestamp,
   TypeInfo,
@@ -311,8 +310,6 @@ export interface StartSystemNexusOperationInput {
   readonly inputType: TypeInfo;
   /** Type information that converts the transfer response to its generated public model. */
   readonly outputType?: TypeInfo;
-  /** Context for nested payloads, determined by this generated system operation. */
-  readonly serializationContext?: (input: any) => SerializationContext;
   /** Generated operation-specific interceptor hook to invoke before the generic hook. */
   readonly specificInterceptor?: string;
 }

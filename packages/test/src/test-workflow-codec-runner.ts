@@ -1,23 +1,13 @@
 import test from 'ava';
 import type { Payload, PayloadCodec } from '@temporalio/common';
 import { ApplicationFailure, defaultFailureConverter, defaultPayloadConverter } from '@temporalio/common';
-import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
 import { walkPayloadsInMessage } from '@temporalio/common/lib/internal-non-workflow';
-import * as protoRoot from '@temporalio/proto';
 import { coresdk } from '@temporalio/proto';
-import type { temporal } from '@temporalio/proto';
 import { WorkflowCodecRunner } from '@temporalio/worker/lib/workflow-codec-runner';
 import { FreePayloadCodec, makeContextTrace } from './payload-converters/serialization-context-converter';
 
 function payload(label: string): Payload {
   return defaultPayloadConverter.toPayload(makeContextTrace(label));
-}
-
-function systemNexusEnvelope(value: unknown): Payload {
-  const envelope = defaultPayloadConverter.toPayload(value)!;
-  envelope.metadata ??= {};
-  envelope.metadata.__temporal_system_payload = new Uint8Array([116, 114, 117, 101]); // "true"
-  return envelope;
 }
 
 function traceFromPayload(payload: Payload | null | undefined): string[] {
@@ -502,67 +492,6 @@ test('runner remains compatible with codecs that ignore context', async (t) => {
   t.deepEqual(traceFromPayload(encoded.successful?.commands?.[0]?.completeWorkflowExecution?.result as Payload), [
     'codec.encode.free|wf-output',
   ]);
-});
-
-test('system Nexus signal-with-start uses the target workflow serialization context', async (t) => {
-  const runner = new WorkflowCodecRunner([new FreePayloadCodec()], {
-    type: 'workflow',
-    namespace: 'caller-ns',
-    workflowId: 'caller-id',
-  });
-  const encoded = decodeCompletion(
-    await runner.encodeCompletion({
-      successful: {
-        commands: [
-          {
-            scheduleNexusOperation: {
-              seq: 42,
-              endpoint: '__temporal_system',
-              service: 'temporal.api.workflowservice.v1.WorkflowService',
-              operation: 'SignalWithStartWorkflowExecution',
-              input: systemNexusEnvelope({
-                namespace: 'target-ns',
-                workflowId: 'target-id',
-                input: { payloads: [payload('workflow-arg')] },
-                signalInput: { payloads: [payload('signal-arg')] },
-                memo: { fields: { memo: payload('memo') } },
-                searchAttributes: { indexedFields: { search: payload('search-attribute') } },
-              })!,
-            },
-          },
-        ],
-      },
-    })
-  );
-  const envelope = encoded.successful?.commands?.[0]?.scheduleNexusOperation?.input;
-  t.is(envelope?.metadata?.encoding?.[0], 98);
-  const request = new ProtobufBinaryPayloadConverter(
-    protoRoot
-  ).fromPayload<temporal.api.workflowservice.v1.ISignalWithStartWorkflowExecutionRequest>(envelope!);
-  t.deepEqual(traceFromPayload(request.input?.payloads?.[0] as Payload), [
-    'codec.encode.bound|workflow-arg|workflow.target-ns.target-id',
-  ]);
-  t.deepEqual(traceFromPayload(request.signalInput?.payloads?.[0] as Payload), [
-    'codec.encode.bound|signal-arg|workflow.target-ns.target-id',
-  ]);
-  t.deepEqual(traceFromPayload(request.memo?.fields?.memo as Payload), [
-    'codec.encode.bound|memo|workflow.target-ns.target-id',
-  ]);
-
-  const responseType = (protoRoot as typeof protoRoot & { lookupType(name: string): any }).lookupType(
-    'temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionResponse'
-  );
-  const response = new ProtobufBinaryPayloadConverter(protoRoot).toPayload(responseType.create({ runId: 'run-id' }));
-  const decoded = await runner.decodeActivation({
-    runId: 'run-1',
-    jobs: [{ resolveNexusOperation: { seq: 42, result: { completed: response } } }],
-  });
-  t.is(
-    defaultPayloadConverter.fromPayload<{ runId?: string }>(
-      decoded.jobs?.[0]?.resolveNexusOperation?.result?.completed as Payload
-    ).runId,
-    'run-id'
-  );
 });
 
 test('generic protobuf payload walking rejects an unrecognized root', (t) => {

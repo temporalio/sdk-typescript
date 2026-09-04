@@ -2,11 +2,7 @@
 
 import * as workflow from '../../workflow-exports';
 import { workflowService } from '../services';
-import type {
-  SignalWithStartWorkflowResponse,
-  SignalWithStartWorkflowRequest,
-} from '../models';
-import { signalWithStartWorkflowSerializationContext } from '../support';
+import type { SignalWithStartWorkflowRequest } from '../models';
 
 type SignalWithStartWorkflowInput<
   WorkflowFn extends (...args: any[]) => Promise<any> = (
@@ -34,20 +30,14 @@ export async function signalWithStartWorkflow<
 >(
   request: SignalWithStartWorkflowInput<WorkflowFn, SignalValue>
 ): Promise<workflow.ExternalWorkflowHandle> {
-  const handle =
-    await workflow.startSystemNexusOperation<SignalWithStartWorkflowResponse>({
-      service: 'temporal.api.workflowservice.v1.WorkflowService',
-      operation: 'SignalWithStartWorkflowExecution',
-      input: request,
-      inputType: workflowService.operations.signalWithStartWorkflow.inputType!,
-      outputType: workflowService.operations.signalWithStartWorkflow.outputType,
-      serializationContext: (input) =>
-        signalWithStartWorkflowSerializationContext({
-          namespace: workflow.workflowInfo().namespace,
-          workflowId: input.id,
-        }),
-      specificInterceptor: 'signalWithStartWorkflow',
-    });
+  const client = workflow.createNexusServiceClient({
+    service: workflowService,
+    endpoint: '__temporal_system',
+  });
+  const handle = await client.startOperation(
+    workflowService.operations.signalWithStartWorkflow,
+    request
+  );
   const result = await handle.result();
   return workflow.getExternalWorkflowHandle(request.id, result.runId ?? undefined);
 }

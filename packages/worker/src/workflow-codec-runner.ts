@@ -105,10 +105,12 @@ export class WorkflowCodecRunner {
       payload: import('@temporalio/common').Payload;
       info: { service: string; operation: string; context: SerializationContext };
     }> = [];
+    const systemResultContexts = new Map<number, SerializationContext>();
     for (const job of decodedActivation.jobs ?? []) {
       const resolve = job.resolveNexusOperation;
       const seq = resolve?.seq;
       const info = seq == null ? undefined : this.consumeContext(this.pendingCompletionContexts.nexusOperation, seq);
+      if (seq != null && resolve?.result != null && info != null) systemResultContexts.set(seq, info.context);
       const payload = resolve?.result?.completed;
       if (resolve?.result != null && payload != null && info != null) {
         systemOutputs.push({ result: resolve.result, payload, info });
@@ -151,6 +153,10 @@ export class WorkflowCodecRunner {
               return this.consumeContext(
                 this.pendingCompletionContexts.cancelWorkflow,
                 (message as coresdk.workflow_activation.IResolveRequestCancelExternalWorkflow).seq
+              );
+            case 'coresdk.workflow_activation.ResolveNexusOperation':
+              return (
+                systemResultContexts.get((message as coresdk.workflow_activation.IResolveNexusOperation).seq!) ?? context
               );
             default:
               return context;

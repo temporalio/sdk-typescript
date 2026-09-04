@@ -1,11 +1,7 @@
 import test from 'ava';
-import { CancelledFailure, defaultPayloadConverter, WorkflowExecutionAlreadyStartedError } from '@temporalio/common';
-import { setActivator } from '../global-attributes';
-import { CancellationScope } from '../cancellation-scope';
+import { CancelledFailure, WorkflowExecutionAlreadyStartedError } from '@temporalio/common';
 import { Activator } from '../internals';
 import type { WorkflowCreateOptionsInternal, WorkflowInfo } from '../interfaces';
-import { startSystemNexusOperation } from '../nexus';
-import { workflowService } from '../nexus/system/generated/services';
 
 const targetSeq = 1;
 const unrelatedSeq = 2;
@@ -105,62 +101,4 @@ test('cancelled child Workflow start removes its completion', (t) => {
   t.false(activator.completions.childWorkflowStart.has(targetSeq));
   t.false(activator.completions.childWorkflowComplete.has(targetSeq));
   t.true(activator.completions.childWorkflowComplete.has(unrelatedSeq));
-});
-
-test('System Nexus uses generated target context and specific then generic interception', (t) => {
-  const activator = makeActivator();
-  const contexts: unknown[] = [];
-  const calls: string[] = [];
-  const targetContext = { type: 'workflow' as const, namespace: 'target-ns', workflowId: 'target-id' };
-  // Unit tests run outside the workflow isolate, whose injected AsyncLocalStorage
-  // normally provides this wrapper.
-  activator.bindCurrentRandom = ((fn: () => unknown) => fn) as typeof activator.bindCurrentRandom;
-  const originalCurrentScope = CancellationScope.current;
-  CancellationScope.current = (() => activator.rootScope) as typeof CancellationScope.current;
-  activator.payloadConverter = {
-    ...defaultPayloadConverter,
-    toPayload(value, context) {
-      contexts.push(context);
-      return defaultPayloadConverter.toPayload(value, context);
-    },
-    fromPayload(payload, context) {
-      return defaultPayloadConverter.fromPayload(payload, context);
-    },
-  };
-  activator.interceptors.outbound.push({
-    signalWithStartWorkflow(request, next) {
-      calls.push('specific');
-      return next({ ...request, id: 'intercepted-id' });
-    },
-    startSystemNexusOperation(input, next) {
-      calls.push('generic');
-      return next(input);
-    },
-  });
-  setActivator(activator);
-  try {
-    void startSystemNexusOperation({
-      service: 'temporal.api.workflowservice.v1.WorkflowService',
-      operation: 'SignalWithStartWorkflowExecution',
-      input: { workflow: 'workflow', id: 'target-id', taskQueue: 'queue', signal: 'signal', args: ['argument'] },
-      inputType: workflowService.operations.signalWithStartWorkflow.inputType!,
-      serializationContext: () => targetContext,
-      specificInterceptor: 'signalWithStartWorkflow',
-    });
-
-    const command = activator.concludeActivation().commands[0]?.scheduleNexusOperation;
-    t.deepEqual(calls, ['specific', 'generic']);
-    t.is(command?.seq, 1);
-    t.is(command?.endpoint, '__temporal_system');
-    const envelope = command?.input;
-    if (envelope == null) throw new Error('System Nexus command did not include an input envelope');
-    t.deepEqual(envelope.metadata?.__temporal_system_payload, new Uint8Array([116, 114, 117, 101]));
-    t.is((defaultPayloadConverter.fromPayload(envelope) as { workflowId?: string }).workflowId, 'intercepted-id');
-    t.true(contexts.every((context) => context === targetContext));
-
-    t.true(contexts.every((context) => context === targetContext));
-  } finally {
-    CancellationScope.current = originalCurrentScope;
-    setActivator(undefined);
-  }
 });

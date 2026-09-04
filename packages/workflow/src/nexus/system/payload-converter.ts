@@ -16,6 +16,10 @@ export function isSystemNexusOperation(service: string | undefined, operation: s
   );
 }
 
+export function systemNexusOperationDefinition(service: string, operation: string) {
+  return operationRegistry.find((entry) => entry.service === service && entry.operation === operation);
+}
+
 let currentUserPayloadConverter: PayloadConverter | undefined;
 
 /**
