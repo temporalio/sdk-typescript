@@ -14,6 +14,7 @@ const protoRootWithLookup = protoRoot as typeof protoRoot & {
 export const TEMPORAL_SYSTEM_NEXUS_ENDPOINT = '__temporal_system';
 const SYSTEM_NEXUS_PAYLOAD_METADATA_KEY = '__temporal_system_payload';
 const SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE = new Uint8Array([116, 114, 117, 101]); // "true"
+const SYSTEM_NEXUS_CONTEXT_METADATA_KEY = '__temporal_system_context';
 
 type SystemOperation = (typeof operationRegistry)[number];
 
@@ -52,10 +53,10 @@ export async function encodeSystemNexusInput(
   if (definition == null) {
     throw new TypeError(`unsupported System Nexus operation: ${service}/${operation}`);
   }
+  const context = contextFromMetadata(payload) ?? workflowContext;
   const properties = defaultPayloadConverter.fromPayload(payload) as Record<string, unknown>;
   normalizePayloadBytes(properties);
   const message = requestMessageType(service, operation).create(properties) as Record<string, unknown>;
-  const context = definition.serializationContext?.(message) ?? workflowContext;
   await visit(message, walkPayloadsInMessage, {
     initialContext: context,
     transformPayload: async (value, valueContext) => (await encode(codecs, [value], valueContext))[0]!,
@@ -67,6 +68,33 @@ export async function encodeSystemNexusInput(
   return { payload: encoded, context };
 }
 
+function contextFromMetadata(payload: Payload): SerializationContext | undefined {
+  const value = payload.metadata?.[SYSTEM_NEXUS_CONTEXT_METADATA_KEY];
+  if (value == null) return undefined;
+  try {
+    const context: unknown = JSON.parse(new TextDecoder().decode(value));
+    if (!isSerializationContext(context)) {
+      throw new TypeError('invalid System Nexus serialization context metadata');
+    }
+    return context;
+  } catch {
+    throw new TypeError('invalid System Nexus serialization context metadata');
+  }
+}
+
+function isSerializationContext(value: unknown): value is SerializationContext {
+  if (value == null || typeof value !== 'object') return false;
+  const context = value as Record<string, unknown>;
+  if (typeof context.namespace !== 'string') return false;
+  if (context.type === 'workflow') return typeof context.workflowId === 'string';
+  return (
+    context.type === 'activity' &&
+    typeof context.isLocal === 'boolean' &&
+    (context.activityId == null || typeof context.activityId === 'string') &&
+    (context.workflowId == null || typeof context.workflowId === 'string')
+  );
+}
+
 /** Converts the server protobuf-binary envelope to isolate JSON. */
 export async function decodeSystemNexusOutput(
   codecs: PayloadCodec[],
@@ -76,7 +104,10 @@ export async function decodeSystemNexusOutput(
   context: SerializationContext
 ): Promise<Payload | undefined> {
   const definition = operationDefinition(service, operation);
-  if (definition == null || payload == null) return undefined;
+  if (payload == null) return undefined;
+  if (definition == null) {
+    throw new TypeError(`unsupported System Nexus operation: ${service}/${operation}`);
+  }
   const message = protobufPayloadConverter.fromPayload<Record<string, unknown>>(payload);
   await visit(message, walkPayloadsInMessage, {
     initialContext: context,

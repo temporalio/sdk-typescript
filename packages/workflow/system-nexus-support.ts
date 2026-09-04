@@ -2,6 +2,7 @@ import * as common from '@temporalio/common';
 import type { google, temporal } from '@temporalio/proto';
 import * as workflow from '../workflow-exports';
 import { currentSystemNexusUserPayloadConverter } from '../payload-converter';
+import type { SignalWithStartWorkflowRequest } from './models';
 import type Long from 'long';
 
 function int64ToNumber(value: Long | number | string | object | null | undefined): number {
@@ -79,17 +80,13 @@ export function workflowNamespace(): string {
 }
 
 /** Serialization context for payloads owned by a signal-with-start target workflow. */
-export function signalWithStartWorkflowSerializationContext(request: {
-  namespace?: string | null;
-  workflowId?: string | null;
-}): common.WorkflowSerializationContext {
-  if (request.namespace == null || request.workflowId == null) {
-    throw new TypeError('signal-with-start request is missing namespace or workflowId');
-  }
+export function signalWithStartWorkflowSerializationContext(
+  request: SignalWithStartWorkflowRequest
+): common.WorkflowSerializationContext {
   return {
     type: 'workflow',
-    namespace: request.namespace,
-    workflowId: request.workflowId,
+    namespace: workflow.workflowInfo().namespace,
+    workflowId: request.id,
   };
 }
 
