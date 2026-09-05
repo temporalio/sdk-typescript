@@ -19,7 +19,7 @@ import {
   decompileRetryPolicy,
 } from '@temporalio/common';
 import type { Duration } from '@temporalio/common/lib/time';
-import { msOptionalToTs, msToNumber, optionalTsToDate, optionalTsToMs } from '@temporalio/common/lib/time';
+import { msOptionalToTs, msToNumber, optionalTsToDate, optionalTsToNonZeroMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import {
   decodeTypedSearchAttributes,
@@ -48,8 +48,12 @@ import type {
   ActivityDescribeInput,
   ActivityGetResultInput,
   ActivityListInput,
+  ActivityPauseInput,
+  ActivityRestoreOriginalOptionsInput,
   ActivityStartInput,
   ActivityTerminateInput,
+  ActivityUnpauseInput,
+  ActivityUpdateOptionsInput,
 } from './interceptors';
 import type { AsyncCompletionClientOptions } from './async-completion-client';
 import { AsyncCompletionClient } from './async-completion-client';
@@ -110,6 +114,14 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       terminate: composeInterceptors(interceptors, 'terminate', this.terminateHandler.bind(this)),
       list: composeInterceptors(interceptors, 'list', this.listHandler.bind(this)),
       count: composeInterceptors(interceptors, 'count', this.countHandler.bind(this)),
+      pause: composeInterceptors(interceptors, 'pause', this.pauseHandler.bind(this)),
+      unpause: composeInterceptors(interceptors, 'unpause', this.unpauseHandler.bind(this)),
+      updateOptions: composeInterceptors(interceptors, 'updateOptions', this.updateOptionsHandler.bind(this)),
+      restoreOriginalOptions: composeInterceptors(
+        interceptors,
+        'restoreOriginalOptions',
+        this.restoreOriginalOptionsHandler.bind(this)
+      ),
     };
   }
 
@@ -265,6 +277,41 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
           activityId: this.activityId,
           activityRunId: this.runId ?? '',
           reason,
+          headers: {},
+        });
+      },
+
+      async pause(options?: ActivityPauseOptions): Promise<void> {
+        return await this.client.interceptedHandlers.pause({
+          activityId: this.activityId,
+          activityRunId: this.runId ?? '',
+          options: options || {},
+          headers: {},
+        });
+      },
+
+      async unpause(options?: ActivityUnpauseOptions): Promise<void> {
+        return await this.client.interceptedHandlers.unpause({
+          activityId: this.activityId,
+          activityRunId: this.runId ?? '',
+          options: options || {},
+          headers: {},
+        });
+      },
+
+      async updateOptions(options: ActivityOptionsUpdate): Promise<ActivityOptionsUpdate> {
+        return await this.client.interceptedHandlers.updateOptions({
+          activityId: this.activityId,
+          activityRunId: this.runId ?? '',
+          options,
+          headers: {},
+        });
+      },
+
+      async restoreOriginalOptions(): Promise<ActivityOptionsUpdate> {
+        return await this.client.interceptedHandlers.restoreOriginalOptions({
+          activityId: this.activityId,
+          activityRunId: this.runId ?? '',
           headers: {},
         });
       },
@@ -517,6 +564,124 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
     }
   }
 
+  protected async pauseHandler(input: ActivityPauseInput): Promise<void> {
+    if (!input.activityId) {
+      throw new TypeError('activityId is required');
+    }
+
+    try {
+      await this.workflowService.pauseActivityExecution({
+        namespace: this.options.namespace,
+        activityId: input.activityId,
+        runId: input.activityRunId || undefined,
+        identity: this.options.identity,
+        requestId: randomUUID(),
+        reason: input.options.reason || undefined,
+      });
+    } catch (err) {
+      this.rethrowGrpcError(err, 'Failed to request activity pause');
+    }
+  }
+
+  protected async unpauseHandler(input: ActivityUnpauseInput): Promise<void> {
+    if (!input.activityId) {
+      throw new TypeError('activityId is required');
+    }
+
+    try {
+      await this.workflowService.unpauseActivityExecution({
+        namespace: this.options.namespace,
+        activityId: input.activityId,
+        runId: input.activityRunId || undefined,
+        identity: this.options.identity,
+        requestId: randomUUID(),
+        reason: input.options.reason || undefined,
+        jitter: msOptionalToTs(input.options.jitter),
+      });
+    } catch (err) {
+      this.rethrowGrpcError(err, 'Failed to request activity unpause');
+    }
+  }
+
+  protected async updateOptionsHandler(input: ActivityUpdateOptionsInput): Promise<ActivityOptionsUpdate> {
+    if (!input.activityId) {
+      throw new TypeError('activityId is required');
+    }
+
+    const paths = [];
+    // != null because taskQueue can't be unset
+    if (input.options.taskQueue != null) {
+      paths.push('task_queue.name');
+    }
+    if (input.options.scheduleToCloseTimeout !== undefined) {
+      paths.push('schedule_to_close_timeout');
+    }
+    if (input.options.scheduleToStartTimeout !== undefined) {
+      paths.push('schedule_to_start_timeout');
+    }
+    if (input.options.startToCloseTimeout !== undefined) {
+      paths.push('start_to_close_timeout');
+    }
+    if (input.options.heartbeatTimeout !== undefined) {
+      paths.push('heartbeat_timeout');
+    }
+    if (input.options.retry !== undefined) {
+      paths.push('retry_policy');
+    }
+    if (input.options.priority !== undefined) {
+      paths.push('priority');
+    }
+    if (input.options.startDelay !== undefined) {
+      paths.push('start_delay');
+    }
+
+    try {
+      const resp = await this.workflowService.updateActivityExecutionOptions({
+        namespace: this.options.namespace,
+        activityId: input.activityId,
+        runId: input.activityRunId || undefined,
+        identity: this.options.identity,
+        requestId: randomUUID(),
+        activityOptions: {
+          taskQueue: input.options.taskQueue != null ? { name: input.options.taskQueue } : undefined,
+          scheduleToCloseTimeout: msOptionalToTs(input.options.scheduleToCloseTimeout),
+          scheduleToStartTimeout: msOptionalToTs(input.options.scheduleToStartTimeout),
+          startToCloseTimeout: msOptionalToTs(input.options.startToCloseTimeout),
+          heartbeatTimeout: msOptionalToTs(input.options.heartbeatTimeout),
+          retryPolicy: input.options.retry ? compileRetryPolicy(input.options.retry) : undefined,
+          priority: input.options.priority ? compilePriority(input.options.priority) : undefined,
+          startDelay: msOptionalToTs(input.options.startDelay),
+        },
+        updateMask: { paths },
+      });
+      return activityOptionsUpdateFromProto(resp.activityOptions);
+    } catch (err) {
+      this.rethrowGrpcError(err, 'Failed to request activity cancellation');
+    }
+  }
+
+  protected async restoreOriginalOptionsHandler(
+    input: ActivityRestoreOriginalOptionsInput
+  ): Promise<ActivityOptionsUpdate> {
+    if (!input.activityId) {
+      throw new TypeError('activityId is required');
+    }
+
+    try {
+      const resp = await this.workflowService.updateActivityExecutionOptions({
+        namespace: this.options.namespace,
+        activityId: input.activityId,
+        runId: input.activityRunId || undefined,
+        identity: this.options.identity,
+        requestId: randomUUID(),
+        restoreOriginal: true,
+      });
+      return activityOptionsUpdateFromProto(resp.activityOptions);
+    } catch (err) {
+      this.rethrowGrpcError(err, 'Failed to request activity cancellation');
+    }
+  }
+
   protected rethrowGrpcError(err: unknown, fallbackMessage: string): never {
     if (isGrpcServiceError(err)) {
       rethrowKnownErrorTypes(err);
@@ -564,6 +729,26 @@ export interface ActivityHandle<R = any> {
    * Terminates the Activity execution. Note that the worker is not immediately notified of termination and may continue running the activity.
    */
   terminate(reason: string): Promise<void>;
+  /**
+   * Requests Activity execution pause. Note that pausing is cooperative and not guaranteed to happen.
+   */
+  pause(options?: ActivityPauseOptions): Promise<void>;
+  /**
+   * Unpauses the Activity execution if it was previously paused.
+   */
+  unpause(options?: ActivityUnpauseOptions): Promise<void>;
+  /**
+   * Updates activity options of a running activity execution. See documentation for {@link ActivityOptionsUpdate}.
+   *
+   * Returns current options after applying the update.
+   */
+  updateOptions(options?: ActivityOptionsUpdate): Promise<ActivityOptionsUpdate>;
+  /**
+   * Restores activity options of a running activity execution that it was originally started with.
+   *
+   * Returns current options after restoring.
+   */
+  restoreOriginalOptions(): Promise<ActivityOptionsUpdate>;
 }
 
 /**
@@ -662,6 +847,65 @@ export interface GetActivityHandleOptions {
   typeInfo?: Pick<PayloadTypeInfo, 'outputType'>;
 }
 
+/**
+ * Options for {@link ActivityHandle.pause}.
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ */
+export interface ActivityPauseOptions {
+  /**
+   * Reason for pausing.
+   */
+  reason?: string;
+}
+
+/**
+ * Options for {@link ActivityHandle.unpause}.
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ */
+export interface ActivityUnpauseOptions {
+  /**
+   * Reason for unpausing.
+   */
+  reason?: string;
+
+  /**
+   * If set, the activity will be available for execution after a random delay between zero and specified duration.
+   */
+  jitter?: Duration;
+}
+
+/**
+ * Specifies activity options to change in {@link ActivityHandle.updateOptions} operation.
+ *
+ * If a field is assigned non-null value, the option will be set to that value.
+ * If a field is explicitly assigned null, the option will be cleared.
+ * If a field is undefined, the option will be left unchanged.
+ *
+ * In a return value, currently unset fields are undefined.
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ */
+export interface ActivityOptionsUpdate {
+  /** {@inheritDoc ActivityOptions.taskQueue} */
+  taskQueue?: string;
+  /** {@inheritDoc ActivityOptions.scheduleToCloseTimeout} */
+  scheduleToCloseTimeout?: Duration | null;
+  /** {@inheritDoc ActivityOptions.scheduleToStartTimeout} */
+  scheduleToStartTimeout?: Duration | null;
+  /** {@inheritDoc ActivityOptions.startToCloseTimeout} */
+  startToCloseTimeout?: Duration | null;
+  /** {@inheritDoc ActivityOptions.heartbeatTimeout} */
+  heartbeatTimeout?: Duration | null;
+  /** {@inheritDoc ActivityOptions.retry} */
+  retry?: RetryPolicy | null;
+  /** {@inheritDoc ActivityOptions.priority} */
+  priority?: Priority | null;
+  /** {@inheritDoc ActivityOptions.startDelay} */
+  startDelay?: Duration | null;
+}
+
 function validateActivityOptions(options: ActivityOptions): void {
   if (!options.id) {
     throw new TypeError('id is required');
@@ -689,7 +933,7 @@ function buildActivityExecutionInfoCommonPart(
     status: decodeActivityExecutionStatus(info.status)!,
     typedSearchAttributes: decodeTypedSearchAttributes(info.searchAttributes?.indexedFields),
     taskQueue: info.taskQueue!,
-    executionDurationMs: optionalTsToMs(info.executionDuration),
+    executionDurationMs: optionalTsToNonZeroMs(info.executionDuration),
   };
 }
 
@@ -723,17 +967,17 @@ function buildActivityDescription(
     rawInfo: info,
     rawCallbacks: callbacks,
     runState: decodePendingActivityState(info.runState),
-    scheduleToCloseTimeoutMs: optionalTsToMs(info.scheduleToCloseTimeout),
-    scheduleToStartTimeoutMs: optionalTsToMs(info.scheduleToStartTimeout),
-    startToCloseTimeoutMs: optionalTsToMs(info.startToCloseTimeout),
-    heartbeatTimeoutMs: optionalTsToMs(info.heartbeatTimeout),
+    scheduleToCloseTimeoutMs: optionalTsToNonZeroMs(info.scheduleToCloseTimeout),
+    scheduleToStartTimeoutMs: optionalTsToNonZeroMs(info.scheduleToStartTimeout),
+    startToCloseTimeoutMs: optionalTsToNonZeroMs(info.startToCloseTimeout),
+    heartbeatTimeoutMs: optionalTsToNonZeroMs(info.heartbeatTimeout),
     retryPolicy: decompileRetryPolicy(info.retryPolicy)!,
     lastHeartbeatTime: optionalTsToDate(info.lastHeartbeatTime),
     lastStartedTime: optionalTsToDate(info.lastStartedTime),
     attempt: info.attempt!,
     expirationTime: optionalTsToDate(info.expirationTime),
     lastWorkerIdentity: info.lastWorkerIdentity || undefined,
-    currentRetryIntervalMs: optionalTsToMs(info.currentRetryInterval),
+    currentRetryIntervalMs: optionalTsToNonZeroMs(info.currentRetryInterval),
     lastAttemptCompleteTime: optionalTsToDate(info.lastAttemptCompleteTime),
     nextAttemptScheduleTime: optionalTsToDate(info.nextAttemptScheduleTime),
     lastDeploymentVersion: convertDeploymentVersion(info.lastDeploymentVersion),
@@ -742,6 +986,21 @@ function buildActivityDescription(
 
     getHeartbeatDetails,
     getLastFailure,
+  };
+}
+
+function activityOptionsUpdateFromProto(
+  proto?: temporal.api.activity.v1.IActivityOptions | null
+): ActivityOptionsUpdate {
+  return {
+    taskQueue: proto?.taskQueue?.name || undefined,
+    scheduleToCloseTimeout: optionalTsToNonZeroMs(proto?.scheduleToCloseTimeout),
+    scheduleToStartTimeout: optionalTsToNonZeroMs(proto?.scheduleToStartTimeout),
+    startToCloseTimeout: optionalTsToNonZeroMs(proto?.startToCloseTimeout),
+    heartbeatTimeout: optionalTsToNonZeroMs(proto?.heartbeatTimeout),
+    retry: decompileRetryPolicy(proto?.retryPolicy),
+    priority: proto?.priority ? decodePriority(proto.priority) : undefined,
+    startDelay: optionalTsToNonZeroMs(proto?.startDelay),
   };
 }
 

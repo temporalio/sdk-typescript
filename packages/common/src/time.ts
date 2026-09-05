@@ -114,3 +114,12 @@ export function optionalDateToTs(date: Date | null | undefined): Timestamp | und
   }
   return msToTs(date.getTime());
 }
+
+/**
+ * Lossy conversion function from Timestamp to number due to possible overflow.
+ * If ts is zero, null or undefined returns undefined.
+ */
+export function optionalTsToNonZeroMs(ts?: Timestamp | null): number | undefined {
+  const ms = optionalTsToMs(ts);
+  return ms === 0 ? undefined : ms;
+}
