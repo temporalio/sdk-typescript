@@ -111,7 +111,12 @@ import type {
   WorkflowUpdateOptions,
 } from './workflow-options';
 import { compileWorkflowOptions } from './workflow-options';
-import { decodeCountWorkflowExecutionsResponse, executionInfoFromRaw, rethrowKnownErrorTypes } from './helpers';
+import {
+  decodeCountWorkflowExecutionsResponse,
+  executionInfoFromRaw,
+  extractWorkflowExecutionAlreadyStartedRunId,
+  rethrowKnownErrorTypes,
+} from './helpers';
 import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base-client';
 import { BaseClient, defaultBaseClientOptions } from './base-client';
 import { mapAsyncIterable } from './iterators-utils';
@@ -1336,7 +1341,8 @@ export class WorkflowClient extends BaseClient {
         err = new WorkflowExecutionAlreadyStartedError(
           'Workflow execution already started',
           input.workflowStartOptions.workflowId,
-          input.workflowType
+          input.workflowType,
+          extractWorkflowExecutionAlreadyStartedRunId(err)
         );
       }
       if (!seenStart) {
@@ -1541,7 +1547,8 @@ export class WorkflowClient extends BaseClient {
         throw new WorkflowExecutionAlreadyStartedError(
           'Workflow execution already started',
           options.workflowId,
-          workflowType
+          workflowType,
+          extractWorkflowExecutionAlreadyStartedRunId(err)
         );
       }
       this.rethrowGrpcError(err, 'Failed to signalWithStart Workflow', { workflowId: options.workflowId });
@@ -1586,7 +1593,8 @@ export class WorkflowClient extends BaseClient {
         throw new WorkflowExecutionAlreadyStartedError(
           'Workflow execution already started',
           opts.workflowId,
-          workflowType
+          workflowType,
+          extractWorkflowExecutionAlreadyStartedRunId(err)
         );
       }
       this.rethrowGrpcError(err, 'Failed to start Workflow', { workflowId: opts.workflowId });
