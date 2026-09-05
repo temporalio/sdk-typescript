@@ -486,6 +486,9 @@ export class Worker {
 
   protected readonly numInFlightActivationsSubject = new BehaviorSubject<number>(0);
   protected readonly numInFlightActivitiesSubject = new BehaviorSubject<number>(0);
+  // Aborted as soon as shutdown of this Worker is initiated; shared by all Activities executed by this Worker, each of
+  // which derives its own AbortController from it. See `Context.workerShuttingDown`.
+  protected readonly workerShuttingDownAbortController = new AbortController();
   protected readonly numInFlightNonLocalActivitiesSubject = new BehaviorSubject<number>(0);
   protected readonly numInFlightLocalActivitiesSubject = new BehaviorSubject<number>(0);
   protected readonly numInFlightNexusOperationsSubject = new BehaviorSubject<number>(0);
@@ -972,6 +975,11 @@ export class Worker {
 
   protected set state(state: State) {
     this.logger.info('Worker state changed', { state });
+    // Notify running Activities as soon as the Worker leaves the RUNNING state, whatever the reason, so that they get
+    // a chance to wrap up before the shutdown grace period expires. See `Context.workerShuttingDown`.
+    if (state !== 'INITIALIZED' && state !== 'RUNNING' && !this.workerShuttingDownAbortController.signal.aborted) {
+      this.workerShuttingDownAbortController.abort(new CancelledFailure('WORKER_SHUTDOWN'));
+    }
     this.stateSubject.next(state);
   }
 
@@ -1172,7 +1180,8 @@ export class Worker {
                       this.client,
                       this.logger,
                       this.metricMeter,
-                      this.options.interceptors.activity
+                      this.options.interceptors.activity,
+                      this.workerShuttingDownAbortController.signal
                     );
                     output = { type: 'run', activity, input };
                     break;
