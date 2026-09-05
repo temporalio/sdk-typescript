@@ -9,12 +9,23 @@ function titleCase(str) {
   return str.toLowerCase().replace(/\b(\w)/g, (s) => s.toUpperCase());
 }
 
+// Normalize the doc-relative path so it always uses forward slashes: on
+// Windows `path.relative` returns backslashes, breaking both the `/`-split
+// below and the doc IDs stored in the sidebar. Replacing both separator
+// forms keeps the result consistent on any platform.
+function relativeDocUrl(relative) {
+  return relative.replace(/\\/g, '/').replace(/\.md$/, '');
+}
+
 function nestMarkdownFiles() {
   return markdownFiles()
     .sort()
     .sort((a, b) => a.split('.').length - b.split('.').length)
     .reduce((acc, f) => {
-      const url = path.relative(path.join(__dirname, 'docs'), f).replace(/\.md$/, '');
+      // `path.relative` returns platform-specific separators, but the split
+      // below and the doc IDs stored in the sidebar always use forward slashes.
+      // Normalize so sidebar generation works on Windows too.
+      const url = relativeDocUrl(path.relative(path.join(__dirname, 'docs'), f));
       const category = titleCase(url.split('/')[1]);
       const basename = path.basename(url);
       const parts = basename.split('.');
@@ -63,6 +74,7 @@ function nestMarkdownFiles() {
 }
 
 module.exports = {
+  relativeDocUrl,
   referenceSidebar: [
     'index',
     {
