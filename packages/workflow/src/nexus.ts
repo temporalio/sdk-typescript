@@ -18,7 +18,7 @@ import type { coresdk } from '@temporalio/proto';
 import { eventGroupMarkersToProto } from './event-groups';
 import { systemNexusOperationDefinition } from './nexus/system/payload-converter';
 import { withSystemNexusUserPayloadConverter } from './nexus/system/user-payload-converter';
-import { systemNexusSpecificInterceptorMethod } from './nexus/system/generated/interceptors';
+import { dispatchSystemNexusSpecificInterceptors } from './nexus/system/generated/interceptors';
 import { CancellationScope } from './cancellation-scope';
 import { getActivator } from './global-attributes';
 import { composeInterceptors } from './interceptor-composition';
@@ -232,23 +232,24 @@ async function startSystemNexusOperationWithSpecificInterceptors<Output>(
     startSystemNexusOperationNextHandler
   );
 
-  const makeHandle = async (request: unknown): Promise<NexusOperationHandle<unknown>> => {
+  const makeHandle = async <Request, Result>(request: Request): Promise<NexusOperationHandle<Result>> => {
     const { token, result } = await generic({ ...input, input: request });
     return {
       service: input.service,
       operation: input.operation,
       token,
-      async result(): Promise<unknown> {
-        return await result;
+      async result(): Promise<Result> {
+        return (await result) as Result;
       },
     };
   };
-  const method = systemNexusSpecificInterceptorMethod(input.service, input.operation);
-  const execute =
-    method == null
-      ? makeHandle
-      : (composeInterceptors(activator.interceptors.outbound, method, makeHandle as never) as typeof makeHandle);
-  return (await execute(input.input)) as NexusOperationHandle<Output>;
+  return (await dispatchSystemNexusSpecificInterceptors(
+    input.service,
+    input.operation,
+    activator.interceptors.outbound,
+    input.input,
+    makeHandle
+  )) as NexusOperationHandle<Output>;
 }
 
 function startSystemNexusOperationNextHandler({
