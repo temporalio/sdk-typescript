@@ -439,8 +439,8 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
         activityId: input.activityId,
         runId: input.activityRunId || undefined,
         includeInput: input.options.includeInput,
-        includeOutcome: input.options.includeInput,
-        includeHeartbeatDetails: input.options.includeInput,
+        includeOutcome: input.options.includeOutcome,
+        includeHeartbeatDetails: input.options.includeHeartbeatDetails,
         includeLastFailure: input.options.includeLastFailure,
       });
       if (!hasInfo(resp)) {
@@ -723,6 +723,7 @@ function buildActivityExecutionInfoCommonPart(
     typedSearchAttributes: decodeTypedSearchAttributes(info.searchAttributes?.indexedFields),
     taskQueue: info.taskQueue!,
     executionDurationMs: optionalTsToMs(info.executionDuration),
+    executionTime: optionalTsToDate(info.executionTime),
   };
 }
 
@@ -759,7 +760,7 @@ function buildActivityDescription(
     priority: decodePriority(resp.info.priority),
     canceledReason: resp.info.canceledReason || undefined,
     startDelayMs: optionalTsToMs(resp.info.startDelay),
-    totalHeartbeatCount: resp.info.totalHeartbeatCount || undefined,
+    totalHeartbeatCount: resp.info.totalHeartbeatCount?.toNumber() || undefined,
 
     hasHeartbeatDetails: (resp.info.heartbeatDetails?.payloads?.length || 0) > 0,
     hasLastFailure: !!resp.info.lastFailure,

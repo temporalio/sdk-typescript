@@ -290,7 +290,7 @@ export interface ActivityExecutionDescription extends ActivityExecutionInfo {
   priority: Priority;
   canceledReason?: string;
   startDelayMs?: number;
-  totalHeartbeatCount?: Long;
+  totalHeartbeatCount?: number;
 
   hasHeartbeatDetails: boolean;
   hasLastFailure: boolean;
