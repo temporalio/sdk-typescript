@@ -656,7 +656,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       });
       return activityOptionsUpdateFromProto(resp.activityOptions);
     } catch (err) {
-      this.rethrowGrpcError(err, 'Failed to request activity cancellation');
+      this.rethrowGrpcError(err, 'Failed to update activity options');
     }
   }
 
@@ -678,7 +678,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       });
       return activityOptionsUpdateFromProto(resp.activityOptions);
     } catch (err) {
-      this.rethrowGrpcError(err, 'Failed to request activity cancellation');
+      this.rethrowGrpcError(err, 'Failed to restore original activity options');
     }
   }
 
@@ -742,7 +742,7 @@ export interface ActivityHandle<R = any> {
    *
    * Returns current options after applying the update.
    */
-  updateOptions(options?: ActivityOptionsUpdate): Promise<ActivityOptionsUpdate>;
+  updateOptions(options: ActivityOptionsUpdate): Promise<ActivityOptionsUpdateResult>;
   /**
    * Restores activity options of a running activity execution that it was originally started with.
    *
@@ -883,8 +883,6 @@ export interface ActivityUnpauseOptions {
  * If a field is explicitly assigned null, the option will be cleared.
  * If a field is undefined, the option will be left unchanged.
  *
- * In a return value, currently unset fields are undefined.
- *
  * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityOptionsUpdate {
@@ -904,6 +902,15 @@ export interface ActivityOptionsUpdate {
   priority?: Priority | null;
   /** {@inheritDoc ActivityOptions.startDelay} */
   startDelay?: Duration | null;
+}
+
+/**
+ * Contains current activity options after applying an update. Returned by {@link ActivityHandle.updateOptions}.
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ */
+export type ActivityOptionsUpdateResult = {
+  [K in keyof ActivityOptionsUpdate]: Exclude<ActivityOptionsUpdate[K], null>;
 }
 
 function validateActivityOptions(options: ActivityOptions): void {

@@ -939,7 +939,7 @@ if (RUN_INTEGRATION_TESTS) {
 
     const originalOptions = await handle.restoreOriginalOptions();
     t.is(originalOptions.taskQueue, 'original-task-queue');
-    t.is(updatedOptions.scheduleToCloseTimeout, undefined);
+    t.is(originalOptions.scheduleToCloseTimeout, undefined);
     t.is(originalOptions.scheduleToStartTimeout, undefined);
     t.is(originalOptions.startToCloseTimeout, originalDuration);
     t.is(originalOptions.heartbeatTimeout, originalDuration);
