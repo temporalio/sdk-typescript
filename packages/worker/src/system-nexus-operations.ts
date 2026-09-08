@@ -2,6 +2,12 @@ import type { Service as ProtobufService, Type as ProtobufType } from 'protobufj
 import type { Payload, PayloadCodec, SerializationContext } from '@temporalio/common';
 import { defaultPayloadConverter } from '@temporalio/common';
 import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
+import {
+  SYSTEM_NEXUS_CONTEXT_METADATA_KEY,
+  SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
+  SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE,
+  TEMPORAL_SYSTEM_NEXUS_ENDPOINT,
+} from '@temporalio/common/lib/internal-workflow';
 import { decode, encode, type VisitOptions, visit, walkPayloadsInMessage } from '@temporalio/common/lib/internal-non-workflow';
 import * as protoRoot from '@temporalio/proto';
 import { operationRegistry } from '@temporalio/workflow/lib/nexus/system/generated/registry';
@@ -11,11 +17,6 @@ const protoRootWithLookup = protoRoot as typeof protoRoot & {
   lookupType(name: string): ProtobufType;
   lookupService(name: string): ProtobufService;
 };
-export const TEMPORAL_SYSTEM_NEXUS_ENDPOINT = '__temporal_system';
-const SYSTEM_NEXUS_PAYLOAD_METADATA_KEY = '__temporal_system_payload';
-const SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE = new Uint8Array([116, 114, 117, 101]); // "true"
-const SYSTEM_NEXUS_CONTEXT_METADATA_KEY = '__temporal_system_context';
-
 type SystemOperation = (typeof operationRegistry)[number];
 
 function operationDefinition(

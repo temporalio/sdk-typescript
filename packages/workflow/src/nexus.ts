@@ -7,7 +7,13 @@ import {
 } from '@temporalio/common';
 import { msOptionalToTs } from '@temporalio/common/lib/time';
 import { userMetadataToPayload } from '@temporalio/common/lib/user-metadata';
-import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
+import {
+  makeProtoEnumConverters,
+  SYSTEM_NEXUS_CONTEXT_METADATA_KEY,
+  SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
+  SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE,
+  TEMPORAL_SYSTEM_NEXUS_ENDPOINT,
+} from '@temporalio/common/lib/internal-workflow';
 import type { coresdk } from '@temporalio/proto';
 import { eventGroupMarkersToProto } from './event-groups';
 import {
@@ -24,11 +30,6 @@ import type {
   StartNexusOperationOptions,
   StartSystemNexusOperationInput,
 } from './interceptors';
-
-const SYSTEM_NEXUS_PAYLOAD_METADATA_KEY = '__temporal_system_payload';
-const SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE = new Uint8Array([116, 114, 117, 101]); // "true"
-const SYSTEM_NEXUS_CONTEXT_METADATA_KEY = '__temporal_system_context';
-const TEMPORAL_SYSTEM_NEXUS_ENDPOINT = '__temporal_system';
 
 /**
  * A Nexus client for invoking Nexus Operations for a specific service from a Workflow.

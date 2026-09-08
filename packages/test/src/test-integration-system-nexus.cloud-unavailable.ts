@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { Payload, PayloadCodec, SerializationContext } from '@temporalio/common';
 import { defaultPayloadConverter, ExternalStorage } from '@temporalio/common';
+import { Client } from '@temporalio/client';
 import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
 import { isReferencePayload } from '@temporalio/common/lib/internal-non-workflow';
 import * as protoRoot from '@temporalio/proto';
@@ -81,6 +82,16 @@ class ContextRecordingCodec implements PayloadCodec {
         this.contexts.set(value, contexts);
       }
     }
+  }
+}
+
+class ByteIncrementingCodec implements PayloadCodec {
+  async encode(payloads: Payload[]): Promise<Payload[]> {
+    return payloads.map((payload) => ({ ...payload, data: payload.data?.map((byte) => byte + 1) }));
+  }
+
+  async decode(payloads: Payload[]): Promise<Payload[]> {
+    return payloads.map((payload) => ({ ...payload, data: payload.data?.map((byte) => byte - 1) }));
   }
 }
 
@@ -176,19 +187,30 @@ test('signal-with-start invokes the generated public API from a workflow', async
 });
 
 test('signal-with-start externally stores payloads nested in its request envelope', async (t) => {
-  const { createWorker, startWorkflow, taskQueue } = helpers(t);
+  const { createWorker, taskQueue } = helpers(t);
   const driver = makeFakeDriver();
   const payloadSize = 4096;
+  const codec = new ByteIncrementingCodec();
   const worker = await createWorker({
-    dataConverter: { externalStorage: new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 }) },
+    dataConverter: {
+      payloadCodecs: [codec],
+      externalStorage: new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 }),
+    },
+  });
+  const client = new Client({
+    connection: t.context.env.connection,
+    namespace: t.context.env.client.options.namespace,
+    dataConverter: { payloadCodecs: [codec] },
   });
   const targetWorkflowId = `system-nexus-extstore-target-${randomUUID()}`;
-  const caller = await startWorkflow(systemNexusExternalStorageCaller, {
+  const caller = await client.workflow.start(systemNexusExternalStorageCaller, {
+    taskQueue,
+    workflowId: randomUUID(),
     args: [targetWorkflowId, taskQueue, payloadSize],
   });
   const target = await worker.runUntil(caller.result());
 
-  t.deepEqual(await t.context.env.client.workflow.getHandle(target.workflowId, target.runId).result(), [
+  t.deepEqual(await client.workflow.getHandle(target.workflowId, target.runId).result(), [
     payloadSize,
     payloadSize,
   ]);
@@ -201,6 +223,11 @@ test('signal-with-start externally stores payloads nested in its request envelop
   t.true(isReferencePayload(request.input?.payloads?.[0]), 'workflow argument should be externally stored');
   t.true(isReferencePayload(request.signalInput?.payloads?.[0]), 'signal argument should be externally stored');
   t.true(isReferencePayload(request.memo?.fields?.payload), 'memo value should be externally stored');
+  t.deepEqual(
+    driver.storeCalls[0]?.payloads[0]?.data,
+    new Uint8Array(payloadSize).fill(2),
+    'external storage should receive the codec-encoded payload'
+  );
   t.deepEqual(
     driver.storeCalls.map((call) => call.context.target?.id),
     [targetWorkflowId, targetWorkflowId, targetWorkflowId]
