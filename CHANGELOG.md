@@ -95,6 +95,9 @@ to docs, or any other relevant information.
 - **Experimental**: Workflows can now use `TypeInfo` for Child Workflow inputs and results and continue-as-new inputs.
 - **Experimental**: String-named Signal calls can now provide `TypeInfo` through explicit options on Client and
   Workflow handles and in signal-with-start requests.
+- **Experimental**: External storage failures now surface as dedicated error types exported from
+  `@temporalio/common`: `ExternalStorageDriverError`, `ExternalStorageUnregisteredDriverError`, and
+  `ExternalStorageReferenceError`, all extending the new `ExternalStorageError` base type.
 - **Experimental**: Experimental support for _Event Groups_. **Event Groups**
   is a new form of Workflow-level metadata that allows for improved
   visibility into a Workflow execution's history by grouping logically
