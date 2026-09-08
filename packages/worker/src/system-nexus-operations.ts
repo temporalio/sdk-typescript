@@ -2,7 +2,8 @@ import type { Service as ProtobufService, Type as ProtobufType } from 'protobufj
 import type { Payload, PayloadCodec, SerializationContext } from '@temporalio/common';
 import { defaultPayloadConverter } from '@temporalio/common';
 import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
-import { decode, encode, visit, walkPayloadsInMessage } from '@temporalio/common/lib/internal-non-workflow';
+import { encodingTypes, METADATA_ENCODING_KEY, METADATA_MESSAGE_TYPE_KEY } from '@temporalio/common/lib/converter/types';
+import { decode, encode, type VisitOptions, visit, walkPayloadsInMessage } from '@temporalio/common/lib/internal-non-workflow';
 import * as protoRoot from '@temporalio/proto';
 import { operationRegistry } from '@temporalio/workflow/lib/nexus/system/generated/registry';
 
@@ -33,6 +34,23 @@ export function isSystemNexusEnvelope(
   if (endpoint !== TEMPORAL_SYSTEM_NEXUS_ENDPOINT || payload == null) return false;
   const marker = payload.metadata?.[SYSTEM_NEXUS_PAYLOAD_METADATA_KEY];
   return marker != null && bytesEqual(marker, SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE);
+}
+
+/** Whether this is a protobuf-binary System Nexus envelope produced for a known operation. */
+export function isEncodedSystemNexusEnvelope(
+  endpoint: string | null | undefined,
+  service: string | null | undefined,
+  operation: string | null | undefined,
+  payload: Payload | null | undefined
+): boolean {
+  if (endpoint !== TEMPORAL_SYSTEM_NEXUS_ENDPOINT || payload == null || operationDefinition(service, operation) == null) {
+    return false;
+  }
+  const messageType = requestMessageType(service, operation).fullName.slice(1);
+  return (
+    metadataString(payload, METADATA_ENCODING_KEY) === encodingTypes.METADATA_ENCODING_PROTOBUF &&
+    metadataString(payload, METADATA_MESSAGE_TYPE_KEY) === messageType
+  );
 }
 
 export interface EncodedSystemNexusInput {
@@ -70,6 +88,23 @@ export async function encodeSystemNexusInput(
   const encoded = protobufPayloadConverter.toPayload(message);
   if (encoded == null) throw new Error('failed to encode System Nexus protobuf envelope');
   return { payload: encoded, context };
+}
+
+/** Applies a payload transformation to values nested in a protobuf-binary System Nexus request envelope. */
+export async function transformEncodedSystemNexusInput<Ctx>(
+  service: string | null | undefined,
+  operation: string | null | undefined,
+  payload: Payload,
+  options: VisitOptions<Ctx>
+): Promise<Payload> {
+  if (operationDefinition(service, operation) == null) {
+    throw new TypeError(`unsupported System Nexus operation: ${service}/${operation}`);
+  }
+  const message = protobufPayloadConverter.fromPayload<Record<string, unknown>>(payload);
+  await visit(message, walkPayloadsInMessage, options);
+  const transformed = protobufPayloadConverter.toPayload(message);
+  if (transformed == null) throw new Error('failed to encode System Nexus protobuf envelope');
+  return transformed;
 }
 
 function contextFromMetadata(payload: Payload): SerializationContext | undefined {
@@ -136,6 +171,11 @@ function requestMessageType(service: string | null | undefined, operation: strin
 
 function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function metadataString(payload: Payload, key: string): string | undefined {
+  const value = payload.metadata?.[key];
+  return value == null ? undefined : new TextDecoder().decode(value);
 }
 
 function normalizePayloadBytes(value: unknown, seen = new Set<object>()): void {

@@ -45,6 +45,11 @@ export class WorkflowCodecRunner {
     public readonly workflowContext: WorkflowSerializationContext
   ) {}
 
+  /** Returns the serialization context selected for a pending System Nexus operation. */
+  public systemNexusOperationContext(seq: number | null | undefined): SerializationContext | undefined {
+    return seq == null ? undefined : this.pendingCompletionContexts.nexusOperation.get(seq)?.context;
+  }
+
   private consumeContext<TContext>(map: Map<number, TContext>, seq: number | null | undefined): TContext | undefined {
     if (seq == null) return undefined;
     const context = map.get(seq);
