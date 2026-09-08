@@ -18,11 +18,8 @@ import type { coresdk } from '@temporalio/proto';
 import type { ActivityOptions, LocalActivityOptions } from './activities';
 import type { EventGroupMarker } from './event-groups';
 import type { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interfaces';
-import type { NexusOperationCancellationType, NexusOperationHandle } from './nexus';
-import type {
-  SystemNexusSpecificInterceptor,
-  SystemNexusWorkflowOutboundCallsInterceptor,
-} from './nexus/system/generated/interceptors';
+import type { NexusOperationCancellationType } from './nexus';
+import type { SystemNexusWorkflowOutboundCallsInterceptor } from './nexus/system/generated/interceptors';
 
 export { Next, Headers };
 
@@ -172,9 +169,9 @@ export interface WorkflowOutboundCallsInterceptor extends SystemNexusWorkflowOut
 
   /** Called when Workflow starts a Temporal System Nexus operation. */
   startSystemNexusOperation?: (
-    input: StartSystemNexusOperationInput,
+    input: StartNexusOperationInput,
     next: Next<WorkflowOutboundCallsInterceptor, 'startSystemNexusOperation'>
-  ) => Promise<NexusOperationHandle<unknown>>;
+  ) => Promise<StartNexusOperationOutput>;
 
   /**
    * Called when Workflow starts a child workflow execution.
@@ -299,22 +296,6 @@ export interface StartNexusOperationInput {
   readonly operation: string;
   readonly seq: number;
   readonly headers: Record<string, string>;
-}
-
-/** Input for {@link WorkflowOutboundCallsInterceptor.startSystemNexusOperation}. */
-export interface StartSystemNexusOperationInput {
-  /** Sequence number assigned to this command before interception. @internal */
-  readonly seq?: number;
-  readonly service: string;
-  readonly operation: string;
-  /** The generated public request model. */
-  readonly input: unknown;
-  /** Type information that converts the generated request to its transfer envelope. */
-  readonly inputType: TypeInfo;
-  /** Type information that converts the transfer response to its generated public model. */
-  readonly outputType?: TypeInfo;
-  /** Generated operation-specific interceptor dispatcher to invoke before the generic hook. */
-  readonly specificInterceptor?: SystemNexusSpecificInterceptor;
 }
 
 /**

@@ -1,50 +1,12 @@
-import type Long from 'long';
 import * as common from '@temporalio/common';
+import { msToTs, requiredTsToMs } from '@temporalio/common/lib/time';
 import type { google, temporal } from '@temporalio/proto';
 import { workflowInfo } from '../../../workflow';
 import { currentSystemNexusUserPayloadConverter } from '../user-payload-converter';
 import type { SignalWithStartWorkflowRequest } from './models';
 
-function int64ToNumber(value: Long | number | string | object | null | undefined): number {
-  if (value == null) {
-    return 0;
-  }
-  if (typeof value === 'number') {
-    return value;
-  }
-  if (typeof value === 'string') {
-    return Number(value);
-  }
-  if ('toNumber' in value && typeof value.toNumber === 'function') {
-    return value.toNumber();
-  }
-  if ('low' in value && 'high' in value) {
-    const longValue = value as {
-      low: number;
-      high: number;
-      unsigned?: boolean;
-    };
-    const low = longValue.low >>> 0;
-    return longValue.high * 4_294_967_296 + low;
-  }
-  throw new TypeError('unsupported int64 value');
-}
-
-function durationToMillis(proto: google.protobuf.IDuration | null | undefined): number | undefined {
-  if (proto == null) {
-    return undefined;
-  }
-  return int64ToNumber(proto.seconds) * 1000 + Math.floor((proto.nanos ?? 0) / 1_000_000);
-}
-
 export function retryPolicyFromProto(proto: temporal.api.common.v1.IRetryPolicy): common.RetryPolicy {
-  return {
-    backoffCoefficient: proto.backoffCoefficient ?? undefined,
-    maximumAttempts: proto.maximumAttempts ?? undefined,
-    maximumInterval: durationToMillis(proto.maximumInterval),
-    initialInterval: durationToMillis(proto.initialInterval),
-    nonRetryableErrorTypes: proto.nonRetryableErrorTypes ?? undefined,
-  };
+  return common.decompileRetryPolicy(proto)!;
 }
 
 export function retryPolicyToProto(retryPolicy: common.RetryPolicy): temporal.api.common.v1.IRetryPolicy {
@@ -149,11 +111,11 @@ export function headerToProto(header: Record<string, unknown>): temporal.api.com
 }
 
 export function durationFromProto(proto: google.protobuf.IDuration): common.Duration {
-  return durationToMillis(proto)!;
+  return requiredTsToMs(proto, 'duration');
 }
 
 export function durationToProto(duration: common.Duration): google.protobuf.IDuration {
-  return common.msToTs(duration);
+  return msToTs(duration);
 }
 
 function typedSearchAttributePayload(value: unknown, type: common.SearchAttributeType): common.Payload {
