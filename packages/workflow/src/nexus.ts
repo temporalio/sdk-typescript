@@ -18,16 +18,12 @@ import type { coresdk } from '@temporalio/proto';
 import { eventGroupMarkersToProto } from './event-groups';
 import { systemNexusOperationDefinition } from './nexus/system/payload-converter';
 import { withSystemNexusUserPayloadConverter } from './nexus/system/user-payload-converter';
+import { systemNexusSpecificInterceptorAdapters } from './nexus/system/generated/interceptors';
 import { CancellationScope } from './cancellation-scope';
 import { getActivator } from './global-attributes';
 import { composeInterceptors } from './interceptor-composition';
 import { untrackPromise } from './stack-helpers';
-import type {
-  StartNexusOperationInput,
-  StartNexusOperationOutput,
-  StartNexusOperationOptions,
-  StartSystemNexusOperationInput,
-} from './interceptors';
+import type { StartNexusOperationInput, StartNexusOperationOutput, StartNexusOperationOptions } from './interceptors';
 
 /**
  * A Nexus client for invoking Nexus Operations for a specific service from a Workflow.
@@ -166,13 +162,18 @@ export function createNexusServiceClient<T extends nexus.ServiceDefinition>(
         if (definition == null || inputType == null) {
           throw new TypeError(`unsupported System Nexus operation: ${options.service.name}/${opName}`);
         }
-        return (await startSystemNexusOperation({
+        return (await startSystemNexusOperationWithSpecificInterceptors({
+          endpoint: options.endpoint,
           service: options.service.name,
           operation: opName,
+          options: {
+            ...operationOptions,
+            cancellationType: operationOptions?.cancellationType ?? 'WAIT_CANCELLATION_COMPLETED',
+          },
+          headers: {},
           input,
           inputType,
           outputType: operationDefinition?.outputType,
-          specificInterceptor: definition?.specificInterceptor,
           seq,
         })) as NexusOperationHandle<nexus.OperationOutput<O>>;
       }
@@ -217,49 +218,58 @@ export function createNexusServiceClient<T extends nexus.ServiceDefinition>(
 }
 
 /**
- * Starts a generated Temporal System Nexus operation.
- *
- * Unlike ordinary Nexus operations, this is dispatched through the dedicated
- * system-Nexus interception surface and its envelope is encoded with the default
- * converter for transport across the workflow isolate boundary.
- *
- * @experimental
+ * Runs the generated operation-specific interceptor chain before the dedicated
+ * generic System Nexus interceptor hook. The operation-specific dispatcher is
+ * kept private: both public interceptor hooks use the ordinary Nexus contract.
  */
-export async function startSystemNexusOperation<Output = unknown>(
-  input: StartSystemNexusOperationInput
+async function startSystemNexusOperationWithSpecificInterceptors<Output>(
+  input: StartNexusOperationInput
 ): Promise<NexusOperationHandle<Output>> {
   const activator = getActivator();
-  const seq = input.seq ?? activator.nextSeqs.nexusOperation++;
-  const genericInput: StartSystemNexusOperationInput = { ...input, seq };
   const generic = composeInterceptors(
     activator.interceptors.outbound,
     'startSystemNexusOperation',
-    startSystemNexusOperationNextHandler as never
+    startSystemNexusOperationNextHandler
   );
-  if (input.specificInterceptor == null) return (await generic(genericInput)) as NexusOperationHandle<Output>;
 
-  let specific = (request: unknown) => generic({ ...genericInput, input: request });
-  for (let i = activator.interceptors.outbound.length - 1; i >= 0; --i) {
-    const interceptor = activator.interceptors.outbound[i]!;
-    const next = activator.bindCurrentRandom(specific);
-    specific = (request) => input.specificInterceptor!(interceptor, request, next);
-  }
-  return (await specific(input.input)) as NexusOperationHandle<Output>;
+  const makeHandle = async (request: unknown): Promise<NexusOperationHandle<unknown>> => {
+    const { token, result } = await generic({ ...input, input: request });
+    return {
+      service: input.service,
+      operation: input.operation,
+      token,
+      async result(): Promise<unknown> {
+        return await result;
+      },
+    };
+  };
+  const execute = composeInterceptors(
+    systemNexusSpecificInterceptorAdapters(input.service, input.operation, activator.interceptors.outbound),
+    'start',
+    makeHandle
+  );
+  return (await execute(input.input)) as NexusOperationHandle<Output>;
 }
 
-async function startSystemNexusOperationNextHandler(
-  input: StartSystemNexusOperationInput
-): Promise<NexusOperationHandle<unknown>> {
+function startSystemNexusOperationNextHandler({
+  input,
+  endpoint,
+  service,
+  options,
+  operation,
+  seq,
+  headers,
+  inputType,
+  outputType,
+}: StartNexusOperationInput): Promise<StartNexusOperationOutput> {
   const activator = getActivator();
-  const seq = input.seq;
-  if (seq == null) throw new TypeError('System Nexus operation interceptor removed the command sequence');
-  const definition = systemNexusOperationDefinition(input.service, input.operation);
+  const definition = systemNexusOperationDefinition(service, operation);
   if (definition == null) {
-    throw new TypeError(`unsupported System Nexus operation: ${input.service}/${input.operation}`);
+    throw new TypeError(`unsupported System Nexus operation: ${service}/${operation}`);
   }
-  const context = definition.serializationContext?.(input.input as any);
+  const context = definition.serializationContext?.(input as any);
   const outerPayloadConverter = systemNexusOuterPayloadConverter(context);
-  const { token, result } = await new Promise<StartNexusOperationOutput>((resolve, reject) => {
+  return new Promise<StartNexusOperationOutput>((resolve, reject) => {
     const scope = CancellationScope.current();
     if (scope.consideredCancelled) {
       untrackPromise(scope.cancelRequested.catch(reject));
@@ -271,39 +281,43 @@ async function startSystemNexusOperationNextHandler(
           const completed =
             !activator.completions.nexusOperationStart.has(seq) &&
             !activator.completions.nexusOperationComplete.has(seq);
-          if (!completed) activator.pushCommand({ requestCancelNexusOperation: { seq } });
+          if (!completed) {
+            activator.pushCommand({
+              requestCancelNexusOperation: { seq },
+              eventGroupMarkers: eventGroupMarkersToProto(options?.eventGroups),
+            });
+          }
         })
       );
     }
     activator.pushCommand({
       scheduleNexusOperation: {
         seq,
-        endpoint: '__temporal_system',
-        service: input.service,
-        operation: input.operation,
-        nexusHeader: {},
+        endpoint,
+        service,
+        operation,
+        nexusHeader: headers,
         input: withSystemNexusUserPayloadConverter(activator.payloadConverter, context, () =>
-          toPayloadWithTypeInfo(outerPayloadConverter, input.input, undefined, input.inputType)
+          toPayloadWithTypeInfo(outerPayloadConverter, input, undefined, inputType)
         ),
-        cancellationType: encodeNexusOperationCancellationType('WAIT_CANCELLATION_COMPLETED'),
+        scheduleToCloseTimeout: msOptionalToTs(options?.scheduleToCloseTimeout),
+        scheduleToStartTimeout: msOptionalToTs(options?.scheduleToStartTimeout),
+        startToCloseTimeout: msOptionalToTs(options?.startToCloseTimeout),
+        cancellationType: encodeNexusOperationCancellationType(options?.cancellationType),
       },
+      userMetadata: withSystemNexusUserPayloadConverter(activator.payloadConverter, context, () =>
+        userMetadataToPayload(activator.payloadConverter, options?.summary, undefined, context)
+      ),
+      eventGroupMarkers: eventGroupMarkersToProto(options?.eventGroups),
     });
     activator.systemNexusOperationContexts.set(seq, {
-      service: input.service,
-      operation: input.operation,
+      service,
+      operation,
       context,
-      outputType: input.outputType,
+      outputType,
     });
     activator.completions.nexusOperationStart.set(seq, { resolve, reject });
   });
-  return {
-    service: input.service,
-    operation: input.operation,
-    token,
-    async result(): Promise<unknown> {
-      return await result;
-    },
-  };
 }
 
 /**
