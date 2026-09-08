@@ -134,6 +134,7 @@ export class ExternalStorageRunner {
     interface RetrieveItem {
       index: number;
       claim: StorageDriverClaim;
+      size: number;
     }
     const driverGroups = new Map<string, { driver: StorageDriver; items: RetrieveItem[] }>();
 
@@ -149,7 +150,7 @@ export class ExternalStorageRunner {
         group = { driver, items: [] };
         driverGroups.set(decoded.driverName, group);
       }
-      group.items.push({ index: i, claim: new StorageDriverClaim(decoded.claimData) });
+      group.items.push({ index: i, claim: new StorageDriverClaim(decoded.claimData), size: decoded.sizeBytes });
     }
 
     if (driverGroups.size === 0) return payloads;
@@ -168,11 +169,11 @@ export class ExternalStorageRunner {
         );
       }
       for (const [j, retrievedPayload] of retrieved.entries()) {
-        result[group.items[j]!.index] = retrievedPayload;
+        const item = group.items[j]!;
+        result[item.index] = retrievedPayload;
       }
-      // Sizing a retrieved payload re-encodes it, so only pay that cost when metrics are wanted.
       if (metrics) {
-        const sizeBytes = retrieved.reduce((sum, p) => sum + payloadProtoSize(p), 0);
+        const sizeBytes = group.items.reduce((sum, it) => sum + it.size, 0);
         metrics.record(group.driver.name, group.items.length, sizeBytes, startMs, performance.now());
       }
     });
