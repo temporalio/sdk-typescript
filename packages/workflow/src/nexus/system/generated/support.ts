@@ -7,9 +7,7 @@ import { workflowInfo } from '../../../workflow';
 import { currentSystemNexusUserPayloadConverter } from '../user-payload-converter';
 import type { SignalWithStartWorkflowRequest } from './models';
 
-function int64ToNumber(
-  value: Long | number | string | object | null | undefined
-): number {
+function int64ToNumber(value: Long | number | string | object | null | undefined): number {
   if (value == null) {
     return 0;
   }
@@ -34,20 +32,14 @@ function int64ToNumber(
   throw new TypeError('unsupported int64 value');
 }
 
-function durationToMillis(
-  proto: google.protobuf.IDuration | null | undefined
-): number | undefined {
+function durationToMillis(proto: google.protobuf.IDuration | null | undefined): number | undefined {
   if (proto == null) {
     return undefined;
   }
-  return (
-    int64ToNumber(proto.seconds) * 1000 + Math.floor((proto.nanos ?? 0) / 1_000_000)
-  );
+  return int64ToNumber(proto.seconds) * 1000 + Math.floor((proto.nanos ?? 0) / 1_000_000);
 }
 
-export function retryPolicyFromProto(
-  proto: temporal.api.common.v1.IRetryPolicy
-): common.RetryPolicy {
+export function retryPolicyFromProto(proto: temporal.api.common.v1.IRetryPolicy): common.RetryPolicy {
   return {
     backoffCoefficient: proto.backoffCoefficient ?? undefined,
     maximumAttempts: proto.maximumAttempts ?? undefined,
@@ -57,21 +49,15 @@ export function retryPolicyFromProto(
   };
 }
 
-export function retryPolicyToProto(
-  retryPolicy: common.RetryPolicy
-): temporal.api.common.v1.IRetryPolicy {
+export function retryPolicyToProto(retryPolicy: common.RetryPolicy): temporal.api.common.v1.IRetryPolicy {
   return common.compileRetryPolicy(retryPolicy);
 }
 
-export function workflowTypeFromProto(
-  proto: temporal.api.common.v1.IWorkflowType
-): string | common.Workflow {
+export function workflowTypeFromProto(proto: temporal.api.common.v1.IWorkflowType): string | common.Workflow {
   return proto.name ?? '';
 }
 
-export function workflowTypeToProto(
-  workflowType: string | common.Workflow
-): temporal.api.common.v1.IWorkflowType {
+export function workflowTypeToProto(workflowType: string | common.Workflow): temporal.api.common.v1.IWorkflowType {
   return { name: workflowFunctionName(workflowType) };
 }
 
@@ -79,21 +65,15 @@ export function workflowFunctionName(value: string | common.Workflow): string {
   return typeof value === 'string' ? value : common.extractWorkflowType(value);
 }
 
-export function signalFunctionName(
-  value: string | common.SignalDefinition<any[]>
-): string {
+export function signalFunctionName(value: string | common.SignalDefinition<any[]>): string {
   return typeof value === 'string' ? value : value.name;
 }
 
-export function taskQueueFromProto(
-  proto: temporal.api.taskqueue.v1.ITaskQueue
-): string {
+export function taskQueueFromProto(proto: temporal.api.taskqueue.v1.ITaskQueue): string {
   return proto.name ?? '';
 }
 
-export function taskQueueToProto(
-  taskQueue: string
-): temporal.api.taskqueue.v1.ITaskQueue {
+export function taskQueueToProto(taskQueue: string): temporal.api.taskqueue.v1.ITaskQueue {
   return { name: taskQueue };
 }
 
@@ -112,15 +92,11 @@ export function signalWithStartWorkflowSerializationContext(
   };
 }
 
-export function payloadFromProto(
-  payload: temporal.api.common.v1.IPayload
-): common.Payload {
+export function payloadFromProto(payload: temporal.api.common.v1.IPayload): common.Payload {
   return payload;
 }
 
-export function payloadToProto(
-  payload: common.Payload
-): temporal.api.common.v1.IPayload {
+export function payloadToProto(payload: common.Payload): temporal.api.common.v1.IPayload {
   return payload;
 }
 
@@ -129,9 +105,7 @@ function configuredPayloadConverter(): common.PayloadConverter {
 }
 
 /** Convert application values to the protobuf payload-list representation. */
-export function payloadsToProto(
-  values: ReadonlyArray<unknown>
-): temporal.api.common.v1.IPayloads {
+export function payloadsToProto(values: ReadonlyArray<unknown>): temporal.api.common.v1.IPayloads {
   return { payloads: common.toPayloads(configuredPayloadConverter(), ...values) ?? [] };
 }
 
@@ -151,45 +125,28 @@ export function payloadToValue<T>(payload: common.Payload): T {
 }
 
 export function failureFromProto(proto: temporal.api.failure.v1.IFailure): Error {
-  return common.defaultFailureConverter.failureToError(
-    proto,
-    configuredPayloadConverter()
-  );
+  return common.defaultFailureConverter.failureToError(proto, configuredPayloadConverter());
 }
 
 export function failureToProto(failure: Error): temporal.api.failure.v1.IFailure {
-  return common.defaultFailureConverter.errorToFailure(
-    failure,
-    configuredPayloadConverter()
-  );
+  return common.defaultFailureConverter.errorToFailure(failure, configuredPayloadConverter());
 }
 
-export function memoFromProto(
-  proto: temporal.api.common.v1.IMemo
-): Record<string, unknown> {
-  return (
-    common.mapFromPayloads(configuredPayloadConverter(), proto.fields ?? undefined) ??
-    {}
-  );
+export function memoFromProto(proto: temporal.api.common.v1.IMemo): Record<string, unknown> {
+  return common.mapFromPayloads(configuredPayloadConverter(), proto.fields ?? undefined) ?? {};
 }
 
-export function memoToProto(
-  memo: Record<string, unknown>
-): temporal.api.common.v1.IMemo {
+export function memoToProto(memo: Record<string, unknown>): temporal.api.common.v1.IMemo {
   return {
     fields: common.mapToPayloads(configuredPayloadConverter(), memo),
   };
 }
 
-export function headerFromProto(
-  proto: temporal.api.common.v1.IHeader
-): Record<string, unknown> {
+export function headerFromProto(proto: temporal.api.common.v1.IHeader): Record<string, unknown> {
   return common.mapFromPayloads(configuredPayloadConverter(), proto.fields) ?? {};
 }
 
-export function headerToProto(
-  header: Record<string, unknown>
-): temporal.api.common.v1.IHeader {
+export function headerToProto(header: Record<string, unknown>): temporal.api.common.v1.IHeader {
   return { fields: common.mapToPayloads(configuredPayloadConverter(), header) };
 }
 
@@ -201,20 +158,14 @@ export function durationToProto(duration: common.Duration): google.protobuf.IDur
   return common.msToTs(duration);
 }
 
-function typedSearchAttributePayload(
-  value: unknown,
-  type: common.SearchAttributeType
-): common.Payload {
+function typedSearchAttributePayload(value: unknown, type: common.SearchAttributeType): common.Payload {
   const payload = configuredPayloadConverter().toPayload(value);
   payload.metadata ??= {};
   payload.metadata.type = common.u8(common.TypedSearchAttributes.toMetadataType(type));
   return payload;
 }
 
-function isValidSearchAttributeValue(
-  type: common.SearchAttributeType,
-  value: unknown
-): boolean {
+function isValidSearchAttributeValue(type: common.SearchAttributeType, value: unknown): boolean {
   switch (type) {
     case common.SearchAttributeType.TEXT:
     case common.SearchAttributeType.KEYWORD:
@@ -242,9 +193,7 @@ function typedSearchAttributePairFromPayload(
   if (metadataType == null) {
     return undefined;
   }
-  const type = common.TypedSearchAttributes.toSearchAttributeType(
-    common.str(metadataType)
-  );
+  const type = common.TypedSearchAttributes.toSearchAttributeType(common.str(metadataType));
   if (type == null) {
     return undefined;
   }
@@ -275,9 +224,7 @@ export function searchAttributesFromProto(
   for (const [name, payload] of Object.entries(indexedFields)) {
     const pair = typedSearchAttributePairFromPayload(name, payload);
     if (pair == null) {
-      throw new TypeError(
-        `search attribute ${name} cannot be decoded as a typed search attribute`
-      );
+      throw new TypeError(`search attribute ${name} cannot be decoded as a typed search attribute`);
     }
     typedPairs.push(pair);
   }
@@ -299,15 +246,11 @@ export function searchAttributesToProto(
   };
 }
 
-export function priorityFromProto(
-  proto: temporal.api.common.v1.IPriority
-): common.Priority {
+export function priorityFromProto(proto: temporal.api.common.v1.IPriority): common.Priority {
   return common.decodePriority(proto);
 }
 
-export function priorityToProto(
-  priority: common.Priority
-): temporal.api.common.v1.IPriority {
+export function priorityToProto(priority: common.Priority): temporal.api.common.v1.IPriority {
   return common.compilePriority(priority);
 }
 

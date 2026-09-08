@@ -210,8 +210,7 @@ function emit(): string {
     `  const typeName = (root as { $type?: { fullName?: string } }).$type?.fullName?.replace(/^\\./, '');`,
     `  switch (typeName) {`,
     ...roots.map(
-      (type) =>
-        `    case '${fqn(type)}':\n      return ${entryName(type)}(root as ${tsType(type)}, env, context);`
+      (type) => `    case '${fqn(type)}':\n      return ${entryName(type)}(root as ${tsType(type)}, env, context);`
     ),
     ...candidates
       .filter((type) => !hasPayload(type))

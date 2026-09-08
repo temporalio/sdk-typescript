@@ -9,9 +9,7 @@ import type { ExternalWorkflowHandle } from '../../../../workflow-handle';
 import { workflowNamespace } from '../support';
 
 type SignalWithStartWorkflowInput<
-  WorkflowFn extends (...args: any[]) => Promise<any> = (
-    ...args: any[]
-  ) => Promise<any>,
+  WorkflowFn extends (...args: any[]) => Promise<any> = (...args: any[]) => Promise<any>,
   SignalValue extends common.SignalDefinition<any[]> = common.SignalDefinition<any[]>,
 > = SignalWithStartWorkflowRequest<WorkflowFn, SignalValue> extends infer Input
   ? Input extends unknown
@@ -27,13 +25,9 @@ type SignalWithStartWorkflowInput<
  * @experimental This API is experimental and subject to change.
  */
 export async function signalWithStartWorkflow<
-  WorkflowFn extends (...args: any[]) => Promise<any> = (
-    ...args: any[]
-  ) => Promise<any>,
+  WorkflowFn extends (...args: any[]) => Promise<any> = (...args: any[]) => Promise<any>,
   SignalValue extends common.SignalDefinition<any[]> = common.SignalDefinition<any[]>,
->(
-  requestInput: SignalWithStartWorkflowInput<WorkflowFn, SignalValue>
-): Promise<ExternalWorkflowHandle> {
+>(requestInput: SignalWithStartWorkflowInput<WorkflowFn, SignalValue>): Promise<ExternalWorkflowHandle> {
   const request = {
     ...requestInput,
     namespace: workflowNamespace(),
@@ -42,10 +36,7 @@ export async function signalWithStartWorkflow<
     service: workflowService,
     endpoint: '__temporal_system',
   });
-  const handle = await client.startOperation(
-    workflowService.operations.signalWithStartWorkflow,
-    request
-  );
+  const handle = await client.startOperation(workflowService.operations.signalWithStartWorkflow, request);
   const result = await handle.result();
   return workflow.getExternalWorkflowHandle(request.id, result.runId ?? undefined);
 }

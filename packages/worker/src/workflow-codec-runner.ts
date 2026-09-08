@@ -14,11 +14,7 @@ import {
 } from '@temporalio/common/lib/internal-non-workflow';
 import { limit } from '@temporalio/common/lib/concurrency/limit';
 import { coresdk } from '@temporalio/proto';
-import {
-  decodeSystemNexusOutput,
-  encodeSystemNexusInput,
-  isSystemNexusEnvelope,
-} from './system-nexus-operations';
+import { decodeSystemNexusOutput, encodeSystemNexusInput, isSystemNexusEnvelope } from './system-nexus-operations';
 
 /**
  * Maximum number of concurrent codec calls per activation or completion.
@@ -161,7 +157,8 @@ export class WorkflowCodecRunner {
               );
             case 'coresdk.workflow_activation.ResolveNexusOperation':
               return (
-                systemResultContexts.get((message as coresdk.workflow_activation.IResolveNexusOperation).seq!) ?? context
+                systemResultContexts.get((message as coresdk.workflow_activation.IResolveNexusOperation).seq!) ??
+                context
               );
             default:
               return context;

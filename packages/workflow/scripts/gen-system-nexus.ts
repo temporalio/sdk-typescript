@@ -12,13 +12,9 @@ const witRoot = resolve(workflowDir, 'system-nexus-wit');
 const nexgen = process.env.NEXGEN_BIN;
 const protoRoot = resolve(repoRoot, 'packages/core-bridge/sdk-core/crates/protos/protos');
 
-const protoRoots = [
-  resolve(protoRoot, 'api_upstream'),
-  protoRoot,
-];
+const protoRoots = [resolve(protoRoot, 'api_upstream'), protoRoot];
 
-const workflowServiceRequestResponseProto =
-  'temporal/api/workflowservice/v1/request_response.proto';
+const workflowServiceRequestResponseProto = 'temporal/api/workflowservice/v1/request_response.proto';
 
 async function main() {
   if (nexgen == null) {

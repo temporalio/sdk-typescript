@@ -121,7 +121,12 @@ export async function systemNexusCaller(
     staticSummary: 'context-summary',
     staticDetails: 'context-details',
   });
-  return { workflowId: target.workflowId, runId: target.runId, calls: interceptorCalls, namespace: interceptedNamespace };
+  return {
+    workflowId: target.workflowId,
+    runId: target.runId,
+    calls: interceptorCalls,
+    namespace: interceptedNamespace,
+  };
 }
 
 export async function systemNexusExternalStorageTarget(startArgument: Uint8Array): Promise<[number, number]> {
@@ -210,10 +215,7 @@ test('signal-with-start externally stores payloads nested in its request envelop
   });
   const target = await worker.runUntil(caller.result());
 
-  t.deepEqual(await client.workflow.getHandle(target.workflowId, target.runId).result(), [
-    payloadSize,
-    payloadSize,
-  ]);
+  t.deepEqual(await client.workflow.getHandle(target.workflowId, target.runId).result(), [payloadSize, payloadSize]);
   const { events } = await caller.fetchHistory();
   const envelope = events?.find((event) => event.nexusOperationScheduledEventAttributes != null)
     ?.nexusOperationScheduledEventAttributes?.input;

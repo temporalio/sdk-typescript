@@ -848,8 +848,7 @@ export class Activator implements ActivationHandler {
           this.payloadConverter,
           systemNexus?.context,
           systemNexus?.outputType
-        ) ??
-        fromPayloadWithTypeInfo(this.payloadConverter, activation.result.completed, context, outputTypeInfo);
+        ) ?? fromPayloadWithTypeInfo(this.payloadConverter, activation.result.completed, context, outputTypeInfo);
       resolveResult(result);
     } else {
       let err: Error;
