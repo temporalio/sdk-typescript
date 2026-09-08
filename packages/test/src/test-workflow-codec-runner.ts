@@ -495,10 +495,9 @@ test('runner remains compatible with codecs that ignore context', async (t) => {
 });
 
 test('generic protobuf payload walking rejects an unrecognized root', (t) => {
-  t.throws(
-    () => walkPayloadsInMessage({ $type: { fullName: '.example.Unknown' } }, {} as any, undefined),
-    { message: 'Unknown root message type: example.Unknown' }
-  );
+  t.throws(() => walkPayloadsInMessage({ $type: { fullName: '.example.Unknown' } }, {} as any, undefined), {
+    message: 'Unknown root message type: example.Unknown',
+  });
 });
 
 test('ordinary Nexus calls with a System Nexus service name are not rewritten', async (t) => {

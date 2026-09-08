@@ -16,9 +16,7 @@ import {
 } from '@temporalio/common/lib/internal-workflow';
 import type { coresdk } from '@temporalio/proto';
 import { eventGroupMarkersToProto } from './event-groups';
-import {
-  systemNexusOperationDefinition,
-} from './nexus/system/payload-converter';
+import { systemNexusOperationDefinition } from './nexus/system/payload-converter';
 import { withSystemNexusUserPayloadConverter } from './nexus/system/user-payload-converter';
 import { CancellationScope } from './cancellation-scope';
 import { getActivator } from './global-attributes';

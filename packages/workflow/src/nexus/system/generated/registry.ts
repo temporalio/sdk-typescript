@@ -2,19 +2,14 @@
 
 import type * as nexus from '../../../nexus';
 import { signalWithStartWorkflowSerializationContext } from './support';
-import type {
-  SignalWithStartWorkflowResponse,
-  SignalWithStartWorkflowRequest,
-} from './models';
+import type { SignalWithStartWorkflowResponse, SignalWithStartWorkflowRequest } from './models';
 import type { SystemNexusWorkflowOutboundCallsInterceptor } from './interceptors';
 
 export interface OperationRegistryEntry<Input = unknown> {
   readonly service: string;
   readonly operation: string;
   /** Context for nested payloads, determined by the operation. */
-  readonly serializationContext?: (
-    input: Input
-  ) => import('@temporalio/common').SerializationContext;
+  readonly serializationContext?: (input: Input) => import('@temporalio/common').SerializationContext;
 }
 
 export const operationRegistry = [

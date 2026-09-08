@@ -5,33 +5,24 @@ import {
   signalWithStartWorkflowResponseTransferTypeConverter,
   signalWithStartWorkflowRequestTransferTypeConverter,
 } from './models';
-import type {
-  SignalWithStartWorkflowResponse,
-  SignalWithStartWorkflowRequest,
-} from './models';
+import type { SignalWithStartWorkflowResponse, SignalWithStartWorkflowRequest } from './models';
 
 /**
  * @experimental This API is experimental and subject to change.
  */
-export const workflowService = nexus.service(
-  'temporal.api.workflowservice.v1.WorkflowService',
-  {
-    /**
-     * Signal a workflow, starting it first if needed.
-     *
-     * @experimental This API is experimental and subject to change.
-     */
-    signalWithStartWorkflow: nexus.operation<
-      SignalWithStartWorkflowRequest,
-      SignalWithStartWorkflowResponse
-    >({
-      name: 'SignalWithStartWorkflowExecution',
-      inputType: {
-        transferTypeConverter: signalWithStartWorkflowRequestTransferTypeConverter,
-      },
-      outputType: {
-        transferTypeConverter: signalWithStartWorkflowResponseTransferTypeConverter,
-      },
-    }),
-  }
-);
+export const workflowService = nexus.service('temporal.api.workflowservice.v1.WorkflowService', {
+  /**
+   * Signal a workflow, starting it first if needed.
+   *
+   * @experimental This API is experimental and subject to change.
+   */
+  signalWithStartWorkflow: nexus.operation<SignalWithStartWorkflowRequest, SignalWithStartWorkflowResponse>({
+    name: 'SignalWithStartWorkflowExecution',
+    inputType: {
+      transferTypeConverter: signalWithStartWorkflowRequestTransferTypeConverter,
+    },
+    outputType: {
+      transferTypeConverter: signalWithStartWorkflowResponseTransferTypeConverter,
+    },
+  }),
+});

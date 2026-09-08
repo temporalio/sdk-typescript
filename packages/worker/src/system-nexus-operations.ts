@@ -8,7 +8,13 @@ import {
   SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE,
   TEMPORAL_SYSTEM_NEXUS_ENDPOINT,
 } from '@temporalio/common/lib/internal-workflow';
-import { decode, encode, type VisitOptions, visit, walkPayloadsInMessage } from '@temporalio/common/lib/internal-non-workflow';
+import {
+  decode,
+  encode,
+  type VisitOptions,
+  visit,
+  walkPayloadsInMessage,
+} from '@temporalio/common/lib/internal-non-workflow';
 import * as protoRoot from '@temporalio/proto';
 import { operationRegistry } from '@temporalio/workflow/lib/nexus/system/generated/registry';
 
