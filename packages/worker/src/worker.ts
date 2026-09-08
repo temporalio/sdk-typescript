@@ -97,7 +97,7 @@ import type {
 } from './worker-options';
 import { compileWorkerOptions, isCodeBundleOption, isPathBundleOption, toNativeWorkerOptions } from './worker-options';
 import { WorkflowCodecRunner } from './workflow-codec-runner';
-import { isEncodedSystemNexusEnvelope, transformEncodedSystemNexusInput } from './system-nexus-operations';
+import { isSystemNexusEnvelope, transformEncodedSystemNexusInput } from './system-nexus-operations';
 import { defaultWorkflowInterceptorModules, WorkflowCodeBundler } from './workflow/bundler';
 import { isBunPre1_4 } from './workflow/bun';
 import type { Workflow, WorkflowCreator } from './workflow/interface';
@@ -1604,7 +1604,7 @@ export class Worker {
             const schedule = command.scheduleNexusOperation;
             if (
               schedule?.input != null &&
-              isEncodedSystemNexusEnvelope(schedule.endpoint, schedule.service, schedule.operation, schedule.input)
+              isSystemNexusEnvelope(schedule.endpoint, schedule.input)
             ) {
               systemNexusInputs.push({ command: schedule, payload: schedule.input });
               schedule.input = undefined;
