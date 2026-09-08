@@ -12,41 +12,20 @@ export interface SystemNexusWorkflowOutboundCallsInterceptor {
   ) => Promise<nexus.NexusOperationHandle<SignalWithStartWorkflowResponse>>;
 }
 
-interface SystemNexusSpecificInterceptorAdapter {
-  start?: (
-    input: unknown,
-    next: (input: unknown) => Promise<nexus.NexusOperationHandle<unknown>>
-  ) => Promise<nexus.NexusOperationHandle<unknown>>;
-}
-
-/** Selects adapters for the operation-specific interceptor chain. */
-export function systemNexusSpecificInterceptorAdapters(
+/** Selects the operation-specific interceptor hook. */
+export function systemNexusSpecificInterceptorMethod(
   service: string,
-  operation: string,
-  interceptors: readonly SystemNexusWorkflowOutboundCallsInterceptor[]
-): SystemNexusSpecificInterceptorAdapter[] {
+  operation: string
+): keyof SystemNexusWorkflowOutboundCallsInterceptor | undefined {
   switch (service) {
     case 'temporal.api.workflowservice.v1.WorkflowService':
       switch (operation) {
         case 'SignalWithStartWorkflowExecution':
-          return interceptors.map((interceptor) => {
-            const hook = interceptor.signalWithStartWorkflow;
-            return hook == null
-              ? {}
-              : {
-                  start: (input, next) =>
-                    hook(
-                      input as SignalWithStartWorkflowRequest,
-                      next as (
-                        input: SignalWithStartWorkflowRequest
-                      ) => Promise<nexus.NexusOperationHandle<SignalWithStartWorkflowResponse>>
-                    ) as Promise<nexus.NexusOperationHandle<unknown>>,
-                };
-          });
+          return 'signalWithStartWorkflow';
         default:
-          return [];
+          return undefined;
       }
     default:
-      return [];
+      return undefined;
   }
 }
