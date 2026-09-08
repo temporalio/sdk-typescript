@@ -22,7 +22,9 @@ import type {
   WorkflowOutboundCallsInterceptor,
   StartNexusOperationInput,
   StartNexusOperationOutput,
+  NexusOperationHandle,
   SignalWithStartWorkflowRequest,
+  SignalWithStartWorkflowResponse,
 } from '@temporalio/workflow';
 import {
   instrument,
@@ -228,7 +230,7 @@ export class OpenTelemetryOutboundInterceptor implements WorkflowOutboundCallsIn
   public async signalWithStartWorkflow(
     input: SignalWithStartWorkflowRequest,
     next: Next<WorkflowOutboundCallsInterceptor, 'signalWithStartWorkflow'>
-  ) {
+  ): Promise<NexusOperationHandle<SignalWithStartWorkflowResponse>> {
     return await instrument({
       tracer: this.tracer,
       spanName: `${SpanName.WORKFLOW_SIGNAL_WITH_START}${SPAN_DELIMITER}${extractWorkflowType(input.workflow)}`,
