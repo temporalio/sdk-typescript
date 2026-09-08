@@ -25,22 +25,27 @@ export function systemNexusSpecificInterceptorAdapters(
   operation: string,
   interceptors: readonly SystemNexusWorkflowOutboundCallsInterceptor[]
 ): SystemNexusSpecificInterceptorAdapter[] {
-  switch (`${service}/${operation}`) {
-    case 'temporal.api.workflowservice.v1.WorkflowService/SignalWithStartWorkflowExecution':
-      return interceptors.map((interceptor) => {
-        const hook = interceptor.signalWithStartWorkflow;
-        return hook == null
-          ? {}
-          : {
-              start: (input, next) =>
-                hook(
-                  input as SignalWithStartWorkflowRequest,
-                  next as (
-                    input: SignalWithStartWorkflowRequest
-                  ) => Promise<nexus.NexusOperationHandle<SignalWithStartWorkflowResponse>>
-                ) as Promise<nexus.NexusOperationHandle<unknown>>,
-            };
-      });
+  switch (service) {
+    case 'temporal.api.workflowservice.v1.WorkflowService':
+      switch (operation) {
+        case 'SignalWithStartWorkflowExecution':
+          return interceptors.map((interceptor) => {
+            const hook = interceptor.signalWithStartWorkflow;
+            return hook == null
+              ? {}
+              : {
+                  start: (input, next) =>
+                    hook(
+                      input as SignalWithStartWorkflowRequest,
+                      next as (
+                        input: SignalWithStartWorkflowRequest
+                      ) => Promise<nexus.NexusOperationHandle<SignalWithStartWorkflowResponse>>
+                    ) as Promise<nexus.NexusOperationHandle<unknown>>,
+                };
+          });
+        default:
+          return [];
+      }
     default:
       return [];
   }
