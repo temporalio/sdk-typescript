@@ -157,11 +157,6 @@ export function createNexusServiceClient<T extends nexus.ServiceDefinition>(
       const seq = activator.nextSeqs.nexusOperation++;
 
       if (options.endpoint === TEMPORAL_SYSTEM_NEXUS_ENDPOINT) {
-        const definition = systemNexusOperationDefinition(options.service.name, opName);
-        const inputType = operationDefinition?.inputType;
-        if (definition == null || inputType == null) {
-          throw new TypeError(`unsupported System Nexus operation: ${options.service.name}/${opName}`);
-        }
         return (await startSystemNexusOperationWithSpecificInterceptors({
           endpoint: options.endpoint,
           service: options.service.name,
@@ -172,7 +167,7 @@ export function createNexusServiceClient<T extends nexus.ServiceDefinition>(
           },
           headers: {},
           input,
-          inputType,
+          inputType: operationDefinition?.inputType,
           outputType: operationDefinition?.outputType,
           seq,
         })) as NexusOperationHandle<nexus.OperationOutput<O>>;
@@ -229,7 +224,7 @@ async function startSystemNexusOperationWithSpecificInterceptors<Output>(
   const generic = composeInterceptors(
     activator.interceptors.outbound,
     'startSystemNexusOperation',
-    startSystemNexusOperationNextHandler
+    startNexusOperationNextHandler
   );
 
   const makeHandle = async <Request, Result>(request: Request): Promise<NexusOperationHandle<Result>> => {
@@ -250,75 +245,6 @@ async function startSystemNexusOperationWithSpecificInterceptors<Output>(
     input.input,
     makeHandle
   )) as NexusOperationHandle<Output>;
-}
-
-function startSystemNexusOperationNextHandler({
-  input,
-  endpoint,
-  service,
-  options,
-  operation,
-  seq,
-  headers,
-  inputType,
-  outputType,
-}: StartNexusOperationInput): Promise<StartNexusOperationOutput> {
-  const activator = getActivator();
-  const definition = systemNexusOperationDefinition(service, operation);
-  if (definition == null) {
-    throw new TypeError(`unsupported System Nexus operation: ${service}/${operation}`);
-  }
-  const context = definition.serializationContext?.(input as any);
-  const outerPayloadConverter = systemNexusOuterPayloadConverter(context);
-  return new Promise<StartNexusOperationOutput>((resolve, reject) => {
-    const scope = CancellationScope.current();
-    if (scope.consideredCancelled) {
-      untrackPromise(scope.cancelRequested.catch(reject));
-      return;
-    }
-    if (scope.cancellable) {
-      untrackPromise(
-        scope.cancelRequested.catch(() => {
-          const completed =
-            !activator.completions.nexusOperationStart.has(seq) &&
-            !activator.completions.nexusOperationComplete.has(seq);
-          if (!completed) {
-            activator.pushCommand({
-              requestCancelNexusOperation: { seq },
-              eventGroupMarkers: eventGroupMarkersToProto(options?.eventGroups),
-            });
-          }
-        })
-      );
-    }
-    activator.pushCommand({
-      scheduleNexusOperation: {
-        seq,
-        endpoint,
-        service,
-        operation,
-        nexusHeader: headers,
-        input: withSystemNexusUserPayloadConverter(activator.payloadConverter, context, () =>
-          toPayloadWithTypeInfo(outerPayloadConverter, input, undefined, inputType)
-        ),
-        scheduleToCloseTimeout: msOptionalToTs(options?.scheduleToCloseTimeout),
-        scheduleToStartTimeout: msOptionalToTs(options?.scheduleToStartTimeout),
-        startToCloseTimeout: msOptionalToTs(options?.startToCloseTimeout),
-        cancellationType: encodeNexusOperationCancellationType(options?.cancellationType),
-      },
-      userMetadata: withSystemNexusUserPayloadConverter(activator.payloadConverter, context, () =>
-        userMetadataToPayload(activator.payloadConverter, options?.summary, undefined, context)
-      ),
-      eventGroupMarkers: eventGroupMarkersToProto(options?.eventGroups),
-    });
-    activator.systemNexusOperationContexts.set(seq, {
-      service,
-      operation,
-      context,
-      outputType,
-    });
-    activator.completions.nexusOperationStart.set(seq, { resolve, reject });
-  });
 }
 
 /**
@@ -355,11 +281,16 @@ function startNexusOperationNextHandler({
   outputType,
 }: StartNexusOperationInput): Promise<StartNexusOperationOutput> {
   const activator = getActivator();
-  const context = {
+  const workflowContext = {
     type: 'workflow' as const,
     namespace: activator.info.namespace,
     workflowId: activator.info.workflowId,
   };
+  const serialization = serializeNexusOperation(
+    { input, endpoint, service, options, operation, inputType, outputType },
+    activator.payloadConverter,
+    workflowContext
+  );
 
   return new Promise<StartNexusOperationOutput>((resolve, reject) => {
     const scope = CancellationScope.current();
@@ -393,22 +324,73 @@ function startNexusOperationNextHandler({
         service,
         operation,
         nexusHeader: headers,
-        input: toPayloadWithTypeInfo(activator.payloadConverter, input, context, inputType),
+        input: serialization.input,
         scheduleToCloseTimeout: msOptionalToTs(options?.scheduleToCloseTimeout),
         scheduleToStartTimeout: msOptionalToTs(options?.scheduleToStartTimeout),
         startToCloseTimeout: msOptionalToTs(options?.startToCloseTimeout),
         cancellationType: encodeNexusOperationCancellationType(options?.cancellationType),
       },
-      userMetadata: userMetadataToPayload(activator.payloadConverter, options?.summary, undefined, context),
+      userMetadata: serialization.userMetadata,
       eventGroupMarkers: eventGroupMarkersToProto(options?.eventGroups),
     });
 
-    activator.completions.nexusOperationStart.set(seq, {
-      resolve,
-      reject,
-      outputTypeInfo: outputType,
-    });
+    if (serialization.systemNexus != null) {
+      activator.systemNexusOperationContexts.set(seq, {
+        service,
+        operation,
+        context: serialization.systemNexus.context,
+        outputType,
+      });
+      activator.completions.nexusOperationStart.set(seq, { resolve, reject });
+    } else {
+      activator.completions.nexusOperationStart.set(seq, {
+        resolve,
+        reject,
+        outputTypeInfo: outputType,
+      });
+    }
   });
+}
+
+interface SerializedNexusOperation {
+  input: ReturnType<PayloadConverter['toPayload']>;
+  userMetadata: ReturnType<typeof userMetadataToPayload>;
+  systemNexus?: { context?: SerializationContext };
+}
+
+/**
+ * Selects the wire representation and completion metadata for an operation.
+ * System Nexus uses a transfer envelope; all other endpoints use the ordinary
+ * Workflow payload representation.
+ */
+function serializeNexusOperation(
+  { input, endpoint, service, options, operation, inputType }: Omit<StartNexusOperationInput, 'seq' | 'headers'>,
+  payloadConverter: PayloadConverter,
+  workflowContext: SerializationContext
+): SerializedNexusOperation {
+  if (endpoint !== TEMPORAL_SYSTEM_NEXUS_ENDPOINT) {
+    return {
+      input: toPayloadWithTypeInfo(payloadConverter, input, workflowContext, inputType),
+      userMetadata: userMetadataToPayload(payloadConverter, options?.summary, undefined, workflowContext),
+      systemNexus: undefined,
+    };
+  }
+
+  const definition = systemNexusOperationDefinition(service, operation);
+  if (definition == null || inputType == null) {
+    throw new TypeError(`unsupported System Nexus operation: ${service}/${operation}`);
+  }
+  const context = definition.serializationContext?.(input as any);
+  const outerPayloadConverter = systemNexusOuterPayloadConverter(context);
+  return {
+    input: withSystemNexusUserPayloadConverter(payloadConverter, context, () =>
+      toPayloadWithTypeInfo(outerPayloadConverter, input, undefined, inputType)
+    ),
+    userMetadata: withSystemNexusUserPayloadConverter(payloadConverter, context, () =>
+      userMetadataToPayload(payloadConverter, options?.summary, undefined, context)
+    ),
+    systemNexus: { context },
+  };
 }
 
 /**
