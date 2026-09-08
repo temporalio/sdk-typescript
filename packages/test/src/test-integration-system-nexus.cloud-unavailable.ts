@@ -1,9 +1,13 @@
 import { randomUUID } from 'crypto';
 import type { Payload, PayloadCodec, SerializationContext } from '@temporalio/common';
-import { defaultPayloadConverter } from '@temporalio/common';
+import { defaultPayloadConverter, ExternalStorage } from '@temporalio/common';
+import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
+import { isReferencePayload } from '@temporalio/common/lib/internal-non-workflow';
+import * as protoRoot from '@temporalio/proto';
 import { defineSignal, setHandler } from '@temporalio/workflow';
 import type { WorkflowInterceptors } from '@temporalio/workflow';
 import { signalWithStartWorkflow } from '@temporalio/workflow/lib/nexus/system/generated/operations/signal-with-start-workflow';
+import { makeFakeDriver } from './extstore-fake-driver';
 import { helpers, makeTestFunction } from './helpers-integration';
 
 const test = makeTestFunction({
@@ -22,6 +26,7 @@ const test = makeTestFunction({
 });
 
 export const systemNexusSignal = defineSignal<[string]>('system-nexus-signal');
+export const systemNexusLargeSignal = defineSignal<[Uint8Array]>('system-nexus-large-signal');
 const interceptorCalls: string[] = [];
 let interceptedNamespace: string | undefined;
 
@@ -108,6 +113,33 @@ export async function systemNexusCaller(
   return { workflowId: target.workflowId, runId: target.runId, calls: interceptorCalls, namespace: interceptedNamespace };
 }
 
+export async function systemNexusExternalStorageTarget(startArgument: Uint8Array): Promise<[number, number]> {
+  let resolveSignal!: (value: Uint8Array) => void;
+  const signal = new Promise<Uint8Array>((resolve) => {
+    resolveSignal = resolve;
+  });
+  setHandler(systemNexusLargeSignal, (value) => resolveSignal(value));
+  return [startArgument.byteLength, (await signal).byteLength];
+}
+
+export async function systemNexusExternalStorageCaller(
+  targetWorkflowId: string,
+  taskQueue: string,
+  payloadSize: number
+): Promise<{ workflowId: string; runId?: string }> {
+  const payload = new Uint8Array(payloadSize).fill(1);
+  const target = await signalWithStartWorkflow({
+    workflow: systemNexusExternalStorageTarget,
+    args: [payload],
+    id: targetWorkflowId,
+    taskQueue,
+    signal: systemNexusLargeSignal,
+    signalArgs: [payload],
+    memo: { payload },
+  });
+  return { workflowId: target.workflowId, runId: target.runId };
+}
+
 test('signal-with-start invokes the generated public API from a workflow', async (t) => {
   const { createWorker, startWorkflow, taskQueue } = helpers(t);
   const codec = new ContextRecordingCodec();
@@ -141,4 +173,36 @@ test('signal-with-start invokes the generated public API from a workflow', async
       contexts.map(() => expectedContext)
     );
   }
+});
+
+test('signal-with-start externally stores payloads nested in its request envelope', async (t) => {
+  const { createWorker, startWorkflow, taskQueue } = helpers(t);
+  const driver = makeFakeDriver();
+  const payloadSize = 4096;
+  const worker = await createWorker({
+    dataConverter: { externalStorage: new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 }) },
+  });
+  const targetWorkflowId = `system-nexus-extstore-target-${randomUUID()}`;
+  const caller = await startWorkflow(systemNexusExternalStorageCaller, {
+    args: [targetWorkflowId, taskQueue, payloadSize],
+  });
+  const target = await worker.runUntil(caller.result());
+
+  t.deepEqual(await t.context.env.client.workflow.getHandle(target.workflowId, target.runId).result(), [
+    payloadSize,
+    payloadSize,
+  ]);
+  const { events } = await caller.fetchHistory();
+  const envelope = events?.find((event) => event.nexusOperationScheduledEventAttributes != null)
+    ?.nexusOperationScheduledEventAttributes?.input;
+  t.truthy(envelope, 'expected the System Nexus operation envelope in caller history');
+  t.false(isReferencePayload(envelope!), 'the outer System Nexus envelope must remain inline');
+  const request = new ProtobufBinaryPayloadConverter(protoRoot).fromPayload<any>(envelope!);
+  t.true(isReferencePayload(request.input?.payloads?.[0]), 'workflow argument should be externally stored');
+  t.true(isReferencePayload(request.signalInput?.payloads?.[0]), 'signal argument should be externally stored');
+  t.true(isReferencePayload(request.memo?.fields?.payload), 'memo value should be externally stored');
+  t.deepEqual(
+    driver.storeCalls.map((call) => call.context.target?.id),
+    [targetWorkflowId, targetWorkflowId, targetWorkflowId]
+  );
 });
