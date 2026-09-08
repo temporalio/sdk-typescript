@@ -141,7 +141,7 @@ export async function activityFailure(useApplicationFailure: boolean): Promise<v
   if (useApplicationFailure) {
     await throwAnError(true, 'Fail me');
   } else {
-    await throwAnError(false, 'Fail me');
+    await throwAnError(false, 'Fail me', 'Root cause');
   }
 }
 
@@ -169,6 +169,7 @@ test.serial('activity-failure with Error', configMacro, async (t, config) => {
     return;
   }
   t.is(err.cause.cause.message, 'Fail me');
+  t.is(err.cause.cause.cause?.message, 'Root cause');
   compareStackTrace(
     t,
     cleanOptionalStackTrace(err.cause.cause.stack)!,

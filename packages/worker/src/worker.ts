@@ -190,6 +190,8 @@ interface WorkflowWithLogAttributes {
   info: WorkflowInfo;
 }
 
+class WorkflowDisposeError extends UnexpectedError {}
+
 function addBuildIdIfMissing(options: CompiledWorkerOptions, bundleCode?: string): CompiledWorkerOptionsWithBuildId {
   const bid = options.buildId;
   if (bid != null) {
@@ -1533,7 +1535,11 @@ export class Worker {
       activation.jobs = jobs;
       if (jobs.length === 0) {
         this.logger.trace('Disposing workflow', workflow ? workflow.logAttributes : { runId: activation.runId });
-        await workflow?.workflow.dispose();
+        try {
+          await workflow?.workflow.dispose();
+        } catch (cause) {
+          throw new WorkflowDisposeError('Failed to dispose Workflow during eviction', cause);
+        }
         if (!close) {
           throw new IllegalStateError('Got a Workflow activation with no jobs');
         }
@@ -1645,6 +1651,16 @@ export class Worker {
         workflowExists: workflow !== undefined,
       });
 
+      if (error instanceof WorkflowDisposeError) {
+        const completion = synthetic
+          ? undefined
+          : coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
+              runId: activation.runId,
+              successful: {},
+            }).finish();
+        return { state: undefined, output: { close: true, completion } };
+      }
+
       const completion = coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
         runId: activation.runId,
         failed: {
@@ -1654,7 +1670,7 @@ export class Worker {
 
       // We do not dispose of the Workflow yet, wait to be evicted from Core.
       // This is done to simplify the Workflow lifecycle so Core is the sole driver.
-      return { state: undefined, output: { close: true, completion } };
+      return { state: workflow, output: { close: false, completion } };
     }
   }
 

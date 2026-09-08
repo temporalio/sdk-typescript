@@ -5,6 +5,7 @@ import {
   convertActivityLinkToNexusLink,
   convertNexusLinkToTemporalLink,
   convertNexusLinkToWorkflowEventLink,
+  convertNexusLinkToWorkflowLink,
   convertNexusOperationLinkToNexusLink,
   convertTemporalLinkToNexusLink,
   convertWorkflowEventLinkToNexusLink,
@@ -140,14 +141,26 @@ test('convertActivityLinkToNexusLink escapes URL path components', (t) => {
   t.deepEqual(roundTrip, { activity });
 });
 
-test('convertWorkflowLinkToNexusLink produces a history URL with the Workflow link type', (t) => {
+test('convertWorkflowLinkToNexusLink produces a workflow URL with the Workflow link type', (t) => {
+  // A Workflow link addresses the execution itself, so there is no '/history' suffix. That suffix
+  // belongs to the workflow event form, and its absence is what distinguishes the two paths.
   const nexusLink = convertWorkflowLinkToNexusLink({
     namespace: 'ns',
     workflowId: 'wid',
     runId: 'rid',
   });
   t.is(nexusLink.type, WORKFLOW_TYPE);
-  t.is(nexusLink.url.toString(), 'temporal:///namespaces/ns/workflows/wid/rid/history');
+  t.is(nexusLink.url.toString(), 'temporal:///namespaces/ns/workflows/wid/rid');
+});
+
+test('convertWorkflowLinkToNexusLink carries reason as a query param', (t) => {
+  const nexusLink = convertWorkflowLinkToNexusLink({
+    namespace: 'ns',
+    workflowId: 'wid',
+    runId: 'rid',
+    reason: 'rejected update',
+  });
+  t.is(nexusLink.url.toString(), 'temporal:///namespaces/ns/workflows/wid/rid?reason=rejected+update');
 });
 
 test('convertWorkflowLinkToNexusLink escapes URL path components', (t) => {
@@ -156,7 +169,7 @@ test('convertWorkflowLinkToNexusLink escapes URL path components', (t) => {
     workflowId: 'work id',
     runId: 'run/id',
   });
-  t.is(nexusLink.url.toString(), 'temporal:///namespaces/name%2Fspace/workflows/work%20id/run%2Fid/history');
+  t.is(nexusLink.url.toString(), 'temporal:///namespaces/name%2Fspace/workflows/work%20id/run%2Fid');
 });
 
 test('convertWorkflowLinkToNexusLink throws on missing required fields', (t) => {
@@ -166,8 +179,8 @@ test('convertWorkflowLinkToNexusLink throws on missing required fields', (t) => 
   t.throws(() => convertWorkflowLinkToNexusLink({ namespace: 'ns', workflowId: '', runId: 'rid' }), {
     instanceOf: TypeError,
   });
-  // An empty run ID would produce `.../workflows/wid//history`, whose double slash does not resolve
-  // to a valid UI page, so the converter rejects it rather than emit a malformed URL.
+  // An empty run ID would address no particular run, so the converter rejects it and lets the
+  // caller drop the link rather than attach one that resolves nowhere useful.
   t.throws(() => convertWorkflowLinkToNexusLink({ namespace: 'ns', workflowId: 'wid', runId: '' }), {
     instanceOf: TypeError,
   });
@@ -380,4 +393,109 @@ test('throws on unknown eventType in requestIdRef', (t) => {
     type: WORKFLOW_EVENT_TYPE,
   };
   t.throws(() => convertNexusLinkToWorkflowEventLink(fakeLink), { message: /Unknown eventType parameter/ });
+});
+
+test('convertNexusLinkToWorkflowLink parses a workflow URL', (t) => {
+  const workflowLink = convertNexusLinkToWorkflowLink({
+    url: new URL('temporal:///namespaces/ns/workflows/wid/rid'),
+    type: WORKFLOW_TYPE,
+  });
+  t.deepEqual(workflowLink, { namespace: 'ns', workflowId: 'wid', runId: 'rid' });
+});
+
+test('convertNexusLinkToWorkflowLink parses reason', (t) => {
+  const workflowLink = convertNexusLinkToWorkflowLink({
+    url: new URL('temporal:///namespaces/ns/workflows/wid/rid?reason=rejected+update'),
+    type: WORKFLOW_TYPE,
+  });
+  t.is(workflowLink.reason, 'rejected update');
+});
+
+test('convertNexusLinkToWorkflowLink finds reason by key, not position', (t) => {
+  const workflowLink = convertNexusLinkToWorkflowLink({
+    url: new URL('temporal:///namespaces/ns/workflows/wid/rid?foo=bar&reason=Query+processed'),
+    type: WORKFLOW_TYPE,
+  });
+  t.is(workflowLink.reason, 'Query processed');
+});
+
+test('convertNexusLinkToWorkflowLink leaves reason unset when absent', (t) => {
+  // A key that merely starts with 'reason' must not be treated as 'reason'.
+  const workflowLink = convertNexusLinkToWorkflowLink({
+    url: new URL('temporal:///namespaces/ns/workflows/wid/rid?reasonx=nope'),
+    type: WORKFLOW_TYPE,
+  });
+  t.is(workflowLink.reason, undefined);
+});
+
+test('convertNexusLinkToWorkflowLink rejects a trailing path segment', (t) => {
+  // The workflow event form addresses an event inside the Workflow, so it must not be accepted as a
+  // Workflow link even when the type says otherwise.
+  t.throws(
+    () =>
+      convertNexusLinkToWorkflowLink({
+        url: new URL('temporal:///namespaces/ns/workflows/wid/rid/history'),
+        type: WORKFLOW_TYPE,
+      }),
+    { instanceOf: TypeError }
+  );
+});
+
+test('convertNexusLinkToWorkflowLink rejects a missing run ID', (t) => {
+  t.throws(
+    () =>
+      convertNexusLinkToWorkflowLink({
+        url: new URL('temporal:///namespaces/ns/workflows/wid'),
+        type: WORKFLOW_TYPE,
+      }),
+    { instanceOf: TypeError }
+  );
+});
+
+test('convertNexusLinkToWorkflowEventLink rejects a suffixless workflow path', (t) => {
+  // The inverse of the trailing-segment case: a Workflow link must not be readable as a workflow
+  // event.
+  t.throws(
+    () =>
+      convertNexusLinkToWorkflowEventLink({
+        url: new URL('temporal:///namespaces/ns/workflows/wid/rid'),
+        type: WORKFLOW_EVENT_TYPE,
+      }),
+    { instanceOf: TypeError }
+  );
+});
+
+test('convertNexusLinkToTemporalLink dispatches the Workflow link type', (t) => {
+  const temporalLink = convertNexusLinkToTemporalLink({
+    url: new URL('temporal:///namespaces/ns/workflows/wid/rid?reason=Query+processed'),
+    type: WORKFLOW_TYPE,
+  });
+  t.deepEqual(temporalLink, {
+    workflow: { namespace: 'ns', workflowId: 'wid', runId: 'rid', reason: 'Query processed' },
+  });
+});
+
+test('Workflow link round trips through both converters', (t) => {
+  // Reserved characters in every field at once: path segments are percent escaped and the reason is a
+  // query value, so a reason containing '=' and '&' must not be split as query syntax.
+  const workflowLink = {
+    namespace: 'ns/with/slash',
+    workflowId: 'wf id with space',
+    runId: 'rid',
+    reason: 'reason with = and &',
+  };
+  t.deepEqual(convertNexusLinkToWorkflowLink(convertWorkflowLinkToNexusLink(workflowLink)), workflowLink);
+});
+
+test('Workflow link reason round trips a literal plus', (t) => {
+  // URLSearchParams form encodes, writing a space as '+' and a literal '+' as '%2B', and its reader
+  // reverses that. Percent decoding alone would turn this reason into 'a b'.
+  const nexusLink = convertWorkflowLinkToNexusLink({
+    namespace: 'ns',
+    workflowId: 'wid',
+    runId: 'rid',
+    reason: 'a+b',
+  });
+  t.is(nexusLink.url.search, '?reason=a%2Bb');
+  t.is(convertNexusLinkToWorkflowLink(nexusLink).reason, 'a+b');
 });

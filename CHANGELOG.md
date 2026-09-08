@@ -104,8 +104,14 @@ to docs, or any other relevant information.
 
 ### Changed
 
+- A workflow query issued from inside a Nexus operation handler now propagates the link the server
+  returns for the workflow that processed it, so the caller's Nexus operation event points back at
+  the queried workflow.
 - Nexus is now generally available (GA) for calling Nexus Operations from Workflows and handling
   Workflow-backed Operations with `WorkflowRunOperationHandler`.
+- A `common.v1.Link.Workflow` now serializes to `temporal:///namespaces/{ns}/workflows/{wid}/{rid}`
+  with the optional `reason` as a query param, matching the other SDKs; previously it reused the
+  workflow event path and dropped `reason`. Inbound Workflow links are now parsed as well.
 - `@temporalio/ai-sdk` now requires `ai@>=7.0.59` as a peer dependency, up from `7.0.0`, since
   earlier releases threw a `TypeError` on import in runtimes without a global `fetch`.
 - A Payload Converter or Payload Codec that fails to decode a Nexus Operation's input with a
@@ -119,9 +125,12 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- Activity errors converted to `ApplicationFailure` now preserve native `Error.cause` chains in serialized failures.
 - Nexus handlers now report uncaught Workflow and standalone Activity already-started errors as
   non-retryable `INTERNAL` Handler Errors, preventing retries when ID reuse or conflict
   policies reject duplicate execution IDs.
+- Workflow activation failures now retain Workflow state until Core eviction, preventing premature
+  execution-context disposal after converter or codec errors.
 - Local Activities now fall back to a registered `default` activity when the requested type is not
   registered, matching non-local Activity dispatch. Previously the Workflow Task failed immediately
   with `ReferenceError` even if `default` was registered.
