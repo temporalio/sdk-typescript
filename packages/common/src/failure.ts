@@ -1,5 +1,5 @@
 import type { temporal } from '@temporalio/proto';
-import { errorMessage, isRecord, SymbolBasedInstanceOfError } from './type-helpers';
+import { errorMessage, isError, isRecord, SymbolBasedInstanceOfError } from './type-helpers';
 import type { Duration } from './time';
 import { makeProtoEnumConverters } from './internal-workflow';
 
@@ -182,6 +182,7 @@ export class ServerFailure extends TemporalFailure {
  * - `message` is set to `error.message`
  * - `nonRetryable` is set to false
  * - `details` are set to null
+ * - `cause` is set to `error.cause` when it is an `Error`
  * - stack trace is copied from the original error
  *
  * When an {@link https://docs.temporal.io/activity-execution#activity-execution | Activity Execution} fails, the
@@ -442,6 +443,7 @@ export class WorkflowExecutionAlreadyStartedError extends TemporalFailure {
  * - `message`: `error.message` or `String(error)`
  * - `type`: `error.constructor.name` or `error.name`
  * - `stack`: `error.stack` or `''`
+ * - `cause`: `error.cause` when it is an `Error`
  */
 export function ensureApplicationFailure(error: unknown): ApplicationFailure {
   if (error instanceof ApplicationFailure) {
@@ -450,7 +452,8 @@ export function ensureApplicationFailure(error: unknown): ApplicationFailure {
 
   const message = (isRecord(error) && String(error.message)) || String(error);
   const type = (isRecord(error) && (error.constructor?.name ?? error.name)) || undefined;
-  const failure = ApplicationFailure.create({ message, type, nonRetryable: false });
+  const cause = isRecord(error) && isError(error.cause) ? error.cause : undefined;
+  const failure = ApplicationFailure.create({ message, type, nonRetryable: false, cause });
   failure.stack = (isRecord(error) && String(error.stack)) || '';
   return failure;
 }

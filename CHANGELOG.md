@@ -123,6 +123,7 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- Activity errors converted to `ApplicationFailure` now preserve native `Error.cause` chains in serialized failures.
 - Nexus handlers now report uncaught Workflow and standalone Activity already-started errors as
   non-retryable `INTERNAL` Handler Errors, preventing retries when ID reuse or conflict
   policies reject duplicate execution IDs.
