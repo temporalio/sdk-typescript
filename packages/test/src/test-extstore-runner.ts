@@ -3,7 +3,11 @@ import test from 'ava';
 import { ValueError, type Payload } from '@temporalio/common';
 import { ExternalStorage } from '@temporalio/common/lib/converter/extstore';
 import type { StorageDriverSelectContext, StorageDriverTargetInfo } from '@temporalio/common/lib/converter/extstore';
-import { ExternalStorageRunner, isReferencePayload } from '@temporalio/common/lib/internal-non-workflow';
+import {
+  ExternalStorageMetricsAccumulator,
+  ExternalStorageRunner,
+  isReferencePayload,
+} from '@temporalio/common/lib/internal-non-workflow';
 import { encode } from '@temporalio/common/lib/encoding';
 import { METADATA_ENCODING_KEY } from '@temporalio/common/lib/converter/types';
 import { makeFakeDriver } from './extstore-fake-driver';
@@ -206,6 +210,27 @@ test('store/retrieve round-trip preserves order across drivers', async (t) => {
 
   const retrievedPayloads = await runner.retrieve(storedPayloads);
   t.deepEqual(retrievedPayloads, inputPayloads);
+});
+
+test('store and retrieve report the same total size', async (t) => {
+  const driver = makeFakeDriver({ name: 's3' });
+  const storage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 });
+
+  const uploadMetrics = new ExternalStorageMetricsAccumulator();
+  const storedPayloads = await new ExternalStorageRunner(storage, uploadMetrics).store([
+    makePayload(64),
+    makePayload(128),
+  ]);
+
+  const downloadMetrics = new ExternalStorageMetricsAccumulator();
+  await new ExternalStorageRunner(storage, downloadMetrics).retrieve(storedPayloads);
+
+  const uploaded = uploadMetrics.toProto()!;
+  const downloaded = downloadMetrics.toProto()!;
+  t.is(downloaded.payloadCount!.toNumber(), 2);
+  // retrieve takes each size from its reference, so both directions report the same bytes.
+  t.is(downloaded.totalSizeBytes!.toNumber(), uploaded.totalSizeBytes!.toNumber());
+  t.true(downloaded.totalSizeBytes!.toNumber() > 0);
 });
 
 test('retrieve raises ValueError when the driver name is unknown', async (t) => {

@@ -100,6 +100,8 @@ to docs, or any other relevant information.
   is a new form of Workflow-level metadata that allows for improved
   visibility into a Workflow execution's history by grouping logically
   related Events together based on user-defined or system-inferred criteria.
+- **Experimental**: External Storage download and upload metrics are now reported to Core on Workflow Activation
+  completions and included in its workflow-task duration log.
 
 ### Changed
 
@@ -124,9 +126,12 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- Activity errors converted to `ApplicationFailure` now preserve native `Error.cause` chains in serialized failures.
 - Nexus handlers now report uncaught Workflow and standalone Activity already-started errors as
   non-retryable `INTERNAL` Handler Errors, preventing retries when ID reuse or conflict
   policies reject duplicate execution IDs.
+- Workflow activation failures now retain Workflow state until Core eviction, preventing premature
+  execution-context disposal after converter or codec errors.
 - Local Activities now fall back to a registered `default` activity when the requested type is not
   registered, matching non-local Activity dispatch. Previously the Workflow Task failed immediately
   with `ReferenceError` even if `default` was registered.

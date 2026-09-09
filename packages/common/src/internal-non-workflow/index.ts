@@ -7,6 +7,7 @@ export * from './codec-helpers';
 export * from './codec-types';
 export * from './data-converter-helpers';
 export * from './extstore-helpers';
+export * from './external-storage-metrics';
 export * from './external-storage-runner';
 export * from './external-storage-visitor';
 export * from './payload-visitor';
