@@ -6,7 +6,6 @@ import {
   SYSTEM_NEXUS_CONTEXT_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE,
-  TEMPORAL_SYSTEM_NEXUS_ENDPOINT,
 } from '@temporalio/common/lib/internal-workflow';
 import {
   decode,
@@ -32,12 +31,9 @@ function operationDefinition(
   return operationRegistry.find((entry) => entry.service === service && entry.operation === operation);
 }
 
-/** Whether this is a marked System Nexus outer envelope on the reserved endpoint. */
-export function isSystemNexusEnvelope(
-  endpoint: string | null | undefined,
-  payload: Payload | null | undefined
-): boolean {
-  if (endpoint !== TEMPORAL_SYSTEM_NEXUS_ENDPOINT || payload == null) return false;
+/** Whether this payload is a marked System Nexus outer envelope. */
+export function isSystemNexusEnvelope(payload: Payload | null | undefined): boolean {
+  if (payload == null) return false;
   const marker = payload.metadata?.[SYSTEM_NEXUS_PAYLOAD_METADATA_KEY];
   return marker != null && bytesEqual(marker, SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE);
 }
