@@ -38,6 +38,7 @@ import {
   decodeFromPayloadsAtIndex,
   encodeErrorToFailure,
   encodeToPayload,
+  ExternalStorageMetricsAccumulator,
   extstoreInboundOptions,
   extstoreStoreOptions,
   visit,
@@ -1565,7 +1566,15 @@ export class Worker {
         });
       }
       const { externalStorage } = this.options.loadedDataConverter;
-      await visit(activation, walkWorkflowActivation, extstoreInboundOptions(externalStorage));
+      // Measure external-storage work so Core can include it in its workflow-task duration log;
+      // Core measures the duration itself.
+      const downloadMetrics = externalStorage ? new ExternalStorageMetricsAccumulator() : undefined;
+      let uploadMetrics: ExternalStorageMetricsAccumulator | undefined;
+      await visit(
+        activation,
+        walkWorkflowActivation,
+        extstoreInboundOptions(externalStorage, { metrics: downloadMetrics })
+      );
       const decodedActivation = await workflowCodecRunner.decodeActivation(activation);
 
       if (workflow === undefined) {
@@ -1585,6 +1594,7 @@ export class Worker {
         // Skip extstore.store on replay: the completion is discarded and its payloads were already offloaded on the original run.
         if (externalStorage && !this.isReplayWorker) {
           const namespace = workflowCodecRunner.workflowContext.namespace;
+          uploadMetrics = new ExternalStorageMetricsAccumulator();
           await visit(
             encodedCompletion,
             walkWorkflowActivationCompletion,
@@ -1597,9 +1607,12 @@ export class Worker {
                 type: workflow.info.workflowType,
               },
               deriveContext: workflowCommandStoreTarget(namespace, workflow.info),
+              metrics: uploadMetrics,
             })
           );
         }
+        encodedCompletion.payloadDownloadMetrics = downloadMetrics?.toProto();
+        encodedCompletion.payloadUploadMetrics = uploadMetrics?.toProto();
         const completion =
           coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited(encodedCompletion).finish();
 

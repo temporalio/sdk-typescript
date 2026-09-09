@@ -99,6 +99,8 @@ to docs, or any other relevant information.
   is a new form of Workflow-level metadata that allows for improved
   visibility into a Workflow execution's history by grouping logically
   related Events together based on user-defined or system-inferred criteria.
+- **Experimental**: External Storage download and upload metrics are now reported to Core on Workflow Activation
+  completions and included in its workflow-task duration log.
 
 ### Changed
 
