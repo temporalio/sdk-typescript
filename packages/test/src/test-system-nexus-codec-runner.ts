@@ -159,3 +159,28 @@ test('signal-with-start requires serialization context metadata', async (t) => {
     { message: 'missing System Nexus serialization context metadata' }
   );
 });
+
+test('a marked System Nexus envelope is rewritten independently of its endpoint', async (t) => {
+  const runner = new WorkflowCodecRunner([], {
+    type: 'workflow',
+    namespace: 'caller-ns',
+    workflowId: 'caller-id',
+  });
+  const encoded = await runner.encodeCompletion({
+    successful: {
+      commands: [
+        {
+          scheduleNexusOperation: {
+            seq: 42,
+            endpoint: 'an-ordinary-endpoint',
+            service: 'temporal.api.workflowservice.v1.WorkflowService',
+            operation: 'SignalWithStartWorkflowExecution',
+            input: systemNexusEnvelope({}, targetContext),
+          },
+        },
+      ],
+    },
+  });
+  const envelope = encoded.successful?.commands?.[0]?.scheduleNexusOperation?.input;
+  t.deepEqual(new ProtobufBinaryPayloadConverter(protoRoot).fromPayload(envelope!), {});
+});

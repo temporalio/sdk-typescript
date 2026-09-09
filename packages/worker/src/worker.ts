@@ -1602,7 +1602,7 @@ export class Worker {
           }> = [];
           for (const command of encodedCompletion.successful?.commands ?? []) {
             const schedule = command.scheduleNexusOperation;
-            if (schedule?.input != null && isSystemNexusEnvelope(schedule.endpoint, schedule.input)) {
+            if (schedule?.input != null && isSystemNexusEnvelope(schedule.input)) {
               systemNexusInputs.push({ command: schedule, payload: schedule.input });
               schedule.input = undefined;
             }
