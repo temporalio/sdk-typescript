@@ -37,6 +37,7 @@ import type {
   ActivityHandle,
   ActivityOptions,
   ActivityOptionsUpdate,
+  ActivityOptionsUpdateResult,
   ActivityPauseOptions,
   ActivityUnpauseOptions,
 } from './activity-client';
@@ -422,7 +423,7 @@ export interface ActivityClientInterceptor {
   updateOptions?: (
     input: ActivityUpdateOptionsInput,
     next: Next<this, 'updateOptions'>
-  ) => Promise<ActivityOptionsUpdate>;
+  ) => Promise<ActivityOptionsUpdateResult>;
   /**
    * Intercept a service call to updateActivityExecutionOptions(restoreOriginal=true)
    */

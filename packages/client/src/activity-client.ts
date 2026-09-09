@@ -299,7 +299,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
         });
       },
 
-      async updateOptions(options: ActivityOptionsUpdate): Promise<ActivityOptionsUpdate> {
+      async updateOptions(options: ActivityOptionsUpdate): Promise<ActivityOptionsUpdateResult> {
         return await this.client.interceptedHandlers.updateOptions({
           activityId: this.activityId,
           activityRunId: this.runId ?? '',
@@ -603,7 +603,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
     }
   }
 
-  protected async updateOptionsHandler(input: ActivityUpdateOptionsInput): Promise<ActivityOptionsUpdate> {
+  protected async updateOptionsHandler(input: ActivityUpdateOptionsInput): Promise<ActivityOptionsUpdateResult> {
     if (!input.activityId) {
       throw new TypeError('activityId is required');
     }
@@ -654,7 +654,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
         },
         updateMask: { paths },
       });
-      return activityOptionsUpdateFromProto(resp.activityOptions);
+      return buildActivityOptionsUpdateResult(resp.activityOptions);
     } catch (err) {
       this.rethrowGrpcError(err, 'Failed to update activity options');
     }
@@ -676,7 +676,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
         requestId: randomUUID(),
         restoreOriginal: true,
       });
-      return activityOptionsUpdateFromProto(resp.activityOptions);
+      return buildActivityOptionsUpdateResult(resp.activityOptions);
     } catch (err) {
       this.rethrowGrpcError(err, 'Failed to restore original activity options');
     }
@@ -911,7 +911,7 @@ export interface ActivityOptionsUpdate {
  */
 export type ActivityOptionsUpdateResult = {
   [K in keyof ActivityOptionsUpdate]: Exclude<ActivityOptionsUpdate[K], null>;
-}
+};
 
 function validateActivityOptions(options: ActivityOptions): void {
   if (!options.id) {
@@ -996,9 +996,9 @@ function buildActivityDescription(
   };
 }
 
-function activityOptionsUpdateFromProto(
+function buildActivityOptionsUpdateResult(
   proto?: temporal.api.activity.v1.IActivityOptions | null
-): ActivityOptionsUpdate {
+): ActivityOptionsUpdateResult {
   return {
     taskQueue: proto?.taskQueue?.name || undefined,
     scheduleToCloseTimeout: optionalTsToNonZeroMs(proto?.scheduleToCloseTimeout),
