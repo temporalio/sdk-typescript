@@ -4,7 +4,7 @@
  *
  * @module
  */
-import type { ConcurrencyLimit } from '../concurrency/limit';
+import { limit as concurrencyLimit, type ConcurrencyLimit } from '../concurrency/limit';
 import type { ExternalStorage, StorageDriverTargetInfo } from '../converter/extstore';
 import { ExternalStorageNotConfiguredError } from '../errors';
 import type { Payload } from '../interfaces';
@@ -25,7 +25,10 @@ export interface ExternalStorageStoreOptions {
   initialTarget?: StorageDriverTargetInfo;
   /** Derives new storage target from the current message. */
   deriveContext?: ContextDeriver<StoreTarget>;
-  /** Bounds concurrent transform calls across payload sites. Omit for sequential. */
+  /**
+   * Bounds concurrent transform calls across payload sites. Omit to derive one from
+   * {@link ExternalStorage.maxConcurrentOperations}.
+   */
   limit?: ConcurrencyLimit;
   /** Aborts the walk and every in-flight driver call. */
   abortSignal?: AbortSignal;
@@ -37,7 +40,12 @@ export interface ExternalStorageStoreOptions {
  */
 export function extstoreStoreOptions(
   externalStorage: ExternalStorage,
-  { initialTarget, deriveContext, limit, abortSignal }: ExternalStorageStoreOptions = {}
+  {
+    initialTarget,
+    deriveContext,
+    limit = concurrencyLimit(externalStorage.maxConcurrentOperations),
+    abortSignal,
+  }: ExternalStorageStoreOptions = {}
 ): VisitOptions<StoreTarget> {
   const runner = new ExternalStorageRunner(externalStorage);
   return {
@@ -55,7 +63,10 @@ export function extstoreStoreOptions(
 
 function extstoreRetrieveOptions(
   externalStorage: ExternalStorage,
-  { limit, abortSignal }: { limit?: ConcurrencyLimit; abortSignal?: AbortSignal } = {}
+  {
+    limit = concurrencyLimit(externalStorage.maxConcurrentOperations),
+    abortSignal,
+  }: { limit?: ConcurrencyLimit; abortSignal?: AbortSignal } = {}
 ): VisitOptions<void> {
   const runner = new ExternalStorageRunner(externalStorage);
   return {

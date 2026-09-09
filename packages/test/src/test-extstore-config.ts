@@ -67,6 +67,23 @@ test('ExternalStorage accepts payloadSizeThreshold = 0', (t) => {
   t.is(config.payloadSizeThreshold, 0);
 });
 
+test('ExternalStorage defaults maxConcurrentOperations to 3', (t) => {
+  const config = new ExternalStorage({ drivers: [stubDriver('only')] });
+  t.is(config.maxConcurrentOperations, 3);
+});
+
+test('ExternalStorage rejects a non-positive maxConcurrentOperations', (t) => {
+  t.throws(() => new ExternalStorage({ drivers: [stubDriver('only')], maxConcurrentOperations: 0 }), {
+    instanceOf: ValueError,
+  });
+});
+
+test('ExternalStorage rejects a non-integer maxConcurrentOperations', (t) => {
+  t.throws(() => new ExternalStorage({ drivers: [stubDriver('only')], maxConcurrentOperations: 1.5 }), {
+    instanceOf: ValueError,
+  });
+});
+
 test('ExternalStorage rejects negative payloadSizeThreshold', (t) => {
   t.throws(() => new ExternalStorage({ drivers: [stubDriver('only')], payloadSizeThreshold: -1 }), {
     instanceOf: ValueError,
