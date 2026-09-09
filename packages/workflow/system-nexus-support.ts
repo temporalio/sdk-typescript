@@ -1,5 +1,9 @@
 import * as common from '@temporalio/common';
 import { msToTs, requiredTsToMs } from '@temporalio/common/lib/time';
+import {
+  decodeTypedSearchAttributes,
+  encodeUnifiedSearchAttributes,
+} from '@temporalio/common/lib/converter/payload-search-attributes';
 import type { google, temporal } from '@temporalio/proto';
 import { workflowInfo } from '../../../workflow';
 import { currentSystemNexusUserPayloadConverter } from '../user-payload-converter';
@@ -118,91 +122,17 @@ export function durationToProto(duration: common.Duration): google.protobuf.IDur
   return msToTs(duration);
 }
 
-function typedSearchAttributePayload(value: unknown, type: common.SearchAttributeType): common.Payload {
-  const payload = configuredPayloadConverter().toPayload(value);
-  payload.metadata ??= {};
-  payload.metadata.type = common.u8(common.TypedSearchAttributes.toMetadataType(type));
-  return payload;
-}
-
-function isValidSearchAttributeValue(type: common.SearchAttributeType, value: unknown): boolean {
-  switch (type) {
-    case common.SearchAttributeType.TEXT:
-    case common.SearchAttributeType.KEYWORD:
-      return typeof value === 'string';
-    case common.SearchAttributeType.INT:
-      return Number.isInteger(value);
-    case common.SearchAttributeType.DOUBLE:
-      return typeof value === 'number';
-    case common.SearchAttributeType.BOOL:
-      return typeof value === 'boolean';
-    case common.SearchAttributeType.DATETIME:
-      return value instanceof Date;
-    case common.SearchAttributeType.KEYWORD_LIST:
-      return Array.isArray(value) && value.every((item) => typeof item === 'string');
-    default:
-      return false;
-  }
-}
-
-function typedSearchAttributePairFromPayload(
-  name: string,
-  payload: common.Payload
-): common.SearchAttributePair | undefined {
-  const metadataType = payload.metadata?.type;
-  if (metadataType == null) {
-    return undefined;
-  }
-  const type = common.TypedSearchAttributes.toSearchAttributeType(common.str(metadataType));
-  if (type == null) {
-    return undefined;
-  }
-  let value: unknown = configuredPayloadConverter().fromPayload(payload);
-  if (type !== common.SearchAttributeType.KEYWORD_LIST && Array.isArray(value)) {
-    if (value.length !== 1) {
-      return undefined;
-    }
-    value = value[0];
-  }
-  if (type === common.SearchAttributeType.DATETIME && value != null) {
-    value = new Date(value as string);
-  }
-  if (!isValidSearchAttributeValue(type, value)) {
-    return undefined;
-  }
-  return {
-    key: { name, type },
-    value,
-  } as common.SearchAttributePair;
-}
-
 export function searchAttributesFromProto(
   proto: temporal.api.common.v1.ISearchAttributes
 ): common.TypedSearchAttributes {
-  const indexedFields = proto.indexedFields ?? {};
-  const typedPairs: common.SearchAttributePair[] = [];
-  for (const [name, payload] of Object.entries(indexedFields)) {
-    const pair = typedSearchAttributePairFromPayload(name, payload);
-    if (pair == null) {
-      throw new TypeError(`search attribute ${name} cannot be decoded as a typed search attribute`);
-    }
-    typedPairs.push(pair);
-  }
-  return new common.TypedSearchAttributes(typedPairs);
+  return decodeTypedSearchAttributes(proto.indexedFields);
 }
 
 export function searchAttributesToProto(
   searchAttributes: common.TypedSearchAttributes
 ): temporal.api.common.v1.ISearchAttributes {
   return {
-    indexedFields: Object.fromEntries(
-      searchAttributes
-        .getAll()
-        .map((pair): [string, common.Payload] => [
-          pair.key.name,
-          typedSearchAttributePayload(pair.value, pair.key.type),
-        ])
-    ),
+    indexedFields: encodeUnifiedSearchAttributes(undefined, searchAttributes),
   };
 }
 
