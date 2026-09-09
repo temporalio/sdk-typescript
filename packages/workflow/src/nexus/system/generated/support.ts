@@ -6,9 +6,7 @@ import {
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
 } from '@temporalio/common/lib/converter/payload-search-attributes';
-import {
-  versioningOverrideToProto as commonVersioningOverrideToProto,
-} from '@temporalio/common/lib/internal-workflow';
+import { versioningOverrideToProto as commonVersioningOverrideToProto } from '@temporalio/common/lib/worker-deployments';
 import type { google, temporal } from '@temporalio/proto';
 import { workflowInfo } from '../../../workflow';
 import { currentSystemNexusUserPayloadConverter } from '../user-payload-converter';
