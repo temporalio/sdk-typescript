@@ -29,7 +29,9 @@ jobs:
   # Compile native bridge code for each target platform.
   # Uploads the native library for each target as a build artifact.
   compile-native-binaries-debug:
-    timeout-minutes: 20
+    # The musl rows build inside Docker without the Rust build cache, so a cold build needs
+    # more headroom than the cached host builds.
+    timeout-minutes: 30
     strategy:
       fail-fast: true
       matrix:
@@ -41,6 +43,16 @@ jobs:
           - platform: linux-arm
             runner: ubuntu-24.04-arm64-2-core
             target: aarch64-unknown-linux-gnu
+            out-file: libtemporal_sdk_typescript_bridge.so
+          - platform: linux-x64-musl
+            runner: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            container: alpine:3.20
+            out-file: libtemporal_sdk_typescript_bridge.so
+          - platform: linux-arm-musl
+            runner: ubuntu-24.04-arm64-2-core
+            target: aarch64-unknown-linux-musl
+            container: alpine:3.20
             out-file: libtemporal_sdk_typescript_bridge.so
           - platform: macos-arm
             runner: macos-14
@@ -69,7 +81,7 @@ jobs:
           key: corebridge-artifactcache-debug-${{ matrix.platform }}-${{ hashFiles('./packages/core-bridge/**/Cargo.lock', './packages/core-bridge/**/*.rs') }}
 
       - name: Install protoc
-        if: steps.cached-artifact.outputs.cache-hit != 'true'
+        if: steps.cached-artifact.outputs.cache-hit != 'true' && !matrix.container
         uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
         with:
           # TODO: Upgrade proto once https://github.com/arduino/setup-protoc/issues/99 is fixed
@@ -80,7 +92,7 @@ jobs:
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
 
       - name: Rust Cargo and Build cache
-        if: steps.cached-artifact.outputs.cache-hit != 'true'
+        if: steps.cached-artifact.outputs.cache-hit != 'true' && !matrix.container
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           cache-bin: false
@@ -91,13 +103,53 @@ jobs:
           save-if: ${{ env.IS_MAIN_OR_RELEASE == 'true' }}
 
       - name: Compile rust code
-        if: steps.cached-artifact.outputs.cache-hit != 'true'
+        if: steps.cached-artifact.outputs.cache-hit != 'true' && !matrix.container
         working-directory: ./packages/core-bridge
         run: |
           set -x
           cargo build --target ${{ matrix.target }}
           mkdir -p ./releases/${{ matrix.target }}
           cp target/${{ matrix.target }}/debug/${{ matrix.out-file }} ./releases/${{ matrix.target }}/index.node
+
+      # musl rows build inside Alpine — the same recipe as the release workflow — instead of
+      # cross-compiling from this glibc runner: rustc links cdylibs through the host cc, so a
+      # cross-compile silently produces a glibc-linked artifact that loads here but not on
+      # Alpine. RUSTFLAGS disables crt-static (musl's Rust default) so the addon is dynamically
+      # linked against musl libc, which Node requires to `dlopen` it as a native addon.
+      - name: Compile rust code (Docker, musl)
+        if: steps.cached-artifact.outputs.cache-hit != 'true' && matrix.container
+        working-directory: ./packages/core-bridge
+        run: |
+          docker run --rm -v "$(pwd):/workspace" -w /workspace \
+            ${{ matrix.container }} \
+            sh -c '
+                set -eux
+                apk add --no-cache curl build-base protobuf protobuf-dev
+                curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
+                export PATH="$PATH:$HOME/.cargo/bin"
+                export RUSTFLAGS="-C target-feature=-crt-static"
+
+                cargo build --target ${{ matrix.target }}
+            '
+          mkdir -p ./releases/${{ matrix.target }}
+          cp target/${{ matrix.target }}/debug/${{ matrix.out-file }} ./releases/${{ matrix.target }}/index.node
+
+      # Load the built musl binary on the runner arch that built it (also when it came from the
+      # artifact cache): proves the artifact is actually musl-linked before jobs consume it.
+      # This is the only load check for linux-arm-musl, which cannot run integration tests.
+      - name: Smoke test the musl binary on Alpine
+        if: matrix.container
+        working-directory: ./packages/core-bridge
+        run: |
+          docker run --rm -v "$(pwd):/workspace" node:22-alpine node -e '
+            const common = require("/workspace/common.js");
+            const target = common.getPrebuiltTargetName();
+            if (target !== "${{ matrix.target }}") {
+              throw new Error("expected ${{ matrix.target }}, got " + target);
+            }
+            require("/workspace/releases/" + target + "/index.node");
+            console.log("musl binary loaded from", target);
+          '
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -115,7 +167,14 @@ jobs:
       fail-fast: false
       matrix:
         node: [20, 24, bun] # Min and max officially supported Node versions + Bun
-        platform: [linux-x64, linux-arm, macos-arm, windows-x64]
+        # linux-arm-musl is compile-only (see compile-native-binaries-debug): the runner
+        # executes JS actions in Alpine containers with an injected musl Node it only ships
+        # for x64, so an arm64 Alpine container job fails on its first action.
+        platform: [linux-x64, linux-arm, macos-arm, windows-x64, linux-x64-musl]
+        exclude:
+          # Bun's musl support isn't covered here yet.
+          - platform: linux-x64-musl
+            node: bun
         include:
           - platform: linux-x64
             runner: ubuntu-latest
@@ -130,7 +189,14 @@ jobs:
           - platform: windows-x64
             runner: windows-latest
             reuse-v8-context: true
+          - platform: linux-x64-musl
+            runner: ubuntu-latest
+            reuse-v8-context: true
+            musl: true
     runs-on: ${{ matrix.runner }}
+    # The Node image provides the musl Node that `run` steps use; actions/setup-node cannot (it
+    # only installs glibc builds), and the runner-injected Alpine Node only executes actions.
+    container: ${{ matrix.musl && format('node:{0}-alpine', matrix.node) || '' }}
     # Allow Bun test failures since support is experimental
     continue-on-error: ${{ matrix.node == 'bun' }}
     name: Run Integration Tests (${{ matrix.platform }}, ${{ matrix.node == 'bun' && 'Bun' || format('Node {0}', matrix.node) }}, Reuse V8 Context ${{ matrix.reuse-v8-context }})
@@ -142,6 +208,13 @@ jobs:
       run:
         shell: bash
     steps:
+      # The container job needs `bash` and `git` before any other step (including checkout) can
+      # run; the Alpine-based Node images ship neither.
+      - name: Install bash and git (musl container)
+        if: matrix.musl
+        shell: sh
+        run: apk add --no-cache bash git
+
       # For some unknown reason, execution of TSC may sometime introduce a CRLF/LF mismatch on some
       # pure JS files that are preserved in the repo, which would later cause a failure when trying
       # to publish packages to Verdaccio, as `pnpm publish` requires that the Git repo be clean.
@@ -165,6 +238,8 @@ jobs:
         with:
           node-version: ${{ matrix.node-release-override || matrix.node }}
           platform: ${{ matrix.platform }}
+          # The musl container image already provides the right Node build (see `container` above).
+          install-node: ${{ !matrix.musl }}
 
       - name: Setup Bun and Install Dependencies
         if: matrix.node == 'bun'
