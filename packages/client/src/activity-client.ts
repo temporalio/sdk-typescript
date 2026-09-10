@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { status as grpcStatus } from '@grpc/grpc-js';
 import type {
   ActivityFunction,
+  ActivitySerializationContext,
   LoadedDataConverter,
   Next,
   PayloadTypeInfo,
@@ -339,6 +340,13 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
 
     const internalOptions = (input.options as InternalActivityStartOptions)[InternalActivityStartOptionsSymbol];
 
+    const context: ActivitySerializationContext = {
+      type: 'activity',
+      namespace: this.options.namespace,
+      activityId: input.options.id,
+      isLocal: false,
+    };
+
     return {
       namespace: this.options.namespace,
       identity: this.options.identity,
@@ -354,7 +362,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       input: {
         payloads: await encodeToPayloadsWithContext(
           this.dataConverter,
-          undefined,
+          context,
           [...(input.options.args ?? [])],
           inputTypes
         ),
@@ -363,7 +371,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       idConflictPolicy: encodeActivityIdConflictPolicy(input.options.idConflictPolicy),
       searchAttributes,
       header: { fields: input.headers },
-      userMetadata: await encodeUserMetadata(this.dataConverter, input.options.summary, undefined),
+      userMetadata: await encodeUserMetadata(this.dataConverter, input.options.summary, undefined, context),
       priority: input.options.priority ? compilePriority(input.options.priority) : undefined,
       startDelay: msOptionalToTs(input.options.startDelay),
       completionCallbacks: internalOptions?.completionCallbacks,
@@ -376,6 +384,13 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
     if (!input.activityId) {
       throw new TypeError('activityId is required');
     }
+
+    const context: ActivitySerializationContext = {
+      type: 'activity',
+      namespace: this.options.namespace,
+      activityId: input.activityId,
+      isLocal: false,
+    };
 
     const req: temporal.api.workflowservice.v1.IPollActivityExecutionRequest = {
       namespace: this.options.namespace,
@@ -394,7 +409,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
             this.dataConverter,
             0,
             resp.outcome.result.payloads,
-            undefined,
+            context,
             input.outputType
           );
         } else if (resp.outcome?.failure) {
@@ -402,7 +417,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
           // If it succeeds, we want to throw the ActivityExecutionFailedError directly, so outside of try/catch.
           failedErr = new ActivityExecutionFailedError(
             'Activity execution failed',
-            await decodeOptionalFailureToOptionalError(this.dataConverter, resp.outcome.failure),
+            await decodeOptionalFailureToOptionalError(this.dataConverter, resp.outcome.failure, context),
             input.activityId,
             resp.runId || input.activityRunId || undefined
           );
@@ -423,14 +438,21 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
     }
 
     try {
+      const namespace = this.options.namespace;
       const resp = await this.workflowService.describeActivityExecution({
-        namespace: this.options.namespace,
+        namespace,
         activityId: input.activityId,
         runId: input.activityRunId || undefined,
       });
       const externalStorage = this.dataConverter.externalStorage;
       await visit(resp, walkDescribeActivityExecutionResponse, extstoreInboundOptions(externalStorage));
-      return buildActivityDescription(resp.info!, resp.callbacks, this.dataConverter);
+      const context: ActivitySerializationContext = {
+        type: 'activity',
+        namespace,
+        activityId: input.activityId,
+        isLocal: false,
+      };
+      return buildActivityDescription(resp.info!, resp.callbacks, this.dataConverter, context);
     } catch (err) {
       this.rethrowGrpcError(err, 'Failed to describe activity');
     }
@@ -703,19 +725,25 @@ function buildActivityExecutionInfo(info: temporal.api.activity.v1.IActivityExec
 function buildActivityDescription(
   info: temporal.api.activity.v1.IActivityExecutionInfo,
   callbacks: temporal.api.activity.v1.ICallbackInfo[],
-  dataConverter: LoadedDataConverter
+  dataConverter: LoadedDataConverter,
+  serializationContext: ActivitySerializationContext
 ): ActivityExecutionDescription {
   const getHeartbeatDetails: <T>() => Promise<T | undefined> = async <T>() => {
     const payloads = info.heartbeatDetails?.payloads;
     if (payloads && payloads.length > 0) {
-      return await decodeFromPayloadsAtIndex<T>(dataConverter, 0, info.heartbeatDetails?.payloads);
+      return await decodeFromPayloadsAtIndex<T>(
+        dataConverter,
+        0,
+        info.heartbeatDetails?.payloads,
+        serializationContext
+      );
     } else {
       return undefined;
     }
   };
 
   const getLastFailure: () => Promise<Error | undefined> = async () => {
-    return await decodeOptionalFailureToOptionalError(dataConverter, info.lastFailure);
+    return await decodeOptionalFailureToOptionalError(dataConverter, info.lastFailure, serializationContext);
   };
 
   return {
