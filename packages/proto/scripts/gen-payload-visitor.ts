@@ -162,7 +162,7 @@ if (c != null) ${walk}(c, env, ctx, pending);`;
     }
   }
 
-  if (field.name === 'headers') return `if (!env.skipHeaders) {\n${body}\n}`;
+  if (field.name === 'headers' || field.name === 'header') return `if (!env.skipHeaders) {\n${body}\n}`;
   if (field.name === 'searchAttributes') return `if (!env.skipSearchAttributes) {\n${body}\n}`;
   return body;
 }

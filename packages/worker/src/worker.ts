@@ -97,7 +97,7 @@ import type {
 } from './worker-options';
 import { compileWorkerOptions, isCodeBundleOption, isPathBundleOption, toNativeWorkerOptions } from './worker-options';
 import { WorkflowCodecRunner } from './workflow-codec-runner';
-import { isSystemNexusEnvelope, transformEncodedSystemNexusInput } from './system-nexus-operations';
+import { isSystemNexusEnvelope, transformEncodedSystemNexusEnvelope } from './system-nexus-operations';
 import { defaultWorkflowInterceptorModules, WorkflowCodeBundler } from './workflow/bundler';
 import { isBunPre1_4 } from './workflow/bun';
 import type { Workflow, WorkflowCreator } from './workflow/interface';
@@ -1607,21 +1607,18 @@ export class Worker {
               schedule.input = undefined;
             }
           }
-          await visit(
-            encodedCompletion,
-            walkWorkflowActivationCompletion,
-            extstoreStoreOptions(externalStorage, {
-              initialTarget: {
-                kind: 'workflow',
-                namespace,
-                id: workflowCodecRunner.workflowContext.workflowId,
-                runId: activation.runId,
-                type: workflow.info.workflowType,
-              },
-              deriveContext: workflowCommandStoreTarget(namespace, workflow.info),
-              metrics: uploadMetrics,
-            })
-          );
+          const visitorOptions = extstoreStoreOptions(externalStorage, {
+            initialTarget: {
+              kind: 'workflow',
+              namespace,
+              id: workflowCodecRunner.workflowContext.workflowId,
+              runId: activation.runId,
+              type: workflow.info.workflowType,
+            },
+            deriveContext: workflowCommandStoreTarget(namespace, workflow.info),
+            metrics: uploadMetrics,
+          });
+          await visit(encodedCompletion, walkWorkflowActivationCompletion, visitorOptions);
           for (const { command, payload } of systemNexusInputs) {
             const context =
               workflowCodecRunner.systemNexusOperationContext(command.seq) ?? workflowCodecRunner.workflowContext;
@@ -1633,12 +1630,10 @@ export class Worker {
                     namespace: context.namespace,
                     id: context.activityId,
                   };
-            command.input = await transformEncodedSystemNexusInput(
-              command.service,
-              command.operation,
-              payload,
-              extstoreStoreOptions(externalStorage, { initialTarget, metrics: uploadMetrics })
-            );
+            command.input = await transformEncodedSystemNexusEnvelope(command.service, command.operation, payload, {
+              ...visitorOptions,
+              initialContext: initialTarget,
+            });
           }
         }
         encodedCompletion.payloadDownloadMetrics = downloadMetrics?.toProto();

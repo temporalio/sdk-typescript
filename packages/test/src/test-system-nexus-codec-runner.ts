@@ -53,6 +53,7 @@ test('signal-with-start uses the target context for codec encode and decode', as
                 input: { payloads: [payload('workflow-arg')] },
                 signalInput: { payloads: [payload('signal-arg')] },
                 memo: { fields: { memo: payload('memo') } },
+                header: { fields: { header: payload('header') } },
                 searchAttributes: { indexedFields: { search: payload('search-attribute') } },
               },
               targetContext
@@ -72,6 +73,8 @@ test('signal-with-start uses the target context for codec encode and decode', as
     'codec.encode.bound|signal-arg|workflow.target-ns.target-id',
   ]);
   t.deepEqual(traceFromPayload(request.memo?.fields?.memo), ['codec.encode.bound|memo|workflow.target-ns.target-id']);
+  t.deepEqual(traceFromPayload(request.header?.fields?.header), []);
+  t.deepEqual(traceFromPayload(request.searchAttributes?.indexedFields?.search), []);
 
   await runner.encodeCompletion({
     successful: {
@@ -182,5 +185,5 @@ test('a marked System Nexus envelope is rewritten independently of its endpoint'
     },
   });
   const envelope = encoded.successful?.commands?.[0]?.scheduleNexusOperation?.input;
-  t.deepEqual(new ProtobufBinaryPayloadConverter(protoRoot).fromPayload(envelope!), {});
+  t.is(new ProtobufBinaryPayloadConverter(protoRoot).fromPayload<any>(envelope!).links?.length, 0);
 });

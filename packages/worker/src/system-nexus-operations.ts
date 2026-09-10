@@ -1,5 +1,5 @@
 import type { Service as ProtobufService, Type as ProtobufType } from 'protobufjs';
-import type { Payload, PayloadCodec, SerializationContext } from '@temporalio/common';
+import type { Payload, SerializationContext } from '@temporalio/common';
 import { defaultPayloadConverter } from '@temporalio/common';
 import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
 import {
@@ -7,13 +7,7 @@ import {
   SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE,
 } from '@temporalio/common/lib/internal-workflow';
-import {
-  decode,
-  encode,
-  type VisitOptions,
-  visit,
-  walkPayloadsInMessage,
-} from '@temporalio/common/lib/internal-non-workflow';
+import { type VisitOptions, visit, walkPayloadsInMessage } from '@temporalio/common/lib/internal-non-workflow';
 import * as protoRoot from '@temporalio/proto';
 import { operationRegistry } from '@temporalio/workflow/lib/nexus/system/generated/registry';
 
@@ -45,17 +39,14 @@ export interface EncodedSystemNexusInput {
 
 /** Converts the isolate JSON envelope to the protobuf-binary server envelope. */
 export async function encodeSystemNexusInput(
-  codecs: PayloadCodec[],
   service: string | null | undefined,
   operation: string | null | undefined,
   payload: Payload | null | undefined,
-  workflowContext: SerializationContext
+  workflowContext: SerializationContext,
+  visitorOptions: Omit<VisitOptions<SerializationContext>, 'initialContext'>
 ): Promise<EncodedSystemNexusInput | undefined> {
-  const definition = operationDefinition(service, operation);
   if (payload == null) return undefined;
-  if (definition == null) {
-    throw new TypeError(`unsupported System Nexus operation: ${service}/${operation}`);
-  }
+  const definition = requireSystemOperation(service, operation);
   const metadataContext = contextFromMetadata(payload);
   if (definition.serializationContext != null && metadataContext == null) {
     throw new TypeError('missing System Nexus serialization context metadata');
@@ -64,12 +55,7 @@ export async function encodeSystemNexusInput(
   const properties = defaultPayloadConverter.fromPayload(payload) as Record<string, unknown>;
   normalizePayloadBytes(properties);
   const message = requestMessageType(service, operation).create(properties) as Record<string, unknown>;
-  await visit(message, walkPayloadsInMessage, {
-    initialContext: context,
-    transformPayload: async (value, valueContext) => (await encode(codecs, [value], valueContext))[0]!,
-    transformPayloads: (values, valueContext) => encode(codecs, values, valueContext),
-    skipSearchAttributes: true,
-  });
+  await visitSystemNexusMessage(message, { ...visitorOptions, initialContext: context });
   const encoded = protobufPayloadConverter.toPayload(message);
   if (encoded == null) throw new Error('failed to encode System Nexus protobuf envelope');
   encoded.metadata ??= {};
@@ -77,18 +63,16 @@ export async function encodeSystemNexusInput(
   return { payload: encoded, context };
 }
 
-/** Applies a payload transformation to values nested in a protobuf-binary System Nexus request envelope. */
-export async function transformEncodedSystemNexusInput<Ctx>(
+/** Applies a payload transformation to values nested in a protobuf-binary System Nexus envelope. */
+export async function transformEncodedSystemNexusEnvelope<Ctx>(
   service: string | null | undefined,
   operation: string | null | undefined,
   payload: Payload,
   options: VisitOptions<Ctx>
 ): Promise<Payload> {
-  if (operationDefinition(service, operation) == null) {
-    throw new TypeError(`unsupported System Nexus operation: ${service}/${operation}`);
-  }
+  requireSystemOperation(service, operation);
   const message = protobufPayloadConverter.fromPayload<Record<string, unknown>>(payload);
-  await visit(message, walkPayloadsInMessage, options);
+  await visitSystemNexusMessage(message, options);
   const transformed = protobufPayloadConverter.toPayload(message);
   if (transformed == null) throw new Error('failed to encode System Nexus protobuf envelope');
   return transformed;
@@ -123,25 +107,36 @@ function isSerializationContext(value: unknown): value is SerializationContext {
 
 /** Converts the server protobuf-binary envelope to isolate JSON. */
 export async function decodeSystemNexusOutput(
-  codecs: PayloadCodec[],
   service: string | null | undefined,
   operation: string | null | undefined,
   payload: Payload | null | undefined,
-  context: SerializationContext
+  context: SerializationContext,
+  visitorOptions: Omit<VisitOptions<SerializationContext | undefined>, 'initialContext'>
 ): Promise<Payload | undefined> {
-  const definition = operationDefinition(service, operation);
   if (payload == null) return undefined;
+  const transformed = await transformEncodedSystemNexusEnvelope(service, operation, payload, {
+    ...visitorOptions,
+    initialContext: context,
+  });
+  return defaultPayloadConverter.toPayload(protobufPayloadConverter.fromPayload(transformed)) ?? undefined;
+}
+
+function requireSystemOperation(
+  service: string | null | undefined,
+  operation: string | null | undefined
+): SystemOperation {
+  const definition = operationDefinition(service, operation);
   if (definition == null) {
     throw new TypeError(`unsupported System Nexus operation: ${service}/${operation}`);
   }
-  const message = protobufPayloadConverter.fromPayload<Record<string, unknown>>(payload);
-  await visit(message, walkPayloadsInMessage, {
-    initialContext: context,
-    transformPayload: async (value, valueContext) => (await decode(codecs, [value], valueContext))[0]!,
-    transformPayloads: (values, valueContext) => decode(codecs, values, valueContext),
-    skipSearchAttributes: true,
-  });
-  return defaultPayloadConverter.toPayload(message) ?? undefined;
+  return definition;
+}
+
+async function visitSystemNexusMessage<Ctx>(
+  message: Record<string, unknown>,
+  options: VisitOptions<Ctx>
+): Promise<void> {
+  await visit(message, walkPayloadsInMessage, options);
 }
 
 function requestMessageType(service: string | null | undefined, operation: string | null | undefined): ProtobufType {
