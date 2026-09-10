@@ -396,8 +396,40 @@ export class Context {
     /**
      * Holder object for activity cancellation details
      */
-    protected readonly _cancellationDetails: ActivityCancellationDetailsHolder
-  ) {}
+    protected readonly _cancellationDetails: ActivityCancellationDetailsHolder,
+
+    /**
+     * A Promise that fails with a {@link CancelledFailure} when the Worker running this Activity starts shutting down,
+     * i.e. as soon as shutdown is initiated, rather than on expiration of the shutdown grace period. The promise is
+     * guaranteed to never successfully resolve.
+     *
+     * Await this promise in a long running Activity to get an early notice that the Worker is going away, so that the
+     * Activity may checkpoint its progress and return, rather than being abruptly cancelled once the grace period
+     * expires. Unlike {@link Context.cancelled}, an Activity does _not_ need to {@link Context.heartbeat} to get
+     * notified of Worker shutdown.
+     *
+     * @experimental Worker shutdown notification is experimental and may be subject to change.
+     */
+    public readonly workerShuttingDown: Promise<never> = new Promise<never>(() => undefined),
+
+    /**
+     * An {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} that is aborted when the
+     * Worker running this Activity starts shutting down, i.e. as soon as shutdown is initiated, rather than on
+     * expiration of the shutdown grace period.
+     *
+     * This can be passed in to libraries such as
+     * {@link https://www.npmjs.com/package/node-fetch#request-cancellation-with-abortsignal | fetch}, in the same way
+     * as {@link Context.cancellationSignal}. Unlike cancellation, an Activity does _not_ need to
+     * {@link Context.heartbeat} to get notified of Worker shutdown.
+     *
+     * @experimental Worker shutdown notification is experimental and may be subject to change.
+     */
+    public readonly workerShuttingDownSignal: AbortSignal = new AbortController().signal
+  ) {
+    // The `workerShuttingDown` promise is meant to be raced against by user code; it may legitimately
+    // never be awaited, so make sure it doesn't surface as an unhandled rejection.
+    this.workerShuttingDown.catch(() => undefined);
+  }
 
   /**
    * Send a {@link https://docs.temporal.io/encyclopedia/detecting-activity-failures#activity-heartbeat | heartbeat} from an Activity.
@@ -571,6 +603,41 @@ export function cancellationDetails(): ActivityCancellationDetails | undefined {
  */
 export function cancellationSignal(): AbortSignal {
   return Context.current().cancellationSignal;
+}
+
+/**
+ * Return a Promise that fails with a {@link CancelledFailure} when the Worker running this Activity starts shutting
+ * down, i.e. as soon as shutdown is initiated, rather than on expiration of the shutdown grace period. The promise is
+ * guaranteed to never successfully resolve.
+ *
+ * Await this promise in a long running Activity to get an early notice that the Worker is going away, so that the
+ * Activity may checkpoint its progress and return, rather than being abruptly cancelled once the grace period expires.
+ * Unlike {@link cancelled}, an Activity does _not_ need to {@link heartbeat} to get notified of Worker shutdown.
+ *
+ * This is a shortcut for `Context.current().workerShuttingDown` (see {@link Context.workerShuttingDown}).
+ *
+ * @experimental Worker shutdown notification is experimental and may be subject to change.
+ */
+export function workerShuttingDown(): Promise<never> {
+  return Context.current().workerShuttingDown;
+}
+
+/**
+ * Return an {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} that is aborted when
+ * the Worker running this Activity starts shutting down, i.e. as soon as shutdown is initiated, rather than on
+ * expiration of the shutdown grace period.
+ *
+ * This can be passed in to libraries such as
+ * {@link https://www.npmjs.com/package/node-fetch#request-cancellation-with-abortsignal | fetch}, in the same way as
+ * {@link cancellationSignal}. Unlike cancellation, an Activity does _not_ need to {@link heartbeat} to get notified of
+ * Worker shutdown.
+ *
+ * This is a shortcut for `Context.current().workerShuttingDownSignal` (see {@link Context.workerShuttingDownSignal}).
+ *
+ * @experimental Worker shutdown notification is experimental and may be subject to change.
+ */
+export function workerShuttingDownSignal(): AbortSignal {
+  return Context.current().workerShuttingDownSignal;
 }
 
 /**
