@@ -55,7 +55,7 @@ export async function encodeSystemNexusInput(
   const properties = defaultPayloadConverter.fromPayload(payload) as Record<string, unknown>;
   normalizePayloadBytes(properties);
   const message = requestMessageType(service, operation).create(properties) as Record<string, unknown>;
-  await visitSystemNexusMessage(message, { ...visitorOptions, initialContext: context });
+  await visit(message, walkPayloadsInMessage, { ...visitorOptions, initialContext: context });
   const encoded = protobufPayloadConverter.toPayload(message);
   if (encoded == null) throw new Error('failed to encode System Nexus protobuf envelope');
   encoded.metadata ??= {};
@@ -72,7 +72,7 @@ export async function transformEncodedSystemNexusEnvelope<Ctx>(
 ): Promise<Payload> {
   requireSystemOperation(service, operation);
   const message = protobufPayloadConverter.fromPayload<Record<string, unknown>>(payload);
-  await visitSystemNexusMessage(message, options);
+  await visit(message, walkPayloadsInMessage, options);
   const transformed = protobufPayloadConverter.toPayload(message);
   if (transformed == null) throw new Error('failed to encode System Nexus protobuf envelope');
   return transformed;
@@ -130,13 +130,6 @@ function requireSystemOperation(
     throw new TypeError(`unsupported System Nexus operation: ${service}/${operation}`);
   }
   return definition;
-}
-
-async function visitSystemNexusMessage<Ctx>(
-  message: Record<string, unknown>,
-  options: VisitOptions<Ctx>
-): Promise<void> {
-  await visit(message, walkPayloadsInMessage, options);
 }
 
 function requestMessageType(service: string | null | undefined, operation: string | null | undefined): ProtobufType {
