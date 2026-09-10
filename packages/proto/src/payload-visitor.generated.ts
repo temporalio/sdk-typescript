@@ -3366,8 +3366,10 @@ function walk_temporal_api_activity_v1_ActivityExecutionInfo<Ctx>(
     }
   }
   {
-    const c = o.header;
-    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    if (!env.skipHeaders) {
+      const c = o.header;
+      if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    }
   }
   {
     const c = o.userMetadata;
@@ -3449,8 +3451,10 @@ function walk_temporal_api_batch_v1_BatchOperationSignal<Ctx>(
     if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
   }
   {
-    const c = o.header;
-    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    if (!env.skipHeaders) {
+      const c = o.header;
+      if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    }
   }
 }
 
@@ -3595,8 +3599,10 @@ function walk_temporal_api_command_v1_ContinueAsNewWorkflowExecutionCommandAttri
     if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
   }
   {
-    const c = o.header;
-    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    if (!env.skipHeaders) {
+      const c = o.header;
+      if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    }
   }
   {
     const c = o.memo;
@@ -3654,8 +3660,10 @@ function walk_temporal_api_command_v1_RecordMarkerCommandAttributes<Ctx>(
     if (m) for (const v of Object.values(m)) walk_temporal_api_common_v1_Payloads(v, env, ctx, pending);
   }
   {
-    const c = o.header;
-    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    if (!env.skipHeaders) {
+      const c = o.header;
+      if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    }
   }
   {
     const c = o.failure;
@@ -3673,8 +3681,10 @@ function walk_temporal_api_command_v1_ScheduleActivityTaskCommandAttributes<Ctx>
     ? env.deriveContext(o, 'temporal.api.command.v1.ScheduleActivityTaskCommandAttributes', context)
     : context;
   {
-    const c = o.header;
-    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    if (!env.skipHeaders) {
+      const c = o.header;
+      if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    }
   }
   {
     const c = o.input;
@@ -3716,8 +3726,10 @@ function walk_temporal_api_command_v1_SignalExternalWorkflowExecutionCommandAttr
     if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
   }
   {
-    const c = o.header;
-    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    if (!env.skipHeaders) {
+      const c = o.header;
+      if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    }
   }
 }
 
@@ -3735,8 +3747,10 @@ function walk_temporal_api_command_v1_StartChildWorkflowExecutionCommandAttribut
     if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
   }
   {
-    const c = o.header;
-    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    if (!env.skipHeaders) {
+      const c = o.header;
+      if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    }
   }
   {
     const c = o.memo;
@@ -4155,8 +4169,10 @@ function walk_temporal_api_history_v1_ActivityTaskScheduledEventAttributes<Ctx>(
     ? env.deriveContext(o, 'temporal.api.history.v1.ActivityTaskScheduledEventAttributes', context)
     : context;
   {
-    const c = o.header;
-    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    if (!env.skipHeaders) {
+      const c = o.header;
+      if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    }
   }
   {
     const c = o.input;
@@ -4249,8 +4265,10 @@ function walk_temporal_api_history_v1_ChildWorkflowExecutionStartedEventAttribut
     ? env.deriveContext(o, 'temporal.api.history.v1.ChildWorkflowExecutionStartedEventAttributes', context)
     : context;
   {
-    const c = o.header;
-    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    if (!env.skipHeaders) {
+      const c = o.header;
+      if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    }
   }
 }
 
@@ -4437,8 +4455,10 @@ function walk_temporal_api_history_v1_MarkerRecordedEventAttributes<Ctx>(
     if (m) for (const v of Object.values(m)) walk_temporal_api_common_v1_Payloads(v, env, ctx, pending);
   }
   {
-    const c = o.header;
-    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    if (!env.skipHeaders) {
+      const c = o.header;
+      if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    }
   }
   {
     const c = o.failure;
@@ -4560,8 +4580,10 @@ function walk_temporal_api_history_v1_SignalExternalWorkflowExecutionInitiatedEv
     if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
   }
   {
-    const c = o.header;
-    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    if (!env.skipHeaders) {
+      const c = o.header;
+      if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    }
   }
 }
 
@@ -4579,8 +4601,10 @@ function walk_temporal_api_history_v1_StartChildWorkflowExecutionInitiatedEventA
     if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
   }
   {
-    const c = o.header;
-    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    if (!env.skipHeaders) {
+      const c = o.header;
+      if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    }
   }
   {
     const c = o.memo;
@@ -4663,8 +4687,10 @@ function walk_temporal_api_history_v1_WorkflowExecutionContinuedAsNewEventAttrib
     if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
   }
   {
-    const c = o.header;
-    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    if (!env.skipHeaders) {
+      const c = o.header;
+      if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    }
   }
   {
     const c = o.memo;
@@ -4707,8 +4733,10 @@ function walk_temporal_api_history_v1_WorkflowExecutionSignaledEventAttributes<C
     if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
   }
   {
-    const c = o.header;
-    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    if (!env.skipHeaders) {
+      const c = o.header;
+      if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    }
   }
 }
 
@@ -4744,8 +4772,10 @@ function walk_temporal_api_history_v1_WorkflowExecutionStartedEventAttributes<Ct
     }
   }
   {
-    const c = o.header;
-    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    if (!env.skipHeaders) {
+      const c = o.header;
+      if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    }
   }
 }
 
@@ -5031,8 +5061,10 @@ function walk_temporal_api_query_v1_WorkflowQuery<Ctx>(
     if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
   }
   {
-    const c = o.header;
-    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    if (!env.skipHeaders) {
+      const c = o.header;
+      if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    }
   }
 }
 
@@ -5164,8 +5196,10 @@ function walk_temporal_api_update_v1_Input<Ctx>(
 ): void {
   const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.update.v1.Input', context) : context;
   {
-    const c = o.header;
-    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    if (!env.skipHeaders) {
+      const c = o.header;
+      if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    }
   }
   {
     const c = o.args;
@@ -5240,8 +5274,10 @@ function walk_temporal_api_workflow_v1_NewWorkflowExecutionInfo<Ctx>(
     }
   }
   {
-    const c = o.header;
-    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    if (!env.skipHeaders) {
+      const c = o.header;
+      if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    }
   }
   {
     const c = o.userMetadata;
@@ -5331,8 +5367,10 @@ function walk_temporal_api_workflow_v1_PostResetOperation_SignalWorkflow<Ctx>(
     if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
   }
   {
-    const c = o.header;
-    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    if (!env.skipHeaders) {
+      const c = o.header;
+      if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    }
   }
 }
 
@@ -5981,8 +6019,10 @@ function walk_temporal_api_workflowservice_v1_PollActivityTaskQueueResponse<Ctx>
     ? env.deriveContext(o, 'temporal.api.workflowservice.v1.PollActivityTaskQueueResponse', context)
     : context;
   {
-    const c = o.header;
-    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    if (!env.skipHeaders) {
+      const c = o.header;
+      if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    }
   }
   {
     const c = o.input;
@@ -6453,8 +6493,10 @@ function walk_temporal_api_workflowservice_v1_SignalWithStartWorkflowExecutionRe
     }
   }
   {
-    const c = o.header;
-    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    if (!env.skipHeaders) {
+      const c = o.header;
+      if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    }
   }
   {
     const c = o.userMetadata;
@@ -6476,8 +6518,10 @@ function walk_temporal_api_workflowservice_v1_SignalWorkflowExecutionRequest<Ctx
     if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
   }
   {
-    const c = o.header;
-    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    if (!env.skipHeaders) {
+      const c = o.header;
+      if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    }
   }
 }
 
@@ -6501,8 +6545,10 @@ function walk_temporal_api_workflowservice_v1_StartActivityExecutionRequest<Ctx>
     }
   }
   {
-    const c = o.header;
-    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    if (!env.skipHeaders) {
+      const c = o.header;
+      if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    }
   }
   {
     const c = o.userMetadata;
@@ -6587,8 +6633,10 @@ function walk_temporal_api_workflowservice_v1_StartWorkflowExecutionRequest<Ctx>
     }
   }
   {
-    const c = o.header;
-    if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    if (!env.skipHeaders) {
+      const c = o.header;
+      if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
+    }
   }
   {
     const c = o.continuedFailure;
