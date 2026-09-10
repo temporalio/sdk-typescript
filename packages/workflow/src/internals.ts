@@ -741,6 +741,9 @@ export class Activator implements ActivationHandler {
       if (!(activation.seq && activation.failed.workflowId && activation.failed.workflowType)) {
         throw new TypeError('Missing attributes in activation job');
       }
+      // Clean up the orphaned childWorkflowComplete entry since the start failed
+      // and no resolveChildWorkflowExecution activation will arrive.
+      this.maybeConsumeCompletion('childWorkflowComplete', getSeq(activation));
       reject(
         new WorkflowExecutionAlreadyStartedError(
           'Workflow execution already started',
@@ -753,6 +756,9 @@ export class Activator implements ActivationHandler {
       if (!activation.cancelled.failure) {
         throw new TypeError('Got no failure in cancelled variant');
       }
+      // Clean up the orphaned childWorkflowComplete entry since the start was cancelled
+      // and no resolveChildWorkflowExecution activation will arrive.
+      this.maybeConsumeCompletion('childWorkflowComplete', getSeq(activation));
       reject(this.failureConverter.failureToError(activation.cancelled.failure, this.payloadConverter, context));
       this.completions.childWorkflowComplete.delete(seq);
     } else {
