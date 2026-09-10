@@ -1,6 +1,6 @@
 import type { ServiceError as GrpcServiceError } from '@grpc/grpc-js';
 import { status as grpcStatus } from '@grpc/grpc-js';
-import type { LoadedDataConverter } from '@temporalio/common';
+import type { LoadedDataConverter, TypeInfo } from '@temporalio/common';
 import { decodePriority, NamespaceNotFoundError } from '@temporalio/common';
 import {
   decodeSearchAttributes,
@@ -17,6 +17,10 @@ import type {
   WorkflowExecutionInfo,
   WorkflowExecutionStatusName,
 } from './types';
+
+export type OutputTypeInfo<T> = {
+  outputType?: TypeInfo<T, any>;
+};
 
 function workflowStatusCodeToName(code: temporal.api.enums.v1.WorkflowExecutionStatus): WorkflowExecutionStatusName {
   return workflowStatusCodeToNameInternal(code) ?? 'UNKNOWN';
