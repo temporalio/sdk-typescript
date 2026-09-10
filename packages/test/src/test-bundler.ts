@@ -12,7 +12,9 @@ import { moduleMatches } from '@temporalio/worker/lib/workflow/bundler';
 import type { LogEntry, WorkerOptions } from '@temporalio/worker';
 import { bundleWorkflowCode, DefaultLogger } from '@temporalio/worker';
 import { Client } from '@temporalio/client';
+import type { TestWorkflowEnvironment } from './helpers';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { createTestWorkflowEnvironment } from './helpers-integration';
 import { issue516 } from './mocks/workflows-with-node-dependencies/issue-516';
 import { preloadSharedCounter } from './workflows/preload-shared-counter';
 import { workflowWithPrebundledDep } from './workflows/workflow-with-prebundled-dep';
@@ -24,13 +26,28 @@ test('moduleMatches works', (t) => {
   t.false(moduleMatches('fs', ['foo']));
 });
 
+let testEnv: TestWorkflowEnvironment | undefined;
+let testEnvPromise: Promise<TestWorkflowEnvironment> | undefined;
+
+async function getTestWorkflowEnvironment(): Promise<TestWorkflowEnvironment> {
+  testEnvPromise ??= createTestWorkflowEnvironment();
+  testEnv ??= await testEnvPromise;
+  return testEnv;
+}
+
 async function runPreloadSharedCounter(
   t: ExecutionContext,
+  env: TestWorkflowEnvironment,
   workerOptions: Pick<WorkerOptions, 'bundlerOptions' | 'workflowBundle' | 'workflowsPath'>
 ): Promise<[number, number]> {
   const taskQueue = `${t.title}-${randomUUID()}`;
-  const client = new Client();
+  const client = new Client({
+    connection: env.client.connection,
+    namespace: env.client.options.namespace,
+  });
   const worker = await Worker.create({
+    connection: env.nativeConnection,
+    namespace: env.client.options.namespace,
     taskQueue,
     reuseV8Context: true,
     ...workerOptions,
@@ -43,21 +60,32 @@ async function runPreloadSharedCounter(
 }
 
 if (RUN_INTEGRATION_TESTS) {
+  test.after.always(async () => {
+    await testEnv?.teardown();
+  });
+
   test('Worker can be created from bundle code', async (t) => {
+    const env = await getTestWorkflowEnvironment();
     const taskQueue = `${t.title}-${randomUUID()}`;
     const workflowBundle = await bundleWorkflowCode({
       workflowsPath: require.resolve('./workflows'),
     });
     const worker = await Worker.create({
+      connection: env.nativeConnection,
+      namespace: env.client.options.namespace,
       taskQueue,
       workflowBundle,
     });
-    const client = new Client();
+    const client = new Client({
+      connection: env.client.connection,
+      namespace: env.client.options.namespace,
+    });
     await worker.runUntil(client.workflow.execute(successString, { taskQueue, workflowId: randomUUID() }));
     t.pass();
   });
 
   test('Worker can be created from bundle path', async (t) => {
+    const env = await getTestWorkflowEnvironment();
     const taskQueue = `${t.title}-${randomUUID()}`;
     const { code } = await bundleWorkflowCode({
       workflowsPath: require.resolve('./workflows'),
@@ -67,10 +95,15 @@ if (RUN_INTEGRATION_TESTS) {
     await writeFile(codePath, code);
     const workflowBundle = { codePath };
     const worker = await Worker.create({
+      connection: env.nativeConnection,
+      namespace: env.client.options.namespace,
       taskQueue,
       workflowBundle,
     });
-    const client = new Client();
+    const client = new Client({
+      connection: env.client.connection,
+      namespace: env.client.options.namespace,
+    });
     try {
       await worker.runUntil(client.workflow.execute(successString, { taskQueue, workflowId: randomUUID() }));
     } finally {
@@ -80,16 +113,22 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Workflow bundle can be created from code using ignoreModules', async (t) => {
+    const env = await getTestWorkflowEnvironment();
     const taskQueue = `${t.title}-${randomUUID()}`;
     const workflowBundle = await bundleWorkflowCode({
       workflowsPath: require.resolve('./mocks/workflows-with-node-dependencies/issue-516'),
       ignoreModules: ['dns'],
     });
     const worker = await Worker.create({
+      connection: env.nativeConnection,
+      namespace: env.client.options.namespace,
       taskQueue,
       workflowBundle,
     });
-    const client = new Client();
+    const client = new Client({
+      connection: env.client.connection,
+      namespace: env.client.options.namespace,
+    });
     await worker.runUntil(client.workflow.execute(issue516, { taskQueue, workflowId: randomUUID() }));
     t.pass();
   });
@@ -148,7 +187,7 @@ if (RUN_INTEGRATION_TESTS) {
       preloadModules: [require.resolve('./workflows/preload-shared-counter-helper')],
     });
 
-    t.deepEqual(await runPreloadSharedCounter(t, { workflowBundle }), [1, 2]);
+    t.deepEqual(await runPreloadSharedCounter(t, await getTestWorkflowEnvironment(), { workflowBundle }), [1, 2]);
   });
 
   test('Workflow bundle keeps module state isolated without preloadModules', async (t) => {
@@ -156,7 +195,7 @@ if (RUN_INTEGRATION_TESTS) {
       workflowsPath: require.resolve('./workflows/preload-shared-counter'),
     });
 
-    t.deepEqual(await runPreloadSharedCounter(t, { workflowBundle }), [1, 1]);
+    t.deepEqual(await runPreloadSharedCounter(t, await getTestWorkflowEnvironment(), { workflowBundle }), [1, 1]);
   });
 
   test('Workflow bundle treats an empty preloadModules list as a no-op', async (t) => {
@@ -165,12 +204,12 @@ if (RUN_INTEGRATION_TESTS) {
       preloadModules: [],
     });
 
-    t.deepEqual(await runPreloadSharedCounter(t, { workflowBundle }), [1, 1]);
+    t.deepEqual(await runPreloadSharedCounter(t, await getTestWorkflowEnvironment(), { workflowBundle }), [1, 1]);
   });
 
   test('WorkerOptions.bundlerOptions.preloadModules works', async (t) => {
     t.deepEqual(
-      await runPreloadSharedCounter(t, {
+      await runPreloadSharedCounter(t, await getTestWorkflowEnvironment(), {
         workflowsPath: require.resolve('./workflows/preload-shared-counter'),
         bundlerOptions: {
           preloadModules: [require.resolve('./workflows/preload-shared-counter-helper')],
@@ -240,12 +279,22 @@ if (RUN_INTEGRATION_TESTS) {
   // module state must remain isolated even when a pre-bundled dependency (shipping
   // its own nested `__webpack_module_cache__`) is included in the Workflow bundle.
   test('Workflow bundle keeps module state isolated with a pre-bundled dependency (#2188)', async (t) => {
+    const env = await getTestWorkflowEnvironment();
     const taskQueue = `${t.title}-${randomUUID()}`;
     const workflowBundle = await bundleWorkflowCode({
       workflowsPath: require.resolve('./workflows/workflow-with-prebundled-dep'),
     });
-    const client = new Client();
-    const worker = await Worker.create({ taskQueue, reuseV8Context: true, workflowBundle });
+    const client = new Client({
+      connection: env.client.connection,
+      namespace: env.client.options.namespace,
+    });
+    const worker = await Worker.create({
+      connection: env.nativeConnection,
+      namespace: env.client.options.namespace,
+      taskQueue,
+      reuseV8Context: true,
+      workflowBundle,
+    });
     const results = await worker.runUntil(async () => {
       const first = await client.workflow.execute(workflowWithPrebundledDep, { taskQueue, workflowId: randomUUID() });
       const second = await client.workflow.execute(workflowWithPrebundledDep, { taskQueue, workflowId: randomUUID() });
@@ -265,7 +314,7 @@ if (RUN_INTEGRATION_TESTS) {
       },
     });
 
-    t.deepEqual(await runPreloadSharedCounter(t, { workflowBundle }), [1, 1]);
+    t.deepEqual(await runPreloadSharedCounter(t, await getTestWorkflowEnvironment(), { workflowBundle }), [1, 1]);
   });
 }
 
