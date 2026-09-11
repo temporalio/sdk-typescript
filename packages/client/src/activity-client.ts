@@ -689,9 +689,21 @@ export interface GetActivityHandleOptions {
  * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityDescribeOptions {
+  /**
+   * Include activity input in the response if available.
+   */
   includeInput?: boolean;
+  /**
+   * Include activity result or outcome failure in the response if available.
+   */
   includeOutcome?: boolean;
+  /**
+   * Include heartbeat details in the response if available.
+   */
   includeHeartbeatDetails?: boolean;
+  /**
+   * Include last failure in the response if available.
+   */
   includeLastFailure?: boolean;
 }
 
