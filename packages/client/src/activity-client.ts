@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { status as grpcStatus } from '@grpc/grpc-js';
 import type {
   ActivityFunction,
+  ActivitySerializationContext,
   LoadedDataConverter,
   Next,
   PayloadTypeInfo,
@@ -393,6 +394,13 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
 
     const internalOptions = (input.options as InternalActivityStartOptions)[InternalActivityStartOptionsSymbol];
 
+    const context: ActivitySerializationContext = {
+      type: 'activity',
+      namespace: this.options.namespace,
+      activityId: input.options.id,
+      isLocal: false,
+    };
+
     return {
       namespace: this.options.namespace,
       identity: this.options.identity,
@@ -408,7 +416,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       input: {
         payloads: await encodeToPayloadsWithContext(
           this.dataConverter,
-          undefined,
+          context,
           [...(input.options.args ?? [])],
           inputTypes
         ),
@@ -417,7 +425,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       idConflictPolicy: encodeActivityIdConflictPolicy(input.options.idConflictPolicy),
       searchAttributes,
       header: { fields: input.headers },
-      userMetadata: await encodeUserMetadata(this.dataConverter, input.options.summary, undefined),
+      userMetadata: await encodeUserMetadata(this.dataConverter, input.options.summary, undefined, context),
       priority: input.options.priority ? compilePriority(input.options.priority) : undefined,
       startDelay: msOptionalToTs(input.options.startDelay),
       completionCallbacks: internalOptions?.completionCallbacks,
@@ -430,6 +438,13 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
     if (!input.activityId) {
       throw new TypeError('activityId is required');
     }
+
+    const context: ActivitySerializationContext = {
+      type: 'activity',
+      namespace: this.options.namespace,
+      activityId: input.activityId,
+      isLocal: false,
+    };
 
     const req: temporal.api.workflowservice.v1.IPollActivityExecutionRequest = {
       namespace: this.options.namespace,
@@ -448,7 +463,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
             this.dataConverter,
             0,
             resp.outcome.result.payloads,
-            undefined,
+            context,
             input.outputType
           );
         } else if (resp.outcome?.failure) {
@@ -456,7 +471,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
           // If it succeeds, we want to throw the ActivityExecutionFailedError directly, so outside of try/catch.
           failedErr = new ActivityExecutionFailedError(
             'Activity execution failed',
-            await decodeOptionalFailureToOptionalError(this.dataConverter, resp.outcome.failure),
+            await decodeOptionalFailureToOptionalError(this.dataConverter, resp.outcome.failure, context),
             input.activityId,
             resp.runId || input.activityRunId || undefined
           );
@@ -481,8 +496,9 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
     }
 
     try {
+      const namespace = this.options.namespace;
       const resp = await this.workflowService.describeActivityExecution({
-        namespace: this.options.namespace,
+        namespace,
         activityId: input.activityId,
         runId: input.activityRunId || undefined,
         includeInput: input.options.includeInput,
@@ -495,7 +511,13 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       }
       const externalStorage = this.dataConverter.externalStorage;
       await visit(resp, walkDescribeActivityExecutionResponse, extstoreInboundOptions(externalStorage));
-      return buildActivityDescription(resp, this.dataConverter);
+      const context: ActivitySerializationContext = {
+        type: 'activity',
+        namespace,
+        activityId: input.activityId,
+        isLocal: false,
+      };
+      return buildActivityDescription(resp, this.dataConverter, context);
     } catch (err) {
       this.rethrowGrpcError(err, 'Failed to describe activity');
     }
@@ -1005,7 +1027,8 @@ function buildActivityExecutionInfo(info: temporal.api.activity.v1.IActivityExec
 
 function buildActivityDescription(
   resp: temporal.api.workflowservice.v1.DescribeActivityExecutionResponse & { info: object },
-  dataConverter: LoadedDataConverter
+  dataConverter: LoadedDataConverter,
+  serializationContext: ActivitySerializationContext
 ): ActivityExecutionDescription {
   return {
     ...buildActivityExecutionInfoCommonPart(resp.info),
@@ -1038,11 +1061,15 @@ function buildActivityDescription(
     hasOutcomeFailure: !!resp.outcome?.failure,
 
     getHeartbeatDetails: async <T>() =>
-      await decodeFromPayloadsAtIndex<T>(dataConverter, 0, resp.info.heartbeatDetails?.payloads),
-    getLastFailure: async () => await decodeOptionalFailureToOptionalError(dataConverter, resp.info.lastFailure),
-    getInput: async <T>() => (await decodeArrayFromPayloads(dataConverter, resp.input?.payloads)) as T,
-    getResult: async <T>() => await decodeFromPayloadsAtIndex<T>(dataConverter, 0, resp.outcome?.result?.payloads),
-    getOutcomeFailure: async () => await decodeOptionalFailureToOptionalError(dataConverter, resp.outcome?.failure),
+      await decodeFromPayloadsAtIndex<T>(dataConverter, 0, resp.info.heartbeatDetails?.payloads, serializationContext),
+    getLastFailure: async () =>
+      await decodeOptionalFailureToOptionalError(dataConverter, resp.info.lastFailure, serializationContext),
+    getInput: async <T>() =>
+      (await decodeArrayFromPayloads(dataConverter, resp.input?.payloads, serializationContext)) as T,
+    getResult: async <T>() =>
+      await decodeFromPayloadsAtIndex<T>(dataConverter, 0, resp.outcome?.result?.payloads, serializationContext),
+    getOutcomeFailure: async () =>
+      await decodeOptionalFailureToOptionalError(dataConverter, resp.outcome?.failure, serializationContext),
   };
 }
 
