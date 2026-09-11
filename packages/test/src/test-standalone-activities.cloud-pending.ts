@@ -155,12 +155,7 @@ if (RUN_INTEGRATION_TESTS) {
   test.before(async (t) => {
     const env = await createTestWorkflowEnvironment({
       server: {
-        extraArgs: [
-          '--dynamic-config-value',
-          `activity.longPollTimeout="${LONG_POLL_TIMEOUT_MS}ms"`,
-          '--dynamic-config-value',
-          'activity.startDelayEnabled=true',
-        ],
+        extraArgs: ['--dynamic-config-value', `activity.longPollTimeout="${LONG_POLL_TIMEOUT_MS}ms"`],
       },
     });
 
@@ -1075,7 +1070,7 @@ if (RUN_INTEGRATION_TESTS) {
       tt.is(desc.retryPolicy.initialInterval, originalDuration);
       tt.not(desc.retryPolicy.maximumInterval, updatedDuration);
       tt.is(desc.priority.fairnessKey, 'original');
-      tt.falsy(desc.startDelayMs);
+      tt.is(desc.startDelayMs, originalDuration);
     });
 
     await handle.terminate('test cleanup');
