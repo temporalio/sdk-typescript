@@ -772,7 +772,8 @@ function buildActivityExecutionInfo(info: temporal.api.activity.v1.IActivityExec
 
 function buildActivityDescription(
   resp: temporal.api.workflowservice.v1.DescribeActivityExecutionResponse & { info: object },
-  dataConverter: LoadedDataConverter
+  dataConverter: LoadedDataConverter,
+  serializationContext: ActivitySerializationContext
 ): ActivityExecutionDescription {
   return {
     ...buildActivityExecutionInfoCommonPart(resp.info),
@@ -805,11 +806,15 @@ function buildActivityDescription(
     hasOutcomeFailure: !!resp.outcome?.failure,
 
     getHeartbeatDetails: async <T>() =>
-      await decodeFromPayloadsAtIndex<T>(dataConverter, 0, resp.info.heartbeatDetails?.payloads),
-    getLastFailure: async () => await decodeOptionalFailureToOptionalError(dataConverter, resp.info.lastFailure),
-    getInput: async <T>() => (await decodeArrayFromPayloads(dataConverter, resp.input?.payloads)) as T,
-    getResult: async <T>() => await decodeFromPayloadsAtIndex<T>(dataConverter, 0, resp.outcome?.result?.payloads),
-    getOutcomeFailure: async () => await decodeOptionalFailureToOptionalError(dataConverter, resp.outcome?.failure),
+      await decodeFromPayloadsAtIndex<T>(dataConverter, 0, resp.info.heartbeatDetails?.payloads, serializationContext),
+    getLastFailure: async () =>
+      await decodeOptionalFailureToOptionalError(dataConverter, resp.info.lastFailure, serializationContext),
+    getInput: async <T>() =>
+      (await decodeArrayFromPayloads(dataConverter, resp.input?.payloads, serializationContext)) as T,
+    getResult: async <T>() =>
+      await decodeFromPayloadsAtIndex<T>(dataConverter, 0, resp.outcome?.result?.payloads, serializationContext),
+    getOutcomeFailure: async () =>
+      await decodeOptionalFailureToOptionalError(dataConverter, resp.outcome?.failure, serializationContext),
   };
 }
 
