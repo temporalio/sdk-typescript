@@ -9,7 +9,7 @@ import {
 import { versioningOverrideToProto as commonVersioningOverrideToProto } from '@temporalio/common/lib/worker-deployments';
 import type { google, temporal } from '@temporalio/proto';
 import { workflowInfo } from '../../../workflow';
-import { currentSystemNexusUserPayloadConverter } from '../user-payload-converter';
+import { currentSystemNexusPayloadConversion } from '../user-payload-converter';
 import type { SignalWithStartWorkflowRequest } from './models';
 
 export function retryPolicyFromProto(proto: temporal.api.common.v1.IRetryPolicy): common.RetryPolicy {
@@ -34,6 +34,16 @@ export function workflowFunctionName(value: string | common.Workflow): string {
 
 export function signalFunctionName(value: string | common.SignalDefinition<any[]>): string {
   return typeof value === 'string' ? value : value.name;
+}
+
+export function functionInputTypes(value: unknown): readonly common.TypeInfo[] | undefined {
+  if (typeof value === 'function') {
+    return common.extractWorkflowTypeAndConfig(value as common.Workflow).typeInfo?.inputTypes;
+  }
+  if (typeof value === 'object' && value !== null) {
+    return (value as common.SignalDefinition<any[]>).typeInfo?.inputTypes;
+  }
+  return undefined;
 }
 
 export function taskQueueFromProto(proto: temporal.api.taskqueue.v1.ITaskQueue): string {
@@ -67,54 +77,63 @@ export function payloadToProto(payload: common.Payload): temporal.api.common.v1.
   return payload;
 }
 
-function configuredPayloadConverter(): common.PayloadConverter {
-  return currentSystemNexusUserPayloadConverter();
-}
-
 /** Convert application values to the protobuf payload-list representation. */
-export function payloadsToProto(values: ReadonlyArray<unknown>): temporal.api.common.v1.IPayloads {
-  return { payloads: common.toPayloads(configuredPayloadConverter(), ...values) ?? [] };
+export function payloadsToProto(
+  values: ReadonlyArray<unknown>,
+  typeInfo?: readonly common.TypeInfo[]
+): temporal.api.common.v1.IPayloads {
+  const { converter, context } = currentSystemNexusPayloadConversion();
+  return { payloads: common.toPayloadsWithContext(converter, context, [...values], typeInfo) ?? [] };
 }
 
 /** Convert a protobuf payload-list representation to application values. */
 export function payloadsFromProto(proto: temporal.api.common.v1.IPayloads): unknown[] {
-  return common.arrayFromPayloads(configuredPayloadConverter(), proto.payloads) ?? [];
+  const { converter, context } = currentSystemNexusPayloadConversion();
+  return common.arrayFromPayloads(converter, proto.payloads, context) ?? [];
 }
 
 /** Convert one application value to a protobuf payload. */
 export function valueToPayload(value: unknown): common.Payload {
-  return configuredPayloadConverter().toPayload(value);
+  const { converter, context } = currentSystemNexusPayloadConversion();
+  return converter.toPayload(value, context);
 }
 
 /** Convert one protobuf payload to an application value. */
 export function payloadToValue<T>(payload: common.Payload): T {
-  return configuredPayloadConverter().fromPayload<T>(payload);
+  const { converter, context } = currentSystemNexusPayloadConversion();
+  return converter.fromPayload<T>(payload, context);
 }
 
 export function failureFromProto(proto: temporal.api.failure.v1.IFailure): Error {
-  return common.defaultFailureConverter.failureToError(proto, configuredPayloadConverter());
+  const { converter, context } = currentSystemNexusPayloadConversion();
+  return common.defaultFailureConverter.failureToError(proto, converter, context);
 }
 
 export function failureToProto(failure: Error): temporal.api.failure.v1.IFailure {
-  return common.defaultFailureConverter.errorToFailure(failure, configuredPayloadConverter());
+  const { converter, context } = currentSystemNexusPayloadConversion();
+  return common.defaultFailureConverter.errorToFailure(failure, converter, context);
 }
 
 export function memoFromProto(proto: temporal.api.common.v1.IMemo): Record<string, unknown> {
-  return common.mapFromPayloads(configuredPayloadConverter(), proto.fields ?? undefined) ?? {};
+  const { converter, context } = currentSystemNexusPayloadConversion();
+  return common.mapFromPayloads(converter, proto.fields ?? undefined, context) ?? {};
 }
 
 export function memoToProto(memo: Record<string, unknown>): temporal.api.common.v1.IMemo {
+  const { converter, context } = currentSystemNexusPayloadConversion();
   return {
-    fields: common.mapToPayloads(configuredPayloadConverter(), memo),
+    fields: common.mapToPayloads(converter, memo, context),
   };
 }
 
 export function headerFromProto(proto: temporal.api.common.v1.IHeader): Record<string, unknown> {
-  return common.mapFromPayloads(configuredPayloadConverter(), proto.fields) ?? {};
+  const { converter, context } = currentSystemNexusPayloadConversion();
+  return common.mapFromPayloads(converter, proto.fields, context) ?? {};
 }
 
 export function headerToProto(header: Record<string, unknown>): temporal.api.common.v1.IHeader {
-  return { fields: common.mapToPayloads(configuredPayloadConverter(), header) };
+  const { converter, context } = currentSystemNexusPayloadConversion();
+  return { fields: common.mapToPayloads(converter, header, context) };
 }
 
 export function durationFromProto(proto: google.protobuf.IDuration): common.Duration {

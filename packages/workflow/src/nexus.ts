@@ -17,7 +17,7 @@ import {
 import type { coresdk } from '@temporalio/proto';
 import { eventGroupMarkersToProto } from './event-groups';
 import { systemNexusOperationDefinition } from './nexus/system/payload-converter';
-import { withSystemNexusUserPayloadConverter } from './nexus/system/user-payload-converter';
+import { withSystemNexusPayloadConversion } from './nexus/system/user-payload-converter';
 import { dispatchSystemNexusSpecificInterceptors } from './nexus/system/generated/interceptors';
 import { CancellationScope } from './cancellation-scope';
 import { getActivator } from './global-attributes';
@@ -383,10 +383,10 @@ function serializeNexusOperation(
   const context = definition.serializationContext?.(input as any);
   const outerPayloadConverter = systemNexusOuterPayloadConverter(context);
   return {
-    input: withSystemNexusUserPayloadConverter(payloadConverter, context, () =>
+    input: withSystemNexusPayloadConversion(payloadConverter, context, () =>
       toPayloadWithTypeInfo(outerPayloadConverter, input, undefined, inputType)
     ),
-    userMetadata: withSystemNexusUserPayloadConverter(payloadConverter, context, () =>
+    userMetadata: withSystemNexusPayloadConversion(payloadConverter, context, () =>
       userMetadataToPayload(payloadConverter, options?.summary, undefined, context)
     ),
     systemNexus: { context },
