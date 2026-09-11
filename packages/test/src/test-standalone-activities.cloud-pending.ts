@@ -2,12 +2,7 @@ import { randomUUID } from 'crypto';
 import type { ExecutionContext, TestFn } from 'ava';
 import anyTest from 'ava';
 import * as rxjs from 'rxjs';
-import type {
-  ActivityHandle,
-  ActivityOptions,
-  ActivityClientInterceptor,
-  TypedActivityClient,
-} from '@temporalio/client';
+import type { ActivityHandle, ActivityOptions, ClientOptions, TypedActivityClient } from '@temporalio/client';
 import {
   ActivityExecutionStatus,
   ActivityExecutionAlreadyStartedError,
@@ -29,6 +24,7 @@ import { createTestWorkflowEnvironment } from './helpers-integration';
 import { convertOrder, createAsyncOrderActivities } from './workflows/type-info/activities';
 import { activityTypeInfo } from './workflows/type-info/activity-type-info';
 import { Order, Receipt } from './workflows/type-info/models';
+import { encdec, makeContextTrace, standaloneActivityCtx } from './payload-converters/serialization-context-converter';
 
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
 // polling/retry strategies result in the expected behavior
@@ -108,15 +104,16 @@ function assertReceipt(t: ExecutionContext, receipt: Receipt): void {
   t.is(typeof receipt.totalCents, 'bigint');
 }
 
-function makeClientWithActivityInterceptors(
-  env: TestWorkflowEnvironment,
-  interceptors: ActivityClientInterceptor[]
-): Client {
-  return new Client({
-    connection: env.client.connection,
-    namespace: env.client.options.namespace,
-    interceptors: { activity: interceptors },
-  });
+function makeClientWithOptions(env: TestWorkflowEnvironment, options: ClientOptions): Client {
+  return new Client(
+    Object.assign(
+      {
+        connection: env.client.connection,
+        namespace: env.client.options.namespace,
+      },
+      options
+    )
+  );
 }
 
 class BlockingEncodePayloadCodec implements PayloadCodec {
@@ -302,25 +299,29 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Activity interceptors can provide input and result TypeInfo', async (t) => {
-    const client = makeClientWithActivityInterceptors(t.context.env, [
-      {
-        async start(input, next) {
-          return await next({
-            ...input,
-            options: {
-              ...input.options,
-              typeInfo: { inputTypes: activityTypeInfo.convertOrder.inputTypes },
+    const client = makeClientWithOptions(t.context.env, {
+      interceptors: {
+        activity: [
+          {
+            async start(input, next) {
+              return await next({
+                ...input,
+                options: {
+                  ...input.options,
+                  typeInfo: { inputTypes: activityTypeInfo.convertOrder.inputTypes },
+                },
+              });
             },
-          });
-        },
-        async getResult(input, next) {
-          return await next({
-            ...input,
-            outputType: activityTypeInfo.convertOrder.outputType,
-          });
-        },
+            async getResult(input, next) {
+              return await next({
+                ...input,
+                outputType: activityTypeInfo.convertOrder.outputType,
+              });
+            },
+          },
+        ],
       },
-    ]);
+    });
 
     const result = await client.activity.execute<Receipt>('convertOrder', {
       ...typeInfoActivityOptions,
@@ -700,6 +701,57 @@ if (RUN_INTEGRATION_TESTS) {
     const err = await t.throwsAsync(() => resultPromise, { instanceOf: ServiceError });
     t.assert(isGrpcCancelledError(err));
     t.context.activitySignalSubject.next(activityId);
+  });
+
+  test('Activity serialization context is used', async (t) => {
+    const ctxTaskQueue = taskQueue + '-with-serialization-context';
+
+    const dataConverter = {
+      payloadConverterPath: require.resolve('./payload-converters/serialization-context-converter'),
+      failureConverterPath: require.resolve('./payload-converters/serialization-context-converter'),
+    };
+
+    const worker = await Worker.create({
+      activities,
+      taskQueue: ctxTaskQueue,
+      dataConverter,
+      connection: t.context.env.nativeConnection,
+    });
+    const runPromise = worker.run();
+
+    const client = makeClientWithOptions(t.context.env, { dataConverter });
+
+    const activityId = randomUUID();
+    const ctx = standaloneActivityCtx(activityId);
+
+    const handle = await client.activity.start('echo', {
+      ...defaultOptions,
+      id: activityId,
+      taskQueue: ctxTaskQueue,
+      args: [makeContextTrace('input')],
+    });
+
+    const trace = await handle.result();
+    t.deepEqual(trace, {
+      label: 'input',
+      trace: [...encdec('input', ctx), ...encdec('input', ctx)],
+    });
+
+    const desc = await handle.describe({ includeInput: true, includeOutcome: true });
+    const input = await desc.getInput();
+    t.deepEqual(await desc.getInput(), [
+      {
+        label: 'input',
+        trace: encdec('input', ctx),
+      },
+    ]);
+    t.deepEqual(await desc.getResult(), {
+      label: 'input',
+      trace: [...encdec('input', ctx), ...encdec('input', ctx)],
+    });
+
+    worker.shutdown();
+    await runPromise;
   });
 
   test('Typed client - start activity', async (t) => {
