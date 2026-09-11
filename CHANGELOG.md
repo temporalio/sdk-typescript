@@ -125,8 +125,8 @@ to docs, or any other relevant information.
 
 ### Fixed
 
-- `@temporalio/ai-sdk` now installs `atob` and `btoa` in the Workflow sandbox, allowing the AI SDK to process
-  image and file tool results containing base64 data.
+- The Workflow sandbox now exposes `atob` and `btoa`, allowing integrations such as `@temporalio/ai-sdk` to
+  process image and file tool results containing base64 data.
 - Activity errors converted to `ApplicationFailure` now preserve native `Error.cause` chains in serialized failures.
 - Nexus handlers now report uncaught Workflow and standalone Activity already-started errors as
   non-retryable `INTERNAL` Handler Errors, preventing retries when ID reuse or conflict
