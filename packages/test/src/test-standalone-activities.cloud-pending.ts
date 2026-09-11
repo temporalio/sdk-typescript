@@ -20,7 +20,7 @@ import {
 import type { Payload, PayloadCodec, PayloadTypeInfo } from '@temporalio/common';
 import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
 import type { Info } from '@temporalio/activity';
-import { activityInfo } from '@temporalio/activity';
+import { activityInfo, heartbeat } from '@temporalio/activity';
 import type { TestWorkflowEnvironment } from './helpers';
 import { RUN_INTEGRATION_TESTS, waitUntil, Worker } from './helpers';
 import { echo, throwAnError } from './activities';
@@ -66,6 +66,13 @@ const activities = {
     if (info.workflowType !== undefined) {
       throw ApplicationFailure.nonRetryable('Expected workflowNamespace to be unset');
     }
+  },
+  heartbeatFailComplete: async (_input: string) => {
+    heartbeat('heartbeat details');
+    if (activityInfo().attempt === 1) {
+      throw ApplicationFailure.create({ message: 'first attempt failure' });
+    }
+    return 'result';
   },
 };
 
@@ -463,6 +470,65 @@ if (RUN_INTEGRATION_TESTS) {
       status: 'COMPLETED',
       taskQueue,
     });
+  });
+
+  test('Describe activity with payloads - success', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const handle = await client.start('heartbeatFailComplete', {
+      ...defaultOptions,
+      id: activityId,
+      args: ['input'],
+    });
+
+    t.is(await handle.result(), 'result');
+
+    const description = await handle.describe({
+      includeInput: true,
+      includeOutcome: true,
+      includeHeartbeatDetails: true,
+      includeLastFailure: true,
+    });
+    t.true(description.hasInput);
+    t.true(description.hasResult);
+    t.true(description.hasHeartbeatDetails);
+    t.true(description.hasLastFailure);
+    t.false(description.hasOutcomeFailure);
+    t.deepEqual(await description.getInput<[string]>(), ['input']);
+    t.is(await description.getResult<string>(), 'result');
+    t.is(await description.getHeartbeatDetails<string>(), 'heartbeat details');
+    t.is((await description.getLastFailure())?.message, 'first attempt failure');
+    t.is(await description.getOutcomeFailure(), undefined);
+  });
+
+  test('Describe activity with payloads - failure', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const handle = await client.start('heartbeatFailComplete', {
+      ...defaultOptions,
+      id: activityId,
+      args: ['input'],
+      retry: { maximumAttempts: 1 },
+    });
+
+    await t.throwsAsync(() => handle.result(), { instanceOf: ActivityExecutionFailedError });
+
+    const description = await handle.describe({
+      includeInput: true,
+      includeOutcome: true,
+      includeHeartbeatDetails: true,
+      includeLastFailure: true,
+    });
+    t.true(description.hasInput);
+    t.false(description.hasResult);
+    t.true(description.hasHeartbeatDetails);
+    t.true(description.hasLastFailure);
+    t.true(description.hasOutcomeFailure);
+    t.deepEqual(await description.getInput<[string]>(), ['input']);
+    t.is(await description.getResult<string>(), undefined);
+    t.is(await description.getHeartbeatDetails<string>(), 'heartbeat details');
+    t.is((await description.getLastFailure())?.message, 'first attempt failure');
+    t.is((await description.getOutcomeFailure())?.message, 'first attempt failure');
   });
 
   test('Cancel activity', async (t) => {
