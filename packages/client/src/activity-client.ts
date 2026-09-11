@@ -635,27 +635,19 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
     }
     if (input.options.scheduleToCloseTimeout !== undefined) {
       paths.push('schedule_to_close_timeout');
-      if (input.options.scheduleToCloseTimeout != null) {
-        activityOptions.scheduleToCloseTimeout = msOptionalToTs(input.options.scheduleToCloseTimeout);
-      }
+      activityOptions.scheduleToCloseTimeout = msOptionalToTs(input.options.scheduleToCloseTimeout);
     }
     if (input.options.scheduleToStartTimeout !== undefined) {
       paths.push('schedule_to_start_timeout');
-      if (input.options.scheduleToStartTimeout != null) {
-        activityOptions.scheduleToStartTimeout = msOptionalToTs(input.options.scheduleToStartTimeout);
-      }
+      activityOptions.scheduleToStartTimeout = msOptionalToTs(input.options.scheduleToStartTimeout);
     }
     if (input.options.startToCloseTimeout !== undefined) {
       paths.push('start_to_close_timeout');
-      if (input.options.startToCloseTimeout != null) {
-        activityOptions.startToCloseTimeout = msOptionalToTs(input.options.startToCloseTimeout);
-      }
+      activityOptions.startToCloseTimeout = msOptionalToTs(input.options.startToCloseTimeout);
     }
     if (input.options.heartbeatTimeout !== undefined) {
       paths.push('heartbeat_timeout');
-      if (input.options.heartbeatTimeout != null) {
-        activityOptions.heartbeatTimeout = msOptionalToTs(input.options.heartbeatTimeout);
-      }
+      activityOptions.heartbeatTimeout = msOptionalToTs(input.options.heartbeatTimeout);
     }
     if (input.options.retry !== undefined) {
       paths.push('retry_policy');
@@ -671,9 +663,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
     }
     if (input.options.startDelay !== undefined) {
       paths.push('start_delay');
-      if (input.options.startDelay != null) {
-        activityOptions.startDelay = msOptionalToTs(input.options.startDelay);
-      }
+      activityOptions.startDelay = msOptionalToTs(input.options.startDelay);
     }
 
     try {

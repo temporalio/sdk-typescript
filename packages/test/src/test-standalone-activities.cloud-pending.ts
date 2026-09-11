@@ -999,8 +999,7 @@ if (RUN_INTEGRATION_TESTS) {
       tt.not(desc.retryPolicy.initialInterval, originalDuration);
       tt.is(desc.retryPolicy.maximumInterval, updatedDuration);
       tt.falsy(desc.priority.fairnessKey);
-      // TODO: uncomment when added
-      // tt.is(desc.startDelay, undefined);
+      tt.falsy(desc.startDelayMs);
     });
 
     const originalOptions = await handle.restoreOriginalOptions();
@@ -1024,8 +1023,7 @@ if (RUN_INTEGRATION_TESTS) {
       tt.is(desc.retryPolicy.initialInterval, originalDuration);
       tt.not(desc.retryPolicy.maximumInterval, updatedDuration);
       tt.is(desc.priority.fairnessKey, 'original');
-      // TODO: uncomment when added
-      // tt.is(desc.startDelay, undefined);
+      tt.falsy(desc.startDelayMs);
     });
 
     await handle.terminate('test cleanup');
