@@ -17,6 +17,7 @@ import {
   MCPToolset,
   isBaseToolset,
   type BaseLlm,
+  type BaseToolset,
   type Context as AdkToolContext,
   type LlmRequest,
   type LlmResponse,
@@ -28,9 +29,14 @@ import { ApplicationFailure } from '@temporalio/common';
 import { Context as ActivityContext } from '@temporalio/activity';
 import { WorkflowStreamClient } from '@temporalio/workflow-streams/client';
 
-import { MCP_ERROR_FAILURE_TYPE, MCP_TOOL_NOT_FOUND_FAILURE_TYPE, MODEL_ERROR_FAILURE_TYPE } from './error-types';
+import {
+  MCP_ERROR_FAILURE_TYPE,
+  MCP_RESOURCES_UNSUPPORTED_FAILURE_TYPE,
+  MCP_TOOL_NOT_FOUND_FAILURE_TYPE,
+  MODEL_ERROR_FAILURE_TYPE,
+} from './error-types';
 import type { InvokeModelArgs, InvokeModelStreamingArgs, ModelActivities, WireLlmRequest } from './model';
-import type { MCPCallToolArgs, MCPToolsetFactory } from './mcp';
+import type { MCPCallToolArgs, MCPReadResourceArgs, MCPResourceContents, MCPToolsetFactory } from './mcp';
 
 const DEFAULT_STREAM_BATCH_INTERVAL = '100 milliseconds';
 
@@ -99,7 +105,10 @@ export function createModelActivities(options: ModelActivitiesOptions = {}): Mod
   };
 }
 
-/** Builds the per-server `<name>-listTools` / `<name>-callTool` pairs. @internal */
+/**
+ * Builds the per-server `<name>-listTools` / `<name>-callTool` /
+ * `<name>-listResources` / `<name>-readResource` Activities. @internal
+ */
 export function createMCPActivities(
   toolsets: Record<string, MCPToolsetFactory> = {}
 ): Record<string, (args: never) => Promise<unknown>> {
@@ -108,6 +117,31 @@ export function createMCPActivities(
     Object.assign(activities, mcpActivitiesForName(name, factory));
   }
   return activities;
+}
+
+/** One live MCP session, as produced by ADK's `MCPSessionManager`. */
+type MCPSession = Awaited<ReturnType<MCPSessionManager['createSession']>>;
+
+/**
+ * The resource methods ADK 2.0 added to `MCPToolset`, duck-typed so a
+ * factory-supplied toolset (a real `MCPToolset`, or a test double) qualifies
+ * without a class check across two ADK copies.
+ */
+interface ResourceCapableToolset {
+  listResources(): Promise<string[]>;
+  readResource(name: string): Promise<MCPResourceContents[]>;
+}
+
+function resourceCapable(toolset: BaseToolset, name: string): ResourceCapableToolset {
+  const candidate = toolset as Partial<ResourceCapableToolset>;
+  if (typeof candidate.listResources === 'function' && typeof candidate.readResource === 'function') {
+    return candidate as ResourceCapableToolset;
+  }
+  throw ApplicationFailure.nonRetryable(
+    `The toolset registered for MCP server '${name}' cannot serve resources: it has no ` +
+      "'listResources' / 'readResource' methods. Return an MCPToolset (or MCPConnectionParams) from the factory.",
+    MCP_RESOURCES_UNSUPPORTED_FAILURE_TYPE
+  );
 }
 
 function mcpActivitiesForName(
@@ -144,7 +178,9 @@ function mcpActivitiesForName(
         const abortSignal = ActivityContext.current().cancellationSignal;
         const produced = factory();
         if (!isBaseToolset(produced)) {
-          return await callToolOverOneSession(produced, args, abortSignal);
+          return await withOneSession(produced, (session) =>
+            session.callTool({ name: args.toolName, arguments: args.args }, undefined, { signal: abortSignal })
+          );
         }
         const tools = await produced.getTools();
         const tool = tools.find((t) => t.name === args.toolName);
@@ -164,18 +200,62 @@ function mcpActivitiesForName(
         stopHeartbeat();
       }
     },
+
+    [`${name}-listResources`]: async (): Promise<string[]> => {
+      const stopHeartbeat = startAdaptiveHeartbeat();
+      try {
+        const abortSignal = ActivityContext.current().cancellationSignal;
+        const produced = factory();
+        if (!isBaseToolset(produced)) {
+          return await withOneSession(produced, async (session) => {
+            const result = await session.listResources(undefined, { signal: abortSignal });
+            return result.resources.map((resource) => resource.name);
+          });
+        }
+        return await resourceCapable(produced, name).listResources();
+      } catch (err) {
+        throw toApplicationFailure(err, MCP_ERROR_FAILURE_TYPE);
+      } finally {
+        stopHeartbeat();
+      }
+    },
+
+    [`${name}-readResource`]: async (args: MCPReadResourceArgs): Promise<MCPResourceContents[]> => {
+      const stopHeartbeat = startAdaptiveHeartbeat();
+      try {
+        const abortSignal = ActivityContext.current().cancellationSignal;
+        const produced = factory();
+        if (!isBaseToolset(produced)) {
+          // One session for the name → URI lookup and the read; ADK's own
+          // `MCPToolset.readResource(name)` opens two.
+          return await withOneSession(produced, async (session) => {
+            const listed = await session.listResources(undefined, { signal: abortSignal });
+            const resource = listed.resources.find((candidate) => candidate.name === args.name);
+            if (!resource) throw new Error(`Resource with name '${args.name}' not found.`);
+            if (!resource.uri) throw new Error(`Resource '${args.name}' has no URI.`);
+            const result = await session.readResource({ uri: resource.uri }, { signal: abortSignal });
+            return result.contents as MCPResourceContents[];
+          });
+        }
+        return await resourceCapable(produced, name).readResource(args.name);
+      } catch (err) {
+        throw toApplicationFailure(err, MCP_ERROR_FAILURE_TYPE);
+      } finally {
+        stopHeartbeat();
+      }
+    },
   };
 }
 
-async function callToolOverOneSession(
+/** Opens one MCP session for `fn` and closes it afterwards. */
+async function withOneSession<T>(
   connectionParams: MCPConnectionParams,
-  args: MCPCallToolArgs,
-  abortSignal: AbortSignal
-): Promise<unknown> {
+  fn: (session: MCPSession) => Promise<T>
+): Promise<T> {
   const sessions = new MCPSessionManager(connectionParams);
   const session = await sessions.createSession();
   try {
-    return await session.callTool({ name: args.toolName, arguments: args.args }, undefined, { signal: abortSignal });
+    return await fn(session);
   } finally {
     try {
       await sessions.closeSession(session);

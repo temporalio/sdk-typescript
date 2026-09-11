@@ -10,6 +10,7 @@ import test from 'ava';
 import type { BundleOptions, WorkerOptions } from '@temporalio/worker';
 
 import { GoogleAdkPlugin } from '../index';
+import { interceptors as autoRouteInterceptors } from '../auto-route';
 import { interceptors as polyfillInterceptors } from '../load-polyfills';
 import { mockMCPToolset } from '../testing';
 import { sandboxCompatResolveHook } from './helpers';
@@ -58,22 +59,38 @@ test('configureBundler stubs ADK node-only packages and disallowed builtins', (t
   }
 });
 
-test('configureBundler brackets the user modules with the polyfill loader and failure interceptor', (t) => {
+test('configureBundler brackets the user modules with the polyfill loader, auto-route and failure interceptor', (t) => {
   const plugin = new GoogleAdkPlugin();
   const { workflowInterceptorModules } = plugin.configureBundler({
     workflowsPath: 'wf',
     workflowInterceptorModules: ['user-interceptors'],
   } as BundleOptions);
   // The polyfill loader must be first so the web globals install before any other
-  // per-workflow module (interceptors, then the user's workflows) evaluates.
+  // per-workflow module (interceptors, then the user's workflows) evaluates; the
+  // model auto-route follows it (it imports ADK) and precedes user code.
+  t.deepEqual(workflowInterceptorModules, [
+    require.resolve('../load-polyfills'),
+    require.resolve('../auto-route'),
+    'user-interceptors',
+    require.resolve('../absorbed-failure'),
+  ]);
+  // Both side-effect modules satisfy the documented interceptor-module contract
+  // (export an `interceptors` factory) while registering nothing.
+  t.deepEqual(polyfillInterceptors(), {});
+  t.deepEqual(autoRouteInterceptors(), {});
+});
+
+test('autoRouteModels: false leaves the auto-route module out of the bundle', (t) => {
+  const plugin = new GoogleAdkPlugin({ autoRouteModels: false });
+  const { workflowInterceptorModules } = plugin.configureBundler({
+    workflowsPath: 'wf',
+    workflowInterceptorModules: ['user-interceptors'],
+  } as BundleOptions);
   t.deepEqual(workflowInterceptorModules, [
     require.resolve('../load-polyfills'),
     'user-interceptors',
     require.resolve('../absorbed-failure'),
   ]);
-  // The module satisfies the documented interceptor-module contract (exports
-  // an `interceptors` factory) while registering nothing.
-  t.deepEqual(polyfillInterceptors(), {});
 });
 
 test('configureBundler appends the sandbox-compat plugin, preserving a user hook', (t) => {
@@ -192,7 +209,7 @@ test('configureBundler prepends the api pin to an array-form user alias list', (
   t.is(alias[2], userEntry);
 });
 
-test('configureWorker registers model activities, plus an MCP pair per toolset', (t) => {
+test('configureWorker registers model activities, plus the four MCP activities per toolset', (t) => {
   const modelOnly = new GoogleAdkPlugin().configureWorker({ taskQueue: 'tq' } as WorkerOptions).activities as Record<
     string,
     unknown
@@ -207,4 +224,6 @@ test('configureWorker registers model activities, plus an MCP pair per toolset',
   >;
   t.is(typeof activities['weather-listTools'], 'function');
   t.is(typeof activities['weather-callTool'], 'function');
+  t.is(typeof activities['weather-listResources'], 'function');
+  t.is(typeof activities['weather-readResource'], 'function');
 });
