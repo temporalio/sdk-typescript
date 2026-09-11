@@ -105,7 +105,6 @@ to docs, or any other relevant information.
 
 ### Changed
 
-- `ActivityClient` now passes serialization context to data converter when interacting with standalone activities.
 - A workflow query issued from inside a Nexus operation handler now propagates the link the server
   returns for the workflow that processed it, so the caller's Nexus operation event points back at
   the queried workflow.
