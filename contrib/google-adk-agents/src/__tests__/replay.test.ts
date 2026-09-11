@@ -7,10 +7,10 @@
  * without a custom determinism hook. A determinism violation rejects
  * `Worker.runReplayHistory`.
  *
- * Besides replaying freshly recorded histories, the graph scenario is replayed
- * from a history checked in under `histories/`, so a change to ADK's or the
- * plugin's command stream is caught against a frozen recording. Refresh it with
- * `UPDATE_ADK_HISTORIES=1 pnpm test`.
+ * Besides replaying freshly recorded histories, the graph and HITL scenarios are
+ * replayed from histories checked in under `histories/`, so a change to ADK's
+ * or the plugin's command stream is caught against a frozen recording. Refresh
+ * them with `UPDATE_ADK_HISTORIES=1 pnpm test`.
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -34,7 +34,7 @@ import {
 } from './helpers';
 import * as activities from './test-activities';
 import { graphTestProvider } from './test-models';
-import { graphSequential } from './graph-workflows';
+import { graphSequential, hitlInputNode, pendingHitlQuery, respondHitlUpdate } from './graph-workflows';
 import { replayScenario } from './workflows';
 
 const historiesDir = path.resolve(__dirname, '../../src/__tests__/histories');
@@ -108,12 +108,31 @@ async function recordGraphHistory(env: TestWorkflowEnvironment) {
   return env.client.workflow.getHandle(workflowId).fetchHistory();
 }
 
+/** Runs the HITL scenario live — pause, answer through the Update, resume — and returns its history. */
+async function recordHitlHistory(env: TestWorkflowEnvironment) {
+  const taskQueue = uid('adk-replay-hitl');
+  const workflowId = uid('wf-replay-hitl');
+  await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, async () => {
+    const handle = await env.client.workflow.start(hitlInputNode, { taskQueue, workflowId });
+    const deadline = Date.now() + 20_000;
+    while ((await handle.query(pendingHitlQuery)).length === 0) {
+      if (Date.now() > deadline) throw new Error('timed out waiting for the HITL pause');
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    await handle.executeUpdate(respondHitlUpdate, { args: ['approval', 'ship-it'] });
+    const result = await handle.result();
+    if (result.output !== 'approved:ship-it') throw new Error(`unexpected HITL result ${JSON.stringify(result)}`);
+  });
+  return env.client.workflow.getHandle(workflowId).fetchHistory();
+}
+
 const RECORDED: Array<{ file: string; record: (env: TestWorkflowEnvironment) => Promise<unknown> }> = [
   { file: 'graph_workflow.json', record: recordGraphHistory },
+  { file: 'hitl_workflow.json', record: recordHitlHistory },
 ];
 
 for (const { file, record } of RECORDED) {
-  // Graph history replays live and from the checked-in fixture (E2E)
+  // Graph / HITL histories replay live and from the checked-in fixture (E2E)
   test.serial(`replays ${file} live and from the checked-in fixture`, async (t) => {
     const env = getEnv();
     const fixture = path.join(historiesDir, file);

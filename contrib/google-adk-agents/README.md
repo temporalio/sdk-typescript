@@ -162,6 +162,9 @@ connection params above and ADK's `MCPToolset` both open a new session per
 operation rather than reusing one. Holding a session open across operations is
 the factory's job — see `MCPToolsetFactory`.
 
+Gate the toolset's tools behind human approval with
+`requireConfirmation` — see [Durable human-in-the-loop](#durable-human-in-the-loop).
+
 ### Activities as tools
 
 Use `activityAsTool` to expose an existing Temporal Activity to the agent:
@@ -233,6 +236,105 @@ const runner = new InMemoryRunner({ agent: graph });
   `activityAsTool` children, or make them idempotent.
 - `LongRunningFunctionTool`s (including a node-as-tool) cannot be used as a
   `ToolNode`; ADK rejects that.
+
+### Durable human-in-the-loop
+
+ADK pauses a run by emitting a long-running function call — `adk_request_input`
+from a `RequestInput` node or ADK's `requestInputTool`, `adk_request_confirmation`
+from a tool gated with `requireConfirmation` — and resumes when a later user
+message answers it. Because the runner runs inside the Workflow, the wait is
+ordinary Workflow code, and the plugin supplies the wire format:
+
+```typescript
+import { condition, defineQuery, defineUpdate, setHandler } from '@temporalio/workflow';
+import {
+  hitlConfirmationResponse,
+  hitlInputResponse,
+  pendingHitlRequests,
+  type HitlRequest,
+} from '@temporalio/google-adk-agents/workflow';
+
+export const pendingQuery = defineQuery<HitlRequest[]>('pending');
+export const respondUpdate = defineUpdate<void, [string, unknown]>('respond');
+
+export async function reviewWorkflow(prompt: string): Promise<unknown> {
+  let pending: HitlRequest[] = [];
+  const answers = new Map<string, unknown>();
+  setHandler(pendingQuery, () => pending);
+  setHandler(respondUpdate, (interruptId, value) => void answers.set(interruptId, value));
+
+  const runner = new InMemoryRunner({ agent: graph });
+  const session = await runner.sessionService.createSession({ appName: runner.appName, userId: 'user' });
+  let newMessage: Content = { role: 'user', parts: [{ text: prompt }] };
+  for (;;) {
+    let output: unknown;
+    for await (const event of runner.runAsync({ userId: 'user', sessionId: session.id, newMessage })) {
+      if (event.output !== undefined) output = event.output;
+    }
+    const current = await runner.sessionService.getSession({
+      appName: runner.appName,
+      userId: 'user',
+      sessionId: session.id,
+    });
+    pending = pendingHitlRequests(current?.events ?? []);
+    if (pending.length === 0) return output;
+
+    await condition(() => pending.every((r) => answers.has(r.interruptId)));
+    newMessage = {
+      role: 'user',
+      parts: pending.map((r) =>
+        r.kind === 'confirmation'
+          ? hitlConfirmationResponse(r, answers.get(r.interruptId) as { confirmed: boolean })
+          : hitlInputResponse(r, answers.get(r.interruptId))
+      ),
+    };
+  }
+}
+```
+
+- `pendingHitlRequests(events)` returns ADK's `UserInputRequest`s (plain JSON, so a
+  Query can return them) that still await an answer, minus credential requests.
+- `hitlInputResponse(request, value)` answers an input request: a plain object is
+  delivered as-is, anything else is wrapped in ADK's `{ result: value }` envelope.
+  ADK parses a _string_ answer as JSON unless the request declared a
+  `responseSchema` that accepts strings, so a string that reads as a number,
+  boolean or `null` is refused rather than silently retyped — declare a string
+  schema on the `RequestInput`, or pass the parsed value.
+- `hitlConfirmationResponse(request, { confirmed, payload? })` answers a tool
+  gate. ADK reads approvals from the **latest** user message only, so answer every
+  pending confirmation in one message, and rebuild the agent for the resumed turn
+  with the same tool names — an approval naming a tool the agent no longer has is
+  refused with `IntentMismatchError`.
+- Gate an Activity or MCP tool with `requireConfirmation` (a flag, or a predicate
+  over the arguments that must be a pure function of them): the Activity is not
+  scheduled until the human approves, and a rejection returns ADK's rejection
+  result to the model. A gate is only enforced on an `LlmAgent` turn; ADK's
+  workflow `ToolNode` does not route through confirmation. Declare the gate this
+  way rather than calling `toolContext.requestConfirmation()` from a tool body:
+  ADK 2.0.0 binds an approval only to a tool whose `checkRequireConfirmation`
+  says the call needs one, and refuses a gate requested only at run time — the
+  same limit applies to `SecurityPlugin`'s `CONFIRM` outcome — ending the
+  Workflow with `GoogleAdkIntentMismatchError` (`confirmation_not_required`).
+
+  ```typescript
+  activityAsTool({ name: 'deploy', description: 'Deploy.', parameters, requireConfirmation: true });
+  new TemporalMCPToolset({ name: 'ops', requireConfirmation: (toolName) => toolName === 'delete' });
+  ```
+
+  With `runConfig: { plainTextToolConfirmation: true }`, a plain "yes" answers
+  the single most recent pending gate — the tool runs, but the gate's function
+  call is never answered, so `pendingHitlRequests` keeps listing it; track it
+  yourself, as for agent-raised input requests below.
+
+- **Agent-raised input requests.** `requestInputTool` / `getUserChoiceTool` on a
+  plain `LlmAgent` pause the turn, but ADK 2.0 removes the framework call and its
+  function response from the model's context: a `hitlInputResponse` clears ADK's
+  pending list without the model ever seeing the value. Answer those with an
+  ordinary text turn instead, and track the answered id yourself (ADK's list
+  clears only on a function response). Graph `RequestInput` nodes and node-tools
+  receive `hitlInputResponse` values as their input.
+- Each turn appends to the session and to the Workflow history; for very long
+  conversations, `continueAsNew` between turns.
 
 ### Failures
 
@@ -348,8 +450,8 @@ Cautions:
 
 ## Determinism notes
 
-- ADK generates ids — event, invocation and session ids, function-call ids — with
-  `randomUUID()`. The sandbox has no `crypto`,
+- ADK generates ids — event, invocation and session ids, function-call ids,
+  `RequestInput` interrupt ids — with `randomUUID()`. The sandbox has no `crypto`,
   so the plugin serves ADK a `crypto` module whose values come from a **named
   workflow random stream**: replay-stable, and independent of the Workflow's own
   `Math.random()` sequence. Those ids are **not cryptographically random** inside
@@ -362,6 +464,10 @@ Cautions:
 
 ## Not supported in Workflows
 
+- **Credential requests** (`adk_request_credential`). `pendingHitlRequests` drops
+  them: answering one would put a secret into an Update payload that is persisted
+  in Workflow history, and ADK's OAuth2 `state` is predictable in a Workflow.
+  Acquire credentials on the Worker — in an Activity, or in an MCP toolset factory.
 - **Live / bidirectional streaming**: `Runner.runLive`, `StreamingMode.BIDI` and
   `BaseLlm.connect` (`TemporalModel.connect` throws `GoogleAdkUnsupported`; ADK
   itself rejects `StreamingMode.BIDI` in `runAsync`).

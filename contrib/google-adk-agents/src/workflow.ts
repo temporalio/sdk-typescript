@@ -18,13 +18,18 @@ export type { TemporalModelOptions } from './model';
 export { markModelFailureHandled } from './absorbed-failure';
 
 export { TemporalMCPToolset } from './mcp';
-export type { TemporalMCPToolsetOptions, MCPToolsetFactory } from './mcp';
+export type { TemporalMCPToolsetOptions, MCPToolsetFactory, MCPRequireConfirmation } from './mcp';
 
 export { activityAsTool } from './tools';
 export type { ActivityAsToolOptions } from './tools';
 
 export { activityNode } from './nodes';
 export type { ActivityNodeOptions } from './nodes';
+
+export { pendingHitlRequests, hitlInputResponse, hitlConfirmationResponse } from './hitl';
+export type { HitlRequest, HitlConfirmation } from './hitl';
+
+export type { RequireConfirmation } from './confirmation';
 
 export {
   ADK_RUNTIME_FAILURE_TYPES,
