@@ -694,7 +694,9 @@ export interface ActivityDescribeOptions {
    */
   includeInput?: boolean;
   /**
-   * Include activity result or outcome failure in the response if available.
+   * Include activity outcome failure in the response if available. If the activity is closed, this will populate
+   * either {@link ActivityExecutionDescription.getResult} or {@link ActivityExecutionDescription.getOutcomeFailure}
+   * depending on whether the activity succeeded or failed.
    */
   includeOutcome?: boolean;
   /**
