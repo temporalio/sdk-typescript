@@ -21,6 +21,11 @@ to docs, or any other relevant information.
 
 ### Breaking Changes
 
+- `@temporalio/google-adk-agents` now requires `@google/adk` `>=2.0.0 <2.1.0` (was `>=1.5.0 <1.6.0`).
+  ADK 2.0 changed its internals and its id generation, so a Workflow started under the 1.5 plugin
+  cannot be replayed by a Worker on this version: drain in-flight Workflows before upgrading, or
+  run the versions on separate task queues. `@modelcontextprotocol/sdk` is now an optional peer
+  dependency, needed only for `TemporalMCPToolset`.
 - `@temporalio/openai-agents` now requires `@openai/agents-core` and `@openai/agents-openai` `~0.14.3`. A project
   pinned to `0.13.x` or earlier hits a peer dependency conflict until it upgrades.
 - **Experimental**: External storage `StorageDriverSelector` now receives a
@@ -62,6 +67,9 @@ to docs, or any other relevant information.
 
 ### Added
 
+- `@temporalio/google-adk-agents` runs on Google ADK 2.0: the Workflow bundle now uses ADK's web
+  build, pinned regardless of the consumer's webpack target, and ADK's UUIDs are generated from a
+  named workflow random stream inside the sandbox, so its ids are replay-stable.
 - **Experimental**: `@temporalio/openai-agents` can run OpenAI Agents `SandboxAgent`s as Temporal Workflows. SandboxAgent
   operations are Activities; hosted tool credentials and sandbox environment values that reference allowlisted Worker
   environment variables are resolved on Worker so their values are not recorded in Workflow history.

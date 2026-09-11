@@ -19,6 +19,7 @@ import {
   type WorkflowBundle,
 } from '@temporalio/worker';
 
+import { GoogleAdkPlugin } from '../index';
 import { FakeLlm, type MockMCPToolDefinition } from '../testing';
 
 const here = __dirname;
@@ -379,4 +380,55 @@ export function findInCauseChain<T>(err: unknown, ctor: new (...args: any[]) => 
     current = (current as { cause?: unknown }).cause;
   }
   return undefined;
+}
+
+/** The subset of webpack's `ResolveData` the sandbox-compat plugin reads. */
+export interface ResolveDataLike {
+  request?: string;
+  context?: string;
+  contextInfo?: { issuer?: string };
+}
+
+/**
+ * Applies the sandbox-compat webpack plugin (obtained through the public
+ * `configureBundler` surface) to a stub compiler and returns its
+ * `beforeResolve` hook, so tests can observe how a request is rewritten.
+ */
+export function sandboxCompatResolveHook(
+  plugin: GoogleAdkPlugin = new GoogleAdkPlugin()
+): (data: ResolveDataLike) => string {
+  const { webpackConfigHook } = plugin.configureBundler({ workflowsPath: 'wf' } as BundleOptions);
+  const cfg = webpackConfigHook!({ plugins: [] } as never) as {
+    plugins?: Array<{ name?: string; apply?: (compiler: unknown) => void }>;
+  };
+  const compat = (cfg.plugins ?? []).find((p) => p.name === 'google-adk-sandbox-compat');
+  if (!compat?.apply) throw new Error('google-adk-sandbox-compat plugin not found in the webpack config');
+  let hook: ((data: ResolveDataLike) => void) | undefined;
+  compat.apply({
+    webpack: {
+      ProvidePlugin: class {
+        apply(): void {}
+      },
+    },
+    hooks: {
+      normalModuleFactory: {
+        tap: (_name: string, fn: (nmf: unknown) => void) =>
+          fn({
+            hooks: {
+              beforeResolve: {
+                tap: (_tapName: string, f: (data: ResolveDataLike) => void) => {
+                  hook = f;
+                },
+              },
+            },
+          }),
+      },
+    },
+  });
+  if (!hook) throw new Error('the sandbox-compat plugin did not tap beforeResolve');
+  return (data) => {
+    const copy: ResolveDataLike = { ...data };
+    hook!(copy);
+    return copy.request!;
+  };
 }

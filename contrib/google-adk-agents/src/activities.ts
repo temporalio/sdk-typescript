@@ -5,6 +5,10 @@
  * `@temporalio/workflow-streams/client`) stay out of the Workflow bundle.
  * Workflows pass a model/toolset name rather than a live `BaseLlm`/MCP session;
  * both are rebuilt here, and the plugin never puts API keys in activity inputs.
+ *
+ * This module runs on the worker, where `@google/adk` resolves to its full
+ * (node) barrel — the one that includes MCP. The Workflow bundle pins ADK's web
+ * surface, which does not.
  */
 
 import {
@@ -257,9 +261,24 @@ export function toApplicationFailure(err: unknown, baseType: string = MODEL_ERRO
   });
 }
 
+/** Bound on how far down an error's `cause` chain the HTTP status/headers are looked for. */
+const MAX_CAUSE_DEPTH = 8;
+
+/**
+ * Walks `err` and its `cause` chain — ADK 2.0 wraps MCP session failures as
+ * `new Error('Failed to create MCP session: …', { cause })`, so the transport
+ * error carrying the status sits one level down.
+ */
+function* causeChain(err: unknown): Generator<Record<string, unknown>> {
+  let current: unknown = err;
+  for (let depth = 0; depth < MAX_CAUSE_DEPTH && current && typeof current === 'object'; depth++) {
+    yield current as Record<string, unknown>;
+    current = (current as { cause?: unknown }).cause;
+  }
+}
+
 function readStatus(err: unknown): number | undefined {
-  if (err && typeof err === 'object') {
-    const e = err as Record<string, unknown>;
+  for (const e of causeChain(err)) {
     if (typeof e.status === 'number') return e.status;
     if (typeof e.status === 'string' && /^\d+$/.test(e.status)) return Number(e.status);
     const response = e.response as Record<string, unknown> | undefined;
@@ -272,22 +291,23 @@ function readStatus(err: unknown): number | undefined {
 }
 
 function readHeaders(err: unknown): Record<string, string> | undefined {
-  if (!err || typeof err !== 'object') return undefined;
-  const e = err as Record<string, unknown>;
-  const raw = e.headers ?? (e.response as Record<string, unknown> | undefined)?.headers;
-  if (!raw || typeof raw !== 'object') return undefined;
+  for (const e of causeChain(err)) {
+    const raw = e.headers ?? (e.response as Record<string, unknown> | undefined)?.headers;
+    if (!raw || typeof raw !== 'object') continue;
 
-  const maybeHeaders = raw as { forEach?: (cb: (value: string, key: string) => void) => void };
-  if (typeof maybeHeaders.forEach === 'function') {
-    const out: Record<string, string> = {};
-    maybeHeaders.forEach((value, key) => {
-      out[key.toLowerCase()] = value;
-    });
-    return out;
+    const maybeHeaders = raw as { forEach?: (cb: (value: string, key: string) => void) => void };
+    if (typeof maybeHeaders.forEach === 'function') {
+      const out: Record<string, string> = {};
+      maybeHeaders.forEach((value, key) => {
+        out[key.toLowerCase()] = value;
+      });
+      return out;
+    }
+    return Object.fromEntries(
+      Object.entries(raw as Record<string, unknown>).map(([k, v]) => [k.toLowerCase(), String(v)])
+    );
   }
-  return Object.fromEntries(
-    Object.entries(raw as Record<string, unknown>).map(([k, v]) => [k.toLowerCase(), String(v)])
-  );
+  return undefined;
 }
 
 /**

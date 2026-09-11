@@ -4,6 +4,7 @@
  */
 
 import { createRequire } from 'node:module';
+import path from 'node:path';
 
 import test from 'ava';
 import type { BundleOptions, WorkerOptions } from '@temporalio/worker';
@@ -11,6 +12,7 @@ import type { BundleOptions, WorkerOptions } from '@temporalio/worker';
 import { GoogleAdkPlugin } from '../index';
 import { interceptors as polyfillInterceptors } from '../load-polyfills';
 import { mockMCPToolset } from '../testing';
+import { sandboxCompatResolveHook } from './helpers';
 
 interface NamedPlugin {
   name?: string;
@@ -30,6 +32,8 @@ test('configureBundler stubs ADK node-only packages and disallowed builtins', (t
     '@modelcontextprotocol/sdk',
     '@google-cloud/storage',
     'express',
+    // ADK 2.0's `skills/loader.js` (on the web surface) imports the zip reader.
+    'adm-zip',
   ]) {
     t.true(ignored.has(pkg), `expected ADK node-only package ${pkg} to be stubbed`);
   }
@@ -108,6 +112,42 @@ test('configureBundler aliases @opentelemetry/api to the copy @google/adk resolv
   t.is(alias['user-alias'], '/user/alias');
 });
 
+test('configureBundler pins the bare @google/adk specifier to the web build', (t) => {
+  const plugin = new GoogleAdkPlugin();
+  const { webpackConfigHook } = plugin.configureBundler({ workflowsPath: 'wf' } as BundleOptions);
+  const cfg = webpackConfigHook!({ plugins: [], resolve: { alias: {} } } as never) as {
+    resolve?: { alias?: Record<string, unknown> };
+  };
+  const alias = cfg.resolve?.alias ?? {};
+
+  // Which `@google/adk` build the bundle gets must not depend on the consumer's
+  // webpack target / browserslist: the sandbox always gets ADK's web surface,
+  // and subpath imports (`@google/adk/tools/mcp`) are left alone by the `$` form.
+  const expected = require.resolve('@google/adk/dist/web/index_web.js');
+  t.is(alias['@google/adk$'], expected);
+  t.false('@google/adk' in alias);
+  t.true(expected.endsWith(path.join('dist', 'web', 'index_web.js')));
+});
+
+test('redirects crypto requests issued from inside @google/adk to the deterministic shim', (t) => {
+  const resolve = sandboxCompatResolveHook();
+  const shim = require.resolve('../crypto-shim');
+  const adkIssuer = '/app/node_modules/@google/adk/dist/web/utils/env_aware_utils.js';
+  // Both request forms, from an ADK file, land on the shim.
+  t.is(resolve({ request: 'node:crypto', contextInfo: { issuer: adkIssuer } }), shim);
+  t.is(resolve({ request: 'crypto', contextInfo: { issuer: adkIssuer } }), shim);
+  // The issuer may only be known as a directory.
+  t.is(resolve({ request: 'node:crypto', context: '/app/node_modules/@google/adk/dist/web/utils' }), shim);
+  // Any other issuer keeps the bundler's policy: the scheme is stripped so the
+  // bare-name `alias → false` applies, and nothing is redirected.
+  t.is(
+    resolve({ request: 'node:crypto', contextInfo: { issuer: '/app/node_modules/@google/genai/dist/web/x.js' } }),
+    'crypto'
+  );
+  t.is(resolve({ request: 'crypto', contextInfo: { issuer: '/app/src/workflows.ts' } }), 'crypto');
+  t.is(resolve({ request: 'node:crypto' }), 'crypto');
+});
+
 test('the api pin wins the bare specifier over user object-form alias entries', (t) => {
   const plugin = new GoogleAdkPlugin();
   const { webpackConfigHook } = plugin.configureBundler({ workflowsPath: 'wf' } as BundleOptions);
@@ -144,7 +184,12 @@ test('configureBundler prepends the api pin to an array-form user alias list', (
   // the object form.
   const expected = createRequire(require.resolve('@google/adk')).resolve('@opentelemetry/api');
   t.deepEqual(alias[0], { name: '@opentelemetry/api', onlyModule: true, alias: expected });
-  t.is(alias[1], userEntry);
+  t.deepEqual(alias[1], {
+    name: '@google/adk',
+    onlyModule: true,
+    alias: require.resolve('@google/adk/dist/web/index_web.js'),
+  });
+  t.is(alias[2], userEntry);
 });
 
 test('configureWorker registers model activities, plus an MCP pair per toolset', (t) => {

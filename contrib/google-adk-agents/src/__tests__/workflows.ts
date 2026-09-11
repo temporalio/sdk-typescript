@@ -14,10 +14,12 @@ import { isIP } from 'node:net';
 import {
   BasePlugin,
   createEvent,
+  generateClientFunctionCallId,
   InMemoryRunner,
   isFinalResponse,
   LlmAgent,
   LongRunningFunctionTool,
+  RequestInput,
   stringifyContent,
   type LlmRequest,
   type LlmResponse,
@@ -688,4 +690,24 @@ export async function netShimProbe(): Promise<{ loadTime: number[]; runtime: num
     loadTime: blockedIpv6BaseVersions,
     runtime: ['127.0.0.1', '::ffff:127.0.0.1', 'not-an-ip'].map((address) => isIP(address)),
   };
+}
+
+interface ProbeActivities {
+  echoId(id: string): Promise<string>;
+}
+
+/**
+ * Generates ADK ids (which use ADK's `randomUUID`) across two Workflow Tasks
+ * and sends them through an Activity, so a replay that regenerated them
+ * differently would fail with a non-determinism error.
+ */
+export async function cryptoShimProbe(): Promise<{ before: string; callId: string; after: string }> {
+  const { echoId } = proxyActivities<ProbeActivities>({ startToCloseTimeout: '10 seconds' });
+  const before = new RequestInput({}).interruptId;
+  const callId = generateClientFunctionCallId();
+  await echoId(before);
+  await sleep('1 ms');
+  const after = new RequestInput({}).interruptId;
+  await echoId(after);
+  return { before, callId, after };
 }

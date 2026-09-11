@@ -15,13 +15,21 @@
  * (`@temporalio/activity`, `@temporalio/workflow-streams/client`). The Activity
  * *implementations* that open real MCP sessions live in `./activities.ts`,
  * which nothing in that graph imports.
+ *
+ * ADK's own MCP classes are not on the `@google/adk` surface the Workflow
+ * bundle pins (ADK 2.0's web build; MCP lives on the full barrel and the
+ * `@google/adk/tools/mcp` subpath), while the barrel's single typings file
+ * still declares them. Everything this module needs from them runs OUTSIDE a
+ * Workflow — the direct (non-Temporal) fallback — so the class is looked up
+ * lazily there instead of value-imported, which would compile and be
+ * `undefined` in the sandbox.
  */
 
 import type { FunctionDeclaration } from '@google/genai';
+import * as adk from '@google/adk';
 import {
   BaseTool,
   BaseToolset,
-  MCPToolset,
   type MCPConnectionParams,
   type ReadonlyContext,
   type RunAsyncToolRequest,
@@ -84,6 +92,41 @@ export interface MCPCallToolArgs {
 /** The dynamic Activity surface proxied for a named MCP server. */
 type MCPActivities = Record<string, (args: Record<string, unknown> | MCPCallToolArgs) => Promise<unknown>>;
 
+type MCPToolsetCtor = new (
+  connectionParams: MCPConnectionParams,
+  toolFilter?: string[],
+  prefix?: string
+) => BaseToolset;
+
+/**
+ * Reads a named export off a module namespace without letting the bundler see
+ * which one, so a request for an export absent from the runtime surface is a
+ * plain `undefined` rather than a build-time diagnostic.
+ */
+function readExport(namespace: object, exportName: string): unknown {
+  return (namespace as Record<string, unknown>)[exportName];
+}
+
+/**
+ * ADK's real `MCPToolset` constructor, for the direct (non-Workflow) path. On
+ * the worker `@google/adk` is the full barrel and the class is present; inside
+ * a Workflow this is never reached (MCP traffic goes through Activities) and
+ * the class is absent from the pinned web surface — hence the lazy lookup.
+ */
+function mcpToolsetCtor(name: string): MCPToolsetCtor {
+  const ctor = readExport(adk, 'MCPToolset') as MCPToolsetCtor | undefined;
+  if (ctor === undefined) {
+    throw ApplicationFailure.nonRetryable(
+      `TemporalMCPToolset('${name}'): @google/adk's MCPToolset is not available in this runtime. ` +
+        "ADK 2.0 ships MCP only on its full (node) barrel; the Workflow bundle pins ADK's web build, " +
+        'which omits it. MCP traffic inside a Workflow is routed through the <name>-listTools / ' +
+        '<name>-callTool Activities and never needs it.',
+      MCP_TOOLSET_OUTSIDE_WORKFLOW_FAILURE_TYPE
+    );
+  }
+  return ctor;
+}
+
 /**
  * A {@link BaseToolset} whose MCP traffic is durable under Temporal.
  */
@@ -107,22 +150,10 @@ export class TemporalMCPToolset extends BaseToolset {
    */
   override async getTools(context?: ReadonlyContext): Promise<BaseTool[]> {
     if (!inWorkflowContext()) {
-      if (!this.options.connectionParams) {
-        throw ApplicationFailure.nonRetryable(
-          `TemporalMCPToolset('${this.options.name}').getTools() was called outside a ` +
-            'Workflow without `connectionParams`. Provide connectionParams to use this ' +
-            'toolset directly with ADK (non-Temporal).',
-          MCP_TOOLSET_OUTSIDE_WORKFLOW_FAILURE_TYPE
-        );
-      }
-      const real = new MCPToolset(this.options.connectionParams, this.options.toolFilter ?? [], this.options.prefix);
-      return real.getTools(context);
+      return this.realToolset('getTools').getTools(context);
     }
 
-    const activities = proxyActivities<MCPActivities>(
-      activityOptionsFrom(this.options.activity, `adk.mcp ${this.options.name}.listTools`)
-    );
-    const listTools = activities[`${this.options.name}-listTools`] as (
+    const listTools = this.activities(`adk.mcp ${this.options.name}.listTools`)[`${this.options.name}-listTools`] as (
       args: Record<string, unknown>
     ) => Promise<FunctionDeclaration[]>;
     const declarations = await listTools({});
@@ -140,6 +171,24 @@ export class TemporalMCPToolset extends BaseToolset {
 
   /** No-op: the workflow-side toolset holds no MCP session to close. */
   override async close(): Promise<void> {}
+
+  private activities(defaultSummary: string): MCPActivities {
+    return proxyActivities<MCPActivities>(activityOptionsFrom(this.options.activity, defaultSummary));
+  }
+
+  /** The real ADK toolset for the direct (non-Workflow) path. */
+  private realToolset(method: string): BaseToolset {
+    if (!this.options.connectionParams) {
+      throw ApplicationFailure.nonRetryable(
+        `TemporalMCPToolset('${this.options.name}').${method}() was called outside a ` +
+          'Workflow without `connectionParams`. Provide connectionParams to use this ' +
+          'toolset directly with ADK (non-Temporal).',
+        MCP_TOOLSET_OUTSIDE_WORKFLOW_FAILURE_TYPE
+      );
+    }
+    const MCPToolset = mcpToolsetCtor(this.options.name);
+    return new MCPToolset(this.options.connectionParams, this.options.toolFilter ?? [], this.options.prefix);
+  }
 }
 
 /**

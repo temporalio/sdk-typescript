@@ -19,13 +19,22 @@ wrap an existing Temporal Activity with `activityAsTool`.
 npm install @temporalio/google-adk-agents @google/adk @google/genai
 ```
 
-The supported peer range is `@google/adk` `>=1.5.0 <1.6.0` and `@google/genai`
+The supported peer range is `@google/adk` `>=2.0.0 <2.1.0` and `@google/genai`
 `^2.9.0`. The ceiling is exact by design: the plugin's Workflow-sandbox shims are
 keyed to what ADK reaches at module load, so an ADK minor outside this range can
-break the Workflow bundle.
+break the Workflow bundle. `@modelcontextprotocol/sdk` is an optional peer: install
+it if you use `TemporalMCPToolset` (ADK 2.0 made it optional too).
 
 Provide Gemini credentials to the Worker as usual, for example with
-`GOOGLE_GENAI_API_KEY` or `GEMINI_API_KEY`.
+`GOOGLE_GENAI_API_KEY`, `GOOGLE_API_KEY` or `GEMINI_API_KEY`.
+
+### Upgrading from ADK 1.5
+
+Versions of this plugin for `@google/adk` 1.5 are not compatible with 2.0, and a
+Workflow started under 1.5 cannot be replayed by a Worker on 2.0: ADK's internals
+and its id generation changed. Drain in-flight Workflows before switching, or run
+the two versions on separate task queues. Nothing in your Workflow code has to
+change.
 
 ## Hello world
 
@@ -250,6 +259,30 @@ Cautions:
   `@temporalio/google-adk-agents/workflow` first: it installs the sandbox
   polyfills ADK needs.
 
+## Determinism notes
+
+- ADK generates ids — event, invocation and session ids, function-call ids — with
+  `randomUUID()`. The sandbox has no `crypto`, so the plugin serves ADK a `crypto`
+  module whose values come from a **named workflow random stream**: replay-stable,
+  and independent of the Workflow's own `Math.random()` sequence. Those ids are
+  **not cryptographically random** inside a Workflow; nor is ADK's OAuth2 `state`,
+  which is one reason credential flows are unsupported there.
+
+## Not supported in Workflows
+
+- **Live / bidirectional streaming**: `Runner.runLive`, `StreamingMode.BIDI` and
+  `BaseLlm.connect` (`TemporalModel.connect` throws `GoogleAdkUnsupported`; ADK
+  itself rejects `StreamingMode.BIDI` in `runAsync`).
+- **Node-only ADK services.** The Workflow bundle uses ADK's web surface. It type-
+  checks against ADK's full typings, but these are `undefined` at run time in a
+  Workflow: the MCP classes (`MCPToolset`, `MCPSessionManager` — use
+  `TemporalMCPToolset`), a2a, `DatabaseSessionService`, `GcsArtifactService` /
+  `FileArtifactService`, telemetry setup, `LocalEnvironment`, the agent registry.
+  Present but non-functional there: the skills loaders, the code executors, and
+  `ApigeeLlm` (replaced by an inert class; wrap it in `TemporalModel`).
+- **Thread-pool tool execution** and any ADK extension point that performs I/O;
+  move it behind an Activity.
+
 ## Operational notes
 
 - Register `GoogleAdkPlugin` on the Worker. Passing it directly to `Client` does
@@ -263,21 +296,22 @@ Cautions:
   on a stalled call is `startToCloseTimeout`, one minute by default.
 - Streaming topic delivery is at-least-once. The deterministic Workflow value is
   the Activity result, not the stream side channel.
-- `BaseLlm.connect` live BIDI streaming is not supported inside Workflows.
-- Any ADK extension point that performs I/O must be moved behind an Activity.
 
 ## Troubleshooting
 
-A cryptic sandbox error during a model call — for example `fetch is not defined`,
-or a `... is not a function` error from a worker-only module like
-`google-auth-library` (the plugin's bundler config aliases such modules to an
-empty module in the Workflow bundle) — almost always means a model was not
-wrapped in `TemporalModel`. If an agent is configured with a raw model string
-(`model: 'gemini-2.5-flash'`) instead of `model: new TemporalModel('gemini-2.5-flash')`,
-ADK resolves the string through its `LLMRegistry` inside the Workflow sandbox and
-attempts a live network call from there. The sandbox blocks that call, and the
-resulting error points nowhere near the actual mistake. Wrap the model in
-`TemporalModel` so the call is routed out to an Activity.
+- A cryptic sandbox error during a model call — for example `fetch is not defined`,
+  or a `... is not a function` error from a worker-only module like
+  `google-auth-library` (the plugin's bundler config aliases such modules to an
+  empty module in the Workflow bundle) — almost always means a model was not
+  wrapped in `TemporalModel`. If an agent is configured with a raw model string
+  (`model: 'gemini-2.5-flash'`) instead of `model: new TemporalModel('gemini-2.5-flash')`,
+  ADK resolves the string through its `LLMRegistry` inside the Workflow sandbox and
+  attempts a live network call from there. The sandbox blocks that call, and the
+  resulting error points nowhere near the actual mistake. Wrap the model in
+  `TemporalModel` so the call is routed out to an Activity.
+- `X is not a constructor` / `X is not a function` for an ADK symbol inside a
+  Workflow means the symbol is one of the node-only services above: the Workflow
+  bundle resolves ADK's web surface, which omits it. Use it worker-side.
 
 ## License
 
