@@ -608,31 +608,54 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       throw new TypeError('activityId is required');
     }
 
-    const paths = [];
+    const activityOptions: temporal.api.activity.v1.IActivityOptions = {};
+    const paths: string[] = [];
     // != null because taskQueue can't be unset
     if (input.options.taskQueue != null) {
       paths.push('task_queue.name');
+      activityOptions.taskQueue = { name: input.options.taskQueue };
     }
     if (input.options.scheduleToCloseTimeout !== undefined) {
       paths.push('schedule_to_close_timeout');
+      if (input.options.scheduleToCloseTimeout != null) {
+        activityOptions.scheduleToCloseTimeout = msOptionalToTs(input.options.scheduleToCloseTimeout);
+      }
     }
     if (input.options.scheduleToStartTimeout !== undefined) {
       paths.push('schedule_to_start_timeout');
+      if (input.options.scheduleToStartTimeout != null) {
+        activityOptions.scheduleToStartTimeout = msOptionalToTs(input.options.scheduleToStartTimeout);
+      }
     }
     if (input.options.startToCloseTimeout !== undefined) {
       paths.push('start_to_close_timeout');
+      if (input.options.startToCloseTimeout != null) {
+        activityOptions.startToCloseTimeout = msOptionalToTs(input.options.startToCloseTimeout);
+      }
     }
     if (input.options.heartbeatTimeout !== undefined) {
       paths.push('heartbeat_timeout');
+      if (input.options.heartbeatTimeout != null) {
+        activityOptions.heartbeatTimeout = msOptionalToTs(input.options.heartbeatTimeout);
+      }
     }
     if (input.options.retry !== undefined) {
       paths.push('retry_policy');
+      if (input.options.retry != null) {
+        activityOptions.retryPolicy = compileRetryPolicy(input.options.retry);
+      }
     }
     if (input.options.priority !== undefined) {
       paths.push('priority');
+      if (input.options.priority != null) {
+        activityOptions.priority = compilePriority(input.options.priority);
+      }
     }
     if (input.options.startDelay !== undefined) {
       paths.push('start_delay');
+      if (input.options.startDelay != null) {
+        activityOptions.startDelay = msOptionalToTs(input.options.startDelay);
+      }
     }
 
     try {
@@ -642,16 +665,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
         runId: input.activityRunId || undefined,
         identity: this.options.identity,
         requestId: randomUUID(),
-        activityOptions: {
-          taskQueue: input.options.taskQueue != null ? { name: input.options.taskQueue } : undefined,
-          scheduleToCloseTimeout: msOptionalToTs(input.options.scheduleToCloseTimeout),
-          scheduleToStartTimeout: msOptionalToTs(input.options.scheduleToStartTimeout),
-          startToCloseTimeout: msOptionalToTs(input.options.startToCloseTimeout),
-          heartbeatTimeout: msOptionalToTs(input.options.heartbeatTimeout),
-          retryPolicy: input.options.retry ? compileRetryPolicy(input.options.retry) : undefined,
-          priority: input.options.priority ? compilePriority(input.options.priority) : undefined,
-          startDelay: msOptionalToTs(input.options.startDelay),
-        },
+        activityOptions,
         updateMask: { paths },
       });
       return buildActivityOptionsUpdateResult(resp.activityOptions);

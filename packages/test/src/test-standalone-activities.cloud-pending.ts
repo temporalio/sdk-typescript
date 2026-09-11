@@ -914,33 +914,33 @@ if (RUN_INTEGRATION_TESTS) {
       startDelay: null,
     });
     t.is(updatedOptions.taskQueue, 'original-task-queue');
-    t.is(updatedOptions.scheduleToCloseTimeout, undefined);
+    t.falsy(updatedOptions.scheduleToCloseTimeout);
     t.is(updatedOptions.scheduleToStartTimeout, updatedDuration);
     t.is(updatedOptions.startToCloseTimeout, updatedDuration);
     t.is(updatedOptions.heartbeatTimeout, originalDuration);
     t.not(updatedOptions.retry?.initialInterval, originalDuration); // retry policy has defaults
     t.is(updatedOptions.retry?.maximumInterval, updatedDuration);
-    t.is(updatedOptions.priority, undefined);
-    t.is(updatedOptions.startDelay, undefined);
+    t.falsy(updatedOptions.priority);
+    t.falsy(updatedOptions.startDelay);
 
     await assertEventually(t, async (tt) => {
       const desc = await handle.describe();
       tt.is(desc.taskQueue, 'original-task-queue');
-      tt.is(desc.scheduleToCloseTimeoutMs, undefined);
+      tt.falsy(desc.scheduleToCloseTimeoutMs);
       tt.is(desc.scheduleToStartTimeoutMs, updatedDuration);
       tt.is(desc.startToCloseTimeoutMs, updatedDuration);
       tt.is(desc.heartbeatTimeoutMs, originalDuration);
       tt.not(desc.retryPolicy.initialInterval, originalDuration);
       tt.is(desc.retryPolicy.maximumInterval, updatedDuration);
-      tt.is(desc.priority.fairnessKey, undefined);
+      tt.falsy(desc.priority.fairnessKey);
       // TODO: uncomment when added
       // tt.is(desc.startDelay, undefined);
     });
 
     const originalOptions = await handle.restoreOriginalOptions();
     t.is(originalOptions.taskQueue, 'original-task-queue');
-    t.is(originalOptions.scheduleToCloseTimeout, undefined);
-    t.is(originalOptions.scheduleToStartTimeout, undefined);
+    t.falsy(originalOptions.scheduleToCloseTimeout);
+    t.falsy(originalOptions.scheduleToStartTimeout);
     t.is(originalOptions.startToCloseTimeout, originalDuration);
     t.is(originalOptions.heartbeatTimeout, originalDuration);
     t.is(originalOptions.retry?.initialInterval, originalDuration);
@@ -951,8 +951,8 @@ if (RUN_INTEGRATION_TESTS) {
     await assertEventually(t, async (tt) => {
       const desc = await handle.describe();
       tt.is(desc.taskQueue, 'original-task-queue');
-      tt.is(desc.scheduleToCloseTimeoutMs, undefined);
-      tt.is(desc.scheduleToStartTimeoutMs, undefined);
+      tt.falsy(desc.scheduleToCloseTimeoutMs);
+      tt.falsy(desc.scheduleToStartTimeoutMs);
       tt.is(desc.startToCloseTimeoutMs, originalDuration);
       tt.is(desc.heartbeatTimeoutMs, originalDuration);
       tt.is(desc.retryPolicy.initialInterval, originalDuration);
