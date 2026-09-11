@@ -30,6 +30,7 @@ import * as adk from '@google/adk';
 import {
   BaseTool,
   BaseToolset,
+  type Context,
   type MCPConnectionParams,
   type ReadonlyContext,
   type RunAsyncToolRequest,
@@ -37,6 +38,7 @@ import {
 import { ApplicationFailure } from '@temporalio/common';
 import { type ActivityOptions, inWorkflowContext, proxyActivities } from '@temporalio/workflow';
 
+import { gateOnConfirmation } from './confirmation';
 import { MCP_TOOLSET_OUTSIDE_WORKFLOW_FAILURE_TYPE } from './error-types';
 import { activityOptionsFrom } from './model';
 
@@ -57,6 +59,17 @@ import { activityOptionsFrom } from './model';
  * hands that lifecycle to the plugin.
  */
 export type MCPToolsetFactory = () => BaseToolset | MCPConnectionParams;
+
+/**
+ * Whether an MCP tool call needs human approval before it runs: a flag for
+ * every tool of the toolset, or a predicate over the advertised tool name and
+ * the model's arguments. A predicate MUST be a pure function of its inputs —
+ * ADK re-evaluates it when binding the human's approval to the pinned call and
+ * refuses the approval if it then answers `false`.
+ */
+export type MCPRequireConfirmation =
+  | boolean
+  | ((toolName: string, args: Record<string, unknown>, toolContext?: Context) => boolean | Promise<boolean>);
 
 export interface TemporalMCPToolsetOptions {
   /**
@@ -79,6 +92,15 @@ export interface TemporalMCPToolsetOptions {
    * (direct ADK use / tests), to construct a real `MCPToolset`.
    */
   connectionParams?: MCPConnectionParams;
+  /**
+   * Gate the toolset's tools behind human approval, like ADK's
+   * `FunctionTool({ requireConfirmation })`. The `<name>-callTool` Activity is
+   * NOT scheduled on the pass that raises the confirmation request, nor after a
+   * rejection; it runs once the resumed turn carries the approval (see
+   * `hitlConfirmationResponse`). Only enforced on an `LlmAgent` turn — ADK
+   * 2.0's workflow `ToolNode` does not route through the confirmation path.
+   */
+  requireConfirmation?: MCPRequireConfirmation;
 }
 
 /** @internal */
@@ -220,8 +242,23 @@ class TemporalMCPTool extends BaseTool {
     return { ...this.declaration, name: this.name };
   }
 
+  /**
+   * Whether a call with `args` needs human approval — the declarative side of
+   * the gate, which ADK consults when binding an approval to the pinned call.
+   */
+  override async checkRequireConfirmation(args: Record<string, unknown>, toolContext?: Context): Promise<boolean> {
+    const gate = this.toolsetOptions.requireConfirmation;
+    if (gate === undefined || gate === false) return false;
+    if (gate === true) return true;
+    return gate(this.name, args, toolContext);
+  }
+
   /** Routes the tool call to the `<name>-callTool` Activity. */
   override async runAsync(request: RunAsyncToolRequest): Promise<unknown> {
+    if (await this.checkRequireConfirmation(request.args, request.toolContext)) {
+      const gated = gateOnConfirmation(this.name, request.toolContext);
+      if (gated !== undefined) return gated;
+    }
     const activities = proxyActivities<MCPActivities>(
       activityOptionsFrom(this.toolsetOptions.activity, `adk.mcp ${this.toolsetOptions.name}.${this.originalName}`)
     );

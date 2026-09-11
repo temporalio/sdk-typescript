@@ -74,6 +74,10 @@ to docs, or any other relevant information.
   - the workflow (graph) runtime — `Workflow`, `node()`, `JoinNode`, routing, dynamic nodes,
     node-as-tool, node retries and timeouts — runs unchanged; `activityNode` makes a registered
     Activity a graph node (its abort cancels the in-flight Activity);
+  - durable human-in-the-loop: `pendingHitlRequests`, `hitlInputResponse` and
+    `hitlConfirmationResponse` supply ADK's wire format, and `activityAsTool` /
+    `TemporalMCPToolset` gain `requireConfirmation` so an Activity or MCP tool call runs only once
+    a human approves;
   - ADK's runtime errors (`NodeTimeoutError`, `IntentMismatchError`, …) fail the Workflow with typed
     `ApplicationFailure`s (`ADK_RUNTIME_FAILURE_TYPES`) instead of retrying the Workflow Task
     forever.

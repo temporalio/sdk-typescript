@@ -21,6 +21,9 @@ test('cjsRequireExposesPublicExports', (t) => {
   t.is(typeof workflow.TemporalMCPToolset, 'function');
   t.is(typeof workflow.activityAsTool, 'function');
   t.is(typeof workflow.activityNode, 'function');
+  t.is(typeof workflow.pendingHitlRequests, 'function');
+  t.is(typeof workflow.hitlInputResponse, 'function');
+  t.is(typeof workflow.hitlConfirmationResponse, 'function');
   t.is(typeof workflow.markModelFailureHandled, 'function');
   t.is(workflow.MODEL_ERROR_FAILURE_TYPE, 'GoogleAdkModelError');
   t.is(workflow.MCP_TOOL_NOT_FOUND_FAILURE_TYPE, 'GoogleAdkMCPToolNotFound');

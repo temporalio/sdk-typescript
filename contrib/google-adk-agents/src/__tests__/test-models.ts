@@ -1,16 +1,116 @@
 /**
- * Scripted `BaseLlm` doubles for the graph / dynamic tests, plus a
+ * Scripted `BaseLlm` doubles for the graph / HITL tests, plus a
  * `modelProvider` that maps model names to them. Like the doubles in
  * `helpers.ts`, every model is rebuilt per Activity, so each derives its turn
  * from the request rather than from instance state.
  */
 
-import type { BaseLlm } from '@google/adk';
+import { BaseLlm, type BaseLlmConnection, type LlmRequest, type LlmResponse } from '@google/adk';
+import type { FunctionResponse } from '@google/genai';
 
 import { defaultTestProvider, ToolCallingLlm } from './helpers';
 
+function functionResponses(llmRequest: LlmRequest): FunctionResponse[] {
+  return (llmRequest.contents ?? [])
+    .flatMap((content) => content.parts ?? [])
+    .map((part) => part.functionResponse)
+    .filter((response): response is FunctionResponse => response !== undefined);
+}
+
+function textResponse(text: string): LlmResponse {
+  return { content: { role: 'model', parts: [{ text }] }, turnComplete: true };
+}
+
 /**
- * The `modelProvider` for the graph / dynamic suites. Names encode the
+ * Drives one gated tool call. Emits the call until a *real* (non-error) result
+ * for the tool is in the request, then reports it; a rejection result is
+ * reported as `rejected`. Confirmation traffic (`adk_request_confirmation`
+ * responses, the "requires confirmation" error result) is ignored, so the
+ * model never re-issues the call while the gate is pending.
+ */
+export class ConfirmationLlm extends BaseLlm {
+  private readonly toolName: string;
+  private readonly toolArgs: Record<string, unknown>;
+
+  constructor(options: { model: string; toolName: string; toolArgs: Record<string, unknown> }) {
+    super({ model: options.model });
+    this.toolName = options.toolName;
+    this.toolArgs = options.toolArgs;
+  }
+
+  override async *generateContentAsync(
+    llmRequest: LlmRequest,
+    _stream?: boolean,
+    _abortSignal?: AbortSignal
+  ): AsyncGenerator<LlmResponse, void> {
+    const results = functionResponses(llmRequest).filter((r) => r.name === this.toolName);
+    const real = results.find((r) => !(r.response && 'error' in r.response));
+    if (real) {
+      yield textResponse(`done:${JSON.stringify(real.response)}`);
+      return;
+    }
+    const rejected = results.find(
+      (r) => (r.response as { error?: string } | undefined)?.error === 'This tool call is rejected.'
+    );
+    if (rejected) {
+      yield textResponse('rejected');
+      return;
+    }
+    if (results.length > 0) {
+      // The gate is pending; ADK skips summarization, so this is not reached in
+      // practice, but never loop on the call.
+      yield textResponse('pending');
+      return;
+    }
+    yield {
+      content: { role: 'model', parts: [{ functionCall: { name: this.toolName, args: this.toolArgs } }] },
+      turnComplete: true,
+    };
+  }
+
+  override async connect(_llmRequest: LlmRequest): Promise<BaseLlmConnection> {
+    throw new Error('ConfirmationLlm does not connect.');
+  }
+}
+
+/**
+ * Drives ADK's `requestInputTool` on a plain agent: asks for the user's name
+ * until a user text other than the opening prompt is in the request, then
+ * reports it. (ADK removes the framework call and its response from the
+ * model's context, so the answer can only arrive as text.)
+ */
+export class RequestInputLlm extends BaseLlm {
+  override async *generateContentAsync(
+    llmRequest: LlmRequest,
+    _stream?: boolean,
+    _abortSignal?: AbortSignal
+  ): AsyncGenerator<LlmResponse, void> {
+    const userTexts = (llmRequest.contents ?? [])
+      .filter((c) => c.role === 'user')
+      .flatMap((c) => c.parts ?? [])
+      .map((p) => p.text)
+      .filter((t): t is string => typeof t === 'string');
+    const answer = userTexts.find((t) => t !== 'start');
+    if (answer !== undefined) {
+      yield textResponse(`name=${answer}`);
+      return;
+    }
+    yield {
+      content: {
+        role: 'model',
+        parts: [{ functionCall: { name: 'adk_request_input', args: { message: 'Your name?' } } }],
+      },
+      turnComplete: true,
+    };
+  }
+
+  override async connect(_llmRequest: LlmRequest): Promise<BaseLlmConnection> {
+    throw new Error('RequestInputLlm does not connect.');
+  }
+}
+
+/**
+ * The `modelProvider` for the graph / HITL suites. Names encode the
  * scenario; everything else falls through to {@link defaultTestProvider}.
  */
 export function graphTestProvider(): (model: string) => BaseLlm {
@@ -23,6 +123,14 @@ export function graphTestProvider(): (model: string) => BaseLlm {
         return new ToolCallingLlm({ model, toolName: 'enrich_flow', toolArgs: { value: 7 } });
       case 'enrich-flow-genai-model':
         return new ToolCallingLlm({ model, toolName: 'enrich_flow', toolArgs: { request: '7' } });
+      case 'request-input-model':
+        return new RequestInputLlm({ model });
+      case 'confirm-danger-model':
+        return new ConfirmationLlm({ model, toolName: 'dangerActivity', toolArgs: { target: 'prod' } });
+      case 'confirm-echo-model':
+        return new ConfirmationLlm({ model, toolName: 'echo', toolArgs: { value: 'hello' } });
+      case 'confirm-gate-model':
+        return new ConfirmationLlm({ model, toolName: 'dynamicGate', toolArgs: { target: 'prod' } });
       default:
         return fallback(model);
     }
