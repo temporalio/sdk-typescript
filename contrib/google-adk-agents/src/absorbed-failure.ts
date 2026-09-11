@@ -9,10 +9,19 @@
  * is open surfaces there, and one recorded after a handler frame returned surfaces in the
  * main function's. One recorded after the main function returned never surfaces —
  * completing with unfinished handlers is a user error Temporal already warns about.
+ *
+ * The same interceptor also converts the errors ADK 2.0's workflow runtime *throws* —
+ * a node past its `timeout`, an output that failed its schema, an approval ADK refused
+ * to bind — from the plain `Error`s they are into non-retryable `ApplicationFailure`s.
+ * The Temporal SDK fails a Workflow only for a `TemporalFailure` (or a configured
+ * failure type); any other error fails the Workflow *Task*, which the server retries
+ * forever. These are expected runtime outcomes of a graph, not bugs, so they must end
+ * the execution (or reject the Update) with a typed failure instead.
  */
 
 import type { AsyncLocalStorage as ALS } from 'node:async_hooks';
 
+import { ApplicationFailure } from '@temporalio/common';
 import {
   AsyncLocalStorage,
   CancellationScope,
@@ -21,6 +30,8 @@ import {
   isCancellation,
   type WorkflowInterceptorsFactory,
 } from '@temporalio/workflow';
+
+import { ADK_RUNTIME_FAILURE_TYPES } from './error-types';
 
 // Held on the per-execution sandbox `globalThis` rather than in module scope: a
 // bundle can hold two copies of this module (the interceptor list registers its
@@ -112,6 +123,29 @@ function raiseAbsorbed(frame: Frame): void {
   if (frame.pending.length > 0) throw frame.pending[0];
 }
 
+/**
+ * The name of ADK's `NodeReportedError`: a graph node that ended without output because
+ * the agent it ran absorbed an error. When that error was a `TemporalModel` call the frame
+ * has it recorded, and the recording — an `ActivityFailure` carrying the model failure's
+ * status and cause chain — is the better thing to raise.
+ */
+const NODE_REPORTED_ERROR = 'NodeReportedError';
+
+/**
+ * Converts an ADK workflow-runtime error escaping a frame into the failure that should
+ * end the execution: the frame's recorded model failure when the error merely reports
+ * that a model call was absorbed, otherwise a non-retryable `ApplicationFailure` typed
+ * per {@link ADK_RUNTIME_FAILURE_TYPES} with the ADK error as its cause. Anything else —
+ * a `TemporalFailure`, a user's own error — is returned unchanged.
+ */
+function toWorkflowFailure(err: unknown, frame: Frame): unknown {
+  if (!(err instanceof Error)) return err;
+  const type = ADK_RUNTIME_FAILURE_TYPES[err.name];
+  if (type === undefined) return err;
+  if (err.name === NODE_REPORTED_ERROR && frame.pending.length > 0) return frame.pending[0];
+  return ApplicationFailure.create({ message: err.message, type, nonRetryable: true, cause: err });
+}
+
 async function surfaceAbsorbedFailure<T>(frame: Frame, next: () => Promise<T>): Promise<T> {
   let result: T;
   try {
@@ -125,7 +159,7 @@ async function surfaceAbsorbedFailure<T>(frame: Frame, next: () => Promise<T>): 
       const { main } = recorded();
       if (main !== undefined && main !== frame) raiseAbsorbed(main);
     }
-    throw err;
+    throw toWorkflowFailure(err, frame);
   } finally {
     frame.surfaced = true;
   }

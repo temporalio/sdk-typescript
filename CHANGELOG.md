@@ -67,9 +67,16 @@ to docs, or any other relevant information.
 
 ### Added
 
-- `@temporalio/google-adk-agents` runs on Google ADK 2.0: the Workflow bundle now uses ADK's web
-  build, pinned regardless of the consumer's webpack target, and ADK's UUIDs are generated from a
-  named workflow random stream inside the sandbox, so its ids are replay-stable.
+- `@temporalio/google-adk-agents` supports Google ADK 2.0 inside Workflows:
+  - the Workflow bundle now uses ADK's web build, pinned regardless of the consumer's webpack
+    target, and ADK's UUIDs are generated from a named workflow random stream inside the sandbox,
+    so its ids are replay-stable;
+  - the workflow (graph) runtime — `Workflow`, `node()`, `JoinNode`, routing, dynamic nodes,
+    node-as-tool, node retries and timeouts — runs unchanged; `activityNode` makes a registered
+    Activity a graph node (its abort cancels the in-flight Activity);
+  - ADK's runtime errors (`NodeTimeoutError`, `IntentMismatchError`, …) fail the Workflow with typed
+    `ApplicationFailure`s (`ADK_RUNTIME_FAILURE_TYPES`) instead of retrying the Workflow Task
+    forever.
 - **Experimental**: `@temporalio/openai-agents` can run OpenAI Agents `SandboxAgent`s as Temporal Workflows. SandboxAgent
   operations are Activities; hosted tool credentials and sandbox environment values that reference allowlisted Worker
   environment variables are resolved on Worker so their values are not recorded in Workflow history.

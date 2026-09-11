@@ -711,3 +711,6 @@ export async function cryptoShimProbe(): Promise<{ before: string; callId: strin
   await echoId(after);
   return { before, callId, after };
 }
+
+// ADK 2.0 workflow-runtime fixtures; bundled through this module.
+export * from './graph-workflows';

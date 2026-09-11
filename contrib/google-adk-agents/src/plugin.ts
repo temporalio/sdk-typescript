@@ -634,12 +634,13 @@ export class GoogleAdkPlugin extends SimplePlugin {
    *     to install the polyfills.
    *  4. **`workflowInterceptorModules`** also gets the `absorbed-failure` module
    *     appended last — the module that re-raises a model failure ADK absorbed
-   *     (`markModelFailureHandled` opts one back out). Interceptor modules compose
-   *     first-is-outermost, so last means innermost, and the re-raise rejects
-   *     *through* the outer interceptors rather than past them: an observability
-   *     interceptor must not close its span OK on a Workflow about to fail. Being
-   *     last is order-dependent, not structural — so list `GoogleAdkPlugin` last in
-   *     `plugins`.
+   *     (`markModelFailureHandled` opts one back out) and converts ADK's
+   *     workflow-runtime errors into typed `ApplicationFailure`s. Interceptor
+   *     modules compose first-is-outermost, so last means innermost, and the
+   *     re-raise rejects *through* the outer interceptors rather than past them:
+   *     an observability interceptor must not close its span OK on a Workflow
+   *     about to fail. Being last is order-dependent, not structural — so list
+   *     `GoogleAdkPlugin` last in `plugins`.
    *
    * Tradeoff: putting **all** disallowed builtins in `ignoreModules` suppresses
    * the bundler's friendly "you imported a Node builtin in your Workflow"
