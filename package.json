@@ -29,6 +29,7 @@
     "gen:payload-visitor": "pnpm --filter @temporalio/proto run gen:payload-visitor",
     "cloud:inventory": "tsx ./scripts/cloud-test-inventory.ts",
     "test": "pnpm --recursive --parallel --workspace-concurrency=1 --stream run test",
+    "test:ci-summary": "tsx --test scripts/ci-run-summary.test.ts",
     "test:cloud": "tsx ./scripts/run-cloud-tests.ts",
     "test:watch": "pnpm --recursive --stream run test:watch",
     "ci-stress": "node ./packages/test/lib/load/run-all-stress-ci-scenarios.js",
