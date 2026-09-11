@@ -19,6 +19,7 @@ import type { ActivityOptions, LocalActivityOptions } from './activities';
 import type { EventGroupMarker } from './event-groups';
 import type { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interfaces';
 import type { NexusOperationCancellationType } from './nexus';
+import type { SystemNexusWorkflowOutboundCallsInterceptor } from './nexus/system/generated/interceptors';
 
 export { Next, Headers };
 
@@ -131,7 +132,7 @@ export interface QueryInput {
  * Implement any of these methods to intercept Workflow code calls to the Temporal APIs, like scheduling an activity
  * and starting a timer.
  */
-export interface WorkflowOutboundCallsInterceptor {
+export interface WorkflowOutboundCallsInterceptor extends SystemNexusWorkflowOutboundCallsInterceptor {
   /**
    * Called when Workflow starts a timer.
    */
@@ -164,6 +165,12 @@ export interface WorkflowOutboundCallsInterceptor {
   startNexusOperation?: (
     input: StartNexusOperationInput,
     next: Next<WorkflowOutboundCallsInterceptor, 'startNexusOperation'>
+  ) => Promise<StartNexusOperationOutput>;
+
+  /** Called when Workflow starts a Temporal System Nexus operation. */
+  startSystemNexusOperation?: (
+    input: StartNexusOperationInput,
+    next: Next<WorkflowOutboundCallsInterceptor, 'startSystemNexusOperation'>
   ) => Promise<StartNexusOperationOutput>;
 
   /**

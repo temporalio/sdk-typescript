@@ -97,6 +97,7 @@ import type {
 } from './worker-options';
 import { compileWorkerOptions, isCodeBundleOption, isPathBundleOption, toNativeWorkerOptions } from './worker-options';
 import { WorkflowCodecRunner } from './workflow-codec-runner';
+import { isSystemNexusEnvelope, transformEncodedSystemNexusEnvelope } from './system-nexus-operations';
 import { defaultWorkflowInterceptorModules, WorkflowCodeBundler } from './workflow/bundler';
 import { isBunPre1_4 } from './workflow/bun';
 import type { Workflow, WorkflowCreator } from './workflow/interface';
@@ -1595,21 +1596,45 @@ export class Worker {
         if (externalStorage && !this.isReplayWorker) {
           const namespace = workflowCodecRunner.workflowContext.namespace;
           uploadMetrics = new ExternalStorageMetricsAccumulator();
-          await visit(
-            encodedCompletion,
-            walkWorkflowActivationCompletion,
-            extstoreStoreOptions(externalStorage, {
-              initialTarget: {
-                kind: 'workflow',
-                namespace,
-                id: workflowCodecRunner.workflowContext.workflowId,
-                runId: activation.runId,
-                type: workflow.info.workflowType,
-              },
-              deriveContext: workflowCommandStoreTarget(namespace, workflow.info),
-              metrics: uploadMetrics,
-            })
-          );
+          const systemNexusInputs: Array<{
+            command: coresdk.workflow_commands.IScheduleNexusOperation;
+            payload: Payload;
+          }> = [];
+          for (const command of encodedCompletion.successful?.commands ?? []) {
+            const schedule = command.scheduleNexusOperation;
+            if (schedule?.input != null && isSystemNexusEnvelope(schedule.input)) {
+              systemNexusInputs.push({ command: schedule, payload: schedule.input });
+              schedule.input = undefined;
+            }
+          }
+          const visitorOptions = extstoreStoreOptions(externalStorage, {
+            initialTarget: {
+              kind: 'workflow',
+              namespace,
+              id: workflowCodecRunner.workflowContext.workflowId,
+              runId: activation.runId,
+              type: workflow.info.workflowType,
+            },
+            deriveContext: workflowCommandStoreTarget(namespace, workflow.info),
+            metrics: uploadMetrics,
+          });
+          await visit(encodedCompletion, walkWorkflowActivationCompletion, visitorOptions);
+          for (const { command, payload } of systemNexusInputs) {
+            const context =
+              workflowCodecRunner.systemNexusOperationContext(command.seq) ?? workflowCodecRunner.workflowContext;
+            const initialTarget: StorageDriverTargetInfo =
+              context.type === 'workflow'
+                ? { kind: 'workflow', namespace: context.namespace, id: context.workflowId }
+                : {
+                    kind: 'activity',
+                    namespace: context.namespace,
+                    id: context.activityId,
+                  };
+            command.input = await transformEncodedSystemNexusEnvelope(command.service, command.operation, payload, {
+              ...visitorOptions,
+              initialContext: initialTarget,
+            });
+          }
         }
         encodedCompletion.payloadDownloadMetrics = downloadMetrics?.toProto();
         encodedCompletion.payloadUploadMetrics = uploadMetrics?.toProto();
