@@ -8,6 +8,7 @@ import {
   workflowTypeFromProto,
   workflowTypeToProto,
   signalFunctionName,
+  functionInputTypes,
   taskQueueFromProto,
   taskQueueToProto,
   workflowNamespace,
@@ -49,11 +50,14 @@ function requestArgsFromPayloads(payloads: temporal.api.common.v1.IPayloads | nu
   return payloadsFromProto(payloads);
 }
 
-function requestArgsToPayloads(args: ReadonlyArray<unknown> | undefined): temporal.api.common.v1.IPayloads | undefined {
+function requestArgsToPayloads(
+  args: ReadonlyArray<unknown> | undefined,
+  functionValue: unknown
+): temporal.api.common.v1.IPayloads | undefined {
   if (args == null) {
     return undefined;
   }
-  return payloadsToProto(args);
+  return payloadsToProto(args, functionInputTypes(functionValue));
 }
 
 /**
@@ -383,11 +387,11 @@ export function signalWithStartWorkflowRequestToProto<
   }
   return {
     workflowType: workflowTypeToProto(requiredField(model.workflow, 'SignalWithStartWorkflowRequest', 'workflow')),
-    input: requestArgsToPayloads(model.args),
+    input: requestArgsToPayloads(model.args, model.workflow),
     workflowId: requiredField(model.id, 'SignalWithStartWorkflowRequest', 'id'),
     taskQueue: taskQueueToProto(requiredField(model.taskQueue, 'SignalWithStartWorkflowRequest', 'taskQueue')),
     signalName: signalFunctionName(requiredField(model.signal, 'SignalWithStartWorkflowRequest', 'signal')),
-    signalInput: requestArgsToPayloads(model.signalArgs),
+    signalInput: requestArgsToPayloads(model.signalArgs, model.signal),
     workflowExecutionTimeout: model.executionTimeout == null ? undefined : durationToProto(model.executionTimeout),
     workflowRunTimeout: model.runTimeout == null ? undefined : durationToProto(model.runTimeout),
     workflowTaskTimeout: model.taskTimeout == null ? undefined : durationToProto(model.taskTimeout),

@@ -7,7 +7,7 @@ import {
   fromPayloadWithTypeInfo,
 } from '@temporalio/common';
 import { operationRegistry } from './generated/registry';
-import { withSystemNexusUserPayloadConverter } from './user-payload-converter';
+import { withSystemNexusPayloadConversion } from './user-payload-converter';
 
 export function isSystemNexusOperation(service: string | undefined, operation: string | undefined): boolean {
   return (
@@ -34,7 +34,7 @@ export function deserializeSystemNexusOutput(
   outputType: TypeInfo | undefined
 ): unknown | undefined {
   if (!isSystemNexusOperation(service, operation) || payload == null) return undefined;
-  return withSystemNexusUserPayloadConverter(converter, context, () =>
+  return withSystemNexusPayloadConversion(converter, context, () =>
     fromPayloadWithTypeInfo(defaultPayloadConverter, payload, undefined, outputType)
   );
 }
