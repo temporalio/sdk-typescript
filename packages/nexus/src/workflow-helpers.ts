@@ -19,7 +19,6 @@ import type {
   WorkflowSignalWithStartOptions as ClientWorkflowSignalWithStartOptions,
 } from '@temporalio/client';
 import { WorkflowUpdateStage, type WorkflowUpdateOptions } from '@temporalio/client';
-import { type temporal } from '@temporalio/proto';
 import type {
   InternalActivityStartOptions,
   InternalWorkflowHandle,
@@ -35,7 +34,6 @@ import {
   InternalWorkflowStartOptionsSymbol,
   InternalWorkflowUpdateOptionsSymbol,
 } from '@temporalio/client/lib/internal';
-import { convertNexusLinkToTemporalLink, convertTemporalLinkToNexusLink } from './link-converter';
 import {
   assertActivityOperationToken,
   assertUpdateWorkflowOperationToken,
@@ -51,10 +49,10 @@ import {
 import {
   getClient,
   getHandlerContext,
-  log,
   type TemporalCancelOperationContext,
   type TemporalStartOperationContext,
 } from './context';
+import { pushResponseLink, requestLinksToTemporalLinks } from './operation-links';
 
 declare const isNexusWorkflowHandle: unique symbol;
 declare const workflowResultType: unique symbol;
@@ -210,40 +208,6 @@ export async function startWorkflow<T extends Workflow>(
   // The Workflow run just started is this operation's async backing operation, so the handle's
   // `update()` must not be able to start another one.
   return createWorkflowHandle(ctx, handle.workflowId, handle.firstExecutionRunId, alreadyBackedReservation);
-}
-
-/**
- * Converts the request links carried on the operation start context into Temporal links so
- * they can be forwarded onto an outgoing Workflow RPC (signal, signalWithStart, start). Links that
- * fail to convert are logged and dropped.
- */
-function requestLinksToTemporalLinks(ctx: nexus.StartOperationContext): temporal.api.common.v1.ILink[] {
-  const links = Array<temporal.api.common.v1.ILink>();
-  if (ctx.inboundLinks?.length > 0) {
-    for (const l of ctx.inboundLinks) {
-      try {
-        links.push(convertNexusLinkToTemporalLink(l));
-      } catch (error) {
-        log.warn('failed to convert Nexus link to Workflow event link', { error });
-      }
-    }
-  }
-  return links;
-}
-
-/**
- * Pushes a response link returned by an outbound Workflow RPC onto the operation's outbound links so
- * the Nexus task handler attaches it to the StartOperationResponse, linking the caller Workflow's
- * NexusOperation history event back to the callee Workflow's event. Callers only invoke this when the
- * server returned a response link; older servers (or CHASM signal response links disabled) leave it
- * unset, in which case there is nothing to push.
- */
-function pushResponseLink(ctx: nexus.StartOperationContext, responseLink: temporal.api.common.v1.ILink) {
-  try {
-    ctx.outboundLinks.push(convertTemporalLinkToNexusLink(responseLink));
-  } catch (error) {
-    log.warn('failed to convert temporal link to Nexus link', { error });
-  }
 }
 
 /**
@@ -643,7 +607,9 @@ class TemporalNexusClientImpl implements TemporalNexusClient {
   };
 
   /**
-   * The Temporal Client for the active Nexus Operation.
+   * The Temporal Client for the active Nexus Operation. Activities started directly through
+   * `client.activity.start()` (rather than {@link startActivity}) are linked to this operation too,
+   * since a handler invocation may need to start more than one Activity.
    *
    * @experimental Temporal Operation handlers are experimental.
    */
@@ -791,11 +757,7 @@ async function updateWorkflowOperation<Ret, Args extends any[]>(
     if (internalOptions.responseLink != null) {
       // Attach the link the server returned (a WorkflowEvent link on success, or a Workflow link
       // when there is no history event, e.g. validation failure) as a handler link.
-      try {
-        ctx.outboundLinks.push(convertTemporalLinkToNexusLink(internalOptions.responseLink));
-      } catch (err) {
-        log.warn('failed to convert UpdateWorkflow response link to Nexus link', { error: err });
-      }
+      pushResponseLink(ctx, internalOptions.responseLink);
     }
 
     if (internalOptions.outcome != null) {
