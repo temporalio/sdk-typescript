@@ -63,6 +63,8 @@ to docs, or any other relevant information.
 ### Added
 
 - **Experimental**: New methods for `ActivityHandle`: `pause`, `unpause`, `updateOptions` and `restoreOriginalOptions`.
+- **Experimental**: `ActivityHandle.describe` now accepts options that can be used to include additional data associated
+  with activity execution, such as input and result.
 - **Experimental**: `@temporalio/openai-agents` can run OpenAI Agents `SandboxAgent`s as Temporal Workflows. SandboxAgent
   operations are Activities; hosted tool credentials and sandbox environment values that reference allowlisted Worker
   environment variables are resolved on Worker so their values are not recorded in Workflow history.
