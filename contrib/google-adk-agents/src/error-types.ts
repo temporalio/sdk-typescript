@@ -64,3 +64,63 @@ export const MODEL_ERROR_FAILURE_TYPE = 'GoogleAdkModelError';
  * `TemporalMCPToolsetOptions.activity.retry.maximumAttempts`.
  */
 export const MCP_ERROR_FAILURE_TYPE = 'GoogleAdkMCPError';
+
+/** @internal */
+export const ACTIVITY_NODE_OUTSIDE_WORKFLOW_FAILURE_TYPE = 'GoogleAdkActivityNodeOutsideWorkflow';
+
+/**
+ * Error type for an ADK workflow-runtime node that exceeded its `timeout`.
+ * ADK raises a plain `NodeTimeoutError`; the plugin converts it to a
+ * non-retryable `ApplicationFailure` of this type as it leaves the Workflow
+ * (or the Signal/Update handler) that ran the graph, so the execution fails
+ * instead of retrying the Workflow Task forever. The original error is the
+ * `cause`. The same conversion, under the types below, applies to every ADK
+ * runtime error listed in {@link ADK_RUNTIME_FAILURE_TYPES}.
+ */
+export const NODE_TIMEOUT_FAILURE_TYPE = 'GoogleAdkNodeTimeoutError';
+
+/**
+ * Error type for a graph node that finished without output because the agent
+ * it ran absorbed an error (ADK's `NodeReportedError`). When the absorbed
+ * error was a `TemporalModel` call, the plugin raises that call's
+ * `ActivityFailure` instead, so the model failure's HTTP status and cause
+ * chain survive.
+ */
+export const NODE_REPORTED_FAILURE_TYPE = 'GoogleAdkNodeReportedError';
+
+/** Error type for a node input/output/state that failed its ADK schema (`NodeSchemaValidationError`). */
+export const NODE_SCHEMA_VALIDATION_FAILURE_TYPE = 'GoogleAdkNodeSchemaValidationError';
+
+/**
+ * Error type for a human-in-the-loop approval ADK refused to bind to its gate
+ * (`IntentMismatchError`) — for example an approval naming a tool that does not
+ * require confirmation, or arguments that no longer match the pinned call.
+ */
+export const INTENT_MISMATCH_FAILURE_TYPE = 'GoogleAdkIntentMismatchError';
+
+/** Error type for a session-state write that failed its ADK `stateSchema` (`StateSchemaError`). */
+export const STATE_SCHEMA_FAILURE_TYPE = 'GoogleAdkStateSchemaError';
+
+/** Error type for an ADK invocation aborted through its `abortSignal` (`InvocationAbortedError`). */
+export const INVOCATION_ABORTED_FAILURE_TYPE = 'GoogleAdkInvocationAbortedError';
+
+/** Error type for a dynamic node ADK failed explicitly (`DynamicNodeFailError`). */
+export const DYNAMIC_NODE_FAIL_FAILURE_TYPE = 'GoogleAdkDynamicNodeFailError';
+
+/**
+ * The ADK runtime errors the plugin converts into non-retryable
+ * `ApplicationFailure`s, keyed by the error's `name` (ADK's own type guards
+ * match by name too; not every class is exported). Any other error that
+ * escapes a Workflow is left alone and follows the SDK's convention for
+ * unexpected errors: it fails the Workflow *Task*, which retries. Use
+ * `WorkerOptions.workflowFailureErrorTypes` to fail the execution on more.
+ */
+export const ADK_RUNTIME_FAILURE_TYPES: Readonly<Record<string, string>> = Object.freeze({
+  NodeTimeoutError: NODE_TIMEOUT_FAILURE_TYPE,
+  NodeReportedError: NODE_REPORTED_FAILURE_TYPE,
+  NodeSchemaValidationError: NODE_SCHEMA_VALIDATION_FAILURE_TYPE,
+  IntentMismatchError: INTENT_MISMATCH_FAILURE_TYPE,
+  StateSchemaError: STATE_SCHEMA_FAILURE_TYPE,
+  InvocationAbortedError: INVOCATION_ABORTED_FAILURE_TYPE,
+  DynamicNodeFailError: DYNAMIC_NODE_FAIL_FAILURE_TYPE,
+});

@@ -20,3 +20,6 @@ packages/testing/proto/*
 
 # Ignored since it fails Windows CI
 packages/create-project/cli.js
+
+# Recorded Temporal histories replayed by the Google ADK plugin tests (re-recorded verbatim by UPDATE_ADK_HISTORIES=1)
+contrib/google-adk-agents/src/__tests__/histories/
