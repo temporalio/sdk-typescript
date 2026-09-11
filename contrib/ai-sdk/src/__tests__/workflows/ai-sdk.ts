@@ -42,6 +42,39 @@ export async function toolsWorkflow(question: string): Promise<string> {
   return result.text;
 }
 
+const transparentPng =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
+export async function imageToolWorkflow(): Promise<string> {
+  if (btoa(atob(transparentPng)) !== transparentPng) {
+    throw new Error('Base64 polyfill round trip failed');
+  }
+
+  const result = await generateText({
+    model: temporalProvider.languageModel('gpt-4o-mini'),
+    prompt: 'Call the screenshot tool, then describe the image.',
+    tools: {
+      screenshot: tool({
+        description: 'Take a screenshot',
+        inputSchema: z.object({}),
+        execute: async () => ({ data: transparentPng, mimeType: 'image/png' }),
+        toModelOutput: ({ output }) => ({
+          type: 'content',
+          value: [
+            {
+              type: 'file',
+              data: { type: 'data', data: output.data },
+              mediaType: output.mimeType,
+            },
+          ],
+        }),
+      }),
+    },
+    stopWhen: isStepCount(3),
+  });
+  return result.text;
+}
+
 export async function generateObjectWorkflow(): Promise<string> {
   const { output } = await generateText({
     model: temporalProvider.languageModel('gpt-4o-mini'),
