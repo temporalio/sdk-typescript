@@ -5,7 +5,7 @@ import * as rxjs from 'rxjs';
 import type {
   ActivityHandle,
   ActivityOptions,
-  ActivityClientInterceptor,
+  ClientOptions,
   TypedActivityClient,
 } from '@temporalio/client';
 import {
@@ -29,6 +29,7 @@ import { createTestWorkflowEnvironment } from './helpers-integration';
 import { convertOrder, createAsyncOrderActivities } from './workflows/type-info/activities';
 import { activityTypeInfo } from './workflows/type-info/activity-type-info';
 import { Order, Receipt } from './workflows/type-info/models';
+import { encdec, makeContextTrace, standaloneActivityCtx } from './payload-converters/serialization-context-converter';
 
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
 // polling/retry strategies result in the expected behavior
@@ -101,15 +102,14 @@ function assertReceipt(t: ExecutionContext, receipt: Receipt): void {
   t.is(typeof receipt.totalCents, 'bigint');
 }
 
-function makeClientWithActivityInterceptors(
+function makeClientWithOptions(
   env: TestWorkflowEnvironment,
-  interceptors: ActivityClientInterceptor[]
+  options: ClientOptions
 ): Client {
-  return new Client({
+  return new Client(Object.assign({
     connection: env.client.connection,
     namespace: env.client.options.namespace,
-    interceptors: { activity: interceptors },
-  });
+  }, options));
 }
 
 class BlockingEncodePayloadCodec implements PayloadCodec {
@@ -295,7 +295,7 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Activity interceptors can provide input and result TypeInfo', async (t) => {
-    const client = makeClientWithActivityInterceptors(t.context.env, [
+    const client = makeClientWithOptions(t.context.env, { interceptors: { activity: [
       {
         async start(input, next) {
           return await next({
@@ -313,7 +313,7 @@ if (RUN_INTEGRATION_TESTS) {
           });
         },
       },
-    ]);
+    ]}});
 
     const result = await client.activity.execute<Receipt>('convertOrder', {
       ...typeInfoActivityOptions,
@@ -634,6 +634,26 @@ if (RUN_INTEGRATION_TESTS) {
     const err = await t.throwsAsync(() => resultPromise, { instanceOf: ServiceError });
     t.assert(isGrpcCancelledError(err));
     t.context.activitySignalSubject.next(activityId);
+  });
+
+  test('Activity serialization context is used', async (t) => {
+    const client = makeClientWithOptions(t.context.env, { dataConverter: {
+      payloadConverterPath: require.resolve('./payload-converters/serialization-context-converter'),
+      failureConverterPath: require.resolve('./payload-converters/serialization-context-converter'),
+    }});
+
+    const activityId = randomUUID();
+    const ctx = standaloneActivityCtx(activityId);
+
+    const trace = await client.activity.execute('echo', {
+      ...defaultOptions,
+      id: activityId,
+      args: [makeContextTrace('input')],
+    });
+    t.deepEqual(trace, {
+      label: 'input',
+      trace: encdec('input', ctx),
+    });
   });
 
   test('Typed client - start activity', async (t) => {
