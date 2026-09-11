@@ -19,7 +19,7 @@ import {
   decompileRetryPolicy,
 } from '@temporalio/common';
 import type { Duration } from '@temporalio/common/lib/time';
-import { msOptionalToTs, msToNumber, optionalTsToDate, optionalTsToNonZeroMs } from '@temporalio/common/lib/time';
+import { msOptionalToTs, msToNumber, optionalTsToDate, optionalTsToMs } from '@temporalio/common/lib/time';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import {
   decodeTypedSearchAttributes,
@@ -940,7 +940,7 @@ function buildActivityExecutionInfoCommonPart(
     status: decodeActivityExecutionStatus(info.status)!,
     typedSearchAttributes: decodeTypedSearchAttributes(info.searchAttributes?.indexedFields),
     taskQueue: info.taskQueue!,
-    executionDurationMs: optionalTsToNonZeroMs(info.executionDuration),
+    executionDurationMs: optionalTsToMs(info.executionDuration),
   };
 }
 
@@ -974,17 +974,17 @@ function buildActivityDescription(
     rawInfo: info,
     rawCallbacks: callbacks,
     runState: decodePendingActivityState(info.runState),
-    scheduleToCloseTimeoutMs: optionalTsToNonZeroMs(info.scheduleToCloseTimeout),
-    scheduleToStartTimeoutMs: optionalTsToNonZeroMs(info.scheduleToStartTimeout),
-    startToCloseTimeoutMs: optionalTsToNonZeroMs(info.startToCloseTimeout),
-    heartbeatTimeoutMs: optionalTsToNonZeroMs(info.heartbeatTimeout),
+    scheduleToCloseTimeoutMs: optionalTsToMs(info.scheduleToCloseTimeout),
+    scheduleToStartTimeoutMs: optionalTsToMs(info.scheduleToStartTimeout),
+    startToCloseTimeoutMs: optionalTsToMs(info.startToCloseTimeout),
+    heartbeatTimeoutMs: optionalTsToMs(info.heartbeatTimeout),
     retryPolicy: decompileRetryPolicy(info.retryPolicy)!,
     lastHeartbeatTime: optionalTsToDate(info.lastHeartbeatTime),
     lastStartedTime: optionalTsToDate(info.lastStartedTime),
     attempt: info.attempt!,
     expirationTime: optionalTsToDate(info.expirationTime),
     lastWorkerIdentity: info.lastWorkerIdentity || undefined,
-    currentRetryIntervalMs: optionalTsToNonZeroMs(info.currentRetryInterval),
+    currentRetryIntervalMs: optionalTsToMs(info.currentRetryInterval),
     lastAttemptCompleteTime: optionalTsToDate(info.lastAttemptCompleteTime),
     nextAttemptScheduleTime: optionalTsToDate(info.nextAttemptScheduleTime),
     lastDeploymentVersion: convertDeploymentVersion(info.lastDeploymentVersion),
@@ -1001,13 +1001,13 @@ function buildActivityOptionsUpdateResult(
 ): ActivityOptionsUpdateResult {
   return {
     taskQueue: proto?.taskQueue?.name || undefined,
-    scheduleToCloseTimeout: optionalTsToNonZeroMs(proto?.scheduleToCloseTimeout),
-    scheduleToStartTimeout: optionalTsToNonZeroMs(proto?.scheduleToStartTimeout),
-    startToCloseTimeout: optionalTsToNonZeroMs(proto?.startToCloseTimeout),
-    heartbeatTimeout: optionalTsToNonZeroMs(proto?.heartbeatTimeout),
+    scheduleToCloseTimeout: optionalTsToMs(proto?.scheduleToCloseTimeout),
+    scheduleToStartTimeout: optionalTsToMs(proto?.scheduleToStartTimeout),
+    startToCloseTimeout: optionalTsToMs(proto?.startToCloseTimeout),
+    heartbeatTimeout: optionalTsToMs(proto?.heartbeatTimeout),
     retry: decompileRetryPolicy(proto?.retryPolicy),
     priority: proto?.priority ? decodePriority(proto.priority) : undefined,
-    startDelay: optionalTsToNonZeroMs(proto?.startDelay),
+    startDelay: optionalTsToMs(proto?.startDelay),
   };
 }
 
