@@ -21,6 +21,7 @@ test('cjsRequireExposesPublicExports', (t) => {
   t.is(typeof workflow.TemporalMCPToolset, 'function');
   t.is(typeof workflow.activityAsTool, 'function');
   t.is(typeof workflow.activityNode, 'function');
+  t.is(typeof workflow.loadMcpResourceTool, 'function');
   t.is(typeof workflow.pendingHitlRequests, 'function');
   t.is(typeof workflow.hitlInputResponse, 'function');
   t.is(typeof workflow.hitlConfirmationResponse, 'function');
@@ -30,6 +31,7 @@ test('cjsRequireExposesPublicExports', (t) => {
   t.is(workflow.MCP_ERROR_FAILURE_TYPE, 'GoogleAdkMCPError');
   t.is(workflow.STREAMING_TOPIC_REQUIRED_FAILURE_TYPE, 'GoogleAdkStreamingTopicRequired');
   t.is(workflow.UNSUPPORTED_FAILURE_TYPE, 'GoogleAdkUnsupported');
+  t.is(workflow.MCP_RESOURCES_UNSUPPORTED_FAILURE_TYPE, 'GoogleAdkMCPResourcesUnsupported');
   t.is(workflow.NODE_TIMEOUT_FAILURE_TYPE, 'GoogleAdkNodeTimeoutError');
   t.is(workflow.INTENT_MISMATCH_FAILURE_TYPE, 'GoogleAdkIntentMismatchError');
   t.is(workflow.ADK_RUNTIME_FAILURE_TYPES.NodeTimeoutError, 'GoogleAdkNodeTimeoutError');

@@ -1,7 +1,7 @@
 /**
- * Workflow fixtures for ADK 2.0's workflow (graph) runtime, dynamic nodes and
- * durable human-in-the-loop. Bundled into the sandbox through `workflows.ts`,
- * which re-exports this module.
+ * Workflow fixtures for ADK 2.0's workflow (graph) runtime, dynamic nodes,
+ * durable human-in-the-loop, MCP resources and model auto-routing. Bundled
+ * into the sandbox through `workflows.ts`, which re-exports this module.
  *
  * Every fixture runs the *native* ADK runtime inside the Workflow; the plugin
  * routes only model, Activity-node, activity-tool and MCP I/O to Activities.
@@ -9,6 +9,7 @@
 
 import {
   App,
+  ApigeeLlm,
   BasePlugin,
   BaseTool,
   createEvent,
@@ -18,10 +19,12 @@ import {
   isFinalResponse,
   JoinNode,
   LlmAgent,
+  LLMRegistry,
   node,
   PolicyOutcome,
   RequestInput,
   requestInputTool,
+  RoutedLlm,
   SecurityPlugin,
   stringifyContent,
   TruncatingContextCompactor,
@@ -48,6 +51,7 @@ import {
   activityNode,
   hitlConfirmationResponse,
   hitlInputResponse,
+  loadMcpResourceTool,
   markModelFailureHandled,
   pendingHitlRequests,
   TemporalMCPToolset,
@@ -638,4 +642,80 @@ export async function dynamicResume(): Promise<RunOutcome & { turns: number }> {
     { name: 'driver', rerunOnResume: true }
   );
   return runWithHitl(new Workflow({ name: 'dynamic_resume', edges: [['START', driver]] }), 'go');
+}
+
+// ---------------------------------------------------------------------------
+// MCP resources
+// ---------------------------------------------------------------------------
+
+export async function mcpListResources(): Promise<string[]> {
+  return new TemporalMCPToolset({ name: 'testServer' }).listResources();
+}
+
+export async function mcpReadResource(name: string): Promise<unknown> {
+  // A single attempt, so an unknown resource fails the Workflow instead of retrying forever.
+  return new TemporalMCPToolset({ name: 'testServer', activity: { retry: { maximumAttempts: 1 } } }).readResource(name);
+}
+
+/** ADK's two-phase `load_mcp_resource` flow: ask for a resource, then answer with its contents. */
+export async function mcpLoadResourceAgent(turns: number, refreshResourceList = false): Promise<string[]> {
+  const toolset = new TemporalMCPToolset({ name: 'testServer' });
+  const agent = new LlmAgent({
+    name: 'assistant',
+    model: new TemporalModel('resource-model'),
+    instruction: 'Answer from resources.',
+    tools: [toolset, loadMcpResourceTool(toolset, { refreshResourceList })],
+  });
+  const runner = new InMemoryRunner({ agent });
+  const session = await runner.sessionService.createSession({ appName: runner.appName, userId: USER });
+  const texts: string[] = [];
+  for (let turn = 0; turn < turns; turn++) {
+    const { text } = await collect(
+      runner.runAsync({
+        userId: USER,
+        sessionId: session.id,
+        newMessage: { role: 'user', parts: [{ text: `turn-${turn}` }] },
+      })
+    );
+    texts.push(text);
+  }
+  return texts;
+}
+
+// ---------------------------------------------------------------------------
+// Model auto-routing
+// ---------------------------------------------------------------------------
+
+/** An agent configured with a raw model string, as in vanilla ADK code. */
+export async function rawModelStringAgent(model: string): Promise<{ text: string; errorMessage?: string }> {
+  const agent = new LlmAgent({ name: 'assistant', model, instruction: 'Help.' });
+  const runner = new InMemoryRunner({ agent });
+  let text = '';
+  let errorMessage: string | undefined;
+  for await (const event of runner.runEphemeral({
+    userId: USER,
+    newMessage: { role: 'user', parts: [{ text: 'hi' }] },
+  })) {
+    if (event.errorMessage) errorMessage = event.errorMessage;
+    if (isFinalResponse(event)) text = stringifyContent(event);
+  }
+  return { text, errorMessage };
+}
+
+/** A `RoutedLlm` over two `TemporalModel`s; the router picks by key. */
+export async function routedLlmAgent(pick: 'a' | 'b'): Promise<string> {
+  const model = new RoutedLlm({
+    models: { a: new TemporalModel('fake-a'), b: new TemporalModel('fake-b') },
+    router: () => pick,
+  });
+  const agent = new LlmAgent({ name: 'assistant', model, instruction: 'Help.' });
+  const { text } = await runOnce(agent, 'hi');
+  return text;
+}
+
+/** What the sandbox registry resolves built-in model patterns to. */
+export async function registryResolveProbe(): Promise<{ gemini: string; apigee: string; apigeeIsBuiltIn: boolean }> {
+  const gemini = LLMRegistry.resolve('gemini-2.5-flash');
+  const apigee = LLMRegistry.resolve('apigee/gemini-2.5-flash');
+  return { gemini: gemini.name, apigee: apigee.name, apigeeIsBuiltIn: apigee === (ApigeeLlm as unknown) };
 }

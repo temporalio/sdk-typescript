@@ -67,20 +67,23 @@ to docs, or any other relevant information.
 
 ### Added
 
-- `@temporalio/google-adk-agents` supports Google ADK 2.0 inside Workflows:
-  - the Workflow bundle now uses ADK's web build, pinned regardless of the consumer's webpack
-    target, and ADK's UUIDs are generated from a named workflow random stream inside the sandbox,
-    so its ids are replay-stable;
+- `@temporalio/google-adk-agents` supports Google ADK 2.0's TypeScript feature set inside Workflows:
   - the workflow (graph) runtime — `Workflow`, `node()`, `JoinNode`, routing, dynamic nodes,
-    node-as-tool, node retries and timeouts — runs unchanged; `activityNode` makes a registered
-    Activity a graph node (its abort cancels the in-flight Activity);
+    `RequestInput`, node-as-tool, node retries and timeouts — runs unchanged; `activityNode` makes a
+    registered Activity a graph node (its abort cancels the in-flight Activity);
   - durable human-in-the-loop: `pendingHitlRequests`, `hitlInputResponse` and
     `hitlConfirmationResponse` supply ADK's wire format, and `activityAsTool` /
     `TemporalMCPToolset` gain `requireConfirmation` so an Activity or MCP tool call runs only once
     a human approves;
+  - MCP resources: `TemporalMCPToolset.listResources` / `readResource` and `loadMcpResourceTool`,
+    backed by `<name>-listResources` / `<name>-readResource` Activities;
+  - raw model strings (`model: 'gemini-2.5-flash'`) resolve to `TemporalModel` inside a Workflow
+    (`GoogleAdkPluginOptions.autoRouteModels`, default on);
   - ADK's runtime errors (`NodeTimeoutError`, `IntentMismatchError`, …) fail the Workflow with typed
     `ApplicationFailure`s (`ADK_RUNTIME_FAILURE_TYPES`) instead of retrying the Workflow Task
-    forever.
+    forever;
+  - ADK's UUIDs are generated from a named workflow random stream inside the sandbox, so interrupt
+    and function-call ids are replay-stable. The Workflow bundle now uses ADK's web build.
 - **Experimental**: `@temporalio/openai-agents` can run OpenAI Agents `SandboxAgent`s as Temporal Workflows. SandboxAgent
   operations are Activities; hosted tool credentials and sandbox environment values that reference allowlisted Worker
   environment variables are resolved on Worker so their values are not recorded in Workflow history.

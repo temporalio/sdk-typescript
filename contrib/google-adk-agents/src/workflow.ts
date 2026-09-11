@@ -17,8 +17,13 @@ export type { TemporalModelOptions } from './model';
 
 export { markModelFailureHandled } from './absorbed-failure';
 
-export { TemporalMCPToolset } from './mcp';
-export type { TemporalMCPToolsetOptions, MCPToolsetFactory, MCPRequireConfirmation } from './mcp';
+export { TemporalMCPToolset, loadMcpResourceTool } from './mcp';
+export type {
+  TemporalMCPToolsetOptions,
+  MCPToolsetFactory,
+  LoadMcpResourceToolOptions,
+  MCPResourceContents,
+} from './mcp';
 
 export { activityAsTool } from './tools';
 export type { ActivityAsToolOptions } from './tools';
@@ -37,6 +42,7 @@ export {
   INTENT_MISMATCH_FAILURE_TYPE,
   INVOCATION_ABORTED_FAILURE_TYPE,
   MCP_ERROR_FAILURE_TYPE,
+  MCP_RESOURCES_UNSUPPORTED_FAILURE_TYPE,
   MCP_TOOL_NOT_FOUND_FAILURE_TYPE,
   MODEL_ERROR_FAILURE_TYPE,
   NODE_REPORTED_FAILURE_TYPE,

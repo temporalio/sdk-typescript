@@ -1,12 +1,12 @@
 /**
- * Scripted `BaseLlm` doubles for the graph / HITL tests, plus a
+ * Scripted `BaseLlm` doubles for the graph / HITL / MCP-resource tests, plus a
  * `modelProvider` that maps model names to them. Like the doubles in
  * `helpers.ts`, every model is rebuilt per Activity, so each derives its turn
  * from the request rather than from instance state.
  */
 
 import { BaseLlm, type BaseLlmConnection, type LlmRequest, type LlmResponse } from '@google/adk';
-import type { FunctionResponse } from '@google/genai';
+import type { Content, FunctionResponse } from '@google/genai';
 
 import { defaultTestProvider, ToolCallingLlm } from './helpers';
 
@@ -110,7 +110,43 @@ export class RequestInputLlm extends BaseLlm {
 }
 
 /**
- * The `modelProvider` for the graph / HITL suites. Names encode the
+ * Drives ADK's two-phase `load_mcp_resource` tool: first turn asks for the
+ * `readme` resource; the turn after reports the resource contents the tool
+ * appended to the request (`Resource readme is:` followed by the text part) and
+ * the instruction listing the available resources.
+ */
+export class ResourceLlm extends BaseLlm {
+  override async *generateContentAsync(
+    llmRequest: LlmRequest,
+    _stream?: boolean,
+    _abortSignal?: AbortSignal
+  ): AsyncGenerator<LlmResponse, void> {
+    const asked = functionResponses(llmRequest).some((r) => r.name === 'load_mcp_resource');
+    if (!asked) {
+      yield {
+        content: {
+          role: 'model',
+          parts: [{ functionCall: { name: 'load_mcp_resource', args: { resource_names: ['readme'] } } }],
+        },
+        turnComplete: true,
+      };
+      return;
+    }
+    const contents: Content[] = llmRequest.contents ?? [];
+    const marker = contents.findIndex((c) => c.role === 'user' && c.parts?.[0]?.text === 'Resource readme is:');
+    const resourceText = marker === -1 ? undefined : contents[marker]?.parts?.[1]?.text;
+    const instruction = String(llmRequest.config?.systemInstruction ?? '');
+    const listed = /You have a list of MCP resources:\n(\[[^\]]*\])/.exec(instruction)?.[1];
+    yield textResponse(`resource=${resourceText ?? 'missing'}; listed=${listed ?? 'none'}`);
+  }
+
+  override async connect(_llmRequest: LlmRequest): Promise<BaseLlmConnection> {
+    throw new Error('ResourceLlm does not connect.');
+  }
+}
+
+/**
+ * The `modelProvider` for the graph / HITL / resource suites. Names encode the
  * scenario; everything else falls through to {@link defaultTestProvider}.
  */
 export function graphTestProvider(): (model: string) => BaseLlm {
@@ -131,6 +167,8 @@ export function graphTestProvider(): (model: string) => BaseLlm {
         return new ConfirmationLlm({ model, toolName: 'echo', toolArgs: { value: 'hello' } });
       case 'confirm-gate-model':
         return new ConfirmationLlm({ model, toolName: 'dynamicGate', toolArgs: { target: 'prod' } });
+      case 'resource-model':
+        return new ResourceLlm({ model });
       default:
         return fallback(model);
     }

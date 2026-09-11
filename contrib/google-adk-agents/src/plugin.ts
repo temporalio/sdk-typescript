@@ -234,14 +234,16 @@ const ASYNC_HOOKS_SHIM_SOURCE =
  * a method`, a syntax error for webpack (and V8), so the whole bundle fails to
  * build. The class is unusable in a Workflow anyway (it proxies Gemini over the
  * network), so this inert stand-in keeps the module graph loading: same
- * `supportedModels` pattern (the registry registers it at load), same `BaseLlm`
- * brand symbol, and methods that fail with a message naming the actual fix. The upstream web build is
+ * `supportedModels` pattern (the registry registers it at load, and the
+ * auto-route overwrites that entry), same `BaseLlm` brand symbol, and methods
+ * that fail with a message naming the actual fix. The upstream web build is
  * repaired in ADK 2.1 (it is bundled there).
  */
 const APIGEE_LLM_SHIM_SOURCE =
   "var BASE_MODEL_SYMBOL=Symbol.for('google.adk.baseModel');" +
   'var MESSAGE="@google/adk\'s ApigeeLlm cannot run inside a Temporal Workflow: it performs network I/O. "+' +
-  '"Wrap the model: new TemporalModel(\'apigee/…\').";' +
+  '"Model names matching apigee/* are routed to TemporalModel while GoogleAdkPluginOptions.autoRouteModels "+' +
+  '"is enabled (the default); with it disabled, wrap the model: new TemporalModel(\'apigee/…\').";' +
   'function ApigeeLlm(params){this.model=params&&params.model;this[BASE_MODEL_SYMBOL]=true;}' +
   'ApigeeLlm.supportedModels=[/apigee\\/.*/];' +
   'ApigeeLlm.prototype.maybeAppendUserContent=function(){};' +
@@ -550,12 +552,23 @@ export interface GoogleAdkPluginOptions {
    */
   modelProvider?: (model: string) => BaseLlm;
   /**
-   * Named MCP toolset factories. Each key `name` becomes a
-   * `<name>-listTools` / `<name>-callTool` Activity pair; the factory opens
-   * the real MCP session on the worker. The matching workflow-side handle is
+   * Named MCP toolset factories. Each key `name` becomes the
+   * `<name>-listTools` / `<name>-callTool` / `<name>-listResources` /
+   * `<name>-readResource` Activities; the factory opens the real MCP session on
+   * the worker. The matching workflow-side handle is
    * `new TemporalMCPToolset({ name })`.
    */
   mcpToolsets?: Record<string, MCPToolsetFactory>;
+  /**
+   * Whether a raw model string on an agent (`model: 'gemini-2.5-flash'`)
+   * resolves to a {@link TemporalModel} inside a Workflow instead of ADK's own
+   * network-calling model class, which cannot run in the sandbox. Default
+   * `true`. Auto-routed models use `TemporalModel`'s default Activity options;
+   * wrap the string explicitly (`new TemporalModel(name, options)`) to
+   * customize them. Set `false` only if you register your own sandbox-safe
+   * `BaseLlm` for a built-in model pattern.
+   */
+  autoRouteModels?: boolean;
 }
 
 /**
@@ -571,6 +584,8 @@ export interface GoogleAdkPluginOptions {
  * @experimental
  */
 export class GoogleAdkPlugin extends SimplePlugin {
+  private readonly autoRouteModels: boolean;
+
   /**
    * @param options Worker-side model + MCP configuration.
    */
@@ -585,6 +600,7 @@ export class GoogleAdkPlugin extends SimplePlugin {
         ...createMCPActivities(options.mcpToolsets),
       },
     });
+    this.autoRouteModels = options.autoRouteModels ?? true;
   }
 
   /**
@@ -596,7 +612,7 @@ export class GoogleAdkPlugin extends SimplePlugin {
    * recipe applies identically on both paths and there is no separate
    * `configureWorker`/`configureReplayWorker` bundler override.
    *
-   * The recipe has four parts, all required:
+   * The recipe has five parts, all required:
    *
    *  1. **`webpackConfigHook`** adds {@link googleAdkSandboxCompatPlugin} (the
    *     `node:` strip, the inline shim redirects, the ADK-scoped `crypto` and
@@ -632,7 +648,12 @@ export class GoogleAdkPlugin extends SimplePlugin {
    *     `@google/adk`/`@google/genai` must import
    *     `@temporalio/google-adk-agents/workflow` (or `./load-polyfills`) first
    *     to install the polyfills.
-   *  4. **`workflowInterceptorModules`** also gets the `absorbed-failure` module
+   *  4. **`workflowInterceptorModules`** next gets the `auto-route` module
+   *     (unless `autoRouteModels: false`), which re-registers ADK's built-in
+   *     model patterns to `TemporalModel` in this Workflow's `LLMRegistry` —
+   *     after the polyfills, because it imports ADK, and before any user module
+   *     can resolve a model name.
+   *  5. **`workflowInterceptorModules`** also gets the `absorbed-failure` module
    *     appended last — the module that re-raises a model failure ADK absorbed
    *     (`markModelFailureHandled` opts one back out) and converts ADK's
    *     workflow-runtime errors into typed `ApplicationFailure`s. Interceptor
@@ -656,6 +677,10 @@ export class GoogleAdkPlugin extends SimplePlugin {
       ignoreModules,
       workflowInterceptorModules: [
         require.resolve('./load-polyfills'),
+        // Registers the Temporal-routed model for ADK's built-in model patterns
+        // in this Workflow's registry — after the polyfills (it imports ADK)
+        // and before any user module resolves a model name.
+        ...(this.autoRouteModels ? [require.resolve('./auto-route')] : []),
         ...(base.workflowInterceptorModules ?? []),
         require.resolve('./absorbed-failure'),
       ],
