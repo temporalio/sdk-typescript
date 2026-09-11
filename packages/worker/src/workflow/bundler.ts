@@ -5,10 +5,12 @@ import util from 'node:util';
 import * as unionfs from 'unionfs';
 import * as memfs from 'memfs';
 import type { Configuration } from 'webpack';
-import { webpack, NormalModuleReplacementPlugin } from 'webpack';
+import { webpack, BannerPlugin, Compilation, NormalModuleReplacementPlugin } from 'webpack';
 import type { Logger } from '../logger';
 import { DefaultLogger, hasColorSupport } from '../logger';
+import pkg from '../pkg';
 import { toMB } from '../utils';
+import { makeWorkflowBundleVersionAnnotation } from './bundle-metadata';
 import {
   InjectWorkflowModuleCacheGlobalPlugin,
   assertWorkflowModuleCacheGlobalApplied,
@@ -240,6 +242,14 @@ exports.importInterceptors = function importInterceptors() {
         },
       },
       plugins: [
+        new BannerPlugin({
+          banner: makeWorkflowBundleVersionAnnotation(pkg.version),
+          raw: true,
+          entryOnly: true,
+          // Add the annotation after minimizers have run so it cannot be stripped, but before
+          // the inline source map is generated so its line offsets remain correct.
+          stage: Compilation.PROCESS_ASSETS_STAGE_DEV_TOOLING - 1,
+        }),
         // Redirect webpack's module cache to a runtime-injected global so that a single V8
         // context can be reused across Workflow executions while keeping module state isolated.
         new InjectWorkflowModuleCacheGlobalPlugin(),
