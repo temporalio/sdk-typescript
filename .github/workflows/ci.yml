@@ -478,7 +478,7 @@ jobs:
       - name: Collect per-cell job results
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs?per_page=100" > jobs.json || echo '{}' > jobs.json
+        run: gh api --paginate --slurp "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs?per_page=100" > jobs.json || echo '[]' > jobs.json
 
       - name: Write consolidated summary
         env:
@@ -487,10 +487,13 @@ jobs:
           JOBS_JSON_FILE: jobs.json
         run: node scripts/ci-run-summary.ts
 
-      # Make this rollup check red when any dependency failed (the summary above is
-      # written by the previous step regardless, so it always renders).
+      - name: Test CI summary renderer
+        run: node --test scripts/ci-run-summary.test.ts
+
+      # Make this rollup check red when any dependency failed or was cancelled (the
+      # summary above is written by the previous step regardless, so it always renders).
       - name: Fail if any check failed
-        if: ${{ contains(needs.*.result, 'failure') }}
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
         run: |
-          echo "One or more checks failed — see the CI Summary above."
+          echo "One or more checks failed or were cancelled — see the CI Summary above."
           exit 1
