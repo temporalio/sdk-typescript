@@ -5,6 +5,7 @@ import type {
   LanguageModelV4GenerateResult,
   LanguageModelV4Usage,
   EmbeddingModelV4Result,
+  SharedV4ProviderMetadata,
   SharedV4ProviderOptions,
   SharedV4Headers,
   SharedV4Warning,
@@ -272,7 +273,9 @@ export function createActivities(
       let sawError = false;
       let streamError: unknown;
 
-      const textBlocks = new Map<string, string>();
+      // Provider metadata for a text block may arrive on `text-start` (e.g. Anthropic compaction
+      // markers) rather than `text-end`, so keep it alongside the accumulated text.
+      const textBlocks = new Map<string, { text: string; providerMetadata: SharedV4ProviderMetadata | undefined }>();
       const reasoningBlocks = new Map<string, string>();
 
       const reader = streamResult.stream.getReader();
@@ -293,19 +296,26 @@ export function createActivities(
             warnings.push(...part.warnings);
             break;
           case 'text-start':
-            textBlocks.set(part.id, '');
+            textBlocks.set(part.id, { text: '', providerMetadata: part.providerMetadata });
             break;
-          case 'text-delta':
-            textBlocks.set(part.id, (textBlocks.get(part.id) ?? '') + part.delta);
+          case 'text-delta': {
+            const block = textBlocks.get(part.id);
+            textBlocks.set(part.id, {
+              text: (block?.text ?? '') + part.delta,
+              providerMetadata: block?.providerMetadata,
+            });
             break;
-          case 'text-end':
+          }
+          case 'text-end': {
+            const block = textBlocks.get(part.id);
             content.push({
               type: 'text',
-              text: textBlocks.get(part.id) ?? '',
-              providerMetadata: part.providerMetadata,
+              text: block?.text ?? '',
+              providerMetadata: part.providerMetadata ?? block?.providerMetadata,
             });
             textBlocks.delete(part.id);
             break;
+          }
           case 'reasoning-start':
             reasoningBlocks.set(part.id, '');
             break;

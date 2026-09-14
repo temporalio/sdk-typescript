@@ -132,7 +132,9 @@ export class TemporalLanguageModel implements LanguageModelV4 {
         for (const item of result.content ?? []) {
           const id = `part-${partIndex++}`;
           if (item.type === 'text') {
-            controller.enqueue({ type: 'text-start', id });
+            // Consumers initialize text-block provider metadata (e.g. Anthropic compaction
+            // markers) from the start part, so replay it there.
+            controller.enqueue({ type: 'text-start', id, providerMetadata: item.providerMetadata });
             controller.enqueue({ type: 'text-delta', id, delta: item.text });
             controller.enqueue({ type: 'text-end', id });
           } else if (item.type === 'reasoning') {

@@ -176,3 +176,28 @@ test('invokeModelStreaming throws when the stream emits an error even if a finis
   t.regex(err!.message, /mid-stream provider failure/);
   t.notRegex(err!.message, /without a finish part/);
 });
+
+test('invokeModelStreaming keeps text-block provider metadata that arrives on text-start', async (t) => {
+  // Anthropic emits its compaction summary block as `text-start` carrying the marker,
+  // with a bare `text-end`; citations arrive on `text-end` instead.
+  const compaction = { anthropic: { type: 'compaction' } };
+  const citations = { anthropic: { citations: [{ type: 'char_location', cited_text: 'x' }] } };
+  const parts: LanguageModelV4StreamPart[] = [
+    { type: 'stream-start', warnings: [] },
+    { type: 'text-start', id: 'txt-1', providerMetadata: compaction },
+    { type: 'text-delta', id: 'txt-1', delta: 'summary' },
+    { type: 'text-end', id: 'txt-1' },
+    { type: 'text-start', id: 'txt-2', providerMetadata: compaction },
+    { type: 'text-delta', id: 'txt-2', delta: 'cited' },
+    { type: 'text-end', id: 'txt-2', providerMetadata: citations },
+    { type: 'finish', finishReason: { unified: 'stop', raw: undefined }, usage },
+  ];
+
+  const { result } = await runStreamingActivity(parts);
+
+  t.deepEqual(result.content, [
+    { type: 'text', text: 'summary', providerMetadata: compaction },
+    // Metadata on `text-end` still wins over `text-start`.
+    { type: 'text', text: 'cited', providerMetadata: citations },
+  ]);
+});
