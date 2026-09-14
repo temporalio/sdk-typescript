@@ -92,9 +92,9 @@ test('ExternalStorage rejects a driver with an empty name', (t) => {
   });
 });
 
-test('ExternalStorage defaults concurrency to 100 instance-wide and 10 per message', (t) => {
+test('ExternalStorage applies default concurrency limits', (t) => {
   const config = new ExternalStorage({ drivers: [stubDriver('only')] });
-  t.deepEqual(config.concurrency, { maxDriverOperations: 100, maxOperationsPerMessage: 10 });
+  t.deepEqual(config.concurrency, { maxDriverOperations: 64, maxOperationsPerMessage: 8 });
 });
 
 test('ExternalStorage keeps explicitly configured concurrency limits', (t) => {
@@ -110,7 +110,7 @@ test('ExternalStorage fills in the unspecified half of concurrency', (t) => {
     drivers: [stubDriver('only')],
     concurrency: { maxOperationsPerMessage: 3 },
   });
-  t.deepEqual(config.concurrency, { maxDriverOperations: 100, maxOperationsPerMessage: 3 });
+  t.deepEqual(config.concurrency, { maxDriverOperations: 64, maxOperationsPerMessage: 3 });
 });
 
 test('ExternalStorage rejects concurrency limits below one', (t) => {
