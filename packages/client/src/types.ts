@@ -261,6 +261,7 @@ export interface ActivityExecutionInfo {
   typedSearchAttributes: TypedSearchAttributes;
   taskQueue: string;
   executionDurationMs?: number;
+  executionTime?: Date;
 }
 
 /**
@@ -288,9 +289,62 @@ export interface ActivityExecutionDescription extends ActivityExecutionInfo {
   lastDeploymentVersion?: WorkerDeploymentVersion;
   priority: Priority;
   canceledReason?: string;
+  startDelayMs?: number;
+  totalHeartbeatCount?: number;
 
+  /**
+   * True if heartbeat details are available.
+   * Always false if {@link import('activity-client').ActivityDescribeOptions.includeHeartbeatDetails} was false.
+   */
+  hasHeartbeatDetails: boolean;
+  /**
+   * True if last failure is available.
+   * Always false if {@link import('activity-client').ActivityDescribeOptions.includeLastFailure} was false.
+   */
+  hasLastFailure: boolean;
+  /**
+   * True if activity input is available.
+   * Always false if {@link import('activity-client').ActivityDescribeOptions.includeInput} was false.
+   */
+  hasInput: boolean;
+  /**
+   * True if activity result is available. The activity must have completed successfully for result to be available.
+   * Always false if {@link import('activity-client').ActivityDescribeOptions.includeOutcome} was false.
+   */
+  hasResult: boolean;
+  /**
+   * True if outcome failure is available. The activity must have closed with a failure for outcome failure to be
+   * available. Always false if {@link import('activity-client').ActivityDescribeOptions.includeOutcome} was false.
+   */
+  hasOutcomeFailure: boolean;
+
+  /**
+   * Deserializes heartbeat details. Returns undefined if heartbeat details are unavailable. Always returns undefined
+   * if {@link import('activity-client').ActivityDescribeOptions.includeHeartbeatDetails} was false.
+   */
   getHeartbeatDetails<T = any>(): Promise<T | undefined>;
+  /**
+   * Deserializes last failure. Returns undefined if last failure is unavailable.
+   * Always returns undefined if {@link import('activity-client').ActivityDescribeOptions.includeLastFailure} was false.
+   */
   getLastFailure(): Promise<Error | undefined>;
+  /**
+   * Deserializes activity input. Returns undefined if input is unavailable.
+   * Always returns undefined if {@link import('activity-client').ActivityDescribeOptions.includeInput} was false.
+   */
+  getInput<T extends any[] = any[]>(): Promise<T | undefined>;
+  /**
+   * Deserializes activity result. Returns undefined if result is unavailable.
+   * The activity must have completed successfully for result to be available.
+   * Always returns undefined if {@link import('activity-client').ActivityDescribeOptions.includeOutcome} was false.
+   */
+  getResult<T = any>(): Promise<T | undefined>;
+  /**
+   * Deserializes heartbeat details. Returns undefined if heartbeat details are unavailable.
+   * The activity must have closed with a failure for outcome failure to be available.
+   * Always returns undefined if {@link import('activity-client').ActivityDescribeOptions.includeOutcome} was false.
+   */
+  getOutcomeFailure(): Promise<Error | undefined>;
 }
 
 /**

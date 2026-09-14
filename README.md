@@ -106,9 +106,9 @@ This monorepo contains the following packages:
 | [`packages/common/`](packages/common/)                                             | [`@temporalio/common`](https://www.npmjs.com/package/@temporalio/common)                                               |
 | [`packages/proto/`](packages/proto/)                                               | [`@temporalio/proto`](https://www.npmjs.com/package/@temporalio/proto)                                                 |
 | [`packages/test/`](packages/test/)                                                 | SDK internal tests                                                                                                     |
-| [`packages/create-project/`](packages/create-project/)                             | [`@temporalio/create`](https://www.npmjs.com/package/@temporalio/create-project)                                       |
+| [`packages/create-project/`](packages/create-project/)                             | [`@temporalio/create`](https://www.npmjs.com/package/@temporalio/create)                                               |
 | [`packages/docs/`](packages/docs/)                                                 | [API docs](https://typescript.temporal.io/)                                                                            |
-| [`packages/core-bridge/`](packages/core-bridge/)                                   | [`@temporalio/core-bridge`](https://www.npmjs.com/package/@temporalio/proto)                                           |
+| [`packages/core-bridge/`](packages/core-bridge/)                                   | [`@temporalio/core-bridge`](https://www.npmjs.com/package/@temporalio/core-bridge)                                     |
 | [`packages/envconfig/`](packages/envconfig/)                                       | [`@temporalio/envconfig`](https://www.npmjs.com/package/@temporalio/envconfig)                                         |
 | [`packages/nyc-test-coverage/`](packages/nyc-test-coverage/)                       | [`@temporalio/nyc-test-coverage`](https://www.npmjs.com/package/@temporalio/nyc-test-coverage)                         |
 | [`packages/plugin/`](packages/plugin/)                                             | [`@temporalio/plugin`](https://www.npmjs.com/package/@temporalio/plugin)                                               |

@@ -1,8 +1,13 @@
 import { status } from '@grpc/grpc-js';
 import * as nexus from 'nexus-rpc';
-import { isGrpcServiceError, ServiceError } from '@temporalio/client';
+import { ActivityExecutionAlreadyStartedError, isGrpcServiceError, ServiceError } from '@temporalio/client';
 import type { LoadedDataConverter, Payload, ProtoFailure, TypeInfo } from '@temporalio/common';
-import { ApplicationFailure, CancelledFailure, fromPayloadWithTypeInfo } from '@temporalio/common';
+import {
+  ApplicationFailure,
+  CancelledFailure,
+  fromPayloadWithTypeInfo,
+  WorkflowExecutionAlreadyStartedError,
+} from '@temporalio/common';
 import { encodeErrorToFailure, decodeOptionalSingle } from '@temporalio/common/lib/internal-non-workflow';
 import type { temporal } from '@temporalio/proto';
 
@@ -102,6 +107,10 @@ export async function handlerErrorToProto(
 export function coerceToHandlerError(err: unknown): nexus.HandlerError {
   if (err instanceof nexus.HandlerError) {
     return err;
+  }
+
+  if (err instanceof WorkflowExecutionAlreadyStartedError || err instanceof ActivityExecutionAlreadyStartedError) {
+    return new nexus.HandlerError('INTERNAL', undefined, { cause: err, retryableOverride: false });
   }
 
   // REVIEW: This check could be moved down and fold into the next one but will keep for now to help readability.

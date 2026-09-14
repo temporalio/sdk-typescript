@@ -49,6 +49,12 @@ export function toPayloadWithTypeInfo<T, D = T>(
   context: SerializationContext | undefined,
   typeInfo: TypeInfo<T, D> | undefined
 ): Payload {
+  if (isRawValueTypeInfo(typeInfo)) {
+    if (!(value instanceof RawValue)) {
+      throw new ValueError('RawValue TypeInfo requires a RawValue value');
+    }
+    return value.payload;
+  }
   const transferValue = typeInfo?.transferTypeConverter ? typeInfo.transferTypeConverter.toTransferType(value) : value;
   return converter.toPayload(transferValue, context, typeInfo?.payloadConverterHint);
 }
@@ -64,6 +70,10 @@ export function fromPayloadWithTypeInfo<T, D = T>(
   context: SerializationContext | undefined,
   typeInfo: TypeInfo<T, D> | undefined
 ): T {
+  if (isRawValueTypeInfo(typeInfo)) {
+    // The private brand establishes T as RawValue, but this generic function cannot express that narrowing.
+    return RawValue.fromPayload(payload) as T;
+  }
   const transferValue = converter.fromPayload<D>(payload, context, typeInfo?.payloadConverterHint);
   return typeInfo?.transferTypeConverter
     ? typeInfo.transferTypeConverter.fromTransferType(transferValue)
@@ -212,6 +222,27 @@ export class RawValue<T = unknown> {
   }
 }
 
+const rawValueTypeInfoBrand: unique symbol = Symbol('rawValueTypeInfo');
+
+interface InternalRawValueTypeInfo extends TypeInfo<RawValue> {
+  readonly [rawValueTypeInfoBrand]: true;
+}
+
+/**
+ * Type information for preserving a {@link RawValue} across serialization boundaries.
+ *
+ * This bypasses the payload converter during encoding and decoding. Payload codecs are still applied.
+ *
+ * @experimental
+ */
+export const rawValueTypeInfo: TypeInfo<RawValue> = {
+  [rawValueTypeInfoBrand]: true,
+} as InternalRawValueTypeInfo;
+
+function isRawValueTypeInfo(typeInfo: TypeInfo | undefined): typeInfo is InternalRawValueTypeInfo {
+  return typeInfo !== undefined && rawValueTypeInfoBrand in typeInfo && typeInfo[rawValueTypeInfoBrand] === true;
+}
+
 export interface PayloadConverterWithEncoding {
   /**
    * Converts a value to a {@link Payload}.
@@ -265,6 +296,8 @@ export class CompositePayloadConverter implements PayloadConverter {
    */
   public toPayload<T>(value: T, context?: SerializationContext, hint?: ConverterHint<T>): Payload {
     if (value instanceof RawValue) {
+      // TypeInfo-aware calls bypass payload conversion in toPayloadWithTypeInfo. Keep this fallback for direct and
+      // legacy untyped calls; removing it would silently re-encode RawValue and may change Workflow replay payloads.
       return value.payload;
     }
     for (const converter of this.converters) {

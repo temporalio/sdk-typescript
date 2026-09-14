@@ -17,9 +17,10 @@ import {
   defaultFailureConverter,
   defaultPayloadConverter,
   defaultDataConverter,
+  WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
 import type { PayloadCodec } from '@temporalio/common/lib/converter/payload-codec';
-import { ServiceError } from '@temporalio/client';
+import { ActivityExecutionAlreadyStartedError, ServiceError } from '@temporalio/client';
 import {
   PAYLOAD_VALIDATION_ERROR_TYPE,
   coerceToHandlerError,
@@ -393,6 +394,21 @@ test('coerceToHandlerError maps gRPC status codes to expected HandlerError types
 test('coerceToHandlerError passes through HandlerError unchanged', (t) => {
   const original = new nexus.HandlerError('BAD_REQUEST', 'test');
   t.is(coerceToHandlerError(original), original);
+});
+
+test('coerceToHandlerError maps execution already-started errors to non-retryable INTERNAL', (t) => {
+  const errors = [
+    new WorkflowExecutionAlreadyStartedError('Workflow execution already started', 'workflow-id', 'workflow-type'),
+    new ActivityExecutionAlreadyStartedError('Activity execution already started', 'activity-id', 'activity-run-id'),
+  ];
+
+  for (const error of errors) {
+    const result = coerceToHandlerError(error);
+    t.is(result.type, 'INTERNAL');
+    t.is(result.retryableOverride, false);
+    t.false(result.retryable);
+    t.is(result.cause, error);
+  }
 });
 
 test('coerceToHandlerError maps non-retryable ApplicationFailure to INTERNAL', (t) => {

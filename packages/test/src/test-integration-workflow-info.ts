@@ -1,21 +1,16 @@
 import { randomUUID } from 'crypto';
+import { setActivityOptions } from '@temporalio/activity';
 import * as workflow from '@temporalio/workflow';
 import type { SearchAttributePair } from '@temporalio/common';
-import {
-  defineSearchAttributeKey,
-  encodingKeys,
-  METADATA_ENCODING_KEY,
-  RawValue,
-  SearchAttributeType,
-  TypedSearchAttributes,
-} from '@temporalio/common';
-import { encode } from '@temporalio/common/lib/encoding';
+import { defineSearchAttributeKey, RawValue, SearchAttributeType, TypedSearchAttributes } from '@temporalio/common';
+import { payloadToJSON } from '@temporalio/common/lib/proto-utils';
 import {
   buildIdTester,
   completableWorkflow,
   getBuildIdQuery,
   historySizeGrows,
   queryWorkflowMetadata,
+  rawValuePayloadTypeInfo,
   rawValueWorkflow,
   rootWorkflow,
   suggestedCAN,
@@ -180,37 +175,25 @@ test.serial('can register search attributes to dev server', async (t) => {
   await env.teardown();
 });
 
-test('workflow and activity can receive/return RawValue', async (t) => {
+test('workflow and activity preserve RawValue payloads', async (t) => {
   const { executeWorkflow, createWorker } = helpers(t);
+  async function rawValueActivity(value: RawValue): Promise<RawValue> {
+    if (!(value instanceof RawValue)) {
+      throw new TypeError('Expected RawValue Activity input');
+    }
+    return value;
+  }
+  setActivityOptions({ typeInfo: rawValuePayloadTypeInfo }, rawValueActivity);
   const worker = await createWorker({
-    activities: {
-      async rawValueActivity(value: unknown, isPayload: boolean = false): Promise<RawValue> {
-        const rv = isPayload
-          ? RawValue.fromPayload({
-              metadata: { [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_RAW },
-              data: value as Uint8Array,
-            })
-          : new RawValue(value);
-        return rv;
-      },
-    },
+    activities: { rawValueActivity },
   });
 
   await worker.runUntil(async () => {
-    const testValue = 'test';
-    const rawValue = new RawValue(testValue);
-    const rawValuePayload = RawValue.fromPayload({
-      metadata: { [METADATA_ENCODING_KEY]: encodingKeys.METADATA_ENCODING_RAW },
-      data: encode(testValue),
-    });
-    const res = await executeWorkflow(rawValueWorkflow, {
-      args: [rawValue],
-    });
-    t.deepEqual(res, testValue);
-    const res2 = await executeWorkflow(rawValueWorkflow, {
-      args: [rawValuePayload, true],
-    });
-    t.deepEqual(res2, encode(testValue));
+    const rawValue = new RawValue('test');
+    const result = await executeWorkflow(rawValueWorkflow, { args: [rawValue] });
+
+    t.true(result instanceof RawValue);
+    t.deepEqual(payloadToJSON(result.payload), payloadToJSON(rawValue.payload));
   });
 });
 

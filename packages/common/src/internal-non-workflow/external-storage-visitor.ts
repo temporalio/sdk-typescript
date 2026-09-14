@@ -8,6 +8,7 @@ import type { ConcurrencyLimit } from '../concurrency/limit';
 import type { ExternalStorage, StorageDriverTargetInfo } from '../converter/extstore';
 import { ExternalStorageNotConfiguredError } from '../errors';
 import type { Payload } from '../interfaces';
+import type { ExternalStorageMetricsAccumulator } from './external-storage-metrics';
 import { ExternalStorageRunner } from './external-storage-runner';
 import { isReferencePayload } from './extstore-helpers';
 import type { ContextDeriver, VisitOptions } from './payload-visitor';
@@ -29,6 +30,8 @@ export interface ExternalStorageStoreOptions {
   limit?: ConcurrencyLimit;
   /** Aborts the walk and every in-flight driver call. */
   abortSignal?: AbortSignal;
+  /** Collects metrics of the store operations performed during the walk. */
+  metrics?: ExternalStorageMetricsAccumulator;
 }
 
 /**
@@ -37,9 +40,9 @@ export interface ExternalStorageStoreOptions {
  */
 export function extstoreStoreOptions(
   externalStorage: ExternalStorage,
-  { initialTarget, deriveContext, limit, abortSignal }: ExternalStorageStoreOptions = {}
+  { initialTarget, deriveContext, limit, abortSignal, metrics }: ExternalStorageStoreOptions = {}
 ): VisitOptions<StoreTarget> {
-  const runner = new ExternalStorageRunner(externalStorage);
+  const runner = new ExternalStorageRunner(externalStorage, metrics);
   return {
     transformPayloads: (payloads, target, signal) => runner.store(payloads, { target, abortSignal: signal }),
     transformPayload: (payload, target, signal) =>
@@ -55,9 +58,13 @@ export function extstoreStoreOptions(
 
 function extstoreRetrieveOptions(
   externalStorage: ExternalStorage,
-  { limit, abortSignal }: { limit?: ConcurrencyLimit; abortSignal?: AbortSignal } = {}
+  {
+    limit,
+    abortSignal,
+    metrics,
+  }: { limit?: ConcurrencyLimit; abortSignal?: AbortSignal; metrics?: ExternalStorageMetricsAccumulator } = {}
 ): VisitOptions<void> {
-  const runner = new ExternalStorageRunner(externalStorage);
+  const runner = new ExternalStorageRunner(externalStorage, metrics);
   return {
     transformPayloads: (payloads, _context, signal) => runner.retrieve(payloads, { abortSignal: signal }),
     transformPayload: (payload, _context, signal) =>
@@ -95,6 +102,9 @@ function extstoreDetectReferencesOptions(): VisitOptions<void> {
  * @internal
  * @experimental
  */
-export function extstoreInboundOptions(externalStorage: ExternalStorage | undefined): VisitOptions<void> {
-  return externalStorage ? extstoreRetrieveOptions(externalStorage) : extstoreDetectReferencesOptions();
+export function extstoreInboundOptions(
+  externalStorage: ExternalStorage | undefined,
+  { metrics }: { metrics?: ExternalStorageMetricsAccumulator } = {}
+): VisitOptions<void> {
+  return externalStorage ? extstoreRetrieveOptions(externalStorage, { metrics }) : extstoreDetectReferencesOptions();
 }
