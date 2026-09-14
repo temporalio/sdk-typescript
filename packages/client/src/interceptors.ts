@@ -156,8 +156,6 @@ export interface WorkflowDescribeInput {
 
 /**
  * Implement any of these methods to intercept {@link WorkflowClient} outbound calls
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface WorkflowClientInterceptor {
   /**
@@ -378,8 +376,6 @@ export interface ClientInterceptors {
 
 /**
  * Implement any of these methods to intercept {@link ActivityClient} outbound calls
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityClientInterceptor {
   /**
@@ -412,14 +408,20 @@ export interface ActivityClientInterceptor {
   count?: (input: ActivityCountInput, next: Next<this, 'count'>) => Promise<CountActivityExecutions>;
   /**
    * Intercept a service call to pauseActivityExecution
+   *
+   * @experimental Activity Operator Commands are experimental. APIs may be subject to change.
    */
   pause?: (input: ActivityPauseInput, next: Next<this, 'pause'>) => Promise<void>;
   /**
    * Intercept a service call to unpauseActivityExecution
+   *
+   * @experimental Activity Operator Commands are experimental. APIs may be subject to change.
    */
   unpause?: (input: ActivityUnpauseInput, next: Next<this, 'unpause'>) => Promise<void>;
   /**
    * Intercept a service call to updateActivityExecutionOptions(restoreOriginal=false)
+   *
+   * @experimental Activity Operator Commands are experimental. APIs may be subject to change.
    */
   updateOptions?: (
     input: ActivityUpdateOptionsInput,
@@ -427,6 +429,8 @@ export interface ActivityClientInterceptor {
   ) => Promise<ActivityOptionsUpdateResult>;
   /**
    * Intercept a service call to updateActivityExecutionOptions(restoreOriginal=true)
+   *
+   * @experimental Activity Operator Commands are experimental. APIs may be subject to change.
    */
   restoreOriginalOptions?: (
     input: ActivityRestoreOriginalOptionsInput,
@@ -436,8 +440,6 @@ export interface ActivityClientInterceptor {
 
 /**
  * Input for {@link ActivityClientInterceptor.start}
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityStartInput {
   readonly activityType: string;
@@ -447,8 +449,6 @@ export interface ActivityStartInput {
 
 /**
  * Input for {@link ActivityClientInterceptor.getResult}
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityGetResultInput {
   readonly activityId: string;
@@ -460,8 +460,6 @@ export interface ActivityGetResultInput {
 
 /**
  * Input for {@link ActivityClientInterceptor.describe}
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityDescribeInput {
   readonly activityId: string;
@@ -472,8 +470,6 @@ export interface ActivityDescribeInput {
 
 /**
  * Input for {@link ActivityClientInterceptor.cancel}
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityCancelInput {
   readonly activityId: string;
@@ -484,8 +480,6 @@ export interface ActivityCancelInput {
 
 /**
  * Input for {@link ActivityClientInterceptor.terminate}
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityTerminateInput {
   readonly activityId: string;
@@ -496,8 +490,6 @@ export interface ActivityTerminateInput {
 
 /**
  * Input for {@link ActivityClientInterceptor.list}
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityListInput {
   readonly query: string;
@@ -506,8 +498,6 @@ export interface ActivityListInput {
 
 /**
  * Input for {@link ActivityClientInterceptor.count}
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityCountInput {
   readonly query: string;
@@ -517,7 +507,7 @@ export interface ActivityCountInput {
 /**
  * Input for {@link ActivityClientInterceptor.pause}
  *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ * @experimental Activity Operator Commands are experimental. APIs may be subject to change.
  */
 export interface ActivityPauseInput {
   readonly activityId: string;
@@ -529,7 +519,7 @@ export interface ActivityPauseInput {
 /**
  * Input for {@link ActivityClientInterceptor.unpause}
  *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ * @experimental Activity Operator Commands are experimental. APIs may be subject to change.
  */
 export interface ActivityUnpauseInput {
   readonly activityId: string;
@@ -541,7 +531,7 @@ export interface ActivityUnpauseInput {
 /**
  * Input for {@link ActivityClientInterceptor.updateOptions}
  *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ * @experimental Activity Operator Commands are experimental. APIs may be subject to change.
  */
 export interface ActivityUpdateOptionsInput {
   readonly activityId: string;
@@ -553,7 +543,7 @@ export interface ActivityUpdateOptionsInput {
 /**
  * Input for {@link ActivityClientInterceptor.restoreOriginalOptions}
  *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ * @experimental Activity Operator Commands are experimental. APIs may be subject to change.
  */
 export interface ActivityRestoreOriginalOptionsInput {
   readonly activityId: string;
