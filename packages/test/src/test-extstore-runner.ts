@@ -575,3 +575,30 @@ test('does not warn when a driver takes a permit', async (t) => {
 
   t.deepEqual(warnings, []);
 });
+
+test('each message gets its own maxOperationsPerMessage budget', async (t) => {
+  const gate = makeGate();
+  const driver = makeFakeDriver({
+    name: 's3',
+    onStore: (payloads) => gate.hold(() => payloads.map(() => new StorageDriverClaim({ id: 'x' }))),
+  });
+  const externalStorage = new ExternalStorage({
+    drivers: [driver],
+    payloadSizeThreshold: 0,
+    concurrency: { maxDriverOperations: 100, maxOperationsPerMessage: 2 },
+  });
+
+  const firstMessage = new ExternalStorageRunner(externalStorage);
+  const secondMessage = new ExternalStorageRunner(externalStorage);
+  const stores = [
+    ...Array.from({ length: 4 }, () => firstMessage.store([makePayload(8)])),
+    ...Array.from({ length: 4 }, () => secondMessage.store([makePayload(8)])),
+  ];
+  await flush();
+
+  t.is(gate.peak(), 4);
+
+  gate.release();
+  await Promise.all(stores);
+  t.is(gate.peak(), 4);
+});
