@@ -139,10 +139,10 @@ export type StorageDriverSelector = (context: StorageDriverSelectContext, payloa
 const DEFAULT_PAYLOAD_SIZE_THRESHOLD = 256 * 1024;
 
 /** Default {@link ExternalStorageConcurrency.maxDriverOperations}. */
-const DEFAULT_MAX_DRIVER_OPERATIONS = 100;
+const DEFAULT_MAX_DRIVER_OPERATIONS = 64;
 
 /** Default {@link ExternalStorageConcurrency.maxOperationsPerMessage}. */
-const DEFAULT_MAX_OPERATIONS_PER_MESSAGE = 10;
+const DEFAULT_MAX_OPERATIONS_PER_MESSAGE = 8;
 
 /**
  * Limits on the external storage work a process performs. The two are enforced in different places
