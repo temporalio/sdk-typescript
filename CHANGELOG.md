@@ -63,7 +63,7 @@ to docs, or any other relevant information.
 ### Added
 
 - **Experimental**: New methods for `ActivityHandle`: `pause`, `unpause`, `updateOptions` and `restoreOriginalOptions`.
-- **Experimental**: `ActivityHandle.describe` now accepts options that can be used to include additional data associated
+- `ActivityHandle.describe` now accepts options that can be used to include additional data associated
   with activity execution, such as input and result.
 - **Experimental**: `@temporalio/openai-agents` can run OpenAI Agents `SandboxAgent`s as Temporal Workflows. SandboxAgent
   operations are Activities; hosted tool credentials and sandbox environment values that reference allowlisted Worker
@@ -107,6 +107,7 @@ to docs, or any other relevant information.
 
 ### Changed
 
+- Standalone Activities APIs are stable.
 - `ActivityClient` now passes serialization context to data converter when interacting with standalone activities.
 - A workflow query issued from inside a Nexus operation handler now propagates the link the server
   returns for the workflow that processed it, so the caller's Nexus operation event points back at
