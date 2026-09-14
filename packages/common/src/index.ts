@@ -15,8 +15,8 @@ export * from './converter/extstore';
 export * from './converter/failure-converter';
 export * from './converter/payload-codec';
 export * from './converter/payload-converter';
-export type {
-  ActivitySerializationContext,
+export {
+  type ActivitySerializationContext,
   SerializationContext,
   WorkflowSerializationContext,
 } from './converter/serialization-context';

@@ -57,11 +57,9 @@ export function versioningOverrideToProto(
   if (versioningOverride == null) {
     return undefined;
   }
-  // TODO: Remove deprecated field assignments when versioning is non-experimental.
   if (versioningOverride === 'AUTO_UPGRADE') {
     return {
       autoUpgrade: true,
-      behavior: temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_AUTO_UPGRADE,
     };
   }
   return {
@@ -69,8 +67,6 @@ export function versioningOverrideToProto(
       version: versioningOverride.pinnedTo,
       behavior: temporal.api.workflow.v1.VersioningOverride.PinnedOverrideBehavior.PINNED_OVERRIDE_BEHAVIOR_PINNED,
     },
-    behavior: temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED,
-    pinnedVersion: toCanonicalString(versioningOverride.pinnedTo),
   };
 }
 

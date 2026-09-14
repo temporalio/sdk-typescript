@@ -100,6 +100,7 @@ test('signal-with-start uses the target context for codec encode and decode', as
     runId: 'run-1',
     jobs: [{ resolveNexusOperation: { seq: 43, result: { failed } } }],
   });
+  t.is(runner.systemNexusOperationContext(43), undefined);
   t.deepEqual(
     traceFromPayload(
       decoded.jobs?.[0]?.resolveNexusOperation?.result?.failed?.applicationFailureInfo?.details?.payloads?.[0]

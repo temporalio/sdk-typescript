@@ -56,3 +56,17 @@ export interface ActivitySerializationContext {
  * @experimental Serialization context is an experimental feature and may change.
  */
 export type SerializationContext = WorkflowSerializationContext | ActivitySerializationContext;
+
+/** @internal */
+export function isSerializationContext(value: unknown): value is SerializationContext {
+  if (value == null || typeof value !== 'object') return false;
+  const context = value as Record<string, unknown>;
+  if (typeof context.namespace !== 'string') return false;
+  if (context.type === 'workflow') return typeof context.workflowId === 'string';
+  return (
+    context.type === 'activity' &&
+    typeof context.isLocal === 'boolean' &&
+    (context.activityId == null || typeof context.activityId === 'string') &&
+    (context.workflowId == null || typeof context.workflowId === 'string')
+  );
+}

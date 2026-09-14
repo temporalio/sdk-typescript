@@ -2,6 +2,7 @@ import type { Service as ProtobufService, Type as ProtobufType } from 'protobufj
 import type { Payload, SerializationContext } from '@temporalio/common';
 import { defaultPayloadConverter } from '@temporalio/common';
 import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
+import { isSerializationContext } from '@temporalio/common/lib/converter/serialization-context';
 import {
   SYSTEM_NEXUS_CONTEXT_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
@@ -90,19 +91,6 @@ function contextFromMetadata(payload: Payload): SerializationContext | undefined
   } catch {
     throw new TypeError('invalid System Nexus serialization context metadata');
   }
-}
-
-function isSerializationContext(value: unknown): value is SerializationContext {
-  if (value == null || typeof value !== 'object') return false;
-  const context = value as Record<string, unknown>;
-  if (typeof context.namespace !== 'string') return false;
-  if (context.type === 'workflow') return typeof context.workflowId === 'string';
-  return (
-    context.type === 'activity' &&
-    typeof context.isLocal === 'boolean' &&
-    (context.activityId == null || typeof context.activityId === 'string') &&
-    (context.workflowId == null || typeof context.workflowId === 'string')
-  );
 }
 
 /** Converts the server protobuf-binary envelope to isolate JSON. */
