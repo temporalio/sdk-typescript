@@ -10,9 +10,11 @@
 //
 // Usage (from a package's `test` script): tsx ../../scripts/ava-ci.ts <ava args>
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, relative } from 'node:path';
+import { formatTimingHeartbeat, readTimingDirectory } from './ava-ci-timing.ts';
 
 interface Failure {
   title: string;
@@ -55,6 +57,7 @@ mkdirSync(resultsDir, { recursive: true });
 const logPath = join(resultsDir, `${safeName}.log`);
 const jsonPath = join(resultsDir, `${safeName}.json`);
 const logStream = createWriteStream(logPath);
+const observerRunId = pkgName === '@temporalio/test' ? randomUUID() : undefined;
 
 // ANSI colors: honor NO_COLOR, and enable in a terminal or CI (GitHub is non-TTY
 // but renders ANSI). Stay plain when output is redirected to a file/pipe locally.
@@ -176,13 +179,14 @@ function handleTapLine(rawLine: string): void {
 
 // --- line-buffered stdout parsing ---
 let buffer = '';
+const OBSERVER_HOOK_COMMENT = /^# __temporal_ci_observer_(start|end)__ for /;
 function consume(chunk: string): void {
-  logStream.write(chunk);
   buffer += chunk;
   let idx: number;
   while ((idx = buffer.indexOf('\n')) !== -1) {
     const line = buffer.slice(0, idx);
     buffer = buffer.slice(idx + 1);
+    if (!OBSERVER_HOOK_COMMENT.test(line.replace(/\r$/, ''))) logStream.write(`${line}\n`);
     handleTapLine(line);
   }
 }
@@ -193,7 +197,12 @@ const started = Date.now();
 const heartbeat = setInterval(() => {
   const done = pass + fail + skip;
   const elapsed = fmtDuration(Date.now() - started);
-  process.stdout.write(dim(`  … ${done} tests, ${fail} failure${fail === 1 ? '' : 's'} (${elapsed})\n`));
+  const timing = observerRunId
+    ? formatTimingHeartbeat(readTimingDirectory(resultsDir, Date.now(), observerRunId))
+    : null;
+  process.stdout.write(
+    dim(`  … ${done} tests, ${fail} failure${fail === 1 ? '' : 's'} (${elapsed})${timing ? `; ${timing}` : ''}\n`)
+  );
 }, 30_000);
 heartbeat.unref?.();
 
@@ -207,6 +216,17 @@ const [cmd, cmdArgs]: [string, string[]] =
     : [process.platform === 'win32' ? 'npx.cmd' : 'npx', ['ava', '--tap', ...forwarded]];
 const child = spawn(cmd, cmdArgs, {
   cwd,
+  detached: process.platform !== 'win32',
+  env: {
+    ...process.env,
+    ...(observerRunId
+      ? {
+          TEST_RESULTS_DIR: resultsDir,
+          TEMPORAL_AVA_OBSERVER_ROOT: root,
+          TEMPORAL_AVA_OBSERVER_RUN_ID: observerRunId,
+        }
+      : {}),
+  },
   shell: process.platform === 'win32',
   stdio: ['inherit', 'pipe', 'pipe'],
 });
@@ -217,13 +237,62 @@ child.stdout?.on('data', consume);
 child.stderr?.setEncoding('utf8');
 child.stderr?.on('data', (chunk: string) => logStream.write(chunk));
 
+function killTree(): void {
+  const pid = child.pid;
+  if (pid == null) return;
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/pid', String(pid), '/t', '/f']);
+  } else {
+    try {
+      process.kill(-pid, 'SIGKILL');
+    } catch {
+      // Process group already exited.
+    }
+  }
+}
+
+const configuredWallTimeout = Number(process.env.AVA_WALL_CLOCK_TIMEOUT_MS);
+const wallTimeoutMs =
+  observerRunId && Number.isFinite(configuredWallTimeout) && configuredWallTimeout > 0
+    ? configuredWallTimeout
+    : undefined;
+const wallTimer = wallTimeoutMs
+  ? setTimeout(() => {
+      const timing = observerRunId
+        ? formatTimingHeartbeat(readTimingDirectory(resultsDir, Date.now(), observerRunId))
+        : null;
+      process.stdout.write(
+        `${red('✗')} ${pkgName} exceeded ${fmtDuration(wallTimeoutMs)} wall time${timing ? `; ${timing}` : ''}\n`
+      );
+      killTree();
+    }, wallTimeoutMs)
+  : undefined;
+wallTimer?.unref?.();
+
 function finish(exitCode: number): void {
   clearInterval(heartbeat);
-  if (buffer.length) handleTapLine(buffer);
+  if (wallTimer) clearTimeout(wallTimer);
+  if (buffer.length) {
+    if (!OBSERVER_HOOK_COMMENT.test(buffer.replace(/\r$/, ''))) logStream.write(buffer);
+    handleTapLine(buffer);
+  }
   flushPendingFailure();
 
-  const durationMs = Date.now() - started;
-  const result = { package: pkgName, pass, fail, skip, todo, durationMs, exitCode, failures, logPath };
+  const finishedAtMs = Date.now();
+  const durationMs = finishedAtMs - started;
+  const result = {
+    package: pkgName,
+    pass,
+    fail,
+    skip,
+    todo,
+    durationMs,
+    exitCode,
+    failures,
+    logPath,
+    observerRunId,
+    finishedAtMs,
+  };
 
   logStream.end();
   try {
