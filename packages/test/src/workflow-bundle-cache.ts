@@ -11,7 +11,6 @@ const defaultWorkflowInterceptorModules = [require.resolve('@temporalio/testing/
 const loadModule = createRequire(__filename);
 
 export const workflowBundleCacheDirectory = path.join(__dirname, 'workflow-bundle-cache');
-export const workflowBundleManifestPath = path.join(workflowBundleCacheDirectory, 'manifest.json');
 
 export type CacheableBundleOptions = Pick<
   BundleOptions,

@@ -29,8 +29,7 @@ export function cleanStackTrace(ostack: string): string {
       // Avoid https://github.com/nodejs/node/issues/42417
       .replace(/at null\./g, 'at ')
       .replace(/\\/g, '/')
-      // Cached test bundles live in a subdirectory, but existing stack snapshots intentionally
-      // treat the generated bundle location as an implementation detail.
+      // Strip bundle cache from stack trace for snapshot tests
       .replaceAll('/workflow-bundle-cache/workflow-bundle-', '/workflow-bundle-')
       .replaceAll('/lib/workflow-bundle-', '/workflow-bundle-');
 
