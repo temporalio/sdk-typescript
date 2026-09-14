@@ -3,8 +3,7 @@ import { randomUUID } from 'crypto';
 import type { TestFn } from 'ava';
 import { WorkflowFailedError } from '@temporalio/client';
 import { workflowInterceptorModules } from '@temporalio/testing';
-import type { WorkflowBundleWithSourceMap } from '@temporalio/worker';
-import { bundleWorkflowCode } from '@temporalio/worker';
+import type { WorkflowBundleOption } from '@temporalio/worker';
 import {
   assertFromWorkflow,
   asyncChildStarter,
@@ -13,11 +12,16 @@ import {
   unblockSignal,
   waitOnSignalWithTimeout,
 } from './workflows/testenv-test-workflows';
-import { Worker, TestWorkflowEnvironment, testTimeSkipping as anyTestTimeSkipping } from './helpers';
+import {
+  getCachedWorkflowBundle,
+  Worker,
+  TestWorkflowEnvironment,
+  testTimeSkipping as anyTestTimeSkipping,
+} from './helpers';
 
 interface Context {
   testEnv: TestWorkflowEnvironment;
-  bundle: WorkflowBundleWithSourceMap;
+  bundle: WorkflowBundleOption;
 }
 
 const testTimeSkipping = anyTestTimeSkipping as TestFn<Context>;
@@ -25,7 +29,7 @@ const testTimeSkipping = anyTestTimeSkipping as TestFn<Context>;
 testTimeSkipping.before(async (t) => {
   t.context = {
     testEnv: await TestWorkflowEnvironment.createTimeSkipping(),
-    bundle: await bundleWorkflowCode({
+    bundle: getCachedWorkflowBundle({
       workflowsPath: require.resolve('./workflows/testenv-test-workflows'),
       workflowInterceptorModules,
     }),

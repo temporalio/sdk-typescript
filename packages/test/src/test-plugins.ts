@@ -17,6 +17,8 @@ import { TestWorkflowEnvironment } from './helpers';
 
 import * as activities from './activities';
 
+// This file intentionally uses the real Worker and bundler: plugin configuration is what it tests.
+
 interface Context {
   testEnv: TestWorkflowEnvironment;
 }

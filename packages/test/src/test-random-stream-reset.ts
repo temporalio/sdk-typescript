@@ -4,11 +4,9 @@ import asyncRetry from 'async-retry';
 import type Long from 'long';
 import type { WorkflowHandle, WorkflowHandleWithFirstExecutionRunId } from '@temporalio/client';
 import type { temporal } from '@temporalio/proto';
-import { createTestWorkflowBundle } from '@temporalio/test-helpers';
-import { Worker } from '@temporalio/worker';
-import { helpers, makeTestFunction } from './helpers-integration';
+import { createTestWorkflowBundle, helpers, makeTestFunction } from './helpers-integration';
+import { loadHistory, Worker } from './helpers';
 import * as workflows from './workflows';
-import { loadHistory } from './helpers';
 
 const test = makeTestFunction({ workflowsPath: path.join(__dirname, 'workflows') });
 

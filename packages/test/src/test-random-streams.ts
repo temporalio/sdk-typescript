@@ -5,13 +5,11 @@ import Long from 'long';
 import { TypedSearchAttributes } from '@temporalio/common';
 import { msToTs } from '@temporalio/common/lib/time';
 import { coresdk } from '@temporalio/proto';
-import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
 import { type ReusableVMWorkflow, ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
 import { type VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
 import type { WorkflowBundleWithSourceMapAndFilename } from '@temporalio/worker/lib/workflow/workflow-worker-thread/input';
-import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import { createUnsafeRandomSource } from '@temporalio/workflow/lib/random-helpers';
-import { REUSE_V8_CONTEXT } from './helpers';
+import { getCachedWorkflowCode, REUSE_V8_CONTEXT } from './helpers';
 
 type TestWorkflowCreator = TestVMWorkflowCreator | TestReusableVMWorkflowCreator;
 
@@ -71,8 +69,7 @@ class TestReusableVMWorkflowCreator extends ReusableVMWorkflowCreator {
 test.before(async (t) => {
   const workflowsPath = path.join(__dirname, 'workflows');
   const workflowInterceptorModules = [path.join(workflowsPath, 'random-stream-interceptors')];
-  const bundler = new WorkflowCodeBundler({ workflowsPath, workflowInterceptorModules });
-  const workflowBundle = parseWorkflowCode((await bundler.createBundle()).code);
+  const workflowBundle = getCachedWorkflowCode({ workflowsPath, workflowInterceptorModules });
   t.context.workflowBundle = workflowBundle;
   t.context.workflowCreator = REUSE_V8_CONTEXT
     ? await TestReusableVMWorkflowCreator.create(t.context.workflowBundle, 400, new Set())

@@ -17,7 +17,6 @@ import { msToTs } from '@temporalio/common/lib/time';
 import { coresdk, temporal } from '@temporalio/proto';
 import { sleep as workflowSleep, type WorkflowInfo } from '@temporalio/workflow';
 import { DefaultLogger, LogTimestamp, type LogEntry } from '@temporalio/worker';
-import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
 import { invokePatchActivationCallback } from '@temporalio/worker/lib/workflow/patch-activation-callback';
 import { ThreadedVMWorkflowCreator } from '@temporalio/worker/lib/workflow/threaded-vm';
 import type { WorkflowBundleWithSourceMapAndFilename } from '@temporalio/worker/lib/workflow/workflow-worker-thread/input';
@@ -30,9 +29,8 @@ import { SdkFlags } from '@temporalio/workflow/lib/flags';
 import { createUnsafeRandomSource } from '@temporalio/workflow/lib/random-helpers';
 import type { ReusableVMWorkflow } from '@temporalio/worker/lib/workflow/reusable-vm';
 import { ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
-import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import * as activityFunctions from './activities';
-import { isBun, cleanStackTrace, compareStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
+import { getCachedWorkflowCode, isBun, cleanStackTrace, compareStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
 import type { ProcessedSignal } from './workflows';
 
 export interface Context {
@@ -76,8 +74,7 @@ class TestReusableVMWorkflowCreator extends ReusableVMWorkflowCreator {
 
 test.before(async (t) => {
   const workflowsPath = path.join(__dirname, 'workflows');
-  const bundler = new WorkflowCodeBundler({ workflowsPath });
-  const workflowBundle = parseWorkflowCode((await bundler.createBundle()).code);
+  const workflowBundle = getCachedWorkflowCode({ workflowsPath });
   t.context.workflowBundle = workflowBundle;
   // FIXME: isolateExecutionTimeoutMs used to be 200 ms, but that's causing
   //        lot of flakes on CI. Revert this after investigation / resolution.

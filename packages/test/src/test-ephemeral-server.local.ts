@@ -2,8 +2,7 @@ import fs from 'fs/promises';
 import { randomUUID } from 'crypto';
 import type { ExecutionContext, TestFn } from 'ava';
 import anyTest from 'ava';
-import type { WorkflowBundle } from '@temporalio/worker';
-import { bundleWorkflowCode } from '@temporalio/worker';
+import type { WorkflowBundleOption } from '@temporalio/worker';
 import { Connection } from '@temporalio/client';
 import { TestWorkflowEnvironment as RealTestWorkflowEnvironment } from '@temporalio/testing';
 import {
@@ -12,10 +11,11 @@ import {
   testTimeSkipping as testTimeSkippingFromHelpers,
   getRandomPort,
   isBun,
+  getCachedWorkflowBundle,
 } from './helpers';
 
 interface Context {
-  bundle: WorkflowBundle;
+  bundle: WorkflowBundleOption;
   taskQueue: string;
 }
 
@@ -23,7 +23,7 @@ const test = anyTest as TestFn<Context>;
 const testTimeSkipping = testTimeSkippingFromHelpers as TestFn<Context>;
 
 test.before(async (t) => {
-  t.context.bundle = await bundleWorkflowCode({ workflowsPath: require.resolve('./workflows') });
+  t.context.bundle = getCachedWorkflowBundle({ workflowsPath: require.resolve('./workflows') });
 });
 
 test.beforeEach(async (t) => {

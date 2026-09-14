@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import type { ExecutionContext } from 'ava';
 import type { WorkflowHandleWithFirstExecutionRunId, WorkflowStartOptions } from '@temporalio/client';
 import type { TestWorkflowEnvironment as RealTestWorkflowEnvironment } from '@temporalio/testing';
-import type { WorkerOptions, WorkflowBundle } from '@temporalio/worker';
+import type { WorkerOptions, WorkflowBundleOption } from '@temporalio/worker';
 import type * as workflow from '@temporalio/workflow';
 import type { TestWorkflowEnvironment } from './wrappers';
 import { Worker } from './wrappers';
@@ -18,7 +18,7 @@ export type AnyTestWorkflowEnvironment = TestWorkflowEnvironment | RealTestWorkf
  */
 export interface BaseContext<TEnv extends AnyTestWorkflowEnvironment = TestWorkflowEnvironment> {
   env: TEnv;
-  workflowBundle: WorkflowBundle;
+  workflowBundle: WorkflowBundleOption;
 }
 
 /**

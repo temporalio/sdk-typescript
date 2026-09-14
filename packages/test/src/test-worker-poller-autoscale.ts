@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import test from 'ava';
-import { Runtime, Worker } from '@temporalio/worker';
-import { getRandomPort, TestWorkflowEnvironment, assertEventually } from './helpers';
+import { Runtime } from '@temporalio/worker';
+import { getRandomPort, TestWorkflowEnvironment, assertEventually, Worker } from './helpers';
 import * as activities from './activities';
 import * as workflows from './workflows';
 

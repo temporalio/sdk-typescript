@@ -1,10 +1,10 @@
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import type { temporal } from '@temporalio/proto';
-import type { WorkflowBundle } from '@temporalio/worker';
-import { bundleWorkflowCode, ReplayError } from '@temporalio/worker';
+import type { WorkflowBundleOption } from '@temporalio/worker';
+import { ReplayError } from '@temporalio/worker';
 import { DeterminismViolationError } from '@temporalio/workflow';
-import { loadHistory, Worker } from './helpers';
+import { getCachedWorkflowBundle, loadHistory, Worker } from './helpers';
 
 async function gen2array<T>(gen: AsyncIterable<T>): Promise<T[]> {
   const out: T[] = [];
@@ -15,7 +15,7 @@ async function gen2array<T>(gen: AsyncIterable<T>): Promise<T[]> {
 }
 
 export interface Context {
-  bundle: WorkflowBundle;
+  bundle: WorkflowBundleOption;
 }
 
 function historator(histories: Array<temporal.api.history.v1.History>) {
@@ -31,7 +31,7 @@ const test = anyTest as TestFn<Context>;
 test.before(async (t) => {
   // We don't want AVA to whine about unhandled rejections thrown by workflows
   process.removeAllListeners('unhandledRejection');
-  const bundle = await bundleWorkflowCode({ workflowsPath: require.resolve('./workflows') });
+  const bundle = getCachedWorkflowBundle({ workflowsPath: require.resolve('./workflows') });
 
   t.context = {
     bundle,

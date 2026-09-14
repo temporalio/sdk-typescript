@@ -7,6 +7,8 @@ import { WorkflowCoverage } from '@temporalio/nyc-test-coverage';
 import { RUN_INTEGRATION_TESTS } from './helpers';
 import { successString } from './workflows';
 
+// This file intentionally invokes webpack so NYC can instrument the generated Workflow code.
+
 declare global {
   var __coverage__: libCoverage.CoverageMapData;
 }

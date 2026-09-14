@@ -1,9 +1,8 @@
 import { randomUUID } from 'crypto';
 import { Client } from '@temporalio/client';
 import { workflowInterceptorModules } from '@temporalio/testing';
-import { bundleWorkflowCode } from '@temporalio/worker';
 import type { TestWorkflowEnvironment } from './helpers';
-import { bundlerOptions } from './helpers';
+import { bundlerOptions, getCachedWorkflowBundle } from './helpers';
 import type { Context } from './helpers-integration';
 import {
   makeConfigurableEnvironmentTestFn,
@@ -30,7 +29,7 @@ const dataConverter = { payloadCodecs: [new FreePayloadCodec()] };
 const test = makeConfigurableEnvironmentTestFn<Context>({
   createTestContext: async () => {
     const env = await createTestWorkflowEnvironment();
-    const workflowBundle = await bundleWorkflowCode({
+    const workflowBundle = getCachedWorkflowBundle({
       ...bundlerOptions,
       workflowInterceptorModules: [...workflowInterceptorModules],
       workflowsPath: require.resolve('./workflows/serialization-context'),

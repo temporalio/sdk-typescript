@@ -10,13 +10,15 @@ import type { ExecutionContext } from 'ava';
 import test from 'ava';
 import { moduleMatches } from '@temporalio/worker/lib/workflow/bundler';
 import type { LogEntry, WorkerOptions } from '@temporalio/worker';
-import { bundleWorkflowCode, DefaultLogger } from '@temporalio/worker';
+import { bundleWorkflowCode, DefaultLogger, Worker } from '@temporalio/worker';
 import { Client } from '@temporalio/client';
-import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { RUN_INTEGRATION_TESTS } from './helpers';
 import { issue516 } from './mocks/workflows-with-node-dependencies/issue-516';
 import { preloadSharedCounter } from './workflows/preload-shared-counter';
 import { workflowWithPrebundledDep } from './workflows/workflow-with-prebundled-dep';
 import { successString } from './workflows';
+
+// This file intentionally uses the real Worker: exercising JIT webpack behavior is what it tests.
 
 test('moduleMatches works', (t) => {
   t.true(moduleMatches('fs', ['fs']));

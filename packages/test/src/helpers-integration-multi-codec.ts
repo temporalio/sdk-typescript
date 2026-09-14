@@ -2,7 +2,7 @@
 import type { ExecutionContext, TestFn } from 'ava';
 import type { LoadedDataConverter } from '@temporalio/common';
 import { defaultFailureConverter, defaultPayloadConverter } from '@temporalio/common';
-import type { WorkerOptions, WorkflowBundle } from '@temporalio/worker';
+import type { WorkerOptions, WorkflowBundleOption } from '@temporalio/worker';
 
 import type { TestWorkflowEnvironment } from '@temporalio/testing';
 import {
@@ -22,13 +22,13 @@ interface TestConfig {
   createWorkerWithDefaults: (t: ExecutionContext<TestContext>, opts?: Partial<WorkerOptions>) => Promise<Worker>;
 }
 interface TestContext {
-  workflowBundle: WorkflowBundle;
+  workflowBundle: WorkflowBundleOption;
   configs: TestConfig[];
 }
 
 const codecs = [undefined, new ByteSkewerPayloadCodec()];
 
-export function makeTestFn(makeBundle: () => Promise<WorkflowBundle>): TestFn<TestContext> {
+export function makeTestFn(makeBundle: () => Promise<WorkflowBundleOption>): TestFn<TestContext> {
   return makeConfigurableEnvironmentTestFn<TestContext>({
     createTestContext: async (_t: ExecutionContext) => {
       const configs: TestConfig[] = [];

@@ -5,6 +5,7 @@ import asyncRetry from 'async-retry';
 import type { Connection } from '@temporalio/client';
 import { Client } from '@temporalio/client';
 import * as iface from '@temporalio/proto';
+import type { WorkerOptions } from '@temporalio/worker';
 import {
   createBaseBundlerOptions,
   loadHistory as loadHistoryBase,
@@ -12,7 +13,9 @@ import {
   RUN_TIME_SKIPPING_TESTS,
   test,
   noopTest,
+  Worker as TestWorker,
 } from '@temporalio/test-helpers';
+import { useCachedWorkflowBundle } from './workflow-bundle-cache';
 
 // Re-export from test-helpers
 export {
@@ -31,11 +34,19 @@ export {
   ByteSkewerPayloadCodec,
   test,
   noopTest,
-  Worker,
   TestWorkflowEnvironment,
   baseBundlerIgnoreModules,
   isBun,
 } from '@temporalio/test-helpers';
+
+/** Test Worker that always loads a prebuilt Workflow bundle when given workflowsPath. */
+export class Worker extends TestWorker {
+  public static override async create(options: WorkerOptions): Promise<Worker> {
+    return (await TestWorker.create(useCachedWorkflowBundle(options))) as Worker;
+  }
+}
+
+export { getCachedWorkflowBundle, getCachedWorkflowCode } from './workflow-bundle-cache';
 
 export const testTimeSkipping = RUN_TIME_SKIPPING_TESTS ? test : noopTest;
 
@@ -45,6 +56,7 @@ export const testTimeSkipping = RUN_TIME_SKIPPING_TESTS ? test : noopTest;
 export const bundlerOptions = createBaseBundlerOptions([
   require.resolve('./activities'),
   require.resolve('./mock-native-worker'),
+  require.resolve('./workflow-bundle-cache'),
 ]);
 
 // Some of our tests expect "default custom search attributes" to exists, which used to be the case

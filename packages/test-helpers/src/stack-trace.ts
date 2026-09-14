@@ -28,7 +28,11 @@ export function cleanStackTrace(ostack: string): string {
       .replace(/\[as fn\] /, '')
       // Avoid https://github.com/nodejs/node/issues/42417
       .replace(/at null\./g, 'at ')
-      .replace(/\\/g, '/');
+      .replace(/\\/g, '/')
+      // Cached test bundles live in a subdirectory, but existing stack snapshots intentionally
+      // treat the generated bundle location as an implementation detail.
+      .replaceAll('/workflow-bundle-cache/workflow-bundle-', '/workflow-bundle-')
+      .replaceAll('/lib/workflow-bundle-', '/workflow-bundle-');
 
   // FIXME: Find a better way to handle package vendoring; this will come back again.
   normalizedStack = normalizedStack

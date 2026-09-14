@@ -3,7 +3,8 @@ import test from 'ava';
 import type { Metadata } from '@temporalio/client';
 import { Client, Connection } from '@temporalio/client';
 import { CloudOperationsClient, CloudOperationsConnection } from '@temporalio/cloud';
-import { NativeConnection, Worker } from '@temporalio/worker';
+import { NativeConnection } from '@temporalio/worker';
+import { Worker } from './helpers';
 import * as workflows from './workflows';
 
 test('Can connect to Temporal Cloud using mTLS', async (t) => {

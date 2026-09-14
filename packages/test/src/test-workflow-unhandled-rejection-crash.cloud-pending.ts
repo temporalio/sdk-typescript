@@ -1,9 +1,9 @@
 import { randomUUID } from 'crypto';
 import test from 'ava';
-import { UnexpectedError, Worker } from '@temporalio/worker';
+import { UnexpectedError } from '@temporalio/worker';
 import { WorkflowClient } from '@temporalio/client';
 import { defaultOptions } from './mock-native-worker';
-import { RUN_INTEGRATION_TESTS, isBun } from './helpers';
+import { RUN_INTEGRATION_TESTS, isBun, Worker } from './helpers';
 import { throwUnhandledRejection } from './workflows';
 
 if (RUN_INTEGRATION_TESTS) {

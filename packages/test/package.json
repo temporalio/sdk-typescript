@@ -4,9 +4,10 @@
   "version": "1.23.0",
   "description": "Temporal.io SDK Tests",
   "scripts": {
-    "build": "pnpm run build:protos && pnpm run build:ts",
+    "build": "pnpm run build:protos && pnpm run build:ts && pnpm run build:workflows",
     "build:ts": "tsc --build",
     "build:protos": "tsx ./scripts/compile-proto.ts",
+    "build:workflows": "tsx ./lib/build-workflow-bundles.js",
     "test": "tsx ../../scripts/ava-ci.ts ./lib/test-*.js",
     "test:watch": "ava --watch ./lib/test-*.js",
     "test:bun": "bun run -b ava ./lib/test-*.js"

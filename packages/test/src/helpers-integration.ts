@@ -10,7 +10,7 @@ import type {
   NativeConnectionOptions,
   ReplayWorkerOptions,
   RuntimeOptions,
-  WorkflowBundle,
+  WorkflowBundleOption,
 } from '@temporalio/worker';
 import { DefaultLogger, NativeConnection, Runtime, makeTelemetryFilterString } from '@temporalio/worker';
 import type * as workflow from '@temporalio/workflow';
@@ -26,13 +26,13 @@ import type {
 import {
   helpers as baseHelpers,
   defaultTaskQueueTransform,
-  createTestWorkflowBundle as createTestWorkflowBundleBase,
   createTestWorkflowEnvironment as createTestWorkflowEnvironmentBase,
   createLocalTestEnvironment,
   defaultSAKeys,
   test as anyTest,
   Worker,
 } from '@temporalio/test-helpers';
+import { getCachedTestWorkflowBundle } from './workflow-bundle-cache';
 
 export { defaultSAKeys, createLocalTestEnvironment };
 
@@ -73,15 +73,13 @@ export interface HelperTestBundleOptions extends BaseTestWorkflowBundleOptions {
 }
 
 /**
- * Create a test workflow bundle with the package-specific bundler options.
+ * Load the prebuilt test Workflow bundle matching the package-specific bundler options.
  */
-export async function createTestWorkflowBundle(
-  opts: HelperTestBundleOptions
-): ReturnType<typeof createTestWorkflowBundleBase> {
-  return createTestWorkflowBundleBase({
-    ...opts,
-    additionalIgnoreModules: [require.resolve('./activities'), require.resolve('./mock-native-worker')],
-  });
+export async function createTestWorkflowBundle(opts: HelperTestBundleOptions): Promise<WorkflowBundleOption> {
+  if ((opts.plugins?.length ?? 0) > 0 || (opts.additionalIgnoreModules?.length ?? 0) > 0) {
+    throw new Error('Plugins and one-off ignore modules are not supported by the test Workflow bundle cache');
+  }
+  return getCachedTestWorkflowBundle(opts);
 }
 
 export function makeConfigurableEnvironmentTestFn<T>(opts: {
@@ -271,7 +269,7 @@ export function helpers(t: ExecutionContext<Context>, env?: TestWorkflowEnvironm
  */
 export function configurableHelpers<T>(
   t: ExecutionContext<T>,
-  workflowBundle: WorkflowBundle,
+  workflowBundle: WorkflowBundleOption,
   testEnv: TestWorkflowEnvironment
 ): BaseHelpers {
   return baseHelpers({ title: t.title, context: { env: testEnv, workflowBundle } } as ExecutionContext<Context>);

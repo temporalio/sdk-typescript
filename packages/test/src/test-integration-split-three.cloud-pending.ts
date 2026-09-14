@@ -2,17 +2,22 @@ import path from 'node:path';
 import v8 from 'node:v8';
 import { readFileSync } from 'node:fs';
 import pkg from '@temporalio/worker/lib/pkg';
-import { bundleWorkflowCode } from '@temporalio/worker';
 import { temporal } from '@temporalio/proto';
 import { QueryNotRegisteredError } from '@temporalio/client';
 import { configMacro, makeTestFn } from './helpers-integration-multi-codec';
 import { configurableHelpers } from './helpers-integration';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 import * as activities from './activities';
-import { approximatelyEqual, cleanOptionalStackTrace, compareStackTrace, isBun } from './helpers';
+import {
+  approximatelyEqual,
+  cleanOptionalStackTrace,
+  compareStackTrace,
+  getCachedWorkflowBundle,
+  isBun,
+} from './helpers';
 import * as workflows from './workflows';
 
-const test = makeTestFn(() => bundleWorkflowCode({ workflowsPath: require.resolve('./workflows') }));
+const test = makeTestFn(async () => getCachedWorkflowBundle({ workflowsPath: require.resolve('./workflows') }));
 test.macro(configMacro);
 
 test('cancel-http-request', configMacro, async (t, config) => {
