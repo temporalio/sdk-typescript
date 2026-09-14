@@ -12,6 +12,7 @@
 
 import { existsSync, readdirSync, readFileSync, statSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { collectTimingRuns, renderTimingSummary, type TimingEnvironment } from './ava-ci-timing.ts';
 
 interface Failure {
   pkg: string;
@@ -24,7 +25,10 @@ interface Failure {
 interface Cell {
   id: string;
   label: string;
+  timingLabel: string;
   conclusion: string | null;
+  jobUrl: string | null;
+  completedAtMs: number | null;
 }
 
 interface Row {
@@ -93,17 +97,21 @@ function collectFailuresByCell(): Record<string, Failure[]> {
   return byCell;
 }
 
-function readIntegrationCells(): Cell[] | null {
+function readJobs(): any[] {
   const file = process.env.JOBS_JSON_FILE;
-  if (!file || !existsSync(file)) return null;
+  if (!file || !existsSync(file)) return [];
   let data;
   try {
     data = JSON.parse(readFileSync(file, 'utf8'));
   } catch {
-    return null;
+    return [];
   }
+  return Array.isArray(data.jobs) ? data.jobs : [];
+}
+
+function readIntegrationCells(jobs: any[]): Cell[] | null {
   const cells: Cell[] = [];
-  for (const j of data.jobs || []) {
+  for (const j of jobs) {
     const m = /^Run Integration Tests \((.+)\)$/.exec(j.name || '');
     if (!m) continue;
     const [platform, nodePart, reusePart] = m[1].split(', ');
@@ -112,7 +120,12 @@ function readIntegrationCells(): Cell[] | null {
     cells.push({
       id: `${platform}-${node}-${reuse}`,
       label: `${platform} · ${node === 'bun' ? 'Bun (non-blocking)' : `Node ${node}`}`,
+      timingLabel: `${platform} · ${node === 'bun' ? 'Bun' : `Node ${node}`} · ${
+        reuse === 'reuse' ? 'reuse' : 'no reuse'
+      }`,
       conclusion: j.conclusion, // success | failure | cancelled | skipped | null
+      jobUrl: typeof j.html_url === 'string' ? j.html_url : null,
+      completedAtMs: typeof j.completed_at === 'string' ? Date.parse(j.completed_at) : null,
     });
   }
   return cells.length ? cells : null;
@@ -132,7 +145,8 @@ function classify(f: Failure): string {
 }
 
 const failuresByCell = collectFailuresByCell();
-const cells = readIntegrationCells();
+const jobs = readJobs();
+const cells = readIntegrationCells(jobs);
 
 // --- build one row per non-passing (job, test) ---
 const esc = (s: string): string => String(s).replace(/\|/g, '\\|');
@@ -159,7 +173,11 @@ if (cells) {
     if (fails && fails.length) {
       for (const f of fails) rows.push({ job: c.label, type: classify(f), test: testCol(f) });
     } else {
-      rows.push({ job: c.label, type: 'no results', test: 'no test results captured — see job log' });
+      rows.push({
+        job: c.label,
+        type: 'no results',
+        test: 'no test results captured — see job log',
+      });
     }
   }
 } else {
@@ -204,6 +222,18 @@ if (rows.length) {
   md.push('');
   md.push('Full per-job logs: `test-logs-*` artifacts.');
 }
+
+const environments = new Map<string, TimingEnvironment>();
+for (const cell of cells || []) {
+  environments.set(cell.id, {
+    id: cell.id,
+    label: cell.timingLabel,
+    jobUrl: cell.jobUrl,
+    completedAtMs: Number.isFinite(cell.completedAtMs) ? cell.completedAtMs : null,
+  });
+}
+const timingRuns = collectTimingRuns(process.env.AGG_RESULTS_DIR || 'all-results', environments);
+md.push('', ...renderTimingSummary(timingRuns));
 
 const summaryFile = process.env.GITHUB_STEP_SUMMARY;
 if (summaryFile) appendFileSync(summaryFile, md.join('\n') + '\n');
