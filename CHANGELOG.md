@@ -125,13 +125,13 @@ to docs, or any other relevant information.
     alias of `Foo.$Properties` preserving backward compatibility with type definitions that rely
     on the legacy spelling. Note that we may choose to deprecate the legacy spelling at some point
     in the future to encourage adoption of protobufjs' roadmap.
+
 - New External Storage concurrency controls
-  - Now, all payloads sites in a message are walked concurrently but sending an external storage operation to a driver is capped by `maxOperationsPerMessage` on a per-message basis and the actual operations drivers perform is capped "globally" (per instance of ExternalStorage) by `maxDriverOperations`. 
-  - In order have a granular `maxDriverOperations` control we need drivers to cooperate so a new `context.limiter` is passed into drivers which they can use to take a permit for performing work. 
-  - The existing S3 and GCS drivers were updated to use the new limiter. 
+  - Now, all payloads sites in a message are walked concurrently but sending an external storage operation to a driver is capped by `maxOperationsPerMessage` on a per-message basis and the actual operations drivers perform is capped "globally" (per instance of ExternalStorage) by `maxDriverOperations`.
+  - In order have a granular `maxDriverOperations` control we need drivers to cooperate so a new `context.limiter` is passed into drivers which they can use to take a permit for performing work.
+  - The existing S3 and GCS drivers were updated to use the new limiter.
   - If a driver doesn't use the limiter during an operation a warning is logged.
   - Reasonable defaults were added (8 per message, 64 global).
-
 
 ### Added
 
