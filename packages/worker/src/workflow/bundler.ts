@@ -1,12 +1,13 @@
 import * as realFS from 'node:fs';
-import { builtinModules, createRequire } from 'node:module';
+import { builtinModules } from 'node:module';
 import path from 'node:path';
 import util from 'node:util';
 import * as unionfs from 'unionfs';
 import * as memfs from 'memfs';
 import type { Configuration } from 'webpack';
 import { webpack, NormalModuleReplacementPlugin } from 'webpack';
-import type { Logger } from '@temporalio/common';
+import type { Logger } from '../logger';
+import { DefaultLogger, hasColorSupport } from '../logger';
 import { toMB } from '../utils';
 import {
   InjectWorkflowModuleCacheGlobalPlugin,
@@ -30,19 +31,6 @@ export const disallowedModules = [
   '@temporalio/testing',
   '@temporalio/core-bridge',
 ];
-
-const loadModule = createRequire(__filename);
-
-function defaultLogger(): Logger {
-  // Loading the worker logger also loads Core. Keep it out of the bundler's
-  // import graph so build-time bundling can run without a native bridge.
-  const { DefaultLogger } = loadModule('../logger') as typeof import('../logger');
-  return new DefaultLogger('INFO');
-}
-
-function hasColorSupport(logger: Logger): boolean {
-  return (logger as Logger & { [key: symbol]: boolean })[Symbol.for('logger_has_colors')] ?? false;
-}
 
 export function moduleMatches(userModule: string, modules: string[]): boolean {
   return modules.some((module) => userModule === module || userModule.startsWith(`${module}/`));
@@ -102,7 +90,7 @@ export class WorkflowCodeBundler {
           .join(', ')}`
       );
     }
-    this.logger = logger ?? defaultLogger();
+    this.logger = logger ?? new DefaultLogger('INFO');
     this.workflowsPath = workflowsPath;
     this.payloadConverterPath = payloadConverterPath;
     this.failureConverterPath = failureConverterPath;
