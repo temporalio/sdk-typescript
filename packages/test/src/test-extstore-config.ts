@@ -91,3 +91,40 @@ test('ExternalStorage rejects a driver with an empty name', (t) => {
     instanceOf: ValueError,
   });
 });
+
+test('ExternalStorage defaults concurrency to 100 instance-wide and 10 per message', (t) => {
+  const config = new ExternalStorage({ drivers: [stubDriver('only')] });
+  t.deepEqual(config.concurrency, { maxDriverOperations: 100, maxOperationsPerMessage: 10 });
+});
+
+test('ExternalStorage keeps explicitly configured concurrency limits', (t) => {
+  const config = new ExternalStorage({
+    drivers: [stubDriver('only')],
+    concurrency: { maxDriverOperations: 5, maxOperationsPerMessage: 2 },
+  });
+  t.deepEqual(config.concurrency, { maxDriverOperations: 5, maxOperationsPerMessage: 2 });
+});
+
+test('ExternalStorage fills in the unspecified half of concurrency', (t) => {
+  const config = new ExternalStorage({
+    drivers: [stubDriver('only')],
+    concurrency: { maxOperationsPerMessage: 3 },
+  });
+  t.deepEqual(config.concurrency, { maxDriverOperations: 100, maxOperationsPerMessage: 3 });
+});
+
+test('ExternalStorage rejects concurrency limits below one', (t) => {
+  for (const concurrency of [{ maxDriverOperations: 0 }, { maxOperationsPerMessage: 0 }, { maxDriverOperations: -1 }]) {
+    t.throws(() => new ExternalStorage({ drivers: [stubDriver('only')], concurrency }), { instanceOf: ValueError });
+  }
+});
+
+test('ExternalStorage rejects fractional and non-finite concurrency limits', (t) => {
+  for (const concurrency of [
+    { maxDriverOperations: 1.5 },
+    { maxOperationsPerMessage: Number.POSITIVE_INFINITY },
+    { maxOperationsPerMessage: Number.NaN },
+  ]) {
+    t.throws(() => new ExternalStorage({ drivers: [stubDriver('only')], concurrency }), { instanceOf: ValueError });
+  }
+});
