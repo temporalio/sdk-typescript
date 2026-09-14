@@ -1091,8 +1091,6 @@ export interface TypedActivityClient<T> {
  * Utility type to support strong typing in {@link TypedActivityClient}.
  * Contains names of activities extracted from the specified activity interface.
  * @template T Activity interface
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export type ActivityName<T> = {
   [N in keyof T & string]: T[N] extends ActivityFunction<any, any> ? N : never;
