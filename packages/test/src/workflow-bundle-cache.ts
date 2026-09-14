@@ -1,12 +1,14 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import type { DataConverter } from '@temporalio/common';
-import { workflowInterceptorModules as defaultWorkflowInterceptorModules } from '@temporalio/testing';
 import type { BundleOptions, WorkerOptions, WorkflowBundlePath } from '@temporalio/worker';
-import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import type { WorkflowBundleWithSourceMapAndFilename } from '@temporalio/worker/lib/workflow/workflow-worker-thread/input';
 import { baseBundlerIgnoreModules } from '@temporalio/test-helpers/lib/bundler';
+
+const defaultWorkflowInterceptorModules = [require.resolve('@temporalio/testing/lib/assert-to-failure-interceptor')];
+const loadModule = createRequire(__filename);
 
 export const workflowBundleCacheDirectory = path.join(__dirname, 'workflow-bundle-cache');
 export const workflowBundleManifestPath = path.join(workflowBundleCacheDirectory, 'manifest.json');
@@ -92,6 +94,11 @@ export function getCachedWorkflowBundle(options: CacheableBundleOptions): Workfl
 /** Load and parse a cached bundle for tests that exercise the Workflow VM directly. */
 export function getCachedWorkflowCode(options: CacheableBundleOptions): WorkflowBundleWithSourceMapAndFilename {
   const { codePath } = getCachedWorkflowBundle(options);
+  // Parsing is only needed by tests that execute a bundle. Loading Worker here
+  // eagerly would make the build-time bundle catalog require the native bridge.
+  const { parseWorkflowCode } = loadModule(
+    '@temporalio/worker/lib/worker'
+  ) as typeof import('@temporalio/worker/lib/worker');
   return parseWorkflowCode(readFileSync(codePath, 'utf8'), codePath);
 }
 

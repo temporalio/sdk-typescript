@@ -1,6 +1,7 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { bundleWorkflowCode, DefaultLogger } from '@temporalio/worker';
+import type { Logger } from '@temporalio/common';
+import { bundleWorkflowCode } from '@temporalio/worker/lib/workflow/bundler';
 import {
   getTestWorkflowBundleCatalog,
   workflowBundleCacheDirectory,
@@ -19,6 +20,15 @@ interface BundleReport {
   bytes: number;
 }
 
+const logger: Logger = {
+  log: () => undefined,
+  trace: () => undefined,
+  debug: () => undefined,
+  info: () => undefined,
+  warn: (message, meta) => console.warn(message, meta ?? ''),
+  error: (message, meta) => console.error(message, meta ?? ''),
+};
+
 function displayPath(modulePath: string): string {
   const relativePath = path.relative(__dirname, modulePath);
   return relativePath.startsWith('..') ? modulePath : relativePath;
@@ -35,7 +45,7 @@ async function main(): Promise<void> {
   console.log(`Prebuilding ${catalog.length} test Workflow bundles...`);
   for (const [index, options] of catalog.entries()) {
     const bundleStarted = Date.now();
-    const { code } = await bundleWorkflowCode({ ...options, logger: new DefaultLogger('WARN') });
+    const { code } = await bundleWorkflowCode({ ...options, logger });
     const bundle = workflowBundleCacheFilename(options);
     writeFileSync(path.join(workflowBundleCacheDirectory, bundle), code);
     const report = {
