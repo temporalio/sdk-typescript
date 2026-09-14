@@ -219,8 +219,6 @@ export const [encodeQueryRejectCondition, decodeQueryRejectCondition] = makeProt
 
 /**
  * Return type of {@link ActivityClient.count}
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface CountActivityExecutions {
   readonly count: number;
@@ -230,25 +228,12 @@ export interface CountActivityExecutions {
   }[];
 }
 
-/**
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
- */
 export type RawActivityExecutionInfo = proto.temporal.api.activity.v1.IActivityExecutionInfo;
-
-/**
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
- */
 export type RawActivityExecutionListInfo = proto.temporal.api.activity.v1.IActivityExecutionListInfo;
-
-/**
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
- */
 export type RawActivityExecutionCallbacks = proto.temporal.api.activity.v1.ICallbackInfo[];
 
 /**
  * Type of elements returned by {@link ActivityClient.list}
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityExecutionInfo {
   rawListInfo?: RawActivityExecutionListInfo;
@@ -266,8 +251,6 @@ export interface ActivityExecutionInfo {
 
 /**
  * Return type of {@link ActivityClient.describe}
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityExecutionDescription extends ActivityExecutionInfo {
   rawCallbacks: RawActivityExecutionCallbacks;
@@ -347,21 +330,12 @@ export interface ActivityExecutionDescription extends ActivityExecutionInfo {
   getOutcomeFailure(): Promise<Error | undefined>;
 }
 
-/**
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
- */
 export const ActivityIdReusePolicy = {
   ALLOW_DUPLICATE: 'ALLOW_DUPLICATE',
   ALLOW_DUPLICATE_FAILED_ONLY: 'ALLOW_DUPLICATE_FAILED_ONLY',
   REJECT_DUPLICATE: 'REJECT_DUPLICATE',
 } as const;
-/**
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
- */
 export type ActivityIdReusePolicy = (typeof ActivityIdReusePolicy)[keyof typeof ActivityIdReusePolicy];
-/**
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
- */
 export const [encodeActivityIdReusePolicy, decodeActivityIdReusePolicy] = makeProtoEnumConverters<
   proto.temporal.api.enums.v1.ActivityIdReusePolicy,
   typeof proto.temporal.api.enums.v1.ActivityIdReusePolicy,
@@ -378,20 +352,11 @@ export const [encodeActivityIdReusePolicy, decodeActivityIdReusePolicy] = makePr
   'ACTIVITY_ID_REUSE_POLICY_'
 );
 
-/**
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
- */
 export const ActivityIdConflictPolicy = {
   FAIL: 'FAIL',
   USE_EXISTING: 'USE_EXISTING',
 } as const;
-/**
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
- */
 export type ActivityIdConflictPolicy = (typeof ActivityIdConflictPolicy)[keyof typeof ActivityIdConflictPolicy];
-/**
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
- */
 export const [encodeActivityIdConflictPolicy, decodeActivityIdConflictPolicy] = makeProtoEnumConverters<
   proto.temporal.api.enums.v1.ActivityIdConflictPolicy,
   typeof proto.temporal.api.enums.v1.ActivityIdConflictPolicy,
@@ -407,9 +372,6 @@ export const [encodeActivityIdConflictPolicy, decodeActivityIdConflictPolicy] = 
   'ACTIVITY_ID_CONFLICT_POLICY_'
 );
 
-/**
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
- */
 export const ActivityExecutionStatus = {
   RUNNING: 'RUNNING',
   COMPLETED: 'COMPLETED',
@@ -419,13 +381,7 @@ export const ActivityExecutionStatus = {
   TIMED_OUT: 'TIMED_OUT',
   PAUSED: 'PAUSED',
 } as const;
-/**
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
- */
 export type ActivityExecutionStatus = (typeof ActivityExecutionStatus)[keyof typeof ActivityExecutionStatus];
-/**
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
- */
 export const [encodeActivityExecutionStatus, decodeActivityExecutionStatus] = makeProtoEnumConverters<
   proto.temporal.api.enums.v1.ActivityExecutionStatus,
   typeof proto.temporal.api.enums.v1.ActivityExecutionStatus,
@@ -446,9 +402,6 @@ export const [encodeActivityExecutionStatus, decodeActivityExecutionStatus] = ma
   'ACTIVITY_EXECUTION_STATUS_'
 );
 
-/**
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
- */
 export const PendingActivityState = {
   SCHEDULED: 'SCHEDULED',
   STARTED: 'STARTED',
@@ -456,13 +409,7 @@ export const PendingActivityState = {
   PAUSED: 'PAUSED',
   PAUSE_REQUESTED: 'PAUSE_REQUESTED',
 } as const;
-/**
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
- */
 export type PendingActivityState = (typeof PendingActivityState)[keyof typeof PendingActivityState];
-/**
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
- */
 export const [encodePendingActivityState, decodePendingActivityState] = makeProtoEnumConverters<
   proto.temporal.api.enums.v1.PendingActivityState,
   typeof proto.temporal.api.enums.v1.PendingActivityState,
