@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { status as grpcStatus } from '@grpc/grpc-js';
 import type {
   ActivityFunction,
+  ActivitySerializationContext,
   LoadedDataConverter,
   Next,
   PayloadTypeInfo,
@@ -27,6 +28,7 @@ import {
   searchAttributePayloadConverter,
 } from '@temporalio/common/lib/converter/payload-search-attributes';
 import {
+  decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
   decodeOptionalFailureToOptionalError,
   encodeToPayloadsWithContext,
@@ -48,8 +50,12 @@ import type {
   ActivityDescribeInput,
   ActivityGetResultInput,
   ActivityListInput,
+  ActivityPauseInput,
+  ActivityRestoreOriginalOptionsInput,
   ActivityStartInput,
   ActivityTerminateInput,
+  ActivityUnpauseInput,
+  ActivityUpdateOptionsInput,
 } from './interceptors';
 import type { AsyncCompletionClientOptions } from './async-completion-client';
 import { AsyncCompletionClient } from './async-completion-client';
@@ -79,8 +85,6 @@ import { type InternalActivityStartOptions, InternalActivityStartOptionsSymbol }
 
 /**
  * Options used to configure {@link ActivityClient}
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityClientOptions extends AsyncCompletionClientOptions {
   interceptors?: ActivityClientInterceptor[];
@@ -110,6 +114,14 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       terminate: composeInterceptors(interceptors, 'terminate', this.terminateHandler.bind(this)),
       list: composeInterceptors(interceptors, 'list', this.listHandler.bind(this)),
       count: composeInterceptors(interceptors, 'count', this.countHandler.bind(this)),
+      pause: composeInterceptors(interceptors, 'pause', this.pauseHandler.bind(this)),
+      unpause: composeInterceptors(interceptors, 'unpause', this.unpauseHandler.bind(this)),
+      updateOptions: composeInterceptors(interceptors, 'updateOptions', this.updateOptionsHandler.bind(this)),
+      restoreOriginalOptions: composeInterceptors(
+        interceptors,
+        'restoreOriginalOptions',
+        this.restoreOriginalOptionsHandler.bind(this)
+      ),
     };
   }
 
@@ -119,8 +131,6 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
    * affects type annotations.
    * @template T Activity interface to use for type checking. The returned client can only start activities present in
    * this interface.
-   *
-   * @experimental Standalone Activities are experimental. APIs may be subject to change.
    */
   typed<T>(): TypedActivityClient<T> {
     return this;
@@ -132,8 +142,6 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
    * @param activity Name of the activity to start.
    * @param options Options controlling the start and execution of the activity.
    * @returns Handle to the started activity. The handle's `runId` property will be set to the started run.
-   *
-   * @experimental Standalone Activities are experimental. APIs may be subject to change.
    */
   async start<R = any>(activity: string, options: ActivityOptions): Promise<ActivityHandle<R>> {
     return this.interceptedHandlers.start({
@@ -148,8 +156,6 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
    * @param activity Name of the activity to start.
    * @param options Options controlling the activity execution.
    * @returns Result of the activity.
-   *
-   * @experimental Standalone Activities are experimental. APIs may be subject to change.
    */
   async execute<R = any>(activity: string, options: ActivityOptions): Promise<R> {
     const handle = await this.start(activity, options);
@@ -170,8 +176,6 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
    * @param activityId ID of the Activity.
    * @param runId Optional run ID of the specific Activity execution.
    * @returns Handle to the specified activity execution.
-   *
-   * @experimental Standalone Activities are experimental. APIs may be subject to change.
    */
   getHandle<R = any>(activityId: string, runId?: string): ActivityHandle<R> {
     return this.createHandle(activityId, runId);
@@ -183,8 +187,6 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
    * @param activityId ID of the Activity.
    * @param options Options identifying the Activity run and describing its result type.
    * @returns Handle to the specified Activity execution.
-   *
-   * @experimental Standalone Activities are experimental. APIs may be subject to change.
    */
   getHandleWithOptions<R = any>(activityId: string, options: GetActivityHandleOptions): ActivityHandle<R> {
     return this.createHandle(activityId, options.runId, options.typeInfo?.outputType);
@@ -197,8 +199,6 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
    *
    * More info on the concept of "visibility" and the query syntax on the Temporal documentation site:
    * https://docs.temporal.io/visibility
-   *
-   * @experimental Standalone Activities are experimental. APIs may be subject to change.
    */
   list(query: string): AsyncIterable<ActivityExecutionInfo> {
     return this.interceptedHandlers.list({
@@ -214,8 +214,6 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
    *
    * More info on the concept of "visibility" and the query syntax on the Temporal documentation site:
    * https://docs.temporal.io/visibility
-   *
-   * @experimental Standalone Activities are experimental. APIs may be subject to change.
    */
   async count(query: string): Promise<CountActivityExecutions> {
     return await this.interceptedHandlers.count({
@@ -243,11 +241,17 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
         });
       },
 
-      async describe(): Promise<ActivityExecutionDescription> {
+      async describe(options?: ActivityDescribeOptions): Promise<ActivityExecutionDescription> {
         return await this.client.interceptedHandlers.describe({
           activityId: this.activityId,
           activityRunId: this.runId ?? '',
           headers: {},
+          options: {
+            includeInput: options?.includeInput || false,
+            includeOutcome: options?.includeOutcome || false,
+            includeHeartbeatDetails: options?.includeHeartbeatDetails || false,
+            includeLastFailure: options?.includeLastFailure || false,
+          },
         });
       },
 
@@ -265,6 +269,41 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
           activityId: this.activityId,
           activityRunId: this.runId ?? '',
           reason,
+          headers: {},
+        });
+      },
+
+      async pause(options?: ActivityPauseOptions): Promise<void> {
+        return await this.client.interceptedHandlers.pause({
+          activityId: this.activityId,
+          activityRunId: this.runId ?? '',
+          options: options || {},
+          headers: {},
+        });
+      },
+
+      async unpause(options?: ActivityUnpauseOptions): Promise<void> {
+        return await this.client.interceptedHandlers.unpause({
+          activityId: this.activityId,
+          activityRunId: this.runId ?? '',
+          options: options || {},
+          headers: {},
+        });
+      },
+
+      async updateOptions(options: ActivityOptionsUpdate): Promise<ActivityOptionsUpdateResult> {
+        return await this.client.interceptedHandlers.updateOptions({
+          activityId: this.activityId,
+          activityRunId: this.runId ?? '',
+          options,
+          headers: {},
+        });
+      },
+
+      async restoreOriginalOptions(): Promise<ActivityOptionsUpdate> {
+        return await this.client.interceptedHandlers.restoreOriginalOptions({
+          activityId: this.activityId,
+          activityRunId: this.runId ?? '',
           headers: {},
         });
       },
@@ -339,6 +378,13 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
 
     const internalOptions = (input.options as InternalActivityStartOptions)[InternalActivityStartOptionsSymbol];
 
+    const context: ActivitySerializationContext = {
+      type: 'activity',
+      namespace: this.options.namespace,
+      activityId: input.options.id,
+      isLocal: false,
+    };
+
     return {
       namespace: this.options.namespace,
       identity: this.options.identity,
@@ -354,7 +400,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       input: {
         payloads: await encodeToPayloadsWithContext(
           this.dataConverter,
-          undefined,
+          context,
           [...(input.options.args ?? [])],
           inputTypes
         ),
@@ -363,7 +409,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       idConflictPolicy: encodeActivityIdConflictPolicy(input.options.idConflictPolicy),
       searchAttributes,
       header: { fields: input.headers },
-      userMetadata: await encodeUserMetadata(this.dataConverter, input.options.summary, undefined),
+      userMetadata: await encodeUserMetadata(this.dataConverter, input.options.summary, undefined, context),
       priority: input.options.priority ? compilePriority(input.options.priority) : undefined,
       startDelay: msOptionalToTs(input.options.startDelay),
       completionCallbacks: internalOptions?.completionCallbacks,
@@ -376,6 +422,13 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
     if (!input.activityId) {
       throw new TypeError('activityId is required');
     }
+
+    const context: ActivitySerializationContext = {
+      type: 'activity',
+      namespace: this.options.namespace,
+      activityId: input.activityId,
+      isLocal: false,
+    };
 
     const req: temporal.api.workflowservice.v1.IPollActivityExecutionRequest = {
       namespace: this.options.namespace,
@@ -394,7 +447,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
             this.dataConverter,
             0,
             resp.outcome.result.payloads,
-            undefined,
+            context,
             input.outputType
           );
         } else if (resp.outcome?.failure) {
@@ -402,7 +455,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
           // If it succeeds, we want to throw the ActivityExecutionFailedError directly, so outside of try/catch.
           failedErr = new ActivityExecutionFailedError(
             'Activity execution failed',
-            await decodeOptionalFailureToOptionalError(this.dataConverter, resp.outcome.failure),
+            await decodeOptionalFailureToOptionalError(this.dataConverter, resp.outcome.failure, context),
             input.activityId,
             resp.runId || input.activityRunId || undefined
           );
@@ -422,15 +475,33 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       throw new TypeError('activityId is required');
     }
 
+    function hasInfo(resp: any): resp is { info: object } {
+      return !!resp.info;
+    }
+
     try {
+      const namespace = this.options.namespace;
       const resp = await this.workflowService.describeActivityExecution({
-        namespace: this.options.namespace,
+        namespace,
         activityId: input.activityId,
         runId: input.activityRunId || undefined,
+        includeInput: input.options.includeInput,
+        includeOutcome: input.options.includeOutcome,
+        includeHeartbeatDetails: input.options.includeHeartbeatDetails,
+        includeLastFailure: input.options.includeLastFailure,
       });
+      if (!hasInfo(resp)) {
+        throw new ServiceError('Missing info in describeActivityExecution response');
+      }
       const externalStorage = this.dataConverter.externalStorage;
       await visit(resp, walkDescribeActivityExecutionResponse, extstoreInboundOptions(externalStorage));
-      return buildActivityDescription(resp.info!, resp.callbacks, this.dataConverter);
+      const context: ActivitySerializationContext = {
+        type: 'activity',
+        namespace,
+        activityId: input.activityId,
+        isLocal: false,
+      };
+      return buildActivityDescription(resp, this.dataConverter, context);
     } catch (err) {
       this.rethrowGrpcError(err, 'Failed to describe activity');
     }
@@ -517,6 +588,128 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
     }
   }
 
+  protected async pauseHandler(input: ActivityPauseInput): Promise<void> {
+    if (!input.activityId) {
+      throw new TypeError('activityId is required');
+    }
+
+    try {
+      await this.workflowService.pauseActivityExecution({
+        namespace: this.options.namespace,
+        activityId: input.activityId,
+        runId: input.activityRunId || undefined,
+        identity: this.options.identity,
+        requestId: randomUUID(),
+        reason: input.options.reason || undefined,
+      });
+    } catch (err) {
+      this.rethrowGrpcError(err, 'Failed to request activity pause');
+    }
+  }
+
+  protected async unpauseHandler(input: ActivityUnpauseInput): Promise<void> {
+    if (!input.activityId) {
+      throw new TypeError('activityId is required');
+    }
+
+    try {
+      await this.workflowService.unpauseActivityExecution({
+        namespace: this.options.namespace,
+        activityId: input.activityId,
+        runId: input.activityRunId || undefined,
+        identity: this.options.identity,
+        requestId: randomUUID(),
+        reason: input.options.reason || undefined,
+        jitter: msOptionalToTs(input.options.jitter),
+      });
+    } catch (err) {
+      this.rethrowGrpcError(err, 'Failed to request activity unpause');
+    }
+  }
+
+  protected async updateOptionsHandler(input: ActivityUpdateOptionsInput): Promise<ActivityOptionsUpdateResult> {
+    if (!input.activityId) {
+      throw new TypeError('activityId is required');
+    }
+
+    const activityOptions: temporal.api.activity.v1.IActivityOptions = {};
+    const paths: string[] = [];
+    // != null because taskQueue can't be unset
+    if (input.options.taskQueue != null) {
+      paths.push('task_queue.name');
+      activityOptions.taskQueue = { name: input.options.taskQueue };
+    }
+    if (input.options.scheduleToCloseTimeout !== undefined) {
+      paths.push('schedule_to_close_timeout');
+      activityOptions.scheduleToCloseTimeout = msOptionalToTs(input.options.scheduleToCloseTimeout);
+    }
+    if (input.options.scheduleToStartTimeout !== undefined) {
+      paths.push('schedule_to_start_timeout');
+      activityOptions.scheduleToStartTimeout = msOptionalToTs(input.options.scheduleToStartTimeout);
+    }
+    if (input.options.startToCloseTimeout !== undefined) {
+      paths.push('start_to_close_timeout');
+      activityOptions.startToCloseTimeout = msOptionalToTs(input.options.startToCloseTimeout);
+    }
+    if (input.options.heartbeatTimeout !== undefined) {
+      paths.push('heartbeat_timeout');
+      activityOptions.heartbeatTimeout = msOptionalToTs(input.options.heartbeatTimeout);
+    }
+    if (input.options.retry !== undefined) {
+      paths.push('retry_policy');
+      if (input.options.retry != null) {
+        activityOptions.retryPolicy = compileRetryPolicy(input.options.retry);
+      }
+    }
+    if (input.options.priority !== undefined) {
+      paths.push('priority');
+      if (input.options.priority != null) {
+        activityOptions.priority = compilePriority(input.options.priority);
+      }
+    }
+    if (input.options.startDelay !== undefined) {
+      paths.push('start_delay');
+      activityOptions.startDelay = msOptionalToTs(input.options.startDelay);
+    }
+
+    try {
+      const resp = await this.workflowService.updateActivityExecutionOptions({
+        namespace: this.options.namespace,
+        activityId: input.activityId,
+        runId: input.activityRunId || undefined,
+        identity: this.options.identity,
+        requestId: randomUUID(),
+        activityOptions,
+        updateMask: { paths },
+      });
+      return buildActivityOptionsUpdateResult(resp.activityOptions);
+    } catch (err) {
+      this.rethrowGrpcError(err, 'Failed to update activity options');
+    }
+  }
+
+  protected async restoreOriginalOptionsHandler(
+    input: ActivityRestoreOriginalOptionsInput
+  ): Promise<ActivityOptionsUpdate> {
+    if (!input.activityId) {
+      throw new TypeError('activityId is required');
+    }
+
+    try {
+      const resp = await this.workflowService.updateActivityExecutionOptions({
+        namespace: this.options.namespace,
+        activityId: input.activityId,
+        runId: input.activityRunId || undefined,
+        identity: this.options.identity,
+        requestId: randomUUID(),
+        restoreOriginal: true,
+      });
+      return buildActivityOptionsUpdateResult(resp.activityOptions);
+    } catch (err) {
+      this.rethrowGrpcError(err, 'Failed to restore original activity options');
+    }
+  }
+
   protected rethrowGrpcError(err: unknown, fallbackMessage: string): never {
     if (isGrpcServiceError(err)) {
       rethrowKnownErrorTypes(err);
@@ -524,6 +717,9 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
         throw new ActivityNotFoundError(err.details ?? 'Activity not found');
       }
       throw new ServiceError(fallbackMessage, { cause: err });
+    }
+    if (err instanceof ServiceError) {
+      throw err;
     }
     throw new ServiceError('Unexpected error while making gRPC request');
   }
@@ -533,8 +729,6 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
  * Handle that can be used to perform operations on the associated Activity.
  * Can be obtained by calling {@link ActivityClient.start} or {@link ActivityClient.getHandle}.
  * @template R Result type of the activity. Use {@link ActivityClient.typed} to start activities in a type-safe way.
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityHandle<R = any> {
   /**
@@ -555,7 +749,7 @@ export interface ActivityHandle<R = any> {
   /**
    * Returns information about the Activity execution.
    */
-  describe(): Promise<ActivityExecutionDescription>;
+  describe(options?: ActivityDescribeOptions): Promise<ActivityExecutionDescription>;
   /**
    * Requests cancellation of the Activity execution. Note that cancellations are cooperative and not guaranteed to happen.
    */
@@ -564,12 +758,38 @@ export interface ActivityHandle<R = any> {
    * Terminates the Activity execution. Note that the worker is not immediately notified of termination and may continue running the activity.
    */
   terminate(reason: string): Promise<void>;
+  /**
+   * Requests Activity execution pause. Note that pausing is cooperative and not guaranteed to happen.
+   *
+   * @experimental Activity Operator Commands are experimental. APIs may be subject to change.
+   */
+  pause(options?: ActivityPauseOptions): Promise<void>;
+  /**
+   * Unpauses the Activity execution if it was previously paused.
+   *
+   * @experimental Activity Operator Commands are experimental. APIs may be subject to change.
+   */
+  unpause(options?: ActivityUnpauseOptions): Promise<void>;
+  /**
+   * Updates activity options of a running activity execution. See documentation for {@link ActivityOptionsUpdate}.
+   *
+   * Returns current options after applying the update.
+   *
+   * @experimental Activity Operator Commands are experimental. APIs may be subject to change.
+   */
+  updateOptions(options: ActivityOptionsUpdate): Promise<ActivityOptionsUpdateResult>;
+  /**
+   * Restores activity options of a running activity execution that it was originally started with.
+   *
+   * Returns current options after restoring.
+   *
+   * @experimental Activity Operator Commands are experimental. APIs may be subject to change.
+   */
+  restoreOriginalOptions(): Promise<ActivityOptionsUpdate>;
 }
 
 /**
  * Options used by {@link ActivityClient.start}.
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityOptions {
   /**
@@ -645,8 +865,6 @@ export interface ActivityOptions {
 
 /**
  * Options for {@link ActivityClient.getHandleWithOptions}.
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface GetActivityHandleOptions {
   /**
@@ -661,6 +879,96 @@ export interface GetActivityHandleOptions {
    */
   typeInfo?: Pick<PayloadTypeInfo, 'outputType'>;
 }
+
+/**
+ * Options for {@link ActivityHandle.describe}.
+ */
+export interface ActivityDescribeOptions {
+  /**
+   * Include activity input in the response if available.
+   */
+  includeInput?: boolean;
+  /**
+   * Include activity outcome failure in the response if available. If the activity is closed, this will populate
+   * either {@link ActivityExecutionDescription.getResult} or {@link ActivityExecutionDescription.getOutcomeFailure}
+   * depending on whether the activity succeeded or failed.
+   */
+  includeOutcome?: boolean;
+  /**
+   * Include heartbeat details in the response if available.
+   */
+  includeHeartbeatDetails?: boolean;
+  /**
+   * Include last failure in the response if available.
+   */
+  includeLastFailure?: boolean;
+}
+
+/**
+ * Options for {@link ActivityHandle.pause}.
+ *
+ * @experimental Activity Operator Commands are experimental. APIs may be subject to change.
+ */
+export interface ActivityPauseOptions {
+  /**
+   * Reason for pausing.
+   */
+  reason?: string;
+}
+
+/**
+ * Options for {@link ActivityHandle.unpause}.
+ *
+ * @experimental Activity Operator Commands are experimental. APIs may be subject to change.
+ */
+export interface ActivityUnpauseOptions {
+  /**
+   * Reason for unpausing.
+   */
+  reason?: string;
+
+  /**
+   * If set, the activity will be available for execution after a random delay between zero and specified duration.
+   */
+  jitter?: Duration;
+}
+
+/**
+ * Specifies activity options to change in {@link ActivityHandle.updateOptions} operation.
+ *
+ * If a field is assigned non-null value, the option will be set to that value.
+ * If a field is explicitly assigned null, the option will be cleared.
+ * If a field is undefined, the option will be left unchanged.
+ *
+ * @experimental Activity Operator Commands are experimental. APIs may be subject to change.
+ */
+export interface ActivityOptionsUpdate {
+  /** {@inheritDoc ActivityOptions.taskQueue} */
+  taskQueue?: string;
+  /** {@inheritDoc ActivityOptions.scheduleToCloseTimeout} */
+  scheduleToCloseTimeout?: Duration | null;
+  /** {@inheritDoc ActivityOptions.scheduleToStartTimeout} */
+  scheduleToStartTimeout?: Duration | null;
+  /** {@inheritDoc ActivityOptions.startToCloseTimeout} */
+  startToCloseTimeout?: Duration | null;
+  /** {@inheritDoc ActivityOptions.heartbeatTimeout} */
+  heartbeatTimeout?: Duration | null;
+  /** {@inheritDoc ActivityOptions.retry} */
+  retry?: RetryPolicy | null;
+  /** {@inheritDoc ActivityOptions.priority} */
+  priority?: Priority | null;
+  /** {@inheritDoc ActivityOptions.startDelay} */
+  startDelay?: Duration | null;
+}
+
+/**
+ * Contains current activity options after applying an update. Returned by {@link ActivityHandle.updateOptions}.
+ *
+ * @experimental Activity Operator Commands are experimental. APIs may be subject to change.
+ */
+export type ActivityOptionsUpdateResult = {
+  [K in keyof ActivityOptionsUpdate]: Exclude<ActivityOptionsUpdate[K], null>;
+};
 
 function validateActivityOptions(options: ActivityOptions): void {
   if (!options.id) {
@@ -690,6 +998,7 @@ function buildActivityExecutionInfoCommonPart(
     typedSearchAttributes: decodeTypedSearchAttributes(info.searchAttributes?.indexedFields),
     taskQueue: info.taskQueue!,
     executionDurationMs: optionalTsToMs(info.executionDuration),
+    executionTime: optionalTsToDate(info.executionTime),
   };
 }
 
@@ -701,47 +1010,65 @@ function buildActivityExecutionInfo(info: temporal.api.activity.v1.IActivityExec
 }
 
 function buildActivityDescription(
-  info: temporal.api.activity.v1.IActivityExecutionInfo,
-  callbacks: temporal.api.activity.v1.ICallbackInfo[],
-  dataConverter: LoadedDataConverter
+  resp: temporal.api.workflowservice.v1.DescribeActivityExecutionResponse & { info: object },
+  dataConverter: LoadedDataConverter,
+  serializationContext: ActivitySerializationContext
 ): ActivityExecutionDescription {
-  const getHeartbeatDetails: <T>() => Promise<T | undefined> = async <T>() => {
-    const payloads = info.heartbeatDetails?.payloads;
-    if (payloads && payloads.length > 0) {
-      return await decodeFromPayloadsAtIndex<T>(dataConverter, 0, info.heartbeatDetails?.payloads);
-    } else {
-      return undefined;
-    }
-  };
-
-  const getLastFailure: () => Promise<Error | undefined> = async () => {
-    return await decodeOptionalFailureToOptionalError(dataConverter, info.lastFailure);
-  };
-
   return {
-    ...buildActivityExecutionInfoCommonPart(info),
-    rawInfo: info,
-    rawCallbacks: callbacks,
-    runState: decodePendingActivityState(info.runState),
-    scheduleToCloseTimeoutMs: optionalTsToMs(info.scheduleToCloseTimeout),
-    scheduleToStartTimeoutMs: optionalTsToMs(info.scheduleToStartTimeout),
-    startToCloseTimeoutMs: optionalTsToMs(info.startToCloseTimeout),
-    heartbeatTimeoutMs: optionalTsToMs(info.heartbeatTimeout),
-    retryPolicy: decompileRetryPolicy(info.retryPolicy)!,
-    lastHeartbeatTime: optionalTsToDate(info.lastHeartbeatTime),
-    lastStartedTime: optionalTsToDate(info.lastStartedTime),
-    attempt: info.attempt!,
-    expirationTime: optionalTsToDate(info.expirationTime),
-    lastWorkerIdentity: info.lastWorkerIdentity || undefined,
-    currentRetryIntervalMs: optionalTsToMs(info.currentRetryInterval),
-    lastAttemptCompleteTime: optionalTsToDate(info.lastAttemptCompleteTime),
-    nextAttemptScheduleTime: optionalTsToDate(info.nextAttemptScheduleTime),
-    lastDeploymentVersion: convertDeploymentVersion(info.lastDeploymentVersion),
-    priority: decodePriority(info.priority),
-    canceledReason: info.canceledReason || undefined,
+    ...buildActivityExecutionInfoCommonPart(resp.info),
+    rawInfo: resp.info,
+    rawCallbacks: resp.callbacks,
+    runState: decodePendingActivityState(resp.info.runState),
+    scheduleToCloseTimeoutMs: optionalTsToMs(resp.info.scheduleToCloseTimeout),
+    scheduleToStartTimeoutMs: optionalTsToMs(resp.info.scheduleToStartTimeout),
+    startToCloseTimeoutMs: optionalTsToMs(resp.info.startToCloseTimeout),
+    heartbeatTimeoutMs: optionalTsToMs(resp.info.heartbeatTimeout),
+    retryPolicy: decompileRetryPolicy(resp.info.retryPolicy)!,
+    lastHeartbeatTime: optionalTsToDate(resp.info.lastHeartbeatTime),
+    lastStartedTime: optionalTsToDate(resp.info.lastStartedTime),
+    attempt: resp.info.attempt!,
+    expirationTime: optionalTsToDate(resp.info.expirationTime),
+    lastWorkerIdentity: resp.info.lastWorkerIdentity || undefined,
+    currentRetryIntervalMs: optionalTsToMs(resp.info.currentRetryInterval),
+    lastAttemptCompleteTime: optionalTsToDate(resp.info.lastAttemptCompleteTime),
+    nextAttemptScheduleTime: optionalTsToDate(resp.info.nextAttemptScheduleTime),
+    lastDeploymentVersion: convertDeploymentVersion(resp.info.lastDeploymentVersion),
+    priority: decodePriority(resp.info.priority),
+    canceledReason: resp.info.canceledReason || undefined,
+    startDelayMs: optionalTsToMs(resp.info.startDelay),
+    totalHeartbeatCount: resp.info.totalHeartbeatCount?.toNumber() || undefined,
 
-    getHeartbeatDetails,
-    getLastFailure,
+    hasHeartbeatDetails: (resp.info.heartbeatDetails?.payloads?.length || 0) > 0,
+    hasLastFailure: !!resp.info.lastFailure,
+    hasInput: (resp.input?.payloads?.length || 0) > 0,
+    hasResult: (resp.outcome?.result?.payloads?.length || 0) > 0,
+    hasOutcomeFailure: !!resp.outcome?.failure,
+
+    getHeartbeatDetails: async <T>() =>
+      await decodeFromPayloadsAtIndex<T>(dataConverter, 0, resp.info.heartbeatDetails?.payloads, serializationContext),
+    getLastFailure: async () =>
+      await decodeOptionalFailureToOptionalError(dataConverter, resp.info.lastFailure, serializationContext),
+    getInput: async <T>() =>
+      (await decodeArrayFromPayloads(dataConverter, resp.input?.payloads, serializationContext)) as T,
+    getResult: async <T>() =>
+      await decodeFromPayloadsAtIndex<T>(dataConverter, 0, resp.outcome?.result?.payloads, serializationContext),
+    getOutcomeFailure: async () =>
+      await decodeOptionalFailureToOptionalError(dataConverter, resp.outcome?.failure, serializationContext),
+  };
+}
+
+function buildActivityOptionsUpdateResult(
+  proto?: temporal.api.activity.v1.IActivityOptions | null
+): ActivityOptionsUpdateResult {
+  return {
+    taskQueue: proto?.taskQueue?.name || undefined,
+    scheduleToCloseTimeout: optionalTsToMs(proto?.scheduleToCloseTimeout),
+    scheduleToStartTimeout: optionalTsToMs(proto?.scheduleToStartTimeout),
+    startToCloseTimeout: optionalTsToMs(proto?.startToCloseTimeout),
+    heartbeatTimeout: optionalTsToMs(proto?.heartbeatTimeout),
+    retry: decompileRetryPolicy(proto?.retryPolicy),
+    priority: proto?.priority ? decodePriority(proto.priority) : undefined,
+    startDelay: optionalTsToMs(proto?.startDelay),
   };
 }
 
@@ -750,8 +1077,6 @@ function buildActivityDescription(
  * Argument types in the provided options must match the argument types of the specified Activity as defined in provided
  * interface
  * @template T Activity interface
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface TypedActivityClient<T> {
   start<N extends ActivityName<T>>(
@@ -766,8 +1091,6 @@ export interface TypedActivityClient<T> {
  * Utility type to support strong typing in {@link TypedActivityClient}.
  * Contains names of activities extracted from the specified activity interface.
  * @template T Activity interface
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export type ActivityName<T> = {
   [N in keyof T & string]: T[N] extends ActivityFunction<any, any> ? N : never;
@@ -778,8 +1101,6 @@ export type ActivityName<T> = {
  * Extracts argument types of an activity.
  * @template T Activity interface
  * @template N Activity name
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export type ActivityArgs<T, N extends ActivityName<T>> = T[N] extends ActivityFunction<infer P, any> ? P : never;
 
@@ -788,8 +1109,6 @@ export type ActivityArgs<T, N extends ActivityName<T>> = T[N] extends ActivityFu
  * Extracts result type of an activity.
  * @template T Activity interface
  * @template N Activity name
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export type ActivityResult<T, N extends ActivityName<T>> = T[N] extends ActivityFunction<any, infer R> ? R : never;
 
@@ -797,8 +1116,6 @@ export type ActivityResult<T, N extends ActivityName<T>> = T[N] extends Activity
  * Utility type to support strong typing in {@link TypedActivityClient}.
  * Represents {@link ActivityOptions} with strongly typed arguments.
  * @template Args Types of activity arguments as an array type.
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export type ActivityOptionsWithArgs<Args extends any[]> = Args extends [any, ...any]
   ? Replace<
@@ -825,7 +1142,5 @@ export type ActivityOptionsWithArgs<Args extends any[]> = Args extends [any, ...
  * Represents {@link ActivityOptions} with strongly typed arguments matching specified Activity in specified interface.
  * @template T Activity interface
  * @template N Activity name
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export type ActivityOptionsFor<T, N extends ActivityName<T>> = ActivityOptionsWithArgs<ActivityArgs<T, N>>;
