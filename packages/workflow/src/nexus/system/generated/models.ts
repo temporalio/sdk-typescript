@@ -74,7 +74,7 @@ export interface SignalWithStartWorkflowResponse {
   started?: boolean;
 }
 
-export function signalWithStartWorkflowResponseFromProto(
+function signalWithStartWorkflowResponseFromProto(
   proto: temporal.api.workflowservice.v1.ISignalWithStartWorkflowExecutionResponse | null | undefined
 ): SignalWithStartWorkflowResponse | undefined {
   if (proto == null) {
@@ -86,7 +86,7 @@ export function signalWithStartWorkflowResponseFromProto(
   };
 }
 
-export function signalWithStartWorkflowResponseToProto(
+function signalWithStartWorkflowResponseToProto(
   model: SignalWithStartWorkflowResponse | null | undefined
 ): temporal.api.workflowservice.v1.ISignalWithStartWorkflowExecutionResponse | undefined {
   if (model == null) {
@@ -286,7 +286,7 @@ export type SignalWithStartWorkflowRequest<
     )
 >;
 
-export function signalWithStartWorkflowRequestFromProto<
+function signalWithStartWorkflowRequestFromProto<
   WorkflowFn extends (...args: any[]) => Promise<any> = (...args: any[]) => Promise<any>,
   SignalValue extends common.SignalDefinition<any[]> = common.SignalDefinition<any[]>,
   SignalArgs extends any[] = SignalValue extends common.SignalDefinition<infer Args, any> ? Args : never,
@@ -360,7 +360,7 @@ export function signalWithStartWorkflowRequestFromProto<
   };
 }
 
-export function signalWithStartWorkflowRequestToProto<
+function signalWithStartWorkflowRequestToProto<
   WorkflowFn extends (...args: any[]) => Promise<any> = (...args: any[]) => Promise<any>,
   SignalValue extends common.SignalDefinition<any[]> = common.SignalDefinition<any[]>,
   SignalArgs extends any[] = SignalValue extends common.SignalDefinition<infer Args, any> ? Args : never,
@@ -435,9 +435,7 @@ export interface UserMetadata {
   staticDetails?: common.Payload;
 }
 
-export function userMetadataFromProto(
-  proto: temporal.api.sdk.v1.IUserMetadata | null | undefined
-): UserMetadata | undefined {
+function userMetadataFromProto(proto: temporal.api.sdk.v1.IUserMetadata | null | undefined): UserMetadata | undefined {
   if (proto == null) {
     return undefined;
   }
@@ -447,9 +445,7 @@ export function userMetadataFromProto(
   };
 }
 
-export function userMetadataToProto(
-  model: UserMetadata | null | undefined
-): temporal.api.sdk.v1.IUserMetadata | undefined {
+function userMetadataToProto(model: UserMetadata | null | undefined): temporal.api.sdk.v1.IUserMetadata | undefined {
   if (model == null) {
     return undefined;
   }
