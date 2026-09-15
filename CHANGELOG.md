@@ -161,6 +161,8 @@ _None_
 
 ### Fixed
 
+- `@temporalio/create` now supports comments and trailing commas in `tsconfig.json` files when
+  creating projects.
 - Local Activities now fall back to a registered `default` activity when the requested type is not
   registered, matching non-local Activity dispatch. Previously the Workflow Task failed immediately
   with `ReferenceError` even if `default` was registered.
