@@ -21,8 +21,18 @@ test('updateTsconfigNodeVersion supports comments and trailing commas', (t) => {
     '@tsconfig/node24'
   );
 
-  t.not(updated, undefined);
-  t.is(JSON.parse(updated!).extends, '@tsconfig/node24/tsconfig.json');
+  t.is(
+    updated,
+    dedent`
+      {
+        // TypeScript configuration files support JSONC.
+        "extends": "@tsconfig/node24/tsconfig.json",
+        "compilerOptions": {
+          "strict": true,
+        },
+      }
+    `
+  );
 });
 
 test('replaceSdkVersion according to configured level', async (t) => {
