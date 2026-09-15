@@ -41,6 +41,20 @@ jobs:
             container: quay.io/pypa/manylinux_2_24_aarch64
             out-file: libtemporal_sdk_typescript_bridge.so
             protobuf-url: https://github.com/protocolbuffers/protobuf/releases/download/v22.3/protoc-22.3-linux-aarch_64.zip
+          # alpine:3.20 is deliberately old, like manylinux_2_24 above for glibc: building
+          # against an older libc maximizes forward compatibility of the published binary.
+          - platform: linux-x64-musl
+            runner: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            container: alpine:3.20
+            musl: true
+            out-file: libtemporal_sdk_typescript_bridge.so
+          - platform: linux-arm-musl
+            runner: ubuntu-24.04-arm64-2-core
+            target: aarch64-unknown-linux-musl
+            container: alpine:3.20
+            musl: true
+            out-file: libtemporal_sdk_typescript_bridge.so
           - platform: macos-x64
             runner: macos-15-intel
             target: x86_64-apple-darwin
@@ -102,7 +116,7 @@ jobs:
           cargo build --release --target ${{ matrix.target }}
 
       - name: Compile rust code (Docker)
-        if: steps.cached-artifact.outputs.cache-hit != 'true' && matrix.container
+        if: steps.cached-artifact.outputs.cache-hit != 'true' && matrix.container && !matrix.musl
         working-directory: ./packages/core-bridge
         run: |
           docker run --rm -v "$(pwd):/workspace" -w /workspace \
@@ -116,6 +130,29 @@ jobs:
                 cargo build --release --target ${{ matrix.target }}
             '
 
+      # musl targets are compiled natively on Alpine rather than cross-compiled from the
+      # manylinux (glibc) containers above: Alpine ships musl-gcc and a musl libc out of the
+      # box, and prebuilt protoc/glibc binaries won't run under musl without a compat shim.
+      #
+      # RUSTFLAGS disables crt-static (musl's Rust default) so the addon is dynamically linked
+      # against musl libc, which is required for Node to `dlopen` it as a native addon; symbols
+      # are stripped to keep the published package's growth to a few MB per target.
+      - name: Compile rust code (Docker, musl)
+        if: steps.cached-artifact.outputs.cache-hit != 'true' && matrix.musl
+        working-directory: ./packages/core-bridge
+        run: |
+          docker run --rm -v "$(pwd):/workspace" -w /workspace \
+            ${{ matrix.container }} \
+            sh -c '
+                set -eux
+                apk add --no-cache curl build-base protobuf protobuf-dev
+                curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
+                export PATH="$PATH:$HOME/.cargo/bin"
+                export RUSTFLAGS="-C target-feature=-crt-static -C strip=symbols"
+
+                cargo build --release --target ${{ matrix.target }}
+            '
+
       - name: Move built artifacts in place
         if: steps.cached-artifact.outputs.cache-hit != 'true'
         working-directory: ./packages/core-bridge
@@ -123,8 +160,25 @@ jobs:
           mkdir -p ./releases/${{ matrix.target }}
           cp target/${{ matrix.target }}/release/${{ matrix.out-file }} ./releases/${{ matrix.target }}/index.node
 
+      # Load the built musl binary on the runner arch that built it (also when it came from the
+      # artifact cache): proves both the runtime musl detection and that the artifact is
+      # actually musl-linked, for x64 and arm64 alike.
+      - name: Smoke test the musl binary on Alpine
+        if: matrix.musl
+        working-directory: ./packages/core-bridge
+        run: |
+          docker run --rm -v "$(pwd):/workspace" node:22-alpine node -e '
+            const common = require("/workspace/common.js");
+            const target = common.getPrebuiltTargetName();
+            if (target !== "${{ matrix.target }}") {
+              throw new Error("expected ${{ matrix.target }}, got " + target);
+            }
+            require("/workspace/releases/" + target + "/index.node");
+            console.log("musl binary loaded from", target);
+          '
+
       - name: Print required GLIBC version
-        if: startsWith(matrix.platform, 'linux')
+        if: startsWith(matrix.platform, 'linux') && !matrix.musl
         working-directory: ./packages/core-bridge
         run: |
           objdump -T ./releases/${{ matrix.target }}/index.node |
