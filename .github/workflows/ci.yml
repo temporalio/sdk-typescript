@@ -138,6 +138,7 @@ jobs:
       # Per-package result JSON + full logs are written here by scripts/ava-ci.ts,
       # archived as the test-logs-* artifact, and aggregated by the ci-summary job.
       TEST_RESULTS_DIR: ${{ github.workspace }}/.test-results
+      AVA_WALL_CLOCK_TIMEOUT_MS: 720000
     defaults:
       run:
         shell: bash
@@ -244,6 +245,10 @@ jobs:
           AVA_RUNTIME: bun
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
+
+      - name: Test CI observer integration
+        if: matrix.platform == 'linux-x64' && matrix.node == 24
+        run: pnpm exec tsx --test scripts/ava-observer-integration.test.ts
 
       # (Per-package results are printed by the wrapper into the "Run Tests" log
       # above, and aggregated across all jobs by the `ci-summary` job below.)
@@ -486,6 +491,9 @@ jobs:
           AGG_RESULTS_DIR: all-results
           JOBS_JSON_FILE: jobs.json
         run: node scripts/ci-run-summary.ts
+
+      - name: Test CI timing renderer
+        run: node --test scripts/ava-ci-timing.test.ts
 
       # Make this rollup check red when any dependency failed (the summary above is
       # written by the previous step regardless, so it always renders).
