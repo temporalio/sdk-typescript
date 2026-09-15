@@ -21,7 +21,7 @@ import type {
 import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
 import type { coresdk } from '@temporalio/proto';
-import type { EventGroupMarker } from './event-groups';
+import type { EventGroup } from './event-groups';
 
 /**
  * Workflow Execution information
@@ -432,15 +432,15 @@ export interface ContinueAsNewOptions {
   typeInfo?: Pick<PayloadTypeInfo, 'inputTypes'>;
 
   /**
-   * Event group markers to attach to the continue-as-new command. The markers will be reflected
-   * on the corresponding workflow history events, and may be used by tooling (UI/CLI) to group
-   * related events together. See {@link EventGroupMarker} and {@link createEventGroup}.
+   * Event Groups to attach to the continue-as-new command. They will be reflected on the
+   * corresponding workflow history events, and may be used by tooling (UI/CLI) to group
+   * related events together. See {@link EventGroup} and {@link createEventGroup}.
    *
    * Note that event group markers are never propagated across workflow executions.
    *
    * @experimental Event Groups is an experimental API and may change without notice.
    */
-  eventGroups?: EventGroupMarker[];
+  eventGroups?: EventGroup[];
 }
 
 /**
@@ -654,15 +654,15 @@ export interface ChildWorkflowOptions extends Omit<CommonWorkflowOptions, 'workf
   versioningIntent?: VersioningIntent;
 
   /**
-   * Event group markers to attach to the child workflow start command. The markers will be
-   * reflected on the corresponding workflow history events, and may be used by tooling
-   * (UI/CLI) to group related events together. See {@link EventGroupMarker} and `createEventGroup`.
+   * Event Groups to attach to the child workflow start command. They will be reflected on the
+   * corresponding workflow history events, and may be used by tooling (UI/CLI) to group
+   * related events together. See {@link EventGroup} and {@link createEventGroup}.
    *
    * Note that event group markers are never propagated across workflow executions.
    *
    * @experimental Event Groups is an experimental API and may change without notice.
    */
-  eventGroups?: EventGroupMarker[];
+  eventGroups?: EventGroup[];
 }
 
 export type RequiredChildWorkflowOptions = Required<Pick<ChildWorkflowOptions, 'workflowId' | 'cancellationType'>> & {
