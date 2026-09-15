@@ -2,6 +2,7 @@ export * from './enums-helpers';
 // These are consumed through the internal-workflow package entry point.
 // ts-prune-ignore-next
 export { SYSTEM_NEXUS_PAYLOAD_METADATA_KEY } from './system-nexus';
+export { decodeSystemNexusEnvelopeBytes, encodeSystemNexusEnvelopeBytes } from './system-nexus';
 // ts-prune-ignore-next
 export { SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE } from './system-nexus';
 // ts-prune-ignore-next

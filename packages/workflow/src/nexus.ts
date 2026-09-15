@@ -9,6 +9,7 @@ import { msOptionalToTs } from '@temporalio/common/lib/time';
 import { userMetadataToPayload } from '@temporalio/common/lib/user-metadata';
 import {
   makeProtoEnumConverters,
+  encodeSystemNexusEnvelopeBytes,
   SYSTEM_NEXUS_CONTEXT_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE,
@@ -255,7 +256,7 @@ async function startSystemNexusOperationWithSpecificInterceptors<Output>(
 function systemNexusOuterPayloadConverter(context: SerializationContext | undefined): PayloadConverter {
   return {
     toPayload(value) {
-      const payload = defaultPayloadConverter.toPayload(value);
+      const payload = defaultPayloadConverter.toPayload(encodeSystemNexusEnvelopeBytes(value));
       payload.metadata ??= {};
       payload.metadata[SYSTEM_NEXUS_PAYLOAD_METADATA_KEY] = SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE;
       if (context != null) {

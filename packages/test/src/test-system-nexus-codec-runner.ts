@@ -2,6 +2,10 @@ import test from 'ava';
 import type { Payload, SerializationContext } from '@temporalio/common';
 import { ApplicationFailure, defaultFailureConverter, defaultPayloadConverter } from '@temporalio/common';
 import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
+import {
+  decodeSystemNexusEnvelopeBytes,
+  encodeSystemNexusEnvelopeBytes,
+} from '@temporalio/common/lib/internal-workflow';
 import * as protoRoot from '@temporalio/proto';
 import { WorkflowCodecRunner } from '@temporalio/worker/lib/workflow-codec-runner';
 import { FreePayloadCodec, makeContextTrace } from './payload-converters/serialization-context-converter';
@@ -13,7 +17,7 @@ function payload(label: string): Payload {
 }
 
 function systemNexusEnvelope(value: unknown, context?: SerializationContext): Payload {
-  const envelope = defaultPayloadConverter.toPayload(value)!;
+  const envelope = defaultPayloadConverter.toPayload(encodeSystemNexusEnvelopeBytes(value))!;
   envelope.metadata ??= {};
   envelope.metadata.__temporal_system_payload = new Uint8Array([116, 114, 117, 101]);
   if (context != null) envelope.metadata.__temporal_system_context = new TextEncoder().encode(JSON.stringify(context));
@@ -30,6 +34,17 @@ function failureWithDetail(label: string) {
     defaultPayloadConverter
   );
 }
+
+test('System Nexus envelope bytes use an explicit JSON representation', (t) => {
+  const value = {
+    bytes: new Uint8Array([1, 2, 3]),
+    numericObject: { 0: 1, 1: 2, 2: 3 },
+  };
+  const decoded = decodeSystemNexusEnvelopeBytes(encodeSystemNexusEnvelopeBytes(value)) as typeof value;
+
+  t.deepEqual(decoded.bytes, value.bytes);
+  t.deepEqual(decoded.numericObject, value.numericObject);
+});
 
 test('signal-with-start uses the target context for codec encode and decode', async (t) => {
   const runner = new WorkflowCodecRunner([new FreePayloadCodec()], {
