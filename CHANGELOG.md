@@ -19,7 +19,10 @@ to docs, or any other relevant information.
 
 ## [Unreleased]
 
-_None_
+### Fixed
+
+- The Workflow sandbox now exposes `atob` and `btoa`, allowing integrations such as `@temporalio/ai-sdk` to
+  process image and file tool results containing base64 data.
 
 ## [1.24.0] - 2026-09-14
 
