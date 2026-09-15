@@ -17,7 +17,7 @@
   "license": "MIT",
   "scripts": {
     "build": "tsc --build",
-    "test": "node ../../scripts/ava-ci.js ./lib/__tests__/test-*.js"
+    "test": "node ../../scripts/lib/ava-ci.js ./lib/__tests__/test-*.js"
   },
   "ava": {
     "timeout": "120s",

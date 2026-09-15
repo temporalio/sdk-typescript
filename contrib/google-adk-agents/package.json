@@ -37,7 +37,7 @@
   "scripts": {
     "build": "tsc --build",
     "build:watch": "tsc --build --watch",
-    "test": "node ../../scripts/ava-ci.js ./lib/__tests__/*.test.js"
+    "test": "node ../../scripts/lib/ava-ci.js ./lib/__tests__/*.test.js"
   },
   "ava": {
     "files": [

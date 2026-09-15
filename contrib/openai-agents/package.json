@@ -20,7 +20,7 @@
   "scripts": {
     "build": "tsc --build",
     "build:watch": "tsc --build --watch",
-    "test": "node ../../scripts/ava-ci.js",
+    "test": "node ../../scripts/lib/ava-ci.js",
     "test:watch": "ava --watch"
   },
   "ava": {
