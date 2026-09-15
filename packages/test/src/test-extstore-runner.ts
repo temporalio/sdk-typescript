@@ -10,7 +10,7 @@ import {
 } from '@temporalio/common/lib/internal-non-workflow';
 import { encode } from '@temporalio/common/lib/encoding';
 import { METADATA_ENCODING_KEY } from '@temporalio/common/lib/converter/types';
-import { makeFakeDriver } from './extstore-fake-driver';
+import { makeFakeDriver, type FakeDriver } from './extstore-fake-driver';
 
 /** Build a Payload whose proto-encoded size is at least `bodyBytes`. */
 function makePayload(bodyBytes: number): Payload {
@@ -417,55 +417,6 @@ function makeRecordingLogger(): { logger: Logger; warnings: string[] } {
   };
 }
 
-test('maxOperationsPerMessage bounds concurrent store calls into a driver that ignores the limiter', async (t) => {
-  const gate = makeGate();
-  const driver = makeFakeDriver({
-    name: 's3',
-    onStore: (payloads) => gate.hold(() => payloads.map(() => new StorageDriverClaim({ id: 'x' }))),
-  });
-  const runner = new ExternalStorageRunner(
-    new ExternalStorage({
-      drivers: [driver],
-      payloadSizeThreshold: 0,
-      concurrency: { maxOperationsPerMessage: 2 },
-    })
-  );
-
-  const payloadSites = Array.from({ length: 6 }, () => runner.store([makePayload(8)]));
-  await flush();
-  t.is(gate.peak(), 2);
-
-  gate.release();
-  await Promise.all(payloadSites);
-  t.is(gate.peak(), 2);
-  t.is(driver.storeCalls.length, 6);
-});
-
-test('maxOperationsPerMessage bounds concurrent retrieve calls into a driver', async (t) => {
-  const gate = makeGate();
-  const driver = makeFakeDriver({
-    name: 's3',
-    onRetrieve: (claims) => gate.hold(() => claims.map(() => makePayload(8))),
-  });
-  const externalStorage = new ExternalStorage({
-    drivers: [driver],
-    payloadSizeThreshold: 0,
-    concurrency: { maxOperationsPerMessage: 2 },
-  });
-  const references = await new ExternalStorageRunner(externalStorage).store(
-    Array.from({ length: 6 }, () => makePayload(8))
-  );
-
-  const runner = new ExternalStorageRunner(externalStorage);
-  const payloadSites = references.map((reference) => runner.retrieve([reference]));
-  await flush();
-  t.is(gate.peak(), 2);
-
-  gate.release();
-  await Promise.all(payloadSites);
-  t.is(gate.peak(), 2);
-});
-
 test('maxDriverOperations is shared by every message using the same ExternalStorage', async (t) => {
   const gate = makeGate();
   const driver = makeFakeDriver({
@@ -495,35 +446,6 @@ test('maxDriverOperations is shared by every message using the same ExternalStor
   gate.release();
   await Promise.all(stores);
   t.is(gate.peak(), 3);
-});
-
-test('maxOperationsPerMessage of 1 does not constrain the requests a driver makes within one call', async (t) => {
-  const gate = makeGate();
-  const driver = makeFakeDriver({
-    name: 's3',
-    onStore: (payloads, context) =>
-      Promise.all(
-        payloads.map((payload) =>
-          context.limiter.permit(payload, () => gate.hold(() => new StorageDriverClaim({ id: 'x' })))
-        )
-      ),
-  });
-  const runner = new ExternalStorageRunner(
-    new ExternalStorage({
-      drivers: [driver],
-      payloadSizeThreshold: 0,
-      concurrency: { maxDriverOperations: 3, maxOperationsPerMessage: 1 },
-    })
-  );
-
-  const stored = runner.store(Array.from({ length: 6 }, () => makePayload(8)));
-  await flush();
-  t.is(gate.peak(), 3);
-
-  gate.release();
-  const result = await stored;
-  t.is(gate.peak(), 3);
-  t.true(result.every(isReferencePayload));
 });
 
 test('warns when a driver completes a store without taking a permit', async (t) => {
@@ -576,14 +498,73 @@ test('does not warn when a driver takes a permit', async (t) => {
   t.deepEqual(warnings, []);
 });
 
+/** A driver whose every request takes a permit and blocks on `gate`, so peak concurrency is observable. */
+function makePermittingDriver(name: string, gate: ReturnType<typeof makeGate>): FakeDriver {
+  return makeFakeDriver({
+    name,
+    onStore: (payloads, context) =>
+      Promise.all(
+        payloads.map((payload) =>
+          context.limiter.permit(payload, () => gate.hold(() => new StorageDriverClaim({ id: 'x' })))
+        )
+      ),
+    onRetrieve: (claims, context) =>
+      Promise.all(claims.map((claim) => context.limiter.permit(claim, () => gate.hold(() => makePayload(8))))),
+  });
+}
+
+test('maxOperationsPerMessage bounds concurrent operations within one message', async (t) => {
+  const gate = makeGate();
+  const runner = new ExternalStorageRunner(
+    new ExternalStorage({
+      drivers: [makePermittingDriver('s3', gate)],
+      payloadSizeThreshold: 0,
+      concurrency: { maxDriverOperations: 100, maxOperationsPerMessage: 3 },
+    })
+  );
+
+  const payloadSites = Array.from({ length: 4 }, () => runner.store([makePayload(8), makePayload(8), makePayload(8)]));
+  await flush();
+  t.is(gate.peak(), 3);
+
+  gate.release();
+  await Promise.all(payloadSites);
+  t.is(gate.peak(), 3);
+});
+
+test('maxOperationsPerMessage bounds concurrent operations on the retrieve path', async (t) => {
+  const gate = makeGate();
+  const externalStorage = new ExternalStorage({
+    drivers: [makePermittingDriver('s3', gate)],
+    payloadSizeThreshold: 0,
+    concurrency: { maxDriverOperations: 100, maxOperationsPerMessage: 3 },
+  });
+  gate.release();
+  const references = await new ExternalStorageRunner(externalStorage).store(
+    Array.from({ length: 6 }, () => makePayload(8))
+  );
+
+  const slowGate = makeGate();
+  const retrieving = new ExternalStorageRunner(
+    new ExternalStorage({
+      drivers: [makePermittingDriver('s3', slowGate)],
+      payloadSizeThreshold: 0,
+      concurrency: { maxDriverOperations: 100, maxOperationsPerMessage: 3 },
+    })
+  );
+  const payloadSites = references.map((reference) => retrieving.retrieve([reference]));
+  await flush();
+  t.is(slowGate.peak(), 3);
+
+  slowGate.release();
+  await Promise.all(payloadSites);
+  t.is(slowGate.peak(), 3);
+});
+
 test('each message gets its own maxOperationsPerMessage budget', async (t) => {
   const gate = makeGate();
-  const driver = makeFakeDriver({
-    name: 's3',
-    onStore: (payloads) => gate.hold(() => payloads.map(() => new StorageDriverClaim({ id: 'x' }))),
-  });
   const externalStorage = new ExternalStorage({
-    drivers: [driver],
+    drivers: [makePermittingDriver('s3', gate)],
     payloadSizeThreshold: 0,
     concurrency: { maxDriverOperations: 100, maxOperationsPerMessage: 2 },
   });
@@ -591,11 +572,10 @@ test('each message gets its own maxOperationsPerMessage budget', async (t) => {
   const firstMessage = new ExternalStorageRunner(externalStorage);
   const secondMessage = new ExternalStorageRunner(externalStorage);
   const stores = [
-    ...Array.from({ length: 4 }, () => firstMessage.store([makePayload(8)])),
-    ...Array.from({ length: 4 }, () => secondMessage.store([makePayload(8)])),
+    firstMessage.store([makePayload(8), makePayload(8), makePayload(8)]),
+    secondMessage.store([makePayload(8), makePayload(8), makePayload(8)]),
   ];
   await flush();
-
   t.is(gate.peak(), 4);
 
   gate.release();

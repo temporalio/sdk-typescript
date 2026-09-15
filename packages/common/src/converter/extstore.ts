@@ -145,9 +145,8 @@ const DEFAULT_MAX_DRIVER_OPERATIONS = 64;
 const DEFAULT_MAX_OPERATIONS_PER_MESSAGE = 8;
 
 /**
- * Limits on the external storage work a process performs. The two are enforced in different places
- * and count different things.
- *
+ * Limits on concurrent external storage operations.
+ * 
  * @experimental
  */
 export interface ExternalStorageConcurrency {
@@ -162,12 +161,12 @@ export interface ExternalStorageConcurrency {
    */
   maxDriverOperations?: number;
   /**
-   * Maximum concurrent calls to drivers in a single message (e.g.  a workflow task
+   * Maximum requests in flight at once on behalf of a single message (e.g. a workflow task
    * activation, an activity task, a client request, or a nexus operation).
    *
-   * One call may carry several payloads, so this bounds how much of the instance-wide budget a
-   * single message can reach for, rather than capping its requests exactly. Use
-   * {@link maxDriverOperations} for more granular control. Defaults to 8.
+   * Every message gets its own budget of this size. This caps what any one message can take of
+   * the shared {@link maxDriverOperations} pool and keeps a message carrying many large payloads
+   * from starving the others. Defaults to 8.
    */
   maxOperationsPerMessage?: number;
 }
