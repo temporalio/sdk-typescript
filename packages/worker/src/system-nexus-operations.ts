@@ -4,6 +4,7 @@ import { defaultPayloadConverter } from '@temporalio/common';
 import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
 import { isSerializationContext } from '@temporalio/common/lib/converter/serialization-context';
 import {
+  decodeSystemNexusEnvelopeBytes,
   SYSTEM_NEXUS_CONTEXT_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE,
@@ -53,8 +54,10 @@ export async function encodeSystemNexusInput(
     throw new TypeError('missing System Nexus serialization context metadata');
   }
   const context = metadataContext ?? workflowContext;
-  const properties = defaultPayloadConverter.fromPayload(payload) as Record<string, unknown>;
-  normalizePayloadBytes(properties);
+  const properties = decodeSystemNexusEnvelopeBytes(defaultPayloadConverter.fromPayload(payload)) as Record<
+    string,
+    unknown
+  >;
   const message = requestMessageType(service, operation).create(properties) as Record<string, unknown>;
   await visit(message, walkPayloadsInMessage, { ...visitorOptions, initialContext: context });
   const encoded = protobufPayloadConverter.toPayload(message);
@@ -134,31 +137,4 @@ function requestMessageType(service: string | null | undefined, operation: strin
 
 function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
-}
-
-function normalizePayloadBytes(value: unknown, seen = new Set<object>()): void {
-  if (value == null || typeof value !== 'object' || seen.has(value)) return;
-  seen.add(value);
-  if ('metadata' in value && ('data' in value || (value as Payload).data == null)) {
-    const payload = value as Payload;
-    if (payload.data != null) payload.data = bytesFromJson(payload.data) as Uint8Array;
-    for (const [key, item] of Object.entries(payload.metadata ?? {})) {
-      if (item != null) payload.metadata![key] = bytesFromJson(item) as Uint8Array;
-    }
-  }
-  for (const item of Array.isArray(value) ? value : Object.values(value)) normalizePayloadBytes(item, seen);
-}
-
-function bytesFromJson(value: unknown): unknown {
-  if (value == null || value instanceof Uint8Array || typeof value !== 'object') return value;
-  if (Array.isArray(value)) return new Uint8Array(value);
-  const record = value as Record<string, unknown>;
-  if (record.type === 'Buffer' && Array.isArray(record.data)) return new Uint8Array(record.data as number[]);
-  const entries = Object.entries(record);
-  if (entries.every(([key, item]) => /^\d+$/.test(key) && typeof item === 'number')) {
-    const bytes = new Uint8Array(entries.length);
-    for (const [key, item] of entries) bytes[Number(key)] = item as number;
-    return bytes;
-  }
-  return value;
 }
