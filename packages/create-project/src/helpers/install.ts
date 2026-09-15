@@ -1,7 +1,7 @@
 // Modified from: https://github.com/vercel/next.js/blob/2425f4703c4c6164cecfdb6aa8f80046213f0cc6/packages/create-next-app/helpers/install.ts
 import { readFile, writeFile } from 'node:fs/promises';
 import { glob } from 'glob';
-import { parse as parseJsonc, printParseErrorCode, type ParseError } from 'jsonc-parser';
+import { applyEdits, modify, parse as parseJsonc, printParseErrorCode, type ParseError } from 'jsonc-parser';
 import { spawn } from './subprocess.js';
 import { isUrlOk } from './samples.js';
 
@@ -41,8 +41,10 @@ export function updateTsconfigNodeVersion(contents: string, packageName: string)
     throw new SyntaxError(`${printParseErrorCode(error.error)} at offset ${error.offset}`);
   }
   if (tsconfigJson.extends && /^@tsconfig\/node\d+\/tsconfig\.json$/.test(tsconfigJson.extends)) {
-    tsconfigJson.extends = `${packageName}/tsconfig.json`;
-    return JSON.stringify(tsconfigJson, null, 2);
+    const edits = modify(contents, ['extends'], `${packageName}/tsconfig.json`, {
+      formattingOptions: { insertSpaces: true, tabSize: 2 },
+    });
+    return edits.length > 0 ? applyEdits(contents, edits) : undefined;
   }
   return undefined;
 }
