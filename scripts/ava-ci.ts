@@ -8,7 +8,7 @@
 // It also writes a machine-readable `<pkg>.json` that scripts/ci-run-summary.ts
 // aggregates (across all matrix cells) into the single GitHub Actions job summary.
 //
-// Usage (from a package's `test` script): tsx ../../scripts/ava-ci.ts <ava args>
+// Usage (from a package's `test` script): node ../../scripts/ava-ci.js <ava args>
 
 import { spawn } from 'node:child_process';
 import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -197,14 +197,14 @@ const heartbeat = setInterval(() => {
 }, 30_000);
 heartbeat.unref?.();
 
-// Launch ava under the requested runtime. Default is Node (via npx). When
+// Launch ava under the requested runtime. Default is the package-local Node executable. When
 // AVA_RUNTIME=bun, run ava under Bun — mirroring `bun run -b ava` — so the Bun test
 // matrix still exercises the SDK under Bun while sharing this wrapper's quiet output.
 const forwarded = process.argv.slice(2);
 const [cmd, cmdArgs]: [string, string[]] =
   process.env.AVA_RUNTIME === 'bun'
     ? ['bun', ['run', '-b', 'ava', '--tap', ...forwarded]]
-    : [process.platform === 'win32' ? 'npx.cmd' : 'npx', ['ava', '--tap', ...forwarded]];
+    : [join(cwd, 'node_modules', '.bin', process.platform === 'win32' ? 'ava.cmd' : 'ava'), ['--tap', ...forwarded]];
 const child = spawn(cmd, cmdArgs, {
   cwd,
   shell: process.platform === 'win32',

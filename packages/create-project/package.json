@@ -8,7 +8,7 @@
   "scripts": {
     "build": "tsc --build",
     "build:watch": "tsc --build --watch",
-    "test": "tsx ../../scripts/ava-ci.ts ./lib/**/*.test.js",
+    "test": "node ../../scripts/ava-ci.js ./lib/**/*.test.js",
     "test:watch": "ava --watch ./lib/**/*.test.js"
   },
   "keywords": [
