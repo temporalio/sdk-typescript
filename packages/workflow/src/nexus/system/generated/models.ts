@@ -298,14 +298,14 @@ export function signalWithStartWorkflowRequestFromProto<
   }
   return {
     workflow: requiredField(
-      workflowTypeFromProto(requiredField(proto.workflowType, 'SignalWithStartWorkflowRequest', 'workflow')) as string,
+      workflowTypeFromProto(requiredField(proto.workflowType, 'SignalWithStartWorkflowRequest', 'workflow')),
       'SignalWithStartWorkflowRequest',
       'workflow'
-    ) as string,
+    ),
     args: requestArgsFromPayloads(proto.input) as any,
     id: requiredField(proto.workflowId === '' ? undefined : proto.workflowId, 'SignalWithStartWorkflowRequest', 'id'),
     taskQueue: requiredField(
-      taskQueueFromProto(requiredField(proto.taskQueue, 'SignalWithStartWorkflowRequest', 'taskQueue')) as string,
+      taskQueueFromProto(requiredField(proto.taskQueue, 'SignalWithStartWorkflowRequest', 'taskQueue')),
       'SignalWithStartWorkflowRequest',
       'taskQueue'
     ),
@@ -313,16 +313,12 @@ export function signalWithStartWorkflowRequestFromProto<
       proto.signalName === '' ? undefined : proto.signalName,
       'SignalWithStartWorkflowRequest',
       'signal'
-    ) as string,
+    ),
     signalArgs: requestArgsFromPayloads(proto.signalInput) as any,
     executionTimeout:
-      proto.workflowExecutionTimeout == null
-        ? undefined
-        : (durationFromProto(proto.workflowExecutionTimeout) as common.Duration),
-    runTimeout:
-      proto.workflowRunTimeout == null ? undefined : (durationFromProto(proto.workflowRunTimeout) as common.Duration),
-    taskTimeout:
-      proto.workflowTaskTimeout == null ? undefined : (durationFromProto(proto.workflowTaskTimeout) as common.Duration),
+      proto.workflowExecutionTimeout == null ? undefined : durationFromProto(proto.workflowExecutionTimeout),
+    runTimeout: proto.workflowRunTimeout == null ? undefined : durationFromProto(proto.workflowRunTimeout),
+    taskTimeout: proto.workflowTaskTimeout == null ? undefined : durationFromProto(proto.workflowTaskTimeout),
     idReusePolicy:
       proto.workflowIdReusePolicy == null
         ? common.WorkflowIdReusePolicy.ALLOW_DUPLICATE
@@ -331,46 +327,35 @@ export function signalWithStartWorkflowRequestFromProto<
       proto.workflowIdConflictPolicy == null
         ? undefined
         : workflowIdConflictPolicyFromProto(proto.workflowIdConflictPolicy),
-    retryPolicy:
-      proto.retryPolicy == null ? undefined : (retryPolicyFromProto(proto.retryPolicy) as common.RetryPolicy),
+    retryPolicy: proto.retryPolicy == null ? undefined : retryPolicyFromProto(proto.retryPolicy),
     cronSchedule: proto.cronSchedule ?? undefined,
-    memo: proto.memo == null ? undefined : (memoFromProto(proto.memo) as Record<string, unknown>),
-    searchAttributes:
-      proto.searchAttributes == null
-        ? undefined
-        : (searchAttributesFromProto(proto.searchAttributes) as common.TypedSearchAttributes),
-    priority: proto.priority == null ? undefined : (priorityFromProto(proto.priority) as common.Priority),
+    memo: proto.memo == null ? undefined : memoFromProto(proto.memo),
+    searchAttributes: proto.searchAttributes == null ? undefined : searchAttributesFromProto(proto.searchAttributes),
+    priority: proto.priority == null ? undefined : priorityFromProto(proto.priority),
     versioningOverride:
-      proto.versioningOverride == null
-        ? undefined
-        : (versioningOverrideFromProto(proto.versioningOverride) as common.VersioningOverride),
-    startDelay:
-      proto.workflowStartDelay == null ? undefined : (durationFromProto(proto.workflowStartDelay) as common.Duration),
+      proto.versioningOverride == null ? undefined : versioningOverrideFromProto(proto.versioningOverride),
+    startDelay: proto.workflowStartDelay == null ? undefined : durationFromProto(proto.workflowStartDelay),
     staticSummary:
       proto.userMetadata == null
         ? undefined
         : proto.userMetadata.summary == null
           ? undefined
-          : (payloadFromProto(proto.userMetadata.summary) as common.Payload) == null
+          : payloadFromProto(proto.userMetadata.summary) == null
             ? undefined
             : payloadToValue<string>(
-                (proto.userMetadata.summary == null
-                  ? undefined
-                  : (payloadFromProto(proto.userMetadata.summary) as common.Payload))!
+                (proto.userMetadata.summary == null ? undefined : payloadFromProto(proto.userMetadata.summary))!
               ),
     staticDetails:
       proto.userMetadata == null
         ? undefined
         : proto.userMetadata.details == null
           ? undefined
-          : (payloadFromProto(proto.userMetadata.details) as common.Payload) == null
+          : payloadFromProto(proto.userMetadata.details) == null
             ? undefined
             : payloadToValue<string>(
-                (proto.userMetadata.details == null
-                  ? undefined
-                  : (payloadFromProto(proto.userMetadata.details) as common.Payload))!
+                (proto.userMetadata.details == null ? undefined : payloadFromProto(proto.userMetadata.details))!
               ),
-    headers: proto.header == null ? undefined : (headerFromProto(proto.header) as Record<string, unknown>),
+    headers: proto.header == null ? undefined : headerFromProto(proto.header),
     namespace: requiredField(proto.namespace === '' ? undefined : proto.namespace, 'sourced field', 'namespace'),
   };
 }
@@ -457,8 +442,8 @@ export function userMetadataFromProto(
     return undefined;
   }
   return {
-    staticSummary: proto.summary == null ? undefined : (payloadFromProto(proto.summary) as common.Payload),
-    staticDetails: proto.details == null ? undefined : (payloadFromProto(proto.details) as common.Payload),
+    staticSummary: proto.summary == null ? undefined : payloadFromProto(proto.summary),
+    staticDetails: proto.details == null ? undefined : payloadFromProto(proto.details),
   };
 }
 
