@@ -18,7 +18,7 @@ export function retryPolicyToProto(retryPolicy: common.RetryPolicy): temporal.ap
   return common.compileRetryPolicy(retryPolicy);
 }
 
-export function workflowTypeFromProto(proto: temporal.api.common.v1.IWorkflowType): string | common.Workflow {
+export function workflowTypeFromProto(proto: temporal.api.common.v1.IWorkflowType): string {
   return proto.name ?? '';
 }
 
