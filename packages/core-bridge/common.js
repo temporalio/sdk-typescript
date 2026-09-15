@@ -33,13 +33,13 @@ class PrebuildError extends Error {
 
 let muslSystem;
 
-// glibc reports its runtime version in the process report header; a Linux build without it is
-// musl-based (e.g. Alpine). Same detection as the detect-libc package. On runtimes compiled
-// without report support, assume glibc.
+// A glibc-compiled Node advertises the glibc version it was built against in the process report
+// header (also when statically linked); a Linux build without it is musl-based (e.g. Alpine).
+// On runtimes compiled without report support, assume glibc.
 function isMuslSystem() {
   if (muslSystem === undefined) {
     const header = process.report?.getReport?.()?.header;
-    muslSystem = header != null && header.glibcVersionRuntime == null;
+    muslSystem = header != null && header.glibcVersionCompiler == null;
   }
   return muslSystem;
 }

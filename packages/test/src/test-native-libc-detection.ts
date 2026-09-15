@@ -44,7 +44,7 @@ function targetNameWith(platform: NodeJS.Platform, report: ProcessReportStub | u
 }
 
 test.serial('getPrebuiltTargetName resolves the glibc prebuild on glibc Linux', (t) => {
-  const report = { getReport: () => ({ header: { glibcVersionRuntime: '2.31' } }) };
+  const report = { getReport: () => ({ header: { glibcVersionCompiler: '2.31' } }) };
   t.true(targetNameWith('linux', report).endsWith('-unknown-linux-gnu'));
 });
 
