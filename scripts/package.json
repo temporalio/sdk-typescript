@@ -4,7 +4,7 @@
   "version": "1.23.0",
   "description": "Internal scripts for TS SDK repository",
   "scripts": {
-    "build": "tsc --noEmit"
+    "build": "tsc --noEmit && tsc --project tsconfig.ava-ci.json"
   },
   "keywords": [
     "temporal",

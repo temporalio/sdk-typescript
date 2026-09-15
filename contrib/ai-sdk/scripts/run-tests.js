@@ -7,7 +7,7 @@ if (major < 22 || (major === 22 && minor < 12)) {
   process.exit(0);
 }
 
-const { status } = spawnSync(process.execPath, ['../../scripts/ava-ci.js', './lib/__tests__/test-*.js'], {
+const { status } = spawnSync(process.execPath, ['../../scripts/lib/ava-ci.js', './lib/__tests__/test-*.js'], {
   stdio: 'inherit',
   shell: process.platform === 'win32',
 });
