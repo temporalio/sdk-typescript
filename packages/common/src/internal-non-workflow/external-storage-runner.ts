@@ -80,15 +80,17 @@ export class ExternalStorageRunner {
    * of concurrent extstore operations.
    */
   private makeLimiter<Item>(abortSignal: AbortSignal): { limiter: StorageDriverLimiter<Item>; used: () => boolean } {
-    const { driverOperationLimit } = this;
+    const { messageLimit, driverOperationLimit } = this;
     let used = false;
     const limiter: StorageDriverLimiter<Item> = {
       permit<T>(_item: Item, operation: () => Promise<T>): Promise<T> {
         used = true;
-        return driverOperationLimit(async () => {
-          abortSignal.throwIfAborted();
-          return await operation();
-        });
+        return messageLimit(() =>
+          driverOperationLimit(async () => {
+            abortSignal.throwIfAborted();
+            return await operation();
+          })
+        );
       },
     };
     return { limiter, used: () => used };
@@ -151,19 +153,14 @@ export class ExternalStorageRunner {
     const result = payloads.slice();
     const { metrics } = this;
     await runWithAbortOnFirstError(batchController, [...driverGroups.values()], async (group) => {
-      let startMs = 0;
-      const claims = await this.messageLimit(async () => {
-        batchSignal.throwIfAborted();
-        startMs = metrics ? performance.now() : 0;
-        const { limiter, used } = this.makeLimiter<Payload>(batchSignal);
-        const storeCtx: StorageDriverStoreContext = { abortSignal: batchSignal, target: options.target, limiter };
-        const stored = await group.driver.store(
-          storeCtx,
-          group.items.map((it) => it.payload)
-        );
-        this.warnIfLimiterUnused(group.driver.name, used(), 'store');
-        return stored;
-      });
+      const startMs = metrics ? performance.now() : 0;
+      const { limiter, used } = this.makeLimiter<Payload>(batchSignal);
+      const storeCtx: StorageDriverStoreContext = { abortSignal: batchSignal, target: options.target, limiter };
+      const claims = await group.driver.store(
+        storeCtx,
+        group.items.map((it) => it.payload)
+      );
+      this.warnIfLimiterUnused(group.driver.name, used(), 'store');
       if (claims.length !== group.items.length) {
         throw new ValueError(
           `Driver '${group.driver.name}' returned ${claims.length} claims for ${group.items.length} payloads`
@@ -222,19 +219,14 @@ export class ExternalStorageRunner {
     const result = payloads.slice();
     const { metrics } = this;
     await runWithAbortOnFirstError(batchController, [...driverGroups.values()], async (group) => {
-      let startMs = 0;
-      const retrieved = await this.messageLimit(async () => {
-        batchSignal.throwIfAborted();
-        startMs = metrics ? performance.now() : 0;
-        const { limiter, used } = this.makeLimiter<StorageDriverClaim>(batchSignal);
-        const retrieveCtx: StorageDriverRetrieveContext = { abortSignal: batchSignal, limiter };
-        const got = await group.driver.retrieve(
-          retrieveCtx,
-          group.items.map((it) => it.claim)
-        );
-        this.warnIfLimiterUnused(group.driver.name, used(), 'retrieve');
-        return got;
-      });
+      const startMs = metrics ? performance.now() : 0;
+      const { limiter, used } = this.makeLimiter<StorageDriverClaim>(batchSignal);
+      const retrieveCtx: StorageDriverRetrieveContext = { abortSignal: batchSignal, limiter };
+      const retrieved = await group.driver.retrieve(
+        retrieveCtx,
+        group.items.map((it) => it.claim)
+      );
+      this.warnIfLimiterUnused(group.driver.name, used(), 'retrieve');
       if (retrieved.length !== group.items.length) {
         throw new ValueError(
           `Driver '${group.driver.name}' returned ${retrieved.length} payloads for ${group.items.length} claims`
