@@ -1103,7 +1103,11 @@ export class Worker {
                         `Got start event for an already running activity: ${base64TaskToken}`
                       );
                     }
-                    await visit(task, walkActivityTask, extstoreInboundOptions(loadedDataConverter.externalStorage));
+                    await visit(
+                      task,
+                      walkActivityTask,
+                      extstoreInboundOptions(loadedDataConverter.externalStorage, { logger: this.logger })
+                    );
                     info = await extractActivityInfo({
                       task,
                       dataConverter: loadedDataConverter,
@@ -1295,7 +1299,7 @@ export class Worker {
                 await visit(
                   completion,
                   walkActivityTaskCompletion,
-                  extstoreStoreOptions(externalStorage, { initialTarget })
+                  extstoreStoreOptions(externalStorage, { initialTarget, logger: this.logger })
                 );
               } catch (e) {
                 const error = ensureApplicationFailure(e);
@@ -1352,7 +1356,7 @@ export class Worker {
                 await visit(
                   task,
                   walkNexusTask,
-                  extstoreInboundOptions(this.options.loadedDataConverter.externalStorage)
+                  extstoreInboundOptions(this.options.loadedDataConverter.externalStorage, { logger: this.logger })
                 );
               } catch (e) {
                 this.logger.error(
@@ -1396,7 +1400,11 @@ export class Worker {
         let completion = result;
         if (externalStorage) {
           try {
-            await visit(completion, walkNexusTaskCompletion, extstoreStoreOptions(externalStorage));
+            await visit(
+              completion,
+              walkNexusTaskCompletion,
+              extstoreStoreOptions(externalStorage, { logger: this.logger })
+            );
           } catch (e) {
             this.logger.error(`Error while offloading Nexus task result to external storage: ${errorMessage(e)}`, {
               taskToken: completion.taskToken ? formatTaskToken(completion.taskToken) : undefined,
@@ -1573,7 +1581,7 @@ export class Worker {
       await visit(
         activation,
         walkWorkflowActivation,
-        extstoreInboundOptions(externalStorage, { metrics: downloadMetrics })
+        extstoreInboundOptions(externalStorage, { metrics: downloadMetrics, logger: this.logger })
       );
       const decodedActivation = await workflowCodecRunner.decodeActivation(activation);
 
@@ -1608,6 +1616,7 @@ export class Worker {
               },
               deriveContext: workflowCommandStoreTarget(namespace, workflow.info),
               metrics: uploadMetrics,
+              logger: this.logger,
             })
           );
         }
@@ -1959,7 +1968,10 @@ export class Worker {
                 await visit(
                   heartbeat,
                   walkActivityHeartbeat,
-                  extstoreStoreOptions(externalStorage, { initialTarget: activityStorageTarget(info) })
+                  extstoreStoreOptions(externalStorage, {
+                    initialTarget: activityStorageTarget(info),
+                    logger: this.logger,
+                  })
                 );
               }
               const arr = coresdk.ActivityHeartbeat.encodeDelimited(heartbeat).finish();
