@@ -71,7 +71,6 @@ _None_
   upstream fixes for stream-cancel flow-control leaks and missed wakeups on reset/trailers that can
   affect cancellation-heavy long-poll workloads.
 
-
 ## [1.23.0] - 2026-08-25
 
 ### Breaking Changes
