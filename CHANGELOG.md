@@ -24,6 +24,10 @@ to docs, or any other relevant information.
 - The Workflow sandbox now exposes `atob` and `btoa`, allowing integrations such as `@temporalio/ai-sdk` to
   process image and file tool results containing base64 data.
 
+### Changed
+
+- **Experimental**: `createEventGroup(...)` now takes the Event Group's ID as its first and only required argument; user-provided ID is used verbatim and should not contain sensitive information. The label is now optional and passed as a property on the second, object argument; it is a codec-encoded Payload. The user-facing type is now `EventGroup` (previously `EventGroupMarker`). Direct Event Group attachment is now supported on more APIs.
+
 ## [1.24.0] - 2026-09-14
 
 ### Breaking Changes

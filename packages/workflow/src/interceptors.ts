@@ -16,7 +16,7 @@ import type {
 import { Headers, Next } from '@temporalio/common';
 import type { coresdk } from '@temporalio/proto';
 import type { ActivityOptions, LocalActivityOptions } from './activities';
-import type { EventGroupMarker } from './event-groups';
+import type { EventGroup } from './event-groups';
 import type { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interfaces';
 import type { NexusOperationCancellationType } from './nexus';
 
@@ -236,13 +236,13 @@ export interface TimerOptions {
   readonly summary?: string;
 
   /**
-   * Event group markers to attach to the timer command. The markers will be reflected on the
-   * corresponding workflow history events, and may be used by tooling (UI/CLI) to group
-   * related events together. See {@link EventGroupMarker} and `createEventGroup`.
+   * Event Groups to attach to the timer command. They will be reflected on the corresponding
+   * workflow history events, and may be used by tooling (UI/CLI) to group related events
+   * together. See {@link EventGroup} and {@link createEventGroup}.
    *
    * @experimental Event Groups is an experimental API and may change without notice.
    */
-  readonly eventGroups?: EventGroupMarker[];
+  readonly eventGroups?: EventGroup[];
 }
 
 /**
@@ -342,13 +342,13 @@ export interface StartNexusOperationOptions {
   readonly summary?: string;
 
   /**
-   * Event group markers to attach to the schedule-Nexus-operation command. The markers will be
-   * reflected on the corresponding workflow history events, and may be used by tooling
-   * (UI/CLI) to group related events together. See {@link EventGroupMarker} and `createEventGroup`.
+   * Event Groups to attach to the schedule-Nexus-operation command. They will be reflected on
+   * the corresponding workflow history events, and may be used by tooling (UI/CLI) to group
+   * related events together. See {@link EventGroup} and {@link createEventGroup}.
    *
    * @experimental Event Groups is an experimental API and may change without notice.
    */
-  readonly eventGroups?: EventGroupMarker[];
+  readonly eventGroups?: EventGroup[];
 }
 
 /**
@@ -389,6 +389,13 @@ export interface SignalWorkflowInput {
   readonly signalName: string;
   readonly args: unknown[];
   readonly typeInfo?: SignalTypeInfo;
+  /**
+   * Event Groups to attach to the signal-external-workflow command, in addition to those active
+   * in the current scope. See {@link EventGroup} and {@link createEventGroup}.
+   *
+   * @experimental Event Groups is an experimental API and may change without notice.
+   */
+  readonly eventGroups?: EventGroup[];
   readonly headers: Headers;
   readonly target:
     | {

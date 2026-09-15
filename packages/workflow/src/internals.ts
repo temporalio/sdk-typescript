@@ -73,7 +73,12 @@ import type {
   EnhancedStackTrace,
 } from './interfaces';
 import { ContinueAsNew } from './interfaces';
-import { createInboundEventMarker, createInboundUpdateMarker, eventGroupMarkersToProto } from './event-groups';
+import {
+  createInboundEventMarker,
+  createInboundUpdateMarker,
+  eventGroupMarkersToProto,
+  type EventGroup,
+} from './event-groups';
 import { type SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
 import pkg from './pkg';
@@ -1247,7 +1252,7 @@ export class Activator implements ActivationHandler {
     this.knownPresentPatches.add(activation.patchId);
   }
 
-  public patchInternal(patchId: string, deprecated: boolean): boolean {
+  public patchInternal(patchId: string, deprecated: boolean, eventGroups?: EventGroup[]): boolean {
     if (this.workflow === undefined) {
       throw new IllegalStateError('Patches cannot be used before Workflow starts');
     }
@@ -1274,7 +1279,7 @@ export class Activator implements ActivationHandler {
     if (usePatch && !this.sentPatches.has(patchId)) {
       this.pushCommand({
         setPatchMarker: { patchId, deprecated },
-        eventGroupMarkers: eventGroupMarkersToProto(undefined),
+        eventGroupMarkers: eventGroupMarkersToProto(eventGroups),
       });
       this.sentPatches.add(patchId);
     }
