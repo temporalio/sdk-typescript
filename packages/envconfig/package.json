@@ -23,7 +23,7 @@
   "license": "MIT",
   "dependencies": {
     "@temporalio/common": "workspace:*",
-    "smol-toml": "^1.6.1"
+    "smol-toml": "^1.7.1"
   },
   "devDependencies": {
     "@temporalio/client": "workspace:*",
