@@ -1,4 +1,5 @@
 import type { BaseWorkflowHandle, SignalDefinition, Workflow, WorkflowSignalOptions } from '@temporalio/common';
+import type { EventGroupsOptions } from './event-groups';
 
 /**
  * Handle representing an external Workflow Execution.
@@ -25,18 +26,25 @@ export interface ExternalWorkflowHandle {
   ): Promise<void>;
 
   /**
-   * Signal a running Workflow by Signal name with additional options, including call-site TypeInfo.
+   * Signal a running Workflow by Signal name with additional options, including call-site TypeInfo
+   * and Event Groups.
    *
    * @experimental
    */
-  signalWithOptions<Args extends any[] = []>(signalName: string, options: WorkflowSignalOptions<Args>): Promise<void>;
+  signalWithOptions<Args extends any[] = []>(
+    signalName: string,
+    options: WorkflowSignalOptions<Args> & EventGroupsOptions
+  ): Promise<void>;
 
   /**
    * Cancel the external Workflow execution.
    *
    * Throws if the Workflow execution does not exist.
+   *
+   * @param options.eventGroups Event Groups to attach to the cancel command, in addition to those
+   *     active in the current scope.
    */
-  cancel(): Promise<void>;
+  cancel(options?: EventGroupsOptions): Promise<void>;
 
   /**
    * The workflowId of the external Workflow
@@ -72,4 +80,16 @@ export interface ChildWorkflowHandle<T extends Workflow> extends BaseWorkflowHan
    * The runId of the initial run of the bound Workflow
    */
   readonly firstExecutionRunId: string;
+
+  /**
+   * Signal a running Workflow by Signal name with additional options, including call-site TypeInfo
+   * and Event Groups. Variadic {@link signal} cannot take an options object because Signal arguments
+   * are already rest parameters.
+   *
+   * @experimental
+   */
+  signalWithOptions<Args extends any[] = []>(
+    signalName: string,
+    options: WorkflowSignalOptions<Args> & EventGroupsOptions
+  ): Promise<void>;
 }

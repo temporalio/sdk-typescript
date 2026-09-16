@@ -1,5 +1,4 @@
-import { createHash, randomUUID } from 'crypto';
-import Long from 'long';
+import { randomUUID } from 'crypto';
 import type { ExecutionContext } from 'ava';
 import * as nexus from 'nexus-rpc';
 import type { WorkflowStartOptions } from '@temporalio/client';
@@ -36,142 +35,46 @@ const test = makeSharedWorkerForEventGroupsTest();
 // 1. Explicit Event Groups Marker Label IDs (`EG-LABEL-ID`)
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-test('Label-based Event Group with Derived IDs are correctly generated', async (t) => {
-  const { startWorkflow } = sharedWorkerHelpers(t);
-
-  // Start Workflow 1 and 2, and wait for them to complete
-  const [handle1, handle2] = await Promise.all([
-    startWorkflow(derivedLocalIdsWorkflow),
-    startWorkflow(derivedLocalIdsWorkflow),
-  ]);
-  await Promise.all([handle1.result(), handle2.result()]);
-  const [history1, history2] = await Promise.all([handle1.fetchHistory(), handle2.fetchHistory()]);
-  const [runId1, _runId2] = [handle1.firstExecutionRunId, handle2.firstExecutionRunId];
-
-  t.is(eventsOfKind(history1, 'scheduleActivity').length, 3);
-  t.is(eventsOfKind(history2, 'scheduleActivity').length, 3);
-
-  // EG-LABEL-ID-00: Derived IDs match the specified formula
-  t.deepEqual(
-    markerIdsOf(singleEvent(history1, 'scheduleActivity', 'activityA')),
-    set(labelMarkerId(expectedGroupId(runId1, 'aaa')))
-  );
-
-  // EG-LABEL-ID-01: Same labels + no user-provided ID + same workflow exec => same group IDs
-  t.deepEqual(
-    markerIdsOf(singleEvent(history1, 'scheduleActivity', 'activityB1')),
-    markerIdsOf(singleEvent(history1, 'scheduleActivity', 'activityB2'))
-  );
-
-  // EG-LABEL-ID-02: Different labels + no user-provided ID + same workflow exec => distinct group IDs
-  t.notDeepEqual(
-    markerIdsOf(singleEvent(history1, 'scheduleActivity', 'activityA')),
-    markerIdsOf(singleEvent(history1, 'scheduleActivity', 'activityB1'))
-  );
-
-  // EG-LABEL-ID-03: Same labels + no user-provided ID + different workflow execs => distinct group IDs
-  t.notDeepEqual(
-    markerIdsOf(singleEvent(history1, 'scheduleActivity', 'activityA')),
-    markerIdsOf(singleEvent(history2, 'scheduleActivity', 'activityA'))
-  );
-});
-
-export async function derivedLocalIdsWorkflow(): Promise<void> {
-  // SDK-derived IDs
-  const a = createEventGroup('aaa');
-
-  // Same label with SDK-derived ID => b1 and b2 are the same group
-  const b1 = createEventGroup('bbb');
-  const b2 = createEventGroup('bbb');
-
-  await Promise.all([
-    // One activity call for each label object
-    scheduleActivity('activityA', { eventGroups: [a] }),
-    scheduleActivity('activityB1', { eventGroups: [b1] }),
-    scheduleActivity('activityB2', { eventGroups: [b2] }),
-  ]);
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-test('Label-based Event Group with Derived IDs remain stable across reset', async (t) => {
-  const { startWorkflow } = sharedWorkerHelpers(t);
-  const { client } = t.context.env;
-
-  // Start workflow and wait for it to complete
-  const handle1 = await startWorkflow(derivedLocalIdsWorkflow);
-  const handle1RunId = handle1.firstExecutionRunId;
-  await handle1.result();
-  const history1 = await handle1.fetchHistory();
-
-  // Reset workflow and wait for it to complete
-  const resetResponse = await client.workflowService.resetWorkflowExecution({
-    namespace: client.options.namespace,
-    workflowExecution: { workflowId: handle1.workflowId, runId: handle1.firstExecutionRunId },
-    workflowTaskFinishEventId: Long.fromNumber(3), // eid of first WFTStarted event
-    reason: 'test event group id stability across reset',
-    requestId: randomUUID(),
-    identity: 'typescript-sdk-test',
-  });
-  const handle2RunId = resetResponse.runId!;
-  t.not(handle2RunId, handle1RunId);
-  const handle2 = client.workflow.getHandle(handle1.workflowId, handle2RunId);
-  await handle2.result();
-  const history2 = await handle2.fetchHistory();
-
-  t.is(eventsOfKind(history1, 'scheduleActivity').length, 3);
-  t.is(eventsOfKind(history2, 'scheduleActivity').length, 3);
-
-  // Control: confirm that the reset resulted in the initial WFT being executed again
-  t.notDeepEqual(
-    history1.events?.find((e) => e.workflowTaskCompletedEventAttributes != null)?.eventTime,
-    history2.events?.find((e) => e.workflowTaskCompletedEventAttributes != null)?.eventTime,
-    'ResetWorkflow should have resulted in WFT being executed again'
-  );
-
-  // EG-LABEL-ID-04: Derived IDs are stable across a workflow reset
-  t.deepEqual(
-    markerIdsOf(singleEvent(history2, 'scheduleActivity', 'activityA')),
-    set(labelMarkerId(expectedGroupId(handle1RunId, 'aaa'))),
-    'Derived ID should be calculated based on the original execution run id (i.e. pre-reset)'
-  );
-  t.deepEqual(
-    markerIdsOf(singleEvent(history1, 'scheduleActivity', 'activityB1')),
-    markerIdsOf(singleEvent(history2, 'scheduleActivity', 'activityB1')),
-    'Derived ID should remain the same across reset'
-  );
-});
-
-test('Label-based Event Group with user-provided IDs are used verbatim', async (t) => {
+test('Event Group IDs are used verbatim', async (t) => {
   const { startWorkflow } = sharedWorkerHelpers(t);
 
   const handle = await startWorkflow(userProvidedLocalIdsWorkflow);
   await handle.result();
   const history = await handle.fetchHistory();
 
-  t.is(eventsOfKind(history, 'scheduleActivity').length, 3);
+  t.is(eventsOfKind(history, 'scheduleActivity').length, 4);
 
-  // EG-LABEL-ID-20: User-provided IDs are used verbatim
+  // EG-LABEL-ID-20: IDs are used verbatim
   t.deepEqual(markerIdsOf(singleEvent(history, 'scheduleActivity', 'activityC')), set(labelMarkerId('c-id')));
 
-  // EG-LABEL-ID-21: Different labels + same user-provided ID => same group
+  // EG-LABEL-ID-21: Different labels + same ID => same group
   t.deepEqual(
     markerIdsOf(singleEvent(history, 'scheduleActivity', 'activityD1')),
     markerIdsOf(singleEvent(history, 'scheduleActivity', 'activityD2'))
   );
+
+  // EG-LABEL-ID-22: Same label + different IDs => distinct groups
+  t.notDeepEqual(
+    markerIdsOf(singleEvent(history, 'scheduleActivity', 'activityC')),
+    markerIdsOf(singleEvent(history, 'scheduleActivity', 'activityNotC'))
+  );
 });
 
 export async function userProvidedLocalIdsWorkflow(): Promise<void> {
-  const c = createEventGroup('ccc', { id: 'c-id' });
+  const c = createEventGroup('c-id', { label: 'ccc' });
 
   // Different labels but same id => d1 and d2 are the same group.
-  const d1 = createEventGroup('ddd1', { id: 'd-id' });
-  const d2 = createEventGroup('ddd2', { id: 'd-id' });
+  const d1 = createEventGroup('d-id', { label: 'ddd1' });
+  const d2 = createEventGroup('d-id', { label: 'ddd2' });
+
+  // Same label as c, but different ID => a distinct group.
+  const notC = createEventGroup('not-c-id', { label: 'ccc' });
 
   await Promise.all([
     scheduleActivity('activityC', { eventGroups: [c] }),
     scheduleActivity('activityD1', { eventGroups: [d1] }),
     scheduleActivity('activityD2', { eventGroups: [d2] }),
+    scheduleActivity('activityNotC', { eventGroups: [notC] }),
   ]);
 }
 
@@ -201,15 +104,12 @@ test('Event Group Labels convert to Payloads as JSON strings using Default Paylo
   const activityA = singleEvent(history, 'scheduleActivity', 'activityA');
   const activityB = singleEvent(history, 'scheduleActivity', 'activityB');
 
-  const aId = expectedGroupId(handle.firstExecutionRunId, 'aaa-label');
-  const bId = 'b-id';
+  t.deepEqual(markerIdsOf(activityA), set(labelMarkerId('aaa')));
+  t.deepEqual(markerIdsOf(activityB), set(labelMarkerId('bbb')));
 
   // EG-LABEL-PAYLOAD-00: Label Payload converts to a json/plain JSON string
-  t.deepEqual(markerIdsOf(activityA), set(labelMarkerId(aId)));
-  t.is(labelPayloadOf(activityA, aId).encoding, 'json/plain');
-  t.is(labelPayloadOf(activityA, aId).data, '"aaa-label"');
-  t.is(labelPayloadOf(activityB, bId).encoding, 'json/plain');
-  t.is(labelPayloadOf(activityB, bId).data, '"bbb-label"');
+  t.is(labelPayloadOf(activityB, 'bbb').encoding, 'json/plain');
+  t.is(labelPayloadOf(activityB, 'bbb').data, '"Label B"');
 
   // EG-LABEL-PAYLOAD-01: Label Payload goes through the SDK's Default Payload Converter
   //
@@ -223,6 +123,9 @@ test('Event Group Labels convert to Payloads as JSON strings using Default Paylo
   const control = readPayload(activityA.historyEvent.activityTaskScheduledEventAttributes!.input!.payloads![0]!);
   t.is(control.encoding, MANGLING_ENCODING);
   t.is(control.data, `${MANGLING_PREFIX}control`);
+
+  // EG-LABEL-PAYLOAD-02: An omitted label produces no payload
+  t.is(activityA.markers[0]?.labelPayload, undefined);
 });
 
 test('Event Group Label Payloads are codec-encoded, but IDs are not', async (t) => {
@@ -246,26 +149,21 @@ test('Event Group Label Payloads are codec-encoded, but IDs are not', async (t) 
   const activityA = singleEvent(history, 'scheduleActivity', 'activityA');
   const activityB = singleEvent(history, 'scheduleActivity', 'activityB');
 
-  const aId = expectedGroupId(handle.firstExecutionRunId, 'aaa-label');
-  const bId = 'b-id';
-
   const decodedLabel = async (payload: temporal.api.common.v1.IPayload) =>
     defaultPayloadConverter.fromPayload((await codec.decode([payload]))[0]!) as string;
 
-  // EG-LABEL-PAYLOAD-20: Label-based Event Group label payloads are processed by Payload Codecs
-  t.not(labelPayloadOf(activityA, aId).data, '"aaa-label"');
-  t.not(labelPayloadOf(activityB, bId).data, '"bbb-label"');
-  t.is(await decodedLabel(rawLabelPayloadOf(activityA, aId)), 'aaa-label');
-  t.is(await decodedLabel(rawLabelPayloadOf(activityB, bId)), 'bbb-label');
+  // EG-LABEL-PAYLOAD-20: Label Payload is codec-encoded
+  t.not(labelPayloadOf(activityB, 'bbb').data, '"Label B"');
+  t.is(await decodedLabel(rawLabelPayloadOf(activityB, 'bbb')), 'Label B');
 
-  // EG-LABEL-PAYLOAD-21: Label IDs are not codec-encoded
-  t.deepEqual(markerIdsOf(activityA), set(labelMarkerId(aId)));
-  t.deepEqual(markerIdsOf(activityB), set(labelMarkerId(bId)));
+  // EG-LABEL-PAYLOAD-21: Label ID is not codec-encoded
+  t.deepEqual(markerIdsOf(activityA), set(labelMarkerId('aaa')));
+  t.deepEqual(markerIdsOf(activityB), set(labelMarkerId('bbb')));
 });
 
 export async function labelPayloadWorkflow(): Promise<void> {
-  const a = createEventGroup('aaa-label');
-  const b = createEventGroup('bbb-label', { id: 'b-id' });
+  const a = createEventGroup('aaa');
+  const b = createEventGroup('bbb', { label: 'Label B' });
 
   // Control: We use the activity's input argument as a control to confirm that
   // the custom payload converter is correctly configured
@@ -284,7 +182,7 @@ test('Commands in an Event Group scope carry its marker', async (t) => {
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const a = labelMarkerId(expectedGroupId(handle.firstExecutionRunId, 'aaa'));
+  const a = labelMarkerId('aaa');
 
   // EG-SCOPE-00: Commands in an Event Group scope carry its marker
   t.deepEqual(markerIdsOf(singleEvent(history, 'scheduleActivity')), set(a));
@@ -313,9 +211,8 @@ test('Nesting Event Group scopes composes correctly', async (t) => {
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const runId = handle.firstExecutionRunId;
-  const a = labelMarkerId(expectedGroupId(runId, 'aaa'));
-  const b = labelMarkerId(expectedGroupId(runId, 'bbb'));
+  const a = labelMarkerId('aaa');
+  const b = labelMarkerId('bbb');
 
   t.is(eventsOfKind(history, 'scheduleActivity').length, 4);
 
@@ -351,7 +248,7 @@ test('Re-entering an Event Group instance nests correctly', async (t) => {
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const a = labelMarkerId(expectedGroupId(handle.firstExecutionRunId, 'aaa'));
+  const a = labelMarkerId('aaa');
 
   t.is(eventsOfKind(history, 'scheduleActivity').length, 4);
 
@@ -386,12 +283,11 @@ test('An Event Group instance can be scoped concurrently from two branches', asy
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const runId = handle.firstExecutionRunId;
-  const a = labelMarkerId(expectedGroupId(runId, 'aaa'));
-  const b = labelMarkerId(expectedGroupId(runId, 'bbb'));
-  const c = labelMarkerId(expectedGroupId(runId, 'ccc'));
-  const d = labelMarkerId(expectedGroupId(runId, 'ddd'));
-  const e = labelMarkerId(expectedGroupId(runId, 'eee'));
+  const a = labelMarkerId('aaa');
+  const b = labelMarkerId('bbb');
+  const c = labelMarkerId('ccc');
+  const d = labelMarkerId('ddd');
+  const e = labelMarkerId('eee');
 
   t.is(eventsOfKind(history, 'scheduleActivity').length, 7);
 
@@ -447,7 +343,7 @@ test('A task started inside a scope keeps it after the scope exits', async (t) =
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const a = labelMarkerId(expectedGroupId(handle.firstExecutionRunId, 'aaa'));
+  const a = labelMarkerId('aaa');
 
   t.is(eventsOfKind(history, 'scheduleActivity').length, 3);
 
@@ -484,7 +380,7 @@ test('A task created outside a scope does not inherit it when resumed inside', a
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const a = labelMarkerId(expectedGroupId(handle.firstExecutionRunId, 'aaa'));
+  const a = labelMarkerId('aaa');
 
   t.is(eventsOfKind(history, 'scheduleActivity').length, 2);
 
@@ -522,9 +418,8 @@ test('An Event Group scope unwinds cleanly when its body throws', async (t) => {
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const runId = handle.firstExecutionRunId;
-  const a = labelMarkerId(expectedGroupId(runId, 'aaa'));
-  const b = labelMarkerId(expectedGroupId(runId, 'bbb'));
+  const a = labelMarkerId('aaa');
+  const b = labelMarkerId('bbb');
 
   t.is(eventsOfKind(history, 'scheduleActivity').length, 2);
 
@@ -564,9 +459,8 @@ test('Implicit scope on runtime-registered signal handler exists and composes ap
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const runId = handle.firstExecutionRunId;
-  const outside = labelMarkerId(expectedGroupId(runId, 'outside'));
-  const inside = labelMarkerId(expectedGroupId(runId, 'inside'));
+  const outside = labelMarkerId('outside');
+  const inside = labelMarkerId('inside');
   const signal = eventMarker(singleSignaledEventId(history));
 
   t.is(eventsOfKind(history, 'scheduleActivity').length, 5);
@@ -658,9 +552,8 @@ test('Implicit scope on runtime-registered update handler exists and composes ap
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const runId = handle.firstExecutionRunId;
-  const outside = labelMarkerId(expectedGroupId(runId, 'outside'));
-  const inside = labelMarkerId(expectedGroupId(runId, 'inside'));
+  const outside = labelMarkerId('outside');
+  const inside = labelMarkerId('inside');
   const update = updateMarker(givenUpdateId);
 
   t.is(eventsOfKind(history, 'scheduleActivity').length, 5);
@@ -756,8 +649,7 @@ test('Markers dedupe by ID, whether scoped or directly attached', async (t) => {
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const aId = expectedGroupId(handle.firstExecutionRunId, 'aaa');
-  const ab = set(labelMarkerId(aId), labelMarkerId('b-id'));
+  const ab = set(labelMarkerId('aaa'), labelMarkerId('b-id'));
 
   t.is(eventsOfKind(history, 'scheduleActivity').length, 7);
 
@@ -772,7 +664,7 @@ test('Markers dedupe by ID, whether scoped or directly attached', async (t) => {
   t.deepEqual(markerIdsOf(singleEvent(history, 'scheduleActivity', 'scopeAndDirectAB')), ab);
 
   // EG-AGGREGATION-03: The same group instance listed twice contributes one marker
-  t.deepEqual(markerIdsOf(singleEvent(history, 'scheduleActivity', 'sameInstanceTwice')), set(labelMarkerId(aId)));
+  t.deepEqual(markerIdsOf(singleEvent(history, 'scheduleActivity', 'sameInstanceTwice')), set(labelMarkerId('aaa')));
 
   // EG-AGGREGATION-04: Aggregation keys label markers by ID, disregarding labels
   t.deepEqual(markerIdsOf(singleEvent(history, 'scheduleActivity', 'sameIdDirect')), set(labelMarkerId('b-id')));
@@ -783,13 +675,13 @@ test('Markers dedupe by ID, whether scoped or directly attached', async (t) => {
 });
 
 export async function markerAggregationWorkflow(): Promise<void> {
-  // Same label, no user-provided id => one group, and so one marker
+  // Same ID, no label => one group, and so one marker
   const a1 = createEventGroup('aaa');
   const a2 = createEventGroup('aaa');
 
-  // Two labels, one user-provided id => also one group, and so also one marker
-  const b1 = createEventGroup('bbb1', { id: 'b-id' });
-  const b2 = createEventGroup('bbb2', { id: 'b-id' });
+  // Same ID, different labels => also one group, and so also one marker
+  const b1 = createEventGroup('b-id', { label: 'bbb1' });
+  const b2 = createEventGroup('b-id', { label: 'bbb2' });
 
   // Duplicate markers directly attached to one command
   await scheduleActivity('directDuplicates', { eventGroups: [a2, b1, a1, b1, a2, a1] }); // Expect: { a1, b1 }
@@ -824,7 +716,9 @@ export async function markerAggregationWorkflow(): Promise<void> {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // 6. Command Type Coverage (`EG-COMMANDS`)
 //
-// EG-COMMANDS-23 and EG-COMMANDS-24 do not apply: Core-based SDKs have no `version` or `sideEffect` API.
+// ## Divergences:
+// - EG-COMMANDS-07-CHILD does not apply: TS `ChildWorkflowHandle` has no `cancel()` API.
+// - EG-COMMANDS-23 and EG-COMMANDS-24 do not apply: TS has no `version` or `sideEffect` APIs.
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 test('Timer commands carry markers', async (t) => {
@@ -834,9 +728,8 @@ test('Timer commands carry markers', async (t) => {
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const runId = handle.firstExecutionRunId;
-  const direct = labelMarkerId(expectedGroupId(runId, 'direct'));
-  const scope = labelMarkerId(expectedGroupId(runId, 'scope'));
+  const direct = labelMarkerId('direct');
+  const scope = labelMarkerId('scope');
 
   // EG-COMMANDS-00: Timer commands carry markers
   t.deepEqual(markerIdsOf(singleEvent(history, 'startTimer')), set(direct, scope));
@@ -860,9 +753,8 @@ test("Timer Cancellation commands carry Timer's markers", async (t) => {
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const runId = handle.firstExecutionRunId;
-  const direct = labelMarkerId(expectedGroupId(runId, 'direct'));
-  const scope = labelMarkerId(expectedGroupId(runId, 'scope'));
+  const direct = labelMarkerId('direct');
+  const scope = labelMarkerId('scope');
 
   const timers = eventsOfKind(history, 'startTimer');
   t.is(timers.length, 2);
@@ -899,7 +791,7 @@ test('JS setTimeout/clearTimeout carry ambient markers', async (t) => {
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const scope = labelMarkerId(expectedGroupId(handle.firstExecutionRunId, 'scope'));
+  const scope = labelMarkerId('scope');
   const timers = eventsOfKind(history, 'startTimer');
   t.is(timers.length, 2);
 
@@ -933,9 +825,8 @@ test('Wait conditions with timeouts carry markers to their timers', async (t) =>
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const runId = handle.firstExecutionRunId;
-  const direct = labelMarkerId(expectedGroupId(runId, 'direct'));
-  const scope = labelMarkerId(expectedGroupId(runId, 'scope'));
+  const direct = labelMarkerId('direct');
+  const scope = labelMarkerId('scope');
 
   // EG-COMMANDS-01: Wait conditions with timeouts carry markers to their timers
   t.deepEqual(markerIdsOf(singleEvent(history, 'startTimer')), set(direct, scope));
@@ -959,9 +850,8 @@ test('Activity commands carry markers', async (t) => {
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const runId = handle.firstExecutionRunId;
-  const direct = labelMarkerId(expectedGroupId(runId, 'direct'));
-  const scope = labelMarkerId(expectedGroupId(runId, 'scope'));
+  const direct = labelMarkerId('direct');
+  const scope = labelMarkerId('scope');
 
   // EG-COMMANDS-02: Activity commands carry markers
   t.deepEqual(markerIdsOf(singleEvent(history, 'scheduleActivity', 'activity')), set(direct, scope));
@@ -987,9 +877,8 @@ test("Activity Cancellation commands carry Activity's markers", async (t) => {
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const runId = handle.firstExecutionRunId;
-  const direct = labelMarkerId(expectedGroupId(runId, 'direct'));
-  const scope = labelMarkerId(expectedGroupId(runId, 'scope'));
+  const direct = labelMarkerId('direct');
+  const scope = labelMarkerId('scope');
 
   // EG-COMMANDS-02-CANCEL: Activity Cancellation commands carry Activity's markers
   t.deepEqual(markerIdsOf(singleEvent(history, 'scheduleActivity', 'activityCancelledSleeper')), set(direct, scope));
@@ -1021,9 +910,8 @@ test('Local activity commands carry markers', async (t) => {
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const runId = handle.firstExecutionRunId;
-  const direct = labelMarkerId(expectedGroupId(runId, 'direct'));
-  const scope = labelMarkerId(expectedGroupId(runId, 'scope'));
+  const direct = labelMarkerId('direct');
+  const scope = labelMarkerId('scope');
 
   // EG-COMMANDS-03: Local Activity commands carry markers
   t.deepEqual(markerIdsOf(singleEvent(history, 'scheduleLocalActivity')), set(direct, scope));
@@ -1048,11 +936,10 @@ test("Local activity cancellation commands carry the LA's markers", async (t) =>
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const runId = handle.firstExecutionRunId;
-  const direct = labelMarkerId(expectedGroupId(runId, 'direct'));
-  const scope = labelMarkerId(expectedGroupId(runId, 'scope'));
-  const cancelTrigger = labelMarkerId(expectedGroupId(runId, 'cancel-trigger'));
-  const cancelledLa = labelMarkerId(expectedGroupId(runId, 'cancelled-la'));
+  const direct = labelMarkerId('direct');
+  const scope = labelMarkerId('scope');
+  const cancelTrigger = labelMarkerId('cancel-trigger');
+  const cancelledLa = labelMarkerId('cancelled-la');
 
   const las = eventsOfKind(history, 'scheduleLocalActivity');
   t.is(las.length, 2);
@@ -1098,9 +985,8 @@ test("Local activity retry backoff timer carries the LA's markers", async (t) =>
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const runId = handle.firstExecutionRunId;
-  const direct = labelMarkerId(expectedGroupId(runId, 'direct'));
-  const scope = labelMarkerId(expectedGroupId(runId, 'scope'));
+  const direct = labelMarkerId('direct');
+  const scope = labelMarkerId('scope');
 
   const las = eventsOfKind(history, 'scheduleLocalActivity');
   t.is(las.length, 2);
@@ -1138,9 +1024,8 @@ test('Child workflow commands carry markers', async (t) => {
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const runId = handle.firstExecutionRunId;
-  const direct = labelMarkerId(expectedGroupId(runId, 'direct'));
-  const scope = labelMarkerId(expectedGroupId(runId, 'scope'));
+  const direct = labelMarkerId('direct');
+  const scope = labelMarkerId('scope');
 
   // EG-COMMANDS-04: Child Workflow commands carry markers
   t.deepEqual(markerIdsOf(singleEvent(history, 'startChildWorkflowExecution', 'noopWorkflow')), set(direct, scope));
@@ -1164,9 +1049,8 @@ test("Child workflow cancellation commands carry the child workflow's markers", 
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const runId = handle.firstExecutionRunId;
-  const direct = labelMarkerId(expectedGroupId(runId, 'direct'));
-  const scope = labelMarkerId(expectedGroupId(runId, 'scope'));
+  const direct = labelMarkerId('direct');
+  const scope = labelMarkerId('scope');
 
   // EG-COMMANDS-04-CANCEL: Child Workflow Cancellation commands carry the Child Workflow's markers
   t.deepEqual(markerIdsOf(singleEvent(history, 'startChildWorkflowExecution', 'sleepWorkflow')), set(direct, scope));
@@ -1199,9 +1083,8 @@ test('Nexus operation commands carry markers', async (t) => {
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const runId = handle.firstExecutionRunId;
-  const direct = labelMarkerId(expectedGroupId(runId, 'direct'));
-  const scope = labelMarkerId(expectedGroupId(runId, 'scope'));
+  const direct = labelMarkerId('direct');
+  const scope = labelMarkerId('scope');
 
   // EG-COMMANDS-05: Nexus Operation commands carry markers
   t.deepEqual(markerIdsOf(singleEvent(history, 'scheduleNexusOperation', 'noopOp')), set(direct, scope));
@@ -1226,9 +1109,8 @@ test("Nexus operation cancellation commands carry the Nexus operation's markers"
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const runId = handle.firstExecutionRunId;
-  const direct = labelMarkerId(expectedGroupId(runId, 'direct'));
-  const scope = labelMarkerId(expectedGroupId(runId, 'scope'));
+  const direct = labelMarkerId('direct');
+  const scope = labelMarkerId('scope');
 
   // EG-COMMANDS-05-CANCEL: Nexus Operation Cancellation commands carry the Nexus Operation's markers
   t.deepEqual(markerIdsOf(singleEvent(history, 'scheduleNexusOperation', 'sleeperOp')), set(direct, scope));
@@ -1261,26 +1143,61 @@ test('Signal external workflow commands carry markers', async (t) => {
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const runId = handle.firstExecutionRunId;
-  const scope = labelMarkerId(expectedGroupId(runId, 'scope'));
+  const direct = labelMarkerId('direct');
+  const scope = labelMarkerId('scope');
 
   // EG-COMMANDS-06: Signal External Workflow commands carry markers
-  // Ambient only; direct attach is a known API gap.
-  t.deepEqual(markerIdsOf(singleEvent(history, 'signalExternalWorkflowExecution')), set(scope));
+  t.deepEqual(markerIdsOf(singleEvent(history, 'signalExternalWorkflowExecution', 'signal')), set(scope));
+  t.deepEqual(
+    markerIdsOf(singleEvent(history, 'signalExternalWorkflowExecution', 'signalWithOptions')),
+    set(direct, scope)
+  );
 });
 
 export async function signalExternalWorkflowCommandsWorkflow(): Promise<void> {
+  const direct = createEventGroup('direct');
   const scope = createEventGroup('scope');
+  const other = workflow.getExternalWorkflowHandle('event-groups-no-such-workflow');
 
   await scope.withScope(async () => {
     // Targeting a missing Workflow keeps this self-contained: the server records the Initiated
-    // event, then fails the request. TypeScript's external-signal API does not yet accept
-    // `eventGroups`, so only the ambient scope is asserted (GAP vs the plan's Execute snippet).
-    await workflow
-      .getExternalWorkflowHandle('event-groups-no-such-workflow')
-      .signal('signal')
-      .catch(() => undefined);
+    // event, then fails the request. Variadic `signal(...)` cannot take options, so it only
+    // picks up the ambient scope.
+    await other.signal('signal').catch(() => undefined);
+    await other.signalWithOptions('signalWithOptions', { eventGroups: [direct] }).catch(() => undefined);
   });
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+test('Child workflow signal commands carry markers', async (t) => {
+  const { startWorkflow } = sharedWorkerHelpers(t);
+
+  const handle = await startWorkflow(childWorkflowSignalCommandsWorkflow);
+  await handle.result();
+  const history = await handle.fetchHistory();
+
+  const direct = labelMarkerId('direct');
+  const scope = labelMarkerId('scope');
+
+  // EG-COMMANDS-06-CHILD: Child Workflow Signal commands carry markers
+  t.deepEqual(markerIdsOf(singleEvent(history, 'signalExternalWorkflowExecution', 'signal')), set(scope));
+  t.deepEqual(
+    markerIdsOf(singleEvent(history, 'signalExternalWorkflowExecution', 'signalWithOptions')),
+    set(direct, scope)
+  );
+});
+
+export async function childWorkflowSignalCommandsWorkflow(): Promise<void> {
+  const direct = createEventGroup('direct');
+  const scope = createEventGroup('scope');
+
+  const child = await startChild(waitForTwoSignalsWorkflow);
+  await scope.withScope(async () => {
+    await child.signal('signal');
+    await child.signalWithOptions('signalWithOptions', { eventGroups: [direct] });
+  });
+  await child.result();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1292,104 +1209,111 @@ test('Cancel external workflow commands carry markers', async (t) => {
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const runId = handle.firstExecutionRunId;
-  const scope = labelMarkerId(expectedGroupId(runId, 'scope'));
+  const direct = labelMarkerId('direct');
+  const scope = labelMarkerId('scope');
 
   // EG-COMMANDS-07: Cancel External Workflow commands carry markers
-  // Ambient only; direct attach is a known API gap.
-  t.deepEqual(markerIdsOf(singleEvent(history, 'requestCancelExternalWorkflowExecution')), set(scope));
+  t.deepEqual(markerIdsOf(singleEvent(history, 'requestCancelExternalWorkflowExecution')), set(direct, scope));
 });
 
 export async function cancelExternalWorkflowCommandsWorkflow(): Promise<void> {
+  const direct = createEventGroup('direct');
   const scope = createEventGroup('scope');
 
   await scope.withScope(async () => {
-    // Same missing-Workflow trick as EG-COMMANDS-06. Direct attach is likewise a known API gap.
+    // Same missing-Workflow trick as EG-COMMANDS-06.
     await workflow
       .getExternalWorkflowHandle('event-groups-no-such-workflow')
-      .cancel()
+      .cancel({ eventGroups: [direct] })
       .catch(() => undefined);
   });
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-test('Modify Workflow Properties commands carry the ambient scope', async (t) => {
+test('Modify Workflow Properties commands carry markers', async (t) => {
   const { startWorkflow } = sharedWorkerHelpers(t);
 
   const handle = await startWorkflow(modifyWorkflowPropertiesWorkflow);
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const scope = labelMarkerId(expectedGroupId(handle.firstExecutionRunId, 'scope'));
+  const direct = labelMarkerId('direct');
+  const scope = labelMarkerId('scope');
 
-  // EG-COMMANDS-20: Modify Workflow Properties commands carry the ambient scope
-  t.deepEqual(markerIdsOf(singleEvent(history, 'modifyWorkflowProperties')), set(scope));
+  // EG-COMMANDS-20: Modify Workflow Properties commands carry markers
+  t.deepEqual(markerIdsOf(singleEvent(history, 'modifyWorkflowProperties')), set(direct, scope));
 });
 
 export async function modifyWorkflowPropertiesWorkflow(): Promise<void> {
+  const direct = createEventGroup('direct');
   const scope = createEventGroup('scope');
 
   await scope.withScope(async () => {
-    workflow.upsertMemo({ 'some-key': 'some-value' }); // Expect: { scope }
+    workflow.upsertMemo({ 'some-key': 'some-value' }, { eventGroups: [direct] }); // Expect: { direct, scope }
   });
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-test('Upsert search attribute commands carry the ambient scope', async (t) => {
+test('Upsert search attribute commands carry markers', async (t) => {
   const { startWorkflow } = sharedWorkerHelpers(t);
 
   const handle = await startWorkflow(upsertSearchAttributesWorkflow);
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const scope = labelMarkerId(expectedGroupId(handle.firstExecutionRunId, 'scope'));
+  const direct = labelMarkerId('direct');
+  const scope = labelMarkerId('scope');
 
-  // EG-COMMANDS-21: Upsert Search Attribute commands carry the ambient scope
-  t.deepEqual(markerIdsOf(singleEvent(history, 'upsertWorkflowSearchAttributes')), set(scope));
+  // EG-COMMANDS-21: Upsert Search Attribute commands carry markers
+  t.deepEqual(markerIdsOf(singleEvent(history, 'upsertWorkflowSearchAttributes')), set(direct, scope));
 });
 
 export async function upsertSearchAttributesWorkflow(): Promise<void> {
+  const direct = createEventGroup('direct');
   const scope = createEventGroup('scope');
 
   await scope.withScope(async () => {
     // The key must be one of those the test environment registers on the namespace (`defaultSAKeys`).
-    workflow.upsertSearchAttributes([
-      { key: defineSearchAttributeKey('CustomBoolField', SearchAttributeType.BOOL), value: false },
-    ]);
+    workflow.upsertSearchAttributes(
+      [{ key: defineSearchAttributeKey('CustomBoolField', SearchAttributeType.BOOL), value: false }],
+      { eventGroups: [direct] }
+    );
   });
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-test('Patch commands carry the ambient scope', async (t) => {
+test('Patch commands carry markers', async (t) => {
   const { startWorkflow } = sharedWorkerHelpers(t);
 
   const handle = await startWorkflow(patchCommandsWorkflow);
   await handle.result();
   const history = await handle.fetchHistory();
 
-  const scope = labelMarkerId(expectedGroupId(handle.firstExecutionRunId, 'scope'));
+  const direct = labelMarkerId('direct');
+  const scope = labelMarkerId('scope');
 
-  // EG-COMMANDS-22: Patch commands carry the ambient scope
+  // EG-COMMANDS-22: Patch commands carry markers
   const patchMarkers = eventsOfKind(history, 'recordMarker', 'core_patch');
   t.is(patchMarkers.length, 2);
-  t.deepEqual(markerIdsOf(patchMarkers[0]), set(scope));
-  t.deepEqual(markerIdsOf(patchMarkers[1]), set(scope));
+  t.deepEqual(markerIdsOf(patchMarkers[0]), set(direct, scope));
+  t.deepEqual(markerIdsOf(patchMarkers[1]), set(direct, scope));
 
   const upserts = eventsOfKind(history, 'upsertWorkflowSearchAttributes');
   t.is(upserts.length, 2);
-  t.deepEqual(markerIdsOf(upserts[0]), set(scope));
-  t.deepEqual(markerIdsOf(upserts[1]), set(scope));
+  t.deepEqual(markerIdsOf(upserts[0]), set(direct, scope));
+  t.deepEqual(markerIdsOf(upserts[1]), set(direct, scope));
 });
 
 export async function patchCommandsWorkflow(): Promise<void> {
+  const direct = createEventGroup('direct');
   const scope = createEventGroup('scope');
 
   await scope.withScope(async () => {
-    workflow.patched('my-patch-1');
-    workflow.deprecatePatch('my-patch-2');
+    workflow.patched('my-patch-1', { eventGroups: [direct] });
+    workflow.deprecatePatch('my-patch-2', { eventGroups: [direct] });
   });
 }
 
@@ -1404,8 +1328,8 @@ test('continueAsNew carries both directly attached and ambient markers', async (
 
   const runId = handle.firstExecutionRunId;
   const history = await client.workflow.getHandle(handle.workflowId, runId).fetchHistory();
-  const direct = labelMarkerId(expectedGroupId(runId, 'direct'));
-  const scope = labelMarkerId(expectedGroupId(runId, 'scope'));
+  const direct = labelMarkerId('direct');
+  const scope = labelMarkerId('scope');
 
   // EG-COMMANDS-40: Continue-As-New carries directly attached and ambient markers
   // Long form: options include directly attached groups.
@@ -1435,7 +1359,7 @@ test('short-form continueAsNew carries ambient markers only', async (t) => {
 
   const runId = handle.firstExecutionRunId;
   const history = await client.workflow.getHandle(handle.workflowId, runId).fetchHistory();
-  const scope = labelMarkerId(expectedGroupId(runId, 'scope'));
+  const scope = labelMarkerId('scope');
 
   // EG-COMMANDS-40: Continue-As-New carries directly attached and ambient markers
   // Short form: no options argument.
@@ -1456,6 +1380,20 @@ export async function continueAsNewShortFormMarkersWorkflow(done = false): Promi
 const fireSignal = workflow.defineSignal('fire');
 const unblockSignal = workflow.defineSignal('unblock');
 const fireUpdate = workflow.defineUpdate<void, []>('fire');
+const childSignal = workflow.defineSignal('signal');
+const childSignalWithOptions = workflow.defineSignal('signalWithOptions');
+
+// A workflow that waits for two signals, for cases that signal a running child.
+export async function waitForTwoSignalsWorkflow(): Promise<void> {
+  let count = 0;
+  workflow.setHandler(childSignal, () => {
+    count++;
+  });
+  workflow.setHandler(childSignalWithOptions, () => {
+    count++;
+  });
+  await workflow.condition(() => count >= 2);
+}
 
 // A workflow that does nothing at all, for cases that need a workflow type but no behavior.
 export async function noopWorkflow(): Promise<void> {
@@ -1704,6 +1642,12 @@ function eventKindAndName(event: temporal.api.history.v1.IHistoryEvent): { kind:
       name: event.nexusOperationScheduledEventAttributes.operation ?? undefined,
     };
   }
+  if (event.signalExternalWorkflowExecutionInitiatedEventAttributes != null) {
+    return {
+      kind: 'signalExternalWorkflowExecution',
+      name: event.signalExternalWorkflowExecutionInitiatedEventAttributes.signalName ?? undefined,
+    };
+  }
   if (event.markerRecordedEventAttributes != null) {
     const markerName = event.markerRecordedEventAttributes.markerName ?? undefined;
     return {
@@ -1866,12 +1810,4 @@ function singleEvent(history: temporal.api.history.v1.IHistory, kind: string, na
     );
   }
   return matches[0]!;
-}
-
-/**
- * Recompute the id that `createEventGroup(label)` derives when no user-provided `id` is given, per the
- * documented formula: `lowercase(hex(sha1(`${lowercase(original_execution_run_id)}${label}`)))`.
- */
-function expectedGroupId(runId: string, label: string): string {
-  return createHash('sha1').update(`${runId.toLowerCase()}${label}`).digest('hex').toLowerCase();
 }

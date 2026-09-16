@@ -1,39 +1,43 @@
 import type { AsyncLocalStorage as ALS } from 'node:async_hooks';
 import type Long from 'long';
 import type { temporal } from '@temporalio/proto';
-import { defaultPayloadConverter } from '@temporalio/common/lib/converter/payload-converter';
-import type { ReplaceNested } from '@temporalio/common/lib/type-helpers';
+import { convertOptionalToPayload, defaultPayloadConverter } from '@temporalio/common/lib/converter/payload-converter';
 import { AsyncLocalStorage } from './cancellation-scope';
 import { assertInWorkflowContext } from './global-attributes';
-import { sha1Hex } from './sha1';
-
-// Same as IEventGroupMarker, but with strings instead of Payloads
-type IUnconvertedEventGroupMarker = ReplaceNested<
-  temporal.api.sdk.v1.IEventGroupMarker,
-  temporal.api.common.v1.IPayload,
-  string
->;
 
 /**
  * A discrete token used to associate workflow commands (and the corresponding history events)
- * with a logical "group" for UI/observability purposes. Multiple event group markers may be
- * attached to a single command, and a single marker may be attached to multiple commands.
+ * with a logical "group" for UI/observability purposes. Multiple Event Groups may be attached to
+ * a single command, and a single Event Group may be attached to multiple commands.
  *
- * Event group markers are created using {@link createEventGroup}.
+ * Created using {@link createEventGroup}.
  *
  * @experimental Event Groups is an experimental API and may change without notice.
  */
-export interface EventGroupMarker {
+export interface EventGroup {
   /**
-   * Run `fn` in a scope in which this event group marker is implicitly attached to every command
+   * Run `fn` in a scope in which this Event Group is implicitly attached to every command
    * produced by the workflow code that executes within. Event Group scopes nest: when called from
-   * within another event group marker's `withScope`, all outer markers remain attached as well.
+   * within another Event Group's `withScope`, all outer groups remain attached as well.
    *
    * Only callable from a Workflow Execution.
    *
    * @experimental Event Groups is an experimental API and may change without notice.
    */
   withScope<T>(fn: () => Promise<T>): Promise<T>;
+}
+
+/**
+ * Options for attaching Event Groups to a command that has no existing options object.
+ *
+ * @experimental Event Groups is an experimental API and may change without notice.
+ */
+export interface EventGroupsOptions {
+  /**
+   * Event Groups to attach to this command, in addition to those active in the current scope.
+   * See {@link EventGroup} and {@link createEventGroup}.
+   */
+  eventGroups?: EventGroup[];
 }
 
 /** Active event group markers in the current execution scope. */
@@ -50,17 +54,17 @@ interface ActiveMarkerScopes {
    * `undefined` in the Workflow's main function, as well as while executing Queries and
    * Update Validation handlers.
    */
-  readonly implicitScope: EventGroupMarkerImpl | undefined;
+  readonly implicitScope: EventGroupImpl | undefined;
 
   /**
    * Active explicit event group markers.
    */
-  readonly explicitScopes: Record<string, EventGroupMarkerImpl>;
+  readonly explicitScopes: Record<string, EventGroupImpl>;
 }
 
-abstract class EventGroupMarkerImpl implements EventGroupMarker {
+abstract class EventGroupImpl implements EventGroup {
   withScope<T>(fn: () => Promise<T>): Promise<T> {
-    assertInWorkflowContext('EventGroupMarker.withScope(...) may only be used from a Workflow Execution');
+    assertInWorkflowContext('EventGroup.withScope(...) may only be used from a Workflow Execution');
 
     const active: ActiveMarkerScopes = activeMarkerScopes.getStore() ?? {
       implicitScope: undefined,
@@ -76,39 +80,32 @@ abstract class EventGroupMarkerImpl implements EventGroupMarker {
   abstract toProto(): temporal.api.sdk.v1.IEventGroupMarker;
 }
 
-class ImplicitEventGroupMarkerImpl extends EventGroupMarkerImpl {
-  static withInboundEventId(eventId: Long): EventGroupMarkerImpl {
-    return new ImplicitEventGroupMarkerImpl({ inboundEvent: { inboundEventId: eventId } });
-  }
-
-  static withInboundUpdateId(updateId: string): EventGroupMarkerImpl {
-    return new ImplicitEventGroupMarkerImpl({ inboundUpdate: { inboundUpdateId: updateId } });
-  }
-
-  constructor(private readonly marker: IUnconvertedEventGroupMarker) {
-    super();
-  }
-
+abstract class ImplicitEventGroupImpl extends EventGroupImpl {
   applyOverActiveMarkerScopes(_active: ActiveMarkerScopes): ActiveMarkerScopes {
     return {
       implicitScope: this,
       explicitScopes: {},
     };
   }
+}
+
+class InboundEventEventGroupImpl extends ImplicitEventGroupImpl {
+  constructor(private readonly inboundEventId: Long) {
+    super();
+  }
 
   toProto(): temporal.api.sdk.v1.IEventGroupMarker {
-    return {
-      inboundEvent: this.marker.inboundEvent
-        ? {
-            inboundEventId: this.marker.inboundEvent?.inboundEventId,
-          }
-        : undefined,
-      inboundUpdate: this.marker.inboundUpdate
-        ? {
-            inboundUpdateId: this.marker.inboundUpdate?.inboundUpdateId,
-          }
-        : undefined,
-    };
+    return { inboundEvent: { inboundEventId: this.inboundEventId } };
+  }
+}
+
+class InboundUpdateEventGroupImpl extends ImplicitEventGroupImpl {
+  constructor(private readonly inboundUpdateId: string) {
+    super();
+  }
+
+  toProto(): temporal.api.sdk.v1.IEventGroupMarker {
+    return { inboundUpdate: { inboundUpdateId: this.inboundUpdateId } };
   }
 }
 
@@ -124,7 +121,7 @@ class ImplicitEventGroupMarkerImpl extends EventGroupMarkerImpl {
  * including the `withScope()` method with proper bookkeeping logic. This way, callers
  * can proceed through their normal code path without having to know about this anomaly.
  */
-class StubImplicitEventGroupMarkerImpl extends EventGroupMarkerImpl {
+class StubImplicitEventGroupImpl extends EventGroupImpl {
   constructor() {
     super();
   }
@@ -144,19 +141,18 @@ class StubImplicitEventGroupMarkerImpl extends EventGroupMarkerImpl {
   }
 }
 
-class ExplicitEventGroupMarkerImpl extends EventGroupMarkerImpl {
-  static withLabel(label: string, id: string): EventGroupMarkerImpl {
-    return new ExplicitEventGroupMarkerImpl({ label: { id, label } });
-  }
-
-  constructor(public readonly marker: IUnconvertedEventGroupMarker & { label: { id: string } }) {
+class ExplicitEventGroupImpl extends EventGroupImpl {
+  constructor(
+    readonly id: string,
+    private readonly label?: string
+  ) {
     super();
   }
 
   applyOverActiveMarkerScopes(active: ActiveMarkerScopes): ActiveMarkerScopes {
     return {
       implicitScope: active.implicitScope,
-      explicitScopes: { ...active.explicitScopes, [this.marker.label.id!]: this },
+      explicitScopes: { ...active.explicitScopes, [this.id]: this },
     };
   }
 
@@ -164,48 +160,35 @@ class ExplicitEventGroupMarkerImpl extends EventGroupMarkerImpl {
     // Deliberately the SDK's default converter rather than the workflow's own: the UI and CLI
     // rely on the label being a `json/plain` string, which a user-provided converter could break.
     return {
-      label: { id: this.marker.label.id!, label: defaultPayloadConverter.toPayload(this.marker.label.label) },
+      label: {
+        id: this.id,
+        label: convertOptionalToPayload(defaultPayloadConverter, this.label),
+      },
     };
   }
 }
 
 /**
- * Create a new event group marker that can be attached to commands scheduled by this workflow.
+ * Create an Event Group that can be attached to commands scheduled by this Workflow.
  *
- * The returned marker has a freshly-generated identifier (workflow-deterministic). Attach it
- * to any number of commands (activities, child workflows, timers, etc.) via their `eventGroups`
- * option, or implicitly via {@link EventGroupMarker.withScope}, to indicate that those commands
- * belong to the same logical group.
+ * Attach the returned group via command `eventGroups` options, or via {@link EventGroup.withScope}.
  *
- * @param label a user-visible label for the group, surfaced in the UI / CLI
- *     This label is converted to a Payload using the SDK's default Payload Converter, not the
- *     one configured on the worker, then codec-encoded using the worker's configured Payload
- *     Codecs.
- *
- *     Note that if no `id` is provided, the `id` will be derived from the `label` using a
- *     deterministic hash function. Given short and predictable labels, brute-forcing the `id`'s
- *     hashed value may be computationally feasible, thus allowing for recovery of the `label`
- *     value. Thus, it is recommended to avoid including highly sensitive information in
- *     event-group labels, and/or to provide an explicit `id` value.
- *
- * @param id an optional opaque identifier used to determine whether two event groups are the same;
- *     i.e. events will be grouped together if and only if they are both associated with group
- *     markers that have the same `id` value, without regard to the markers' labels. Only the first
- *     label value associated with a marker `id` will be used, subsequent label values will be ignored.
- *
- *     Note that `id` will not be codec-encoded.
+ * @param id non-empty group identity. Commands with the same `id` belong to the same group.
+ *           The user-provided ID is stored as plain text in the workflow history and should
+ *           therefore not contain sensitive information.
+ * @param options.label optional non-empty display text for the UI / CLI. If provided, it is
+ *           persisted to history as a codec-encoded Payload.
  *
  * @experimental Event Groups is an experimental API and may change without notice.
  */
-export function createEventGroup(label: string, options?: { id?: string }): EventGroupMarker {
-  const activator = assertInWorkflowContext('createEventGroup(...) may only be used from a Workflow Execution');
+export function createEventGroup(id: string, options?: { label?: string }): EventGroup {
+  assertInWorkflowContext('createEventGroup(...) may only be used from a Workflow Execution');
+  if (id === '') throw new TypeError('Event group id cannot be empty');
 
-  // When the workflow author doesn't provide an explicit `id`, derive a deterministic, replay-stable
-  // one from the label. The Original Execution Run ID is used to mitigate brute-force recovery of the
-  // label from the ID, while preserving resetstability across Workflow Execution resets.
-  const id = options?.id ?? sha1Hex(`${activator.info.originalExecutionRunId}${label}`);
+  const label = options?.label;
+  if (label === '') throw new TypeError('Event group label cannot be empty');
 
-  return ExplicitEventGroupMarkerImpl.withLabel(label, id);
+  return new ExplicitEventGroupImpl(id, label);
 }
 
 /**
@@ -214,12 +197,13 @@ export function createEventGroup(label: string, options?: { id?: string }): Even
  *
  * @internal
  */
-export function createInboundEventMarker(eventId: Long | null | undefined): EventGroupMarker {
+export function createInboundEventMarker(eventId: Long | null | undefined): EventGroup {
   if (eventId == null || eventId.toNumber() <= 0) {
-    // Invalid event ID. Don't fail the WFT — return a stub Implicit EG Marker instead.
-    return new StubImplicitEventGroupMarkerImpl();
+    // This is totally unexpected and would indicate a bug in the SDK itself. But
+    // Event Groups is non-critical, so return a stub instead of failing the WFT.
+    return new StubImplicitEventGroupImpl();
   }
-  return ImplicitEventGroupMarkerImpl.withInboundEventId(eventId);
+  return new InboundEventEventGroupImpl(eventId);
 }
 
 /**
@@ -229,8 +213,8 @@ export function createInboundEventMarker(eventId: Long | null | undefined): Even
  *
  * @internal
  */
-export function createInboundUpdateMarker(updateId: string): EventGroupMarker {
-  return ImplicitEventGroupMarkerImpl.withInboundUpdateId(updateId);
+export function createInboundUpdateMarker(updateId: string): EventGroup {
+  return new InboundUpdateEventGroupImpl(updateId);
 }
 
 /**
@@ -254,7 +238,7 @@ export function createInboundUpdateMarker(updateId: string): EventGroupMarker {
  * @internal
  */
 export function eventGroupMarkersToProto(
-  explicit: EventGroupMarker[] | undefined
+  explicit: EventGroup[] | undefined
 ): temporal.api.sdk.v1.IEventGroupMarker[] | undefined {
   const markers = mergeScopeAndDirectEventGroupMarkers(explicit);
   if (markers == null || markers.length === 0) return undefined;
@@ -265,17 +249,17 @@ export function eventGroupMarkersToProto(
 /**
  * Merge active scope event group markers with directly-attached markers, deduplicating by `id`.
  */
-function mergeScopeAndDirectEventGroupMarkers(directs: EventGroupMarker[] | undefined): EventGroupMarkerImpl[] {
-  if (directs?.some((m) => !(m instanceof ExplicitEventGroupMarkerImpl))) {
-    throw new Error('Directly attached Event Group Markers must be instances of ExplicitEventGroupMarkerImpl');
+function mergeScopeAndDirectEventGroupMarkers(directs: EventGroup[] | undefined): EventGroupImpl[] {
+  if (directs?.some((group) => !(group instanceof ExplicitEventGroupImpl))) {
+    throw new TypeError('Directly attached Event Groups must be created with createEventGroup()');
   }
-  const directExplicits = (directs as ExplicitEventGroupMarkerImpl[]) ?? [];
+  const directExplicits = (directs as ExplicitEventGroupImpl[]) ?? [];
 
   const active: ActiveMarkerScopes | undefined = activeMarkerScopes.getStore();
 
-  const merged: Record<string, EventGroupMarkerImpl> = { ...(active?.explicitScopes ?? {}) };
+  const merged: Record<string, EventGroupImpl> = { ...(active?.explicitScopes ?? {}) };
   for (const marker of directExplicits) {
-    merged[marker.marker.label.id!] = marker;
+    merged[marker.id] = marker;
   }
 
   return [...(active?.implicitScope ? [active.implicitScope] : []), ...Object.values(merged)];
