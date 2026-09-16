@@ -38,6 +38,7 @@ export class TextDecoder {
             codePoint = ((cp0 & 0b111) << 6) | (cp1 & 0b00111111);
             minBits = 5; // 20 ensures it never passes -> all invalid replacements
             cp0 = 0x100; //  keep track of th bit size
+          // falls through
           case 14:
             // @ts-expect-error ignoring unchecked index
             cp1 = inputAs8[(index = (index + 1) | 0)] & 0xff;
@@ -45,6 +46,7 @@ export class TextDecoder {
             codePoint |= ((cp0 & 0b1111) << 6) | (cp1 & 0b00111111);
             minBits = cp1 >> 6 === 0b10 ? (minBits + 4) | 0 : 24; // 24 ensures it never passes -> all invalid replacements
             cp0 = (cp0 + 0x100) & 0x300; // keep track of th bit size
+          // falls through
           case 13:
           case 12:
             // @ts-expect-error ignoring unchecked index
@@ -103,6 +105,7 @@ export class TextDecoder {
         case 0:
           tmpBufferU16[pos] = cp0;
           continue;*/
+          // falls through
           default: // fill with invalid replacement character
             tmpBufferU16[pos] = cp0;
             continue;
@@ -209,7 +212,7 @@ export class TextEncoder {
     const encodedString = inputString === void 0 ? '' : '' + inputString,
       len = encodedString.length | 0;
     let result = new Uint8Array(((len << 1) + 8) | 0);
-    let tmpResult: Uint8Array;
+    let tmpResult: Uint8Array<ArrayBuffer>;
     let i = 0,
       pos = 0,
       point = 0,
@@ -282,7 +285,7 @@ export class TextEncoder {
           case 6:
           case 7:
             read = (read + 1) | 0;
-          // extension points:
+          // falls through
           case 8:
           case 9:
           case 10:
@@ -294,17 +297,20 @@ export class TextEncoder {
               read = (read + 1) | 0;
               break;
             }
+          // falls through
           case 14:
             if (((i + 2) | 0) < u8ArrLen) {
               //if (!(char === 0xEF && encodedString.substr(i+1|0,2) === "\xBF\xBD"))
               read = (read + 1) | 0;
               break;
             }
+          // falls through
           case 15:
             if (((i + 3) | 0) < u8ArrLen) {
               read = (read + 1) | 0;
               break;
             }
+          // falls through
           default:
             break putChars;
         }

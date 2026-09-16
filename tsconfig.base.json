@@ -4,7 +4,7 @@
     "composite": true,
     "incremental": true,
     "module": "commonjs",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "sourceMap": true,
     "experimentalDecorators": true,
     "noUncheckedIndexedAccess": true,

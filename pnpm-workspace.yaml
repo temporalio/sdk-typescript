@@ -30,6 +30,7 @@ packages:
   - contrib/external-storage-gcs-google-sdk
   - contrib/workflow-streams
   - scripts
+  - tools/eslint-sidecar
 
 ignoreScripts: true
 

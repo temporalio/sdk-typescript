@@ -2,7 +2,7 @@
   "extends": "@tsconfig/node20/tsconfig.json",
   "compilerOptions": {
     "module": "commonjs",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "types": ["node"],
     "rootDir": "../",
     "noEmit": true,

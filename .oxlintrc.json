@@ -1,0 +1,216 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": [],
+  "categories": {
+    "correctness": "off"
+  },
+  "options": {
+    "typeAware": true
+  },
+  "env": {
+    "builtin": true
+  },
+  "ignorePatterns": ["**/node_modules/**", "**/lib/**", "**/*.js", "**/*.mjs", "**/*.cjs", "**/*.generated.ts"],
+  "overrides": [
+    {
+      "files": ["packages/*/src/**/*.ts", "contrib/*/src/**/*.ts"],
+      "plugins": ["typescript", "import"],
+      "rules": {
+        "constructor-super": "off",
+        "for-direction": "error",
+        "getter-return": "off",
+        "no-async-promise-executor": "error",
+        "no-case-declarations": "error",
+        "no-class-assign": "off",
+        "no-compare-neg-zero": "error",
+        "no-cond-assign": "error",
+        "no-const-assign": "off",
+        "no-constant-binary-expression": "error",
+        "no-constant-condition": "error",
+        "no-control-regex": "error",
+        "no-debugger": "error",
+        "no-delete-var": "error",
+        "no-dupe-class-members": "off",
+        "no-dupe-else-if": "error",
+        "no-dupe-keys": "off",
+        "no-duplicate-case": "error",
+        "no-empty": "error",
+        "no-empty-character-class": "error",
+        "no-empty-pattern": "error",
+        "no-empty-static-block": "error",
+        "no-ex-assign": "error",
+        "no-extra-boolean-cast": "error",
+        "no-fallthrough": "error",
+        "no-func-assign": "off",
+        "no-global-assign": "error",
+        "no-import-assign": "off",
+        "no-invalid-regexp": "error",
+        "no-irregular-whitespace": "error",
+        "no-loss-of-precision": "error",
+        "no-misleading-character-class": "error",
+        "no-new-native-nonconstructor": "off",
+        "no-nonoctal-decimal-escape": "error",
+        "no-obj-calls": "off",
+        "no-prototype-builtins": "error",
+        "no-redeclare": "off",
+        "no-regex-spaces": "error",
+        "no-self-assign": "error",
+        "no-setter-return": "off",
+        "no-shadow-restricted-names": ["error", { "reportGlobalThis": false }],
+        "no-sparse-arrays": "error",
+        "no-this-before-super": "off",
+        "no-unexpected-multiline": "off",
+        "no-unreachable": "off",
+        "no-unsafe-finally": "error",
+        "no-unsafe-negation": "off",
+        "no-unsafe-optional-chaining": "error",
+        "no-unused-labels": "error",
+        "no-unused-private-class-members": "error",
+        "no-unused-vars": [
+          "warn",
+          {
+            "argsIgnorePattern": "^_",
+            "caughtErrorsIgnorePattern": "^_",
+            "varsIgnorePattern": "^_"
+          }
+        ],
+        "no-useless-backreference": "error",
+        "no-useless-catch": "error",
+        "no-useless-escape": "error",
+        "no-with": "off",
+        "require-yield": "error",
+        "use-isnan": "error",
+        "valid-typeof": "error",
+        "no-var": "error",
+        "prefer-const": "error",
+        "prefer-rest-params": "error",
+        "prefer-spread": "error",
+        "no-array-constructor": "error",
+        "no-unused-expressions": "error",
+        "typescript/ban-ts-comment": "error",
+        "typescript/no-duplicate-enum-values": "error",
+        "typescript/no-empty-object-type": "error",
+        "typescript/no-explicit-any": "off",
+        "typescript/no-extra-non-null-assertion": "error",
+        "typescript/no-misused-new": "error",
+        "typescript/no-namespace": "error",
+        "typescript/no-non-null-asserted-optional-chain": "error",
+        "typescript/no-require-imports": "error",
+        "typescript/no-this-alias": "error",
+        "typescript/no-unnecessary-type-constraint": "error",
+        "typescript/no-unsafe-declaration-merging": "error",
+        "typescript/no-unsafe-function-type": "error",
+        "typescript/no-wrapper-object-types": "error",
+        "typescript/prefer-as-const": "error",
+        "typescript/prefer-namespace-keyword": "error",
+        "typescript/triple-slash-reference": "error",
+        "eqeqeq": ["error", "always", { "null": "ignore" }],
+        "no-duplicate-imports": ["error", { "allowSeparateTypeImports": true }],
+        "object-shorthand": ["error", "always"],
+        "no-restricted-imports": ["error", { "patterns": ["@temporalio/*/src/*"] }],
+        "import/default": "error",
+        "import/export": "error",
+        "import/namespace": "error",
+        "import/no-absolute-path": "error",
+        "import/no-self-import": "error",
+        "import/no-cycle": "error",
+        "import/no-named-as-default": "error",
+        "import/no-mutable-exports": "error",
+        "import/first": "error",
+        "import/newline-after-import": "error",
+        "import/no-unassigned-import": "error",
+        "import/no-named-default": "error",
+        "typescript/no-deprecated": [
+          "warn",
+          {
+            "allow": [
+              {
+                "from": "file",
+                "name": [
+                  "SearchAttributes",
+                  "searchAttributes",
+                  "searchAttributeValue",
+                  "SearchAttributeValue",
+                  "SearchAttributeValueOrReadonly"
+                ]
+              },
+              {
+                "from": "file",
+                "name": [
+                  "AddNewCompatibleVersion",
+                  "AddNewIdInNewDefaultSet",
+                  "BaseReachabilityOptions",
+                  "buildId",
+                  "BuildIdNotFoundError",
+                  "BuildIdOperation",
+                  "BuildIdReachability",
+                  "BuildIdVersionSet",
+                  "currentBuildId",
+                  "getBuildIdCompatability",
+                  "getReachability",
+                  "LoadedTaskQueueClientOptions",
+                  "MergeSets",
+                  "PromoteBuildIdWithinSet",
+                  "PromoteSetByBuildId",
+                  "ReachabilityOptions",
+                  "ReachabilityResponse",
+                  "ReachabilityType",
+                  "ReachabilityTypeResponse",
+                  "TaskQueueClient",
+                  "TaskQueueClientOptions",
+                  "UnversionedBuildId",
+                  "updateBuildIdCompatibility",
+                  "useVersioning",
+                  "versioningIntent",
+                  "VersioningIntent",
+                  "versioningIntentToProto",
+                  "VersioningIntentString",
+                  "workerBuildId",
+                  "WorkerBuildIdVersionSets"
+                ]
+              },
+              {
+                "from": "file",
+                "name": [
+                  "activityInbound",
+                  "ActivityInboundCallsInterceptorFactory",
+                  "WorkflowClientInterceptors",
+                  "WorkflowClientCallsInterceptor",
+                  "WorkflowClientCallsInterceptorFactory",
+                  "WorkflowClientCallsInterceptorFactoryInput"
+                ]
+              },
+              {
+                "from": "file",
+                "name": [
+                  "ActivityInboundLogInterceptor",
+                  "defaultSinks",
+                  "defaultWorkerLogger",
+                  "LoggerSinks",
+                  "WorkflowLogInterceptor"
+                ]
+              }
+            ]
+          }
+        ],
+        "typescript/no-floating-promises": "error",
+        "typescript/explicit-module-boundary-types": "error",
+        "typescript/consistent-type-imports": [
+          "error",
+          {
+            "prefer": "type-imports",
+            "fixStyle": "separate-type-imports",
+            "disallowTypeAnnotations": false
+          }
+        ]
+      }
+    },
+    {
+      "files": ["contrib/openai-agents/src/**/*.ts", "contrib/google-adk-agents/src/**/*.ts"],
+      "excludeFiles": ["contrib/openai-agents/src/__tests__/**", "contrib/google-adk-agents/src/__tests__/**"],
+      "rules": {
+        "no-restricted-imports": ["error", { "patterns": ["@temporalio/*/src/*", "**/__tests__/**", "**/*.test"] }]
+      }
+    }
+  ]
+}

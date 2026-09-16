@@ -115,20 +115,20 @@ test('startUpdate and executeUpdate call signatures', async (t) => {
     await handle.startUpdate(nullaryUpdate, {});
     // @ts-expect-error: waitForStage required
     await handle.startUpdate(nullaryUpdate, { args: [] });
-    // @ts-expect-error: waitForStage must be ACCEPTED
     await handle.startUpdate(nullaryUpdate, {
+      // @ts-expect-error: waitForStage must be ACCEPTED
       waitForStage: WorkflowUpdateStage.ADMITTED,
     });
-    // @ts-expect-error: waitForStage must be ACCEPTED
     await handle.startUpdate(nullaryUpdate, {
+      // @ts-expect-error: waitForStage must be ACCEPTED
       waitForStage: WorkflowUpdateStage.COMPLETED,
     });
-    // @ts-expect-error: waitForStage must be ACCEPTED
     await handle.startUpdate(nullaryUpdate, {
+      // @ts-expect-error: waitForStage must be ACCEPTED
       waitForStage: WorkflowUpdateStage.UNSPECIFIED, // eslint-disable-line @typescript-eslint/no-deprecated
     });
-    // @ts-expect-error: args must be empty if present
     await handle.startUpdate(nullaryUpdate, {
+      // @ts-expect-error: args must be empty if present
       args: [1],
       waitForStage: WorkflowUpdateStage.ACCEPTED,
     });
@@ -140,12 +140,12 @@ test('startUpdate and executeUpdate call signatures', async (t) => {
       args: [],
       waitForStage: WorkflowUpdateStage.ACCEPTED,
     });
-    // @ts-expect-error:executeUpdate doesn't accept waitForStage
     await handle.executeUpdate(nullaryUpdate, {
+      // @ts-expect-error:executeUpdate doesn't accept waitForStage
       waitForStage: WorkflowUpdateStage.ACCEPTED,
     });
-    // @ts-expect-error:executeUpdate doesn't accept waitForStage
     await handle.executeUpdate(nullaryUpdate, {
+      // @ts-expect-error:executeUpdate doesn't accept waitForStage
       waitForStage: WorkflowUpdateStage.COMPLETED,
     });
     // valid
