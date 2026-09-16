@@ -27,9 +27,9 @@ import { decodeReferencePayload, encodeReferencePayload, isReferencePayload } fr
 const PayloadProto = temporal.api.common.v1.Payload;
 
 /**
- * The instance-wide operation budget, created once per {@link ExternalStorage} and shared by every
- * message that uses it. Held here, keyed off the configuration object, rather than stored on it, so
- * that {@link ExternalStorage} stays declarative configuration and owns no runtime state.
+ * The map that holds extstore operation limits for each {@link ExternalStorage} instance.
+ * Each time an {@link ExternalStorageRunner} is created, it retrieves the limit from this 
+ * based on the `ExternalStorage` config it's passed.
  */
 const driverOperationLimits = new WeakMap<ExternalStorage, ConcurrencyLimit>();
 
