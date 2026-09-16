@@ -135,6 +135,7 @@ After your environment is set up, you can run these commands:
 - `pnpm commitlint` validates [commit messages](#style-guide).
 
 ### Working with Individual Packages
+
 You can build or test a single package using pnpm's filter flag:
 
 ```sh
