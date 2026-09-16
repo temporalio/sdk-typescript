@@ -132,8 +132,9 @@ export interface UpdatableWorkflowHandle<T> extends WorkflowHandle<T> {
    * synchronous result is returned instead; if that completed Update failed (e.g. validation
    * rejection, which is non-retryable), it surfaces as a failed Nexus Operation.
    *
-   * If the Update takes arguments, `options.args` is required; an Update that takes no arguments
-   * accepts no `args` and may be called without options at all.
+   * `options.waitForStage` is required and must be `ACCEPTED`, so options are always passed, even
+   * for an Update that takes no arguments. If the Update takes arguments, `options.args` is also
+   * required; an Update that takes no arguments accepts no `args`.
    *
    * @experimental Workflow Updates as Nexus Operations are experimental.
    */
@@ -144,7 +145,7 @@ export interface UpdatableWorkflowHandle<T> extends WorkflowHandle<T> {
 
   update<Ret, Args extends [] = [], Name extends string = string>(
     def: UpdateDefinition<Ret, Args, Name> | string,
-    options?: NexusUpdateWorkflowOptions & { readonly args?: Args }
+    options: NexusUpdateWorkflowOptions & { readonly args?: Args }
   ): Promise<TemporalOperationResult<Ret>>;
 }
 
@@ -511,7 +512,7 @@ export const TemporalOperationResult = {
 /**
  * Options for {@link UpdatableWorkflowHandle.update}. The target Workflow (workflow and run IDs) is
  * carried by the handle, and the Update definition or name is passed as the method's first argument,
- * so only the Update ID is supplied here.
+ * so only the wait stage and the Update ID are supplied here.
  *
  * The Update's arguments are intersected onto this type by each `update` overload, so that `args` is
  * required for an Update that takes arguments and rejected for one that does not.
@@ -526,6 +527,16 @@ export interface NexusUpdateWorkflowOptions {
    * request (e.g. after a network failure) spawning a duplicate Update.
    */
   readonly updateId?: string;
+
+  /**
+   * The Update lifecycle stage to wait for before the Update is considered to be backing the Nexus
+   * Operation.
+   *
+   * Only {@link WorkflowUpdateStage.ACCEPTED} is supported: a Nexus Operation backed by an Update is
+   * asynchronous, and the Update's outcome is delivered through the operation's completion callback
+   * rather than by waiting for it here.
+   */
+  readonly waitForStage: typeof WorkflowUpdateStage.ACCEPTED;
 }
 
 /**
@@ -736,9 +747,18 @@ async function updateWorkflowOperation<Ret, Args extends any[]>(
     );
   }
 
+  // Guards the untyped caller: `waitForStage` is typed to only accept ACCEPTED, but a JavaScript
+  // caller (or an `as any` cast) can still reach here with another stage.
+  if (options?.waitForStage !== WorkflowUpdateStage.ACCEPTED) {
+    throw new nexus.HandlerError(
+      nexus.HandlerErrorType.BAD_REQUEST,
+      `Nexus Operations backed by a Workflow Update only support waitForStage ${WorkflowUpdateStage.ACCEPTED}`
+    );
+  }
+
   // If no Update ID is provided, use the Nexus request ID. This protects against a retried Nexus
   // request (same request ID) spawning a duplicate Update.
-  const updateId = options?.updateId || ctx.requestId;
+  const updateId = options.updateId || ctx.requestId;
 
   return await reserve(async () => {
     const { client, namespace } = getHandlerContext();
@@ -771,9 +791,9 @@ async function updateWorkflowOperation<Ret, Args extends any[]>(
       args?: Args;
       waitForStage: typeof WorkflowUpdateStage.ACCEPTED;
     } & InternalWorkflowUpdateOptions = {
-      args: options?.args,
+      args: options.args,
       updateId,
-      waitForStage: WorkflowUpdateStage.ACCEPTED,
+      waitForStage: options.waitForStage,
       [InternalWorkflowUpdateOptionsSymbol]: internalOptions,
     };
 
