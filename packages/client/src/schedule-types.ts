@@ -388,7 +388,9 @@ export type ScheduleDescription = {
     runningActions: ScheduleExecutionActionResult[];
   };
 
-  /** @internal */
+  /**
+   * @ignore
+   */
   raw: temporal.api.workflowservice.v1.IDescribeScheduleResponse;
 };
 
@@ -793,14 +795,14 @@ export type ScheduleOptionsStartWorkflowAction<W extends Workflow> = {
   | 'staticDetails'
   | 'staticSummary'
 > & {
-    /**
-     * Workflow id to use when starting. Assign a meaningful business id.
-     * This ID can be used to ensure starting Workflows is idempotent.
-     *
-     * @default `${scheduleId}-workflow`
-     */
-    workflowId?: string;
-  };
+  /**
+   * Workflow id to use when starting. Assign a meaningful business id.
+   * This ID can be used to ensure starting Workflows is idempotent.
+   *
+   * @default `${scheduleId}-workflow`
+   */
+  workflowId?: string;
+};
 
 export type ScheduleSummaryAction = ScheduleSummaryStartWorkflowAction;
 
@@ -888,6 +890,9 @@ export const ScheduleOverlapPolicy = {
 } as const;
 export type ScheduleOverlapPolicy = (typeof ScheduleOverlapPolicy)[keyof typeof ScheduleOverlapPolicy];
 
+/**
+ * @internal
+ */
 export const [encodeScheduleOverlapPolicy, decodeScheduleOverlapPolicy] = makeProtoEnumConverters<
   temporal.api.enums.v1.ScheduleOverlapPolicy,
   typeof temporal.api.enums.v1.ScheduleOverlapPolicy,

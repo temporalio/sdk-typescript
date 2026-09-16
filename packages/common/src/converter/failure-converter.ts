@@ -36,6 +36,9 @@ const NexusHandlerErrorRetryBehavior = {
 type NexusHandlerErrorRetryBehavior =
   (typeof NexusHandlerErrorRetryBehavior)[keyof typeof NexusHandlerErrorRetryBehavior];
 
+/**
+ * @internal
+ */
 const [encodeNexusHandlerErrorRetryBehavior, decodeNexusHandlerErrorRetryBehavior] = makeProtoEnumConverters<
   temporal.api.enums.v1.NexusHandlerErrorRetryBehavior,
   typeof temporal.api.enums.v1.NexusHandlerErrorRetryBehavior,

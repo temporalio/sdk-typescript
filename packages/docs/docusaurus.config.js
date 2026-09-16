@@ -132,6 +132,10 @@ module.exports = {
         jsDocCompatibility: {
           exampleTag: false,
         },
+        plugin: [
+          require.resolve('./typedoc-plugins/elide-to.mjs'),
+          require.resolve('./typedoc-plugins/simplify-enum-likes.mjs'),
+        ],
         readme: 'none',
         watch,
         frontmatter: {

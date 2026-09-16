@@ -6,7 +6,7 @@ import { type Timestamp } from './time';
  * Lossy conversion function from Timestamp to number due to possible overflow.
  * If ts is null or undefined returns undefined.
  *
- * @hidden
+ * @internal
  * @deprecated - meant for internal use only
  */
 export function optionalTsToMs(ts: Timestamp | null | undefined): number | undefined {
@@ -16,8 +16,7 @@ export function optionalTsToMs(ts: Timestamp | null | undefined): number | undef
 /**
  * Lossy conversion function from Timestamp to number due to possible overflow
  *
- * @hidden
- * @deprecated - meant for internal use only
+ * @internal
  * @deprecated - meant for internal use only
  */
 export function tsToMs(ts: Timestamp | null | undefined): number {
@@ -25,7 +24,7 @@ export function tsToMs(ts: Timestamp | null | undefined): number {
 }
 
 /**
- * @hidden
+ * @internal
  * @deprecated - meant for internal use only
  */
 export function msNumberToTs(millis: number): Timestamp {
@@ -33,7 +32,7 @@ export function msNumberToTs(millis: number): Timestamp {
 }
 
 /**
- * @hidden
+ * @internal
  * @deprecated - meant for internal use only
  */
 export function msToTs(str: Duration): Timestamp {
@@ -41,7 +40,7 @@ export function msToTs(str: Duration): Timestamp {
 }
 
 /**
- * @hidden
+ * @internal
  * @deprecated - meant for internal use only
  */
 export function msOptionalToTs(str: Duration | undefined): Timestamp | undefined {
@@ -49,7 +48,7 @@ export function msOptionalToTs(str: Duration | undefined): Timestamp | undefined
 }
 
 /**
- * @hidden
+ * @internal
  * @deprecated - meant for internal use only
  */
 export function msOptionalToNumber(val: Duration | undefined): number | undefined {
@@ -57,7 +56,7 @@ export function msOptionalToNumber(val: Duration | undefined): number | undefine
 }
 
 /**
- * @hidden
+ * @internal
  * @deprecated - meant for internal use only
  */
 export function msToNumber(val: Duration): number {
@@ -65,7 +64,7 @@ export function msToNumber(val: Duration): number {
 }
 
 /**
- * @hidden
+ * @internal
  * @deprecated - meant for internal use only
  */
 export function tsToDate(ts: Timestamp): Date {
@@ -73,7 +72,7 @@ export function tsToDate(ts: Timestamp): Date {
 }
 
 /**
- * @hidden
+ * @internal
  * @deprecated - meant for internal use only
  */
 export function optionalTsToDate(ts: Timestamp | null | undefined): Date | undefined {

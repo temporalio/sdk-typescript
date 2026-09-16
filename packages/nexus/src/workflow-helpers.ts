@@ -37,9 +37,6 @@ export interface WorkflowHandle<T> {
    * and the `WorkflowHandle` type returned by the {@link WorkflowClient.start}.
    *
    * @internal
-   * @hidden
-   *
-   * @experimental Nexus support in Temporal SDK is experimental.
    */
   readonly [isNexusWorkflowHandle]: typeof isNexusWorkflowHandle;
 
@@ -48,9 +45,6 @@ export interface WorkflowHandle<T> {
    * distinct from `WorkflowHandle<Y>` so TypeScript can catch type mismatches.
    *
    * @internal
-   * @hidden
-   *
-   * @experimental Nexus support in Temporal SDK is experimental.
    */
   readonly [workflowResultType]: T;
 }

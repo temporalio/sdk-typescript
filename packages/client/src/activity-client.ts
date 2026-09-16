@@ -670,6 +670,7 @@ export interface TypedActivityClient<T> {
  * @template T Activity interface
  *
  * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ * @ignore
  */
 export type ActivityName<T> = {
   [N in keyof T & string]: T[N] extends ActivityFunction<any, any> ? N : never;
@@ -682,6 +683,7 @@ export type ActivityName<T> = {
  * @template N Activity name
  *
  * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ * @ignore
  */
 export type ActivityArgs<T, N extends ActivityName<T>> = T[N] extends ActivityFunction<infer P, any> ? P : never;
 
@@ -692,6 +694,7 @@ export type ActivityArgs<T, N extends ActivityName<T>> = T[N] extends ActivityFu
  * @template N Activity name
  *
  * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ * @ignore
  */
 export type ActivityResult<T, N extends ActivityName<T>> = T[N] extends ActivityFunction<any, infer R> ? R : never;
 
@@ -701,10 +704,12 @@ export type ActivityResult<T, N extends ActivityName<T>> = T[N] extends Activity
  * @template Args Types of activity arguments as an array type.
  *
  * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ * @ignore
+ * @elideTo T
  */
-export type ActivityOptionsWithArgs<Args extends any[]> = Args extends [any, ...any]
+export type WithActivityArgs<T, Args extends any[]> = Args extends [any, ...any]
   ? Replace<
-      ActivityOptions,
+      T,
       {
         /**
          * Arguments to pass to the Activity
@@ -713,7 +718,7 @@ export type ActivityOptionsWithArgs<Args extends any[]> = Args extends [any, ...
       }
     >
   : Replace<
-      ActivityOptions,
+      T,
       {
         /**
          * Arguments to pass to the Activity
@@ -730,4 +735,4 @@ export type ActivityOptionsWithArgs<Args extends any[]> = Args extends [any, ...
  *
  * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
-export type ActivityOptionsFor<T, N extends ActivityName<T>> = ActivityOptionsWithArgs<ActivityArgs<T, N>>;
+export type ActivityOptionsFor<T, N extends ActivityName<T>> = WithActivityArgs<ActivityOptions, ActivityArgs<T, N>>;

@@ -7,7 +7,6 @@ import type { WorkflowOptions } from './workflow-options';
  * These are notably used by the Temporal Nexus helpers.
  *
  * @internal
- * @hidden
  */
 export const InternalWorkflowStartOptionsSymbol = Symbol.for('__temporal_internal_client_workflow_start_options');
 export interface InternalWorkflowStartOptions extends WorkflowOptions {

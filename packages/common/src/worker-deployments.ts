@@ -30,6 +30,9 @@ export const VersioningBehavior = {
 } as const;
 export type VersioningBehavior = (typeof VersioningBehavior)[keyof typeof VersioningBehavior];
 
+/**
+ * @internal
+ */
 export const [encodeVersioningBehavior, decodeVersioningBehavior] = makeProtoEnumConverters<
   temporal.api.enums.v1.VersioningBehavior,
   typeof temporal.api.enums.v1.VersioningBehavior,
@@ -100,6 +103,9 @@ export const InitialVersioningBehavior = {
 } as const;
 export type InitialVersioningBehavior = (typeof InitialVersioningBehavior)[keyof typeof InitialVersioningBehavior];
 
+/**
+ * @internal
+ */
 export const [encodeInitialVersioningBehavior, decodeInitialVersioningBehavior] = makeProtoEnumConverters<
   temporal.api.enums.v1.ContinueAsNewVersioningBehavior,
   typeof temporal.api.enums.v1.ContinueAsNewVersioningBehavior,

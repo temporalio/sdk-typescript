@@ -205,6 +205,9 @@ export const QueryRejectCondition = {
 } as const;
 export type QueryRejectCondition = (typeof QueryRejectCondition)[keyof typeof QueryRejectCondition];
 
+/**
+ * @internal
+ */
 export const [encodeQueryRejectCondition, decodeQueryRejectCondition] = makeProtoEnumConverters<
   proto.temporal.api.enums.v1.QueryRejectCondition,
   typeof proto.temporal.api.enums.v1.QueryRejectCondition,
@@ -303,8 +306,9 @@ export const ActivityIdReusePolicy = {
  * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export type ActivityIdReusePolicy = (typeof ActivityIdReusePolicy)[keyof typeof ActivityIdReusePolicy];
+
 /**
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ * @internal
  */
 export const [encodeActivityIdReusePolicy, decodeActivityIdReusePolicy] = makeProtoEnumConverters<
   proto.temporal.api.enums.v1.ActivityIdReusePolicy,
@@ -333,8 +337,9 @@ export const ActivityIdConflictPolicy = {
  * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export type ActivityIdConflictPolicy = (typeof ActivityIdConflictPolicy)[keyof typeof ActivityIdConflictPolicy];
+
 /**
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ * @internal
  */
 export const [encodeActivityIdConflictPolicy, decodeActivityIdConflictPolicy] = makeProtoEnumConverters<
   proto.temporal.api.enums.v1.ActivityIdConflictPolicy,
@@ -366,8 +371,9 @@ export const ActivityExecutionStatus = {
  * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export type ActivityExecutionStatus = (typeof ActivityExecutionStatus)[keyof typeof ActivityExecutionStatus];
+
 /**
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ * @internal
  */
 export const [encodeActivityExecutionStatus, decodeActivityExecutionStatus] = makeProtoEnumConverters<
   proto.temporal.api.enums.v1.ActivityExecutionStatus,
@@ -402,8 +408,9 @@ export const PendingActivityState = {
  * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export type PendingActivityState = (typeof PendingActivityState)[keyof typeof PendingActivityState];
+
 /**
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ * @internal
  */
 export const [encodePendingActivityState, decodePendingActivityState] = makeProtoEnumConverters<
   proto.temporal.api.enums.v1.PendingActivityState,

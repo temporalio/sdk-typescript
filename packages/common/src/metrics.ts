@@ -315,7 +315,6 @@ export type MetricTagsOrFunc = MetricTags | (() => MetricTags);
  *
  * @experimental The Metric API is an experimental feature and may be subject to change.
  * @internal
- * @hidden
  */
 export class MetricMeterWithComposedTags implements MetricMeter {
   /**
@@ -467,7 +466,6 @@ class MetricHistogramWithComposedTags implements MetricHistogram {
 
 /**
  * @internal
- * @hidden
  */
 class MetricGaugeWithComposedTags implements MetricGauge {
   public readonly kind = 'gauge';
@@ -506,7 +504,6 @@ class MetricGaugeWithComposedTags implements MetricGauge {
 
 /**
  * @internal
- * @hidden
  */
 class MetricUpDownCounterWithComposedTags implements MetricUpDownCounter {
   public readonly kind = 'up-down-counter';

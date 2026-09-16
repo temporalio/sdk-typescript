@@ -139,7 +139,6 @@ const metricSink = proxySinks<MetricSinks>().__temporal_metrics;
  *
  * This sink interface is also not meant to be implemented by user.
  *
- * @hidden
  * @internal Users should not implement this interface, nor use it directly. Use `metricMeter` instead.
  */
 export interface MetricSinks extends Sinks {
@@ -147,7 +146,6 @@ export interface MetricSinks extends Sinks {
 }
 
 /**
- * @hidden
  * @internal Users should not implement this interface, nor use it directly. Use `metricMeter` instead.
  */
 export interface WorkflowMetricMeter extends Sink {

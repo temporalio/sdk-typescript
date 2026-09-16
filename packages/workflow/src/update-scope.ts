@@ -17,6 +17,9 @@ export interface UpdateScopeOptions {
 
 // AsyncLocalStorage is injected via vm module into global scope.
 // In case Workflow code is imported in Node.js context, replace with an empty class.
+/**
+ * @internal
+ */
 export const AsyncLocalStorage: new <T>() => ALS<T> = (globalThis as any).AsyncLocalStorage ?? class {};
 
 export class UpdateScope {

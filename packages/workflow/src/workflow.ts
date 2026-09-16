@@ -326,7 +326,8 @@ async function scheduleLocalActivityNextHandler({
 
 /**
  * Schedule an activity and run outbound interceptors
- * @hidden
+ *
+ * @ignore
  */
 export function scheduleActivity<R>(activityType: string, args: any[], options: ActivityOptions): Promise<R> {
   const activator = assertInWorkflowContext(
@@ -349,7 +350,8 @@ export function scheduleActivity<R>(activityType: string, args: any[], options: 
 
 /**
  * Schedule an activity and run outbound interceptors
- * @hidden
+ *
+ * @internal
  */
 export async function scheduleLocalActivity<R>(
   activityType: string,

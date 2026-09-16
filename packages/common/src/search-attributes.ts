@@ -20,6 +20,9 @@ export const SearchAttributeType = {
 export type SearchAttributeType = (typeof SearchAttributeType)[keyof typeof SearchAttributeType];
 
 // Note: encodeSearchAttributeIndexedValueType exported for use in tests to register search attributes
+/**
+ * @internal
+ */
 // ts-prune-ignore-next
 export const [encodeSearchAttributeIndexedValueType, _] = makeProtoEnumConverters<
   temporal.api.enums.v1.IndexedValueType,
@@ -163,9 +166,9 @@ export class TypedSearchAttributes {
   }
 
   /**
-   * @hidden
    * Return JSON representation of this class as SearchAttributePair[]
    * Default toJSON method is not used because it's JSON representation includes private state.
+   * @internal
    */
   toJSON(): SearchAttributePair[] {
     return this.getAll();

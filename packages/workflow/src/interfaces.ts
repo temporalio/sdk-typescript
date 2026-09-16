@@ -430,6 +430,9 @@ export const ChildWorkflowCancellationType = {
 export type ChildWorkflowCancellationType =
   (typeof ChildWorkflowCancellationType)[keyof typeof ChildWorkflowCancellationType];
 
+/**
+ * @internal
+ */
 // ts-prune-ignore-next
 export const [encodeChildWorkflowCancellationType, decodeChildWorkflowCancellationType] = makeProtoEnumConverters<
   coresdk.child_workflow.ChildWorkflowCancellationType,
@@ -502,6 +505,9 @@ export const ParentClosePolicy = {
 } as const;
 export type ParentClosePolicy = (typeof ParentClosePolicy)[keyof typeof ParentClosePolicy];
 
+/**
+ * @internal
+ */
 // ts-prune-ignore-next
 export const [encodeParentClosePolicy, decodeParentClosePolicy] = makeProtoEnumConverters<
   coresdk.child_workflow.ParentClosePolicy,

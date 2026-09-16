@@ -248,7 +248,6 @@ export class MetricsBuffer {
    * Bind the MetricsBuffer to the given runtime.
    *
    * @internal
-   * @hidden
    */
   bind(runtime: Runtime): MetricsBuffer {
     if (this.runtime !== undefined) {
@@ -262,7 +261,6 @@ export class MetricsBuffer {
    * Unbind the MetricsBuffer from the given runtime.
    *
    * @internal
-   * @hidden
    */
   unbind(runtime: Runtime): void {
     if (this.runtime !== undefined) {
@@ -306,7 +304,6 @@ export class MetricsBuffer {
    * Fetch buffered metric updates from the native side, storing them in the pendingUpdates buffer.
    *
    * @internal
-   * @hidden
    */
   private retrieveUpdatesInternal(): void {
     if (this.runtime === undefined) return;

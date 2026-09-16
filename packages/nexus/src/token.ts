@@ -3,7 +3,6 @@
  * Currently, we only have one type of Operation token: WorkflowRun.
  *
  * @internal
- * @hidden
  */
 export interface WorkflowRunOperationToken {
   /**
@@ -31,7 +30,6 @@ type OperationTokenType = (typeof OperationTokenType)[keyof typeof OperationToke
 
 /**
  * @internal
- * @hidden
  */
 const OperationTokenType = {
   WORKFLOW_RUN: 1,

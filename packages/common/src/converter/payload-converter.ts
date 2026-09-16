@@ -44,7 +44,7 @@ export function toPayloads(converter: PayloadConverter, ...values: unknown[]): P
 /**
  * Implements conversion of a list of values with an optional serialization context.
  *
- * @hidden
+ * @internal
  */
 export function toPayloadsWithContext(
   converter: PayloadConverter,

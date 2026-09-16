@@ -48,7 +48,7 @@ export {
 /**
  * Encode a UTF-8 string into a Uint8Array
  *
- * @hidden
+ * @internal
  * @deprecated - meant for internal use only
  */
 export function u8(s: string): Uint8Array {
@@ -58,7 +58,7 @@ export function u8(s: string): Uint8Array {
 /**
  * Decode a Uint8Array into a UTF-8 string
  *
- * @hidden
+ * @internal
  * @deprecated - meant for internal use only
  */
 export function str(arr: Uint8Array): string {
@@ -68,7 +68,7 @@ export function str(arr: Uint8Array): string {
 /**
  * Get `error.message` (or `undefined` if not present)
  *
- * @hidden
+ * @internal
  * @deprecated - meant for internal use only
  */
 export function errorMessage(error: unknown): string | undefined {
@@ -78,7 +78,7 @@ export function errorMessage(error: unknown): string | undefined {
 /**
  * Get `error.code` (or `undefined` if not present)
  *
- * @hidden
+ * @internal
  * @deprecated - meant for internal use only
  */
 export function errorCode(error: unknown): string | undefined {

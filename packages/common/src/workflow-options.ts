@@ -68,6 +68,9 @@ export const WorkflowIdReusePolicy = {
 } as const;
 export type WorkflowIdReusePolicy = (typeof WorkflowIdReusePolicy)[keyof typeof WorkflowIdReusePolicy];
 
+/**
+ * @internal
+ */
 export const [encodeWorkflowIdReusePolicy, decodeWorkflowIdReusePolicy] = makeProtoEnumConverters<
   temporal.api.enums.v1.WorkflowIdReusePolicy,
   typeof temporal.api.enums.v1.WorkflowIdReusePolicy,
@@ -111,6 +114,9 @@ export const WorkflowIdConflictPolicy = {
 } as const;
 export type WorkflowIdConflictPolicy = (typeof WorkflowIdConflictPolicy)[keyof typeof WorkflowIdConflictPolicy];
 
+/**
+ * @internal
+ */
 export const [encodeWorkflowIdConflictPolicy, decodeWorkflowIdConflictPolicy] = makeProtoEnumConverters<
   temporal.api.enums.v1.WorkflowIdConflictPolicy,
   typeof temporal.api.enums.v1.WorkflowIdConflictPolicy,
@@ -214,6 +220,10 @@ export interface BaseWorkflowOptions {
   priority?: Priority;
 }
 
+/**
+ * @internal
+ * @elideTo T
+ */
 export type WithWorkflowArgs<W extends Workflow, T> = T &
   (Parameters<W> extends [any, ...any[]]
     ? {
@@ -257,8 +267,14 @@ export interface WorkflowDurationOptions {
   workflowTaskTimeout?: Duration;
 }
 
+/**
+ * @interface
+ */
 export type CommonWorkflowOptions = BaseWorkflowOptions & WorkflowDurationOptions;
 
+/**
+ * @internal
+ */
 export function extractWorkflowType<T extends Workflow>(
   workflowTypeOrFunc: string | T | WorkflowFunctionWithOptions<any[], any>
 ): string {

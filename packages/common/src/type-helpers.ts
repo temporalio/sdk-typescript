@@ -15,7 +15,12 @@ export type OmitFirstParam<T> = T extends (...args: any[]) => any
   ? (...args: OmitFirst<Parameters<T>>) => ReturnType<T>
   : never;
 
-/** Require that T has at least one of the provided properties defined */
+/**
+ * Require that T has at least one of the provided properties defined
+ *
+ * @internal
+ * @elideTo T
+ */
 export type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = Pick<T, Exclude<keyof T, Keys>> &
   {
     [K in Keys]-?: Required<Pick<T, K>> & Partial<Pick<T, Exclude<Keys, K>>>;
@@ -26,6 +31,10 @@ export function checkExtends<_Orig, _Copy extends _Orig>(): void {
   // noop, just type check
 }
 
+/**
+ * @internal
+ * @elideTo Base
+ */
 export type Replace<Base, New> = Omit<Base, keyof New> & New;
 
 // From https://github.com/sindresorhus/type-fest/blob/main/source/union-to-intersection.d.ts

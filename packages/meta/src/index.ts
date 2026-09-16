@@ -14,3 +14,9 @@ export * as envconfig from '@temporalio/envconfig';
 export * as plugin from '@temporalio/plugin';
 export * as cloud from '@temporalio/cloud';
 export * as aisdk from '@temporalio/ai-sdk';
+
+// Force TypeDoc to convert these unexported helpers so that the elide-to
+// plugin (packages/docs/typedoc-plugins/elide-to.mjs) can read their
+// `@elideTo` annotations. References to them get collapsed to the named
+// type parameter in the rendered docs.
+export type { RequireAtLeastOne, Replace } from '@temporalio/common/lib/type-helpers';

@@ -147,6 +147,9 @@ if (!(globalThis as any)[asyncLocalStorageSymbol]) {
   (globalThis as any)[asyncLocalStorageSymbol] = new AsyncLocalStorage<Context>();
 }
 
+/**
+ * @internal
+ */
 export const asyncLocalStorage: AsyncLocalStorage<Context> = (globalThis as any)[asyncLocalStorageSymbol];
 
 /**
@@ -306,7 +309,7 @@ export class Context {
   /**
    * **Not** meant to instantiated by Activity code, used by the worker.
    *
-   * @ignore
+   * @internal
    */
   constructor(
     /**

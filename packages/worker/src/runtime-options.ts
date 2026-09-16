@@ -375,7 +375,6 @@ export interface BufferedMetricsExporter {
 // Compile Options ////////////////////////////////////////////////////////////////////////////////
 
 /**
- * @hidden
  * @internal
  */
 export interface CompiledRuntimeOptions {

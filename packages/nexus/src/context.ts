@@ -9,6 +9,10 @@ const asyncLocalStorageSymbol = Symbol.for('__temporal_nexus_context_storage__')
 if (!(globalThis as any)[asyncLocalStorageSymbol]) {
   (globalThis as any)[asyncLocalStorageSymbol] = new AsyncLocalStorage<HandlerContext>();
 }
+
+/**
+ * @internal
+ */
 export const asyncLocalStorage: AsyncLocalStorage<HandlerContext> = (globalThis as any)[asyncLocalStorageSymbol];
 
 export function getHandlerContext(): HandlerContext {
@@ -23,7 +27,6 @@ export function getHandlerContext(): HandlerContext {
  * Context used internally in the SDK to propagate information from the worker to the Temporal Nexus helpers.
  *
  * @internal
- * @hidden
  */
 export interface HandlerContext {
   log: Logger;

@@ -151,7 +151,6 @@ export type ConnectionOptionsWithDefaults = Required<
  * A symbol used to attach extra, SDK-internal connection options.
  *
  * @internal
- * @hidden
  */
 export const InternalConnectionOptionsSymbol = Symbol('__temporal_internal_connection_options');
 export type InternalConnectionOptions = ConnectionOptions & {

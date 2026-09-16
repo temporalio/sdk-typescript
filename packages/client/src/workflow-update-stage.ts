@@ -24,6 +24,9 @@ export const WorkflowUpdateStage = {
 } as const;
 export type WorkflowUpdateStage = (typeof WorkflowUpdateStage)[keyof typeof WorkflowUpdateStage];
 
+/**
+ * @internal
+ */
 export const [encodeWorkflowUpdateStage] = makeProtoEnumConverters<
   temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage,
   typeof temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage,

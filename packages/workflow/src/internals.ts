@@ -80,6 +80,9 @@ const StartChildWorkflowExecutionFailedCause = {
 type StartChildWorkflowExecutionFailedCause =
   (typeof StartChildWorkflowExecutionFailedCause)[keyof typeof StartChildWorkflowExecutionFailedCause];
 
+/**
+ * @internal
+ */
 const [_encodeStartChildWorkflowExecutionFailedCause, decodeStartChildWorkflowExecutionFailedCause] =
   makeProtoEnumConverters<
     coresdk.child_workflow.StartChildWorkflowExecutionFailedCause,

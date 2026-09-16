@@ -29,6 +29,9 @@ export const TimeoutType = {
 } as const;
 export type TimeoutType = (typeof TimeoutType)[keyof typeof TimeoutType];
 
+/**
+ * @internal
+ */
 export const [encodeTimeoutType, decodeTimeoutType] = makeProtoEnumConverters<
   temporal.api.enums.v1.TimeoutType,
   typeof temporal.api.enums.v1.TimeoutType,
@@ -81,6 +84,9 @@ export const RetryState = {
 } as const;
 export type RetryState = (typeof RetryState)[keyof typeof RetryState];
 
+/**
+ * @internal
+ */
 export const [encodeRetryState, decodeRetryState] = makeProtoEnumConverters<
   temporal.api.enums.v1.RetryState,
   typeof temporal.api.enums.v1.RetryState,
@@ -114,6 +120,9 @@ export const ApplicationFailureCategory = {
 } as const;
 export type ApplicationFailureCategory = (typeof ApplicationFailureCategory)[keyof typeof ApplicationFailureCategory];
 
+/**
+ * @internal
+ */
 export const [encodeApplicationFailureCategory, decodeApplicationFailureCategory] = makeProtoEnumConverters<
   temporal.api.enums.v1.ApplicationErrorCategory,
   typeof temporal.api.enums.v1.ApplicationErrorCategory,

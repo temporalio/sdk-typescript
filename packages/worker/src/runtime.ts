@@ -131,7 +131,8 @@ export class Runtime {
    * Create a Core Connection object to power Workers
    *
    * Hidden in the docs because it is only meant to be used internally by the Worker.
-   * @hidden
+   *
+   * @internal
    */
   public async createNativeClient(options?: NativeConnectionOptions): Promise<native.Client> {
     return await this.createNative(
@@ -145,7 +146,8 @@ export class Runtime {
    * Close a native Client, if this is the last registered Client or Worker, shutdown the core and unset the singleton instance
    *
    * Hidden in the docs because it is only meant to be used internally by the Worker.
-   * @hidden
+   *
+   * @internal
    */
   public async closeNativeClient(client: native.Client): Promise<void> {
     native.clientClose(client);
@@ -157,7 +159,8 @@ export class Runtime {
    * Register a Worker, this is required for automatically shutting down when all Workers have been deregistered
    *
    * Hidden in the docs because it is only meant to be used internally by the Worker.
-   * @hidden
+   *
+   * @internal
    */
   public async registerWorker(client: native.Client, options: native.WorkerOptions): Promise<native.Worker> {
     return await this.createNativeNoBackRef(async () => {
@@ -169,7 +172,9 @@ export class Runtime {
     });
   }
 
-  /** @hidden */
+  /**
+   * @internal
+   */
   public async createReplayWorker(options: native.WorkerOptions): Promise<[native.Worker, native.HistoryPusher]> {
     return await this.createNativeNoBackRef(async () => {
       const [worker, pusher] = native.newReplayWorker(this.native, options);
@@ -183,7 +188,7 @@ export class Runtime {
    *
    * Hidden in the docs because it is only meant to be used internally by the Worker.
    *
-   * @hidden
+   * @internal
    */
   public async pushHistory(pusher: native.HistoryPusher, workflowId: string, history: History): Promise<void> {
     const encoded = byteArrayToBuffer(temporal.api.history.v1.History.encodeDelimited(history).finish());
@@ -195,7 +200,7 @@ export class Runtime {
    *
    * Hidden in the docs because it is only meant to be used internally by the Worker.
    *
-   * @hidden
+   * @internal
    */
   public closeHistoryStream(pusher: native.HistoryPusher): void {
     native.closeHistoryStream(pusher);
@@ -205,7 +210,8 @@ export class Runtime {
    * Deregister a Worker, if this is the last registered Worker or Client, shutdown the core and unset the singleton instance
    *
    * Hidden in the docs because it is only meant to be used internally by the Worker.
-   * @hidden
+   *
+   * @ignore
    */
   public async deregisterWorker(worker: native.Worker): Promise<void> {
     try {
@@ -220,7 +226,8 @@ export class Runtime {
    * Create an ephemeral Temporal server.
    *
    * Hidden since it is meant to be used internally by the testing framework.
-   * @hidden
+   *
+   * @internal
    */
   public async createEphemeralServer(options: native.EphemeralServerConfig): Promise<native.EphemeralServer> {
     return await this.createNative(native.newEphemeralServer, this.native, options);
@@ -230,7 +237,8 @@ export class Runtime {
    * Shut down an ephemeral Temporal server.
    *
    * Hidden since it is meant to be used internally by the testing framework.
-   * @hidden
+   *
+   * @internal
    */
   public async shutdownEphemeralServer(server: native.EphemeralServer): Promise<void> {
     await native.ephemeralServerShutdown(server);
@@ -282,7 +290,6 @@ export class Runtime {
    *
    * If the runtime is polling on Core logs, wait for those logs to be collected.
    *
-   * @hidden
    * @internal
    */
   public async shutdown(): Promise<void> {
@@ -308,7 +315,6 @@ export class Runtime {
   /**
    * Used by Workers to register for shutdown signals
    *
-   * @hidden
    * @internal
    */
   public registerShutdownSignalCallback(callback: () => void): void {
@@ -322,7 +328,6 @@ export class Runtime {
   /**
    * Used by Workers to deregister handlers registered with {@link registerShutdownSignalCallback}
    *
-   * @hidden
    * @internal
    */
   public deregisterShutdownSignalCallback(callback: () => void): void {

@@ -62,6 +62,10 @@ export interface WorkflowOptions extends CommonWorkflowOptions {
   requestEagerStart?: boolean;
 }
 
+/**
+ * @internal
+ * @elideTo T
+ */
 export type WithCompiledWorkflowOptions<T extends WorkflowOptions> = Replace<
   T,
   {
@@ -73,6 +77,9 @@ export type WithCompiledWorkflowOptions<T extends WorkflowOptions> = Replace<
   }
 >;
 
+/**
+ * @internal
+ */
 export function compileWorkflowOptions<T extends WorkflowOptions>(options: T): WithCompiledWorkflowOptions<T> {
   const { workflowExecutionTimeout, workflowRunTimeout, workflowTaskTimeout, startDelay, versioningOverride, ...rest } =
     options;

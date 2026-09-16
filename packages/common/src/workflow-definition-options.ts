@@ -34,9 +34,9 @@ type AsyncFunction<Args extends any[], ReturnType> = (...args: Args) => Promise<
 export type WorkflowDefinitionOptionsOrGetter = WorkflowDefinitionOptions | (() => WorkflowDefinitionOptions);
 
 /**
- * @internal
- * @hidden
  * A workflow function that has been defined with options from {@link WorkflowDefinitionOptions}.
+ *
+ * @ignore
  */
 export interface WorkflowFunctionWithOptions<Args extends any[], ReturnType> extends AsyncFunction<Args, ReturnType> {
   workflowDefinitionOptions: WorkflowDefinitionOptionsOrGetter;

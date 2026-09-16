@@ -162,6 +162,8 @@ rm -rf ./example "$TMP_DIR"
 
 - Typescript code is linted with [eslint](https://eslint.org/)
 - Files in this repo are formatted with [prettier](https://prettier.io/)
+- For types and JSDoc annotations that affect the rendered API reference, see
+  [API Docs Conventions](./docs/api-docs-conventions.md).
 - Pull request titles SHOULD adhere to the [Conventional Commits specification](https://conventionalcommits.org/), for example:
 
 ```

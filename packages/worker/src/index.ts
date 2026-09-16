@@ -167,17 +167,17 @@ export {
   errors,
   /**
    * @deprecated - meant for internal use only
-   * @hidden
+   * @internal
    */
   ShutdownError,
   /**
    * @deprecated - meant for internal use only
-   * @hidden
+   * @internal
    */
   TransportError,
   /**
    * @deprecated - meant for internal use only
-   * @hidden
+   * @internal
    */
   UnexpectedError,
 } from './errors';

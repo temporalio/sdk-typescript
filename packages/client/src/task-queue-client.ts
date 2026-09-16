@@ -209,6 +209,9 @@ export const ReachabilityType = {
 } as const;
 export type ReachabilityType = (typeof ReachabilityType)[keyof typeof ReachabilityType];
 
+/**
+ * @internal
+ */
 export const [encodeTaskReachability, decodeTaskReachability] = makeProtoEnumConverters<
   temporal.api.enums.v1.TaskReachability,
   typeof temporal.api.enums.v1.TaskReachability,
@@ -270,6 +273,9 @@ export interface BuildIdReachability {
   taskQueueReachability: Record<string, ReachabilityTypeResponse[]>;
 }
 
+/**
+ * @internal
+ */
 export function reachabilityResponseFromProto(resp: GetWorkerTaskReachabilityResponse): ReachabilityResponse {
   return {
     buildIdReachability: Object.fromEntries(

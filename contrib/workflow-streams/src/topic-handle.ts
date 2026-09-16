@@ -28,7 +28,9 @@ import type { WorkflowStreamItem } from './types';
  * @experimental
  */
 export class TopicHandle<T = unknown> {
-  /** @internal */
+  /**
+   * @internal
+   */
   constructor(
     private readonly client: WorkflowStreamClient,
     public readonly name: string,
@@ -81,7 +83,9 @@ export class TopicHandle<T = unknown> {
  * @experimental
  */
 export class WorkflowTopicHandle<T = unknown> {
-  /** @internal */
+  /**
+   * @internal
+   */
   constructor(
     public readonly name: string,
     private readonly publishFn: (topic: string, value: unknown) => void

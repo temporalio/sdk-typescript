@@ -82,7 +82,7 @@ export class MockActivityEnvironment extends events.EventEmitter {
 /**
  * Used as the default activity info for Activities executed in the {@link MockActivityEnvironment}
  *
- * @hidden
+ * @ignore
  */
 export const defaultActivityInfo: activity.Info = {
   attempt: 1,

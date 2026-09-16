@@ -13,6 +13,9 @@ export const SuggestContinueAsNewReason = {
 } as const;
 export type SuggestContinueAsNewReason = (typeof SuggestContinueAsNewReason)[keyof typeof SuggestContinueAsNewReason];
 
+/**
+ * @internal
+ */
 // ts-prune-ignore-next
 export const [encodeSuggestContinueAsNewReason, decodeSuggestContinueAsNewReason] = makeProtoEnumConverters<
   temporal.api.enums.v1.SuggestContinueAsNewReason,

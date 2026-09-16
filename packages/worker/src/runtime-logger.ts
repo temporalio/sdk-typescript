@@ -11,7 +11,6 @@ import { DefaultLogger, LogTimestamp } from './logger';
  * logger, in the right order.
  *
  * @internal
- * @hidden
  */
 export class NativeLogCollector {
   /**

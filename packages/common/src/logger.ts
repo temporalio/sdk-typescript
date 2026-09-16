@@ -66,7 +66,6 @@ export enum SdkComponent {
 
 /**
  * @internal
- * @hidden
  */
 export type LogMetaOrFunc = LogMetadata | (() => LogMetadata);
 
@@ -74,7 +73,6 @@ export type LogMetaOrFunc = LogMetadata | (() => LogMetadata);
  * A logger implementation that adds metadata before delegating calls to a parent logger.
  *
  * @internal
- * @hidden
  */
 export class LoggerWithComposedMetadata implements Logger {
   /**

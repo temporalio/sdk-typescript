@@ -17,6 +17,9 @@ export const NexusOperationIdReusePolicy = {
 export type NexusOperationIdReusePolicy =
   (typeof NexusOperationIdReusePolicy)[keyof typeof NexusOperationIdReusePolicy];
 
+/**
+ * @internal
+ */
 export const [encodeNexusOperationIdReusePolicy, decodeNexusOperationIdReusePolicy] = makeProtoEnumConverters<
   temporal.api.enums.v1.NexusOperationIdReusePolicy,
   typeof temporal.api.enums.v1.NexusOperationIdReusePolicy,
@@ -45,6 +48,9 @@ export const NexusOperationIdConflictPolicy = {
 export type NexusOperationIdConflictPolicy =
   (typeof NexusOperationIdConflictPolicy)[keyof typeof NexusOperationIdConflictPolicy];
 
+/**
+ * @internal
+ */
 export const [encodeNexusOperationIdConflictPolicy, decodeNexusOperationIdConflictPolicy] = makeProtoEnumConverters<
   temporal.api.enums.v1.NexusOperationIdConflictPolicy,
   typeof temporal.api.enums.v1.NexusOperationIdConflictPolicy,
@@ -74,6 +80,9 @@ export const NexusOperationExecutionStatus = {
 export type NexusOperationExecutionStatus =
   (typeof NexusOperationExecutionStatus)[keyof typeof NexusOperationExecutionStatus];
 
+/**
+ * @internal
+ */
 export const [encodeNexusOperationExecutionStatus, decodeNexusOperationExecutionStatus] = makeProtoEnumConverters<
   temporal.api.enums.v1.NexusOperationExecutionStatus,
   typeof temporal.api.enums.v1.NexusOperationExecutionStatus,
@@ -104,6 +113,9 @@ export const PendingNexusOperationState = {
 } as const;
 export type PendingNexusOperationState = (typeof PendingNexusOperationState)[keyof typeof PendingNexusOperationState];
 
+/**
+ * @internal
+ */
 export const [encodePendingNexusOperationState, decodePendingNexusOperationState] = makeProtoEnumConverters<
   temporal.api.enums.v1.PendingNexusOperationState,
   typeof temporal.api.enums.v1.PendingNexusOperationState,
@@ -135,6 +147,9 @@ export const NexusOperationCancellationState = {
 export type NexusOperationCancellationState =
   (typeof NexusOperationCancellationState)[keyof typeof NexusOperationCancellationState];
 
+/**
+ * @internal
+ */
 export const [encodeNexusOperationCancellationState, decodeNexusOperationCancellationState] = makeProtoEnumConverters<
   temporal.api.enums.v1.NexusOperationCancellationState,
   typeof temporal.api.enums.v1.NexusOperationCancellationState,
@@ -275,6 +290,8 @@ export interface NexusOperationExecution {
 
 /**
  * Detailed information about a standalone Nexus operation execution.
+ *
+ * @interface
  */
 export type NexusOperationExecutionDescription = Replace<
   NexusOperationExecution,
