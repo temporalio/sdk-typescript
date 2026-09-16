@@ -13,10 +13,12 @@
 import test from 'ava';
 
 import * as activities from './activities/langsmith';
-import { InMemoryRunCollector, withTracingWorker } from './helpers';
+import { InMemoryRunCollector, withTracingWorker, useSharedEnv } from './helpers';
 import * as workflows from './workflows/langsmith';
 
 process.env.LANGSMITH_TRACING = 'true';
+
+useSharedEnv(test);
 
 test('signal-child: emits a closed SignalChildWorkflow marker nested under the workflow run', async (t) => {
   const collector = new InMemoryRunCollector();

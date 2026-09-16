@@ -4,14 +4,13 @@ import anyTest from 'ava';
 import dedent from 'dedent';
 import { activityInfo } from '@temporalio/activity';
 import { TemporalFailure, defaultPayloadConverter, toPayloads, ApplicationFailure } from '@temporalio/common';
-import { coresdk, google } from '@temporalio/proto';
-import { msToTs } from '@temporalio/common/lib/time';
+import { coresdk } from '@temporalio/proto';
+import { tsToMs } from '@temporalio/common/lib/time';
 import { httpGet } from './activities';
 import { cleanOptionalStackTrace, compareStackTrace, isBun } from './helpers';
 import type { Worker } from './mock-native-worker';
 import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
 import { withZeroesHTTPServer } from './zeroes-http-server';
-import Duration = google.protobuf.Duration;
 
 export interface Context {
   worker: Worker;
@@ -148,7 +147,7 @@ test('Worker runs an activity and reports failure', async (t) => {
             Error: :(
                 at throwAnError (test/src/activities/index.ts)
           `,
-          applicationFailureInfo: { type: 'Error', nonRetryable: false },
+          applicationFailureInfo: { type: 'Error' },
         },
       },
     });
@@ -259,12 +258,9 @@ test('Activity Context heartbeat is sent to core', async (t) => {
         input: toPayloads(defaultPayloadConverter),
       },
     });
-    console.log('waiting heartbeat 1');
     t.is(await worker.native.untilHeartbeat(taskToken), 1);
-    console.log('waiting heartbeat 2');
     t.is(await worker.native.untilHeartbeat(taskToken), 2);
     t.is(await worker.native.untilHeartbeat(taskToken), 3);
-    console.log('waiting completion');
     compareCompletion(t, (await completionPromise).result, {
       completed: { result: defaultPayloadConverter.toPayload(undefined) },
     });
@@ -399,6 +395,6 @@ test('nextRetryDelay in activity failures is propagated to Core', async (t) => {
         input: toPayloads(defaultPayloadConverter),
       },
     });
-    t.deepEqual(result?.failed?.failure?.applicationFailureInfo?.nextRetryDelay, Duration.create(msToTs('1s')));
+    t.is(tsToMs(result?.failed?.failure?.applicationFailureInfo?.nextRetryDelay), 1000);
   });
 });

@@ -1,18 +1,30 @@
 import { Headers } from 'headers-polyfill';
-import { inWorkflowContext } from '@temporalio/workflow';
+import structuredClonePolyfill from '@ungap/structured-clone';
+import * as webStreamsPolyfill from 'web-streams-polyfill';
 
-if (inWorkflowContext()) {
-  // Apply Headers polyfill
+/**
+ * Installs the Web-API globals that the AI SDK needs inside the workflow sandbox: `Headers`,
+ * the Web Streams classes (`ReadableStream`, `WritableStream`, `TransformStream`, ...), and
+ * `structuredClone`.
+ *
+ * Idempotent, and never overwrites globals that already exist — calling it outside the sandbox
+ * (where Node.js provides all of these natively) is a no-op.
+ *
+ * Internal: called only by `preload-polyfills`, which AiSdkPlugin.configureBundler prepends to
+ * the workflow bundle's webpack entry so it runs before any other workflow module.
+ */
+export function installPolyfills(): void {
   if (typeof globalThis.Headers === 'undefined') {
     globalThis.Headers = Headers;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-require-imports,import/no-unassigned-import
-  require('web-streams-polyfill/polyfill');
-  // Attach the polyfill as a Global function
+  for (const [name, impl] of Object.entries(webStreamsPolyfill)) {
+    if (name !== 'default' && !(name in globalThis)) {
+      (globalThis as Record<string, unknown>)[name] = impl;
+    }
+  }
+
   if (!('structuredClone' in globalThis)) {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const structuredClone = require('@ungap/structured-clone');
-    globalThis.structuredClone = structuredClone.default;
+    globalThis.structuredClone = structuredClonePolyfill as typeof globalThis.structuredClone;
   }
 }

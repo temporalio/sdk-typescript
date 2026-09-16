@@ -15,6 +15,8 @@ import type {
   VersioningBehavior,
   WorkflowDefinitionOptions,
   WorkflowSerializationContext,
+  PayloadTypeInfo,
+  TypeInfo,
 } from '@temporalio/common';
 import {
   defaultFailureConverter,
@@ -27,7 +29,9 @@ import {
   WorkflowExecutionAlreadyStartedError,
   ApplicationFailure,
   mapFromPayloads,
+  fromPayloadWithTypeInfo,
   fromPayloadsAtIndex,
+  toPayloadWithTypeInfo,
   RawValue,
 } from '@temporalio/common';
 import {
@@ -69,6 +73,7 @@ import type {
   EnhancedStackTrace,
 } from './interfaces';
 import { ContinueAsNew } from './interfaces';
+import { createInboundEventMarker, createInboundUpdateMarker, eventGroupMarkersToProto } from './event-groups';
 import { type SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
 import pkg from './pkg';
@@ -114,6 +119,7 @@ export interface Completion<Success, Context = never> {
   resolve(val: Success): void;
   reject(reason: Error): void;
   context?: Context;
+  outputTypeInfo?: TypeInfo;
 }
 
 export interface Condition {
@@ -475,6 +481,9 @@ export class Activator implements ActivationHandler {
    */
   private readonly sentPatches = new Set<string>();
 
+  /** Resolved patch activation decisions, including callback decisions that leave a patch inactive. */
+  private readonly patchDecisions = new Map<string, boolean>();
+
   private readonly knownFlags = new Set<number>();
 
   sdkVersion?: string;
@@ -502,6 +511,9 @@ export class Activator implements ActivationHandler {
 
   protected readonly stackTracesEnabled: boolean;
 
+  private readonly patchActivationCallback?: (workflowInfo: WorkflowInfo, patchId: string) => boolean;
+  public typeInfo?: PayloadTypeInfo;
+
   constructor({
     info,
     now,
@@ -512,6 +524,7 @@ export class Activator implements ActivationHandler {
     registeredActivityNames,
     stackTracesEnabled,
     failureExceptionTypeNames,
+    patchActivationCallback,
   }: WorkflowCreateOptionsInternal) {
     this.getTimeOfDay = getTimeOfDay;
     this.info = info;
@@ -523,6 +536,7 @@ export class Activator implements ActivationHandler {
     this.registeredActivityNames = registeredActivityNames;
     this.stackTracesEnabled = stackTracesEnabled;
     this.failureExceptionTypeNames = failureExceptionTypeNames ?? [];
+    this.patchActivationCallback = patchActivationCallback;
   }
 
   protected setRandomnessSeed(randomnessSeed: number[]): void {
@@ -639,7 +653,7 @@ export class Activator implements ActivationHandler {
       executeWithLifecycleLogging(() =>
         execute({
           headers: activation.headers ?? {},
-          args: arrayFromPayloads(this.payloadConverter, activation.arguments, context),
+          args: arrayFromPayloads(this.payloadConverter, activation.arguments, context, this.typeInfo?.inputTypes),
         })
       ).then(this.completeWorkflow.bind(this), this.handleWorkflowFailure.bind(this))
     );
@@ -656,7 +670,7 @@ export class Activator implements ActivationHandler {
       searchAttributes: decodeSearchAttributes(searchAttributes?.indexedFields),
       typedSearchAttributes: decodeTypedSearchAttributes(searchAttributes?.indexedFields),
 
-      memo: mapFromPayloads(this.payloadConverter, memo?.fields, context),
+      memo: mapFromPayloads(this.payloadConverter, memo?.fields, context) ?? {},
       lastResult: fromPayloadsAtIndex(this.payloadConverter, 0, lastCompletionResult?.payloads, context),
       lastFailure:
         continuedFailure != null
@@ -686,10 +700,12 @@ export class Activator implements ActivationHandler {
     if (!activation.result) {
       throw new TypeError('Got ResolveActivity activation with no result');
     }
-    const { resolve, reject, context } = this.consumeCompletion('activity', getSeq(activation));
+    const { resolve, reject, context, outputTypeInfo } = this.consumeCompletion('activity', getSeq(activation));
     if (activation.result.completed) {
       const completed = activation.result.completed;
-      const result = completed.result ? this.payloadConverter.fromPayload(completed.result, context) : undefined;
+      const result = completed.result
+        ? fromPayloadWithTypeInfo(this.payloadConverter, completed.result, context, outputTypeInfo)
+        : undefined;
       resolve(result);
     } else if (activation.result.failed) {
       const { failure } = activation.result.failed;
@@ -711,7 +727,8 @@ export class Activator implements ActivationHandler {
   public resolveChildWorkflowExecutionStart(
     activation: coresdk.workflow_activation.IResolveChildWorkflowExecutionStart
   ): void {
-    const { resolve, reject, context } = this.consumeCompletion('childWorkflowStart', getSeq(activation));
+    const seq = getSeq(activation);
+    const { resolve, reject, context } = this.consumeCompletion('childWorkflowStart', seq);
     if (activation.succeeded) {
       if (!activation.succeeded.runId) {
         throw new TypeError('Got ResolveChildWorkflowExecutionStart with no runId');
@@ -731,11 +748,13 @@ export class Activator implements ActivationHandler {
           activation.failed.workflowType
         )
       );
+      this.completions.childWorkflowComplete.delete(seq);
     } else if (activation.cancelled) {
       if (!activation.cancelled.failure) {
         throw new TypeError('Got no failure in cancelled variant');
       }
       reject(this.failureConverter.failureToError(activation.cancelled.failure, this.payloadConverter, context));
+      this.completions.childWorkflowComplete.delete(seq);
     } else {
       throw new TypeError('Got ResolveChildWorkflowExecutionStart with no status');
     }
@@ -745,10 +764,15 @@ export class Activator implements ActivationHandler {
     if (!activation.result) {
       throw new TypeError('Got ResolveChildWorkflowExecution activation with no result');
     }
-    const { resolve, reject, context } = this.consumeCompletion('childWorkflowComplete', getSeq(activation));
+    const { resolve, reject, context, outputTypeInfo } = this.consumeCompletion(
+      'childWorkflowComplete',
+      getSeq(activation)
+    );
     if (activation.result.completed) {
       const completed = activation.result.completed;
-      const result = completed.result ? this.payloadConverter.fromPayload(completed.result, context) : undefined;
+      const result = completed.result
+        ? fromPayloadWithTypeInfo(this.payloadConverter, completed.result, context, outputTypeInfo)
+        : undefined;
       resolve(result);
     } else if (activation.result.failed) {
       const { failure } = activation.result.failed;
@@ -767,13 +791,14 @@ export class Activator implements ActivationHandler {
 
   public resolveNexusOperationStart(activation: coresdk.workflow_activation.IResolveNexusOperationStart): void {
     const seq = getSeq(activation);
-    const { resolve, reject } = this.consumeCompletion('nexusOperationStart', seq);
+    const { resolve, reject, outputTypeInfo } = this.consumeCompletion('nexusOperationStart', seq);
 
     if (!activation.failed) {
       const completePromise = new Promise((resolve, reject) => {
         this.completions.nexusOperationComplete.set(seq, {
           resolve,
           reject,
+          outputTypeInfo,
         });
       });
       untrackPromise(completePromise);
@@ -790,16 +815,26 @@ export class Activator implements ActivationHandler {
     const context = this.workflowSerializationContext();
 
     if (activation.result?.completed) {
-      const result = this.payloadConverter.fromPayload(activation.result.completed, context);
-
       // It is possible for ResolveNexusOperation to be received without a prior ResolveNexusOperationStart,
       // e.g. because the handler completed the Operation synchronously.
       const startCompletion = this.maybeConsumeCompletion('nexusOperationStart', seq);
+      let outputTypeInfo: TypeInfo | undefined;
+      let resolveResult: (result: unknown) => void;
       if (startCompletion) {
-        startCompletion.resolve({ result: Promise.resolve(result) });
+        outputTypeInfo = startCompletion.outputTypeInfo;
+        resolveResult = (result) => startCompletion.resolve({ result: Promise.resolve(result) });
       } else {
-        this.consumeCompletion('nexusOperationComplete', seq).resolve(result);
+        const completion = this.consumeCompletion('nexusOperationComplete', seq);
+        outputTypeInfo = completion.outputTypeInfo;
+        resolveResult = completion.resolve;
       }
+      const result = fromPayloadWithTypeInfo(
+        this.payloadConverter,
+        activation.result.completed,
+        context,
+        outputTypeInfo
+      );
+      resolveResult(result);
     } else {
       let err: Error;
       if (activation.result?.failed) {
@@ -868,15 +903,20 @@ export class Activator implements ActivationHandler {
       queryType === STACK_TRACE_QUERY_NAME ||
       queryType === ENHANCED_STACK_TRACE_QUERY_NAME;
     const interceptors = isInternalQuery ? [] : this.interceptors.inbound;
-    const execute = composeInterceptors(interceptors, 'handleQuery', this.queryWorkflowNextHandler.bind(this));
     const context = this.workflowSerializationContext();
+    const typeInfo = this.queryHandlers.get(queryType)?.typeInfo;
+    let outputTypeInfo = typeInfo?.outputType;
+    const execute = composeInterceptors(interceptors, 'handleQuery', (input) => {
+      outputTypeInfo = this.queryHandlers.get(input.queryName)?.typeInfo?.outputType;
+      return this.queryWorkflowNextHandler(input);
+    });
     execute({
       queryName: queryType,
-      args: arrayFromPayloads(this.payloadConverter, activation.arguments, context),
+      args: arrayFromPayloads(this.payloadConverter, activation.arguments, context, typeInfo?.inputTypes),
       queryId,
       headers: headers ?? {},
     }).then(
-      (result) => this.completeQuery(queryId, result),
+      (result) => this.completeQuery(queryId, result, outputTypeInfo),
       (reason) => this.failQuery(queryId, reason)
     );
   }
@@ -918,6 +958,7 @@ export class Activator implements ActivationHandler {
         ? {
             handler: this.defaultUpdateHandler.bind(undefined, name),
             validator: undefined,
+            typeInfo: undefined,
             // Default to a warning policy.
             unfinishedPolicy: HandlerUnfinishedPolicy.WARN_AND_ABANDON,
           }
@@ -933,7 +974,7 @@ export class Activator implements ActivationHandler {
       const context = this.workflowSerializationContext();
       return {
         updateId,
-        args: arrayFromPayloads(this.payloadConverter, activation.input, context),
+        args: arrayFromPayloads(this.payloadConverter, activation.input, context, entry.typeInfo?.inputTypes),
         name,
         headers: headers ?? {},
       };
@@ -966,6 +1007,7 @@ export class Activator implements ActivationHandler {
     //
     // Note that there is a deliberately unhandled promise rejection below.
     // These are caught elsewhere and fail the corresponding activation.
+    const implicitMarker = createInboundUpdateMarker(updateId);
     const doUpdateImpl = async () => {
       let input: UpdateInput;
       try {
@@ -1004,8 +1046,9 @@ export class Activator implements ActivationHandler {
       );
       const { unfinishedPolicy } = entry;
       this.inProgressUpdates.set(updateId, { name, unfinishedPolicy, id: updateId });
-      const res = execute(input)
-        .then((result) => this.completeUpdate(protocolInstanceId, result))
+      const res = implicitMarker
+        .withScope(() => execute(input))
+        .then((result) => this.completeUpdate(protocolInstanceId, result, entry.typeInfo?.outputType))
         .catch((error) => {
           if (error instanceof TemporalFailure) {
             this.rejectUpdate(protocolInstanceId, error);
@@ -1109,18 +1152,27 @@ export class Activator implements ActivationHandler {
     // If we fall through to the default signal handler then the unfinished
     // policy is WARN_AND_ABANDON; users currently have no way to silence any
     // ensuing warnings.
-    const unfinishedPolicy =
-      this.signalHandlers.get(signalName)?.unfinishedPolicy ?? HandlerUnfinishedPolicy.WARN_AND_ABANDON;
+    const signalHandler = this.signalHandlers.get(signalName);
+    const unfinishedPolicy = signalHandler?.unfinishedPolicy ?? HandlerUnfinishedPolicy.WARN_AND_ABANDON;
 
     const signalExecutionNum = this.signalHandlerExecutionSeq++;
     this.inProgressSignals.set(signalExecutionNum, { name: signalName, unfinishedPolicy });
     const execute = composeInterceptors(interceptors, 'handleSignal', this.signalWorkflowNextHandler.bind(this));
     const context = this.workflowSerializationContext();
-    execute({
-      args: arrayFromPayloads(this.payloadConverter, activation.input, context),
-      signalName,
-      headers: headers ?? {},
-    })
+    const implicitMarker = createInboundEventMarker(activation.originatingEventId);
+    implicitMarker
+      .withScope(() =>
+        execute({
+          args: arrayFromPayloads(
+            this.payloadConverter,
+            activation.input,
+            context,
+            signalHandler?.typeInfo?.inputTypes
+          ),
+          signalName,
+          headers: headers ?? {},
+        })
+      )
       .catch(this.handleWorkflowFailure.bind(this))
       .finally(() => this.inProgressSignals.delete(signalExecutionNum));
   }
@@ -1199,12 +1251,30 @@ export class Activator implements ActivationHandler {
     if (this.workflow === undefined) {
       throw new IllegalStateError('Patches cannot be used before Workflow starts');
     }
-    const usePatch = !this.info.unsafe.isReplaying || this.knownPresentPatches.has(patchId);
+    const previousDecision = this.patchDecisions.get(patchId);
+    if (previousDecision !== undefined) {
+      return previousDecision;
+    }
+
+    const knownPresent = this.knownPresentPatches.has(patchId);
+    // A missing marker during replay is not a final decision because this cached Workflow may
+    // subsequently reach live execution, where the patch can activate and record its marker.
+    if (this.info.unsafe.isReplaying && !knownPresent) {
+      return false;
+    }
+
+    const usePatch =
+      !knownPresent && !deprecated && this.patchActivationCallback !== undefined
+        ? this.patchActivationCallback(this.info, patchId)
+        : true;
+    this.patchDecisions.set(patchId, usePatch);
+
     // Avoid sending commands for patches core already knows about.
     // This optimization enables development of automatic patching tools.
     if (usePatch && !this.sentPatches.has(patchId)) {
       this.pushCommand({
         setPatchMarker: { patchId, deprecated },
+        eventGroupMarkers: eventGroupMarkersToProto(undefined),
       });
       this.sentPatches.add(patchId);
     }
@@ -1279,7 +1349,13 @@ export class Activator implements ActivationHandler {
     if (this.cancelled && isCancellation(error)) {
       this.pushCommand({ cancelWorkflowExecution: {} }, true);
     } else if (error instanceof ContinueAsNew) {
-      this.pushCommand({ continueAsNewWorkflowExecution: error.command }, true);
+      this.pushCommand(
+        {
+          continueAsNewWorkflowExecution: error.command,
+          eventGroupMarkers: error.eventGroupMarkers,
+        },
+        true
+      );
     } else if (error instanceof TemporalFailure || this.isConfiguredFailureException(error)) {
       // Fail the workflow. We do not want to issue unfinishedHandlers warnings. To achieve that, we
       // mark all handlers as completed now.
@@ -1352,10 +1428,13 @@ export class Activator implements ActivationHandler {
     if (this.workflowTaskError) throw this.workflowTaskError;
   }
 
-  private completeQuery(queryId: string, result: unknown): void {
+  private completeQuery(queryId: string, result: unknown, typeInfo?: TypeInfo): void {
     const context = this.workflowSerializationContext();
     this.pushCommand({
-      respondToQuery: { queryId, succeeded: { response: this.payloadConverter.toPayload(result, context) } },
+      respondToQuery: {
+        queryId,
+        succeeded: { response: toPayloadWithTypeInfo(this.payloadConverter, result, context, typeInfo) },
+      },
     });
   }
 
@@ -1372,10 +1451,13 @@ export class Activator implements ActivationHandler {
     this.pushCommand({ updateResponse: { protocolInstanceId, accepted: {} } });
   }
 
-  private completeUpdate(protocolInstanceId: string, result: unknown): void {
+  private completeUpdate(protocolInstanceId: string, result: unknown, typeInfo?: TypeInfo): void {
     const context = this.workflowSerializationContext();
     this.pushCommand({
-      updateResponse: { protocolInstanceId, completed: this.payloadConverter.toPayload(result, context) },
+      updateResponse: {
+        protocolInstanceId,
+        completed: toPayloadWithTypeInfo(this.payloadConverter, result, context, typeInfo),
+      },
     });
   }
 
@@ -1417,7 +1499,7 @@ export class Activator implements ActivationHandler {
     this.pushCommand(
       {
         completeWorkflowExecution: {
-          result: this.payloadConverter.toPayload(result, context),
+          result: toPayloadWithTypeInfo(this.payloadConverter, result, context, this.typeInfo?.outputType),
         },
       },
       true

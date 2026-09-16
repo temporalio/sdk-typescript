@@ -1,8 +1,13 @@
 import { status } from '@grpc/grpc-js';
 import * as nexus from 'nexus-rpc';
-import { isGrpcServiceError, ServiceError } from '@temporalio/client';
-import type { LoadedDataConverter, Payload, ProtoFailure } from '@temporalio/common';
-import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
+import { ActivityExecutionAlreadyStartedError, isGrpcServiceError, ServiceError } from '@temporalio/client';
+import type { LoadedDataConverter, Payload, ProtoFailure, TypeInfo } from '@temporalio/common';
+import {
+  ApplicationFailure,
+  CancelledFailure,
+  fromPayloadWithTypeInfo,
+  WorkflowExecutionAlreadyStartedError,
+} from '@temporalio/common';
 import { encodeErrorToFailure, decodeOptionalSingle } from '@temporalio/common/lib/internal-non-workflow';
 import type { temporal } from '@temporalio/proto';
 
@@ -10,15 +15,39 @@ import type { temporal } from '@temporalio/proto';
 // Payloads
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/**
+ * Error type used by a Payload Converter or Payload Codec to report that a Payload failed
+ * validation, i.e. that the input is invalid rather than that the handler failed to process it.
+ *
+ * When a Nexus operation's input fails to decode with a non-retryable {@link ApplicationFailure} of
+ * this type, the resulting Nexus Handler Error is `BAD_REQUEST` rather than `INTERNAL`.
+ */
+export const PAYLOAD_VALIDATION_ERROR_TYPE = 'PayloadValidationError';
+
+/**
+ * Whether `err` is a non-retryable {@link ApplicationFailure} whose type is exactly
+ * {@link PAYLOAD_VALIDATION_ERROR_TYPE}.
+ */
+function isPayloadValidationFailure(err: unknown): err is ApplicationFailure {
+  return err instanceof ApplicationFailure && err.nonRetryable === true && err.type === PAYLOAD_VALIDATION_ERROR_TYPE;
+}
+
+/** Decode Payload Codecs and apply optional TypeInfo while translating invalid Nexus input errors. */
 export async function decodePayload(
   dataConverter: LoadedDataConverter,
-  payload: temporal.api.common.v1.IPayload | undefined
+  payload: temporal.api.common.v1.IPayload | undefined,
+  typeInfo?: TypeInfo
 ): Promise<unknown> {
   let decoded: Payload | undefined | null;
   try {
     decoded = await decodeOptionalSingle(dataConverter.payloadCodecs, payload);
   } catch (err) {
-    if (err instanceof ApplicationFailure) {
+    if (isPayloadValidationFailure(err)) {
+      throw new nexus.HandlerError('BAD_REQUEST', `Invalid operation input`, {
+        cause: err,
+      });
+    }
+    if (err instanceof ApplicationFailure || err instanceof nexus.HandlerError) {
       throw err;
     }
     throw new nexus.HandlerError('INTERNAL', `Payload codec failed to decode Nexus operation input`, { cause: err });
@@ -29,9 +58,14 @@ export async function decodePayload(
   }
 
   try {
-    return dataConverter.payloadConverter.fromPayload(decoded);
+    return fromPayloadWithTypeInfo(dataConverter.payloadConverter, decoded, undefined, typeInfo);
   } catch (err) {
-    if (err instanceof ApplicationFailure) {
+    if (isPayloadValidationFailure(err)) {
+      throw new nexus.HandlerError('BAD_REQUEST', `Invalid operation input`, {
+        cause: err,
+      });
+    }
+    if (err instanceof ApplicationFailure || err instanceof nexus.HandlerError) {
       throw err;
     }
     throw new nexus.HandlerError('BAD_REQUEST', `Payload converter failed to decode Nexus operation input`, {
@@ -73,6 +107,10 @@ export async function handlerErrorToProto(
 export function coerceToHandlerError(err: unknown): nexus.HandlerError {
   if (err instanceof nexus.HandlerError) {
     return err;
+  }
+
+  if (err instanceof WorkflowExecutionAlreadyStartedError || err instanceof ActivityExecutionAlreadyStartedError) {
+    return new nexus.HandlerError('INTERNAL', undefined, { cause: err, retryableOverride: false });
   }
 
   // REVIEW: This check could be moved down and fold into the next one but will keep for now to help readability.

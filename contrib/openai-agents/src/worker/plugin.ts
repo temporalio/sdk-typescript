@@ -13,7 +13,9 @@ import { isReplaySafeTracerProvider } from '../common/tracing-bridge';
 import { createModelActivity } from './activities';
 import { ensureActivityTracingProcessorRegistered } from './activity-tracing';
 import { makeAgentTracingSink } from './agent-sink-bridge';
+import type { HostedToolCredentialsResolver } from './hosted-tool-credentials';
 import type { StatelessMCPServerProvider } from './mcp-provider';
+import type { SandboxClientProvider } from './sandbox-provider';
 import type { StatefulMCPServerProvider } from './stateful-mcp-provider';
 import {
   OpenAIAgentsTraceActivityInboundInterceptor,
@@ -43,6 +45,34 @@ export interface OpenAIAgentsPluginOptions {
   /** MCP server providers whose Activities will be auto-registered. */
   mcpServerProviders?: MCPServerProvider[];
   /**
+   * Sandbox client providers whose Activities will be auto-registered.
+   * Reference them from Workflows via `temporalSandboxClient(name)`.
+   *
+   * @experimental Sandbox support is experimental and may change without notice.
+   */
+  sandboxClientProviders?: SandboxClientProvider[];
+  /**
+   * Resolves credentials for the hosted tools an Agent declares — a hosted MCP
+   * tool's `authorization` and `headers`, a shell or code interpreter tool's
+   * domain secrets — so Workflow code can omit them and keep them out of
+   * Workflow history. See {@link HostedToolCredentialsResolver}.
+   *
+   * @experimental Worker-side hosted tool credentials are experimental and may change without notice.
+   */
+  hostedToolCredentials?: HostedToolCredentialsResolver;
+  /**
+   * Allowlist of Worker environment variable names this Worker will read on
+   * behalf of a `workerEnvValue` in a sandbox `Manifest`. Names must match
+   * exactly, except for the entry `'*'`, which allows every name.
+   *
+   * An allowlisted variable that is unset or empty reads as the empty string. A
+   * name outside the allowlist fails the Activity non-retryably.
+   *
+   * @default [] — no name is readable.
+   * @experimental Worker environment variable references are experimental and may change without notice.
+   */
+  resolvableWorkerEnvVars?: readonly string[];
+  /**
    * Default Model Activity options (timeouts, retry, Task Queue, etc.).
    * Propagated to the Workflow via the `__openai_agents_config` header.
    */
@@ -63,25 +93,31 @@ export interface OpenAIAgentsPluginOptions {
  */
 export class OpenAIAgentsPlugin extends SimplePlugin {
   constructor(options: OpenAIAgentsPluginOptions) {
-    const modelActivities = createModelActivity(options.modelProvider);
+    const modelActivities = createModelActivity(options.modelProvider, options.hostedToolCredentials);
 
     let allActivities: Record<string, (...args: any[]) => Promise<any>> = { ...modelActivities };
 
-    if (options.mcpServerProviders) {
-      const seenNames = new Set<string>();
-      for (const provider of options.mcpServerProviders) {
-        if (seenNames.has(provider.name)) {
-          throw new Error(
-            `Duplicate MCP server provider name: '${provider.name}'. Each provider must have a unique name.`
-          );
-        }
-        seenNames.add(provider.name);
-        const providerActivities = provider._getActivities();
-        allActivities = { ...allActivities, ...providerActivities };
-      }
+    const interceptorOpts = options.interceptorOptions;
+    for (const provider of options.sandboxClientProviders ?? []) {
+      provider._setResolvableWorkerEnvVars(options.resolvableWorkerEnvVars ?? []);
+      provider._addTemporalSpans = interceptorOpts?.addTemporalSpans === true;
     }
 
-    const interceptorOpts = options.interceptorOptions;
+    const providers: Array<{ name: string; _getActivities(): Record<string, (...args: any[]) => Promise<any>> }> = [
+      ...(options.mcpServerProviders ?? []),
+      ...(options.sandboxClientProviders ?? []),
+    ];
+    const seenNames = new Set<string>();
+    for (const provider of providers) {
+      if (seenNames.has(provider.name)) {
+        throw new Error(
+          `Duplicate provider name: '${provider.name}'. Each MCP server and sandbox client provider must have a unique name.`
+        );
+      }
+      seenNames.add(provider.name);
+      allActivities = { ...allActivities, ...provider._getActivities() };
+    }
+
     const activityInterceptorOptions: OpenAIAgentsTraceInterceptorOptions = {
       addTemporalSpans: interceptorOpts?.addTemporalSpans,
     };

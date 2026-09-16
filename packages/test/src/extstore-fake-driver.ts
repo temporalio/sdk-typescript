@@ -2,7 +2,8 @@
  * Shared test double for {@link StorageDriver}. By default it stores and retrieves
  * payloads via an in-memory `Map`, so a store→retrieve round-trip yields the original
  * bytes. Tests that need failure or unusual-shape responses can override individual
- * operations via `onStore` / `onRetrieve`.
+ * operations via `onStore` / `onRetrieve`, or fail just the first store/retrieve (then recover) via
+ * `failFirstStore` / `failFirstRetrieve`.
  *
  * Every call is recorded on `storeCalls` / `retrieveCalls` (the recording happens
  * before the override runs, so an override can introspect its own call).
@@ -27,6 +28,10 @@ export interface FakeDriverOptions {
   onStore?: (payloads: Payload[]) => StorageDriverClaim[] | Promise<StorageDriverClaim[]>;
   /** Override default in-memory retrieve. */
   onRetrieve?: (claims: StorageDriverClaim[]) => Payload[] | Promise<Payload[]>;
+  /** Throw on the first `store` call (before storing), then behave normally. */
+  failFirstStore?: boolean;
+  /** Throw on the first `retrieve` call (before retrieving), then behave normally. */
+  failFirstRetrieve?: boolean;
 }
 
 export function makeFakeDriver(opts: FakeDriverOptions = {}): FakeDriver {
@@ -40,6 +45,7 @@ export function makeFakeDriver(opts: FakeDriverOptions = {}): FakeDriver {
     retrieveCalls: [],
     async store(context, payloads) {
       driver.storeCalls.push({ context, payloads });
+      if (opts.failFirstStore && driver.storeCalls.length === 1) throw new Error('transient store failure');
       if (opts.onStore) return opts.onStore(payloads);
       return payloads.map((p) => {
         const id = `${name}-${nextId++}`;
@@ -49,6 +55,7 @@ export function makeFakeDriver(opts: FakeDriverOptions = {}): FakeDriver {
     },
     async retrieve(context, claims) {
       driver.retrieveCalls.push({ context, claims });
+      if (opts.failFirstRetrieve && driver.retrieveCalls.length === 1) throw new Error('transient retrieve failure');
       if (opts.onRetrieve) return opts.onRetrieve(claims);
       return claims.map((c) => memory.get(c.claimData.id!)!);
     },

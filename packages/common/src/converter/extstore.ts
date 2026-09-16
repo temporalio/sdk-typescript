@@ -5,7 +5,6 @@ import type { Payload } from '../interfaces';
  * Reference returned from {@link StorageDriver.store}. `claimData` is an
  * opaque key/value map the driver uses to retrieve the payload later.
  *
- * @internal
  * @experimental
  */
 export class StorageDriverClaim {
@@ -15,7 +14,6 @@ export class StorageDriverClaim {
 /**
  * Workflow identity information passed to a storage driver.
  *
- * @internal
  * @experimental
  */
 export interface StorageDriverWorkflowInfo {
@@ -33,7 +31,6 @@ export interface StorageDriverWorkflowInfo {
 /**
  * Activity identity information passed to a storage driver.
  *
- * @internal
  * @experimental
  */
 export interface StorageDriverActivityInfo {
@@ -51,15 +48,13 @@ export interface StorageDriverActivityInfo {
 /**
  * Identity of the workflow or activity that produced the payloads being stored.
  *
- * @internal
  * @experimental
  */
 export type StorageDriverTargetInfo = StorageDriverWorkflowInfo | StorageDriverActivityInfo;
 
 /**
- * Context handed to {@link StorageDriver.store} (and to the selector).
+ * Context handed to {@link StorageDriver.store}.
  *
- * @internal
  * @experimental
  */
 export interface StorageDriverStoreContext {
@@ -70,9 +65,20 @@ export interface StorageDriverStoreContext {
 }
 
 /**
+ * Context handed to {@link StorageDriverSelector}.
+ *
+ * @experimental
+ */
+export interface StorageDriverSelectContext {
+  /** Aborts the in-flight operation; siblings are cancelled on first error. */
+  abortSignal?: AbortSignal;
+  /** Identity of the workflow / activity that produced the payloads. */
+  target?: StorageDriverTargetInfo;
+}
+
+/**
  * Context handed to {@link StorageDriver.retrieve}.
  *
- * @internal
  * @experimental
  */
 export interface StorageDriverRetrieveContext {
@@ -86,7 +92,6 @@ export interface StorageDriverRetrieveContext {
  * `type` is a stable cross-language driver-implementation identifier
  * reported via worker heartbeat (e.g. `"aws.s3driver"`).
  *
- * @internal
  * @experimental
  */
 export interface StorageDriver {
@@ -100,10 +105,9 @@ export interface StorageDriver {
  * User-supplied function that picks the destination driver for a given
  * payload, or returns `null` to keep the payload inline.
  *
- * @internal
  * @experimental
  */
-export type StorageDriverSelector = (context: StorageDriverStoreContext, payload: Payload) => StorageDriver | null;
+export type StorageDriverSelector = (context: StorageDriverSelectContext, payload: Payload) => StorageDriver | null;
 
 // ============================================================================
 // Configuration
@@ -118,7 +122,6 @@ const DEFAULT_PAYLOAD_SIZE_THRESHOLD = 256 * 1024;
  * eligible for offloading to external storage. A selector function is
  * required when more than one driver is registered.
  *
- * @internal
  * @experimental
  */
 export class ExternalStorage {

@@ -4,6 +4,7 @@ import {
   arrayFromPayloads,
   convertOptionalToPayload,
   fromPayloadsAtIndex,
+  toPayloadWithTypeInfo,
   toPayloadsWithContext,
 } from '../converter/payload-converter';
 import { PayloadConverterError } from '../errors';
@@ -11,6 +12,7 @@ import type { PayloadCodec } from '../converter/payload-codec';
 import type { ProtoFailure } from '../failure';
 import type { LoadedDataConverter } from '../converter/data-converter';
 import type { UserMetadata } from '../user-metadata';
+import type { TypeInfo } from '../type-info';
 import type { SerializationContext } from '../converter/serialization-context';
 import type { DecodedPayload, DecodedProtoFailure, EncodedPayload, EncodedProtoFailure } from './codec-types';
 
@@ -42,18 +44,8 @@ export async function encode(
   return payloads as EncodedPayload[];
 }
 
-/** Run {@link PayloadCodec.encode} on `payloads` */
-export async function encodeOptional(
-  codecs: PayloadCodec[],
-  payloads: Payload[] | null | undefined,
-  context?: SerializationContext
-): Promise<EncodedPayload[] | null | undefined> {
-  if (payloads == null) return payloads;
-  return await encode(codecs, payloads, context);
-}
-
 /** Run {@link PayloadCodec.decode} on `payloads` */
-export async function decodeOptional(
+async function decodeOptional(
   codecs: PayloadCodec[],
   payloads: Payload[] | null | undefined,
   context?: SerializationContext
@@ -81,7 +73,7 @@ async function decodeSingle(
 }
 
 /** Run {@link PayloadCodec.encode} on a single Payload */
-export async function encodeOptionalSingle(
+async function encodeOptionalSingle(
   codecs: PayloadCodec[],
   payload: Payload | null | undefined,
   context?: SerializationContext
@@ -112,16 +104,15 @@ export async function decodeOptionalSinglePayload<T>(
   return payloadConverter.fromPayload(decoded, context);
 }
 
-/**
- * Run {@link PayloadConverter.toPayload} on value, and then encode it.
- */
-export async function encodeToPayload(
+/** Apply optional TypeInfo, run payload conversion, and then encode the resulting Payload. */
+export async function encodeToPayload<T>(
   converter: LoadedDataConverter,
-  value: unknown,
-  context?: SerializationContext
+  value: T,
+  context?: SerializationContext,
+  typeInfo?: TypeInfo<T, unknown>
 ): Promise<Payload> {
   const { payloadConverter, payloadCodecs } = converter;
-  return await encodeSingle(payloadCodecs, payloadConverter.toPayload(value, context), context);
+  return await encodeSingle(payloadCodecs, toPayloadWithTypeInfo(payloadConverter, value, context, typeInfo), context);
 }
 
 /**
@@ -130,27 +121,30 @@ export async function encodeToPayload(
 export async function decodeArrayFromPayloads(
   converter: LoadedDataConverter,
   payloads?: Payload[] | null,
-  context?: SerializationContext
+  context?: SerializationContext,
+  typeInfo?: readonly TypeInfo[]
 ): Promise<unknown[]> {
   const { payloadConverter, payloadCodecs } = converter;
-  return arrayFromPayloads(payloadConverter, await decodeOptional(payloadCodecs, payloads, context), context);
+  return arrayFromPayloads(payloadConverter, await decodeOptional(payloadCodecs, payloads, context), context, typeInfo);
 }
 
 /**
  * Decode `payloads` and then return {@link fromPayloadsAtIndex}.
  */
-export async function decodeFromPayloadsAtIndex<T>(
+export async function decodeFromPayloadsAtIndex<T, D = T>(
   converter: LoadedDataConverter,
   index: number,
   payloads?: Payload[] | null,
-  context?: SerializationContext
+  context?: SerializationContext,
+  typeInfo?: TypeInfo<T, D>
 ): Promise<T> {
   const { payloadConverter, payloadCodecs } = converter;
   return await fromPayloadsAtIndex(
     payloadConverter,
     index,
     await decodeOptional(payloadCodecs, payloads, context),
-    context
+    context,
+    typeInfo
   );
 }
 
@@ -166,17 +160,6 @@ export async function decodeOptionalFailureToOptionalError(
   return failure
     ? failureConverter.failureToError(await decodeFailure(payloadCodecs, failure, context), payloadConverter, context)
     : undefined;
-}
-
-export async function decodeOptionalMap(
-  codecs: PayloadCodec[],
-  payloads: Record<string, Payload> | null | undefined,
-  context?: SerializationContext
-): Promise<Record<string, DecodedPayload> | null | undefined> {
-  if (payloads == null) return payloads;
-  return Object.fromEntries(
-    await Promise.all(Object.entries(payloads).map(async ([k, v]) => [k, (await decode(codecs, [v], context))[0]]))
-  );
 }
 
 /**
@@ -195,13 +178,14 @@ export async function encodeToPayloads(
 export async function encodeToPayloadsWithContext(
   converter: LoadedDataConverter,
   context: SerializationContext | undefined,
-  values: unknown[]
+  values: unknown[],
+  typeInfo?: readonly TypeInfo[]
 ): Promise<Payload[] | undefined> {
   const { payloadConverter, payloadCodecs } = converter;
   if (values.length === 0) {
     return undefined;
   }
-  const payloads = toPayloadsWithContext(payloadConverter, context, values);
+  const payloads = toPayloadsWithContext(payloadConverter, context, values, typeInfo);
   return payloads ? await encode(payloadCodecs, payloads, context) : undefined;
 }
 
@@ -224,23 +208,6 @@ export async function decodeMapFromPayloads<K extends string>(
       })
     )
   ) as Record<K, unknown>;
-}
-
-/** Run {@link PayloadCodec.encode} on all values in `map` */
-export async function encodeMap<K extends string>(
-  codecs: PayloadCodec[],
-  map: Record<K, Payload> | null | undefined,
-  context?: SerializationContext
-): Promise<Record<K, EncodedPayload> | null | undefined> {
-  if (map === null) return null;
-  if (map === undefined) return undefined;
-  return Object.fromEntries(
-    await Promise.all(
-      Object.entries(map).map(async ([k, payload]): Promise<[K, EncodedPayload]> => {
-        return [k as K, await encodeSingle(codecs, payload as Payload, context)];
-      })
-    )
-  ) as Record<K, EncodedPayload>;
 }
 
 /**
@@ -396,61 +363,6 @@ export async function decodeFailure(
         }
       : undefined,
   };
-}
-
-/**
- * Return a new {@link ProtoFailure} with `codec.encode()` run on all the {@link Payload}s.
- */
-export async function encodeOptionalFailure(
-  codecs: PayloadCodec[],
-  failure: ProtoFailure | null | undefined,
-  context?: SerializationContext
-): Promise<EncodedProtoFailure | null | undefined> {
-  if (failure == null) return failure;
-  return await encodeFailure(codecs, failure, context);
-}
-
-/**
- * Return a new {@link ProtoFailure} with `codec.encode()` run on all the {@link Payload}s.
- */
-export async function decodeOptionalFailure(
-  codecs: PayloadCodec[],
-  failure: ProtoFailure | null | undefined,
-  context?: SerializationContext
-): Promise<DecodedProtoFailure | null | undefined> {
-  if (failure == null) return failure;
-  return await decodeFailure(codecs, failure, context);
-}
-
-/**
- * Mark all values in the map as encoded.
- * Use this for headers, which we don't encode.
- */
-export function noopEncodeMap<K extends string>(
-  map: Record<K, Payload> | null | undefined
-): Record<K, EncodedPayload> | null | undefined {
-  return map as Record<K, EncodedPayload> | null | undefined;
-}
-
-export function noopEncodeSearchAttrs(
-  attrs: temporal.api.common.v1.ISearchAttributes | null | undefined
-): temporal.api.common.v1.ISearchAttributes | null | undefined {
-  if (!attrs) {
-    return attrs;
-  }
-  return {
-    indexedFields: noopEncodeMap(attrs.indexedFields),
-  };
-}
-
-/**
- * Mark all values in the map as decoded.
- * Use this for headers, which we don't encode.
- */
-export function noopDecodeMap<K extends string>(
-  map: Record<K, Payload> | null | undefined
-): Record<K, DecodedPayload> | null | undefined {
-  return map as Record<K, DecodedPayload> | null | undefined;
 }
 
 export async function encodeUserMetadata(

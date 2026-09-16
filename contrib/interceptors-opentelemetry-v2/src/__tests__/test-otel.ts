@@ -199,11 +199,17 @@ if (RUN_INTEGRATION_TESTS) {
       const client = new Client({
         plugins: [plugin],
       });
+      const workflowType = workflows.interceptorTest.name;
       await worker.runUntil(
-        client.workflow.execute(workflows.smorgasbord, { taskQueue: 'test-otel-v2', workflowId: uuid4() })
+        client.workflow.execute(workflows.interceptorTest, {
+          taskQueue: 'test-otel-v2',
+          workflowId: uuid4(),
+        })
       );
       await otel.shutdown();
-      const originalSpan = spans.find(({ name }) => name === `${SpanName.WORKFLOW_START}${SPAN_DELIMITER}smorgasbord`);
+      const originalSpan = spans.find(
+        ({ name }) => name === `${SpanName.WORKFLOW_START}${SPAN_DELIMITER}${workflowType}`
+      );
       t.true(originalSpan !== undefined);
       t.log(
         spans.map((span) => ({
@@ -215,7 +221,7 @@ if (RUN_INTEGRATION_TESTS) {
 
       const firstExecuteSpan = spans.find(
         ({ name, parentSpanContext }) =>
-          name === `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}smorgasbord` &&
+          name === `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}${workflowType}` &&
           parentSpanContext?.spanId === originalSpan?.spanContext().spanId
       );
       t.true(firstExecuteSpan !== undefined);
@@ -223,7 +229,7 @@ if (RUN_INTEGRATION_TESTS) {
 
       const continueAsNewSpan = spans.find(
         ({ name, parentSpanContext }) =>
-          name === `${SpanName.CONTINUE_AS_NEW}${SPAN_DELIMITER}smorgasbord` &&
+          name === `${SpanName.CONTINUE_AS_NEW}${SPAN_DELIMITER}${workflowType}` &&
           parentSpanContext?.spanId === firstExecuteSpan?.spanContext().spanId
       );
       t.true(continueAsNewSpan !== undefined);
@@ -231,7 +237,7 @@ if (RUN_INTEGRATION_TESTS) {
 
       const parentExecuteSpan = spans.find(
         ({ name, parentSpanContext }) =>
-          name === `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}smorgasbord` &&
+          name === `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}${workflowType}` &&
           parentSpanContext?.spanId === continueAsNewSpan?.spanContext().spanId
       );
       t.true(parentExecuteSpan !== undefined);
@@ -810,19 +816,23 @@ if (RUN_INTEGRATION_TESTS) {
       const client = new Client({
         plugins: [plugin],
       });
+      const workflowType = workflows.interceptorTest.name;
       await worker.runUntil(
-        client.workflow.execute(workflows.smorgasbord, { taskQueue: 'test-otel-v2-prebundled', workflowId: uuid4() })
+        client.workflow.execute(workflows.interceptorTest, {
+          taskQueue: 'test-otel-v2-prebundled',
+          workflowId: uuid4(),
+        })
       );
       await provider.shutdown();
 
       // Verify that workflow spans were created
       const workflowStartSpan = spans.find(
-        ({ name }) => name === `${SpanName.WORKFLOW_START}${SPAN_DELIMITER}smorgasbord`
+        ({ name }) => name === `${SpanName.WORKFLOW_START}${SPAN_DELIMITER}${workflowType}`
       );
       t.true(workflowStartSpan !== undefined, 'WORKFLOW_START span should exist');
 
       const workflowExecuteSpan = spans.find(
-        ({ name }) => name === `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}smorgasbord`
+        ({ name }) => name === `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}${workflowType}`
       );
       t.true(workflowExecuteSpan !== undefined, 'WORKFLOW_EXECUTE span should exist');
 

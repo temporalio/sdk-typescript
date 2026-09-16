@@ -12,10 +12,12 @@
 import test from 'ava';
 
 import * as activities from './activities/langsmith';
-import { InMemoryRunCollector, withTracingWorker } from './helpers';
+import { InMemoryRunCollector, withTracingWorker, useSharedEnv } from './helpers';
 import * as workflows from './workflows/langsmith';
 
 process.env.LANGSMITH_TRACING = 'true';
+
+useSharedEnv(test);
 
 test('internal-query filtering: traces user queries but not Temporal-internal queries', async (t) => {
   const collector = new InMemoryRunCollector();
@@ -29,7 +31,13 @@ test('internal-query filtering: traces user queries but not Temporal-internal qu
         workflowId: `qf-${Date.now()}`,
       });
       await handle.query(workflows.myQuery);
-      await handle.query('__stack_trace');
+      if ('bun' in process.versions) {
+        await t.throwsAsync(handle.query('__stack_trace'), {
+          message: /Workflow stack traces are not enabled on this worker/,
+        });
+      } else {
+        await handle.query('__stack_trace');
+      }
       await handle.signal(workflows.completeSignal);
       await handle.result();
     },

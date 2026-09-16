@@ -188,7 +188,7 @@ export class S3StorageDriver implements StorageDriver {
       );
     }
 
-    return new StorageDriverClaim({ bucket, key, hashAlgorithm: 'sha256', hashValue });
+    return new StorageDriverClaim({ bucket, key, hash_algorithm: 'sha256', hash_value: hashValue });
   }
 
   private async uploadIfAbsent(
@@ -203,7 +203,10 @@ export class S3StorageDriver implements StorageDriver {
   }
 
   private async retrievePayload(claim: StorageDriverClaim, abortSignal: AbortSignal): Promise<Payload> {
-    const { bucket, key, hashAlgorithm, hashValue: expectedHash } = claim.claimData;
+    const { bucket, key } = claim.claimData;
+    // TODO: drop the backwards compat check (camelCase) once we have GA release
+    const hashAlgorithm = claim.claimData.hash_algorithm ?? claim.claimData.hashAlgorithm;
+    const expectedHash = claim.claimData.hash_value ?? claim.claimData.hashValue;
     if (!bucket || !key) {
       throw new ValueError(
         `S3StorageDriver claim is missing required location information: ` + `claimData must contain 'bucket' and 'key'`
@@ -212,7 +215,7 @@ export class S3StorageDriver implements StorageDriver {
     if (!hashAlgorithm || !expectedHash) {
       throw new ValueError(
         `S3StorageDriver claim is missing required content hash information [bucket=${bucket}, key=${key}]: ` +
-          `claimData must contain 'hashAlgorithm' and 'hashValue'`
+          `claimData must contain 'hash_algorithm' and 'hash_value'`
       );
     }
     if (hashAlgorithm !== 'sha256') {

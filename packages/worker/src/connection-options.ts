@@ -16,6 +16,18 @@ import type { NativeConnectionPlugin } from './connection';
 export { TLSConfig, ProxyConfig };
 
 /**
+ * Default warning threshold, in bytes, for outbound payload-bearing field size.
+ * Mirrors the Temporal server's `limit.blobSize.warn` dynamic-config default.
+ */
+const DEFAULT_PAYLOADS_WARN_SIZE = 512 * 1024;
+
+/**
+ * Default warning threshold, in bytes, for outbound memo size.
+ * Mirrors the Temporal server's `limit.memoSize.warn` dynamic-config default.
+ */
+const DEFAULT_MEMO_WARN_SIZE = 2 * 1024;
+
+/**
  * DNS load balancing configuration.
  */
 export interface DNSLoadBalancingConfig {
@@ -43,6 +55,29 @@ export interface NoneGrpcCompressionConfig {
  * Transport-level gRPC compression configuration.
  */
 export type GrpcCompressionConfig = GzipGrpcCompressionConfig | NoneGrpcCompressionConfig;
+
+/**
+ * Payload size-limit configuration for a connection.
+ *
+ * @experimental Payload size-limit enforcement is an experimental feature; APIs may change without notice.
+ */
+export interface PayloadLimitsConfig {
+  /**
+   * Warning threshold, in bytes, for the size of an outbound payload-bearing field. Over-threshold
+   * fields are logged but still sent to the server. Set to `0` to disable.
+   *
+   * @default 512KiB
+   */
+  payloadsWarnSize?: number;
+
+  /**
+   * Warning threshold, in bytes, for outbound memo size. Over-threshold memos are logged but still
+   * sent to the server. Set to `0` to disable.
+   *
+   * @default 2KiB
+   */
+  memoWarnSize?: number;
+}
 
 /**
  * The default Temporal Server's TCP port for public gRPC connections.
@@ -111,6 +146,14 @@ export interface NativeConnectionOptions {
    * @default false
    */
   disableErrorCodeMetricTags?: boolean;
+
+  /**
+   * Payload size-limit options for this connection. If unset, defaults of 512KiB (payloads) and
+   * 2KiB (memo) are used.
+   *
+   * @experimental Payload size-limit enforcement is an experimental feature; APIs may change without notice.
+   */
+  payloadLimits?: PayloadLimitsConfig;
 
   /**
    * List of plugins to register with the native connection.
@@ -203,5 +246,7 @@ export function toNativeClientOptions(options: NativeConnectionOptions): native.
     headers,
     apiKey: options.apiKey ?? null,
     disableErrorCodeMetricTags: options.disableErrorCodeMetricTags ?? false,
+    payloadsWarnSize: options.payloadLimits?.payloadsWarnSize ?? DEFAULT_PAYLOADS_WARN_SIZE,
+    memoWarnSize: options.payloadLimits?.memoWarnSize ?? DEFAULT_MEMO_WARN_SIZE,
   };
 }

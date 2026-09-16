@@ -3,6 +3,8 @@
  *
  * @module
  */
+import { performance } from 'node:perf_hooks';
+
 import { temporal } from '@temporalio/proto';
 
 import { StorageDriverClaim } from '../converter/extstore';
@@ -10,11 +12,13 @@ import type {
   ExternalStorage,
   StorageDriver,
   StorageDriverRetrieveContext,
+  StorageDriverSelectContext,
   StorageDriverStoreContext,
   StorageDriverTargetInfo,
 } from '../converter/extstore';
 import { ValueError } from '../errors';
 import type { Payload } from '../interfaces';
+import type { ExternalStorageMetricsAccumulator } from './external-storage-metrics';
 import { decodeReferencePayload, encodeReferencePayload, isReferencePayload } from './extstore-helpers';
 
 const PayloadProto = temporal.api.common.v1.Payload;
@@ -40,7 +44,10 @@ export interface ExternalRetrieveOptions {
  * @experimental
  */
 export class ExternalStorageRunner {
-  constructor(private readonly externalStorage: ExternalStorage) {}
+  constructor(
+    private readonly externalStorage: ExternalStorage,
+    private readonly metrics?: ExternalStorageMetricsAccumulator
+  ) {}
 
   /**
    * Replace each payload above the configured size threshold with a reference payload.
@@ -52,6 +59,7 @@ export class ExternalStorageRunner {
 
     const { driverSelector, payloadSizeThreshold } = this.externalStorage;
     const { batchSignal, batchController } = makeBatchSignal(options.abortSignal);
+    const selectCtx: StorageDriverSelectContext = { abortSignal: batchSignal, target: options.target };
     const storeCtx: StorageDriverStoreContext = { abortSignal: batchSignal, target: options.target };
 
     interface StoreItem {
@@ -65,7 +73,7 @@ export class ExternalStorageRunner {
       const size = payloadProtoSize(payload);
       if (size < payloadSizeThreshold) continue;
 
-      const selected = driverSelector(storeCtx, payload);
+      const selected = driverSelector(selectCtx, payload);
       if (selected === null) continue;
       if (this.externalStorage.getDriver(selected.name) !== selected) {
         throw new ValueError(
@@ -84,7 +92,9 @@ export class ExternalStorageRunner {
     if (driverGroups.size === 0) return payloads;
 
     const result = payloads.slice();
+    const { metrics } = this;
     await runWithAbortOnFirstError(batchController, [...driverGroups.values()], async (group) => {
+      const startMs = metrics ? performance.now() : 0;
       const claims = await group.driver.store(
         storeCtx,
         group.items.map((it) => it.payload)
@@ -101,6 +111,10 @@ export class ExternalStorageRunner {
           claim,
           sizeBytes: item.size,
         });
+      }
+      if (metrics) {
+        const sizeBytes = group.items.reduce((sum, it) => sum + it.size, 0);
+        metrics.record(group.driver.name, group.items.length, sizeBytes, startMs, performance.now());
       }
     });
 
@@ -120,6 +134,7 @@ export class ExternalStorageRunner {
     interface RetrieveItem {
       index: number;
       claim: StorageDriverClaim;
+      size: number;
     }
     const driverGroups = new Map<string, { driver: StorageDriver; items: RetrieveItem[] }>();
 
@@ -135,13 +150,15 @@ export class ExternalStorageRunner {
         group = { driver, items: [] };
         driverGroups.set(decoded.driverName, group);
       }
-      group.items.push({ index: i, claim: new StorageDriverClaim(decoded.claimData) });
+      group.items.push({ index: i, claim: new StorageDriverClaim(decoded.claimData), size: decoded.sizeBytes });
     }
 
     if (driverGroups.size === 0) return payloads;
 
     const result = payloads.slice();
+    const { metrics } = this;
     await runWithAbortOnFirstError(batchController, [...driverGroups.values()], async (group) => {
+      const startMs = metrics ? performance.now() : 0;
       const retrieved = await group.driver.retrieve(
         retrieveCtx,
         group.items.map((it) => it.claim)
@@ -155,6 +172,10 @@ export class ExternalStorageRunner {
         const item = group.items[j]!;
         result[item.index] = retrievedPayload;
       }
+      if (metrics) {
+        const sizeBytes = group.items.reduce((sum, it) => sum + it.size, 0);
+        metrics.record(group.driver.name, group.items.length, sizeBytes, startMs, performance.now());
+      }
     });
 
     return result;
@@ -166,7 +187,7 @@ export class ExternalStorageRunner {
 // ============================================================================
 
 function payloadProtoSize(payload: Payload): number {
-  return PayloadProto.encode(payload).len;
+  return PayloadProto.encode(payload).pos;
 }
 
 /**

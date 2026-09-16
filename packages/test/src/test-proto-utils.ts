@@ -16,10 +16,8 @@ test('cancel-fake-progress-replay', async (t) => {
   const hist = historyFromJSON(histJSON);
   t.deepEqual(hist.events?.[15].eventId, new Long(16));
   t.is(hist.events?.[15].eventType, EventType.EVENT_TYPE_WORKFLOW_EXECUTION_COMPLETED);
-  t.is(
-    hist.events?.[0].workflowExecutionStartedEventAttributes?.initiator,
-    ContinueAsNewInitiator.CONTINUE_AS_NEW_INITIATOR_UNSPECIFIED
-  );
+  const initiator = hist.events?.[0].workflowExecutionStartedEventAttributes?.initiator;
+  t.true(initiator === undefined || initiator === ContinueAsNewInitiator.CONTINUE_AS_NEW_INITIATOR_UNSPECIFIED);
   t.is(hist.events?.[0].workflowExecutionStartedEventAttributes?.taskQueue?.kind, TaskQueueKind.TASK_QUEUE_KIND_NORMAL);
 });
 

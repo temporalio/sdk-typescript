@@ -5,12 +5,18 @@ import type {
   HistoryAndWorkflowId,
   QueryDefinition,
   SignalDefinition,
+  SignalTypeInfo,
   UpdateDefinition,
   WithWorkflowArgs,
   Workflow,
   WorkflowResultType,
   WorkflowIdConflictPolicy,
   WorkflowSerializationContext,
+  WorkflowTypeOptions,
+  PayloadTypeInfo,
+  TypeInfo,
+  WorkflowQueryOptions,
+  WorkflowSignalOptions,
 } from '@temporalio/common';
 import {
   CancelledFailure,
@@ -21,11 +27,11 @@ import {
   TimeoutType,
   WorkflowExecutionAlreadyStartedError,
   WorkflowNotFoundError,
-  extractWorkflowType,
   encodeWorkflowIdReusePolicy,
   decodeRetryState,
   encodeWorkflowIdConflictPolicy,
   compilePriority,
+  extractWorkflowTypeAndConfig,
 } from '@temporalio/common';
 import { encodeUserMetadata } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
 import { encodeUnifiedSearchAttributes } from '@temporalio/common/lib/converter/payload-search-attributes';
@@ -39,6 +45,23 @@ import {
   decodeOptionalSinglePayload,
   encodeMapToPayloads,
   encodeToPayloadsWithContext,
+  extstoreInboundOptions,
+  extstoreStoreOptions,
+  visit,
+  walkDescribeWorkflowExecutionResponse,
+  walkExecuteMultiOperationRequest,
+  walkExecuteMultiOperationResponse,
+  walkGetWorkflowExecutionHistoryResponse,
+  walkListWorkflowExecutionsResponse,
+  walkPollWorkflowExecutionUpdateResponse,
+  walkQueryWorkflowRequest,
+  walkQueryWorkflowResponse,
+  walkSignalWithStartWorkflowExecutionRequest,
+  walkSignalWorkflowExecutionRequest,
+  walkStartWorkflowExecutionRequest,
+  walkTerminateWorkflowExecutionRequest,
+  walkUpdateWorkflowExecutionRequest,
+  walkUpdateWorkflowExecutionResponse,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import { temporal } from '@temporalio/proto';
@@ -93,8 +116,19 @@ import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base
 import { BaseClient, defaultBaseClientOptions } from './base-client';
 import { mapAsyncIterable } from './iterators-utils';
 import { WorkflowUpdateStage, encodeWorkflowUpdateStage } from './workflow-update-stage';
-import type { InternalWorkflowHandle, InternalWorkflowSignalInput, InternalWorkflowStartOptions } from './internal';
-import { InternalWorkflowSignalOptionsSymbol, InternalWorkflowStartOptionsSymbol } from './internal';
+import type {
+  InternalWorkflowHandle,
+  InternalWorkflowQueryInput,
+  InternalWorkflowSignalInput,
+  InternalWorkflowStartOptions,
+} from './internal';
+import {
+  InternalWorkflowQueryOptionsSymbol,
+  InternalWorkflowSignalOptionsSymbol,
+  InternalWorkflowStartOptionsSymbol,
+  type InternalWorkflowUpdateOptions,
+  InternalWorkflowUpdateOptionsSymbol,
+} from './internal';
 import { adaptWorkflowClientInterceptor } from './interceptor-adapters';
 
 const UpdateWorkflowExecutionLifecycleStage = temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage;
@@ -203,7 +237,7 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
   /**
    * Get a handle to an Update of this Workflow.
    */
-  getUpdateHandle<Ret>(updateId: string): WorkflowUpdateHandle<Ret>;
+  getUpdateHandle<Ret>(updateId: string, options?: GetWorkflowUpdateHandleOptions): WorkflowUpdateHandle<Ret>;
 
   /**
    * Query a running or completed Workflow.
@@ -217,6 +251,13 @@ export interface WorkflowHandle<T extends Workflow = Workflow> extends BaseWorkf
    * ```
    */
   query<Ret, Args extends any[] = []>(def: QueryDefinition<Ret, Args> | string, ...args: Args): Promise<Ret>;
+
+  /**
+   * Query a running or completed Workflow by Query name with additional options, including call-site TypeInfo.
+   *
+   * @experimental
+   */
+  queryWithOptions<Ret, Args extends any[] = []>(queryName: string, options: WorkflowQueryOptions<Args>): Promise<Ret>;
 
   /**
    * Terminate a running Workflow
@@ -343,6 +384,16 @@ export interface WorkflowResultOptions {
    * @default true
    */
   followRuns?: boolean;
+
+  /**
+   * Type information used to decode the Workflow result.
+   *
+   * This is only needed when getting a result from an existing Workflow handle or
+   * when the Workflow definition is not available to this client.
+   *
+   * @experimental
+   */
+  typeInfo?: PayloadTypeInfo;
 }
 
 /**
@@ -420,6 +471,13 @@ export interface GetWorkflowUpdateHandleOptions {
    * The ID of the Run of the Workflow targeted by the Update.
    */
   workflowRunId?: string;
+
+  /**
+   * Type information used to decode the Update result.
+   *
+   * @experimental
+   */
+  typeInfo?: Pick<PayloadTypeInfo, 'outputType'>;
 }
 
 /**
@@ -533,13 +591,16 @@ export class WorkflowClient extends BaseClient {
   }
 
   protected async _start<T extends Workflow>(
-    workflowTypeOrFunc: string | T,
+    workflowTypeOptions: WorkflowTypeOptions,
     options: WorkflowStartOptions<T>,
     interceptors: WorkflowClientInterceptor[]
   ): Promise<WorkflowStartOutput> {
-    const workflowType = extractWorkflowType(workflowTypeOrFunc);
     assertRequiredWorkflowOptions(options);
-    const compiledOptions = compileWorkflowOptions(ensureArgs(options));
+    const workflowOptions = {
+      ...options,
+      typeInfo: workflowTypeOptions.typeInfo,
+    };
+    const compiledOptions = compileWorkflowOptions(ensureArgs(workflowOptions));
     const adaptedInterceptors = interceptors.map((i) => adaptWorkflowClientInterceptor(i));
 
     const startWithDetails = composeInterceptors(
@@ -551,7 +612,7 @@ export class WorkflowClient extends BaseClient {
     return startWithDetails({
       options: compiledOptions,
       headers: {},
-      workflowType,
+      workflowType: workflowTypeOptions.type,
     });
   }
 
@@ -560,10 +621,29 @@ export class WorkflowClient extends BaseClient {
     options: WithWorkflowArgs<T, WorkflowSignalWithStartOptions<SA>>,
     interceptors: WorkflowClientInterceptor[]
   ): Promise<string> {
-    const workflowType = extractWorkflowType(workflowTypeOrFunc);
-    const { signal, signalArgs, ...rest } = options;
+    const { signal, signalArgs, signalTypeInfo, ...rest } = options;
+    let signalName: string;
+    let resolvedSignalTypeInfo: SignalTypeInfo | undefined;
+    if (typeof signal === 'string') {
+      signalName = signal;
+      resolvedSignalTypeInfo = signalTypeInfo;
+    } else {
+      if (signalTypeInfo !== undefined) {
+        throw new TypeError(
+          'Cannot provide call-site Signal TypeInfo with a Signal definition. ' +
+            'Use defineSignal(..., { typeInfo }) on the Signal definition instead.'
+        );
+      }
+      signalName = signal.name;
+      resolvedSignalTypeInfo = signal.typeInfo;
+    }
+    const { type: workflowType, typeInfo } = extractWorkflowTypeAndConfig(workflowTypeOrFunc, rest.typeInfo);
     assertRequiredWorkflowOptions(rest);
-    const compiledOptions = compileWorkflowOptions(ensureArgs(rest));
+    const workflowOptions = {
+      ...rest,
+      typeInfo,
+    };
+    const compiledOptions = compileWorkflowOptions(ensureArgs(workflowOptions));
     const signalWithStart = composeInterceptors(
       interceptors,
       'signalWithStart',
@@ -574,8 +654,9 @@ export class WorkflowClient extends BaseClient {
       options: compiledOptions,
       headers: {},
       workflowType,
-      signalName: typeof signal === 'string' ? signal : signal.name,
+      signalName,
       signalArgs: signalArgs ?? [],
+      signalTypeInfo: resolvedSignalTypeInfo,
     });
   }
 
@@ -590,7 +671,8 @@ export class WorkflowClient extends BaseClient {
   ): Promise<WorkflowHandleWithStartDetails<T>> {
     const { workflowId } = options;
     const interceptors = this.getOrMakeInterceptors(workflowId);
-    const wfStartOutput = await this._start(workflowTypeOrFunc, { ...options, workflowId }, interceptors);
+    const workflowTypeOptions = extractWorkflowTypeAndConfig(workflowTypeOrFunc, options.typeInfo);
+    const wfStartOutput = await this._start(workflowTypeOptions, { ...options, workflowId }, interceptors);
     // runId is not used in handles created with `start*` calls because these
     // handles should allow interacting with the workflow if it continues as new.
     const baseHandle = this._createWorkflowHandle({
@@ -600,6 +682,7 @@ export class WorkflowClient extends BaseClient {
       runIdForResult: wfStartOutput.runId,
       interceptors,
       followRuns: options.followRuns ?? true,
+      typeInfo: workflowTypeOptions.typeInfo,
     });
     return {
       ...baseHandle,
@@ -617,6 +700,9 @@ export class WorkflowClient extends BaseClient {
    * however, if the policy is `FAIL`, then an error is thrown. If no policy is specified,
    * Signal-with-Start defaults to `USE_EXISTING`.
    *
+   * A Signal definition supplies its own TypeInfo. When signaling by name, provide call-site TypeInfo through
+   * {@link WorkflowSignalWithStartOptions.signalTypeInfo}.
+   *
    * @returns a {@link WorkflowHandle} to the started Workflow
    */
   public async signalWithStart<WorkflowFn extends Workflow, SignalArgs extends any[] = []>(
@@ -625,6 +711,7 @@ export class WorkflowClient extends BaseClient {
   ): Promise<WorkflowHandleWithSignaledRunId<WorkflowFn>> {
     const { workflowId } = options;
     const interceptors = this.getOrMakeInterceptors(workflowId);
+    const workflowTypeOptions = extractWorkflowTypeAndConfig(workflowTypeOrFunc, options.typeInfo);
     const runId = await this._signalWithStart(workflowTypeOrFunc, options, interceptors);
     // runId is not used in handles created with `start*` calls because these
     // handles should allow interacting with the workflow if it continues as new.
@@ -635,6 +722,7 @@ export class WorkflowClient extends BaseClient {
       runIdForResult: runId,
       interceptors,
       followRuns: options.followRuns ?? true,
+      typeInfo: workflowTypeOptions.typeInfo,
     }) as WorkflowHandleWithSignaledRunId<WorkflowFn>; // Cast is safe because we know we add the signaledRunId below
     (handle as any) /* readonly */.signaledRunId = runId;
     return handle;
@@ -711,7 +799,28 @@ export class WorkflowClient extends BaseClient {
       startWorkflowOperation: WithStartWorkflowOperation<T>;
     }
   ): Promise<WorkflowUpdateHandle<Ret>> {
-    const { waitForStage, args, startWorkflowOperation, ...updateOptions } = updateWithStartOptions;
+    const {
+      waitForStage,
+      args,
+      startWorkflowOperation,
+      typeInfo: callSiteTypeInfo,
+      ...updateOptions
+    } = updateWithStartOptions;
+    let updateName: string;
+    let updateTypeInfo: PayloadTypeInfo | undefined;
+    if (typeof updateDef === 'string') {
+      updateName = updateDef;
+      updateTypeInfo = callSiteTypeInfo;
+    } else {
+      if (callSiteTypeInfo !== undefined) {
+        throw new TypeError(
+          'Cannot provide call-site Update TypeInfo with an Update definition. ' +
+            'Define TypeInfo when creating the Update definition instead.'
+        );
+      }
+      updateName = updateDef.name;
+      updateTypeInfo = updateDef.typeInfo;
+    }
     const { workflowTypeOrFunc, options: workflowOptions } = startWorkflowOperation;
     const { workflowId } = workflowOptions;
 
@@ -719,14 +828,20 @@ export class WorkflowClient extends BaseClient {
       throw new Error('This WithStartWorkflowOperation instance has already been executed.');
     }
     startWorkflowOperation[withStartWorkflowOperationUsed] = true;
+    const { type: workflowType, typeInfo } = extractWorkflowTypeAndConfig(workflowTypeOrFunc, workflowOptions.typeInfo);
     assertRequiredWorkflowOptions(workflowOptions);
 
+    const resolvedWorkflowOptions = {
+      ...workflowOptions,
+      typeInfo,
+    };
     const startUpdateWithStartInput: WorkflowStartUpdateWithStartInput = {
-      workflowType: extractWorkflowType(workflowTypeOrFunc),
-      workflowStartOptions: compileWorkflowOptions(ensureArgs(workflowOptions)),
+      workflowType,
+      workflowStartOptions: compileWorkflowOptions(ensureArgs(resolvedWorkflowOptions)),
       workflowStartHeaders: {},
-      updateName: typeof updateDef === 'string' ? updateDef : updateDef.name,
+      updateName,
       updateArgs: args ?? [],
+      updateTypeInfo,
       updateOptions,
       updateHeaders: {},
     };
@@ -740,6 +855,7 @@ export class WorkflowClient extends BaseClient {
           firstExecutionRunId: startResponse.runId ?? undefined,
           interceptors,
           followRuns: workflowOptions.followRuns ?? true,
+          typeInfo,
         })
       );
 
@@ -762,11 +878,12 @@ export class WorkflowClient extends BaseClient {
       });
     }
 
-    return this.createWorkflowUpdateHandle<Ret>(
+    return this.createWorkflowUpdateHandle(
       updateOutput.updateId,
       workflowId,
       updateOutput.workflowExecution.runId,
-      outcome
+      outcome,
+      updateOutput.updateOutputTypeInfo
     );
   }
 
@@ -781,10 +898,12 @@ export class WorkflowClient extends BaseClient {
   ): Promise<WorkflowResultType<T>> {
     const { workflowId } = options;
     const interceptors = this.getOrMakeInterceptors(workflowId);
-    await this._start(workflowTypeOrFunc, options, interceptors);
+    const workflowTypeOptions = extractWorkflowTypeAndConfig(workflowTypeOrFunc, options.typeInfo);
+    await this._start(workflowTypeOptions, options, interceptors);
     return await this.result(workflowId, undefined, {
       ...options,
       followRuns: options.followRuns ?? true,
+      typeInfo: workflowTypeOptions.typeInfo,
     });
   }
 
@@ -818,6 +937,8 @@ export class WorkflowClient extends BaseClient {
       } catch (err) {
         this.rethrowGrpcError(err, 'Failed to get Workflow execution history', { workflowId, runId });
       }
+      const externalStorage = this.dataConverter.externalStorage;
+      await visit(res, walkGetWorkflowExecutionHistoryResponse, extstoreInboundOptions(externalStorage));
       const events = res.history?.events;
 
       if (events == null || events.length === 0) {
@@ -838,12 +959,14 @@ export class WorkflowClient extends BaseClient {
         }
         // Note that we can only return one value from our workflow function in JS.
         // Ignore any other payloads in result
-        const [result] = await decodeArrayFromPayloads(
+        const result = await decodeFromPayloadsAtIndex<WorkflowResultType<T>, unknown>(
           dataConverter,
+          0,
           ev.workflowExecutionCompletedEventAttributes.result?.payloads,
-          context
+          context,
+          opts?.typeInfo?.outputType as TypeInfo<WorkflowResultType<T>, unknown> | undefined
         );
-        return result as any;
+        return result;
       } else if (ev.workflowExecutionFailedEventAttributes) {
         if (followRuns && ev.workflowExecutionFailedEventAttributes.newExecutionRunId) {
           execution.runId = ev.workflowExecutionFailedEventAttributes.newExecutionRunId;
@@ -952,16 +1075,33 @@ export class WorkflowClient extends BaseClient {
   protected async _queryWorkflowHandler(input: WorkflowQueryInput): Promise<unknown> {
     const dataConverter = this.dataConverter;
     const context = this.workflowSerializationContext(input.workflowExecution.workflowId!);
+    const internalOptions = (input as InternalWorkflowQueryInput)[InternalWorkflowQueryOptionsSymbol];
     const req: temporal.api.workflowservice.v1.IQueryWorkflowRequest = {
       queryRejectCondition: input.queryRejectCondition,
       namespace: this.options.namespace,
       execution: input.workflowExecution,
       query: {
         queryType: input.queryType,
-        queryArgs: { payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args) },
+        queryArgs: {
+          payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args, input.typeInfo?.inputTypes),
+        },
         header: { fields: input.headers },
       },
     };
+    const externalStorage = this.dataConverter.externalStorage;
+    if (externalStorage) {
+      await visit(
+        req,
+        walkQueryWorkflowRequest,
+        extstoreStoreOptions(externalStorage, {
+          initialTarget: {
+            kind: 'workflow',
+            namespace: this.options.namespace,
+            id: input.workflowExecution.workflowId ?? undefined,
+          },
+        })
+      );
+    }
     let response: temporal.api.workflowservice.v1.QueryWorkflowResponse;
     try {
       response = await this.workflowService.queryWorkflow(req);
@@ -974,6 +1114,13 @@ export class WorkflowClient extends BaseClient {
       }
       this.rethrowGrpcError(err, 'Failed to query Workflow', input.workflowExecution);
     }
+    await visit(response, walkQueryWorkflowResponse, extstoreInboundOptions(externalStorage));
+    if (internalOptions != null) {
+      // A Query writes nothing to history, so the server returns a link to the Workflow execution
+      // that processed it rather than to an event. Captured before the rejection check below so a
+      // rejected Query still records its link. Older servers leave it unset.
+      internalOptions.responseLink = response.link ?? undefined;
+    }
     if (response.queryRejected) {
       if (response.queryRejected.status === undefined || response.queryRejected.status === null) {
         throw new TypeError('Received queryRejected from server with no status');
@@ -984,7 +1131,13 @@ export class WorkflowClient extends BaseClient {
       throw new TypeError('Invalid response from server');
     }
     // We ignore anything but the first result
-    return await decodeFromPayloadsAtIndex(dataConverter, 0, response.queryResult?.payloads, context);
+    return await decodeFromPayloadsAtIndex(
+      dataConverter,
+      0,
+      response.queryResult?.payloads,
+      context,
+      input.typeInfo?.outputType
+    );
   }
 
   protected async _createUpdateWorkflowRequest(
@@ -994,6 +1147,7 @@ export class WorkflowClient extends BaseClient {
     const dataConverter = this.dataConverter;
     const context = this.workflowSerializationContext(input.workflowExecution.workflowId!);
     const updateId = input.options?.updateId ?? randomUUID();
+    const internalOptions = (input.options as InternalWorkflowUpdateOptions)[InternalWorkflowUpdateOptionsSymbol];
     return {
       namespace: this.options.namespace,
       workflowExecution: input.workflowExecution,
@@ -1009,8 +1163,13 @@ export class WorkflowClient extends BaseClient {
         input: {
           header: { fields: input.headers },
           name: input.updateName,
-          args: { payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args) },
+          args: {
+            payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args, input.typeInfo?.inputTypes),
+          },
         },
+        requestId: internalOptions?.requestId,
+        completionCallbacks: internalOptions?.completionCallbacks,
+        links: internalOptions?.links,
       },
     };
   }
@@ -1034,6 +1193,20 @@ export class WorkflowClient extends BaseClient {
         : UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED;
 
     const request = await this._createUpdateWorkflowRequest(waitForStageProto, input);
+    const externalStorage = this.dataConverter.externalStorage;
+    if (externalStorage) {
+      await visit(
+        request,
+        walkUpdateWorkflowExecutionRequest,
+        extstoreStoreOptions(externalStorage, {
+          initialTarget: {
+            kind: 'workflow',
+            namespace: this.options.namespace,
+            id: input.workflowExecution.workflowId ?? undefined,
+          },
+        })
+      );
+    }
 
     // Repeatedly send UpdateWorkflowExecution until update is durable (if the server receives a request with
     // an update ID that already exists, it responds with information for the existing update). If the
@@ -1048,11 +1221,22 @@ export class WorkflowClient extends BaseClient {
     } catch (err) {
       this.rethrowUpdateGrpcError(err, 'Workflow Update failed', input.workflowExecution);
     }
+    await visit(response, walkUpdateWorkflowExecutionResponse, extstoreInboundOptions(externalStorage));
+    const internalOptions = (input.options as InternalWorkflowUpdateOptions)[InternalWorkflowUpdateOptionsSymbol];
+    if (internalOptions != null) {
+      // Capture the link the server attached to the Update response so the Nexus helper can add it
+      // as a handler link. Older servers leave it unset.
+      internalOptions.responseLink = response.link ?? undefined;
+      // Capture the terminal outcome (if any) so the Nexus helper can distinguish an already-completed
+      // Update (return a synchronous result) from one that is merely accepted (return async).
+      internalOptions.outcome = response.outcome ?? undefined;
+    }
     return {
       updateId: request.request!.meta!.updateId!,
 
       workflowRunId: response.updateRef!.workflowExecution!.runId!,
       outcome: response.outcome ?? undefined,
+      outputTypeInfo: input.typeInfo?.outputType,
     };
   }
 
@@ -1076,6 +1260,7 @@ export class WorkflowClient extends BaseClient {
     const updateInput: WorkflowStartUpdateInput = {
       updateName: input.updateName,
       args: input.updateArgs,
+      typeInfo: input.updateTypeInfo,
       workflowExecution: {
         workflowId: input.workflowStartOptions.workflowId,
       },
@@ -1106,8 +1291,24 @@ export class WorkflowClient extends BaseClient {
       // Repeatedly send ExecuteMultiOperation until update is durable (if the server receives a request with
       // an update ID that already exists, it responds with information for the existing update). If the
       // requested wait stage is COMPLETED, further polling is done before returning the UpdateHandle.
+      const externalStorage = this.dataConverter.externalStorage;
+      if (externalStorage) {
+        await visit(
+          multiOpReq,
+          walkExecuteMultiOperationRequest,
+          extstoreStoreOptions(externalStorage, {
+            initialTarget: {
+              kind: 'workflow',
+              namespace: this.options.namespace,
+              id: input.workflowStartOptions.workflowId,
+              type: input.workflowType,
+            },
+          })
+        );
+      }
       do {
         multiOpResp = await this.workflowService.executeMultiOperation(multiOpReq);
+        await visit(multiOpResp, walkExecuteMultiOperationResponse, extstoreInboundOptions(externalStorage));
         startResp = multiOpResp.responses?.[0]
           ?.startWorkflow as temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse;
         if (!seenStart) {
@@ -1127,6 +1328,7 @@ export class WorkflowClient extends BaseClient {
         },
         updateId: updateRequest.request!.meta!.updateId!,
         updateOutcome: updateResp.outcome ?? undefined,
+        updateOutputTypeInfo: input.updateTypeInfo?.outputType,
       };
     } catch (thrownError) {
       let err = thrownError;
@@ -1151,7 +1353,8 @@ export class WorkflowClient extends BaseClient {
     updateId: string,
     workflowId: string,
     workflowRunId?: string,
-    outcome?: temporal.api.update.v1.IOutcome
+    outcome?: temporal.api.update.v1.IOutcome,
+    outputTypeInfo?: TypeInfo
   ): WorkflowUpdateHandle<Ret> {
     const dataConverter = this.dataConverter;
     const context = this.workflowSerializationContext(workflowId);
@@ -1168,7 +1371,15 @@ export class WorkflowClient extends BaseClient {
             await decodeOptionalFailureToOptionalError(dataConverter, completedOutcome.failure, context)
           );
         } else {
-          return await decodeFromPayloadsAtIndex<Ret>(dataConverter, 0, completedOutcome.success?.payloads, context);
+          // PayloadTypeInfo stores output metadata without its application type, so TypeScript cannot know that this
+          // TypeInfo produces the Ret promised by the handle. Assert that relationship once, immediately before decoding.
+          return await decodeFromPayloadsAtIndex<Ret, unknown>(
+            dataConverter,
+            0,
+            completedOutcome.success?.payloads,
+            context,
+            outputTypeInfo as TypeInfo<Ret, unknown> | undefined
+          );
         }
       },
     };
@@ -1193,6 +1404,8 @@ export class WorkflowClient extends BaseClient {
     for (;;) {
       try {
         const response = await this.workflowService.pollWorkflowExecutionUpdate(req);
+        const externalStorage = this.dataConverter.externalStorage;
+        await visit(response, walkPollWorkflowExecutionUpdateResponse, extstoreInboundOptions(externalStorage));
         if (response.outcome) {
           return response.outcome;
         }
@@ -1220,10 +1433,26 @@ export class WorkflowClient extends BaseClient {
       // control is unused,
       signalName: input.signalName,
       header: { fields: input.headers },
-      input: { payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args) },
+      input: {
+        payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args, input.typeInfo?.inputTypes),
+      },
       links: internalOptions?.links,
     };
     try {
+      const externalStorage = this.dataConverter.externalStorage;
+      if (externalStorage) {
+        await visit(
+          req,
+          walkSignalWorkflowExecutionRequest,
+          extstoreStoreOptions(externalStorage, {
+            initialTarget: {
+              kind: 'workflow',
+              namespace: this.options.namespace,
+              id: input.workflowExecution.workflowId,
+            },
+          })
+        );
+      }
       const response = await this.workflowService.signalWorkflowExecution(req);
       if (internalOptions != null) {
         // Servers that support CHASM signal response links (1.31 and up) return a response link
@@ -1242,7 +1471,7 @@ export class WorkflowClient extends BaseClient {
    */
   protected async _signalWithStartWorkflowHandler(input: WorkflowSignalWithStartInput): Promise<string> {
     const { identity } = this.options;
-    const { options, workflowType, signalName, signalArgs, headers } = input;
+    const { options, workflowType, signalName, signalArgs, signalTypeInfo, headers } = input;
     const dataConverter = this.dataConverter;
     const context = this.workflowSerializationContext(options.workflowId);
     const internalOptions = (options as InternalWorkflowStartOptions)[InternalWorkflowStartOptionsSymbol];
@@ -1254,9 +1483,13 @@ export class WorkflowClient extends BaseClient {
       workflowIdReusePolicy: encodeWorkflowIdReusePolicy(options.workflowIdReusePolicy),
       workflowIdConflictPolicy: encodeWorkflowIdConflictPolicy(options.workflowIdConflictPolicy),
       workflowType: { name: workflowType },
-      input: { payloads: await encodeToPayloadsWithContext(dataConverter, context, options.args) },
+      input: {
+        payloads: await encodeToPayloadsWithContext(dataConverter, context, options.args, options.typeInfo?.inputTypes),
+      },
       signalName,
-      signalInput: { payloads: await encodeToPayloadsWithContext(dataConverter, context, signalArgs) },
+      signalInput: {
+        payloads: await encodeToPayloadsWithContext(dataConverter, context, signalArgs, signalTypeInfo?.inputTypes),
+      },
       taskQueue: {
         kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_NORMAL,
         name: options.taskQueue,
@@ -1281,6 +1514,21 @@ export class WorkflowClient extends BaseClient {
       links: internalOptions?.links,
     };
     try {
+      const externalStorage = this.dataConverter.externalStorage;
+      if (externalStorage) {
+        await visit(
+          req,
+          walkSignalWithStartWorkflowExecutionRequest,
+          extstoreStoreOptions(externalStorage, {
+            initialTarget: {
+              kind: 'workflow',
+              namespace: this.options.namespace,
+              id: req.workflowId ?? undefined,
+              type: workflowType,
+            },
+          })
+        );
+      }
       const response = await this.workflowService.signalWithStartWorkflowExecution(req);
       if (internalOptions != null) {
         // Servers that support CHASM signal response links (1.31 and up) return a response link
@@ -1310,6 +1558,21 @@ export class WorkflowClient extends BaseClient {
     const { options: opts, workflowType } = input;
     const internalOptions = (opts as InternalWorkflowStartOptions)[InternalWorkflowStartOptionsSymbol];
     try {
+      const externalStorage = this.dataConverter.externalStorage;
+      if (externalStorage) {
+        await visit(
+          req,
+          walkStartWorkflowExecutionRequest,
+          extstoreStoreOptions(externalStorage, {
+            initialTarget: {
+              kind: 'workflow',
+              namespace: req.namespace ?? this.options.namespace,
+              id: req.workflowId ?? undefined,
+              type: workflowType,
+            },
+          })
+        );
+      }
       const response = await this.workflowService.startWorkflowExecution(req);
       if (internalOptions != null) {
         internalOptions.responseLink = response.link ?? undefined;
@@ -1354,7 +1617,9 @@ export class WorkflowClient extends BaseClient {
       workflowIdReusePolicy: encodeWorkflowIdReusePolicy(opts.workflowIdReusePolicy),
       workflowIdConflictPolicy: encodeWorkflowIdConflictPolicy(opts.workflowIdConflictPolicy),
       workflowType: { name: workflowType },
-      input: { payloads: await encodeToPayloadsWithContext(dataConverter, context, opts.args) },
+      input: {
+        payloads: await encodeToPayloadsWithContext(dataConverter, context, opts.args, opts.typeInfo?.inputTypes),
+      },
       taskQueue: {
         kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_NORMAL,
         name: opts.taskQueue,
@@ -1401,6 +1666,20 @@ export class WorkflowClient extends BaseClient {
       firstExecutionRunId: input.firstExecutionRunId,
     };
     try {
+      const externalStorage = this.dataConverter.externalStorage;
+      if (externalStorage) {
+        await visit(
+          req,
+          walkTerminateWorkflowExecutionRequest,
+          extstoreStoreOptions(externalStorage, {
+            initialTarget: {
+              kind: 'workflow',
+              namespace: this.options.namespace,
+              id: input.workflowExecution.workflowId ?? undefined,
+            },
+          })
+        );
+      }
       return await this.workflowService.terminateWorkflowExecution(req);
     } catch (err) {
       this.rethrowGrpcError(err, 'Failed to terminate Workflow', input.workflowExecution);
@@ -1433,10 +1712,13 @@ export class WorkflowClient extends BaseClient {
    */
   protected async _describeWorkflowHandler(input: WorkflowDescribeInput): Promise<DescribeWorkflowExecutionResponse> {
     try {
-      return await this.workflowService.describeWorkflowExecution({
+      const response = await this.workflowService.describeWorkflowExecution({
         namespace: this.options.namespace,
         execution: input.workflowExecution,
       });
+      const externalStorage = this.dataConverter.externalStorage;
+      await visit(response, walkDescribeWorkflowExecutionResponse, extstoreInboundOptions(externalStorage));
+      return response;
     } catch (err) {
       this.rethrowGrpcError(err, 'Failed to describe workflow', input.workflowExecution);
     }
@@ -1460,27 +1742,88 @@ export class WorkflowClient extends BaseClient {
     ): Promise<WorkflowUpdateHandle<Ret>> => {
       const next = this._startUpdateHandler.bind(this, waitForStage);
       const fn = composeInterceptors(interceptors, 'startUpdate', next);
-      const { args, ...opts } = options ?? {};
+      const { args, typeInfo: callSiteTypeInfo, ...opts } = options ?? {};
+      let updateName: string;
+      let updateTypeInfo: PayloadTypeInfo | undefined;
+      if (typeof def === 'string') {
+        updateName = def;
+        updateTypeInfo = callSiteTypeInfo;
+      } else {
+        if (callSiteTypeInfo !== undefined) {
+          throw new TypeError(
+            'Cannot provide call-site Update TypeInfo with an Update definition. ' +
+              'Define TypeInfo when creating the Update definition instead.'
+          );
+        }
+        updateName = def.name;
+        updateTypeInfo = def.typeInfo;
+      }
       const input = {
         workflowExecution: { workflowId, runId },
         firstExecutionRunId,
-        updateName: typeof def === 'string' ? def : def.name,
+        updateName,
         args: args ?? [],
+        typeInfo: updateTypeInfo,
         waitForStage,
         headers: {},
         options: opts,
       };
       const output = await fn(input);
-      const handle = this.createWorkflowUpdateHandle<Ret>(
+      const handle: WorkflowUpdateHandle<Ret> = this.createWorkflowUpdateHandle(
         output.updateId,
         input.workflowExecution.workflowId,
         output.workflowRunId,
-        output.outcome
+        output.outcome,
+        output.outputTypeInfo
       );
       if (!output.outcome && waitForStage === WorkflowUpdateStage.COMPLETED) {
         await this._pollForUpdateOutcome(handle.updateId, input.workflowExecution);
       }
       return handle;
+    };
+
+    const _signal = async (
+      sourceHandle: InternalWorkflowHandle,
+      signalName: string,
+      args: unknown[],
+      typeInfo?: SignalTypeInfo
+    ): Promise<void> => {
+      const next = this._signalWorkflowHandler.bind(this);
+      const fn = composeInterceptors(interceptors, 'signal', next);
+      const input: InternalWorkflowSignalInput = {
+        workflowExecution: { workflowId, runId },
+        signalName,
+        args,
+        typeInfo,
+        headers: {},
+        // Forward any SDK-internal signal options (e.g. Nexus request links) that were attached to
+        // this handle, and let the signal handler write the response link back onto the same payload.
+        [InternalWorkflowSignalOptionsSymbol]: sourceHandle[InternalWorkflowSignalOptionsSymbol],
+      };
+      await fn(input);
+    };
+
+    const _query = async <Ret>(
+      sourceHandle: InternalWorkflowHandle,
+      queryType: string,
+      args: unknown[],
+      typeInfo?: PayloadTypeInfo
+    ): Promise<Ret> => {
+      const next = this._queryWorkflowHandler.bind(this);
+      const fn = composeInterceptors(interceptors, 'query', next);
+      const input: InternalWorkflowQueryInput = {
+        workflowExecution: { workflowId, runId },
+        queryRejectCondition: encodeQueryRejectCondition(this.options.queryRejectCondition),
+        queryType,
+        args,
+        typeInfo,
+        headers: {},
+        // Forward any SDK-internal query options (e.g. the Nexus response-link slot) that were
+        // attached to this handle, and let the query handler write the response link back onto the
+        // same payload.
+        [InternalWorkflowQueryOptionsSymbol]: sourceHandle[InternalWorkflowQueryOptionsSymbol],
+      };
+      return (await fn(input)) as Ret;
     };
 
     return {
@@ -1561,33 +1904,40 @@ export class WorkflowClient extends BaseClient {
         const handle = await _startUpdate(def, WorkflowUpdateStage.COMPLETED, options);
         return await handle.result();
       },
-      getUpdateHandle<Ret>(updateId: string): WorkflowUpdateHandle<Ret> {
-        return this.client.createWorkflowUpdateHandle(updateId, workflowId, runId);
+      getUpdateHandle<Ret>(updateId: string, options?: GetWorkflowUpdateHandleOptions): WorkflowUpdateHandle<Ret> {
+        return this.client.createWorkflowUpdateHandle(
+          updateId,
+          workflowId,
+          options?.workflowRunId ?? runId,
+          undefined,
+          options?.typeInfo?.outputType
+        );
       },
       async signal<Args extends any[]>(def: SignalDefinition<Args> | string, ...args: Args): Promise<void> {
-        const next = this.client._signalWorkflowHandler.bind(this.client);
-        const fn = composeInterceptors(interceptors, 'signal', next);
-        const input: InternalWorkflowSignalInput = {
-          workflowExecution: { workflowId, runId },
-          signalName: typeof def === 'string' ? def : def.name,
-          args,
-          headers: {},
-          // Forward any SDK-internal signal options (e.g. Nexus request links) that were attached to
-          // this handle, and let the signal handler write the response link back onto the same payload.
-          [InternalWorkflowSignalOptionsSymbol]: (this as InternalWorkflowHandle)[InternalWorkflowSignalOptionsSymbol],
-        };
-        await fn(input);
+        if (typeof def === 'string') {
+          await _signal(this, def, args);
+        } else {
+          await _signal(this, def.name, args, def.typeInfo);
+        }
+      },
+      async signalWithOptions<Args extends any[]>(
+        signalName: string,
+        options: WorkflowSignalOptions<Args>
+      ): Promise<void> {
+        await _signal(this, signalName, options.args ?? [], options.typeInfo);
       },
       async query<Ret, Args extends any[]>(def: QueryDefinition<Ret, Args> | string, ...args: Args): Promise<Ret> {
-        const next = this.client._queryWorkflowHandler.bind(this.client);
-        const fn = composeInterceptors(interceptors, 'query', next);
-        return fn({
-          workflowExecution: { workflowId, runId },
-          queryRejectCondition: encodeQueryRejectCondition(this.client.options.queryRejectCondition),
-          queryType: typeof def === 'string' ? def : def.name,
-          args,
-          headers: {},
-        }) as Promise<Ret>;
+        if (typeof def === 'string') {
+          return await _query(this, def, args);
+        } else {
+          return await _query(this, def.name, args, def.typeInfo);
+        }
+      },
+      async queryWithOptions<Ret, Args extends any[]>(
+        queryName: string,
+        options: WorkflowQueryOptions<Args>
+      ): Promise<Ret> {
+        return await _query(this, queryName, options.args ?? [], options.typeInfo);
       },
     };
   }
@@ -1624,6 +1974,7 @@ export class WorkflowClient extends BaseClient {
       runIdForResult: runId ?? options?.firstExecutionRunId,
       interceptors,
       followRuns: options?.followRuns ?? true,
+      typeInfo: options?.typeInfo,
     });
   }
 
@@ -1641,6 +1992,8 @@ export class WorkflowClient extends BaseClient {
       } catch (e) {
         this.rethrowGrpcError(e, 'Failed to list workflows', undefined);
       }
+      const externalStorage = this.dataConverter.externalStorage;
+      await visit(response, walkListWorkflowExecutionsResponse, extstoreInboundOptions(externalStorage));
       // Not decoding memo payloads concurrently even though we could have to keep the lazy nature of this iterator.
       // Decoding is done for `memo` fields which tend to be small.
       // We might decide to change that based on user feedback.

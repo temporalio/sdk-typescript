@@ -28,6 +28,23 @@ export function checkExtends<_Orig, _Copy extends _Orig>(): void {
 
 export type Replace<Base, New> = Omit<Base, keyof New> & New;
 
+/** An object T with any nested values of type ToReplace replaced with ReplaceWith */
+export type ReplaceNested<T, ToReplace, ReplaceWith> = T extends (...args: any[]) => any
+  ? T
+  : [keyof T] extends [never]
+    ? T
+    : T extends Record<string, string> // Special exception for Nexus Headers.
+      ? T
+      : T extends { [k: string]: ToReplace }
+        ? {
+            [P in keyof T]: ReplaceNested<T[P], ToReplace, ReplaceWith>;
+          }
+        : T extends ToReplace
+          ? ReplaceWith | Exclude<T, ToReplace>
+          : {
+              [P in keyof T]: ReplaceNested<T[P], ToReplace, ReplaceWith>;
+            };
+
 // From https://github.com/sindresorhus/type-fest/blob/main/source/union-to-intersection.d.ts
 // MIT or CC0-1.0 — It is meant to be copied into your codebase rather than being used as a dependency.
 export type UnionToIntersection<Union> =

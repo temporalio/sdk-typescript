@@ -1,4 +1,6 @@
 import { ChildProcess, spawn, SpawnOptions } from 'node:child_process';
+import { createWriteStream, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 
 export class ChildProcessError extends Error {
   constructor(
@@ -70,8 +72,53 @@ function getSignalNumber(signal: NodeJS.Signals): number {
   throw new TypeError(`Unknown signal in getSignalNumber: '${signal}'. Please add a case for that signal.`);
 }
 
-export async function spawnNpx(args: string[], opts: SpawnOptions): Promise<void> {
+/** Full path to an archived CI log; honors TEST_RESULTS_DIR so it lands with the test artifact. */
+export function ciLogPath(name: string): string {
+  const dir = process.env.TEST_RESULTS_DIR || join(process.cwd(), '.test-results');
+  mkdirSync(dir, { recursive: true });
+  return join(dir, name);
+}
+
+// Like spawnNpx, but keeps the (typically very noisy) child output off the console.
+const FAILURE_TAIL_LINES = 60;
+export async function spawnNpxLogged(
+  args: string[],
+  opts: SpawnOptions,
+  logPath: string,
+  label: string
+): Promise<void> {
   const npx = /^win/.test(process.platform) ? 'npx.cmd' : 'npx';
   const npxArgs = ['--prefer-offline', '--timing=true', '--yes', '--', ...args];
-  await waitOnChild(spawn(npx, npxArgs, { ...opts, shell }));
+  const child = spawn(npx, npxArgs, { ...opts, stdio: ['inherit', 'pipe', 'pipe'], shell });
+
+  const out = createWriteStream(logPath);
+  const tail: string[] = [];
+  let partial = '';
+  const capture = (chunk: string) => {
+    out.write(chunk);
+    partial += chunk;
+    let idx;
+    while ((idx = partial.indexOf('\n')) !== -1) {
+      tail.push(partial.slice(0, idx));
+      if (tail.length > FAILURE_TAIL_LINES) tail.shift();
+      partial = partial.slice(idx + 1);
+    }
+  };
+  child.stdout?.setEncoding('utf8');
+  child.stdout?.on('data', capture);
+  child.stderr?.setEncoding('utf8');
+  child.stderr?.on('data', capture);
+
+  const flush = () => new Promise<void>((resolve) => out.end(resolve));
+
+  try {
+    await waitOnChild(child);
+    await flush();
+    console.log(`✓ ${label}`);
+  } catch (err) {
+    await flush();
+    if (partial) tail.push(partial);
+    console.error(`✗ ${label} failed — tail of ${logPath}:\n${tail.join('\n')}`);
+    throw err;
+  }
 }

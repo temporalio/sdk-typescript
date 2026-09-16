@@ -51,5 +51,13 @@ jobs:
       - name: Compile all non-rust code
         run: pnpm --recursive --stream --filter '!@temporalio/core-bridge' --filter '!typescript-sdk' run build
 
+      - name: Check generated payload visitor is up to date
+        run: |
+          pnpm run gen:payload-visitor
+          if ! git diff --exit-code -- packages/proto/src/payload-visitor.generated.ts; then
+            echo "::error::payload-visitor.generated.ts is out of date with the protos. Run 'pnpm run gen:payload-visitor' and commit the result."
+            exit 1
+          fi
+
       - run: pnpm run lint:check
       - run: pnpm run lint:prune

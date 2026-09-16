@@ -120,3 +120,115 @@ new one when you are ready to continue.
 
 Keep discussions respectful, constructive, and focused on the work. Clear context,
 specific examples, and patience with review feedback help everyone move faster.
+
+## Development
+
+After your environment is set up, you can run these commands:
+
+- `pnpm build` compiles protobuf definitions, Rust bridge, C++ isolate extension, and Typescript.
+- `pnpm run rebuild` deletes all generated files in the project and reruns build.
+- `pnpm build:watch` watches filesystem for changes and incrementally compiles Typescript on change.
+- `pnpm test` runs the test suite. Tests assume you have a [Temporal server running locally](https://docs.temporal.io/cli#start-dev-server).
+- `pnpm test:watch` runs the test suite on each change to Typescript files.
+- `pnpm format` formats code with prettier.
+- `pnpm lint` verifies code style with prettier and ES lint.
+- `pnpm commitlint` validates [commit messages](#style-guide).
+
+### Working with Individual Packages
+You can build or test a single package using pnpm's filter flag:
+
+```sh
+# Build a single package and all its dependencies explicitly
+pnpm -F @temporalio/worker... run build
+
+# Run tests for a single package
+pnpm -F @temporalio/common run test
+```
+
+The `...` suffix includes all dependencies of the specified package.
+
+### Testing
+
+#### Testing local changes to core
+
+Create a `.cargo/config.toml` file and override the path to sdk-core and/or sdk-core-protos as
+described [here](https://doc.rust-lang.org/cargo/reference/overriding-dependencies.html#paths-overrides)
+
+##### Integration tests
+
+In order to run integration tests:
+
+1. Run the Temporal server, e.g. using the [Temporal CLI's integrated dev server](https://github.com/temporalio/cli#start-the-server)
+1. Export `RUN_INTEGRATION_TESTS=true`
+
+#### test-npm-init
+
+To replicate the `test-npm-init` CI test locally, you can start with the below steps:
+
+> If you've run `npx @temporalio/create` before, you may need to delete the version of the package that's stored in `~/.npm/_npx/`.
+
+```
+pnpm install --frozen-lockfile
+pnpm run rebuild
+
+TMP_DIR=$( mktemp -d )
+
+pnpm tsx scripts/publish-to-verdaccio.ts --registry-dir "$TMP_DIR"
+pnpm tsx scripts/init-from-verdaccio.ts --registry-dir "$TMP_DIR" --target-dir "./example" --sample hello-world
+pnpm tsx scripts/test-example.ts --work-dir "./example"
+
+rm -rf ./example "$TMP_DIR"
+```
+
+The publish and init steps print only a one-line summary; their full output is
+written to `.test-results/` (and the tail is dumped to the console on failure).
+
+### Style Guide
+
+- Typescript code is linted with [eslint](https://eslint.org/)
+- Files in this repo are formatted with [prettier](https://prettier.io/)
+- Prefer explicit named re-exports and avoid wildcard re-exports where possible (`export * from ...`) in public entrypoint / barrel files.
+- Use `@experimental` and `@internal` to manage API stability and visibility. Mark new or work-in-progress exported APIs `@experimental` to signal their shape may still change. Mark a symbol `@internal` to keep it out of the generated public docs. The two are independent and may be combined. It is fine to ship something `@internal` now and promote it to public later, by removing `@internal` and adding a named re-export, once it is actually usable. The reverse is a breaking change, so prefer starting narrow.
+- Pull request titles SHOULD adhere to the [Conventional Commits specification](https://conventionalcommits.org/), for example:
+
+```
+<type>(optional scope): <description>
+
+chore(samples): upgrade commander module
+```
+
+The `scope` options are listed in [commitlint.config.js](./commitlint.config.js).
+
+## Updating and pruning dependencies
+
+There are various tools out there to help with updating and pruning NPM dependencies.
+
+I personally use the following commands to find NPM packages that needs to be updated. It runs
+interactively on each package of the repo, making it easy to select and apply packages to be updated.
+
+```
+for i in ./package.json packages/*/package.json contrib/*/package.json ; do
+  (
+    cd "${i%%package.json}"
+    pwd
+    npm-check-updates -i
+  )
+done
+```
+
+To identify unused dependencies, I run the following script. Note that `npm-check` may report
+false-positive. Search the code before actually deleting any dependency. Also note that runtime
+dependencies MUST be added on the actual packages that use them to ensure proper execution in PNPM
+and YARN 2+ setups.
+
+```
+for i in ./package.json packages/*/package.json contrib/*/package.json ; do
+  (
+    cd "${i%%package.json}"
+    pwd
+    npm-check
+  )
+done
+```
+
+To install both tools: `npm i -g npm-check npm-check-updates`.

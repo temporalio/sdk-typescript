@@ -1,6 +1,6 @@
-import { dirname } from 'node:path';
+import { basename, dirname } from 'node:path';
 import { getArgs, withRegistry } from './registry';
-import { spawnNpx } from './utils';
+import { ciLogPath, spawnNpxLogged } from './utils';
 
 // Force samples to use the same version of @temporalio/* packages as the one
 // we are testing. This is required when testing against a pre-release version,
@@ -12,21 +12,20 @@ async function main() {
   const { registryDir, targetDir, initArgs } = await getArgs();
 
   await withRegistry(registryDir, dirname(targetDir), async (npmConfigFile) => {
-    console.log('spawning npx @temporalio/create with args:', initArgs);
     try {
-      await spawnNpx(
+      await spawnNpxLogged(
         [`@temporalio/create@${version}`, targetDir, '--no-git-init', '--sdk-version', version, ...initArgs],
         {
-          stdio: 'inherit',
           cwd: dirname(targetDir),
           env: {
             ...process.env,
             NPM_CONFIG_USERCONFIG: npmConfigFile,
           },
-        }
+        },
+        ciLogPath(`sample-init-${basename(targetDir)}.log`),
+        `Initialized sample ${basename(targetDir)}`
       );
-    } catch (e) {
-      console.error(e);
+    } catch {
       throw new Error('Failed to init example');
     }
   });

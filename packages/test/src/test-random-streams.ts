@@ -98,7 +98,11 @@ function makeActivation(
 
 function makeStartWorkflow(runId: string, workflowType: string): coresdk.workflow_activation.IWorkflowActivation {
   return makeActivation(runId, Date.now(), {
-    initializeWorkflow: { workflowId: `${runId}-workflow`, workflowType },
+    initializeWorkflow: {
+      workflowId: `${runId}-workflow`,
+      workflowType,
+      originalExecutionRunId: runId,
+    },
   });
 }
 
@@ -157,6 +161,7 @@ async function createWorkflow(
       workflowId: `${runId}-workflow-id`,
       namespace: 'default',
       firstExecutionRunId: runId,
+      originalExecutionRunId: runId,
       attempt: 1,
       taskTimeoutMs: 1000,
       taskQueue: 'test',

@@ -15,10 +15,12 @@ import { Worker, type ReplayWorkerOptions } from '@temporalio/worker';
 
 import { LangSmithPlugin } from '../index';
 import * as activities from './activities/langsmith';
-import { InMemoryRunCollector, WORKFLOWS_PATH, withTracingWorker } from './helpers';
+import { InMemoryRunCollector, WORKFLOWS_PATH, withTracingWorker, useSharedEnv } from './helpers';
 import * as workflows from './workflows/langsmith';
 
 process.env.LANGSMITH_TRACING = 'true';
+
+useSharedEnv(test);
 
 test('replay safety: emits no runs when replaying recorded history', async (t) => {
   const live = new InMemoryRunCollector();

@@ -1,5 +1,5 @@
 import type { ToolSet } from 'ai';
-import type { experimental_MCPClient as MCPClient } from '@ai-sdk/mcp';
+import type { MCPClient } from '@ai-sdk/mcp';
 import * as workflow from '@temporalio/workflow';
 import type { ActivityOptions } from '@temporalio/workflow';
 import type { ListToolResult } from './activities';
@@ -53,13 +53,14 @@ export class TemporalMCPClient {
             const callActivity = activities[this.options.name + '-callTool']!;
             return await callActivity({ name: toolName, input, options, clientArgs: this.options.clientArgs });
           },
-          // Symbols and undefined values are lost on serialization, and need to be replaced to ensure the schema is used correctly
+          // Symbols and undefined values are lost on serialization, and need to be replaced to ensure the
+          // schema is used correctly. The AI SDK's `isSchema()` requires the `vercel.ai.schema` symbol plus
+          // the presence of `jsonSchema` and `validate` keys, so `validate: undefined` is load-bearing.
           inputSchema: {
             ...toolResult.inputSchema,
             _type: undefined,
             validate: undefined,
             [Symbol.for('vercel.ai.schema')]: true,
-            [Symbol.for('vercel.ai.validator')]: true,
           },
           type: 'dynamic',
         },

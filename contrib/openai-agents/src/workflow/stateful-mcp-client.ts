@@ -3,11 +3,16 @@ import {
   ApplicationFailure,
   TimeoutFailure,
   TimeoutType,
-  type ActivityOptions,
   type Duration,
   type RetryPolicy,
 } from '@temporalio/common';
-import { CancellationScope, isCancellation, scheduleActivity, workflowInfo } from '@temporalio/workflow';
+import {
+  type ActivityOptions,
+  CancellationScope,
+  isCancellation,
+  scheduleActivity,
+  workflowInfo,
+} from '@temporalio/workflow';
 import {
   DEDICATED_WORKER_FAILURE_TYPE,
   MCP_CALL_TOOL_SUFFIX,

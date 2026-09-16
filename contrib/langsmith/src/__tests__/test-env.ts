@@ -20,7 +20,7 @@
 import test from 'ava';
 
 import * as activities from './activities/langsmith';
-import { InMemoryRunCollector, withTracingWorker } from './helpers';
+import { InMemoryRunCollector, withTracingWorker, useSharedEnv } from './helpers';
 import * as workflows from './workflows/langsmith';
 
 const TRACING_ENV_VARS = ['LANGSMITH_TRACING', 'LANGSMITH_TRACING_V2', 'LANGCHAIN_TRACING_V2', 'LANGCHAIN_TRACING'];
@@ -58,6 +58,8 @@ async function runPlainWorkflow(collector: InMemoryRunCollector): Promise<void> 
     },
   });
 }
+
+useSharedEnv(test);
 
 test.serial('LANGSMITH_TRACING=false suppresses all emission', async (t) => {
   const snapshot = snapshotTracingEnv();

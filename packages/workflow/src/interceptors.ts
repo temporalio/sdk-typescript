@@ -5,15 +5,18 @@
  */
 
 import type {
-  ActivityOptions,
   Duration,
-  LocalActivityOptions,
   MetricTags,
+  PayloadTypeInfo,
+  SignalTypeInfo,
   Timestamp,
+  TypeInfo,
   WorkflowExecution,
 } from '@temporalio/common';
 import { Headers, Next } from '@temporalio/common';
 import type { coresdk } from '@temporalio/proto';
+import type { ActivityOptions, LocalActivityOptions } from './activities';
+import type { EventGroupMarker } from './event-groups';
 import type { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interfaces';
 import type { NexusOperationCancellationType } from './nexus';
 
@@ -157,7 +160,6 @@ export interface WorkflowOutboundCallsInterceptor {
   /**
    * Called when Workflow starts a Nexus Operation.
    *
-   * @experimental Nexus support in Temporal SDK is experimental.
    */
   startNexusOperation?: (
     input: StartNexusOperationInput,
@@ -230,10 +232,17 @@ export interface TimerInput {
 export interface TimerOptions {
   /**
    * A fixed, single line summary of the command's purpose
-   *
-   * @experimental User metadata is a new API and susceptible to change.
    */
   readonly summary?: string;
+
+  /**
+   * Event group markers to attach to the timer command. The markers will be reflected on the
+   * corresponding workflow history events, and may be used by tooling (UI/CLI) to group
+   * related events together. See {@link EventGroupMarker} and `createEventGroup`.
+   *
+   * @experimental Event Groups is an experimental API and may change without notice.
+   */
+  readonly eventGroups?: EventGroupMarker[];
 }
 
 /**
@@ -245,6 +254,8 @@ export interface ActivityInput {
   readonly options: ActivityOptions;
   readonly headers: Headers;
   readonly seq: number;
+  /** TypeInfo selected for this invocation. Interceptors may replace it before calling `next`. */
+  readonly typeInfo?: PayloadTypeInfo;
 }
 
 /**
@@ -258,15 +269,20 @@ export interface LocalActivityInput {
   readonly seq: number;
   readonly originalScheduleTime?: Timestamp;
   readonly attempt: number;
+  /** TypeInfo selected for this invocation. Interceptors may replace it before calling `next`. */
+  readonly typeInfo?: PayloadTypeInfo;
 }
 
 /**
  * Input for {@link WorkflowOutboundCallsInterceptor.startNexusOperation}.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface StartNexusOperationInput {
   readonly input: unknown;
+  /** Type information used to encode the operation's single input value. */
+  readonly inputType?: TypeInfo;
+  /** Type information retained to decode the operation result. */
+  readonly outputType?: TypeInfo;
   readonly endpoint: string;
   readonly service: string;
   readonly options: StartNexusOperationOptions;
@@ -278,7 +294,6 @@ export interface StartNexusOperationInput {
 /**
  * Options for starting a Nexus Operation.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface StartNexusOperationOptions {
   /**
@@ -323,16 +338,22 @@ export interface StartNexusOperationOptions {
   /**
    * A fixed, single-line summary for this Nexus Operation that may appear in the UI/CLI.
    * This can be in single-line Temporal markdown format.
-   *
-   * @experimental User metadata is a new API and susceptible to change.
    */
   readonly summary?: string;
+
+  /**
+   * Event group markers to attach to the schedule-Nexus-operation command. The markers will be
+   * reflected on the corresponding workflow history events, and may be used by tooling
+   * (UI/CLI) to group related events together. See {@link EventGroupMarker} and `createEventGroup`.
+   *
+   * @experimental Event Groups is an experimental API and may change without notice.
+   */
+  readonly eventGroups?: EventGroupMarker[];
 }
 
 /**
  * Output for {@link WorkflowOutboundCallsInterceptor.startNexusOperation}.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface StartNexusOperationOutput {
   /**
@@ -367,6 +388,7 @@ export interface SignalWorkflowInput {
   readonly seq: number;
   readonly signalName: string;
   readonly args: unknown[];
+  readonly typeInfo?: SignalTypeInfo;
   readonly headers: Headers;
   readonly target:
     | {

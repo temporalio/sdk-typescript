@@ -14,6 +14,7 @@ export {
   TestWorkflowEnvironment,
   type LocalTestWorkflowEnvironmentOptions,
   type TimeSkippingTestWorkflowEnvironmentOptions,
+  type ExistingServerConnectionOptions,
   type ExistingServerTestWorkflowEnvironmentOptions,
   type NexusEndpointIdentifier,
 } from './testing-workflow-environment';

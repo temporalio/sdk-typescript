@@ -91,7 +91,6 @@ test('Worker versioning workers get appropriate tasks', async (t) => {
     })
   );
 
-  console.warn(res.buildIdReachability);
   t.deepEqual(res.buildIdReachability['2.0'].taskQueueReachability.foo, ['NEW_WORKFLOWS']);
   t.deepEqual(res.buildIdReachability['1.0'].taskQueueReachability.foo, ['OPEN_WORKFLOWS']);
   t.deepEqual(res.buildIdReachability['1.1'].taskQueueReachability.foo, ['EXISTING_WORKFLOWS', 'NEW_WORKFLOWS']);

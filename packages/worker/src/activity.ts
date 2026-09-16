@@ -7,6 +7,7 @@ import type {
   LoadedDataConverter,
   MetricMeter,
   MetricTags,
+  TypeInfo,
 } from '@temporalio/common';
 import {
   ApplicationFailure,
@@ -70,6 +71,7 @@ export class Activity {
     public readonly fn: ActivityFunction<any[], any> | undefined,
     public readonly dataConverter: LoadedDataConverter,
     public readonly serializationContext: ActivitySerializationContext,
+    public readonly outputTypeInfo: TypeInfo | undefined,
     public readonly heartbeatCallback: Context['heartbeat'],
     private readonly _client: Client | undefined, // May be undefined in the case of MockActivityEnvironment
     workerLogger: Logger,
@@ -195,7 +197,11 @@ export class Activity {
       try {
         if (this.fn === undefined) throw new IllegalStateError('Activity function is not defined');
         const result = await this.executeWithClient(this.fn, input);
-        return { completed: { result: await encodeToPayload(this.dataConverter, result, this.serializationContext) } };
+        return {
+          completed: {
+            result: await encodeToPayload(this.dataConverter, result, this.serializationContext, this.outputTypeInfo),
+          },
+        };
       } catch (err) {
         if (err instanceof CompleteAsyncError) {
           return { willCompleteAsync: {} };

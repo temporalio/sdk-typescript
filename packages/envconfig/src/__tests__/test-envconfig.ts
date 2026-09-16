@@ -586,6 +586,27 @@ test('TLS disabled tri-state behavior', (t) => {
   t.is(configTrue.connectionOptions.tls, false); // TLS explicitly disabled even with API key
 });
 
+test('TEMPORAL_TLS uses enabled semantics', (t) => {
+  const configSource = dataSource(dedent`
+    [profile.default]
+    address = "my-address"
+  `);
+
+  const enabledProfile = loadClientConfigProfile({
+    configSource,
+    overrideEnvVars: { TEMPORAL_TLS: 'true' },
+  });
+  t.is(enabledProfile.tls?.disabled, false);
+  t.truthy(toClientOptions(enabledProfile).connectionOptions.tls);
+
+  const disabledProfile = loadClientConfigProfile({
+    configSource,
+    overrideEnvVars: { TEMPORAL_TLS: 'false' },
+  });
+  t.is(disabledProfile.tls?.disabled, true);
+  t.is(toClientOptions(disabledProfile).connectionOptions.tls, false);
+});
+
 // =============================================================================
 // 🚫 ERROR HANDLING
 // =============================================================================

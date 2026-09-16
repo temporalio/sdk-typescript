@@ -8,10 +8,12 @@
 import test from 'ava';
 
 import * as activities from './activities/langsmith';
-import { InMemoryRunCollector, SIMPLE_TREE, dumpTraces, withTracingWorker } from './helpers';
+import { InMemoryRunCollector, SIMPLE_TREE, dumpTraces, withTracingWorker, useSharedEnv } from './helpers';
 import * as workflows from './workflows/langsmith';
 
 process.env.LANGSMITH_TRACING = 'true';
+
+useSharedEnv(test);
 
 test('replay side effects: emits each run exactly once even when the workflow is evicted and replayed', async (t) => {
   const collector = new InMemoryRunCollector();

@@ -42,6 +42,7 @@ test('Worker deployment based versioning', async (t) => {
   const worker1 = await Worker.create({
     workflowsPath: require.resolve('./deployment-versioning-v1'),
     taskQueue,
+    namespace: client.options.namespace,
     workerDeploymentOptions: {
       useWorkerVersioning: true,
       version: w1DeploymentVersion,
@@ -59,6 +60,7 @@ test('Worker deployment based versioning', async (t) => {
   const worker2 = await Worker.create({
     workflowsPath: require.resolve('./deployment-versioning-v2'),
     taskQueue,
+    namespace: client.options.namespace,
     workerDeploymentOptions: {
       useWorkerVersioning: true,
       version: w2DeploymentVersion,
@@ -76,6 +78,7 @@ test('Worker deployment based versioning', async (t) => {
   const worker3 = await Worker.create({
     workflowsPath: require.resolve('./deployment-versioning-v3'),
     taskQueue,
+    namespace: client.options.namespace,
     workerDeploymentOptions: {
       useWorkerVersioning: true,
       version: w3DeploymentVersion,
@@ -172,6 +175,7 @@ test('Worker deployment based versioning with ramping', async (t) => {
   const worker1 = await Worker.create({
     workflowsPath: require.resolve('./deployment-versioning-v1'),
     taskQueue,
+    namespace: client.options.namespace,
     workerDeploymentOptions: {
       useWorkerVersioning: true,
       version: v1,
@@ -189,6 +193,7 @@ test('Worker deployment based versioning with ramping', async (t) => {
   const worker2 = await Worker.create({
     workflowsPath: require.resolve('./deployment-versioning-v2'),
     taskQueue,
+    namespace: client.options.namespace,
     workerDeploymentOptions: {
       useWorkerVersioning: true,
       version: v2,
@@ -288,6 +293,7 @@ async function testWorkerDeploymentWithDynamicBehavior(
   const worker = await Worker.create({
     workflowsPath: require.resolve('./deployment-versioning-v1'),
     taskQueue,
+    namespace: client.options.namespace,
     workerDeploymentOptions: {
       useWorkerVersioning: true,
       version,
@@ -347,6 +353,7 @@ test('Workflows can use default versioning behavior', async (t) => {
   const worker = await Worker.create({
     workflowsPath: require.resolve('./deployment-versioning-no-annotations'),
     taskQueue,
+    namespace: client.options.namespace,
     workerDeploymentOptions: {
       useWorkerVersioning: true,
       version: workerV1,
@@ -396,6 +403,7 @@ test('Workflow versioningOverride overrides default versioning behavior', async 
   const worker1 = await Worker.create({
     workflowsPath: require.resolve('./deployment-versioning-v1'),
     taskQueue,
+    namespace: client.options.namespace,
     workerDeploymentOptions: {
       useWorkerVersioning: true,
       version: workerV1,
@@ -563,6 +571,7 @@ test('ContinueAsNew with version upgrade', async (t) => {
   const worker1 = await Worker.create({
     workflowsPath: require.resolve('./deployment-versioning-can-v1'),
     taskQueue,
+    namespace: client.options.namespace,
     workerDeploymentOptions: {
       useWorkerVersioning: true,
       version: v1,
@@ -579,6 +588,7 @@ test('ContinueAsNew with version upgrade', async (t) => {
   const worker2 = await Worker.create({
     workflowsPath: require.resolve('./deployment-versioning-can-v2'),
     taskQueue,
+    namespace: client.options.namespace,
     workerDeploymentOptions: {
       useWorkerVersioning: true,
       version: v2,
@@ -635,6 +645,7 @@ test('ContinueAsNew with ramping version', async (t) => {
   const worker1 = await Worker.create({
     workflowsPath: require.resolve('./deployment-versioning-can-v1'),
     taskQueue,
+    namespace: client.options.namespace,
     workerDeploymentOptions: {
       useWorkerVersioning: true,
       version: v1,
@@ -650,6 +661,7 @@ test('ContinueAsNew with ramping version', async (t) => {
   const worker2 = await Worker.create({
     workflowsPath: require.resolve('./deployment-versioning-can-v2'),
     taskQueue,
+    namespace: client.options.namespace,
     workerDeploymentOptions: {
       useWorkerVersioning: true,
       version: v2,
@@ -705,6 +717,7 @@ test('Worker with deployment options and useWorkerVersioning false can run workf
   const worker = await Worker.create({
     workflowsPath: require.resolve('./workflows'),
     taskQueue,
+    namespace: client.options.namespace,
     workerDeploymentOptions: {
       useWorkerVersioning: false,
       version: {

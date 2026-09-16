@@ -7,7 +7,7 @@ import {
   langFlagsReplayCorrectly,
   setAndClearTimeout,
 } from './integration-workflows-common';
-import { helpers, makeTestFunction } from './helpers-integration';
+import { createTestWorkflowBundle, helpers, makeTestFunction } from './helpers-integration';
 import { loadHistory, RUN_TIME_SKIPPING_TESTS } from './helpers';
 
 export * from './integration-workflows-common';
@@ -86,6 +86,20 @@ test("Lang's SDK flags from 1.11.2 are retroactively applied on replay", async (
   const hist = await loadHistory('lang_flags_replay_correctly_1_11_2.json');
   await runReplayHistory({}, hist);
   t.pass();
+});
+
+// Previously on replay, core would resolve LA based on schedule order instead of the order of results in history.
+// This could cause NDE if additional LAs were scheduled upon LA completion.
+test('GH 1744', async (t) => {
+  const { runReplayHistory } = helpers(t);
+
+  const workflowBundle = await createTestWorkflowBundle({
+    workflowsPath: require.resolve('./workflows/nested-promise'),
+  });
+  const hist = await loadHistory('nested_promise_1_13_2.json');
+  await t.notThrowsAsync(async () => {
+    await runReplayHistory({ workflowBundle }, hist);
+  });
 });
 
 if (RUN_TIME_SKIPPING_TESTS) {

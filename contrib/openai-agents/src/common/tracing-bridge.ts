@@ -42,6 +42,10 @@ export function spanNameFromData(data: SpanData): string {
   switch (data.type) {
     case 'agent':
       return `agent:${data.name}`;
+    case 'task':
+      return `task:${data.name}`;
+    case 'turn':
+      return `turn:${data.turn}`;
     case 'function':
       return `function:${data.name}`;
     case 'generation':

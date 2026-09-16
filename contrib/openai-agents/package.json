@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/openai-agents",
-  "version": "1.20.0",
+  "version": "1.24.0",
   "description": "Temporal OpenAI Agents SDK integration package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -20,7 +20,7 @@
   "scripts": {
     "build": "tsc --build",
     "build:watch": "tsc --build --watch",
-    "test": "ava",
+    "test": "tsx ../../scripts/ava-ci.ts",
     "test:watch": "ava --watch"
   },
   "ava": {
@@ -80,10 +80,10 @@
     "web-streams-polyfill": "^4.2.0"
   },
   "peerDependencies": {
-    "@openai/agents-core": "~0.11.6",
-    "@openai/agents-openai": "~0.11.6",
+    "@openai/agents-core": "~0.14.3",
+    "@openai/agents-openai": "~0.14.3",
     "@opentelemetry/sdk-trace-base": "^1.25.1",
-    "openai": "^6.35.0"
+    "openai": "^6.46.0"
   },
   "peerDependenciesMeta": {
     "@opentelemetry/sdk-trace-base": {
@@ -91,8 +91,8 @@
     }
   },
   "devDependencies": {
-    "@openai/agents-core": "~0.11.6",
-    "@openai/agents-openai": "~0.11.6",
+    "@openai/agents-core": "~0.14.3",
+    "@openai/agents-openai": "~0.14.3",
     "@opentelemetry/core": "^1.25.1",
     "@opentelemetry/sdk-node": "^0.52.1",
     "@opentelemetry/sdk-trace-base": "^1.25.1",
@@ -102,8 +102,8 @@
     "@temporalio/test-helpers": "workspace:*",
     "@temporalio/testing": "workspace:*",
     "ava": "^5.3.1",
-    "nexus-rpc": "^0.0.2",
-    "openai": "^6.35.0"
+    "nexus-rpc": "^0.0.3",
+    "openai": "^6.46.0"
   },
   "engines": {
     "node": ">= 20.3.0"

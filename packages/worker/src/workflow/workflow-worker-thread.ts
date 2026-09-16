@@ -1,12 +1,18 @@
 import { isMainThread, parentPort as parentPortOrNull } from 'node:worker_threads';
 import { IllegalStateError } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
+import type { WorkflowInfo } from '@temporalio/workflow';
 import type { Workflow, WorkflowCreator } from './interface';
 import { ReusableVMWorkflowCreator } from './reusable-vm';
 import { VMWorkflowCreator } from './vm';
-import type { WorkerThreadRequest } from './workflow-worker-thread/input';
+import type { PatchActivationCallbackRequest, WorkerThreadRequest } from './workflow-worker-thread/input';
 import type { WorkerThreadResponse } from './workflow-worker-thread/output';
-import { isBun } from './bun';
+import { isBun, isBunPre1_4 } from './bun';
+import {
+  makePatchActivationWorkflowInfoSnapshot,
+  PATCH_ACTIVATION_CALLBACK_BUFFER_SIZE,
+  waitForPatchActivationCallbackResult,
+} from './patch-activation-callback';
 
 if (isMainThread) {
   throw new IllegalStateError(`Imported ${__filename} from main thread`);
@@ -26,6 +32,18 @@ function ok(requestId: bigint): WorkerThreadResponse {
 let workflowCreator: WorkflowCreator | undefined;
 let workflowGetter: (runId: string) => Workflow | undefined;
 
+function requestPatchActivation(workflowInfo: WorkflowInfo, patchId: string): boolean {
+  const resultBuffer = new SharedArrayBuffer(PATCH_ACTIVATION_CALLBACK_BUFFER_SIZE);
+  const request: PatchActivationCallbackRequest = {
+    type: 'patch-activation-callback',
+    workflowInfo: makePatchActivationWorkflowInfoSnapshot(workflowInfo),
+    patchId,
+    resultBuffer,
+  };
+  parentPort.postMessage(request);
+  return waitForPatchActivationCallbackResult(resultBuffer);
+}
+
 /**
  * Process a `WorkerThreadRequest` and resolve with a `WorkerThreadResponse`.
  */
@@ -36,14 +54,16 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
         workflowCreator = await ReusableVMWorkflowCreator.create(
           input.workflowBundle,
           input.isolateExecutionTimeoutMs,
-          input.registeredActivityNames
+          input.registeredActivityNames,
+          input.hasPatchActivationCallback ? requestPatchActivation : undefined
         );
         workflowGetter = (runId) => ReusableVMWorkflowCreator.workflowByRunId.get(runId);
       } else {
         workflowCreator = await VMWorkflowCreator.create(
           input.workflowBundle,
           input.isolateExecutionTimeoutMs,
-          input.registeredActivityNames
+          input.registeredActivityNames,
+          input.hasPatchActivationCallback ? requestPatchActivation : undefined
         );
         workflowGetter = (runId) => VMWorkflowCreator.workflowByRunId.get(runId);
       }
@@ -65,14 +85,14 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
       }
       let activation;
       if (input.activation instanceof Uint8Array) {
-        // Some activation messages get silently dropped by Bun's postMessage.
+        // Before Bun 1.4.0, some activation messages get silently dropped by Bun's postMessage.
         // To work around this bug, we encode activations
         activation = coresdk.workflow_activation.WorkflowActivation.decode(input.activation);
       } else {
         activation = coresdk.workflow_activation.WorkflowActivation.fromObject(input.activation);
       }
       const completion = await workflow.activate(activation);
-      const maybeEncodedCompletion = isBun
+      const maybeEncodedCompletion = isBunPre1_4
         ? coresdk.workflow_completion.WorkflowActivationCompletion.encode(completion).finish()
         : completion;
       return {

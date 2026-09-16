@@ -3,19 +3,18 @@
  */
 import { randomUUID } from 'crypto';
 import type {
-  EmbeddingModelV3,
-  EmbeddingModelV3CallOptions,
-  EmbeddingModelV3Result,
-  ImageModelV3,
-  LanguageModelV3,
-  LanguageModelV3CallOptions,
-  LanguageModelV3Content,
-  LanguageModelV3FinishReason,
-  LanguageModelV3GenerateResult,
-  LanguageModelV3StreamResult,
-  LanguageModelV3Usage,
-  ProviderV3,
-  TranscriptionModelV3,
+  EmbeddingModelV4,
+  EmbeddingModelV4CallOptions,
+  EmbeddingModelV4Result,
+  ImageModelV4,
+  LanguageModelV4,
+  LanguageModelV4CallOptions,
+  LanguageModelV4Content,
+  LanguageModelV4FinishReason,
+  LanguageModelV4GenerateResult,
+  LanguageModelV4StreamResult,
+  LanguageModelV4Usage,
+  ProviderV4,
 } from '@ai-sdk/provider';
 import { openai } from '@ai-sdk/openai';
 import type { TestFn } from 'ava';
@@ -26,7 +25,8 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp';
+import { createMCPClient } from '@ai-sdk/mcp';
+import { jsonSchema } from 'ai';
 import { temporal } from '@temporalio/proto';
 import { WorkflowClient } from '@temporalio/client';
 import type { OpenTelemetrySinks } from '@temporalio/interceptors-opentelemetry';
@@ -38,7 +38,7 @@ import {
   OpenTelemetryWorkflowClientInterceptor,
 } from '@temporalio/interceptors-opentelemetry';
 import { workflowInterceptorModules } from '@temporalio/testing';
-import { bundleWorkflowCode, DefaultLogger, Runtime } from '@temporalio/worker';
+import { bundleWorkflowCode, DefaultLogger, Runtime, Worker as CoreWorker } from '@temporalio/worker';
 import type { InjectedSinks } from '@temporalio/worker';
 import type { BaseContext } from '@temporalio/test-helpers';
 import {
@@ -53,6 +53,7 @@ import {
   embeddingWorkflow,
   generateObjectWorkflow,
   helloWorldAgent,
+  imageToolWorkflow,
   mcpSchemaTestWorkflow,
   mcpWorkflow,
   middlewareWorkflow,
@@ -64,10 +65,10 @@ import EventType = temporal.api.enums.v1.EventType;
 
 const remoteTests = ['1', 't', 'true'].includes((process.env.AI_SDK_REMOTE_TESTS ?? 'false').toLowerCase());
 
-export type ModelResponse = LanguageModelV3GenerateResult;
+export type ModelResponse = LanguageModelV4GenerateResult;
 
-export class TestModel implements LanguageModelV3 {
-  readonly specificationVersion = 'v3';
+export class TestModel implements LanguageModelV4 {
+  readonly specificationVersion = 'v4';
   readonly provider = 'temporal';
   readonly modelId = 'TestModel';
   private generator: Generator<ModelResponse>;
@@ -81,7 +82,7 @@ export class TestModel implements LanguageModelV3 {
     return {};
   }
 
-  async doGenerate(_: LanguageModelV3CallOptions): Promise<LanguageModelV3GenerateResult> {
+  async doGenerate(_: LanguageModelV4CallOptions): Promise<LanguageModelV4GenerateResult> {
     if (this.done) {
       throw new Error('Called generate more times than responses given to the test generator');
     }
@@ -91,15 +92,15 @@ export class TestModel implements LanguageModelV3 {
     return result.value;
   }
 
-  doStream(_options: LanguageModelV3CallOptions): PromiseLike<LanguageModelV3StreamResult> {
+  doStream(_options: LanguageModelV4CallOptions): PromiseLike<LanguageModelV4StreamResult> {
     throw new Error('Streaming not supported.');
   }
 }
 
-export type EmbeddingResponse = EmbeddingModelV3Result;
+export type EmbeddingResponse = EmbeddingModelV4Result;
 
-export class TestEmbeddingModel implements EmbeddingModelV3 {
-  readonly specificationVersion = 'v3';
+export class TestEmbeddingModel implements EmbeddingModelV4 {
+  readonly specificationVersion = 'v4';
   readonly provider = 'temporal';
   readonly modelId = 'TestEmbeddingModel';
   readonly maxEmbeddingsPerCall = undefined;
@@ -111,7 +112,7 @@ export class TestEmbeddingModel implements EmbeddingModelV3 {
     this.generator = generator;
   }
 
-  async doEmbed(_options: EmbeddingModelV3CallOptions): Promise<EmbeddingModelV3Result> {
+  async doEmbed(_options: EmbeddingModelV4CallOptions): Promise<EmbeddingModelV4Result> {
     if (this.done) {
       throw new Error('Called embed more times than responses given to the test generator');
     }
@@ -122,8 +123,8 @@ export class TestEmbeddingModel implements EmbeddingModelV3 {
   }
 }
 
-export class TestProvider implements ProviderV3 {
-  readonly specificationVersion = 'v3';
+export class TestProvider implements ProviderV4 {
+  readonly specificationVersion = 'v4';
   private languageModelGenerator: Generator<ModelResponse>;
   private embeddingModelGenerator?: Generator<EmbeddingResponse>;
 
@@ -135,33 +136,29 @@ export class TestProvider implements ProviderV3 {
     this.embeddingModelGenerator = embeddingModelGenerator;
   }
 
-  imageModel(_modelId: string): ImageModelV3 {
+  imageModel(_modelId: string): ImageModelV4 {
     throw new Error('Not implemented');
   }
 
-  languageModel(_modelId: string): LanguageModelV3 {
+  languageModel(_modelId: string): LanguageModelV4 {
     return new TestModel(this.languageModelGenerator);
   }
 
-  embeddingModel(_modelId: string): EmbeddingModelV3 {
+  embeddingModel(_modelId: string): EmbeddingModelV4 {
     if (!this.embeddingModelGenerator) {
       throw new Error('Embedding model generator not provided');
     }
     return new TestEmbeddingModel(this.embeddingModelGenerator);
   }
-
-  transcriptionModel(_modelId: string): TranscriptionModelV3 {
-    throw new Error('Not implemented');
-  }
 }
 
 function createFinishReason(
   unified: 'stop' | 'length' | 'content-filter' | 'tool-calls' | 'error' | 'other'
-): LanguageModelV3FinishReason {
+): LanguageModelV4FinishReason {
   return { unified, raw: undefined };
 }
 
-function createUsage(inputTokens: number = 10, outputTokens: number = 20): LanguageModelV3Usage {
+function createUsage(inputTokens: number = 10, outputTokens: number = 20): LanguageModelV4Usage {
   return {
     inputTokens: {
       total: inputTokens,
@@ -178,8 +175,8 @@ function createUsage(inputTokens: number = 10, outputTokens: number = 20): Langu
 }
 
 function contentResponse(
-  content: LanguageModelV3Content[],
-  finishReason: LanguageModelV3FinishReason = createFinishReason('stop')
+  content: LanguageModelV4Content[],
+  finishReason: LanguageModelV4FinishReason = createFinishReason('stop')
 ): ModelResponse {
   return {
     content,
@@ -244,6 +241,9 @@ test.before(async (t) => {
     workflowsPath: require.resolve('./workflows/ai-sdk'),
     workflowInterceptorModules,
     logger: new DefaultLogger('WARN'),
+    // The plugin's configureBundler prepends the polyfill installer to the bundle entry;
+    // the test workflows import `ai` before the workflow entry point and rely on it.
+    plugins: [new AiSdkPlugin({ modelProvider: new TestProvider(helloWorkflowGenerator()) })],
   });
   t.context = { env, workflowBundle };
 });
@@ -328,6 +328,25 @@ test('Tools workflow can use AI tools', async (t) => {
       );
       t.assert(activityTypes.includes('getWeather'), 'getWeather activity should have been called');
     }
+  });
+});
+
+function* imageToolWorkflowGenerator(): Generator<ModelResponse> {
+  yield toolCallResponse('screenshot', '{}');
+  yield textResponse('A transparent image');
+}
+
+test('Image tool results are converted inside the workflow sandbox', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+  const worker = await createWorker({
+    plugins: [new AiSdkPlugin({ modelProvider: new TestProvider(imageToolWorkflowGenerator()) })],
+  });
+
+  await worker.runUntil(async () => {
+    const result = await executeWorkflow(imageToolWorkflow, {
+      workflowExecutionTimeout: '10 seconds',
+    });
+    t.is(result, 'A transparent image');
   });
 });
 
@@ -500,7 +519,13 @@ test('Telemetry', async (t) => {
       });
     });
     await otel.shutdown();
-    const generateSpan = spans.find(({ name }) => name === `ai.generateText`);
+    t.log(
+      'exported spans:',
+      spans.map(({ name }) => name)
+    );
+    // @ai-sdk/otel's OpenTelemetry integration names spans `${operationName} ${modelId}`
+    // following the GenAI semantic conventions; generateText maps to `invoke_agent`.
+    const generateSpan = spans.find(({ name }) => name === `invoke_agent gpt-4o-mini`);
     t.true(generateSpan !== undefined);
   } finally {
     // Cleanup the runtime so that it doesn't interfere with other tests
@@ -544,10 +569,13 @@ test('callToolActivity awaits tool.execute before closing MCP client', async (t)
 
   const mockMcpClientFactory = async () => mockMcpClient as any;
 
-  // Create activities with the mock MCP client factory
-  const activities = createActivities(new TestProvider(helloWorkflowGenerator()), {
-    testServer: mockMcpClientFactory,
-  }) as Record<string, (args: unknown) => Promise<unknown>>;
+  // Create activities with the mock MCP client factory. mcpConnectionIdleTimeout: 0 opts out of
+  // connection reuse so this test's create-then-close-per-call assertion still holds.
+  const activities = createActivities(
+    new TestProvider(helloWorkflowGenerator()),
+    { testServer: mockMcpClientFactory },
+    { mcpConnectionIdleTimeout: 0 }
+  ) as Record<string, (args: unknown) => Promise<unknown>>;
 
   // Get the callTool activity
   const callToolActivity = activities['testServer-callTool']!;
@@ -571,43 +599,281 @@ test('callToolActivity awaits tool.execute before closing MCP client', async (t)
   );
 });
 
+test('MCP client connection is reused across repeated tools()/callTool invocations within the idle window', async (t) => {
+  let factoryCalls = 0;
+  const closeCalls: string[] = [];
+
+  const mockMcpClientFactory = async () => {
+    factoryCalls++;
+    const clientId = `client-${factoryCalls}`;
+    return {
+      async tools() {
+        return {
+          testTool: {
+            description: 'A test tool',
+            // The real @ai-sdk/mcp client always normalizes tool input schemas into a Schema
+            // object via `jsonSchema()` before returning them from `tools()`; a bare JSON
+            // Schema literal (e.g. `{ type: 'object' }`) is not a valid `FlexibleSchema` and
+            // makes `asSchema()` in `extractTools` (used by `listToolsActivity`) throw.
+            inputSchema: jsonSchema({ type: 'object' }),
+            execute: async () => ({ result: clientId }),
+          },
+        };
+      },
+      async close() {
+        closeCalls.push(clientId);
+      },
+    } as any;
+  };
+
+  const activities = createActivities(
+    new TestProvider(helloWorkflowGenerator()),
+    { reuseServer: mockMcpClientFactory },
+    { mcpConnectionIdleTimeout: '1 minute' }
+  ) as Record<string, (args: unknown) => Promise<unknown>>;
+
+  const listToolsActivity = activities['reuseServer-listTools']!;
+  const callToolActivity = activities['reuseServer-callTool']!;
+
+  await listToolsActivity({});
+  const firstResult = await callToolActivity({ name: 'testTool', input: {}, options: {} });
+  const secondResult = await callToolActivity({ name: 'testTool', input: {}, options: {} });
+
+  t.is(factoryCalls, 1, 'mcpClientFactory should only be called once while the connection is reused');
+  t.deepEqual(firstResult, { result: 'client-1' });
+  t.deepEqual(secondResult, { result: 'client-1' });
+  t.deepEqual(closeCalls, [], 'the connection should not be closed while still within the idle window');
+});
+
+test('idle MCP client connection is closed and evicted after the idle timeout elapses', async (t) => {
+  let factoryCalls = 0;
+  const closeCalls: string[] = [];
+
+  const mockMcpClientFactory = async () => {
+    factoryCalls++;
+    const clientId = `client-${factoryCalls}`;
+    return {
+      async tools() {
+        return {
+          testTool: {
+            description: 'A test tool',
+            inputSchema: { type: 'object' },
+            execute: async () => ({ result: clientId }),
+          },
+        };
+      },
+      async close() {
+        closeCalls.push(clientId);
+      },
+    } as any;
+  };
+
+  const activities = createActivities(
+    new TestProvider(helloWorkflowGenerator()),
+    { idleEvictServer: mockMcpClientFactory },
+    { mcpConnectionIdleTimeout: 20 }
+  ) as Record<string, (args: unknown) => Promise<unknown>>;
+
+  const callToolActivity = activities['idleEvictServer-callTool']!;
+
+  await callToolActivity({ name: 'testTool', input: {}, options: {} });
+  t.is(factoryCalls, 1);
+  t.deepEqual(closeCalls, [], 'connection should still be open immediately after the call');
+
+  // Wait past the idle timeout for the eviction timer to fire.
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  t.deepEqual(closeCalls, ['client-1'], 'connection should be closed once the idle timeout elapses');
+
+  // A subsequent call should reconnect via a fresh factory call.
+  await callToolActivity({ name: 'testTool', input: {}, options: {} });
+  t.is(factoryCalls, 2, 'a new connection should be created after eviction');
+});
+
+test('a long-running call is not evicted mid-call by a short idle timeout', async (t) => {
+  let factoryCalls = 0;
+  const closeCalls: string[] = [];
+
+  const mockMcpClientFactory = async () => {
+    factoryCalls++;
+    const clientId = `client-${factoryCalls}`;
+    return {
+      async tools() {
+        return {
+          testTool: {
+            description: 'A test tool',
+            inputSchema: { type: 'object' },
+            execute: async () => {
+              // Run well past the configured idle timeout while the call is in flight.
+              await new Promise((resolve) => setTimeout(resolve, 100));
+              return { result: clientId };
+            },
+          },
+        };
+      },
+      async close() {
+        closeCalls.push(clientId);
+      },
+    } as any;
+  };
+
+  const activities = createActivities(
+    new TestProvider(helloWorkflowGenerator()),
+    { longCallServer: mockMcpClientFactory },
+    { mcpConnectionIdleTimeout: 20 }
+  ) as Record<string, (args: unknown) => Promise<unknown>>;
+
+  const callToolActivity = activities['longCallServer-callTool']!;
+
+  const result = await callToolActivity({ name: 'testTool', input: {}, options: {} });
+
+  t.deepEqual(result, { result: 'client-1' });
+  t.deepEqual(closeCalls, [], 'the connection must not be closed by the idle timer while the call is still in flight');
+  t.is(factoryCalls, 1, 'the in-flight call should not have triggered a reconnect');
+});
+
+test('a tool-level error on one concurrent call does not evict the connection out from under a sibling call', async (t) => {
+  let factoryCalls = 0;
+  const closeCalls: string[] = [];
+  let markHealthyCallStarted!: () => void;
+  const healthyCallStarted = new Promise<void>((resolve) => {
+    markHealthyCallStarted = resolve;
+  });
+  let releaseHealthyCall!: () => void;
+  const healthyCallCanFinish = new Promise<void>((resolve) => {
+    releaseHealthyCall = resolve;
+  });
+
+  const mockMcpClientFactory = async () => {
+    factoryCalls++;
+    const clientId = `client-${factoryCalls}`;
+    return {
+      async tools() {
+        return {
+          failingTool: {
+            description: 'A tool that always fails',
+            inputSchema: { type: 'object' },
+            execute: async () => {
+              await healthyCallStarted;
+              throw new Error('business logic failure, unrelated to the connection');
+            },
+          },
+          slowTool: {
+            description: 'A slow but healthy tool',
+            inputSchema: { type: 'object' },
+            execute: async () => {
+              markHealthyCallStarted();
+              await healthyCallCanFinish;
+              return { result: clientId };
+            },
+          },
+        };
+      },
+      async close() {
+        closeCalls.push(clientId);
+      },
+    } as any;
+  };
+
+  const activities = createActivities(
+    new TestProvider(helloWorkflowGenerator()),
+    { sharedServer: mockMcpClientFactory },
+    { mcpConnectionIdleTimeout: '1 minute' }
+  ) as Record<string, (args: unknown) => Promise<unknown>>;
+
+  const callToolActivity = activities['sharedServer-callTool']!;
+
+  const failingCall = callToolActivity({ name: 'failingTool', input: {}, options: {} });
+  const healthyCall = callToolActivity({ name: 'slowTool', input: {}, options: {} });
+
+  await t.throwsAsync(failingCall, { message: /business logic failure/ });
+  const closeCallsWhileSiblingInFlight = [...closeCalls];
+  releaseHealthyCall();
+
+  const healthyResult = await healthyCall;
+  t.deepEqual(
+    closeCallsWhileSiblingInFlight,
+    [],
+    'the shared connection must not be closed while the sibling call is still in flight'
+  );
+  t.deepEqual(healthyResult, { result: 'client-1' }, 'the sibling call should complete successfully');
+  t.is(factoryCalls, 1, 'both concurrent calls should have shared the same pooled connection');
+});
+
+test('mcpConnectionIdleTimeout: 0 opts out of connection reuse (create-then-close every call)', async (t) => {
+  let factoryCalls = 0;
+  const closeCalls: string[] = [];
+
+  const mockMcpClientFactory = async () => {
+    factoryCalls++;
+    const clientId = `client-${factoryCalls}`;
+    return {
+      async tools() {
+        return {
+          testTool: {
+            description: 'A test tool',
+            inputSchema: { type: 'object' },
+            execute: async () => ({ result: clientId }),
+          },
+        };
+      },
+      async close() {
+        closeCalls.push(clientId);
+      },
+    } as any;
+  };
+
+  const activities = createActivities(
+    new TestProvider(helloWorkflowGenerator()),
+    { optOutServer: mockMcpClientFactory },
+    { mcpConnectionIdleTimeout: 0 }
+  ) as Record<string, (args: unknown) => Promise<unknown>>;
+
+  const callToolActivity = activities['optOutServer-callTool']!;
+
+  await callToolActivity({ name: 'testTool', input: {}, options: {} });
+  await callToolActivity({ name: 'testTool', input: {}, options: {} });
+
+  t.is(factoryCalls, 2, 'a fresh client should be created for every call when reuse is disabled');
+  t.deepEqual(closeCalls, ['client-1', 'client-2'], 'each client should be closed immediately after its call');
+});
+
+// Create in-memory MCP server with test tool
+const createTestMcpClient = async () => {
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
+  const server = new Server({ name: 'test-server', version: '1.0.0' }, { capabilities: { tools: {} } });
+
+  // Register tools/list handler
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: [
+      {
+        name: 'testTool',
+        description: 'A test tool',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            testParam: { type: 'string', description: 'Test parameter' },
+          },
+          required: ['testParam'],
+        },
+      },
+    ],
+  }));
+
+  // Register tools/call handler
+  server.setRequestHandler(CallToolRequestSchema, async () => ({
+    content: [{ type: 'text', text: 'ok' }],
+  }));
+
+  // Create linked in-memory transports
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await server.connect(serverTransport);
+
+  // Return real AI SDK MCP client connected to in-memory server
+  return createMCPClient({ transport: clientTransport });
+};
+
 test('MCP tool schema survives activity serialization', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
-
-  // Create in-memory MCP server with test tool
-  const createTestMcpClient = async () => {
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    const server = new Server({ name: 'test-server', version: '1.0.0' }, { capabilities: { tools: {} } });
-
-    // Register tools/list handler
-    server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [
-        {
-          name: 'testTool',
-          description: 'A test tool',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              testParam: { type: 'string', description: 'Test parameter' },
-            },
-            required: ['testParam'],
-          },
-        },
-      ],
-    }));
-
-    // Register tools/call handler
-    server.setRequestHandler(CallToolRequestSchema, async () => ({
-      content: [{ type: 'text', text: 'ok' }],
-    }));
-
-    // Create linked in-memory transports
-    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-    await server.connect(serverTransport);
-
-    // Return real AI SDK MCP client connected to in-memory server
-    return createMCPClient({ transport: clientTransport });
-  };
 
   const worker = await createWorker({
     plugins: [
@@ -663,4 +929,58 @@ test.skip('MCP Use', async (t) => {
       t.is('Some files', result);
     }
   });
+});
+
+test('Captured multi-step tools history replays deterministically', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+
+  const plugin = () => new AiSdkPlugin({ modelProvider: new TestProvider(toolsWorkflowGenerator()) });
+
+  const worker = await createWorker({ plugins: [plugin()], activities: { getWeather } });
+
+  let history;
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(toolsWorkflow, {
+      args: ['What is the weather in Tokyo?'],
+      workflowExecutionTimeout: '30 seconds',
+    });
+    t.is(await handle.result(), 'Test weather result');
+    history = await handle.fetchHistory();
+  });
+
+  // Replay the captured history with a fresh plugin instance. Any non-determinism
+  // in the ai@7 agent loop or the sandbox polyfills would surface as
+  // DeterminismViolationError.
+  await CoreWorker.runReplayHistory({ workflowBundle: t.context.workflowBundle, plugins: [plugin()] }, history!);
+  t.pass();
+});
+
+function* mcpReplayGenerator(): Generator<ModelResponse> {
+  yield toolCallResponse('testTool', '{"testParam":"hello"}');
+  yield textResponse('Done');
+}
+
+test('Captured multi-step MCP history replays deterministically', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+
+  const plugin = () =>
+    new AiSdkPlugin({
+      modelProvider: new TestProvider(mcpReplayGenerator()),
+      mcpClientFactories: { testServer: createTestMcpClient },
+    });
+
+  const worker = await createWorker({ plugins: [plugin()] });
+
+  let history;
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(mcpWorkflow, {
+      args: ['What files do you have? Use your tools.'],
+      workflowExecutionTimeout: '30 seconds',
+    });
+    t.is(await handle.result(), 'Done');
+    history = await handle.fetchHistory();
+  });
+
+  await CoreWorker.runReplayHistory({ workflowBundle: t.context.workflowBundle, plugins: [plugin()] }, history!);
+  t.pass();
 });

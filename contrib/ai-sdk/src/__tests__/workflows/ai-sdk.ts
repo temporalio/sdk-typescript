@@ -1,11 +1,13 @@
 // Test workflow using AI model
-// eslint-disable-next-line import/no-unassigned-import
-import '../../load-polyfills';
-import { embedMany, generateText, Output, stepCountIs, tool, wrapLanguageModel } from 'ai';
+// `ai` is deliberately imported before the workflow entry point: the bundle for these tests is
+// built through AiSdkPlugin, whose `configureBundler` prepends the polyfill installer to the
+// webpack entry, so import order must not matter.
+import { embedMany, generateText, isStepCount, Output, tool, wrapLanguageModel } from 'ai';
+import type { LanguageModelMiddleware } from 'ai';
+import { OpenTelemetry } from '@ai-sdk/otel';
 import { z } from 'zod';
-import type { LanguageModelV3Middleware } from '@ai-sdk/provider';
 import { proxyActivities } from '@temporalio/workflow';
-import { TemporalMCPClient, temporalProvider } from '../..';
+import { TemporalMCPClient, temporalProvider } from '../../workflow';
 import type * as activities from '../activities/ai-sdk';
 
 const { getWeather } = proxyActivities<typeof activities>({
@@ -16,7 +18,7 @@ export async function helloWorldAgent(prompt: string): Promise<string> {
   const result = await generateText({
     model: temporalProvider.languageModel('gpt-4o-mini'),
     prompt,
-    system: 'You only respond in haikus.',
+    instructions: 'You only respond in haikus.',
   });
   return result.text;
 }
@@ -25,7 +27,7 @@ export async function toolsWorkflow(question: string): Promise<string> {
   const result = await generateText({
     model: temporalProvider.languageModel('gpt-4o-mini'),
     prompt: question,
-    system: 'You are a helpful agent.',
+    instructions: 'You are a helpful agent.',
     tools: {
       getWeather: tool({
         description: 'Get the weather for a given city',
@@ -35,7 +37,40 @@ export async function toolsWorkflow(question: string): Promise<string> {
         execute: async (input, _options) => getWeather(input),
       }),
     },
-    stopWhen: stepCountIs(5),
+    stopWhen: isStepCount(5),
+  });
+  return result.text;
+}
+
+const transparentPng =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
+export async function imageToolWorkflow(): Promise<string> {
+  if (btoa(atob(transparentPng)) !== transparentPng) {
+    throw new Error('Base64 polyfill round trip failed');
+  }
+
+  const result = await generateText({
+    model: temporalProvider.languageModel('gpt-4o-mini'),
+    prompt: 'Call the screenshot tool, then describe the image.',
+    tools: {
+      screenshot: tool({
+        description: 'Take a screenshot',
+        inputSchema: z.object({}),
+        execute: async () => ({ data: transparentPng, mimeType: 'image/png' }),
+        toModelOutput: ({ output }) => ({
+          type: 'content',
+          value: [
+            {
+              type: 'file',
+              data: { type: 'data', data: output.data },
+              mediaType: output.mimeType,
+            },
+          ],
+        }),
+      }),
+    },
+    stopWhen: isStepCount(3),
   });
   return result.text;
 }
@@ -59,8 +94,8 @@ export async function generateObjectWorkflow(): Promise<string> {
 
 export async function middlewareWorkflow(prompt: string): Promise<string> {
   const cache = new Map<string, any>();
-  const middleware: LanguageModelV3Middleware = {
-    specificationVersion: 'v3',
+  const middleware: LanguageModelMiddleware = {
+    specificationVersion: 'v4',
     wrapGenerate: async ({ doGenerate, params }) => {
       const cacheKey = JSON.stringify(params);
       if (cache.has(cacheKey)) {
@@ -83,7 +118,7 @@ export async function middlewareWorkflow(prompt: string): Promise<string> {
   const result = await generateText({
     model,
     prompt,
-    system: 'You only respond in haikus.',
+    instructions: 'You only respond in haikus.',
   });
   return result.text;
 }
@@ -92,9 +127,10 @@ export async function telemetryWorkflow(prompt: string): Promise<string> {
   const result = await generateText({
     model: temporalProvider.languageModel('gpt-4o-mini'),
     prompt,
-    system: 'You only respond in haikus.',
-    experimental_telemetry: {
+    instructions: 'You only respond in haikus.',
+    telemetry: {
       isEnabled: true,
+      integrations: new OpenTelemetry(),
     },
   });
   return result.text;
@@ -107,8 +143,8 @@ export async function mcpWorkflow(prompt: string): Promise<string> {
     model: temporalProvider.languageModel('gpt-4o-mini'),
     prompt,
     tools,
-    system: 'What files do you have?',
-    stopWhen: stepCountIs(5),
+    instructions: 'What files do you have?',
+    stopWhen: isStepCount(5),
   });
   return result.text;
 }

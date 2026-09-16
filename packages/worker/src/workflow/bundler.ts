@@ -252,22 +252,18 @@ exports.importInterceptors = function importInterceptors() {
           /[\\/](?:@temporalio|contrib)[\\/]interceptors-opentelemetry(?:-v2)?[\\/](?:src|lib)[\\/]workflow[\\/]workflow-imports\.[jt]s$/,
           './workflow-imports-impl.js'
         ),
-        // protobufjs 7.6.x resolves optional filesystem support through two package-local shim imports:
-        // `protobufjs/src/util.js -> ./util/fs` and `@protobufjs/fetch/index.js -> ./util/fs`.
-        // Resolve those shims to `null` to avoid failing due to the probe without requiring users to blanket allow `fs` usage
-        new NormalModuleReplacementPlugin(
-          /^\.\/util\/fs$/,
-          (resolveData: { context: string; request: string }): void => {
-            const protobufjsOptionalFsModuleParent =
-              /[\\/]node_modules[\\/](?:protobufjs[\\/]src|@protobufjs[\\/]fetch)$/;
-            if (protobufjsOptionalFsModuleParent.test(resolveData.context)) {
-              resolveData.request = path.resolve(__dirname, 'module-overrides', 'protobufjs-fs.js');
-            }
-          }
-        ),
       ],
       externals: captureProblematicModules,
       module: {
+        parser: {
+          javascript: {
+            // protobufjs probes for optional filesystem support with
+            // `require(/* webpackIgnore: true */ 'fs')`. Webpack only honours that hint on
+            // CommonJS requires when `commonjsMagicComments` is enabled; without it the probe
+            // looks like a real `fs` dependency and trips the disallowed modules check.
+            commonjsMagicComments: true,
+          },
+        },
         rules: [
           {
             test: /\.js$/,

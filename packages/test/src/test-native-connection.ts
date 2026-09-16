@@ -9,11 +9,11 @@ import { Client, NamespaceNotFoundError, WorkflowNotFoundError } from '@temporal
 import type { InternalConnectionOptions } from '@temporalio/client/lib/connection';
 import { InternalConnectionOptionsSymbol } from '@temporalio/client/lib/connection';
 import type { NativeConnectionOptions } from '@temporalio/worker';
-import { IllegalStateError, NativeConnection, TransportError } from '@temporalio/worker';
+import { NativeConnection, TransportError } from '@temporalio/worker';
 import { toNativeClientOptions } from '@temporalio/worker/lib/connection-options';
 import type { temporal } from '@temporalio/proto';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
-import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { RUN_INTEGRATION_TESTS } from './helpers';
 
 const workflowServicePackageDefinition = protoLoader.loadSync(
   path.resolve(
@@ -103,39 +103,6 @@ if (RUN_INTEGRATION_TESTS) {
       instanceOf: TransportError, // eslint-disable-line @typescript-eslint/no-deprecated
       message: /.*Connection[ ]?refused.*/i,
     });
-  });
-
-  test('NativeConnection.close() throws when called a second time', async (t) => {
-    const conn = await NativeConnection.connect();
-    await conn.close();
-    await t.throwsAsync(() => conn.close(), {
-      instanceOf: IllegalStateError,
-      message: 'Client already closed',
-    });
-  });
-
-  test('NativeConnection.close() throws if being used by a Worker and succeeds if it has been shutdown', async (t) => {
-    const connection = await NativeConnection.connect();
-    const worker = await Worker.create({
-      connection,
-      taskQueue: 'default',
-      activities: {
-        async noop() {
-          // empty placeholder
-        },
-      },
-    });
-    try {
-      await t.throwsAsync(() => connection.close(), {
-        instanceOf: IllegalStateError,
-        message: 'Cannot close connection while Workers hold a reference to it',
-      });
-    } finally {
-      const p = worker.run();
-      worker.shutdown();
-      await p;
-      await connection.close();
-    }
   });
 }
 
@@ -536,4 +503,28 @@ test('NativeConnection: gRPC compression defaults to gzip', (t) => {
 test('NativeConnection: gRPC compression can be disabled', (t) => {
   const options = toNativeClientOptions({ grpcCompression: { codec: 'none' } });
   t.deepEqual(options.grpcCompression, { codec: 'none' });
+});
+
+test('NativeConnection: payload/memo warn sizes default when payloadLimits is unset', (t) => {
+  const options = toNativeClientOptions({});
+  t.is(options.payloadsWarnSize, 512 * 1024);
+  t.is(options.memoWarnSize, 2 * 1024);
+});
+
+test('NativeConnection: setting payloadsWarnSize leaves memoWarnSize at its default', (t) => {
+  const options = toNativeClientOptions({ payloadLimits: { payloadsWarnSize: 1024 } });
+  t.is(options.payloadsWarnSize, 1024);
+  t.is(options.memoWarnSize, 2 * 1024);
+});
+
+test('NativeConnection: setting memoWarnSize leaves payloadsWarnSize at its default', (t) => {
+  const options = toNativeClientOptions({ payloadLimits: { memoWarnSize: 1024 } });
+  t.is(options.memoWarnSize, 1024);
+  t.is(options.payloadsWarnSize, 512 * 1024);
+});
+
+test('NativeConnection: a 0 warn size disables the warning instead of falling back to the default', (t) => {
+  const options = toNativeClientOptions({ payloadLimits: { payloadsWarnSize: 0, memoWarnSize: 0 } });
+  t.is(options.payloadsWarnSize, 0);
+  t.is(options.memoWarnSize, 0);
 });

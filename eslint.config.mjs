@@ -4,7 +4,7 @@ import importPlugin from 'eslint-plugin-import';
 import prettierConfig from 'eslint-config-prettier';
 
 export default tseslint.config(
-  { ignores: ['**/node_modules/**', '**/lib/**', '**/*.js', '**/*.mjs', '**/*.cjs'] },
+  { ignores: ['**/node_modules/**', '**/lib/**', '**/*.js', '**/*.mjs', '**/*.cjs', '**/*.generated.ts'] },
   {
     files: ['packages/*/src/**/*.ts', 'contrib/*/src/**/*.ts'],
     extends: [js.configs.recommended, ...tseslint.configs.recommended, prettierConfig],
@@ -153,6 +153,18 @@ export default tseslint.config(
   {
     files: ['contrib/openai-agents/src/**/*.ts'],
     ignores: ['contrib/openai-agents/src/__tests__/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: ['@temporalio/*/src/*', '**/__tests__/**', '**/*.test'],
+        },
+      ],
+    },
+  },
+  {
+    files: ['contrib/google-adk-agents/src/**/*.ts'],
+    ignores: ['contrib/google-adk-agents/src/__tests__/**'],
     rules: {
       'no-restricted-imports': [
         'error',

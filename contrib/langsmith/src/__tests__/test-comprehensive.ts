@@ -1,6 +1,12 @@
 /**
- * Line-for-line trace-tree E2E: drives one `ComprehensiveWorkflow` touching every
- * instrumented boundary and asserts the EXACT run hierarchy with `deepEqual`.
+ * Trace-tree E2E: drives one `ComprehensiveWorkflow` touching every instrumented boundary and
+ * asserts the EXACT run hierarchy (each run's full root-to-node parent chain).
+ *
+ * The hierarchy is compared as a multiset of root-to-node paths rather than a positional line
+ * dump. Some runs are emitted by workflows that execute concurrently (notably the receiver child's
+ * `RunWorkflow` span races the parent's `SignalChildWorkflow` marker), so the `createRun` arrival
+ * order of such siblings is non-deterministic. Their relative order carries no meaning; the parent
+ * chain of every run does, and that is what we assert.
  *
  * @module
  */
@@ -181,12 +187,29 @@ const EXPECTED_FALSE: string[] = [
   '    update_inner_call',
 ];
 
+/**
+ * Convert an indented (two-space-per-depth) trace dump into a sorted multiset of root-to-node
+ * paths, e.g. `'user_pipeline > RunWorkflow:X > HandleSignal:signal'`. Sorting drops sibling order
+ * (non-deterministic for concurrent runs) while preserving each node's full parent chain.
+ */
+function toPaths(lines: string[]): string[] {
+  const stack: string[] = [];
+  const paths: string[] = [];
+  for (const line of lines) {
+    const depth = (line.length - line.trimStart().length) / 2;
+    stack.length = depth;
+    stack.push(line.trim());
+    paths.push(stack.join(' > '));
+  }
+  return paths.sort();
+}
+
 test.serial('comprehensive trace tree: addTemporalRuns=true', async (t) => {
   const collector = await runComprehensive(true);
-  t.deepEqual(dumpTraces(collector.records).split('\n'), EXPECTED_TRUE);
+  t.deepEqual(toPaths(dumpTraces(collector.records).split('\n')), toPaths(EXPECTED_TRUE));
 });
 
 test.serial('comprehensive trace tree: addTemporalRuns=false', async (t) => {
   const collector = await runComprehensive(false);
-  t.deepEqual(dumpTraces(collector.records).split('\n'), EXPECTED_FALSE);
+  t.deepEqual(toPaths(dumpTraces(collector.records).split('\n')), toPaths(EXPECTED_FALSE));
 });

@@ -4,7 +4,14 @@
  * @module
  */
 
-import type { Duration, SearchAttributePair, TypedSearchAttributes } from '@temporalio/common';
+import type {
+  Duration,
+  PayloadTypeInfo,
+  SearchAttributePair,
+  SignalTypeInfo,
+  TypeInfo,
+  TypedSearchAttributes,
+} from '@temporalio/common';
 import { Headers, Next } from '@temporalio/common';
 import type { temporal } from '@temporalio/proto';
 import type { NexusOperationHandle } from './nexus-client';
@@ -26,7 +33,15 @@ import type {
   WorkflowExecution,
 } from './types';
 import type { CompiledWorkflowOptions, WorkflowUpdateOptions } from './workflow-options';
-import type { ActivityHandle, ActivityOptions } from './activity-client';
+import type {
+  ActivityDescribeOptions,
+  ActivityHandle,
+  ActivityOptions,
+  ActivityOptionsUpdate,
+  ActivityOptionsUpdateResult,
+  ActivityPauseOptions,
+  ActivityUnpauseOptions,
+} from './activity-client';
 
 export { Headers, Next };
 
@@ -42,6 +57,8 @@ export interface WorkflowStartInput {
 export interface WorkflowStartUpdateInput {
   readonly updateName: string;
   readonly args: unknown[];
+  /** Type information used to encode Update arguments and decode its result. */
+  readonly typeInfo?: PayloadTypeInfo;
   readonly workflowExecution: WorkflowExecution;
   readonly firstExecutionRunId?: string;
   readonly headers: Headers;
@@ -59,6 +76,8 @@ export interface WorkflowStartUpdateOutput {
   readonly updateId: string;
   readonly workflowRunId: string;
   readonly outcome?: temporal.api.update.v1.IOutcome;
+  /** Type information used to decode the Update result. */
+  readonly outputTypeInfo?: TypeInfo;
 }
 
 /**
@@ -70,6 +89,8 @@ export interface WorkflowStartUpdateWithStartInput {
   readonly workflowStartHeaders: Headers;
   readonly updateName: string;
   readonly updateArgs: unknown[];
+  /** Type information used to encode Update arguments and decode its result. */
+  readonly updateTypeInfo?: PayloadTypeInfo;
   readonly updateOptions: WorkflowUpdateOptions;
   readonly updateHeaders: Headers;
 }
@@ -81,12 +102,15 @@ export interface WorkflowStartUpdateWithStartOutput {
   readonly workflowExecution: WorkflowExecution;
   readonly updateId: string;
   readonly updateOutcome?: temporal.api.update.v1.IOutcome;
+  /** Type information used to decode the Update result. */
+  readonly updateOutputTypeInfo?: TypeInfo;
 }
 
 /** Input for WorkflowClientInterceptor.signal */
 export interface WorkflowSignalInput {
   readonly signalName: string;
   readonly args: unknown[];
+  readonly typeInfo?: SignalTypeInfo;
   readonly workflowExecution: WorkflowExecution;
   readonly headers: Headers;
 }
@@ -96,6 +120,7 @@ export interface WorkflowSignalWithStartInput {
   readonly workflowType: string;
   readonly signalName: string;
   readonly signalArgs: unknown[];
+  readonly signalTypeInfo?: SignalTypeInfo;
   readonly headers: Headers;
   readonly options: CompiledWorkflowOptions;
 }
@@ -104,6 +129,7 @@ export interface WorkflowSignalWithStartInput {
 export interface WorkflowQueryInput {
   readonly queryType: string;
   readonly args: unknown[];
+  readonly typeInfo?: PayloadTypeInfo;
   readonly workflowExecution: WorkflowExecution;
   readonly queryRejectCondition?: temporal.api.enums.v1.QueryRejectCondition;
   readonly headers: Headers;
@@ -130,8 +156,6 @@ export interface WorkflowDescribeInput {
 
 /**
  * Implement any of these methods to intercept {@link WorkflowClient} outbound calls
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface WorkflowClientInterceptor {
   /**
@@ -297,12 +321,15 @@ export interface StartNexusOperationInput {
   readonly idConflictPolicy?: NexusOperationIdConflictPolicy;
   readonly searchAttributes?: SearchAttributePair[] | TypedSearchAttributes;
   readonly headers?: Record<string, string>;
+  readonly inputType?: TypeInfo;
+  readonly outputType?: TypeInfo;
 }
 
 /** Input for {@link NexusClientInterceptor.getResult}. */
 export interface GetNexusOperationResultInput {
   readonly operationId: string;
   readonly runId?: string;
+  readonly outputType?: TypeInfo;
 }
 
 /** Input for {@link NexusClientInterceptor.describe}. */
@@ -349,8 +376,6 @@ export interface ClientInterceptors {
 
 /**
  * Implement any of these methods to intercept {@link ActivityClient} outbound calls
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityClientInterceptor {
   /**
@@ -381,12 +406,40 @@ export interface ActivityClientInterceptor {
    * Intercept a service call to countActivityExecutions
    */
   count?: (input: ActivityCountInput, next: Next<this, 'count'>) => Promise<CountActivityExecutions>;
+  /**
+   * Intercept a service call to pauseActivityExecution
+   *
+   * @experimental Activity Operator Commands are experimental. APIs may be subject to change.
+   */
+  pause?: (input: ActivityPauseInput, next: Next<this, 'pause'>) => Promise<void>;
+  /**
+   * Intercept a service call to unpauseActivityExecution
+   *
+   * @experimental Activity Operator Commands are experimental. APIs may be subject to change.
+   */
+  unpause?: (input: ActivityUnpauseInput, next: Next<this, 'unpause'>) => Promise<void>;
+  /**
+   * Intercept a service call to updateActivityExecutionOptions(restoreOriginal=false)
+   *
+   * @experimental Activity Operator Commands are experimental. APIs may be subject to change.
+   */
+  updateOptions?: (
+    input: ActivityUpdateOptionsInput,
+    next: Next<this, 'updateOptions'>
+  ) => Promise<ActivityOptionsUpdateResult>;
+  /**
+   * Intercept a service call to updateActivityExecutionOptions(restoreOriginal=true)
+   *
+   * @experimental Activity Operator Commands are experimental. APIs may be subject to change.
+   */
+  restoreOriginalOptions?: (
+    input: ActivityRestoreOriginalOptionsInput,
+    next: Next<this, 'restoreOriginalOptions'>
+  ) => Promise<ActivityOptionsUpdate>;
 }
 
 /**
  * Input for {@link ActivityClientInterceptor.start}
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityStartInput {
   readonly activityType: string;
@@ -396,30 +449,27 @@ export interface ActivityStartInput {
 
 /**
  * Input for {@link ActivityClientInterceptor.getResult}
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityGetResultInput {
   readonly activityId: string;
   readonly activityRunId: string;
+  /** Type information used to decode the Activity result. */
+  readonly outputType?: TypeInfo;
   readonly headers: Headers;
 }
 
 /**
  * Input for {@link ActivityClientInterceptor.describe}
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityDescribeInput {
   readonly activityId: string;
   readonly activityRunId: string;
   readonly headers: Headers;
+  readonly options: Required<ActivityDescribeOptions>;
 }
 
 /**
  * Input for {@link ActivityClientInterceptor.cancel}
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityCancelInput {
   readonly activityId: string;
@@ -430,8 +480,6 @@ export interface ActivityCancelInput {
 
 /**
  * Input for {@link ActivityClientInterceptor.terminate}
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityTerminateInput {
   readonly activityId: string;
@@ -442,8 +490,6 @@ export interface ActivityTerminateInput {
 
 /**
  * Input for {@link ActivityClientInterceptor.list}
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityListInput {
   readonly query: string;
@@ -452,10 +498,55 @@ export interface ActivityListInput {
 
 /**
  * Input for {@link ActivityClientInterceptor.count}
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 export interface ActivityCountInput {
   readonly query: string;
+  readonly headers: Headers;
+}
+
+/**
+ * Input for {@link ActivityClientInterceptor.pause}
+ *
+ * @experimental Activity Operator Commands are experimental. APIs may be subject to change.
+ */
+export interface ActivityPauseInput {
+  readonly activityId: string;
+  readonly activityRunId: string;
+  readonly options: ActivityPauseOptions;
+  readonly headers: Headers;
+}
+
+/**
+ * Input for {@link ActivityClientInterceptor.unpause}
+ *
+ * @experimental Activity Operator Commands are experimental. APIs may be subject to change.
+ */
+export interface ActivityUnpauseInput {
+  readonly activityId: string;
+  readonly activityRunId: string;
+  readonly options: ActivityUnpauseOptions;
+  readonly headers: Headers;
+}
+
+/**
+ * Input for {@link ActivityClientInterceptor.updateOptions}
+ *
+ * @experimental Activity Operator Commands are experimental. APIs may be subject to change.
+ */
+export interface ActivityUpdateOptionsInput {
+  readonly activityId: string;
+  readonly activityRunId: string;
+  readonly options: ActivityOptionsUpdate;
+  readonly headers: Headers;
+}
+
+/**
+ * Input for {@link ActivityClientInterceptor.restoreOriginalOptions}
+ *
+ * @experimental Activity Operator Commands are experimental. APIs may be subject to change.
+ */
+export interface ActivityRestoreOriginalOptionsInput {
+  readonly activityId: string;
+  readonly activityRunId: string;
   readonly headers: Headers;
 }

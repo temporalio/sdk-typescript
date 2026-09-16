@@ -48,6 +48,20 @@ export function patchProtobufRoot<T extends Record<string, unknown>>(root: T): T
     });
   }
 
+  // Protobufjs >=8 declares `constructor` as a non-enumerable property on the prototypes of its
+  // reflection classes; before that it was assigned plainly, making it enumerable. `__importStar`
+  // only carries over own enumerable properties, so without this the wrapper it builds for
+  // `import * as proto from '@temporalio/proto'` loses its link back to `Root`, and the
+  // `constructor.className` checks used to recognize a root would reject it.
+  if (!Object.getOwnPropertyDescriptor(patched, 'constructor')) {
+    Object.defineProperty(patched, 'constructor', {
+      value: patched.constructor,
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+  }
+
   return patched;
 }
 

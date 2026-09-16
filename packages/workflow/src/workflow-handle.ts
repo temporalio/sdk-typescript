@@ -1,14 +1,16 @@
-import type { BaseWorkflowHandle, SignalDefinition, Workflow } from '@temporalio/common';
+import type { BaseWorkflowHandle, SignalDefinition, Workflow, WorkflowSignalOptions } from '@temporalio/common';
 
 /**
  * Handle representing an external Workflow Execution.
  *
- * This handle only has methods `cancel` and `signal`. To call other methods, like `query` and `result`, use
- * {@link WorkflowClient.getHandle} inside an Activity.
+ * This handle only has methods `cancel`, `signal`, and `signalWithOptions`. To call other methods, like `query` and
+ * `result`, use {@link WorkflowClient.getHandle} inside an Activity.
  */
 export interface ExternalWorkflowHandle {
   /**
    * Signal a running Workflow.
+   *
+   * To provide call-site TypeInfo when signaling by name, use {@link signalWithOptions}.
    *
    * @param def a signal definition as returned from {@link defineSignal} or signal name (string)
    *
@@ -21,6 +23,13 @@ export interface ExternalWorkflowHandle {
     def: SignalDefinition<Args, Name> | string,
     ...args: Args
   ): Promise<void>;
+
+  /**
+   * Signal a running Workflow by Signal name with additional options, including call-site TypeInfo.
+   *
+   * @experimental
+   */
+  signalWithOptions<Args extends any[] = []>(signalName: string, options: WorkflowSignalOptions<Args>): Promise<void>;
 
   /**
    * Cancel the external Workflow execution.

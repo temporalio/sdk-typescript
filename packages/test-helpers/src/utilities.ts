@@ -1,8 +1,42 @@
+import type { ExecutionContext } from 'ava';
+
 /**
  * Sleep for a given number of milliseconds
  */
 export async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Repeatedly run an assertion callback until it passes, or until a timeout elapses.
+ *
+ * Each attempt runs inside ava's `t.try()`, so failing intermediate attempts (including ones that
+ * throw, e.g. reading a metric line that isn't present yet) are discarded and do not fail the test.
+ * The final attempt is committed, so a genuine failure is reported with its normal assertion
+ * diagnostics and logs.
+ *
+ * Use this for state that only becomes true asynchronously (e.g. metrics that Core exports to its
+ * Prometheus endpoint on a delay). The check is written once, as the assertion, instead of being
+ * duplicated as both a `waitUntil` predicate and a separate assertion.
+ */
+export async function assertEventually<Context = unknown>(
+  t: ExecutionContext<Context>,
+  assertion: (t: ExecutionContext<Context>) => void | Promise<void>,
+  timeoutMs = 3000,
+  intervalMs = 100
+): Promise<void> {
+  const endTime = Date.now() + timeoutMs;
+  for (;;) {
+    const attempt = await t.try(async (tt) => {
+      await assertion(tt);
+    });
+    if (attempt.passed || Date.now() >= endTime) {
+      attempt.commit();
+      return;
+    }
+    attempt.discard();
+    await sleep(intervalMs);
+  }
 }
 
 /**

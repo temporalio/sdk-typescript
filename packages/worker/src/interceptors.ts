@@ -114,23 +114,18 @@ export interface ActivityInboundCallsInterceptorFactory {
  * parameter. Interceptor functions may then rely on APIs provided by the `@temporalio/nexus` package
  * to access the Nexus Operation Context where needed.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export type NexusInterceptorsFactory = (ctx: nexus.OperationContext) => NexusInterceptors;
 
 /**
  * Interceptors for Nexus Operation execution.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export type NexusInterceptors = {
   inbound?: NexusInboundCallsInterceptor;
   outbound?: NexusOutboundCallsInterceptor;
 };
 
-/**
- * @experimental Nexus support in Temporal SDK is experimental.
- */
 export type NexusInboundCallsInterceptor = {
   startOperation?: (
     input: NexusStartOperationInput,
@@ -146,7 +141,6 @@ export type NexusInboundCallsInterceptor = {
 /**
  * Input for {@link NexusInboundCallsInterceptor.startOperation}
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface NexusStartOperationInput {
   readonly ctx: nexus.StartOperationContext;
@@ -156,7 +150,6 @@ export interface NexusStartOperationInput {
 /**
  * Output for {@link NexusInboundCallsInterceptor.startOperation}
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface NexusStartOperationOutput {
   readonly result: nexus.HandlerStartOperationResult<unknown>;
@@ -165,16 +158,12 @@ export interface NexusStartOperationOutput {
 /**
  * Input for {@link NexusInboundCallsInterceptor.cancelOperation}
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface NexusCancelOperationInput {
   readonly ctx: nexus.CancelOperationContext;
   readonly token: string;
 }
 
-/**
- * @experimental Nexus support in Temporal SDK is experimental.
- */
 export type NexusOutboundCallsInterceptor = {
   getLogAttributes?: (
     input: GetLogAttributesInput,
@@ -219,7 +208,6 @@ export interface WorkerInterceptors {
   /**
    * List of factory functions that instanciate {@link NexusInterceptors}s.
    *
-   * @experimental Nexus support in Temporal SDK is experimental.
    */
   nexus?: NexusInterceptorsFactory[];
 

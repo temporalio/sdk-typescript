@@ -69,6 +69,8 @@ export * from './sinks';
 export { DataConverter, defaultPayloadConverter, State, Worker, WorkerStatus } from './worker';
 export {
   CompiledWorkerOptions,
+  PatchActivationCallback,
+  PatchActivationInput,
   ReplayWorkerOptions,
   WorkerDeploymentOptions,
   WorkerOptions,
@@ -83,7 +85,9 @@ export {
   WorkerTuner,
   TunerHolder,
   SlotSupplier,
+  ResourceBasedController,
   ResourceBasedTuner,
+  ResourceBasedTunerWithController,
   ResourceBasedTunerOptions,
   ResourceBasedSlotOptions,
   ResourceBasedSlotsForType,
