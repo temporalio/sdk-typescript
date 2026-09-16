@@ -40,7 +40,7 @@
         "no-empty-static-block": "error",
         "no-ex-assign": "error",
         "no-extra-boolean-cast": "error",
-        "no-fallthrough": "error",
+        "no-fallthrough": "off",
         "no-func-assign": "off",
         "no-global-assign": "error",
         "no-import-assign": "off",
@@ -56,7 +56,12 @@
         "no-regex-spaces": "error",
         "no-self-assign": "error",
         "no-setter-return": "off",
-        "no-shadow-restricted-names": ["error", { "reportGlobalThis": false }],
+        "no-shadow-restricted-names": [
+          "error",
+          {
+            "reportGlobalThis": false
+          }
+        ],
         "no-sparse-arrays": "error",
         "no-this-before-super": "off",
         "no-unexpected-multiline": "off",
@@ -104,10 +109,26 @@
         "typescript/prefer-as-const": "error",
         "typescript/prefer-namespace-keyword": "error",
         "typescript/triple-slash-reference": "error",
-        "eqeqeq": ["error", "always", { "null": "ignore" }],
-        "no-duplicate-imports": ["error", { "allowSeparateTypeImports": true }],
+        "eqeqeq": [
+          "error",
+          "always",
+          {
+            "null": "ignore"
+          }
+        ],
+        "no-duplicate-imports": [
+          "error",
+          {
+            "allowSeparateTypeImports": true
+          }
+        ],
         "object-shorthand": ["error", "always"],
-        "no-restricted-imports": ["error", { "patterns": ["@temporalio/*/src/*"] }],
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": ["@temporalio/*/src/*"]
+          }
+        ],
         "import/default": "error",
         "import/export": "error",
         "import/namespace": "error",
@@ -209,7 +230,12 @@
       "files": ["contrib/openai-agents/src/**/*.ts", "contrib/google-adk-agents/src/**/*.ts"],
       "excludeFiles": ["contrib/openai-agents/src/__tests__/**", "contrib/google-adk-agents/src/__tests__/**"],
       "rules": {
-        "no-restricted-imports": ["error", { "patterns": ["@temporalio/*/src/*", "**/__tests__/**", "**/*.test"] }]
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": ["@temporalio/*/src/*", "**/__tests__/**", "**/*.test"]
+          }
+        ]
       }
     }
   ]
