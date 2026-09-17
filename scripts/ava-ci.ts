@@ -11,7 +11,8 @@
 // Usage (from a package's `test` script): node ../../scripts/lib/ava-ci.js <ava args>
 
 import { spawn } from 'node:child_process';
-import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { basename, dirname, join, relative } from 'node:path';
 
 interface Failure {
@@ -55,6 +56,8 @@ mkdirSync(resultsDir, { recursive: true });
 const logPath = join(resultsDir, `${safeName}.log`);
 const jsonPath = join(resultsDir, `${safeName}.json`);
 const logStream = createWriteStream(logPath);
+const workflowBundleCacheDirectory =
+  pkgName === '@temporalio/test' ? mkdtempSync(join(tmpdir(), 'temporal-workflow-bundles-')) : undefined;
 
 // ANSI colors: honor NO_COLOR, and enable in a terminal or CI (GitHub is non-TTY
 // but renders ANSI). Stay plain when output is redirected to a file/pipe locally.
@@ -209,6 +212,12 @@ const child = spawn(cmd, cmdArgs, {
   cwd,
   shell: process.platform === 'win32',
   stdio: ['inherit', 'pipe', 'pipe'],
+  env: {
+    ...process.env,
+    ...(workflowBundleCacheDirectory === undefined
+      ? {}
+      : { TEMPORAL_WORKFLOW_BUNDLE_CACHE_DIR: workflowBundleCacheDirectory }),
+  },
 });
 
 child.stdout?.setEncoding('utf8');
@@ -226,6 +235,9 @@ function finish(exitCode: number): void {
   const result = { package: pkgName, pass, fail, skip, todo, durationMs, exitCode, failures, logPath };
 
   logStream.end();
+  if (workflowBundleCacheDirectory !== undefined) {
+    rmSync(workflowBundleCacheDirectory, { recursive: true, force: true });
+  }
   try {
     writeFileSync(jsonPath, JSON.stringify(result, null, 2));
   } catch {

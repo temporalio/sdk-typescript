@@ -33,7 +33,7 @@ import {
   test as anyTest,
   Worker,
 } from '@temporalio/test-helpers';
-import { getCachedTestWorkflowBundle } from './workflow-bundle-cache';
+import { getCachedTestWorkflowBundle, testWorkflowBundleIgnoreModules } from './workflow-bundle-cache';
 
 export { defaultSAKeys, createLocalTestEnvironment };
 
@@ -81,11 +81,7 @@ export async function createTestWorkflowBundle(
 ): ReturnType<typeof createTestWorkflowBundleBase> {
   return createTestWorkflowBundleBase({
     ...opts,
-    additionalIgnoreModules: [
-      require.resolve('./activities'),
-      require.resolve('./mock-native-worker'),
-      require.resolve('./workflow-bundle-cache'),
-    ],
+    additionalIgnoreModules: testWorkflowBundleIgnoreModules,
   });
 }
 

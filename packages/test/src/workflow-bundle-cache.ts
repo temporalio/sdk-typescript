@@ -1,16 +1,14 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { WorkflowBundle } from '@temporalio/worker';
+import type { WorkflowBundleWithSourceMap } from '@temporalio/worker';
 import { workflowInterceptorModules as defaultWorkflowInterceptorModules } from '@temporalio/testing';
 import { createTestWorkflowBundle } from '@temporalio/test-helpers/lib/environment';
 
-export const workflowBundleCacheDirectory = path.join(__dirname, 'workflow-bundle-cache');
-
-const bundleConfigurationPaths = [
-  require.resolve('@temporalio/test-helpers/lib/environment'),
-  require.resolve('@temporalio/test-helpers/lib/bundler'),
-  require.resolve('@temporalio/worker/lib/workflow/bundler'),
+export const testWorkflowBundleIgnoreModules = [
+  require.resolve('./activities'),
+  require.resolve('./mock-native-worker'),
+  require.resolve('./workflow-bundle-cache'),
 ];
 
 export interface CachedTestWorkflowBundleOptions {
@@ -26,59 +24,57 @@ function resolveModulePath(modulePath: string): string {
   }
 }
 
-function normalizeOptions(opts: CachedTestWorkflowBundleOptions): Required<CachedTestWorkflowBundleOptions> {
-  return {
+function cacheKey(opts: CachedTestWorkflowBundleOptions): string {
+  return JSON.stringify({
     workflowsPath: path.resolve(opts.workflowsPath),
     workflowInterceptorModules: [...defaultWorkflowInterceptorModules, ...(opts.workflowInterceptorModules ?? [])].map(
       resolveModulePath
     ),
-  };
+  });
 }
 
-function cachePath(opts: Required<CachedTestWorkflowBundleOptions>): string {
-  const digest = createHash('sha256').update(JSON.stringify(opts)).digest('hex').slice(0, 12);
-  return path.join(workflowBundleCacheDirectory, `workflow-bundle-${digest}.js`);
+const workflowBundles = new Map<string, Promise<WorkflowBundleWithSourceMap>>();
+const cacheDirectory = process.env.TEMPORAL_WORKFLOW_BUNDLE_CACHE_DIR;
+
+function cachePath(key: string): string {
+  const digest = createHash('sha256').update(key).digest('hex').slice(0, 12);
+  return path.join(cacheDirectory!, `workflow-bundle-${digest}.js`);
 }
 
-async function newestInputMtime(inputPath: string): Promise<number> {
-  const inputStat = await stat(inputPath);
-  if (!inputStat.isDirectory()) return inputStat.mtimeMs;
-
-  const entries = await readdir(inputPath, { withFileTypes: true });
-  const mtimes = await Promise.all(entries.map((entry) => newestInputMtime(path.join(inputPath, entry.name))));
-  return Math.max(inputStat.mtimeMs, ...mtimes);
-}
-
-/** JIT-build and cache the package's default test bundle for a workflow configuration. */
-export async function getCachedTestWorkflowBundle(opts: CachedTestWorkflowBundleOptions): Promise<WorkflowBundle> {
-  const normalized = normalizeOptions(opts);
-  const codePath = cachePath(normalized);
-  try {
-    const [cacheStats, newestMtime] = await Promise.all([
-      stat(codePath),
-      Promise.all([
-        ...bundleConfigurationPaths,
-        normalized.workflowsPath,
-        ...normalized.workflowInterceptorModules,
-      ]).then((inputPaths) => Promise.all(inputPaths.map(newestInputMtime))),
-    ]);
-    if (cacheStats.mtimeMs >= Math.max(...newestMtime)) {
-      return { code: await readFile(codePath, 'utf8') };
+async function loadOrCreateBundle(
+  opts: CachedTestWorkflowBundleOptions,
+  key: string
+): Promise<WorkflowBundleWithSourceMap> {
+  if (cacheDirectory !== undefined) {
+    try {
+      return { code: await readFile(cachePath(key), 'utf8'), sourceMap: 'deprecated: this is no longer in use\n' };
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
     }
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
   }
 
-  const { code } = await createTestWorkflowBundle({
-    workflowsPath: normalized.workflowsPath,
+  const bundle = await createTestWorkflowBundle({
+    workflowsPath: opts.workflowsPath,
     workflowInterceptorModules: opts.workflowInterceptorModules,
-    additionalIgnoreModules: [
-      require.resolve('./activities'),
-      require.resolve('./mock-native-worker'),
-      require.resolve('./workflow-bundle-cache'),
-    ],
+    additionalIgnoreModules: testWorkflowBundleIgnoreModules,
   });
-  await mkdir(workflowBundleCacheDirectory, { recursive: true });
-  await writeFile(codePath, code);
-  return { code };
+  if (cacheDirectory !== undefined) {
+    await mkdir(cacheDirectory, { recursive: true });
+    await writeFile(cachePath(key), bundle.code);
+  }
+  return bundle;
+}
+
+/** Build the package's default test bundle once per configuration and AVA test run. */
+export function getCachedTestWorkflowBundle(
+  opts: CachedTestWorkflowBundleOptions
+): Promise<WorkflowBundleWithSourceMap> {
+  const key = cacheKey(opts);
+  const cached = workflowBundles.get(key);
+  if (cached !== undefined) return cached;
+
+  const bundle = loadOrCreateBundle(opts, key);
+  workflowBundles.set(key, bundle);
+  void bundle.catch(() => workflowBundles.delete(key));
+  return bundle;
 }
