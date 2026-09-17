@@ -3481,6 +3481,10 @@ function walk_temporal_api_callback_v1_CallbackInfo<Ctx>(
 ): void {
   const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.callback.v1.CallbackInfo', context) : context;
   {
+    const c = o.callback;
+    if (c != null) walk_temporal_api_common_v1_Callback(c, env, ctx, pending);
+  }
+  {
     const c = o.lastAttemptFailure;
     if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
   }
@@ -3778,6 +3782,39 @@ function walk_temporal_api_command_v1_UpsertWorkflowSearchAttributesCommandAttri
       const c = o.searchAttributes;
       if (c != null) walk_temporal_api_common_v1_SearchAttributes(c, env, ctx, pending);
     }
+  }
+}
+
+function walk_temporal_api_common_v1_Callback<Ctx>(
+  o: temporal.api.common.v1.ICallback,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.common.v1.Callback', context) : context;
+  {
+    const c = o.nexusHandler;
+    if (c != null) walk_temporal_api_common_v1_Callback_NexusHandler(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_common_v1_Callback_NexusHandler<Ctx>(
+  o: temporal.api.common.v1.Callback.INexusHandler,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.common.v1.Callback.NexusHandler', context)
+    : context;
+  {
+    const p = o.sourceContext;
+    if (p != null)
+      pending.push(
+        env.transformPayload(p, ctx).then((r) => {
+          o.sourceContext = r;
+        })
+      );
   }
 }
 
@@ -4436,6 +4473,10 @@ function walk_temporal_api_history_v1_HistoryEvent<Ctx>(
     if (c != null) walk_temporal_api_history_v1_NexusOperationTimedOutEventAttributes(c, env, ctx, pending);
   }
   {
+    const c = o.workflowExecutionOptionsUpdatedEventAttributes;
+    if (c != null) walk_temporal_api_history_v1_WorkflowExecutionOptionsUpdatedEventAttributes(c, env, ctx, pending);
+  }
+  {
     const c = o.nexusOperationCancelRequestFailedEventAttributes;
     if (c != null) walk_temporal_api_history_v1_NexusOperationCancelRequestFailedEventAttributes(c, env, ctx, pending);
   }
@@ -4719,6 +4760,51 @@ function walk_temporal_api_history_v1_WorkflowExecutionFailedEventAttributes<Ctx
   }
 }
 
+function walk_temporal_api_history_v1_WorkflowExecutionOptionsUpdatedEventAttributes<Ctx>(
+  o: temporal.api.history.v1.IWorkflowExecutionOptionsUpdatedEventAttributes,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.history.v1.WorkflowExecutionOptionsUpdatedEventAttributes', context)
+    : context;
+  {
+    const a = o.attachedCompletionCallbacks;
+    if (a) for (const v of a) walk_temporal_api_common_v1_Callback(v, env, ctx, pending);
+  }
+  {
+    const a = o.workflowUpdateOptions;
+    if (a)
+      for (const v of a)
+        walk_temporal_api_history_v1_WorkflowExecutionOptionsUpdatedEventAttributes_WorkflowUpdateOptionsUpdate(
+          v,
+          env,
+          ctx,
+          pending
+        );
+  }
+}
+
+function walk_temporal_api_history_v1_WorkflowExecutionOptionsUpdatedEventAttributes_WorkflowUpdateOptionsUpdate<Ctx>(
+  o: temporal.api.history.v1.WorkflowExecutionOptionsUpdatedEventAttributes.IWorkflowUpdateOptionsUpdate,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(
+        o,
+        'temporal.api.history.v1.WorkflowExecutionOptionsUpdatedEventAttributes.WorkflowUpdateOptionsUpdate',
+        context
+      )
+    : context;
+  {
+    const a = o.attachedCompletionCallbacks;
+    if (a) for (const v of a) walk_temporal_api_common_v1_Callback(v, env, ctx, pending);
+  }
+}
+
 function walk_temporal_api_history_v1_WorkflowExecutionSignaledEventAttributes<Ctx>(
   o: temporal.api.history.v1.IWorkflowExecutionSignaledEventAttributes,
   env: WalkEnv<Ctx>,
@@ -4776,6 +4862,10 @@ function walk_temporal_api_history_v1_WorkflowExecutionStartedEventAttributes<Ct
       const c = o.header;
       if (c != null) walk_temporal_api_common_v1_Header(c, env, ctx, pending);
     }
+  }
+  {
+    const a = o.completionCallbacks;
+    if (a) for (const v of a) walk_temporal_api_common_v1_Callback(v, env, ctx, pending);
   }
 }
 
@@ -5049,6 +5139,21 @@ function walk_temporal_api_nexus_v1_StartOperationResponse_Sync<Ctx>(
   }
 }
 
+function walk_temporal_api_nexusoperation_v1_CallbackInfo<Ctx>(
+  o: temporal.api.nexusoperation.v1.ICallbackInfo,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.nexusoperation.v1.CallbackInfo', context)
+    : context;
+  {
+    const c = o.info;
+    if (c != null) walk_temporal_api_callback_v1_CallbackInfo(c, env, ctx, pending);
+  }
+}
+
 function walk_temporal_api_query_v1_WorkflowQuery<Ctx>(
   o: temporal.api.query.v1.IWorkflowQuery,
   env: WalkEnv<Ctx>,
@@ -5235,6 +5340,10 @@ function walk_temporal_api_update_v1_Request<Ctx>(
     const c = o.input;
     if (c != null) walk_temporal_api_update_v1_Input(c, env, ctx, pending);
   }
+  {
+    const a = o.completionCallbacks;
+    if (a) for (const v of a) walk_temporal_api_common_v1_Callback(v, env, ctx, pending);
+  }
 }
 
 function walk_temporal_api_workflow_v1_CallbackInfo<Ctx>(
@@ -5244,6 +5353,10 @@ function walk_temporal_api_workflow_v1_CallbackInfo<Ctx>(
   pending: Promise<unknown>[]
 ): void {
   const ctx = env.deriveContext ? env.deriveContext(o, 'temporal.api.workflow.v1.CallbackInfo', context) : context;
+  {
+    const c = o.callback;
+    if (c != null) walk_temporal_api_common_v1_Callback(c, env, ctx, pending);
+  }
   {
     const c = o.lastAttemptFailure;
     if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
@@ -5683,6 +5796,10 @@ function walk_temporal_api_workflowservice_v1_DescribeNexusOperationExecutionRes
   {
     const c = o.failure;
     if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+  {
+    const a = o.completionCallbacks;
+    if (a) for (const v of a) walk_temporal_api_nexusoperation_v1_CallbackInfo(v, env, ctx, pending);
   }
 }
 
@@ -6554,6 +6671,10 @@ function walk_temporal_api_workflowservice_v1_StartActivityExecutionRequest<Ctx>
     const c = o.userMetadata;
     if (c != null) walk_temporal_api_sdk_v1_UserMetadata(c, env, ctx, pending);
   }
+  {
+    const a = o.completionCallbacks;
+    if (a) for (const v of a) walk_temporal_api_common_v1_Callback(v, env, ctx, pending);
+  }
 }
 
 function walk_temporal_api_workflowservice_v1_StartBatchOperationRequest<Ctx>(
@@ -6607,6 +6728,10 @@ function walk_temporal_api_workflowservice_v1_StartNexusOperationExecutionReques
     const c = o.userMetadata;
     if (c != null) walk_temporal_api_sdk_v1_UserMetadata(c, env, ctx, pending);
   }
+  {
+    const a = o.completionCallbacks;
+    if (a) for (const v of a) walk_temporal_api_common_v1_Callback(v, env, ctx, pending);
+  }
 }
 
 function walk_temporal_api_workflowservice_v1_StartWorkflowExecutionRequest<Ctx>(
@@ -6645,6 +6770,10 @@ function walk_temporal_api_workflowservice_v1_StartWorkflowExecutionRequest<Ctx>
   {
     const c = o.lastCompletionResult;
     if (c != null) walk_temporal_api_common_v1_Payloads(c, env, ctx, pending);
+  }
+  {
+    const a = o.completionCallbacks;
+    if (a) for (const v of a) walk_temporal_api_common_v1_Callback(v, env, ctx, pending);
   }
   {
     const c = o.userMetadata;

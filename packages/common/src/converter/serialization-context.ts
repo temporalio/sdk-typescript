@@ -58,6 +58,8 @@ export interface ActivitySerializationContext {
 export type SerializationContext = WorkflowSerializationContext | ActivitySerializationContext;
 
 /** @internal */
+// Consumed by the worker through common/lib/converter/serialization-context.
+// ts-prune-ignore-next
 export function isSerializationContext(value: unknown): value is SerializationContext {
   if (value == null || typeof value !== 'object') return false;
   const context = value as Record<string, unknown>;
