@@ -1,4 +1,4 @@
-import { temporal, type coresdk } from '@temporalio/proto';
+import type { coresdk, temporal } from '@temporalio/proto';
 import { makeProtoEnumConverters } from './internal-workflow';
 
 /**
@@ -50,6 +50,9 @@ export const [encodeVersioningBehavior, decodeVersioningBehavior] = makeProtoEnu
  */
 export type VersioningOverride = PinnedVersioningOverride | 'AUTO_UPGRADE';
 
+// Keep this helper usable in workflows without loading the protobuf runtime.
+const PINNED_OVERRIDE_BEHAVIOR_PINNED: temporal.api.workflow.v1.VersioningOverride.PinnedOverrideBehavior.PINNED_OVERRIDE_BEHAVIOR_PINNED = 1;
+
 /** @internal */
 export function versioningOverrideToProto(
   versioningOverride: VersioningOverride | undefined
@@ -65,7 +68,7 @@ export function versioningOverrideToProto(
   return {
     pinned: {
       version: versioningOverride.pinnedTo,
-      behavior: temporal.api.workflow.v1.VersioningOverride.PinnedOverrideBehavior.PINNED_OVERRIDE_BEHAVIOR_PINNED,
+      behavior: PINNED_OVERRIDE_BEHAVIOR_PINNED,
     },
   };
 }
