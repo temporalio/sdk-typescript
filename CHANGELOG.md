@@ -28,6 +28,8 @@ to docs, or any other relevant information.
 
 - The Workflow sandbox now exposes `atob` and `btoa`, allowing integrations such as `@temporalio/ai-sdk` to
   process image and file tool results containing base64 data.
+- `@temporalio/create` now supports comments and trailing commas in `tsconfig.json` files when
+  creating projects.
 
 ### Changed
 
