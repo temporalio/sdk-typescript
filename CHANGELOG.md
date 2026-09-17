@@ -25,8 +25,7 @@ to docs, or any other relevant information.
   and `tar` from 7.5.11 to 7.5.21.
 - A Worker will now refuse to load and execute a Workflow bundle produced with a different version
   of the SDK. This practice has never been supported, but was never formally prevented, resulting
-  in various subtle, hard to diagnose issues. This change could potentially result in 
-
+  in various subtle, hard to diagnose issues. This change could potentially result in
 
 ### Fixed
 
