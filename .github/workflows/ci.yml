@@ -22,7 +22,7 @@ env:
   IS_MAIN_OR_RELEASE: ${{ vars.IS_TEMPORALIO_SDK_TYPESCRIPT_REPO == 'true' && github.event_name != 'pull_request' && ( github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/heads/releases')) }}
 
   # Use these variables to force specific version of CLI/Time Skipping Server for SDK tests
-  TESTS_CLI_VERSION: 'v1.7.4-standalone-nexus-operations'
+  TESTS_CLI_VERSION: 'v1.8.3-server-1.32.0-162.0'
   # TESTS_TIME_SKIPPING_SERVER_VERSION: 'v1.24.1'
 
 jobs:
@@ -57,13 +57,13 @@ jobs:
         shell: bash
     steps:
       - name: 'Checkout code'
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
 
       - name: 'Cache index.node'
         id: cached-artifact
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ./packages/core-bridge/releases
           key: corebridge-artifactcache-debug-${{ matrix.platform }}-${{ hashFiles('./packages/core-bridge/**/Cargo.lock', './packages/core-bridge/**/*.rs') }}
@@ -81,7 +81,7 @@ jobs:
 
       - name: Rust Cargo and Build cache
         if: steps.cached-artifact.outputs.cache-hit != 'true'
-        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-bin: false
           workspaces: packages/core-bridge -> target
@@ -149,7 +149,7 @@ jobs:
         run: git config --global core.autocrlf false
 
       - name: 'Checkout code'
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
 
@@ -328,7 +328,7 @@ jobs:
         shell: bash
     steps:
       - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
 
@@ -413,9 +413,6 @@ jobs:
       typescript-repo-path: ${{github.event.pull_request.head.repo.full_name}}
       version: ${{github.event.pull_request.head.ref}}
       version-is-repo-ref: true
-      # FIXME: Remove this once 1) our protobufjs v8 bump has been merged and included in a
-      # release, and 2) https://github.com/temporalio/features/pull/863 has been merged to main.
-      features-repo-ref: bump-protobufjs
 
   stress-tests-no-reuse-context:
     name: Stress Tests (No Reuse V8 Context)
@@ -462,10 +459,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 'Checkout code'
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           # This job installs no dependencies, so it runs ci-run-summary.ts through
           # Node's native type stripping rather than tsx. That needs Node >= 23.6.

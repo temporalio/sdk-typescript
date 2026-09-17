@@ -47,11 +47,15 @@ export async function setup(): Promise<void> {}
  */
 export async function cleanup(_url: string): Promise<void> {}
 
-export async function throwAnError(useApplicationFailure: boolean, message: string): Promise<void> {
+export async function throwAnError(
+  useApplicationFailure: boolean,
+  message: string,
+  causeMessage?: string
+): Promise<void> {
   if (useApplicationFailure) {
     throw ApplicationFailure.nonRetryable(message, 'Error', 'details', 123, false);
   } else {
-    throw new Error(message);
+    throw new Error(message, causeMessage === undefined ? undefined : { cause: new Error(causeMessage) });
   }
 }
 

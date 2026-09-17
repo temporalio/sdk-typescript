@@ -197,7 +197,7 @@ export const defaultOptions: WorkerOptions = {
   taskQueue: 'test',
 };
 
-export function isolateFreeWorker(options: WorkerOptions = defaultOptions): Worker {
+export function isolateFreeWorker(options: WorkerOptions = defaultOptions, workflowCreator?: WorkflowCreator): Worker {
   const runtime = Runtime.instance();
   const logger = LoggerWithComposedMetadata.compose(runtime.logger, {
     sdkComponent: SdkComponent.worker,
@@ -208,7 +208,7 @@ export function isolateFreeWorker(options: WorkerOptions = defaultOptions): Work
     taskQueue: options.taskQueue ?? 'default',
   });
   return new Worker(
-    {
+    workflowCreator ?? {
       async createWorkflow() {
         throw new Error('Not implemented');
       },

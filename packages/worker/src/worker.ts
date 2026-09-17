@@ -38,6 +38,7 @@ import {
   decodeFromPayloadsAtIndex,
   encodeErrorToFailure,
   encodeToPayload,
+  ExternalStorageMetricsAccumulator,
   extstoreInboundOptions,
   extstoreStoreOptions,
   visit,
@@ -189,6 +190,8 @@ interface WorkflowWithLogAttributes {
   workflowCodecRunner: WorkflowCodecRunner;
   info: WorkflowInfo;
 }
+
+class WorkflowDisposeError extends UnexpectedError {}
 
 function addBuildIdIfMissing(options: CompiledWorkerOptions, bundleCode?: string): CompiledWorkerOptionsWithBuildId {
   const bid = options.buildId;
@@ -1533,7 +1536,11 @@ export class Worker {
       activation.jobs = jobs;
       if (jobs.length === 0) {
         this.logger.trace('Disposing workflow', workflow ? workflow.logAttributes : { runId: activation.runId });
-        await workflow?.workflow.dispose();
+        try {
+          await workflow?.workflow.dispose();
+        } catch (cause) {
+          throw new WorkflowDisposeError('Failed to dispose Workflow during eviction', cause);
+        }
         if (!close) {
           throw new IllegalStateError('Got a Workflow activation with no jobs');
         }
@@ -1560,7 +1567,15 @@ export class Worker {
         });
       }
       const { externalStorage } = this.options.loadedDataConverter;
-      await visit(activation, walkWorkflowActivation, extstoreInboundOptions(externalStorage));
+      // Measure external-storage work so Core can include it in its workflow-task duration log;
+      // Core measures the duration itself.
+      const downloadMetrics = externalStorage ? new ExternalStorageMetricsAccumulator() : undefined;
+      let uploadMetrics: ExternalStorageMetricsAccumulator | undefined;
+      await visit(
+        activation,
+        walkWorkflowActivation,
+        extstoreInboundOptions(externalStorage, { metrics: downloadMetrics })
+      );
       const decodedActivation = await workflowCodecRunner.decodeActivation(activation);
 
       if (workflow === undefined) {
@@ -1580,6 +1595,7 @@ export class Worker {
         // Skip extstore.store on replay: the completion is discarded and its payloads were already offloaded on the original run.
         if (externalStorage && !this.isReplayWorker) {
           const namespace = workflowCodecRunner.workflowContext.namespace;
+          uploadMetrics = new ExternalStorageMetricsAccumulator();
           await visit(
             encodedCompletion,
             walkWorkflowActivationCompletion,
@@ -1592,9 +1608,12 @@ export class Worker {
                 type: workflow.info.workflowType,
               },
               deriveContext: workflowCommandStoreTarget(namespace, workflow.info),
+              metrics: uploadMetrics,
             })
           );
         }
+        encodedCompletion.payloadDownloadMetrics = downloadMetrics?.toProto();
+        encodedCompletion.payloadUploadMetrics = uploadMetrics?.toProto();
         const completion =
           coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited(encodedCompletion).finish();
 
@@ -1633,6 +1652,16 @@ export class Worker {
         workflowExists: workflow !== undefined,
       });
 
+      if (error instanceof WorkflowDisposeError) {
+        const completion = synthetic
+          ? undefined
+          : coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
+              runId: activation.runId,
+              successful: {},
+            }).finish();
+        return { state: undefined, output: { close: true, completion } };
+      }
+
       const completion = coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
         runId: activation.runId,
         failed: {
@@ -1642,7 +1671,7 @@ export class Worker {
 
       // We do not dispose of the Workflow yet, wait to be evicted from Core.
       // This is done to simplify the Workflow lifecycle so Core is the sole driver.
-      return { state: undefined, output: { close: true, completion } };
+      return { state: workflow, output: { close: false, completion } };
     }
   }
 

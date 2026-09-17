@@ -53,6 +53,7 @@ import {
   embeddingWorkflow,
   generateObjectWorkflow,
   helloWorldAgent,
+  imageToolWorkflow,
   mcpSchemaTestWorkflow,
   mcpWorkflow,
   middlewareWorkflow,
@@ -327,6 +328,25 @@ test('Tools workflow can use AI tools', async (t) => {
       );
       t.assert(activityTypes.includes('getWeather'), 'getWeather activity should have been called');
     }
+  });
+});
+
+function* imageToolWorkflowGenerator(): Generator<ModelResponse> {
+  yield toolCallResponse('screenshot', '{}');
+  yield textResponse('A transparent image');
+}
+
+test('Image tool results are converted inside the workflow sandbox', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+  const worker = await createWorker({
+    plugins: [new AiSdkPlugin({ modelProvider: new TestProvider(imageToolWorkflowGenerator()) })],
+  });
+
+  await worker.runUntil(async () => {
+    const result = await executeWorkflow(imageToolWorkflow, {
+      workflowExecutionTimeout: '10 seconds',
+    });
+    t.is(result, 'A transparent image');
   });
 });
 

@@ -46,7 +46,7 @@ import { msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/
 import type { temporal } from '@temporalio/proto';
 import { deepMerge } from '@temporalio/common/lib/internal-workflow';
 import { throwIfReservedName } from '@temporalio/common/lib/reserved';
-import { eventGroupMarkersToProto } from './event-groups';
+import { eventGroupMarkersToProto, type EventGroup, type EventGroupsOptions } from './event-groups';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import { composeInterceptors } from './interceptor-composition';
 import { UpdateScope } from './update-scope';
@@ -531,7 +531,15 @@ function startChildWorkflowExecutionNextHandler({
   return ret;
 }
 
-function signalWorkflowNextHandler({ seq, signalName, args, typeInfo, target, headers }: SignalWorkflowInput) {
+function signalWorkflowNextHandler({
+  seq,
+  signalName,
+  args,
+  typeInfo,
+  eventGroups,
+  target,
+  headers,
+}: SignalWorkflowInput) {
   const activator = getActivator();
   const targetWorkflowId = target.type === 'external' ? target.workflowExecution.workflowId : target.childWorkflowId;
   const context = targetWorkflowSerializationContext(activator.info, targetWorkflowId!);
@@ -569,7 +577,7 @@ function signalWorkflowNextHandler({ seq, signalName, args, typeInfo, target, he
               childWorkflowId: target.childWorkflowId,
             }),
       },
-      eventGroupMarkers: eventGroupMarkersToProto(undefined),
+      eventGroupMarkers: eventGroupMarkersToProto(eventGroups),
     });
 
     activator.completions.signalWorkflow.set(seq, { resolve, reject, context });
@@ -835,7 +843,12 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
   const activator = assertInWorkflowContext(
     'Workflow.getExternalWorkflowHandle(...) may only be used from a Workflow Execution. Consider using Client.workflow.getHandle(...) instead.)'
   );
-  const signal = (signalName: string, args: unknown[], typeInfo?: SignalTypeInfo): Promise<void> => {
+  const signal = (
+    signalName: string,
+    args: unknown[],
+    typeInfo?: SignalTypeInfo,
+    eventGroups?: EventGroup[]
+  ): Promise<void> => {
     return composeInterceptors(
       activator.interceptors.outbound,
       'signalWorkflow',
@@ -845,6 +858,7 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
       signalName,
       args,
       typeInfo,
+      eventGroups,
       target: {
         type: 'external',
         workflowExecution: { workflowId, runId },
@@ -855,7 +869,7 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
   return {
     workflowId,
     runId,
-    cancel() {
+    cancel(options?: EventGroupsOptions) {
       return new Promise<void>((resolve, reject) => {
         // Connect this cancel operation to the current cancellation scope.
         // This is behavior was introduced after v0.22.0 and is incompatible
@@ -890,7 +904,7 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
               runId,
             },
           },
-          eventGroupMarkers: eventGroupMarkersToProto(undefined),
+          eventGroupMarkers: eventGroupMarkersToProto(options?.eventGroups),
         });
         activator.completions.cancelWorkflow.set(seq, {
           resolve,
@@ -906,8 +920,11 @@ export function getExternalWorkflowHandle(workflowId: string, runId?: string): E
         return signal(def.name, args, def.typeInfo);
       }
     },
-    signalWithOptions<Args extends any[]>(signalName: string, options: WorkflowSignalOptions<Args>): Promise<void> {
-      return signal(signalName, options.args ?? [], options.typeInfo);
+    signalWithOptions<Args extends any[]>(
+      signalName: string,
+      options: WorkflowSignalOptions<Args> & EventGroupsOptions
+    ): Promise<void> {
+      return signal(signalName, options.args ?? [], options.typeInfo, options.eventGroups);
     },
   };
 }
@@ -999,7 +1016,12 @@ export async function startChild<T extends Workflow>(
   });
   const firstExecutionRunId = await started;
 
-  const signal = (signalName: string, args: unknown[], typeInfo?: SignalTypeInfo): Promise<void> => {
+  const signal = (
+    signalName: string,
+    args: unknown[],
+    typeInfo?: SignalTypeInfo,
+    eventGroups?: EventGroup[]
+  ): Promise<void> => {
     return composeInterceptors(
       activator.interceptors.outbound,
       'signalWorkflow',
@@ -1009,6 +1031,7 @@ export async function startChild<T extends Workflow>(
       signalName,
       args,
       typeInfo,
+      eventGroups,
       target: {
         type: 'child',
         childWorkflowId: workflowOptions.workflowId,
@@ -1032,9 +1055,9 @@ export async function startChild<T extends Workflow>(
     },
     async signalWithOptions<Args extends any[]>(
       signalName: string,
-      options: WorkflowSignalOptions<Args>
+      options: WorkflowSignalOptions<Args> & EventGroupsOptions
     ): Promise<void> {
-      return signal(signalName, options.args ?? [], options.typeInfo);
+      return signal(signalName, options.args ?? [], options.typeInfo, options.eventGroups);
     },
   };
 }
@@ -1285,12 +1308,14 @@ export function uuid4(): string {
  *
  * @param patchId An identifier that should be unique to this patch. It is OK to use multiple
  * calls with the same ID, which means all such calls will always return the same value.
+ * @param options.eventGroups Event Groups to attach to the patch command, in addition to those
+ *     active in the current scope.
  */
-export function patched(patchId: string): boolean {
+export function patched(patchId: string, options?: EventGroupsOptions): boolean {
   const activator = assertInWorkflowContext(
     'Workflow.patch(...) and Workflow.deprecatePatch may only be used from a Workflow Execution.'
   );
-  return activator.patchInternal(patchId, false);
+  return activator.patchInternal(patchId, false, options?.eventGroups);
 }
 
 /**
@@ -1309,12 +1334,14 @@ export function patched(patchId: string): boolean {
  *
  * @param patchId An identifier that should be unique to this patch. It is OK to use multiple
  * calls with the same ID, which means all such calls will always return the same value.
+ * @param options.eventGroups Event Groups to attach to the patch command, in addition to those
+ *     active in the current scope.
  */
-export function deprecatePatch(patchId: string): void {
+export function deprecatePatch(patchId: string, options?: EventGroupsOptions): void {
   const activator = assertInWorkflowContext(
     'Workflow.patch(...) and Workflow.deprecatePatch may only be used from a Workflow Execution.'
   );
-  activator.patchInternal(patchId, true);
+  activator.patchInternal(patchId, true, options?.eventGroups);
 }
 
 /**
@@ -1713,8 +1740,13 @@ export function setDefaultQueryHandler(handler: DefaultQueryHandler | undefined)
  * @param searchAttributes The Record to merge.
  * If using SearchAttributeUpdatePair[] (preferred), set a value to null to remove the search attribute.
  * If using SearchAttributes (deprecated), set a value to undefined or an empty list to remove the search attribute.
+ * @param options.eventGroups Event Groups to attach to the upsert command, in addition to those
+ *     active in the current scope.
  */
-export function upsertSearchAttributes(searchAttributes: SearchAttributes | SearchAttributeUpdatePair[]): void {
+export function upsertSearchAttributes(
+  searchAttributes: SearchAttributes | SearchAttributeUpdatePair[],
+  options?: EventGroupsOptions
+): void {
   const activator = assertInWorkflowContext(
     'Workflow.upsertSearchAttributes(...) may only be used from a Workflow Execution.'
   );
@@ -1731,7 +1763,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
           indexedFields: encodeUnifiedSearchAttributes(undefined, searchAttributes),
         },
       },
-      eventGroupMarkers: eventGroupMarkersToProto(undefined),
+      eventGroupMarkers: eventGroupMarkersToProto(options?.eventGroups),
     });
 
     activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {
@@ -1763,7 +1795,7 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
           indexedFields: mapToPayloads(searchAttributePayloadConverter, searchAttributes),
         },
       },
-      eventGroupMarkers: eventGroupMarkersToProto(undefined),
+      eventGroupMarkers: eventGroupMarkersToProto(options?.eventGroups),
     });
 
     activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {
@@ -1871,8 +1903,10 @@ export function upsertSearchAttributes(searchAttributes: SearchAttributes | Sear
  * ```
  *
  * @param memo The Record to merge.
+ * @param options.eventGroups Event Groups to attach to the upsert command, in addition to those
+ *     active in the current scope.
  */
-export function upsertMemo(memo: Record<string, unknown>): void {
+export function upsertMemo(memo: Record<string, unknown>, options?: EventGroupsOptions): void {
   const activator = assertInWorkflowContext('Workflow.upsertMemo(...) may only be used from a Workflow Execution.');
   const context = currentWorkflowSerializationContext(activator.info);
 
@@ -1891,7 +1925,7 @@ export function upsertMemo(memo: Record<string, unknown>): void {
         ),
       },
     },
-    eventGroupMarkers: eventGroupMarkersToProto(undefined),
+    eventGroupMarkers: eventGroupMarkersToProto(options?.eventGroups),
   });
 
   activator.mutateWorkflowInfo((info: WorkflowInfo): WorkflowInfo => {
