@@ -8,7 +8,7 @@ const workflowDir = resolve(__dirname, '..');
 const repoRoot = resolve(workflowDir, '../..');
 const supportFile = resolve(workflowDir, 'system-nexus-support.ts');
 const output = resolve(workflowDir, 'src/nexus/system/generated');
-const nexgen = process.env.NEXGEN_BIN;
+const nexgen = process.env.NEXGEN_BIN ?? 'nexgen';
 const protoRoot = resolve(repoRoot, 'packages/core-bridge/sdk-core/crates/protos/protos');
 const witRoot = resolve(protoRoot, 'api_upstream/nexus');
 
@@ -17,9 +17,6 @@ const protoRoots = [resolve(protoRoot, 'api_upstream'), protoRoot];
 const workflowServiceRequestResponseProto = 'temporal/api/workflowservice/v1/request_response.proto';
 
 async function main() {
-  if (nexgen == null) {
-    throw new Error('NEXGEN_BIN must name the local nexgen executable');
-  }
   const descriptorDirectory = await mkdtemp(join(tmpdir(), 'temporal-system-nexus-'));
   const descriptor = join(descriptorDirectory, 'temporal_api.bin');
   try {

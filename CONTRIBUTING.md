@@ -140,6 +140,17 @@ After your environment is set up, you can run these commands:
 - `pnpm lint` verifies code style with prettier and ES lint.
 - `pnpm commitlint` validates [commit messages](#style-guide).
 
+To regenerate System Nexus bindings from Core's upstream API WIT files, install the pinned nexgen
+release with its `advanced` feature and ensure `protoc` is on your `PATH`:
+
+```sh
+cargo install nexgen --version '=0.2.6' --locked --features advanced
+pnpm --filter @temporalio/workflow run gen:system-nexus
+```
+
+CI uses the same release and checks that the generated bindings are up to date. Set `NEXGEN_BIN`
+to use a local generator build when developing nexgen changes.
+
 ### Working with Individual Packages
 
 You can build or test a single package using pnpm's filter flag:
