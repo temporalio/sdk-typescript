@@ -1,6 +1,7 @@
 // Modified from: https://github.com/vercel/next.js/blob/2425f4703c4c6164cecfdb6aa8f80046213f0cc6/packages/create-next-app/helpers/install.ts
 import { readFile, writeFile } from 'node:fs/promises';
 import { glob } from 'glob';
+import { parse } from 'jsonc-parser';
 import { spawn } from './subprocess.js';
 import { isUrlOk } from './samples.js';
 
@@ -60,7 +61,9 @@ export async function updateNodeVersion({ root }: InstallArgs): Promise<void> {
 
     const tsconfigFileNames = await glob('**/tsconfig.json', { cwd: root, absolute: true, root: '' });
     for (const fileName of tsconfigFileNames) {
-      const tsconfigJson = JSON.parse((await readFile(fileName, 'utf8')).toString());
+      // Use jsonc-parser to handle TypeScript's JSONC format (comments, trailing commas)
+      const tsconfigContent = (await readFile(fileName, 'utf8')).toString();
+      const tsconfigJson = parse(tsconfigContent);
       if (tsconfigJson.extends && /^@tsconfig\/node\d+\/tsconfig\.json$/.test(tsconfigJson.extends)) {
         tsconfigJson.extends = `${packageName}/tsconfig.json`;
         await writeFile(fileName, JSON.stringify(tsconfigJson, null, 2));
