@@ -46,9 +46,9 @@ class FakeGcsClient implements GcsStorageDriverClient {
 }
 
 /** Grants every permit immediately, so the driver can be exercised without an ExternalStorage. */
-function passthroughLimiter(): StorageDriverLimiter {
+function passthroughLimiter<Item>(): StorageDriverLimiter<Item> {
   return {
-    permit<T>(operation: () => Promise<T>): Promise<T> {
+    permit<T>(_item: Item, operation: () => Promise<T>): Promise<T> {
       return operation();
     },
   };

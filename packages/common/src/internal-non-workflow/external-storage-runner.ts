@@ -79,11 +79,11 @@ export class ExternalStorageRunner {
    * Builds the limiter handed to drivers which is used to cooperatively limit the total number
    * of concurrent extstore operations.
    */
-  private makeLimiter(abortSignal: AbortSignal): { limiter: StorageDriverLimiter; used: () => boolean } {
+  private makeLimiter<Item>(abortSignal: AbortSignal): { limiter: StorageDriverLimiter<Item>; used: () => boolean } {
     const { messageLimit, driverOperationLimit } = this;
     let used = false;
-    const limiter: StorageDriverLimiter = {
-      permit<T>(operation: () => Promise<T>): Promise<T> {
+    const limiter: StorageDriverLimiter<Item> = {
+      permit<T>(_item: Item, operation: () => Promise<T>): Promise<T> {
         used = true;
         return messageLimit(() =>
           driverOperationLimit(async () => {
@@ -154,7 +154,7 @@ export class ExternalStorageRunner {
     const { metrics } = this;
     await runWithAbortOnFirstError(batchController, [...driverGroups.values()], async (group) => {
       const startMs = metrics ? performance.now() : 0;
-      const { limiter, used } = this.makeLimiter(batchSignal);
+      const { limiter, used } = this.makeLimiter<Payload>(batchSignal);
       const storeCtx: StorageDriverStoreContext = { abortSignal: batchSignal, target: options.target, limiter };
       const claims = await group.driver.store(
         storeCtx,
@@ -220,7 +220,7 @@ export class ExternalStorageRunner {
     const { metrics } = this;
     await runWithAbortOnFirstError(batchController, [...driverGroups.values()], async (group) => {
       const startMs = metrics ? performance.now() : 0;
-      const { limiter, used } = this.makeLimiter(batchSignal);
+      const { limiter, used } = this.makeLimiter<StorageDriverClaim>(batchSignal);
       const retrieveCtx: StorageDriverRetrieveContext = { abortSignal: batchSignal, limiter };
       const retrieved = await group.driver.retrieve(
         retrieveCtx,
