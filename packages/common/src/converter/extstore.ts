@@ -59,15 +59,15 @@ export type StorageDriverTargetInfo = StorageDriverWorkflowInfo | StorageDriverA
  *
  * This limit can be configured via {@link ExternalStorageConcurrency.maxDriverOperations}.
  *
- * n.b. taking permits from inside another permit can lead to deadlocks if the nesting exceeds
+ * Note: taking permits from inside another permit can lead to deadlocks if the nesting exceeds
  * the configured concurrency limit. It is up to the driver to determine what a single "operation"
  * looks like.
  *
  * @experimental
  */
-export interface StorageDriverLimiter<Item> {
-  /** Runs `operation` once a permit for `item` is available, releasing the permit when it settles. */
-  permit<T>(item: Item, operation: () => Promise<T>): Promise<T>;
+export interface StorageDriverLimiter {
+  /** Runs `operation` once a permit is available, releasing the permit when it settles. */
+  permit<T>(operation: () => Promise<T>): Promise<T>;
 }
 
 /**
@@ -81,7 +81,7 @@ export interface StorageDriverStoreContext {
   /** Identity of the workflow / activity that produced the payloads. */
   target?: StorageDriverTargetInfo;
   /** Drivers should wrap each store request in {@link StorageDriverLimiter.permit}. */
-  limiter: StorageDriverLimiter<Payload>;
+  limiter: StorageDriverLimiter;
 }
 
 /**
@@ -104,7 +104,7 @@ export interface StorageDriverSelectContext {
 export interface StorageDriverRetrieveContext {
   abortSignal?: AbortSignal;
   /** Drivers should wrap each retrieve request in {@link StorageDriverLimiter.permit}. */
-  limiter: StorageDriverLimiter<StorageDriverClaim>;
+  limiter: StorageDriverLimiter;
 }
 
 /**
@@ -146,7 +146,7 @@ const DEFAULT_MAX_OPERATIONS_PER_MESSAGE = 8;
 
 /**
  * Limits on concurrent external storage operations.
- * 
+ *
  * @experimental
  */
 export interface ExternalStorageConcurrency {

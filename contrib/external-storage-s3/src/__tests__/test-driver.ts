@@ -53,9 +53,9 @@ class FakeS3Client implements S3StorageDriverClient {
 }
 
 /** Grants every permit immediately, so the driver can be exercised without an ExternalStorage. */
-function passthroughLimiter<Item>(): StorageDriverLimiter<Item> {
+function passthroughLimiter(): StorageDriverLimiter {
   return {
-    permit<T>(_item: Item, operation: () => Promise<T>): Promise<T> {
+    permit<T>(operation: () => Promise<T>): Promise<T> {
       return operation();
     },
   };

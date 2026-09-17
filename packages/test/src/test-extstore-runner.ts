@@ -423,9 +423,7 @@ test('maxDriverOperations is shared by every message using the same ExternalStor
     name: 's3',
     onStore: (payloads, context) =>
       Promise.all(
-        payloads.map((payload) =>
-          context.limiter.permit(payload, () => gate.hold(() => new StorageDriverClaim({ id: 'x' })))
-        )
+        payloads.map((payload) => context.limiter.permit(() => gate.hold(() => new StorageDriverClaim({ id: 'x' }))))
       ),
   });
   const externalStorage = new ExternalStorage({
@@ -482,9 +480,7 @@ test('does not warn when a driver takes a permit', async (t) => {
     name: 's3',
     onStore: (payloads, context) =>
       Promise.all(
-        payloads.map((payload) =>
-          context.limiter.permit(payload, () => Promise.resolve(new StorageDriverClaim({ id: 'x' })))
-        )
+        payloads.map((payload) => context.limiter.permit(() => Promise.resolve(new StorageDriverClaim({ id: 'x' }))))
       ),
   });
   const runner = new ExternalStorageRunner(
@@ -504,12 +500,10 @@ function makePermittingDriver(name: string, gate: ReturnType<typeof makeGate>): 
     name,
     onStore: (payloads, context) =>
       Promise.all(
-        payloads.map((payload) =>
-          context.limiter.permit(payload, () => gate.hold(() => new StorageDriverClaim({ id: 'x' })))
-        )
+        payloads.map((payload) => context.limiter.permit(() => gate.hold(() => new StorageDriverClaim({ id: 'x' }))))
       ),
     onRetrieve: (claims, context) =>
-      Promise.all(claims.map((claim) => context.limiter.permit(claim, () => gate.hold(() => makePayload(8))))),
+      Promise.all(claims.map((claim) => context.limiter.permit(() => gate.hold(() => makePayload(8))))),
   });
 }
 

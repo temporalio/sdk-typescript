@@ -167,7 +167,7 @@ export class GcsStorageDriver implements StorageDriver {
 
   async retrieve(context: StorageDriverRetrieveContext, claims: StorageDriverClaim[]): Promise<Payload[]> {
     return runAllWithAbortOnError(context.abortSignal, (signal) =>
-      claims.map((claim) => context.limiter.permit(claim, () => this.retrievePayload(claim, signal)))
+      claims.map((claim) => context.limiter.permit(() => this.retrievePayload(claim, signal)))
     );
   }
 
@@ -194,7 +194,7 @@ export class GcsStorageDriver implements StorageDriver {
       const dedupeKey = `${bucket} ${object}`;
       let upload = uploads.get(dedupeKey);
       if (!upload) {
-        upload = context.limiter.permit(payload, () => this.client.save(bucket, object, payloadBytes, { abortSignal }));
+        upload = context.limiter.permit(() => this.client.save(bucket, object, payloadBytes, { abortSignal }));
         uploads.set(dedupeKey, upload);
       }
       await upload;

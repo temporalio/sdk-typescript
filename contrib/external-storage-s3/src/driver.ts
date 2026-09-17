@@ -150,7 +150,7 @@ export class S3StorageDriver implements StorageDriver {
 
   async retrieve(context: StorageDriverRetrieveContext, claims: StorageDriverClaim[]): Promise<Payload[]> {
     return runAllWithAbortOnError(context.abortSignal, (signal) =>
-      claims.map((claim) => context.limiter.permit(claim, () => this.retrievePayload(claim, signal)))
+      claims.map((claim) => context.limiter.permit(() => this.retrievePayload(claim, signal)))
     );
   }
 
@@ -177,7 +177,7 @@ export class S3StorageDriver implements StorageDriver {
       const dedupeKey = `${bucket} ${key}`;
       let upload = uploads.get(dedupeKey);
       if (!upload) {
-        upload = context.limiter.permit(payload, () => this.uploadIfAbsent(bucket, key, payloadBytes, abortSignal));
+        upload = context.limiter.permit(() => this.uploadIfAbsent(bucket, key, payloadBytes, abortSignal));
         uploads.set(dedupeKey, upload);
       }
       await upload;
