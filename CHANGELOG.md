@@ -27,6 +27,10 @@ to docs, or any other relevant information.
   - Both limits are cooperative and drivers must use the new `context.limiter` to take out a permit for each request.
   - The bundled S3 and GCS drivers were updated to use the limiter.
 
+- **Experimental**: External storage failures now surface as dedicated error types exported from
+  `@temporalio/common`: `ExternalStorageDriverError`, `ExternalStorageUnregisteredDriverError`, and
+  `ExternalStorageReferenceError`, all extending the new `ExternalStorageError` base type.
+
 ### Changed
 
 - Updated the following dependencies: `unionfs` from 4.5.1 to 4.6.0, `@grpc/grpc-js` from 1.12.4 to 1.12.7, `smol-toml` from 1.6.1 to 1.7.1

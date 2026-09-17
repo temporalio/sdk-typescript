@@ -18,6 +18,7 @@ import {
   convertDeploymentVersion,
   decodePriority,
   decompileRetryPolicy,
+  ExternalStorageError,
 } from '@temporalio/common';
 import type { Duration } from '@temporalio/common/lib/time';
 import { msOptionalToTs, msToNumber, optionalTsToDate, optionalTsToMs } from '@temporalio/common/lib/time';
@@ -721,7 +722,10 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
     if (err instanceof ServiceError) {
       throw err;
     }
-    throw new ServiceError('Unexpected error while making gRPC request');
+    if (err instanceof ExternalStorageError) {
+      throw new ServiceError('External storage failed', { cause: err });
+    }
+    throw new ServiceError('Unexpected error while making gRPC request', { cause: err as Error });
   }
 }
 

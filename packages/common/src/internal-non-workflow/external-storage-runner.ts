@@ -18,7 +18,11 @@ import type {
   StorageDriverStoreContext,
   StorageDriverTargetInfo,
 } from '../converter/extstore';
-import { ValueError } from '../errors';
+import {
+  ExternalStorageDriverError,
+  ExternalStorageReferenceError,
+  ExternalStorageUnregisteredDriverError,
+} from '../errors';
 import type { Logger } from '../logger';
 import type { Payload } from '../interfaces';
 import type { ExternalStorageMetricsAccumulator } from './external-storage-metrics';
@@ -135,7 +139,7 @@ export class ExternalStorageRunner {
       const selected = driverSelector(selectCtx, payload);
       if (selected === null) continue;
       if (this.externalStorage.getDriver(selected.name) !== selected) {
-        throw new ValueError(
+        throw new ExternalStorageUnregisteredDriverError(
           `Driver '${selected.name}' returned by driverSelector is not registered in ExternalStorage.drivers`
         );
       }
@@ -156,13 +160,20 @@ export class ExternalStorageRunner {
       const startMs = metrics ? performance.now() : 0;
       const { limiter, used } = this.makeLimiter<Payload>(batchSignal);
       const storeCtx: StorageDriverStoreContext = { abortSignal: batchSignal, target: options.target, limiter };
-      const claims = await group.driver.store(
-        storeCtx,
-        group.items.map((it) => it.payload)
-      );
+      let claims: StorageDriverClaim[];
+      try {
+        claims = await group.driver.store(
+          storeCtx,
+          group.items.map((it) => it.payload)
+        );
+      } catch (cause) {
+        throw new ExternalStorageDriverError(`Storage driver '${group.driver.name}' failed to store payloads`, {
+          cause,
+        });
+      }
       this.warnIfLimiterUnused(group.driver.name, used(), 'store');
       if (claims.length !== group.items.length) {
-        throw new ValueError(
+        throw new ExternalStorageReferenceError(
           `Driver '${group.driver.name}' returned ${claims.length} claims for ${group.items.length} payloads`
         );
       }
@@ -201,10 +212,15 @@ export class ExternalStorageRunner {
 
     for (const [i, payload] of payloads.entries()) {
       if (!isReferencePayload(payload)) continue;
-      const decoded = decodeReferencePayload(payload);
+      let decoded: ReturnType<typeof decodeReferencePayload>;
+      try {
+        decoded = decodeReferencePayload(payload);
+      } catch (cause) {
+        throw new ExternalStorageReferenceError('Failed to decode external storage reference', { cause });
+      }
       const driver = this.externalStorage.getDriver(decoded.driverName);
       if (driver === null) {
-        throw new ValueError(`No driver registered with name '${decoded.driverName}'`);
+        throw new ExternalStorageUnregisteredDriverError(`No driver registered with name '${decoded.driverName}'`);
       }
       let group = driverGroups.get(decoded.driverName);
       if (group === undefined) {
@@ -222,13 +238,20 @@ export class ExternalStorageRunner {
       const startMs = metrics ? performance.now() : 0;
       const { limiter, used } = this.makeLimiter<StorageDriverClaim>(batchSignal);
       const retrieveCtx: StorageDriverRetrieveContext = { abortSignal: batchSignal, limiter };
-      const retrieved = await group.driver.retrieve(
-        retrieveCtx,
-        group.items.map((it) => it.claim)
-      );
+      let retrieved: Payload[];
+      try {
+        retrieved = await group.driver.retrieve(
+          retrieveCtx,
+          group.items.map((it) => it.claim)
+        );
+      } catch (cause) {
+        throw new ExternalStorageDriverError(`Storage driver '${group.driver.name}' failed to retrieve payloads`, {
+          cause,
+        });
+      }
       this.warnIfLimiterUnused(group.driver.name, used(), 'retrieve');
       if (retrieved.length !== group.items.length) {
-        throw new ValueError(
+        throw new ExternalStorageReferenceError(
           `Driver '${group.driver.name}' returned ${retrieved.length} payloads for ${group.items.length} claims`
         );
       }
