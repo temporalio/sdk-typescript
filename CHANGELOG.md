@@ -28,6 +28,9 @@ to docs, or any other relevant information.
 
 - The Workflow sandbox now exposes `atob` and `btoa`, allowing integrations such as `@temporalio/ai-sdk` to
   process image and file tool results containing base64 data.
+- **Experimental**: A Standalone Activity started from a Nexus operation handler directly through
+  `ActivityClient`, rather than through `TemporalNexusClient.startActivity()`'s guarded call, now
+  inherits the handler's Nexus request ID and inbound links.
 
 ### Changed
 

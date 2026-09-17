@@ -9,7 +9,7 @@ import {
   MetricMeterWithComposedTags,
 } from '@temporalio/common';
 import type { temporal, coresdk } from '@temporalio/proto';
-import { asyncLocalStorage } from '@temporalio/nexus/lib/context';
+import { asyncLocalStorage, runWithNexusStartOperationContext } from '@temporalio/nexus/lib/context';
 import { encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
 import { isAbortError } from '@temporalio/common/lib/type-helpers';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
@@ -126,7 +126,9 @@ export class NexusHandler {
         'startOperation',
         executeNextHandler
       );
-      const { result } = await executeWithInterceptors({ ctx, input });
+      // Lets any Activity started via getClient() during this task, including from an inbound
+      // interceptor, link back to this operation.
+      const { result } = await runWithNexusStartOperationContext(ctx, () => executeWithInterceptors({ ctx, input }));
 
       if (result.isAsync) {
         return {
