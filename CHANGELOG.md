@@ -19,6 +19,14 @@ to docs, or any other relevant information.
 
 ## [Unreleased]
 
+### Added
+
+- **Experimental**: New External Storage concurrency controls.
+
+  - `ExternalStorage` takes a new `concurrency` option that holds two new concurrency limiting config values: `maxDriverOperations` caps how many are in flight across every driver registered on that `ExternalStorage` instance and `maxOperationsPerMessage` caps how many a single "message" may have in flight, where a message is any top-level input or ouput (e.g. a Workflow Task activation, a client request, a Nexus operation, etc)
+  - Both limits are cooperative and drivers must use the new `context.limiter` to take out a permit for each request.
+  - The bundled S3 and GCS drivers were updated to use the limiter.
+
 ### Changed
 
 - Updated the following dependencies: `unionfs` from 4.5.1 to 4.6.0, `@grpc/grpc-js` from 1.12.4 to 1.12.7, `smol-toml` from 1.6.1 to 1.7.1
