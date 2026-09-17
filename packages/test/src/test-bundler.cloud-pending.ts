@@ -9,8 +9,10 @@ import { randomUUID } from 'crypto';
 import type { ExecutionContext } from 'ava';
 import test from 'ava';
 import { moduleMatches } from '@temporalio/worker/lib/workflow/bundler';
+import pkg from '@temporalio/worker/lib/pkg';
+import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import type { LogEntry, WorkerOptions } from '@temporalio/worker';
-import { bundleWorkflowCode, DefaultLogger } from '@temporalio/worker';
+import { bundleWorkflowCode, DefaultLogger, Worker as BaseWorker } from '@temporalio/worker';
 import { Client } from '@temporalio/client';
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { issue516 } from './mocks/workflows-with-node-dependencies/issue-516';
@@ -22,6 +24,67 @@ test('moduleMatches works', (t) => {
   t.true(moduleMatches('fs', ['fs']));
   t.true(moduleMatches('fs/lib/foo', ['fs']));
   t.false(moduleMatches('fs', ['foo']));
+});
+
+class VersionValidationTestWorker extends BaseWorker {
+  static workflowCreatorWasCreated = false;
+
+  protected static override async createWorkflowCreator(): Promise<never> {
+    this.workflowCreatorWasCreated = true;
+    throw new Error('Workflow creator should not be created for an incompatible bundle');
+  }
+}
+
+test('Workflow bundle contains the SDK version annotation after minification', async (t) => {
+  const { code } = await bundleWorkflowCode({
+    workflowsPath: require.resolve('./workflows/preload-shared-counter'),
+    webpackConfigHook: (config) => ({ ...config, mode: 'production' }),
+  });
+
+  const annotation = `/* @temporalio/workflow-bundle ${JSON.stringify({ sdkVersion: pkg.version })} */\n`;
+  t.true(code.startsWith(annotation));
+  t.notThrows(() => parseWorkflowCode(code));
+});
+
+test('Workflow bundle from a different SDK version is rejected', async (t) => {
+  const { code } = await bundleWorkflowCode({
+    workflowsPath: require.resolve('./workflows/preload-shared-counter'),
+  });
+
+  const expectedAnnotation = `/* @temporalio/workflow-bundle ${JSON.stringify({ sdkVersion: pkg.version })} */`;
+  const mismatchedAnnotation = `/* @temporalio/workflow-bundle ${JSON.stringify({ sdkVersion: '0.0.0-test' })} */`;
+  const mismatchedCode = code.replace(expectedAnnotation, mismatchedAnnotation);
+
+  VersionValidationTestWorker.workflowCreatorWasCreated = false;
+  const err = await t.throwsAsync(
+    VersionValidationTestWorker.create({
+      taskQueue: 'incompatible-workflow-bundle',
+      workflowBundle: { code: mismatchedCode },
+    }),
+    {
+      instanceOf: TypeError,
+    }
+  );
+  t.false(VersionValidationTestWorker.workflowCreatorWasCreated);
+  t.true(err?.message.includes(`generated with Temporal SDK version '0.0.0-test'`) ?? false);
+  t.true(err?.message.includes(`Worker is running version '${pkg.version}'`) ?? false);
+});
+
+test('Workflow bundle without an SDK version annotation is rejected despite containing the old cache marker', (t) => {
+  const annotation = `/* @temporalio/workflow-bundle ${JSON.stringify({ sdkVersion: pkg.version })} */`;
+  const code = `void globalThis.__webpack_module_cache__;\n${annotation}`;
+
+  t.throws(() => parseWorkflowCode(code), {
+    instanceOf: TypeError,
+    message: /does not contain a Temporal SDK version annotation/,
+  });
+});
+
+test('Workflow bundle with a malformed SDK version annotation is rejected', (t) => {
+  t.throws(() => parseWorkflowCode('/* @temporalio/workflow-bundle invalid */\n'), {
+    instanceOf: TypeError,
+    message: /contains an invalid Temporal SDK version annotation/,
+  });
 });
 
 async function runPreloadSharedCounter(
@@ -299,6 +362,41 @@ test('Workflow bundle redirects the module cache when minified after webpack (#2
   });
   t.true(code.includes('globalThis.__webpack_module_cache__'), 'module cache should be redirected before minification');
 });
+
+test('Workflow bundle redirects the module cache regardless of assignment whitespace', async (t) => {
+  const { code } = await bundleWorkflowCode({
+    workflowsPath: require.resolve('./workflows/preload-shared-counter'),
+    webpackConfigHook: (config) => {
+      config.plugins = [new ModuleCacheRenderWhitespaceCollapsePlugin(), ...(config.plugins ?? [])];
+      return config;
+    },
+  });
+
+  t.true(code.includes('globalThis.__webpack_module_cache__'), 'module cache should be redirected');
+});
+
+/**
+ * A webpack plugin that changes the module-cache declaration before Temporal's
+ * render-time patch runs. This simulates webpack emitting `__webpack_module_cache__={}`
+ * instead of `__webpack_module_cache__ = {}`.
+ */
+class ModuleCacheRenderWhitespaceCollapsePlugin {
+  apply(compiler: any): void {
+    compiler.hooks.compilation.tap('ModuleCacheRenderWhitespaceCollapse', (compilation: any) => {
+      const hooks = compiler.webpack.javascript.JavascriptModulesPlugin.getCompilationHooks(compilation);
+
+      hooks.renderMain.tap('ModuleCacheRenderWhitespaceCollapse', (source: any) => {
+        const code = source.source().toString();
+        const replaced = new compiler.webpack.sources.ReplaceSource(source);
+        const re = /((?:var|let|const)\s+__webpack_module_cache__)\s*=\s*\{\}/g;
+        for (let match = re.exec(code); match !== null; match = re.exec(code)) {
+          replaced.replace(match.index, match.index + match[0].length - 1, `${match[1]}={}`);
+        }
+        return replaced;
+      });
+    });
+  }
+}
 
 /**
  * A webpack plugin that mimics a minifier (e.g. terser) added by a user through

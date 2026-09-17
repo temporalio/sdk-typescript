@@ -23,6 +23,9 @@ to docs, or any other relevant information.
 
 - Updated the following dependencies: `unionfs` from 4.5.1 to 4.6.0, `@grpc/grpc-js` from 1.12.4 to 1.12.7, `smol-toml` from 1.6.1 to 1.7.1
   and `tar` from 7.5.11 to 7.5.21.
+- A Worker will now refuse to load and execute a Workflow bundle produced with a different version
+  of the SDK. This practice has never been supported, but was never formally prevented, resulting
+  in various subtle, hard to diagnose issues. This change could potentially result in
 
 ### Fixed
 
