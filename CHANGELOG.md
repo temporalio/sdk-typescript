@@ -28,6 +28,8 @@ to docs, or any other relevant information.
 
 - The Workflow sandbox now exposes `atob` and `btoa`, allowing integrations such as `@temporalio/ai-sdk` to
   process image and file tool results containing base64 data.
+- `@temporalio/create` now supports comments and trailing commas in `tsconfig.json` files when
+  creating projects.
 
 ### Changed
 
@@ -173,8 +175,6 @@ to docs, or any other relevant information.
 
 ### Fixed
 
-- `@temporalio/create` now supports comments and trailing commas in `tsconfig.json` files when
-  creating projects.
 - Local Activities now fall back to a registered `default` activity when the requested type is not
   registered, matching non-local Activity dispatch. Previously the Workflow Task failed immediately
   with `ReferenceError` even if `default` was registered.
