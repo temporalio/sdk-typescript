@@ -167,10 +167,8 @@ test('signal-with-start invokes the generated public API from a workflow', async
   const target = await worker.runUntil(caller.result());
   t.is(target.workflowId, targetWorkflowId);
   t.regex(target.runId ?? '', /^[0-9a-f-]+$/i);
-  t.deepEqual(await t.context.env.client.workflow.getHandle(target.workflowId, target.runId).result(), [
-    'context-workflow-arg',
-    'context-signal-arg',
-  ]);
+  const targetHandle = t.context.env.client.workflow.getHandle(target.workflowId, target.runId);
+  t.deepEqual(await targetHandle.result(), ['context-workflow-arg', 'context-signal-arg']);
   const expectedContext = { type: 'workflow' as const, namespace: 'default', workflowId: targetWorkflowId };
   t.deepEqual(target.calls, ['specific', 'generic']);
   t.is(target.namespace, 'default');
@@ -180,7 +178,6 @@ test('signal-with-start invokes the generated public API from a workflow', async
     'context-memo',
     'context-summary',
     'context-details',
-    'context-header',
   ]) {
     const contexts = codec.contexts.get(value) ?? [];
     t.true(contexts.length >= 1, `${value} should be encoded with the target context`);
@@ -189,6 +186,12 @@ test('signal-with-start invokes the generated public API from a workflow', async
       contexts.map(() => expectedContext)
     );
   }
+  t.deepEqual(codec.contexts.get('context-header') ?? [], [], 'headers should bypass the payload codec');
+  const { events } = await targetHandle.fetchHistory();
+  const header = events?.find((event) => event.workflowExecutionStartedEventAttributes != null)
+    ?.workflowExecutionStartedEventAttributes?.header?.fields?.context;
+  t.truthy(header, 'the interceptor header should reach the target workflow');
+  t.is(defaultPayloadConverter.fromPayload(header!), 'context-header');
 });
 
 test('signal-with-start externally stores payloads nested in its request envelope', async (t) => {
