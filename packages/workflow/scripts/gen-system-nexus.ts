@@ -8,9 +8,9 @@ const workflowDir = resolve(__dirname, '..');
 const repoRoot = resolve(workflowDir, '../..');
 const supportFile = resolve(workflowDir, 'system-nexus-support.ts');
 const output = resolve(workflowDir, 'src/nexus/system/generated');
-const witRoot = resolve(workflowDir, 'system-nexus-wit');
 const nexgen = process.env.NEXGEN_BIN;
 const protoRoot = resolve(repoRoot, 'packages/core-bridge/sdk-core/crates/protos/protos');
+const witRoot = resolve(protoRoot, 'api_upstream/nexus');
 
 const protoRoots = [resolve(protoRoot, 'api_upstream'), protoRoot];
 
