@@ -191,10 +191,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
     activityId: string,
     options: ActivityHandleDefinitionOptions<A>
   ): ActivityHandle<Awaited<ReturnType<A>>>;
-  getHandleWithOptions<R = any>(
-    activityId: string,
-    options: Replace<GetActivityHandleOptions<R>, { activity?: never }>
-  ): ActivityHandle<R>;
+  getHandleWithOptions<R = any>(activityId: string, options: GetActivityHandleOptions<R>): ActivityHandle<R>;
   getHandleWithOptions(
     activityId: string,
     options: Replace<GetActivityHandleOptions, { activity?: ActivityFunction }>

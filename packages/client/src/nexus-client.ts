@@ -317,7 +317,7 @@ export class NexusClient extends BaseClient {
   ): NexusOperationHandle<nexus.OperationOutput<Op>>;
   public getHandle<T>(
     operationId: string,
-    options?: Replace<GetNexusOperationHandleOptions<NexusOperationHandleResult<T>>, { operation?: never }>
+    options?: GetNexusOperationHandleOptions<NexusOperationHandleResult<T>>
   ): NexusOperationHandle<NexusOperationHandleResult<T>>;
   public getHandle(
     operationId: string,

@@ -1963,7 +1963,7 @@ export class WorkflowClient extends BaseClient {
   public getHandle<T extends Workflow>(
     workflowId: string,
     runId?: string,
-    options?: Replace<GetWorkflowHandleOptions<WorkflowResultType<T>>, { workflow?: never }>
+    options?: GetWorkflowHandleOptions<WorkflowResultType<T>>
   ): WorkflowHandle<T>;
   public getHandle<T extends Workflow>(
     workflowId: string,
