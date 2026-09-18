@@ -750,9 +750,9 @@ async function updateWorkflowOperation<Ret, Args extends any[]>(
   // Guards the untyped caller: `waitForStage` is typed to only accept ACCEPTED, but a JavaScript
   // caller (or an `as any` cast) can still reach here with another stage.
   if (options?.waitForStage !== WorkflowUpdateStage.ACCEPTED) {
-    throw new nexus.HandlerError(
-      nexus.HandlerErrorType.BAD_REQUEST,
-      `Nexus Operations backed by a Workflow Update only support waitForStage ${WorkflowUpdateStage.ACCEPTED}`
+    throw new TypeError(
+      `Only waitForStage '${WorkflowUpdateStage.ACCEPTED}' is supported, ` +
+        `got ${JSON.stringify(options?.waitForStage)}`
     );
   }
 

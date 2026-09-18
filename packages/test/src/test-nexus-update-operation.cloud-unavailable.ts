@@ -73,7 +73,7 @@ function makeAddOperationHandler() {
     async start(_ctx, client, input) {
       return await client.getWorkflowHandle(input.workflowId).update<UpdateAddOutput, [number, number]>(addUpdateName, {
         updateId: input.updateId,
-        waitForStage: temporalnexus.WorkflowUpdateStage.ACCEPTED,
+        waitForStage: 'ACCEPTED',
         args: [input.amount, input.sleepMs ?? 0],
       });
     },
@@ -96,7 +96,7 @@ function runThenUpdateServiceHandler() {
       // `update` is deliberately absent from the type of a handle returned by startWorkflow; cast to
       // reach the runtime guard the way an untyped JavaScript caller would.
       await (handle as temporalnexus.UpdatableWorkflowHandle<number>).update(addUpdate, {
-        waitForStage: temporalnexus.WorkflowUpdateStage.ACCEPTED,
+        waitForStage: 'ACCEPTED',
         args: [5, 0],
       });
       return handle;
