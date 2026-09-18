@@ -499,3 +499,41 @@ test('Workflow link reason round trips a literal plus', (t) => {
   t.is(nexusLink.url.search, '?reason=a%2Bb');
   t.is(convertNexusLinkToWorkflowLink(nexusLink).reason, 'a+b');
 });
+
+test('every link type escapes its IDs into a single path segment', (t) => {
+  // IDs are user supplied, so a slash in one must not add a path segment and forge a different
+  // link shape. Asserted for all four types because they share one URL builder.
+  t.is(
+    convertWorkflowEventLinkToNexusLink({
+      namespace: 'ns',
+      workflowId: 'a/b',
+      runId: 'r',
+      eventRef: makeEventRef(1, 'EVENT_TYPE_WORKFLOW_EXECUTION_STARTED'),
+    }).url.pathname,
+    '/namespaces/ns/workflows/a%2Fb/r/history'
+  );
+  t.is(
+    convertWorkflowLinkToNexusLink({ namespace: 'ns', workflowId: 'a/b', runId: 'r' }).url.pathname,
+    '/namespaces/ns/workflows/a%2Fb/r'
+  );
+  t.is(
+    convertNexusOperationLinkToNexusLink({ namespace: 'ns', operationId: 'a/b', runId: 'r' }).url.pathname,
+    '/namespaces/ns/nexus-operations/a%2Fb/r/details'
+  );
+  t.is(
+    convertActivityLinkToNexusLink({ namespace: 'ns', activityId: 'a/b', runId: 'r' }).url.pathname,
+    '/namespaces/ns/activities/a%2Fb/r/details'
+  );
+});
+
+test('every link type encodes a space as %20, never +', (t) => {
+  // A '+' in a path is a literal plus to the decoder, so a space encoded that way is lost.
+  t.is(
+    convertWorkflowLinkToNexusLink({ namespace: 'ns', workflowId: 'a b', runId: 'r' }).url.pathname,
+    '/namespaces/ns/workflows/a%20b/r'
+  );
+  t.is(
+    convertActivityLinkToNexusLink({ namespace: 'ns', activityId: 'a b', runId: 'r' }).url.pathname,
+    '/namespaces/ns/activities/a%20b/r/details'
+  );
+});
