@@ -180,8 +180,6 @@ interface ScopedWorkflowRandomSource {
  * - Call user-defined functions, including any form of interceptor.
  */
 export class Activator implements ActivationHandler {
-  /** Converter temporarily scoped while generated System Nexus models are constructed. */
-
   /**
    * Cache for modules - referenced in reusable-vm.ts
    */
