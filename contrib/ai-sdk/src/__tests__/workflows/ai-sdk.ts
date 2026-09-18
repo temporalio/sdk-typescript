@@ -4,10 +4,12 @@
 // webpack entry, so import order must not matter.
 import { embedMany, generateText, isStepCount, Output, tool, wrapLanguageModel } from 'ai';
 import type { LanguageModelMiddleware } from 'ai';
+import type { LanguageModelV4StreamPart } from '@ai-sdk/provider';
 import { OpenTelemetry } from '@ai-sdk/otel';
 import { z } from 'zod';
 import { proxyActivities } from '@temporalio/workflow';
-import { TemporalMCPClient, temporalProvider } from '../../workflow';
+import { WorkflowStream } from '@temporalio/workflow-streams/workflow';
+import { TemporalLanguageModel, TemporalMCPClient, temporalProvider } from '../../workflow';
 import type * as activities from '../activities/ai-sdk';
 
 const { getWeather } = proxyActivities<typeof activities>({
@@ -191,4 +193,23 @@ export async function embeddingWorkflow(
     dimensions: result.embeddings[0]?.length ?? 0,
     totalTokens: result.usage?.tokens,
   };
+}
+
+export async function streamingMetadataWorkflow(): Promise<LanguageModelV4StreamPart[]> {
+  new WorkflowStream();
+  const model = new TemporalLanguageModel('streaming-test-model', {
+    streamingTopic: 'ai-sdk-test-stream',
+    streamingBatchInterval: '1 millisecond',
+  });
+  const result = await model.doStream({
+    prompt: [{ role: 'user', content: [{ type: 'text', text: 'test' }] }],
+  });
+  const parts: LanguageModelV4StreamPart[] = [];
+  const reader = result.stream.getReader();
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) return parts;
+    parts.push(value);
+  }
 }
