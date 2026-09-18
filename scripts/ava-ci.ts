@@ -115,6 +115,12 @@ function flushPendingFailure(): void {
 }
 
 const TEST_LINE = /^(ok|not ok) (\d+) - (.*)$/;
+const WORKFLOW_BUNDLE_CACHE_LINE = /^\s*(?:#\s*)?(\[workflow-bundle-cache\].*)$/;
+
+function printWorkflowBundleCacheLog(line: string): void {
+  const cacheLog = WORKFLOW_BUNDLE_CACHE_LINE.exec(line);
+  if (cacheLog) process.stdout.write(dim(`${cacheLog[1]}\n`));
+}
 
 function handleTapLine(rawLine: string): void {
   // ava terminates each TAP write with os.EOL; the trailing CR defeats TEST_LINE (no `m` flag, `.` excludes CR).
@@ -186,7 +192,20 @@ function consume(chunk: string): void {
   while ((idx = buffer.indexOf('\n')) !== -1) {
     const line = buffer.slice(0, idx);
     buffer = buffer.slice(idx + 1);
+    printWorkflowBundleCacheLog(line);
     handleTapLine(line);
+  }
+}
+
+let stderrBuffer = '';
+function consumeStderr(chunk: string): void {
+  logStream.write(chunk);
+  stderrBuffer += chunk;
+  let idx: number;
+  while ((idx = stderrBuffer.indexOf('\n')) !== -1) {
+    const line = stderrBuffer.slice(0, idx);
+    stderrBuffer = stderrBuffer.slice(idx + 1);
+    printWorkflowBundleCacheLog(line);
   }
 }
 
@@ -224,11 +243,15 @@ child.stdout?.setEncoding('utf8');
 child.stdout?.on('data', consume);
 // ava writes some diagnostics to stderr; archive but don't parse for TAP.
 child.stderr?.setEncoding('utf8');
-child.stderr?.on('data', (chunk: string) => logStream.write(chunk));
+child.stderr?.on('data', consumeStderr);
 
 function finish(exitCode: number): void {
   clearInterval(heartbeat);
-  if (buffer.length) handleTapLine(buffer);
+  if (buffer.length) {
+    printWorkflowBundleCacheLog(buffer);
+    handleTapLine(buffer);
+  }
+  if (stderrBuffer.length) printWorkflowBundleCacheLog(stderrBuffer);
   flushPendingFailure();
 
   const durationMs = Date.now() - started;

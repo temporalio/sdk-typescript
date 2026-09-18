@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { performance } from 'node:perf_hooks';
 import type { WorkflowBundleWithSourceMap } from '@temporalio/worker';
 import { workflowInterceptorModules as defaultWorkflowInterceptorModules } from '@temporalio/testing';
 import { createTestWorkflowBundle } from '@temporalio/test-helpers/lib/environment';
@@ -47,10 +48,20 @@ async function loadOrCreateBundle(
 ): Promise<WorkflowBundleWithSourceMap> {
   if (cacheDirectory !== undefined) {
     try {
-      return { code: await readFile(cachePath(key), 'utf8'), sourceMap: 'deprecated: this is no longer in use\n' };
+      const start = performance.now();
+      const code = await readFile(cachePath(key), 'utf8');
+      console.log(
+        `[workflow-bundle-cache] disk hit: loaded ${path.basename(opts.workflowsPath)} (${code.length} bytes) in ${(
+          performance.now() - start
+        ).toFixed(1)}ms`
+      );
+      return { code, sourceMap: 'deprecated: this is no longer in use\n' };
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
     }
+    console.log(`[workflow-bundle-cache] disk miss: ${path.basename(opts.workflowsPath)}`);
+  } else {
+    console.log('[workflow-bundle-cache] disabled: TEMPORAL_WORKFLOW_BUNDLE_CACHE_DIR is not set');
   }
 
   const bundle = await createTestWorkflowBundle({
@@ -71,7 +82,10 @@ export function getCachedTestWorkflowBundle(
 ): Promise<WorkflowBundleWithSourceMap> {
   const key = cacheKey(opts);
   const cached = workflowBundles.get(key);
-  if (cached !== undefined) return cached;
+  if (cached !== undefined) {
+    console.log(`[workflow-bundle-cache] memory hit: ${path.basename(opts.workflowsPath)}`);
+    return cached;
+  }
 
   const bundle = loadOrCreateBundle(opts, key);
   workflowBundles.set(key, bundle);
