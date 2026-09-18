@@ -37,21 +37,29 @@ function cacheKey(opts: CachedTestWorkflowBundleOptions): string {
 const workflowBundles = new Map<string, Promise<WorkflowBundleWithSourceMap>>();
 const cacheDirectory = process.env.TEMPORAL_WORKFLOW_BUNDLE_CACHE_DIR;
 
+function cacheDigest(key: string): string {
+  return createHash('sha256').update(key).digest('hex').slice(0, 12);
+}
+
 function cachePath(key: string): string {
-  const digest = createHash('sha256').update(key).digest('hex').slice(0, 12);
-  return path.join(cacheDirectory!, `workflow-bundle-${digest}.js`);
+  return path.join(cacheDirectory!, `workflow-bundle-${cacheDigest(key)}.js`);
+}
+
+function cacheLogContext(opts: CachedTestWorkflowBundleOptions, key: string): string {
+  return `pid=${process.pid} key=${cacheDigest(key)} workflowsPath=${path.resolve(opts.workflowsPath)}`;
 }
 
 async function loadOrCreateBundle(
   opts: CachedTestWorkflowBundleOptions,
   key: string
 ): Promise<WorkflowBundleWithSourceMap> {
+  const context = cacheLogContext(opts, key);
   if (cacheDirectory !== undefined) {
     try {
       const start = performance.now();
       const code = await readFile(cachePath(key), 'utf8');
       console.log(
-        `[workflow-bundle-cache] disk hit: loaded ${path.basename(opts.workflowsPath)} (${code.length} bytes) in ${(
+        `[workflow-bundle-cache] disk hit: ${context} loaded ${code.length} bytes in ${(
           performance.now() - start
         ).toFixed(1)}ms`
       );
@@ -59,19 +67,29 @@ async function loadOrCreateBundle(
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
     }
-    console.log(`[workflow-bundle-cache] disk miss: ${path.basename(opts.workflowsPath)}`);
+    console.log(`[workflow-bundle-cache] disk miss: ${context}`);
   } else {
-    console.log('[workflow-bundle-cache] disabled: TEMPORAL_WORKFLOW_BUNDLE_CACHE_DIR is not set');
+    console.log(`[workflow-bundle-cache] disabled: ${context} TEMPORAL_WORKFLOW_BUNDLE_CACHE_DIR is not set`);
   }
 
+  const bundleStart = performance.now();
   const bundle = await createTestWorkflowBundle({
     workflowsPath: opts.workflowsPath,
     workflowInterceptorModules: opts.workflowInterceptorModules,
     additionalIgnoreModules: testWorkflowBundleIgnoreModules,
   });
+  console.log(
+    `[workflow-bundle-cache] bundled: ${context} ${bundle.code.length} bytes in ${(
+      performance.now() - bundleStart
+    ).toFixed(1)}ms`
+  );
   if (cacheDirectory !== undefined) {
+    const writeStart = performance.now();
     await mkdir(cacheDirectory, { recursive: true });
     await writeFile(cachePath(key), bundle.code);
+    console.log(
+      `[workflow-bundle-cache] wrote: ${context} to disk in ${(performance.now() - writeStart).toFixed(1)}ms`
+    );
   }
   return bundle;
 }
@@ -83,7 +101,7 @@ export function getCachedTestWorkflowBundle(
   const key = cacheKey(opts);
   const cached = workflowBundles.get(key);
   if (cached !== undefined) {
-    console.log(`[workflow-bundle-cache] memory hit: ${path.basename(opts.workflowsPath)}`);
+    console.log(`[workflow-bundle-cache] memory hit: ${cacheLogContext(opts, key)}`);
     return cached;
   }
 
