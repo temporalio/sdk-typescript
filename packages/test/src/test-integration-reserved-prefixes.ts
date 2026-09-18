@@ -6,14 +6,11 @@ import {
   wfReadyQuery,
   workflowReservedNameHandler,
   workflowWithDefaultHandlers,
-} from './integration-workflows-common';
+} from './workflows/integration-reserved-prefixes';
 import { helpers, makeTestFunction } from './helpers-integration';
 
-export * from './integration-workflows-common';
-
 const test = makeTestFunction({
-  workflowsPath: __filename,
-  workflowInterceptorModules: [__filename],
+  workflowInterceptorModules: [require.resolve('./workflows/integration-reserved-prefixes')],
 });
 
 test('Cannot register activities using reserved prefixes', async (t) => {

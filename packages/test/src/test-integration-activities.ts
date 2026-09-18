@@ -11,14 +11,11 @@ import {
   heartbeatCancellationWorkflow,
   runDelayedRetryActivities,
   runTestActivity,
-} from './integration-workflows-common';
+} from './workflows/integration-activities';
 import { helpers, makeTestFunction } from './helpers-integration';
 
-export * from './integration-workflows-common';
-
 const test = makeTestFunction({
-  workflowsPath: __filename,
-  workflowInterceptorModules: [__filename],
+  workflowInterceptorModules: [require.resolve('./workflows/integration-activities')],
 });
 
 test('Worker cancels activities after shutdown has been requested', async (t) => {

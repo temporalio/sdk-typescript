@@ -10,29 +10,16 @@ import type {
   SlotReserveContext,
 } from '@temporalio/worker';
 import { ResourceBasedController } from '@temporalio/worker';
-import * as wf from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
+import { doesActivity, successString } from './workflows/worker-tuner';
 
-const test = makeTestFunction({ workflowsPath: __filename });
+const test = makeTestFunction({});
 
 const activities = {
   async hiActivity(): Promise<string> {
     return 'hi';
   },
 };
-
-const proxyActivities = wf.proxyActivities<typeof activities>({
-  startToCloseTimeout: '5s',
-});
-
-export async function successString(): Promise<string> {
-  return 'success';
-}
-
-export async function doesActivity(): Promise<string> {
-  await proxyActivities.hiActivity();
-  return 'success';
-}
 
 test('Worker can run with resource based tuner', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);

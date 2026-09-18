@@ -105,7 +105,11 @@ export function makeConfigurableEnvironmentTestFn<T>(opts: {
 }
 
 export interface TestFunctionOptions<C extends Context = Context> {
-  workflowsPath: string;
+  /**
+   * Workflow entry point. When omitted, it is inferred from the AVA test filename:
+   * `test-foo.ts` uses `workflows/foo.ts`.
+   */
+  workflowsPath?: string;
   workflowEnvironmentOpts?: LocalTestWorkflowEnvironmentOptions;
   workflowInterceptorModules?: string[];
   recordedLogs?: { [workflowId: string]: LogEntry[] };
@@ -113,10 +117,11 @@ export interface TestFunctionOptions<C extends Context = Context> {
 }
 
 export function makeTestFunction<C extends Context = Context>(opts: TestFunctionOptions<C>): TestFn<C> {
+  const workflowsPath = opts.workflowsPath ?? inferWorkflowsPath((anyTest as TestFn).meta.file);
   return makeConfigurableEnvironmentTestFn<C>({
     recordedLogs: opts.recordedLogs,
     runtimeOpts: opts.runtimeOpts,
-    createTestContext: makeDefaultTestContextFunction(opts) as (t: ExecutionContext) => Promise<C>,
+    createTestContext: makeDefaultTestContextFunction({ ...opts, workflowsPath }) as (t: ExecutionContext) => Promise<C>,
     teardown: async (c: Context) => {
       if (c.env) {
         await c.env.teardown();
@@ -125,7 +130,20 @@ export function makeTestFunction<C extends Context = Context>(opts: TestFunction
   });
 }
 
-export function makeDefaultTestContextFunction(opts: TestFunctionOptions): (t: ExecutionContext) => Promise<Context> {
+function inferWorkflowsPath(testFileUrl: string): string {
+  const testFilePath = decodeURIComponent(testFileUrl.replace(/^file:\/\//, ''));
+  const extensionIndex = testFilePath.lastIndexOf('.');
+  const directoryIndex = testFilePath.lastIndexOf('/');
+  const dir = testFilePath.slice(0, directoryIndex);
+  const ext = testFilePath.slice(extensionIndex);
+  const name = testFilePath.slice(directoryIndex + 1, extensionIndex);
+  const workflowName = name.replace(/^test-/, '').replace(/\.(cloud-pending|cloud-unavailable|local)$/, '');
+  return `${dir}/workflows/${workflowName}${ext}`;
+}
+
+export function makeDefaultTestContextFunction(
+  opts: TestFunctionOptions & Required<Pick<TestFunctionOptions, 'workflowsPath'>>
+): (t: ExecutionContext) => Promise<Context> {
   return async (_t: ExecutionContext): Promise<Context> => {
     const env = await createTestWorkflowEnvironment(opts.workflowEnvironmentOpts);
     try {

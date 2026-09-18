@@ -19,7 +19,6 @@ import {
   type CountNexusOperationsInput,
 } from '@temporalio/client';
 import * as temporalnexus from '@temporalio/nexus';
-import * as workflow from '@temporalio/workflow';
 import { CancelledFailure, TerminatedFailure, ApplicationFailure, SearchAttributeType } from '@temporalio/common';
 import { generateWorkflowRunOperationToken } from '@temporalio/nexus/lib/token';
 import type { Context } from './helpers-integration';
@@ -33,11 +32,11 @@ import {
   Receipt,
   receiptTypeInfo,
 } from './workflows/type-info/models';
+import { blockingEcho, unblockEcho } from './workflows/nexus-standalone';
 
 const { EventType } = temporal.api.enums.v1;
 
 const test = makeTestFunction({
-  workflowsPath: __filename,
   workflowEnvironmentOpts: {
     server: {
       extraArgs: [
@@ -51,20 +50,6 @@ const test = makeTestFunction({
     },
   },
 });
-
-export const unblockEcho = workflow.defineUpdate<void, []>('unblockEcho');
-
-export async function blockingEcho(input: string): Promise<string> {
-  let unblocked = false;
-
-  workflow.setHandler(unblockEcho, () => {
-    unblocked = true;
-  });
-
-  await workflow.condition(() => unblocked);
-
-  return input;
-}
 
 const testService = nexus.service('testService', {
   echo: nexus.operation<string, { value: string }>(),

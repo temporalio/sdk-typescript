@@ -2,18 +2,24 @@ import assert from 'assert';
 import { randomUUID } from 'crypto';
 import type { ExecutionContext } from 'ava';
 import * as nexus from 'nexus-rpc';
-import { ApplicationFailure, NexusOperationFailure } from '@temporalio/common';
+import { NexusOperationFailure } from '@temporalio/common';
 import type { WorkflowHandle } from '@temporalio/client';
 import { WorkflowFailedError } from '@temporalio/client';
 import type { History } from '@temporalio/common/lib/proto-utils';
 import * as temporalnexus from '@temporalio/nexus';
-import * as workflow from '@temporalio/workflow';
+import type * as workflow from '@temporalio/workflow';
 import type { Context } from './helpers-integration';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { innermostHandlerError } from './helpers-nexus';
 import { waitUntil } from './helpers';
+import {
+  type CancelTypeTestScenario,
+  cancellationTestCallerWorkflow,
+  cancellationTestTargetWorkflow,
+  service,
+} from './workflows/workflow-nexus-cancellation';
 
-const test = makeTestFunction({ workflowsPath: __filename });
+const test = makeTestFunction({});
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // WORKFLOW's SCHEDULE NEXUS OPERATION's CANCELLATION TYPES
@@ -34,32 +40,6 @@ const test = makeTestFunction({ workflowsPath: __filename });
 //    scenario) either hang forever, sleep for a short time before rethrowing the cancellation, or
 //    immediately rethrow the cancellation.
 
-type CancelTypeTestScenario = {
-  operationName: 'startWorkflow' | 'startWorkflowFailCancel';
-  cancellationType: workflow.NexusOperationCancellationType;
-  targetCancellationBehavior: 'hang' | 'delay' | 'rethrow';
-};
-
-export async function cancellationTestCallerWorkflow(
-  endpoint: string,
-  scenario: CancelTypeTestScenario
-): Promise<void> {
-  const { cancellationType, operationName: nexusOperationName } = scenario;
-  try {
-    const client = workflow.createNexusServiceClient({ endpoint, service });
-    await client.executeOperation(nexusOperationName, scenario, { cancellationType });
-    throw ApplicationFailure.nonRetryable('Unexpected Success');
-  } catch (err) {
-    if (workflow.isCancellation(err)) return;
-    throw err;
-  }
-}
-
-const service = nexus.service('cancellation-test-service', {
-  startWorkflow: nexus.operation<CancelTypeTestScenario, void>(),
-  startWorkflowFailCancel: nexus.operation<CancelTypeTestScenario, void>(),
-} as const);
-
 function makeNexusServiceHandler() {
   const startWorkflow = new temporalnexus.WorkflowRunOperationHandler<CancelTypeTestScenario, void>(
     async (ctx, scenario) => {
@@ -79,29 +59,6 @@ function makeNexusServiceHandler() {
       },
     },
   });
-}
-
-export async function cancellationTestTargetWorkflow(scenario: CancelTypeTestScenario): Promise<void> {
-  try {
-    await workflow.condition(() => false); // Block forever
-    throw workflow.ApplicationFailure.nonRetryable('Unreachable code');
-  } catch (err) {
-    switch (scenario.targetCancellationBehavior) {
-      case 'hang': // Completely ignore the cancellation request, blocking forever
-        await workflow.CancellationScope.nonCancellable(async () => {
-          await workflow.condition(() => false);
-        });
-        break;
-      case 'delay': // Sleep for a short time before rethrowing
-        await workflow.CancellationScope.nonCancellable(async () => {
-          await workflow.sleep(100);
-        });
-        throw err;
-      case 'rethrow':
-      default:
-        throw err;
-    }
-  }
 }
 
 async function testWorkflowNexusCancellation(

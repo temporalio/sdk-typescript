@@ -10,14 +10,11 @@ import {
   helloWorkflow,
   parent,
   runTestActivity,
-} from './integration-workflows-common';
+} from './workflows/integration-workflow-start';
 import { helpers, makeTestFunction } from './helpers-integration';
 
-export * from './integration-workflows-common';
-
 const test = makeTestFunction({
-  workflowsPath: __filename,
-  workflowInterceptorModules: [__filename],
+  workflowInterceptorModules: [require.resolve('./workflows/integration-workflow-start')],
 });
 
 test('Workflow fails if it tries to start a child with an existing workflow ID', async (t) => {

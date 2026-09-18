@@ -1,29 +1,10 @@
-import type { AsyncLocalStorage } from 'async_hooks';
-import * as workflow from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { unblockSignal } from './workflows/testenv-test-workflows';
+import { asyncLocalStorageWorkflow } from './workflows/workflow-async-local-storage';
 
 const test = makeTestFunction({
-  workflowsPath: __filename,
   workflowInterceptorModules: [require.resolve('./workflows/otel-interceptors')],
 });
-
-export async function asyncLocalStorageWorkflow(explicitlyDisable: boolean): Promise<void> {
-  const myAls: AsyncLocalStorage<unknown> = new (globalThis as any).AsyncLocalStorage('My Workflow ALS');
-  try {
-    await myAls.run({}, async () => {
-      let signalReceived = false;
-      workflow.setHandler(unblockSignal, () => {
-        signalReceived = true;
-      });
-      await workflow.condition(() => signalReceived);
-    });
-  } finally {
-    if (explicitlyDisable) {
-      myAls.disable();
-    }
-  }
-}
 
 test("AsyncLocalStorage in workflow context doesn't throw when disabled", async (t) => {
   const { createWorker, startWorkflow } = helpers(t);

@@ -2,36 +2,19 @@
  * External storage integration tests for Nexus operations.
  *
  * Lives in its own file (rather than test-integration-extstore.ts) because the caller workflow must
- * be in the bundled workflows and share the Nexus service definition with the handler, so this uses
- * `workflowsPath: __filename` like the other Nexus caller tests.
+ * be in the bundled workflows and share the Nexus service definition with the handler.
  */
 import * as nexus from 'nexus-rpc';
 import { ExternalStorage } from '@temporalio/common';
-import * as workflow from '@temporalio/workflow';
 import { makeFakeDriver } from './extstore-fake-driver';
 import { helpers, makeTestFunction } from './helpers-integration';
+import {
+  extstoreNexusBigResultCaller,
+  extstoreNexusSizeCaller,
+  nexusSizeService,
+} from './workflows/integration-extstore-nexus';
 
-const test = makeTestFunction({ workflowsPath: __filename });
-
-const nexusSizeService = nexus.service('extstoreNexusSizeService', {
-  // Takes a payload and returns its length, so a large input can be offloaded and the handler's
-  // observed length proves it was retrieved intact.
-  sizeOp: nexus.operation<Uint8Array, number>(),
-  // Takes a size and returns a payload of that size, so a large (sync) result can be offloaded and
-  // the caller's observed length proves it was retrieved intact.
-  bigResultOp: nexus.operation<number, Uint8Array>(),
-});
-
-export async function extstoreNexusSizeCaller(endpoint: string, sizeBytes: number): Promise<number> {
-  const client = workflow.createNexusServiceClient({ endpoint, service: nexusSizeService });
-  return await client.executeOperation('sizeOp', new Uint8Array(sizeBytes));
-}
-
-export async function extstoreNexusBigResultCaller(endpoint: string, sizeBytes: number): Promise<number> {
-  const client = workflow.createNexusServiceClient({ endpoint, service: nexusSizeService });
-  const result = await client.executeOperation('bigResultOp', sizeBytes);
-  return result.length;
-}
+const test = makeTestFunction({});
 
 function sizeServiceHandler() {
   return nexus.serviceHandler(nexusSizeService, {

@@ -6,14 +6,11 @@ import {
   cancellationScopeWithTimeoutScopeGetCancelledOnTimeout,
   cancellationScopeWithTimeoutTimerGetsCancelled,
   nonCancellableScopesBeforeAndAfterWorkflow,
-} from './integration-workflows-common';
+} from './workflows/integration-cancellation-scopes';
 import { helpers, makeTestFunction } from './helpers-integration';
 
-export * from './integration-workflows-common';
-
 const test = makeTestFunction({
-  workflowsPath: __filename,
-  workflowInterceptorModules: [__filename],
+  workflowInterceptorModules: [require.resolve('./workflows/integration-cancellation-scopes')],
 });
 
 test('Propagation of cancellation from non-cancellable scopes - before vs after', async (t) => {

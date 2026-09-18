@@ -4,27 +4,13 @@ import type { Payload } from '@temporalio/common';
 import { ApplicationFailure, createPayloadValidationError, NexusOperationFailure } from '@temporalio/common';
 import { Client, WorkflowFailedError } from '@temporalio/client';
 import type { PayloadCodec } from '@temporalio/common/lib/converter/payload-codec';
-import * as workflow from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { innermostHandlerError } from './helpers-nexus';
+import { nexusEchoCaller, testService } from './workflows/nexus-codec-converter-errors';
 
 const test = makeTestFunction({
-  workflowsPath: __filename,
-  workflowInterceptorModules: [__filename],
+  workflowInterceptorModules: [require.resolve('./workflows/nexus-codec-converter-errors')],
 });
-
-const testService = nexus.service('codec-converter-test', {
-  echoOp: nexus.operation<string, string>(),
-});
-
-export async function nexusEchoCaller(endpoint: string): Promise<string> {
-  const client = workflow.createNexusServiceClient({
-    endpoint,
-    service: testService,
-  });
-  const handle = await client.startOperation('echoOp', 'hello');
-  return await handle.result();
-}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 

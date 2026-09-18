@@ -1,43 +1,18 @@
 import type { Macro, ErrorConstructor } from 'ava';
-import { CancellationScope, sleep } from '@temporalio/workflow';
 import { WorkflowFailedError } from '@temporalio/client';
 import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
 import type { Context } from './helpers-integration';
 import { makeTestFunction, helpers } from './helpers-integration';
+import {
+  type WorkflowCancellationScenarioOutcome,
+  type WorkflowCancellationScenarioTiming,
+  workflowCancellationScenariosWorkflow,
+} from './workflows/workflow-cancellation';
 
-const test = makeTestFunction({
-  workflowsPath: __filename,
-});
+const test = makeTestFunction({});
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Test workflow cancellation scenarios
-
-type WorkflowCancellationScenarioOutcome = 'complete' | 'cancel' | 'fail';
-type WorkflowCancellationScenarioTiming = 'immediately' | 'after-cleanup';
-
-export async function workflowCancellationScenariosWorkflow(
-  outcome: WorkflowCancellationScenarioOutcome,
-  when: WorkflowCancellationScenarioTiming
-): Promise<void> {
-  try {
-    await CancellationScope.current().cancelRequested;
-  } catch (e) {
-    if (!(e instanceof CancelledFailure)) {
-      throw e;
-    }
-    if (when === 'after-cleanup') {
-      await CancellationScope.nonCancellable(async () => sleep(1));
-    }
-    switch (outcome) {
-      case 'cancel':
-        throw e;
-      case 'complete':
-        return;
-      case 'fail':
-        throw ApplicationFailure.nonRetryable('Expected failure');
-    }
-  }
-}
 
 const testWorkflowCancellation: Macro<
   [WorkflowCancellationScenarioOutcome, WorkflowCancellationScenarioTiming, ErrorConstructor | undefined],
