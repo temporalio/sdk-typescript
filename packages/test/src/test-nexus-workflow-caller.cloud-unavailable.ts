@@ -56,20 +56,10 @@ import {
   typeInfoService,
 } from './workflows/nexus-workflow-caller';
 
-export { workflowWithTypeInfo };
-
 const recordedLogs: { [key: string]: LogEntry[] } = {};
 const test = makeTestFunction({
   recordedLogs,
   workflowInterceptorModules: [require.resolve('./workflows/type-info/nexus-interceptors')],
-});
-
-workflow.defineWorkflowOptions(typeInfoCaller, {
-  staticOptions: { typeInfo: { outputType: receiptTypeInfo } },
-});
-
-workflow.defineWorkflowOptions(interceptorTypeInfoCaller, {
-  staticOptions: { typeInfo: { outputType: receiptTypeInfo } },
 });
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

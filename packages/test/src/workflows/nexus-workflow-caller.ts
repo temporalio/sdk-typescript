@@ -4,6 +4,8 @@ import { ApplicationFailure, CancelledFailure, NexusOperationFailure, SdkCompone
 import * as workflow from '@temporalio/workflow';
 import { assertOrder, assertReceipt, Order, orderTypeInfo, Receipt, receiptTypeInfo } from './type-info/models';
 
+export { workflowWithTypeInfo } from './type-info/workflows';
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Service definitions
 
@@ -29,6 +31,14 @@ export const loggerService = nexus.service('loggerTestService', {
 
 export const getClientService = nexus.service('getClientTestService', {
   getClientOp: nexus.operation<void, boolean>(),
+});
+
+workflow.defineWorkflowOptions(typeInfoCaller, {
+  staticOptions: { typeInfo: { outputType: receiptTypeInfo } },
+});
+
+workflow.defineWorkflowOptions(interceptorTypeInfoCaller, {
+  staticOptions: { typeInfo: { outputType: receiptTypeInfo } },
 });
 
 export const operationInfoService = nexus.service('operationInfoTestService', {

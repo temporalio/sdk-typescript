@@ -674,8 +674,6 @@ test('update caller gets update failed error on workflow cancellation', async (t
   });
 });
 
-export { signalUpdateOrderingWorkflow };
-
 // Validate that issue #1474 is fixed in 1.11.0+
 test("Pending promises can't unblock between signals and updates", async (t) => {
   const { createWorker, startWorkflow, updateHasBeenAdmitted } = helpers(t);
@@ -698,8 +696,6 @@ test("Pending promises can't unblock between signals and updates", async (t) => 
     t.is(await updateResult, 3);
   });
 });
-
-export { signalsActivitiesTimersPromiseOrdering };
 
 // A broader check covering issue #1474, but also other subtle ordering issues caused by the fact
 // that signals used to be processed in a distinct phase from other types of jobs.

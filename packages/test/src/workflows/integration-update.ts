@@ -1,5 +1,8 @@
 import * as wf from '@temporalio/workflow';
 
+export { signalUpdateOrderingWorkflow } from './signal-update-ordering';
+export { signalsActivitiesTimersPromiseOrdering } from './signals-timers-activities-order';
+
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
 // polling/retry strategies result in the expected behavior
 export const LONG_POLL_EXPIRATION_INTERVAL_MS = 5_000;
