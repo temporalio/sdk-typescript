@@ -2,24 +2,21 @@ import { randomUUID } from 'crypto';
 import type { ExecutionContext } from 'ava';
 import type { ScheduleOptionsAction, WorkflowExecutionDescription } from '@temporalio/client';
 import type { SearchAttributes, SearchAttributePair, SearchAttributeUpdatePair } from '@temporalio/common';
+import type { WorkflowInfo } from '@temporalio/workflow';
 import { TypedSearchAttributes, SearchAttributeType, defineSearchAttributeKey } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
-import type { WorkflowInfo } from '@temporalio/workflow';
-import {
-  condition,
-  defineQuery,
-  defineSignal,
-  setHandler,
-  upsertSearchAttributes,
-  workflowInfo,
-} from '@temporalio/workflow';
 import { encodeSearchAttributeIndexedValueType } from '@temporalio/common/lib/search-attributes';
 import { waitUntil } from './helpers';
 import type { Context } from './helpers-integration';
 import { helpers, makeTestFunction } from './helpers-integration';
+import {
+  changeSearchAttributes,
+  complete,
+  getWorkflowInfo,
+  mutateSearchAttributes,
+} from './workflows/typed-search-attributes';
 
 const test = makeTestFunction({
-  workflowsPath: __filename,
   workflowEnvironmentOpts: {
     server: {
       namespace: 'test-typed-search-attributes',
@@ -255,25 +252,6 @@ test('creating schedules with various input search attributes', async (t) => {
     })
   );
 });
-
-export const getWorkflowInfo = defineQuery<WorkflowInfo>('getWorkflowInfo');
-export const mutateSearchAttributes =
-  defineSignal<[SearchAttributes | SearchAttributeUpdatePair[]]>('mutateSearchAttributes');
-export const complete = defineSignal('complete');
-
-export async function changeSearchAttributes(): Promise<void> {
-  let isComplete = false;
-  setHandler(getWorkflowInfo, () => {
-    return workflowInfo();
-  });
-  setHandler(complete, () => {
-    isComplete = true;
-  });
-  setHandler(mutateSearchAttributes, (attrs) => {
-    upsertSearchAttributes(attrs);
-  });
-  await condition(() => isComplete);
-}
 
 test('upsert works with various search attribute mutations', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);

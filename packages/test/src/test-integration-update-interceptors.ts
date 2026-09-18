@@ -7,12 +7,15 @@ import type {
 } from '@temporalio/client';
 import { WithStartWorkflowOperation, WorkflowUpdateStage } from '@temporalio/client';
 import * as wf from '@temporalio/workflow';
-import type { Next, UpdateInput, WorkflowInboundCallsInterceptor, WorkflowInterceptors } from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
+import {
+  update,
+  workflowWithUpdate,
+  workflowWithUpdateWithoutValidator,
+} from './workflows/integration-update-interceptors';
 
 const test = makeTestFunction({
-  workflowsPath: __filename,
-  workflowInterceptorModules: [__filename],
+  workflowInterceptorModules: [require.resolve('./workflows/integration-update-interceptors')],
   workflowEnvironmentOpts: {
     client: {
       interceptors: {
@@ -42,42 +45,6 @@ const test = makeTestFunction({
       },
     },
   },
-});
-
-const update = wf.defineUpdate<string, [string]>('update');
-
-export async function workflowWithUpdate(wfArg: string): Promise<string> {
-  let receivedUpdate = false;
-  const updateHandler = async (arg: string): Promise<string> => {
-    receivedUpdate = true;
-    return arg;
-  };
-  const validator = (arg: string): void => {
-    if (arg === 'bad-arg') {
-      throw new Error('Validation failed');
-    }
-  };
-  wf.setHandler(update, updateHandler, { validator });
-  await wf.condition(() => receivedUpdate);
-  return wfArg;
-}
-
-class MyWorkflowInboundCallsInterceptor implements WorkflowInboundCallsInterceptor {
-  async handleUpdate(
-    input: UpdateInput,
-    next: Next<MyWorkflowInboundCallsInterceptor, 'handleUpdate'>
-  ): Promise<unknown> {
-    return await next({ ...input, args: [input.args[0] + '-workflowIntercepted', ...input.args.slice(1)] });
-  }
-  validateUpdate(input: UpdateInput, next: Next<MyWorkflowInboundCallsInterceptor, 'validateUpdate'>): void {
-    const [arg] = input.args as string[];
-    const args = arg.startsWith('validation-interceptor-will-make-me-invalid') ? ['bad-arg'] : [arg];
-    next({ ...input, args });
-  }
-}
-
-export const interceptors = (): WorkflowInterceptors => ({
-  inbound: [new MyWorkflowInboundCallsInterceptor()],
 });
 
 test('Update client and workflow interceptors work for executeUpdate', async (t) => {
@@ -140,12 +107,6 @@ test('Update validation interceptor works', async (t) => {
     t.pass();
   });
 });
-
-export async function workflowWithUpdateWithoutValidator(): Promise<void> {
-  const updateHandler = async (arg: string): Promise<string> => arg;
-  wf.setHandler(update, updateHandler);
-  await wf.condition(() => false); // Ensure the update is handled if it is dispatched in a second WFT.
-}
 
 test('Update validation interceptors are not run when no validator', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);

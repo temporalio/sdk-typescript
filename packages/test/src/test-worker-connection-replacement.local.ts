@@ -1,21 +1,13 @@
 import { randomUUID } from 'crypto';
-import { sleep } from '@temporalio/workflow';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { makeTestFunction, helpers } from './helpers-integration';
 import { waitUntil } from './helpers';
+import { tickingWorkflow } from './workflows/worker-connection-replacement';
 
-const test = makeTestFunction({
-  workflowsPath: __filename,
-});
+const test = makeTestFunction({});
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // WORKER CONNECTION REPLACEMENT
-
-export async function tickingWorkflow(): Promise<void> {
-  for (let i = 0; i < 1000; i++) {
-    await sleep(100);
-  }
-}
 
 test('Worker can replace connection to switch servers', async (t) => {
   // This test validates that a worker can dynamically switch from one connection

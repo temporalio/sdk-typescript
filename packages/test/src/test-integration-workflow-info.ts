@@ -18,15 +18,12 @@ import {
   upsertAndReadMemo,
   WithChildWorkflow,
   WorkflowWillFail,
-} from './integration-workflows-common';
+} from './workflows/integration-workflow-info';
 import { createLocalTestEnvironment, helpers, makeTestFunction } from './helpers-integration';
 import { waitUntil } from './helpers';
 
-export * from './integration-workflows-common';
-
 const test = makeTestFunction({
-  workflowsPath: __filename,
-  workflowInterceptorModules: [__filename],
+  workflowInterceptorModules: [require.resolve('./workflows/integration-workflow-info')],
 });
 
 test('HistorySize grows with new WFT', async (t) => {

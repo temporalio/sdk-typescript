@@ -16,17 +16,29 @@ import {
   generateWorkflowRunOperationToken,
   OperationTokenType,
 } from '@temporalio/nexus/lib/token';
-import * as workflow from '@temporalio/workflow';
 import { Context } from '@temporalio/activity';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { innermostHandlerError } from './helpers-nexus';
 import { waitUntil } from './helpers';
 import { echo, throwAnError } from './activities';
+import {
+  blockingTargetWorkflow,
+  echoWorkflow,
+  temporalActivityOpCaller,
+  temporalAsyncOpCaller,
+  temporalAsyncOpInputCaller,
+  temporalBlockingActivityOpCaller,
+  temporalCancelOpService,
+  temporalDefaultCancelWorkflowCaller,
+  temporalDoubleStartOpCaller,
+  temporalOpService,
+  temporalRetryAfterFailedStartOpCaller,
+  temporalSyncOpCaller,
+} from './workflows/nexus-temporal-operation';
 
 const { EventType } = temporal.api.enums.v1;
 
 const test = makeTestFunction({
-  workflowsPath: __filename,
   workflowEnvironmentOpts: {
     server: {
       extraArgs: [
@@ -45,20 +57,6 @@ const test = makeTestFunction({
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Service definitions
-
-const temporalOpService = nexus.service('temporalOperationService', {
-  asyncOp: nexus.operation<string, string>(),
-  syncOp: nexus.operation<string, string>(),
-  doubleStartOp: nexus.operation<string, void>(),
-  retryAfterFailedStartOp: nexus.operation<string, string>(),
-  echoActivity: nexus.operation<string, string>(),
-  failingActivity: nexus.operation<string, void>(),
-  blockingActivity: nexus.operation<string, void>(),
-});
-
-const temporalCancelOpService = nexus.service('temporalCancelOperationService', {
-  blockingOp: nexus.operation<string, void>(),
-});
 
 type TemporalOpServiceHandlers = nexus.ServiceHandlerFor<typeof temporalOpService.operations>;
 type TemporalCancelOpServiceHandlers = nexus.ServiceHandlerFor<typeof temporalCancelOpService.operations>;
@@ -92,58 +90,8 @@ function makeTemporalCancelOpServiceHandler(handlers: TemporalCancelOpServiceHan
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Caller workflows
 
-export async function temporalAsyncOpCaller(endpoint: string): Promise<string> {
-  const client = workflow.createNexusServiceClient({ endpoint, service: temporalOpService });
-  return await client.executeOperation('asyncOp', 'hello');
-}
-
-export async function temporalAsyncOpInputCaller(endpoint: string, input: string): Promise<string> {
-  const client = workflow.createNexusServiceClient({ endpoint, service: temporalOpService });
-  return await client.executeOperation('asyncOp', input, { scheduleToCloseTimeout: '10s' });
-}
-
-export async function temporalSyncOpCaller(endpoint: string): Promise<string> {
-  const client = workflow.createNexusServiceClient({ endpoint, service: temporalOpService });
-  return await client.executeOperation('syncOp', 'hello');
-}
-
-export async function temporalDoubleStartOpCaller(endpoint: string): Promise<void> {
-  const client = workflow.createNexusServiceClient({ endpoint, service: temporalOpService });
-  return await client.executeOperation('doubleStartOp', 'hello');
-}
-
-export async function temporalRetryAfterFailedStartOpCaller(endpoint: string, workflowId: string): Promise<string> {
-  const client = workflow.createNexusServiceClient({ endpoint, service: temporalOpService });
-  return await client.executeOperation('retryAfterFailedStartOp', workflowId);
-}
-
-export async function temporalActivityOpCaller(endpoint: string, activityId: string): Promise<string> {
-  const client = workflow.createNexusServiceClient({ endpoint, service: temporalOpService });
-  return await client.executeOperation('echoActivity', activityId);
-}
-
-export async function temporalBlockingActivityOpCaller(endpoint: string, activityId: string): Promise<void> {
-  const client = workflow.createNexusServiceClient({ endpoint, service: temporalOpService });
-  await client.executeOperation('blockingActivity', activityId, { scheduleToCloseTimeout: '10s' });
-}
-
-export async function temporalDefaultCancelWorkflowCaller(endpoint: string, targetWorkflowId: string): Promise<void> {
-  const client = workflow.createNexusServiceClient({ endpoint, service: temporalCancelOpService });
-  await client.executeOperation('blockingOp', targetWorkflowId, {
-    cancellationType: 'WAIT_CANCELLATION_COMPLETED',
-  });
-}
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Target workflows
-
-export async function echoWorkflow(input: string): Promise<string> {
-  return input;
-}
-
-export async function blockingTargetWorkflow(): Promise<void> {
-  await workflow.condition(() => false);
-}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Activities

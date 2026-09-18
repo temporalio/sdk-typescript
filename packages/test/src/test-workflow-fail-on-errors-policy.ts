@@ -1,68 +1,20 @@
 import asyncRetry from 'async-retry';
 import type { WorkflowHandle } from '@temporalio/client';
 import { WorkflowFailedError } from '@temporalio/client';
-import * as workflow from '@temporalio/workflow';
 import { ApplicationFailure } from '@temporalio/common';
 import { helpers, makeTestFunction } from './helpers-integration';
+import {
+  CustomWorkflowError,
+  CustomWorkflowSubError,
+  nondeterministicWorkflow,
+  throwCustomError,
+  throwCustomErrorWithDefinitionOptions,
+  throwCustomSubError,
+  throwPlainError,
+  throwSubErrorWithParentInDefinitionOptions,
+} from './workflows/workflow-fail-on-errors-policy';
 
-const test = makeTestFunction({
-  workflowsPath: __filename,
-});
-
-////////////////////////////////////////////////////////////////////////////////
-// Test fixtures: custom error classes and workflows
-////////////////////////////////////////////////////////////////////////////////
-
-export class CustomWorkflowError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'CustomWorkflowError';
-  }
-}
-
-export class CustomWorkflowSubError extends CustomWorkflowError {
-  constructor(message: string) {
-    super(message);
-    this.name = 'CustomWorkflowSubError';
-  }
-}
-
-export async function throwCustomError(): Promise<void> {
-  throw new CustomWorkflowError('custom error');
-}
-
-export async function throwCustomSubError(): Promise<void> {
-  throw new CustomWorkflowSubError('custom sub error');
-}
-
-export async function throwPlainError(): Promise<void> {
-  throw new Error('plain error');
-}
-
-export async function throwCustomErrorWithDefinitionOptions(): Promise<void> {
-  throw new CustomWorkflowError('custom error from definition options');
-}
-workflow.setWorkflowOptions({ failureExceptionTypes: [CustomWorkflowError] }, throwCustomErrorWithDefinitionOptions);
-
-export async function throwSubErrorWithParentInDefinitionOptions(): Promise<void> {
-  throw new CustomWorkflowSubError('sub error with parent in definition options');
-}
-workflow.setWorkflowOptions(
-  { failureExceptionTypes: [CustomWorkflowError] },
-  throwSubErrorWithParentInDefinitionOptions
-);
-
-/**
- * Forces a non-determinism error by branching on `unsafe.isReplaying`. The
- * first execution issues a `startTimer` command; on the next WFT, replay
- * (forced via `maxCachedWorkflows: 0`) takes the no-command branch, which
- * mismatches the recorded history.
- */
-export async function nondeterministicWorkflow(): Promise<void> {
-  if (!workflow.workflowInfo().unsafe.isReplaying) {
-    await workflow.sleep('1ms');
-  }
-}
+const test = makeTestFunction({});
 
 ////////////////////////////////////////////////////////////////////////////////
 // Helpers

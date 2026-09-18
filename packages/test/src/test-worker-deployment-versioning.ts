@@ -18,7 +18,7 @@ import { unblockSignal, versionQuery } from './workflows';
 
 type WorkerDeploymentOptions = NonNullable<WorkerOptions['workerDeploymentOptions']>;
 
-const test = makeTestFunction({ workflowsPath: __filename });
+const test = makeTestFunction({});
 
 test('Worker deployment based versioning', async (t) => {
   const taskQueue = 'worker-deployment-based-versioning-' + randomUUID();

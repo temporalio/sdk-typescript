@@ -10,13 +10,20 @@ import { randomUUID } from 'crypto';
 import * as nexus from 'nexus-rpc';
 import { temporal } from '@temporalio/proto';
 import * as temporalnexus from '@temporalio/nexus';
-import * as workflow from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
+import {
+  type QueryInput,
+  bumpSignal,
+  counterWorkflow,
+  doneSignal,
+  getCountQuery,
+  queryCallerWorkflow,
+  queryOpService,
+} from './workflows/nexus-query-operation';
 
 const { EventType } = temporal.api.enums.v1;
 
 const test = makeTestFunction({
-  workflowsPath: __filename,
   workflowEnvironmentOpts: {
     server: {
       extraArgs: ['--dynamic-config-value', 'system.refreshNexusEndpointsMinWait="0s"'],
@@ -26,19 +33,6 @@ const test = makeTestFunction({
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Query / service definitions
-
-interface QueryInput {
-  workflowId: string;
-  runId?: string;
-}
-
-export const getCountQuery = workflow.defineQuery<number>('getCount');
-export const doneSignal = workflow.defineSignal('done');
-export const bumpSignal = workflow.defineSignal('bump');
-
-const queryOpService = nexus.service('counterQueryService', {
-  getCount: nexus.operation<QueryInput, number>(),
-});
 
 function makeGetCountHandler() {
   return new temporalnexus.TemporalOperationHandler<QueryInput, number>({
@@ -52,29 +46,6 @@ function makeGetCountHandler() {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Workflows
-
-export async function counterWorkflow(): Promise<number> {
-  let counter = 0;
-  let done = false;
-
-  workflow.setHandler(getCountQuery, () => counter);
-  workflow.setHandler(bumpSignal, () => {
-    counter++;
-  });
-  workflow.setHandler(doneSignal, () => {
-    done = true;
-  });
-
-  await workflow.condition(() => done);
-  return counter;
-}
-
-export async function queryCallerWorkflow(endpoint: string, input: QueryInput): Promise<number> {
-  const client = workflow.createNexusServiceClient({ endpoint, service: queryOpService });
-  // Bounded so a regression that makes a terminal failure retryable surfaces as a timeout rather
-  // than hanging the test.
-  return await client.executeOperation('getCount', input, { scheduleToCloseTimeout: '20s' });
-}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Assertion helpers

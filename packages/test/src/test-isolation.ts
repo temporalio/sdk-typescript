@@ -5,10 +5,21 @@ import { WorkflowFailedError } from '@temporalio/client';
 import type { Context } from './helpers-integration';
 import { makeTestFunction, helpers } from './helpers-integration';
 import { isBun, REUSE_V8_CONTEXT } from './helpers';
+import {
+  globalThisMutatorWorkflow,
+  modulePropertyMutator,
+  sdkGlobalsReassignment,
+  sdkModuleMutatorWorkflow,
+  sdkPropertyMutatorWorkflow1,
+  v8BuiltinGlobalFunctionMutatorWorkflow,
+  v8BuiltinGlobalFunctionPrototypeReassignWorkflow,
+  v8BuiltinGlobalFunctionReassignWorkflow,
+  v8BuiltinGlobalObjectMutatorWorkflow,
+  v8BuiltinGlobalObjectReassignWorkflow,
+} from './workflows/isolation';
 
 const test = makeTestFunction({
-  workflowsPath: __filename,
-  workflowInterceptorModules: [__filename],
+  workflowInterceptorModules: [require.resolve('./workflows/isolation')],
 });
 
 const withReusableContext = test.macro<[ImplementationFn<[], Context>]>(async (t, fn) => {
@@ -33,19 +44,11 @@ test('globalThis can be safely mutated - symbol property', async (t) => {
   await assertObjectSafelyMutable(t, globalThisMutatorWorkflow, Symbol.for('mySymbol'));
 });
 
-export async function globalThisMutatorWorkflow(prop: string): Promise<(number | null)[]> {
-  return basePropertyMutatorWorkflow(() => globalThis as any, decodeProperty(prop));
-}
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 test("V8's built-in global objects are frozen", withReusableContext, async (t) => {
   await assertObjectImmutable(t, v8BuiltinGlobalObjectMutatorWorkflow);
 });
-
-export async function v8BuiltinGlobalObjectMutatorWorkflow(): Promise<(number | null)[]> {
-  return basePropertyMutatorWorkflow(() => globalThis.Math);
-}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -53,33 +56,17 @@ test("V8's built-in global objects can be safely reassigned", withReusableContex
   await assertObjectSafelyMutable(t, v8BuiltinGlobalObjectReassignWorkflow);
 });
 
-export async function v8BuiltinGlobalObjectReassignWorkflow(): Promise<(number | null)[]> {
-  globalThis.Math = Object.create(globalThis.Math);
-  return basePropertyMutatorWorkflow(() => globalThis.Math);
-}
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 test("V8's built-in global functions are frozen", withReusableContext, async (t) => {
   await assertObjectImmutable(t, v8BuiltinGlobalFunctionMutatorWorkflow);
 });
 
-export async function v8BuiltinGlobalFunctionMutatorWorkflow(): Promise<(number | null)[]> {
-  return basePropertyMutatorWorkflow(() => globalThis.Array as any);
-}
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 test("V8's built-in global functions can be safely reassigned", withReusableContext, async (t) => {
   await assertObjectSafelyMutable(t, v8BuiltinGlobalFunctionReassignWorkflow);
 });
-
-export async function v8BuiltinGlobalFunctionReassignWorkflow(): Promise<(number | null)[]> {
-  const originalArray = globalThis.Array;
-  globalThis.Array = ((...args: any[]) => originalArray(...args)) as any;
-  globalThis.Array.from = ((...args: any[]) => (originalArray as any).from(...args)) as any;
-  return basePropertyMutatorWorkflow(() => globalThis.Array);
-}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -91,22 +78,11 @@ test(
   }
 );
 
-export async function v8BuiltinGlobalFunctionPrototypeReassignWorkflow(): Promise<(number | null)[]> {
-  return basePropertyMutatorWorkflow(() => globalThis.Array.prototype);
-}
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 test("SDK's global functions can be reassigned", async (t) => {
   await assertObjectSafelyMutable(t, sdkGlobalsReassignment);
 });
-
-export async function sdkGlobalsReassignment(): Promise<(number | null)[]> {
-  // The SDK's provided `console` object is frozen.
-  // Replace that global with a clone that is not frozen.
-  globalThis.console = { ...globalThis.console };
-  return basePropertyMutatorWorkflow(() => globalThis.console);
-}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -114,30 +90,17 @@ test("SDK's modules are frozen", withReusableContext, async (t) => {
   await assertObjectSafelyMutable(t, sdkModuleMutatorWorkflow);
 });
 
-export async function sdkModuleMutatorWorkflow(): Promise<(number | null)[]> {
-  return basePropertyMutatorWorkflow(() => wf as any);
-}
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 test("SDK's API functions are frozen 1", withReusableContext, async (t) => {
   await assertObjectImmutable(t, sdkPropertyMutatorWorkflow1);
 });
 
-export async function sdkPropertyMutatorWorkflow1(): Promise<(number | null)[]> {
-  return basePropertyMutatorWorkflow(() => arrayFromPayloads as any);
-}
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 test('Module state is isolated and maintained between activations', async (t) => {
   await assertObjectSafelyMutable(t, modulePropertyMutator);
 });
-
-const moduleScopedObject: any = {};
-export async function modulePropertyMutator(): Promise<(number | null)[]> {
-  return basePropertyMutatorWorkflow(() => moduleScopedObject);
-}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Utils
@@ -201,72 +164,8 @@ async function assertObjectUnsafelyMutable(
   t.pass();
 }
 
-// Given the object returned by `getObject()`, this function can be used to
-// assert any of these three possible scenarios:
-//  1. The object can't be mutated from Workflows (i.e. the object is frozen);
-//     - or -
-//  2. The object can be safetly mutated from Workflows, meaning that:
-//     2.1. Can add new properties to the object (i.e. the object is not frozen);
-//     2.2. Properties added on the object from one workflow execution don't leak to other workflows;
-//     2.3. Properties added on the object from one workflow are maintained between activations of that workflow;
-//     2.4. Properties added then deleted from the object don't reappear on subsequent activations.
-//     - or -
-//  3. The object can be mutated from Workflows, without isolation guarantees.
-//     This last case is notably desirable
-async function basePropertyMutatorWorkflow(
-  getObject: () => any,
-  prop: string | symbol | number = 'a'
-): Promise<(number | null)[]> {
-  // Randomly choose some step to add to the property; there's a 10% chance that two workflows in
-  // a same test run will get the same step, and that's really not a problem (the test is still valid).
-  // But getting different steps at least once in a while confirms that our test methodology isn't
-  // prone to false positives due to the two racing workflows turn out to be producing the very same
-  // sequence of values at exactly the same time.
-  const step = [1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000][
-    Math.floor(Math.random() * 10)
-  ];
-
-  const checkpoints: (number | null)[] = [step];
-
-  // Very important: do not cache the result of getObject() to a local variable;
-  // in some scenarios, caching would defeat the purpose of this test.
-  try {
-    checkpoints.push(getObject()[prop]); // Expect null
-    getObject()[prop] = (getObject()[prop] || 0) + step;
-    checkpoints.push(getObject()[prop]); // Expect 1*step
-
-    await wf.sleep(1);
-
-    checkpoints.push(getObject()[prop]); // Expect 1*step
-    getObject()[prop] = (getObject()[prop] || 0) + step;
-    checkpoints.push(getObject()[prop]); // Expect 2*step
-
-    await wf.sleep(1);
-
-    checkpoints.push(getObject()[prop]); // Expect 2*step
-    delete getObject()[prop];
-    checkpoints.push(getObject()[prop]); // Expect null
-
-    await wf.sleep(1);
-
-    checkpoints.push(getObject()[prop]); // Expect null
-    getObject()[prop] = (getObject()[prop] || 0) + step;
-    checkpoints.push(getObject()[prop]); // Expect 1*step
-
-    return checkpoints;
-  } catch (e) {
-    throw ApplicationFailure.fromError(e, { details: [checkpoints.slice(1)] });
-  }
-}
-
 function encodeProperty(prop: string | symbol | number): string {
   if (typeof prop === 'symbol') return `symbol:${String(prop)}`;
   if (typeof prop === 'number') return `number:${prop}`;
-  return prop;
-}
-
-function decodeProperty(prop: string): string | symbol | number {
-  if (prop.startsWith('symbol:')) return Symbol.for(prop.slice(7));
-  if (prop.startsWith('number:')) return Number(prop.slice(7));
   return prop;
 }

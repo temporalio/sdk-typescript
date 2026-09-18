@@ -26,11 +26,20 @@ import { temporal } from '@temporalio/proto';
 import * as temporalnexus from '@temporalio/nexus';
 import * as workflow from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
+import {
+  asyncCaller,
+  asyncSignalService,
+  callee,
+  multiCaller,
+  multiSignalService,
+  pingSignal,
+  twoSyncCaller,
+  twoSyncService,
+} from './workflows/nexus-signal-linking';
 
 const { EventType } = temporal.api.enums.v1;
 
 const test = makeTestFunction({
-  workflowsPath: __filename,
   workflowEnvironmentOpts: {
     server: {
       extraArgs: [
@@ -46,24 +55,6 @@ const test = makeTestFunction({
     },
   },
 });
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-// Shared callee Workflow
-
-export const pingSignal = workflow.defineSignal<[string]>('ping');
-
-/**
- * Target Workflow that the Nexus operation handlers signal. It collects `expectedSignals` ping
- * payloads and returns them joined, so each test can assert which signals actually landed.
- */
-export async function callee(expectedSignals: number): Promise<string> {
-  const received: string[] = [];
-  workflow.setHandler(pingSignal, (msg: string) => {
-    received.push(msg);
-  });
-  await workflow.condition(() => received.length >= expectedSignals);
-  return received.join(',');
-}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Assertion helpers
@@ -108,21 +99,6 @@ function assertResponseLink(t: any, event: temporal.api.history.v1.IHistoryEvent
     : responseLink?.eventRef?.eventType;
   t.is(responseLinkEventType, EventType.EVENT_TYPE_WORKFLOW_EXECUTION_SIGNALED);
   return responseLink?.workflowId ?? '';
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-// Test: sync signalWithStart + signal on the same callee
-
-const twoSyncService = nexus.service('twoSyncSignaling', {
-  signalWithStart: nexus.operation<{ workflowId: string }, string>(),
-  signal: nexus.operation<{ workflowId: string }, string>(),
-});
-
-export async function twoSyncCaller(endpoint: string, calleeWorkflowId: string): Promise<string> {
-  const client = workflow.createNexusServiceClient({ endpoint, service: twoSyncService });
-  const signalWithStartResult = await client.executeOperation('signalWithStart', { workflowId: calleeWorkflowId });
-  const signalResult = await client.executeOperation('signal', { workflowId: calleeWorkflowId });
-  return `${signalWithStartResult}|${signalResult}`;
 }
 
 function twoSyncServiceHandler(taskQueue: string) {
@@ -183,21 +159,6 @@ test('signal and signalWithStart from a Nexus handler forward links and propagat
   });
 });
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-// Test: async signalWithStart propagates the backlink onto NexusOperationStarted
-
-const asyncSignalService = nexus.service('asyncSignaling', {
-  signalWithStart: nexus.operation<{ workflowId: string }, string>(),
-});
-
-export async function asyncCaller(endpoint: string, calleeWorkflowId: string): Promise<string> {
-  const client = workflow.createNexusServiceClient({ endpoint, service: asyncSignalService });
-  // startOperation resolves once the operation is Started (the event that carries the backlink for
-  // the async path); we intentionally do not await its eventual result.
-  await client.startOperation('signalWithStart', { workflowId: calleeWorkflowId });
-  return 'async-started';
-}
-
 function asyncSignalServiceHandler(taskQueue: string) {
   const handlers: nexus.ServiceHandlerFor<typeof asyncSignalService.operations> = {
     signalWithStart: new temporalnexus.TemporalOperationHandler<{ workflowId: string }, string>({
@@ -247,18 +208,6 @@ test('async Nexus operation that signals propagates the response link onto Nexus
     t.is(assertResponseLink(t, startedEvents[0]), calleeWorkflowId);
   });
 });
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-// Test: one operation signaling multiple callees lands a response link per callee
-
-const multiSignalService = nexus.service('multiSignaling', {
-  signalMany: nexus.operation<{ workflowIds: string[] }, string>(),
-});
-
-export async function multiCaller(endpoint: string, calleeWorkflowIds: string[]): Promise<string> {
-  const client = workflow.createNexusServiceClient({ endpoint, service: multiSignalService });
-  return await client.executeOperation('signalMany', { workflowIds: calleeWorkflowIds });
-}
 
 function multiSignalServiceHandler(taskQueue: string) {
   const handlers: nexus.ServiceHandlerFor<typeof multiSignalService.operations> = {
