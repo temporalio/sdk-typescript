@@ -21,6 +21,11 @@ to docs, or any other relevant information.
 
 ### Added
 
+- **Experimental**: Workflows can signal another Workflow and start it when absent with
+  `signalWithStartWorkflow`.
+- **Experimental**: Workflow outbound interceptors can intercept Temporal System Nexus calls
+  generically with `startSystemNexusOperation` or specifically with `signalWithStartWorkflow`.
+
 - **Experimental**: New External Storage concurrency controls.
 
   - `ExternalStorage` takes a new `concurrency` option that holds two new concurrency limiting config values: `maxDriverOperations` caps how many are in flight across every driver registered on that `ExternalStorage` instance and `maxOperationsPerMessage` caps how many a single "message" may have in flight, where a message is any top-level input or ouput (e.g. a Workflow Task activation, a client request, a Nexus operation, etc)

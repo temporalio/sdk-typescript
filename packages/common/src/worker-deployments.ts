@@ -50,6 +50,29 @@ export const [encodeVersioningBehavior, decodeVersioningBehavior] = makeProtoEnu
  */
 export type VersioningOverride = PinnedVersioningOverride | 'AUTO_UPGRADE';
 
+// Keep this helper usable in workflows without loading the protobuf runtime.
+const PINNED_OVERRIDE_BEHAVIOR_PINNED: temporal.api.workflow.v1.VersioningOverride.PinnedOverrideBehavior.PINNED_OVERRIDE_BEHAVIOR_PINNED = 1;
+
+/** @internal */
+export function versioningOverrideToProto(
+  versioningOverride: VersioningOverride | undefined
+): temporal.api.workflow.v1.IVersioningOverride | undefined {
+  if (versioningOverride == null) {
+    return undefined;
+  }
+  if (versioningOverride === 'AUTO_UPGRADE') {
+    return {
+      autoUpgrade: true,
+    };
+  }
+  return {
+    pinned: {
+      version: versioningOverride.pinnedTo,
+      behavior: PINNED_OVERRIDE_BEHAVIOR_PINNED,
+    },
+  };
+}
+
 /**
  * Workflow will be pinned to a specific deployment version.
  */

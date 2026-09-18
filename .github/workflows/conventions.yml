@@ -47,6 +47,18 @@ jobs:
           env-vars: ''
           save-if: false
 
+      - name: Install nexgen
+        run: cargo install nexgen --version '=0.2.6' --locked --features advanced
+
+      - name: Check generated System Nexus bindings are up to date
+        run: |
+          pnpm --filter @temporalio/workflow run gen:system-nexus
+          if [ -n "$(git status --porcelain -- packages/workflow/src/nexus/system/generated)" ]; then
+            git diff -- packages/workflow/src/nexus/system/generated
+            echo "::error::System Nexus bindings are out of date. Run 'pnpm --filter @temporalio/workflow run gen:system-nexus' with nexgen 0.2.6 and commit the result."
+            exit 1
+          fi
+
       # eslint-import-resolver-typescript requires packages to be built
       - name: Compile all non-rust code
         run: pnpm --recursive --stream --filter '!@temporalio/core-bridge' --filter '!typescript-sdk' run build
