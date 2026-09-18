@@ -4,8 +4,6 @@
  * @module
  */
 
-export { WorkflowUpdateStage } from '@temporalio/client';
-
 export {
   //
   log,
