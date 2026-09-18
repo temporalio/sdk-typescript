@@ -1,6 +1,6 @@
 import type { LocalTestWorkflowEnvironmentOptions } from '@temporalio/testing';
 import { workflowInterceptorModules as defaultWorkflowInterceptorModules } from '@temporalio/testing';
-import type { BundlerPlugin, WorkflowBundleWithSourceMap, BundleOptions } from '@temporalio/worker';
+import type { BundlerPlugin, WorkflowBundleWithSourceMap } from '@temporalio/worker';
 import { bundleWorkflowCode, DefaultLogger } from '@temporalio/worker';
 import { defineSearchAttributeKey, SearchAttributeType } from '@temporalio/common/lib/search-attributes';
 import { TestWorkflowEnvironment } from './wrappers';
@@ -46,18 +46,16 @@ export async function createTestWorkflowBundle({
   payloadConverterPath,
   plugins,
 }: TestWorkflowBundleOptions): Promise<WorkflowBundleWithSourceMap> {
-  const bundlerOptions: Partial<BundleOptions> = {
+  const bundlerOptions = {
     ignoreModules: [...baseBundlerIgnoreModules, ...additionalIgnoreModules],
-  };
-
-  return await bundleWorkflowCode({
-    ...bundlerOptions,
     workflowInterceptorModules: [...defaultWorkflowInterceptorModules, ...(workflowInterceptorModules ?? [])],
     workflowsPath,
     payloadConverterPath,
     logger: new DefaultLogger('WARN'),
     plugins: plugins ?? [],
-  });
+  };
+
+  return await bundleWorkflowCode(bundlerOptions);
 }
 
 /**

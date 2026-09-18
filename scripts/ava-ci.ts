@@ -8,10 +8,11 @@
 // It also writes a machine-readable `<pkg>.json` that scripts/ci-run-summary.ts
 // aggregates (across all matrix cells) into the single GitHub Actions job summary.
 //
-// Usage (from a package's `test` script): tsx ../../scripts/ava-ci.ts <ava args>
+// Usage (from a package's `test` script): node ../../scripts/lib/ava-ci.js <ava args>
 
 import { spawn } from 'node:child_process';
-import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { basename, dirname, join, relative } from 'node:path';
 
 interface Failure {
@@ -55,6 +56,8 @@ mkdirSync(resultsDir, { recursive: true });
 const logPath = join(resultsDir, `${safeName}.log`);
 const jsonPath = join(resultsDir, `${safeName}.json`);
 const logStream = createWriteStream(logPath);
+const workflowBundleCacheDirectory =
+  pkgName === '@temporalio/test' ? mkdtempSync(join(tmpdir(), 'temporal-workflow-bundles-')) : undefined;
 
 // ANSI colors: honor NO_COLOR, and enable in a terminal or CI (GitHub is non-TTY
 // but renders ANSI). Stay plain when output is redirected to a file/pipe locally.
@@ -112,6 +115,12 @@ function flushPendingFailure(): void {
 }
 
 const TEST_LINE = /^(ok|not ok) (\d+) - (.*)$/;
+const WORKFLOW_BUNDLE_CACHE_LINE = /^\s*(?:#\s*)?(\[workflow-bundle-cache\].*)$/;
+
+function printWorkflowBundleCacheLog(line: string): void {
+  const cacheLog = WORKFLOW_BUNDLE_CACHE_LINE.exec(line);
+  if (cacheLog) process.stdout.write(dim(`${cacheLog[1]}\n`));
+}
 
 function handleTapLine(rawLine: string): void {
   // ava terminates each TAP write with os.EOL; the trailing CR defeats TEST_LINE (no `m` flag, `.` excludes CR).
@@ -183,7 +192,20 @@ function consume(chunk: string): void {
   while ((idx = buffer.indexOf('\n')) !== -1) {
     const line = buffer.slice(0, idx);
     buffer = buffer.slice(idx + 1);
+    printWorkflowBundleCacheLog(line);
     handleTapLine(line);
+  }
+}
+
+let stderrBuffer = '';
+function consumeStderr(chunk: string): void {
+  logStream.write(chunk);
+  stderrBuffer += chunk;
+  let idx: number;
+  while ((idx = stderrBuffer.indexOf('\n')) !== -1) {
+    const line = stderrBuffer.slice(0, idx);
+    stderrBuffer = stderrBuffer.slice(idx + 1);
+    printWorkflowBundleCacheLog(line);
   }
 }
 
@@ -197,35 +219,48 @@ const heartbeat = setInterval(() => {
 }, 30_000);
 heartbeat.unref?.();
 
-// Launch ava under the requested runtime. Default is Node (via npx). When
+// Launch ava under the requested runtime. Default is the package-local Node executable. When
 // AVA_RUNTIME=bun, run ava under Bun — mirroring `bun run -b ava` — so the Bun test
 // matrix still exercises the SDK under Bun while sharing this wrapper's quiet output.
 const forwarded = process.argv.slice(2);
 const [cmd, cmdArgs]: [string, string[]] =
   process.env.AVA_RUNTIME === 'bun'
     ? ['bun', ['run', '-b', 'ava', '--tap', ...forwarded]]
-    : [process.platform === 'win32' ? 'npx.cmd' : 'npx', ['ava', '--tap', ...forwarded]];
+    : [join(cwd, 'node_modules', '.bin', process.platform === 'win32' ? 'ava.cmd' : 'ava'), ['--tap', ...forwarded]];
 const child = spawn(cmd, cmdArgs, {
   cwd,
   shell: process.platform === 'win32',
   stdio: ['inherit', 'pipe', 'pipe'],
+  env: {
+    ...process.env,
+    ...(workflowBundleCacheDirectory === undefined
+      ? {}
+      : { TEMPORAL_WORKFLOW_BUNDLE_CACHE_DIR: workflowBundleCacheDirectory }),
+  },
 });
 
 child.stdout?.setEncoding('utf8');
 child.stdout?.on('data', consume);
 // ava writes some diagnostics to stderr; archive but don't parse for TAP.
 child.stderr?.setEncoding('utf8');
-child.stderr?.on('data', (chunk: string) => logStream.write(chunk));
+child.stderr?.on('data', consumeStderr);
 
 function finish(exitCode: number): void {
   clearInterval(heartbeat);
-  if (buffer.length) handleTapLine(buffer);
+  if (buffer.length) {
+    printWorkflowBundleCacheLog(buffer);
+    handleTapLine(buffer);
+  }
+  if (stderrBuffer.length) printWorkflowBundleCacheLog(stderrBuffer);
   flushPendingFailure();
 
   const durationMs = Date.now() - started;
   const result = { package: pkgName, pass, fail, skip, todo, durationMs, exitCode, failures, logPath };
 
   logStream.end();
+  if (workflowBundleCacheDirectory !== undefined) {
+    rmSync(workflowBundleCacheDirectory, { recursive: true, force: true });
+  }
   try {
     writeFileSync(jsonPath, JSON.stringify(result, null, 2));
   } catch {
