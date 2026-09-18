@@ -792,9 +792,9 @@ test('Child Workflow handle converts a string Signal using call-site TypeInfo', 
 
 test('Child Workflow definitions reject call-site TypeInfo', (t) => {
   function _assertChildWorkflowTypeInfoTypes() {
-    // @ts-expect-error TypeInfo must be defined on a referenced Workflow function.
     void executeChild(workflowWithTypeInfo, {
       args: [new Order('order-1', 12345n)],
+      // @ts-expect-error TypeInfo must be defined on a referenced Workflow function.
       typeInfo: workflowTypeInfo,
     });
   }

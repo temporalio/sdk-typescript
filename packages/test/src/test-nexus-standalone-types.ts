@@ -228,8 +228,8 @@ test('Missing required id option produces type error', async (t) => {
       service: myService,
     });
 
-    // @ts-expect-error - id is required
     await nexusClient.executeOperation(
+      // @ts-expect-error - id is required
       myService.operations.mySyncOp,
       { value: 'hello' },
       {

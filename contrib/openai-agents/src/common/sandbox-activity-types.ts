@@ -205,7 +205,7 @@ export function bytesToBase64(bytes: Uint8Array): string {
   return result;
 }
 
-export function base64ToBytes(value: string): Uint8Array {
+export function base64ToBytes(value: string): Uint8Array<ArrayBuffer> {
   const stripped = value.replace(/=+$/, '');
   const bytes = new Uint8Array(Math.floor((stripped.length * 3) / 4));
   let byteIndex = 0;
