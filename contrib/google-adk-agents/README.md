@@ -246,6 +246,8 @@ message answers it. Because the runner runs inside the Workflow, the wait is
 ordinary Workflow code, and the plugin supplies the wire format:
 
 ```typescript
+import { InMemoryRunner } from '@google/adk';
+import type { Content } from '@google/genai';
 import { condition, defineQuery, defineUpdate, setHandler } from '@temporalio/workflow';
 import {
   hitlConfirmationResponse,
@@ -257,6 +259,7 @@ import {
 export const pendingQuery = defineQuery<HitlRequest[]>('pending');
 export const respondUpdate = defineUpdate<void, [string, unknown]>('respond');
 
+// `graph` is the Workflow built in the section above; any RunnableRoot works.
 export async function reviewWorkflow(prompt: string): Promise<unknown> {
   let pending: HitlRequest[] = [];
   const answers = new Map<string, unknown>();
