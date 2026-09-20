@@ -14,7 +14,10 @@ import { cryptoShimProbe } from './workflows';
 
 const getEnv = setupTestEnv(test);
 
-const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const UUID_V4_SOURCE = '[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
+const UUID_V4 = new RegExp(`^${UUID_V4_SOURCE}$`);
+/** ADK prefixes client-generated function-call ids with `adk-`. */
+const ADK_CALL_ID = new RegExp(`^adk-${UUID_V4_SOURCE}$`);
 
 test.serial('ADK ids are v4 UUIDs that survive a full replay', async (t) => {
   const env = getEnv();
@@ -29,7 +32,10 @@ test.serial('ADK ids are v4 UUIDs that survive a full replay', async (t) => {
   t.regex(ids.before, UUID_V4);
   t.regex(ids.after, UUID_V4);
   t.not(ids.before, ids.after);
-  t.regex(ids.callId, /^adk-[0-9a-f-]{36}$/);
+  t.regex(ids.callId, ADK_CALL_ID);
+  // The ids the Worker really saw, once each: every task after the first is a
+  // replay, and a replayed Activity resolves from history instead of running.
+  t.deepEqual(activities.executionsFor(workflowId), [`echoId:${ids.before}`, `echoId:${ids.after}`]);
   await Worker.runReplayHistory(
     { workflowsPath, reuseV8Context: REUSE_V8_CONTEXT, plugins: [new GoogleAdkPlugin()] },
     await env.client.workflow.getHandle(workflowId).fetchHistory()

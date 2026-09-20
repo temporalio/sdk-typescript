@@ -106,6 +106,8 @@ export async function dangerActivity(args: { target: string }): Promise<string> 
   return `danger-done:${args.target}`;
 }
 
+/** Echoes `id` back, recording the value the Workflow actually sent. */
 export async function echoId(id: string): Promise<string> {
+  record(`echoId:${id}`);
   return id;
 }
