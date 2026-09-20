@@ -185,7 +185,7 @@ so it runs inside a Temporal Workflow unchanged. Use `activityNode` to make a
 registered Activity a node:
 
 ```typescript
-import { JoinNode, Workflow, createEvent, node } from '@google/adk';
+import { InMemoryRunner, JoinNode, Workflow } from '@google/adk';
 import { activityNode } from '@temporalio/google-adk-agents/workflow';
 
 const fetchA = activityNode({ name: 'fetchData', nodeName: 'fetch_a', args: () => ['a'] });
@@ -349,12 +349,11 @@ Cautions:
 ## Determinism notes
 
 - ADK generates ids — event, invocation and session ids, function-call ids — with
-  `randomUUID()`. The sandbox has no `crypto`,
-  so the plugin serves ADK a `crypto` module whose values come from a **named
-  workflow random stream**: replay-stable, and independent of the Workflow's own
-  `Math.random()` sequence. Those ids are **not cryptographically random** inside
-  a Workflow; nor is ADK's OAuth2 `state`, which is one reason credential flows are
-  unsupported there.
+  `randomUUID()`. The sandbox has no `crypto`, so the plugin serves ADK a `crypto`
+  module whose values come from a **named workflow random stream**: replay-stable,
+  and independent of the Workflow's own `Math.random()` sequence. Those ids are
+  **not cryptographically random** inside a Workflow; nor is ADK's OAuth2 `state`,
+  which is one reason credential flows are unsupported there.
 - ADK's node retry backoff and timeouts are durable timers; the retry jitter is
   drawn from the Workflow's `Math.random()`.
 - ADK resumes a paused run from the session events: completed nodes are
