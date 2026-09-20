@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import test from 'ava';
-import { MCPToolset, type BaseToolset, type MCPConnectionParams } from '@google/adk';
+import { MCPToolset, type BaseToolset, type Context, type MCPConnectionParams } from '@google/adk';
 import type { FunctionDeclaration } from '@google/genai';
 import { ApplicationFailure } from '@temporalio/common';
 import { MockActivityEnvironment } from '@temporalio/testing';
@@ -49,6 +49,26 @@ function stubServerActivities(log: string): Record<string, (args: never) => Prom
 
 function stubServerRecords(log: string): string[] {
   return readFileSync(log, 'utf8').split('\n').filter(Boolean);
+}
+
+/**
+ * The parts of ADK's tool `Context` the confirmation gate and `MCPTool.runAsync`
+ * touch, as the rest of this suite fakes one (`toolContext: {} as never`).
+ */
+function fakeToolContext(toolConfirmation?: { confirmed: boolean }): {
+  hints: string[];
+  context: Context;
+} {
+  const hints: string[] = [];
+  return {
+    hints,
+    context: {
+      toolConfirmation,
+      actions: { skipSummarization: false },
+      abortSignal: undefined,
+      requestConfirmation: ({ hint }: { hint?: string }) => hints.push(hint ?? ''),
+    } as unknown as Context,
+  };
 }
 
 function makePlugin(): GoogleAdkPlugin {
@@ -244,4 +264,60 @@ test('getToolsOutsideWorkflowRequiresConnectionParams', async (t) => {
   t.true(err instanceof ApplicationFailure);
   t.is((err as ApplicationFailure).type, 'GoogleAdkMCPToolsetOutsideWorkflow');
   t.is((err as ApplicationFailure).nonRetryable, true);
+});
+
+test.serial('gatesDirectToolsetToolsOnConfirmation', async (t) => {
+  const log = path.join(os.tmpdir(), `${uid('adk-mcp-gate')}.log`);
+  t.teardown(() => rmSync(log, { force: true }));
+  const toolset = new TemporalMCPToolset({
+    name: 'testServer',
+    connectionParams: stubServerConnectionParams(log),
+    requireConfirmation: true,
+  });
+  t.teardown(() => toolset.close());
+
+  const [echo] = await toolset.getTools();
+  if (!echo) return t.fail('the stub server advertised no tools');
+  t.is(echo.name, 'echo');
+  t.true(await echo.checkRequireConfirmation({ value: 'hi' }));
+  const listed = ['open', 'tools/list', 'close'];
+  t.deepEqual(stubServerRecords(log), listed);
+
+  // First pass: the gate asks, and nothing reaches the server.
+  const pending = fakeToolContext();
+  t.deepEqual(await echo.runAsync({ args: { value: 'hi' }, toolContext: pending.context }), {
+    error: 'This tool call requires confirmation, please approve or reject.',
+  });
+  t.regex(pending.hints[0] ?? '', /approve or reject the tool call echo\(\)/);
+  t.deepEqual(stubServerRecords(log), listed);
+
+  // Rejected: still nothing.
+  const denied = fakeToolContext({ confirmed: false });
+  t.deepEqual(await echo.runAsync({ args: { value: 'hi' }, toolContext: denied.context }), {
+    error: 'This tool call is rejected.',
+  });
+  t.deepEqual(stubServerRecords(log), listed);
+
+  // Approved: the call reaches the server, once.
+  const approved = fakeToolContext({ confirmed: true });
+  const result = (await echo.runAsync({ args: { value: 'hi' }, toolContext: approved.context })) as {
+    content: Array<{ text: string }>;
+  };
+  t.deepEqual(stubServerRecords(log), [...listed, 'open', 'tools/call', 'close']);
+  t.deepEqual(JSON.parse(result.content[0]!.text), { echoed: 'hi' });
+});
+
+test.serial('leavesDirectToolsetToolsUngatedWithoutRequireConfirmation', async (t) => {
+  const log = path.join(os.tmpdir(), `${uid('adk-mcp-ungated')}.log`);
+  t.teardown(() => rmSync(log, { force: true }));
+  const toolset = new TemporalMCPToolset({ name: 'testServer', connectionParams: stubServerConnectionParams(log) });
+  t.teardown(() => toolset.close());
+
+  const [echo] = await toolset.getTools();
+  if (!echo) return t.fail('the stub server advertised no tools');
+  t.false(await echo.checkRequireConfirmation({ value: 'hi' }));
+  const result = (await echo.runAsync({ args: { value: 'hi' }, toolContext: fakeToolContext().context })) as {
+    content: Array<{ text: string }>;
+  };
+  t.deepEqual(JSON.parse(result.content[0]!.text), { echoed: 'hi' });
 });

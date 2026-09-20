@@ -72,6 +72,18 @@ export type MCPRequireConfirmation =
   | boolean
   | ((toolName: string, args: Record<string, unknown>, toolContext?: Context) => boolean | Promise<boolean>);
 
+/** Resolves an {@link MCPRequireConfirmation} for one call. @internal */
+function evaluateMCPRequireConfirmation(
+  gate: MCPRequireConfirmation | undefined,
+  toolName: string,
+  args: Record<string, unknown>,
+  toolContext?: Context
+): boolean | Promise<boolean> {
+  if (gate === undefined || gate === false) return false;
+  if (gate === true) return true;
+  return gate(toolName, args, toolContext);
+}
+
 export interface TemporalMCPToolsetOptions {
   /**
    * Name selecting the worker-registered factory in
@@ -98,8 +110,11 @@ export interface TemporalMCPToolsetOptions {
    * `FunctionTool({ requireConfirmation })`. The `<name>-callTool` Activity is
    * NOT scheduled on the pass that raises the confirmation request, nor after a
    * rejection; it runs once the resumed turn carries the approval (see
-   * `hitlConfirmationResponse`). Only enforced on an `LlmAgent` turn — ADK
-   * 2.0's workflow `ToolNode` does not route through the confirmation path.
+   * `hitlConfirmationResponse`). Outside a Workflow (the direct `connectionParams`
+   * path) the same gate wraps the tools ADK's own `MCPToolset` returns, so nothing
+   * reaches the server unapproved there either. Only enforced on an `LlmAgent`
+   * turn — ADK 2.0's workflow `ToolNode` does not route through the confirmation
+   * path.
    */
   requireConfirmation?: MCPRequireConfirmation;
 }
@@ -173,7 +188,12 @@ export class TemporalMCPToolset extends BaseToolset {
    */
   override async getTools(context?: ReadonlyContext): Promise<BaseTool[]> {
     if (!inWorkflowContext()) {
-      return this.realToolset('getTools').getTools(context);
+      const tools = await this.realToolset('getTools').getTools(context);
+      // ADK's own `MCPToolset` knows nothing about `requireConfirmation`, so the
+      // gate has to be put back on top of the tools it returns; without this the
+      // option is silently dropped on the path the README calls supported.
+      const gate = this.options.requireConfirmation;
+      return gate === undefined ? tools : tools.map((tool) => new GatedMCPTool(tool, gate));
     }
 
     const listTools = this.activities(`adk.mcp ${this.options.name}.listTools`)[`${this.options.name}-listTools`] as (
@@ -248,10 +268,7 @@ class TemporalMCPTool extends BaseTool {
    * the gate, which ADK consults when binding an approval to the pinned call.
    */
   override async checkRequireConfirmation(args: Record<string, unknown>, toolContext?: Context): Promise<boolean> {
-    const gate = this.toolsetOptions.requireConfirmation;
-    if (gate === undefined || gate === false) return false;
-    if (gate === true) return true;
-    return gate(this.name, args, toolContext);
+    return evaluateMCPRequireConfirmation(this.toolsetOptions.requireConfirmation, this.name, args, toolContext);
   }
 
   /** Routes the tool call to the `<name>-callTool` Activity. */
@@ -265,5 +282,41 @@ class TemporalMCPTool extends BaseTool {
     );
     const callTool = activities[`${this.toolsetOptions.name}-callTool`] as (args: MCPCallToolArgs) => Promise<unknown>;
     return callTool({ toolName: this.originalName, args: request.args });
+  }
+}
+
+/**
+ * An ADK `MCPTool` with the toolset's confirmation gate in front of it, for the
+ * direct (non-Workflow) path. ADK's `MCPToolset` builds its own tools and has no
+ * `requireConfirmation` of its own, so the gate is applied by delegation: the
+ * declaration and the call both belong to the wrapped tool, and nothing reaches
+ * the MCP server until the human approves.
+ *
+ * The wrapped tool's `name` is already the advertised one (ADK's `MCPToolset`
+ * applies `prefix` when it constructs them), so a predicate sees the same name
+ * here as it does inside a Workflow.
+ */
+class GatedMCPTool extends BaseTool {
+  constructor(
+    private readonly tool: BaseTool,
+    private readonly gate: MCPRequireConfirmation
+  ) {
+    super({ name: tool.name, description: tool.description, isLongRunning: tool.isLongRunning });
+  }
+
+  override _getDeclaration(): FunctionDeclaration | undefined {
+    return this.tool._getDeclaration();
+  }
+
+  override async checkRequireConfirmation(args: Record<string, unknown>, toolContext?: Context): Promise<boolean> {
+    return evaluateMCPRequireConfirmation(this.gate, this.name, args, toolContext);
+  }
+
+  override async runAsync(request: RunAsyncToolRequest): Promise<unknown> {
+    if (await this.checkRequireConfirmation(request.args, request.toolContext)) {
+      const gated = gateOnConfirmation(this.name, request.toolContext);
+      if (gated !== undefined) return gated;
+    }
+    return this.tool.runAsync(request);
   }
 }

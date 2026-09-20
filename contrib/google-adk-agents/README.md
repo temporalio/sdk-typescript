@@ -314,8 +314,10 @@ export async function reviewWorkflow(prompt: string): Promise<unknown> {
 - Gate an Activity or MCP tool with `requireConfirmation` (a flag, or a predicate
   over the arguments that must be a pure function of them): the Activity is not
   scheduled until the human approves, and a rejection returns ADK's rejection
-  result to the model. A gate is only enforced on an `LlmAgent` turn; ADK's
-  workflow `ToolNode` does not route through confirmation. Declare the gate this
+  result to the model. The same gate applies to a `TemporalMCPToolset` used
+  directly with ADK (outside a Workflow, from `connectionParams`). A gate is only
+  enforced on an `LlmAgent` turn; ADK's workflow `ToolNode` does not route through
+  confirmation. Declare the gate this
   way rather than calling `toolContext.requestConfirmation()` from a tool body:
   ADK 2.0.0 binds an approval only to a tool whose `checkRequireConfirmation`
   says the call needs one, and refuses a gate requested only at run time — the
