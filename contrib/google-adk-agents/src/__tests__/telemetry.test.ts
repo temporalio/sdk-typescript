@@ -19,6 +19,8 @@ import { OpenTelemetryPlugin } from '@temporalio/interceptors-opentelemetry';
 
 import { GoogleAdkPlugin } from '../index';
 import { defaultTestProvider, setupTestEnv, uid, withWorker } from './helpers';
+import * as activities from './test-activities';
+import { graphRetry } from './graph-workflows';
 import { agentRunnerOneTurn, agentRunnerTwoTurnsWorkflow } from './workflows';
 
 const getEnv = setupTestEnv(test);
@@ -142,6 +144,44 @@ test.serial('adkSpansExportOncePerOperationUnderReplay', async (t) => {
     call_llm: 2,
     invocation: 2,
     'invoke_agent assistant': 2,
+  });
+});
+
+// ADK 2.0 workflow-runtime spans export once per operation too (E2E)
+test.serial('graphSpansExportOncePerOperationUnderReplay', async (t) => {
+  const env = getEnv();
+
+  const { exporter, events } = await scenarioWithRetryFreeHistory(t, async (exporter) => {
+    const taskQueue = uid('adk-otel-graph');
+    const workflowId = uid('wf-otel-graph');
+    const otelPlugin = new OpenTelemetryPlugin({
+      resource: new Resource({ 'service.name': 'adk-telemetry-test' }),
+      spanProcessor: new SimpleSpanProcessor(exporter),
+    });
+    // A graph whose one Activity node fails twice and is retried by ADK's node
+    // retry (jitter 0 keeps the backoff fixed): three attempts, one node, one
+    // workflow invocation — each a span, each exported exactly once although the
+    // cache-disabled worker replays the whole history on every task.
+    const result = await withWorker(
+      env,
+      { taskQueue, plugins: [otelPlugin, makeAdkPlugin()], activities, maxCachedWorkflows: 0 },
+      () => env.client.workflow.execute(graphRetry, { taskQueue, workflowId, args: [0] })
+    );
+    t.is(result.output, 'ok-after-2');
+
+    return (await env.client.workflow.getHandle(workflowId).fetchHistory()).events ?? [];
+  });
+
+  const workflowTasks = events.filter((e) => e.workflowTaskStartedEventAttributes != null).length;
+  t.true(workflowTasks >= 3, `expected >= 3 workflow tasks so replays occurred, got ${workflowTasks}`);
+
+  // Names only: ADK attaches the `adk.workflow.*` / `adk.node.*` attributes to the
+  // *active* span, and no OpenTelemetry context manager runs inside the sandbox.
+  assertAdkSpanCounts(t, exporter, {
+    invocation: 1,
+    'invoke_workflow retry_graph': 1,
+    'execute_node flakyActivity': 1,
+    'execute_node_attempt flakyActivity': 3,
   });
 });
 
