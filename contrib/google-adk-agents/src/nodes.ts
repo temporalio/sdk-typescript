@@ -47,7 +47,11 @@ export interface ActivityNodeOptions<TInput = unknown> {
   /**
    * Per-call Temporal Activity configuration (timeouts, retry, task queue,
    * summary). Prefer `retry` here over ADK's `retryConfig`: an ADK retry
-   * re-runs the whole node on top of Temporal's own Activity retries.
+   * re-runs the whole node on top of Temporal's own Activity retries. An abort
+   * (the node's `timeout`, or a sibling node failing) *requests* the Activity's
+   * cancellation on Temporal's usual terms: the Activity learns of it through
+   * its heartbeat, and the default `WAIT_CANCELLATION_COMPLETED` waits for it to
+   * wind down.
    */
   activity?: ActivityOptions;
   /**
@@ -110,8 +114,10 @@ export function activityNode<TInput = unknown, TOutput = unknown>(
         ACTIVITY_NODE_OUTSIDE_WORKFLOW_FAILURE_TYPE
       );
     }
+    // The default summary names the *node*: the Activity type is already its own
+    // history column, so two nodes running one Activity would otherwise read alike.
     const activities = proxyActivities<Record<string, (...activityArgs: unknown[]) => Promise<unknown>>>(
-      activityOptionsFrom(activity, `adk.node ${name}`)
+      activityOptionsFrom(activity, `adk.node ${nodeName ?? name}`)
     );
     // `proxyActivities` returns a Proxy that materializes a stub for any name,
     // so the indexed access is always defined; `noUncheckedIndexedAccess`
