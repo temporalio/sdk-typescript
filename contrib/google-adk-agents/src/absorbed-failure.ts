@@ -142,8 +142,9 @@ const DYNAMIC_NODE_FAIL_ERROR = 'DynamicNodeFailError';
 /**
  * Converts an ADK workflow-runtime error escaping a frame into the failure that should
  * end the execution: the frame's recorded model failure when the error merely reports
- * that a model call was absorbed, otherwise a non-retryable `ApplicationFailure` typed
- * per {@link ADK_RUNTIME_FAILURE_TYPES} with the ADK error as its cause. Anything else —
+ * that a model call was absorbed, the Temporal failure a dynamic node's wrapper carries,
+ * otherwise a non-retryable `ApplicationFailure` typed per
+ * {@link ADK_RUNTIME_FAILURE_TYPES} with the ADK error as its cause. Anything else —
  * a `TemporalFailure`, a user's own error — is returned unchanged.
  */
 function toWorkflowFailure(err: unknown, frame: Frame): unknown {
