@@ -48,6 +48,7 @@ import {
   activityAsTool,
   activityNode,
   hitlConfirmationResponse,
+  HITL_RESPONSE_FAILURE_TYPE,
   hitlInputResponse,
   markModelFailureHandled,
   pendingHitlRequests,
@@ -413,7 +414,12 @@ export async function workflowAsTool(schema: 'zod' | 'genai-string' | 'genai-obj
 
 /** Pending pauses of the current turn. */
 export const pendingHitlQuery = defineQuery<HitlRequest[]>('pendingHitl');
-/** Records the human's answer for an interrupt id: a value for `input`, `{ confirmed }` for `confirmation`. */
+/**
+ * Answers an interrupt: a value for `input`, `{ confirmed }` for `confirmation`.
+ * The handler builds the response `Part` itself, so an unknown interrupt id or a
+ * value the builder refuses rejects the Update instead of committing an answer
+ * the Workflow body would choke on a moment later.
+ */
 export const respondHitlUpdate = defineUpdate<void, [string, unknown]>('respondHitl');
 /** Sends the next turn as plain text instead of structured responses. */
 export const plainTextTurnUpdate = defineUpdate<void, [string]>('plainTextTurn');
@@ -431,7 +437,8 @@ const HITL_ANSWER_TIMEOUT = '60 seconds';
 
 interface HitlState {
   pending: HitlRequest[];
-  answers: Map<string, unknown>;
+  /** Response `Part`s the Update already validated, keyed by interrupt id. */
+  parts: Map<string, Part>;
   textAnswers: Map<string, string>;
   /** Interrupts answered with text: ADK still lists them, the loop does not. */
   answered: Set<string>;
@@ -439,10 +446,26 @@ interface HitlState {
 }
 
 function installHitlHandlers(): HitlState {
-  const state: HitlState = { pending: [], answers: new Map(), textAnswers: new Map(), answered: new Set() };
+  const state: HitlState = { pending: [], parts: new Map(), textAnswers: new Map(), answered: new Set() };
   setHandler(pendingHitlQuery, () => state.pending);
   setHandler(respondHitlUpdate, (interruptId, value) => {
-    state.answers.set(interruptId, value);
+    const request = state.pending.find((r) => r.interruptId === interruptId);
+    if (!request) {
+      throw ApplicationFailure.nonRetryable(
+        `no HITL request '${interruptId}' is pending; waiting on ${JSON.stringify(
+          state.pending.map((r) => r.interruptId)
+        )}`,
+        HITL_RESPONSE_FAILURE_TYPE
+      );
+    }
+    // Building the Part here is the point: a refused value rejects this Update and
+    // leaves the interrupt open, rather than failing the Workflow Task in the body.
+    state.parts.set(
+      interruptId,
+      request.kind === 'confirmation'
+        ? hitlConfirmationResponse(request, value as HitlConfirmation)
+        : hitlInputResponse(request, value)
+    );
   });
   setHandler(plainTextTurnUpdate, (text) => {
     state.plainText = text;
@@ -487,7 +510,7 @@ async function runWithHitl(
     const answeredInTime = await condition(
       () =>
         state.plainText !== undefined ||
-        pending.some((r) => state.answers.has(r.interruptId) || state.textAnswers.has(r.interruptId)),
+        pending.some((r) => state.parts.has(r.interruptId) || state.textAnswers.has(r.interruptId)),
       HITL_ANSWER_TIMEOUT
     );
     if (!answeredInTime) {
@@ -515,14 +538,13 @@ async function runWithHitl(
       newMessage = { role: 'user', parts };
       continue;
     }
-    const answered = pending.filter((r) => state.answers.has(r.interruptId));
-    const parts: Part[] = answered.map((request) => {
-      const value = state.answers.get(request.interruptId);
-      state.answers.delete(request.interruptId);
-      return request.kind === 'confirmation'
-        ? hitlConfirmationResponse(request, value as HitlConfirmation)
-        : hitlInputResponse(request, value);
-    });
+    const parts: Part[] = [];
+    for (const request of pending) {
+      const part = state.parts.get(request.interruptId);
+      if (!part) continue;
+      state.parts.delete(request.interruptId);
+      parts.push(part);
+    }
     newMessage = { role: 'user', parts };
   }
 }

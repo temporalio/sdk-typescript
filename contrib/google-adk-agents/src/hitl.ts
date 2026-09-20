@@ -10,14 +10,22 @@
  *
  * ```ts
  * // 1. expose what is pending
- * setHandler(pendingQuery, () => pendingHitlRequests(events));
- * // 2. take the human's answer through a Signal or Update
- * setHandler(respondUpdate, (interruptId, value) => { answers.set(interruptId, value); });
+ * setHandler(pendingQuery, () => pending);
+ * // 2. build the answer where it arrives, so a refused one rejects the Update
+ * setHandler(respondUpdate, (interruptId, value) => {
+ *   answers.set(interruptId, hitlInputResponse(findPending(interruptId), value));
+ * });
  * // 3. wait durably, then run the next turn with the answers
  * await condition(() => pending.every((r) => answers.has(r.interruptId)));
- * const parts = pending.map((r) => hitlInputResponse(r, answers.get(r.interruptId)));
+ * const parts = pending.map((r) => answers.get(r.interruptId)!);
  * for await (const event of runner.runAsync({ userId, sessionId, newMessage: { role: 'user', parts } })) { … }
  * ```
+ *
+ * Both builders refuse an answer with a non-retryable `ApplicationFailure` of type
+ * {@link HITL_RESPONSE_FAILURE_TYPE}. Build in the handler, as above: the SDK
+ * rejects an Update only for a `TemporalFailure`, so the caller hears the refusal;
+ * building in the Workflow body instead fails the Workflow Task repeatedly with the
+ * bad answer already committed.
  *
  * These helpers cover the wire format only. Credential requests
  * (`adk_request_credential`) are deliberately excluded: answering one means
@@ -39,6 +47,9 @@ import {
   type UserInputKind,
   type UserInputRequest,
 } from '@google/adk';
+import { ApplicationFailure } from '@temporalio/common';
+
+import { HITL_RESPONSE_FAILURE_TYPE } from './error-types';
 
 /**
  * A pause awaiting free-form or structured data: ADK's own
@@ -150,11 +161,12 @@ export function hitlConfirmationResponse(request: HitlConfirmationRequest, decis
  */
 function assertKind(request: UserInputRequest, kind: UserInputKind, helper: string): void {
   if (request.kind !== kind) {
-    throw new TypeError(
+    throw ApplicationFailure.nonRetryable(
       `${helper}: interrupt '${request.interruptId}' has kind '${request.kind}', not '${kind}'. ` +
         (request.kind === 'credential'
           ? 'Credential requests are not answerable from a Workflow; acquire credentials worker-side.'
-          : `Use ${kind === 'input' ? 'hitlConfirmationResponse' : 'hitlInputResponse'} for it.`)
+          : `Use ${kind === 'input' ? 'hitlConfirmationResponse' : 'hitlInputResponse'} for it.`),
+      HITL_RESPONSE_FAILURE_TYPE
     );
   }
 }
@@ -197,11 +209,12 @@ function assertNoJsonCoercion(request: HitlInputRequest, response: Record<string
   if (typeof unwrapped !== 'string' || acceptsString(request.responseSchema)) return;
   const parsed = parseJsonIfPossible(unwrapped);
   if (parsed === NOT_JSON) return;
-  throw new TypeError(
+  throw ApplicationFailure.nonRetryable(
     `hitlInputResponse: the string ${JSON.stringify(unwrapped)} answering interrupt '${request.interruptId}' ` +
       `parses as JSON, so ADK would deliver ${describeDelivered(parsed)} to the node instead of the text. ` +
       'The request declared no responseSchema that accepts a string: declare one on the RequestInput, or ' +
-      'pass the parsed value instead of the string.'
+      'pass the parsed value instead of the string.',
+    HITL_RESPONSE_FAILURE_TYPE
   );
 }
 

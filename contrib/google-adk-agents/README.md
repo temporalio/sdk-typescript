@@ -247,12 +247,15 @@ ordinary Workflow code, and the plugin supplies the wire format:
 
 ```typescript
 import { InMemoryRunner } from '@google/adk';
-import type { Content } from '@google/genai';
+import type { Content, Part } from '@google/genai';
+import { ApplicationFailure } from '@temporalio/common';
 import { condition, defineQuery, defineUpdate, setHandler } from '@temporalio/workflow';
 import {
+  HITL_RESPONSE_FAILURE_TYPE,
   hitlConfirmationResponse,
   hitlInputResponse,
   pendingHitlRequests,
+  type HitlConfirmation,
   type HitlRequest,
 } from '@temporalio/google-adk-agents/workflow';
 
@@ -262,9 +265,22 @@ export const respondUpdate = defineUpdate<void, [string, unknown]>('respond');
 // `graph` is the Workflow built in the section above; any RunnableRoot works.
 export async function reviewWorkflow(prompt: string): Promise<unknown> {
   let pending: HitlRequest[] = [];
-  const answers = new Map<string, unknown>();
+  const answers = new Map<string, Part>();
   setHandler(pendingQuery, () => pending);
-  setHandler(respondUpdate, (interruptId, value) => void answers.set(interruptId, value));
+  // Build the response inside the handler, so a bad answer rejects the Update
+  // rather than failing a Workflow Task once it is already in history.
+  setHandler(respondUpdate, (interruptId, value) => {
+    const request = pending.find((r) => r.interruptId === interruptId);
+    if (!request) {
+      throw ApplicationFailure.nonRetryable(`nothing is waiting on '${interruptId}'`, HITL_RESPONSE_FAILURE_TYPE);
+    }
+    answers.set(
+      interruptId,
+      request.kind === 'confirmation'
+        ? hitlConfirmationResponse(request, value as HitlConfirmation)
+        : hitlInputResponse(request, value)
+    );
+  });
 
   const runner = new InMemoryRunner({ agent: graph });
   const session = await runner.sessionService.createSession({ appName: runner.appName, userId: 'user' });
@@ -283,14 +299,7 @@ export async function reviewWorkflow(prompt: string): Promise<unknown> {
     if (pending.length === 0) return output;
 
     await condition(() => pending.every((r) => answers.has(r.interruptId)));
-    newMessage = {
-      role: 'user',
-      parts: pending.map((r) =>
-        r.kind === 'confirmation'
-          ? hitlConfirmationResponse(r, answers.get(r.interruptId) as { confirmed: boolean })
-          : hitlInputResponse(r, answers.get(r.interruptId))
-      ),
-    };
+    newMessage = { role: 'user', parts: pending.map((r) => answers.get(r.interruptId)!) };
   }
 }
 ```
@@ -305,7 +314,14 @@ export async function reviewWorkflow(prompt: string): Promise<unknown> {
   and parses the _string_ it unwraps as JSON, unless the request declared a
   `responseSchema` that accepts strings. A string that reads as JSON is therefore
   refused rather than silently retyped — declare a string schema on the
-  `RequestInput`, or pass the parsed value.
+  `RequestInput`, or pass the parsed value. Any string that parses is refused, a
+  quoted one included: `'"foo"'` would reach the node as `foo`.
+- Both builders throw a non-retryable `ApplicationFailure` of type
+  `HITL_RESPONSE_FAILURE_TYPE` when they refuse an answer. Call them where the answer
+  arrives, in the Signal or Update handler, as above: the SDK rejects an Update only
+  for a `TemporalFailure`, so validating there tells the caller no, while letting a
+  bad answer through to the Workflow body would fail the Workflow Task over and over
+  with the answer already accepted.
 - `hitlConfirmationResponse(request, { confirmed, payload? })` answers a tool
   gate. ADK reads approvals from the **latest** user message only, so answer every
   pending confirmation in one message, and rebuild the agent for the resumed turn

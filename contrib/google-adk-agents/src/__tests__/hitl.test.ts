@@ -21,6 +21,7 @@ import {
   hitlConfirmationResponse,
   hitlInputResponse,
   pendingHitlRequests,
+  HITL_RESPONSE_FAILURE_TYPE,
   type HitlConfirmationRequest,
   type HitlInputRequest,
   type HitlRequest,
@@ -132,6 +133,35 @@ test.serial('a RequestInput node pauses the graph until the answer arrives throu
     t.is(result.output, 'approved:ship-it');
     t.is(result.turns, 2);
   });
+});
+
+test.serial('an answer the builder refuses rejects the Update and leaves the Workflow healthy', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-hitl-reject-answer');
+  const workflowId = uid('wf-hitl-reject-answer');
+  await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, async () => {
+    const handle = await env.client.workflow.start(hitlInputNode, { taskQueue, workflowId });
+    await waitForPending(handle, 1, ['approval']);
+
+    // The handler builds the Part, so the coercion guard runs while the caller can
+    // still hear about it: '42' has no string schema and would reach the node as 42.
+    const rejected = await t.throwsAsync(handle.executeUpdate(respondHitlUpdate, { args: ['approval', '42'] }));
+    t.is(findInCauseChain(rejected, ApplicationFailure)?.type, 'GoogleAdkHitlResponseError');
+    // An id nothing is waiting on is refused the same way.
+    const unknownId = await t.throwsAsync(handle.executeUpdate(respondHitlUpdate, { args: ['nope', 1] }));
+    t.is(findInCauseChain(unknownId, ApplicationFailure)?.type, 'GoogleAdkHitlResponseError');
+
+    // The interrupt is still open, so the parsed value is accepted and the run finishes.
+    await handle.executeUpdate(respondHitlUpdate, { args: ['approval', 42] });
+    t.is((await handle.result()).output, 'approved:42');
+  });
+  // A rejected Update must not have failed a Workflow Task: that would retry the
+  // task forever with the bad answer already committed to history.
+  const { events } = await getEnv().client.workflow.getHandle(workflowId).fetchHistory();
+  t.deepEqual(
+    (events ?? []).filter((e) => e.workflowTaskFailedEventAttributes != null),
+    []
+  );
 });
 
 test.serial('a default interrupt id is a UUID and regenerates identically under replay', async (t) => {
@@ -326,22 +356,26 @@ test('hitlInputResponse wraps bare values, passes objects through, and refuses a
   t.deepEqual(hitlInputResponse(request, { userResponse: 'x' }).functionResponse?.response, { userResponse: 'x' });
   // '42' would reach the node as the number 42 (ADK parses string answers as JSON
   // unless the schema accepts strings) — refused rather than coerced.
-  t.throws(() => hitlInputResponse(request, '42'), {
-    instanceOf: TypeError,
+  // A non-retryable ApplicationFailure, not a TypeError: only a TemporalFailure
+  // rejects the Update whose handler builds the Part.
+  const refused = t.throws(() => hitlInputResponse(request, '42'), {
+    instanceOf: ApplicationFailure,
     message: /parses as JSON, so ADK would deliver 42 \(number\)/,
   });
-  t.throws(() => hitlInputResponse(request, 'true'), { instanceOf: TypeError });
+  t.is(refused?.type, HITL_RESPONSE_FAILURE_TYPE);
+  t.is(refused?.nonRetryable, true);
+  t.throws(() => hitlInputResponse(request, 'true'), { instanceOf: ApplicationFailure });
   // A quoted string parses to a *string*, and ADK still returns the parsed value,
   // so the node would see `foo` rather than `"foo"`.
   t.throws(() => hitlInputResponse(request, '"foo"'), {
-    instanceOf: TypeError,
+    instanceOf: ApplicationFailure,
     message: /so ADK would deliver the string "foo" to the node/,
   });
   // Text that is not JSON at all reaches the node verbatim, so it is allowed.
   t.deepEqual(hitlInputResponse(request, 'ship it').functionResponse?.response, { result: 'ship it' });
   // ADK unwraps any single-key `{ result: … }` object, so the same coercion applies
   // to an object the caller wrote itself.
-  t.throws(() => hitlInputResponse(request, { result: '42' }), { instanceOf: TypeError });
+  t.throws(() => hitlInputResponse(request, { result: '42' }), { instanceOf: ApplicationFailure });
   // A second key defeats the unwrap, so the object arrives whole and nothing is parsed.
   t.deepEqual(hitlInputResponse(request, { result: '42', unit: 'm' }).functionResponse?.response, {
     result: '42',
