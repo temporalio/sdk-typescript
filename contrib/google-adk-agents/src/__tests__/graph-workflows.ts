@@ -252,11 +252,15 @@ export async function appRoot(prompt: string): Promise<string> {
   return text;
 }
 
-/** Several turns in one session with a truncating context compactor attached to the agent. */
+/**
+ * Several turns in one session with a truncating context compactor attached to the agent.
+ * The model reports how many `contents` each request carried, which is what the compactor
+ * truncates: uncompacted, a turn would add two.
+ */
 export async function compactedAgent(turns: number): Promise<string[]> {
   const agent = new LlmAgent({
     name: 'assistant',
-    model: new TemporalModel('fake-model'),
+    model: new TemporalModel('contents-counting-model'),
     instruction: 'Help.',
     contextCompactors: [new TruncatingContextCompactor({ threshold: 2 })],
   });

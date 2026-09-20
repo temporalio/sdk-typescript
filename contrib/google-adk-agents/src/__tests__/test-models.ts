@@ -5,9 +5,30 @@
  * from the request rather than from instance state.
  */
 
-import type { BaseLlm } from '@google/adk';
+import { BaseLlm, type BaseLlmConnection, type LlmRequest, type LlmResponse } from '@google/adk';
 
 import { defaultTestProvider, ToolCallingLlm } from './helpers';
+
+/**
+ * A model that answers with the number of `contents` its request carried, so a test can
+ * witness what a context compactor removed from the history the agent sends.
+ */
+class ContentsCountingLlm extends BaseLlm {
+  override async *generateContentAsync(
+    llmRequest: LlmRequest,
+    _stream?: boolean,
+    _abortSignal?: AbortSignal
+  ): AsyncGenerator<LlmResponse, void> {
+    yield {
+      content: { role: 'model', parts: [{ text: `contents:${(llmRequest.contents ?? []).length}` }] },
+      turnComplete: true,
+    };
+  }
+
+  override async connect(_llmRequest: LlmRequest): Promise<BaseLlmConnection> {
+    throw new Error('ContentsCountingLlm does not connect.');
+  }
+}
 
 /**
  * The `modelProvider` for the graph / dynamic suites. Names encode the
@@ -23,6 +44,8 @@ export function graphTestProvider(): (model: string) => BaseLlm {
         return new ToolCallingLlm({ model, toolName: 'enrich_flow', toolArgs: { value: 7 } });
       case 'enrich-flow-genai-model':
         return new ToolCallingLlm({ model, toolName: 'enrich_flow', toolArgs: { request: '7' } });
+      case 'contents-counting-model':
+        return new ContentsCountingLlm({ model });
       default:
         return fallback(model);
     }

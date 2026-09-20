@@ -36,10 +36,6 @@ export async function summarize(text: string): Promise<string> {
   return `${text} summarized`;
 }
 
-export async function combineParts(left: string, right: string): Promise<string> {
-  return `${left}+${right}`;
-}
-
 export async function enrichItem(item: string): Promise<string> {
   record(`enrichItem:${item}`);
   return `enriched-${item}`;
