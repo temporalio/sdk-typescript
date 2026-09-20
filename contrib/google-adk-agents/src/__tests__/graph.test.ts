@@ -9,6 +9,7 @@ import { ActivityFailure, ApplicationFailure, TimeoutFailure } from '@temporalio
 import { Worker } from '@temporalio/worker';
 
 import { GoogleAdkPlugin } from '../index';
+import { activityNode } from '../workflow';
 import {
   countScheduledActivities,
   findInCauseChain,
@@ -27,6 +28,7 @@ import {
   graphActivityFailure,
   graphAgentNodeModelFailure,
   graphAgentTaskNode,
+  graphDottedActivity,
   graphFanOutJoin,
   graphPluginNodeCallbacks,
   graphRetry,
@@ -110,6 +112,29 @@ test.serial('an Activity node returning nothing completes and its successor runs
   // `activityNode` does not expose it; fan in with a `JoinNode` instead.
   t.is(result.output, 'after');
   t.is(countScheduledActivities(await history(workflowId), 'voidActivity'), 1);
+});
+
+test('activityNode refuses a node name carrying ADK path separator', (t) => {
+  // ADK splits a node path on '.', so a dotted name is unrecognisable on resume.
+  const err = t.throws(() => activityNode({ name: 'payments.charge' }), { instanceOf: ApplicationFailure });
+  t.is(err?.type, 'GoogleAdkActivityNodeName');
+  t.is(err?.nonRetryable, true);
+  t.true(err?.message.includes('payments_charge'), err?.message);
+  t.notThrows(() => activityNode({ name: 'payments.charge', nodeName: 'payments_charge' }));
+});
+
+test.serial('a dotted Activity type runs under a path-safe node name', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-graph-dotted');
+  const workflowId = uid('wf-graph-dotted');
+  const dotted = { ...activities, 'payments.charge': async () => 'charged' };
+  const result = await withWorker(env, { taskQueue, plugins: [makePlugin()], activities: dotted }, () =>
+    env.client.workflow.execute(graphDottedActivity, { taskQueue, workflowId })
+  );
+  t.is(result.output, 'charged');
+  const events = await history(workflowId);
+  t.is(countScheduledActivities(events, 'payments.charge'), 1);
+  t.deepEqual(getScheduledActivitySummaries(events, 'payments.charge'), ['adk.node payments_charge']);
 });
 
 test.serial('an LlmAgent node in task mode reports its finish_task result as the node output', async (t) => {

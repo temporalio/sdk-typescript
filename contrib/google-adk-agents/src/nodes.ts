@@ -29,7 +29,7 @@ import {
 import { ApplicationFailure } from '@temporalio/common';
 import { CancellationScope, inWorkflowContext, proxyActivities, type ActivityOptions } from '@temporalio/workflow';
 
-import { ACTIVITY_NODE_OUTSIDE_WORKFLOW_FAILURE_TYPE } from './error-types';
+import { ACTIVITY_NODE_NAME_FAILURE_TYPE, ACTIVITY_NODE_OUTSIDE_WORKFLOW_FAILURE_TYPE } from './error-types';
 import { activityOptionsFrom } from './model';
 
 /** Options for {@link activityNode}. */
@@ -40,7 +40,14 @@ export interface ActivityNodeOptions<TInput = unknown> {
    * node's name unless `nodeName` is set.
    */
   name: string;
-  /** The graph node's name, when it must differ from the Activity's (e.g. two nodes running one Activity). */
+  /**
+   * The graph node's name, when it must differ from the Activity's (e.g. two
+   * nodes running one Activity, or an Activity type carrying a `.`). The
+   * effective name may not contain a `.`: ADK reserves it as the separator in a
+   * node's path, and a dotted name breaks the rehydration that fast-forwards a
+   * completed node on resume. `activityNode` refuses one rather than rename the
+   * node behind your back.
+   */
   nodeName?: string;
   /** The node's description, advertised when the node is used as a tool. */
   description?: string;
@@ -109,6 +116,19 @@ export function activityNode<TInput = unknown, TOutput = unknown>(
   options: ActivityNodeOptions<TInput>
 ): BaseNode<TInput, TOutput> {
   const { name, nodeName, description, activity, args } = options;
+  const graphName = nodeName ?? name;
+  // ADK joins a node's ancestry into a dotted path (`BranchPath.toString`) and
+  // splits it again to rehydrate a resumed run, so a dot inside a single name
+  // makes the node unrecognisable across turns and it runs a second time. An
+  // Activity type is often dotted (`payments.charge`), so say so rather than
+  // quietly rewriting the name the graph, the events and the traces all carry.
+  if (graphName.includes('.')) {
+    throw ApplicationFailure.nonRetryable(
+      `activityNode('${name}'): a node name may not contain '.', which ADK reserves as its node-path ` +
+        `separator. Pass a path-safe 'nodeName' (for example '${graphName.split('.').join('_')}').`,
+      ACTIVITY_NODE_NAME_FAILURE_TYPE
+    );
+  }
 
   const handler = async (ctx: NodeContext, input: TInput): Promise<TOutput> => {
     if (!inWorkflowContext()) {
@@ -120,7 +140,7 @@ export function activityNode<TInput = unknown, TOutput = unknown>(
     // The default summary names the *node*: the Activity type is already its own
     // history column, so two nodes running one Activity would otherwise read alike.
     const activities = proxyActivities<Record<string, (...activityArgs: unknown[]) => Promise<unknown>>>(
-      activityOptionsFrom(activity, `adk.node ${nodeName ?? name}`)
+      activityOptionsFrom(activity, `adk.node ${graphName}`)
     );
     // `proxyActivities` returns a Proxy that materializes a stub for any name,
     // so the indexed access is always defined; `noUncheckedIndexedAccess`
@@ -139,7 +159,7 @@ export function activityNode<TInput = unknown, TOutput = unknown>(
   if (options.stateSchema !== undefined) config.stateSchema = options.stateSchema;
   if (options.isolationScope !== undefined) config.isolationScope = options.isolationScope;
 
-  return new FunctionNode<TInput, TOutput>(nodeName ?? name, handler, config);
+  return new FunctionNode<TInput, TOutput>(graphName, handler, config);
 }
 
 /**

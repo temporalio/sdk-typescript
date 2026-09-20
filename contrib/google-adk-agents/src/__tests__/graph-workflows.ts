@@ -130,6 +130,15 @@ export async function graphVoidOutput(): Promise<RunOutcome> {
   return runOnce(graph, 'go');
 }
 
+/** A dotted Activity type reaches the graph under a path-safe `nodeName`. */
+export async function graphDottedActivity(): Promise<RunOutcome> {
+  const graph = new Workflow({
+    name: 'dotted_activity',
+    edges: [['START', activityNode({ name: 'payments.charge', nodeName: 'payments_charge', args: () => [] })]],
+  });
+  return runOnce(graph, 'go');
+}
+
 /** An `LlmAgent` in task mode as a graph node; its `finish_task` call is the node's output. */
 export async function graphAgentTaskNode(prompt: string): Promise<RunOutcome> {
   const agent = new LlmAgent({
