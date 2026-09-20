@@ -561,12 +561,16 @@ export interface GoogleAdkPluginOptions {
   mcpToolsets?: Record<string, MCPToolsetFactory>;
   /**
    * Whether a raw model string on an agent (`model: 'gemini-2.5-flash'`)
-   * resolves to a {@link TemporalModel} inside a Workflow instead of ADK's own
+   * resolves to a `TemporalModel` inside a Workflow instead of ADK's own
    * network-calling model class, which cannot run in the sandbox. Default
    * `true`. Auto-routed models use `TemporalModel`'s default Activity options;
    * wrap the string explicitly (`new TemporalModel(name, options)`) to
    * customize them. Set `false` only if you register your own sandbox-safe
    * `BaseLlm` for a built-in model pattern.
+   *
+   * Workflow-side only: it selects the Workflow bundle's interceptor modules,
+   * so it affects every Workflow the Worker runs (including replays) and never
+   * changes how the model Activity resolves a name on the Worker.
    */
   autoRouteModels?: boolean;
 }
@@ -612,7 +616,7 @@ export class GoogleAdkPlugin extends SimplePlugin {
    * recipe applies identically on both paths and there is no separate
    * `configureWorker`/`configureReplayWorker` bundler override.
    *
-   * The recipe has five parts, all required:
+   * The recipe has five parts; only the fourth is optional:
    *
    *  1. **`webpackConfigHook`** adds {@link googleAdkSandboxCompatPlugin} (the
    *     `node:` strip, the inline shim redirects, the ADK-scoped `crypto` and
