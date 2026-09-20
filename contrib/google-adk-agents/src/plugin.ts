@@ -21,12 +21,13 @@ const ADK_PACKAGE = '@google/adk';
  * build (`dist/web/index_web.js`, the `common.ts` surface). ADK 2.0 publishes
  * the same sources three ways, and which one webpack picks for the bare
  * `@google/adk` specifier depends on the *consumer's* environment: the Worker
- * bundler sets no webpack `target`, so webpack defaults to `browserslist` when
- * the worker's cwd has a browserslist config and to `web` otherwise, and only
- * the latter activates the `browser` export condition. Left to that default, a
- * `"browserslist": ["node 20"]` in an app would flip the bundle to the node ESM
- * barrel, whose closure reaches ADK's optional peer dependencies (`express`,
- * `@a2a-js/sdk`, the MikroORM drivers, …) — uninstalled, hence build errors.
+ * bundler sets no webpack `target`, so webpack falls back to the app's
+ * browserslist config when there is one and to `web` otherwise, and the
+ * `browser` export condition applies only when the resolved target is
+ * browser-only. Left to that default, a `"browserslist": ["node 20"]` in an app
+ * would flip the bundle to the node ESM barrel, whose closure reaches ADK's
+ * optional peer dependencies (`express`, `@a2a-js/sdk`, the MikroORM drivers,
+ * …) — uninstalled, hence build errors.
  *
  * The web surface is what a Workflow needs and nothing more: the runner, the
  * agent loop, the workflow (graph) runtime, HITL, plugins, compactors. It omits
@@ -420,7 +421,7 @@ function issuedByAdk(data: ResolveDataLike): boolean {
 
 /**
  * The webpack plugin that makes the `@google/adk` barrel load inside the
- * Workflow sandbox. It does four things:
+ * Workflow sandbox. It does five things:
  *
  *  1. **Deterministic `crypto` for ADK**: in `beforeResolve`, a `crypto` /
  *     `node:crypto` request issued from inside `@google/adk` is redirected to
@@ -432,15 +433,18 @@ function issuedByAdk(data: ResolveDataLike): boolean {
  *     issuers so no other package in the bundle sees a `crypto` it did not have
  *     before. The shim is a real module (not a `data:` URI) because it imports
  *     `@temporalio/workflow`.
- *  2. **Shim redirects** ({@link REQUEST_SHIM_SOURCES}): redirect the
+ *  2. **`apigee_llm.js` replacement**: ADK's own request for that module, also
+ *     scoped to ADK issuers, is redirected to {@link APIGEE_LLM_SHIM_SOURCE};
+ *     the published web file is a syntax error webpack cannot parse.
+ *  3. **Shim redirects** ({@link REQUEST_SHIM_SOURCES}): redirect the
  *     load-dereferenced requests to their inline `data:` URI shims.
- *  3. **`node:` scheme strip**: every other `node:<name>` → bare `<name>`. The
+ *  4. **`node:` scheme strip**: every other `node:<name>` → bare `<name>`. The
  *     Worker bundler aliases each disallowed builtin to `false` by its **bare**
  *     name; a `node:`-prefixed request never reaches `resolve.alias` — webpack's
  *     scheme handler intercepts it first and throws `UnhandledSchemeError` (a
  *     hard *build* failure). Stripping the scheme lets the bundler's bare-name
  *     policy take over.
- *  4. **`process` provide**: a `ProvidePlugin` injects the deterministic
+ *  5. **`process` provide**: a `ProvidePlugin` injects the deterministic
  *     `process` shim ({@link PROCESS_SHIM_SOURCE}) wherever `process` is a free
  *     variable.
  */
