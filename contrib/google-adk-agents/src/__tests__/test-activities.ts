@@ -1,7 +1,7 @@
 /**
- * Worker-side Activities for the graph / dynamic E2E tests. They run on the
- * worker (never bundled) and record their real executions per Workflow, so a
- * test can tell an Activity that ran from one that was replayed.
+ * Worker-side Activities for the E2E tests. They run on the worker (never
+ * bundled) and record their real executions per Workflow, so a test can tell an
+ * Activity that ran from one that was replayed.
  */
 
 import { Context } from '@temporalio/activity';
@@ -90,6 +90,8 @@ export async function failingActivity(): Promise<never> {
   throw ApplicationFailure.nonRetryable('permanent failure', 'TestPermanentFailure');
 }
 
+/** Echoes `id` back, recording the value the Workflow actually sent. */
 export async function echoId(id: string): Promise<string> {
+  record(`echoId:${id}`);
   return id;
 }

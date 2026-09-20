@@ -148,6 +148,20 @@ test('redirects crypto requests issued from inside @google/adk to the determinis
   t.is(resolve({ request: 'node:crypto' }), 'crypto');
 });
 
+test("replaces ADK's own request for the broken apigee_llm.js web module", (t) => {
+  const resolve = sandboxCompatResolveHook();
+  const adkIssuer = '/app/node_modules/@google/adk/dist/web/models/registry.js';
+  // ADK 2.0.0's `dist/web/models/apigee_llm.js` does not parse, so the request
+  // is answered with the inert stand-in rather than the published file.
+  t.true(resolve({ request: './apigee_llm.js', contextInfo: { issuer: adkIssuer } }).startsWith('data:'));
+  // Issuer-gated like the crypto redirect: a same-named module of the user's
+  // own resolves normally.
+  t.is(
+    resolve({ request: './apigee_llm.js', contextInfo: { issuer: '/app/src/models/registry.ts' } }),
+    './apigee_llm.js'
+  );
+});
+
 test('the api pin wins the bare specifier over user object-form alias entries', (t) => {
   const plugin = new GoogleAdkPlugin();
   const { webpackConfigHook } = plugin.configureBundler({ workflowsPath: 'wf' } as BundleOptions);
