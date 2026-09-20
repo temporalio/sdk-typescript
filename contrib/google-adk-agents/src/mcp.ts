@@ -93,7 +93,13 @@ export interface TemporalMCPToolsetOptions {
   toolFilter?: string[];
   /** Prefix applied to advertised tool names (mirrors ADK `MCPToolset`). */
   prefix?: string;
-  /** Per-call Activity configuration (timeouts, retry, task queue). */
+  /**
+   * Per-call Activity configuration (timeouts, retry, task queue). Tool calls
+   * take it as given; {@link TemporalMCPToolset.listResources} and
+   * {@link TemporalMCPToolset.readResource} default `retry.maximumAttempts` to
+   * 3 first, because a resource failure is skipped rather than raised. Set
+   * `retry.maximumAttempts` yourself to override that, `0` for unlimited.
+   */
   activity?: ActivityOptions;
   /**
    * Connection params used only when the toolset runs **outside** a Workflow
@@ -136,6 +142,13 @@ export interface MCPResourceContents {
   text?: string;
   blob?: string;
 }
+
+/**
+ * Default `maximumAttempts` for the resource Activities. Unlike a tool call,
+ * whose result the turn needs, a resource listing or read is best-effort and
+ * has to give up for the skip path to be reachable.
+ */
+const DEFAULT_RESOURCE_MAX_ATTEMPTS = 3;
 
 /** The dynamic Activity surface proxied for a named MCP server. */
 type MCPActivities = Record<
@@ -235,7 +248,7 @@ export class TemporalMCPToolset extends BaseToolset {
     if (!inWorkflowContext()) {
       return this.realToolset('listResources').listResources();
     }
-    const listResources = this.activities(`adk.mcp ${this.options.name}.listResources`)[
+    const listResources = this.resourceActivities(`adk.mcp ${this.options.name}.listResources`)[
       `${this.options.name}-listResources`
     ] as (args: Record<string, unknown>) => Promise<string[]>;
     return listResources({});
@@ -250,7 +263,7 @@ export class TemporalMCPToolset extends BaseToolset {
     if (!inWorkflowContext()) {
       return this.realToolset('readResource').readResource(name);
     }
-    const readResource = this.activities(`adk.mcp ${this.options.name}.readResource`)[
+    const readResource = this.resourceActivities(`adk.mcp ${this.options.name}.readResource`)[
       `${this.options.name}-readResource`
     ] as (args: MCPReadResourceArgs) => Promise<MCPResourceContents[]>;
     return readResource({ name });
@@ -261,6 +274,24 @@ export class TemporalMCPToolset extends BaseToolset {
 
   private activities(defaultSummary: string): MCPActivities {
     return proxyActivities<MCPActivities>(activityOptionsFrom(this.options.activity, defaultSummary));
+  }
+
+  /**
+   * Like {@link activities}, but with a finite default retry policy. A resource
+   * failure is best-effort: {@link loadMcpResourceTool} logs and skips it. An
+   * MCP error carries no HTTP status, so `toApplicationFailure` marks it
+   * retryable, and Temporal's own default is unlimited attempts — an
+   * unreachable server would then retry behind the model turn forever and the
+   * skip path would never be reached. The caller's own `activity.retry` wins
+   * field by field, so `retry: { maximumAttempts: 0 }` restores unlimited.
+   */
+  private resourceActivities(defaultSummary: string): MCPActivities {
+    const activity = this.options.activity;
+    const options = {
+      ...activity,
+      retry: { maximumAttempts: DEFAULT_RESOURCE_MAX_ATTEMPTS, ...activity?.retry },
+    };
+    return proxyActivities<MCPActivities>(activityOptionsFrom(options, defaultSummary));
   }
 
   /** The real ADK toolset for the direct (non-Workflow) path. */
@@ -354,7 +385,9 @@ const LOAD_MCP_RESOURCE_TOOL_NAME = 'load_mcp_resource';
  * appends their contents to the request. Each turn it also lists the server's
  * resources (memoized unless `refreshResourceList`) and tells the model about
  * them. Like ADK, a failed list or read is logged and skipped rather than
- * failing the turn.
+ * failing the turn — which is why those Activities give up after
+ * {@link TemporalMCPToolsetOptions.activity}'s bounded default instead of
+ * retrying behind the turn forever.
  */
 class TemporalLoadMcpResourceTool extends BaseTool {
   private readonly toolset: TemporalMCPToolset;

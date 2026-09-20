@@ -57,6 +57,43 @@ function stubServerRecords(log: string): string[] {
   return readFileSync(log, 'utf8').split('\n').filter(Boolean);
 }
 
+/** The subset of history the retry-bound assertions read. */
+type RetryEvent = {
+  eventId?: unknown;
+  activityTaskScheduledEventAttributes?: { activityType?: { name?: string | null } | null } | null;
+  activityTaskStartedEventAttributes?: { scheduledEventId?: unknown; attempt?: number | null } | null;
+  activityTaskFailedEventAttributes?: { scheduledEventId?: unknown } | null;
+};
+
+/** Event ids of the `ActivityTaskScheduled` events for Activity types starting with `prefix`. */
+function scheduledIdsFor(events: RetryEvent[], prefix: string): Set<string> {
+  const ids = new Set<string>();
+  for (const event of events) {
+    if (event.activityTaskScheduledEventAttributes?.activityType?.name?.startsWith(prefix)) {
+      ids.add(String(event.eventId));
+    }
+  }
+  return ids;
+}
+
+/**
+ * The attempt each of those Activities ended on. Temporal writes one
+ * `ActivityTaskStarted` per Activity, on its final attempt, so this is the
+ * attempt count and not the schedule count.
+ */
+function finalAttempts(events: RetryEvent[], prefix: string): number[] {
+  const scheduled = scheduledIdsFor(events, prefix);
+  return events
+    .filter((event) => scheduled.has(String(event.activityTaskStartedEventAttributes?.scheduledEventId)))
+    .map((event) => event.activityTaskStartedEventAttributes?.attempt ?? 0);
+}
+
+function countFailedActivities(events: RetryEvent[], prefix: string): number {
+  const scheduled = scheduledIdsFor(events, prefix);
+  return events.filter((event) => scheduled.has(String(event.activityTaskFailedEventAttributes?.scheduledEventId)))
+    .length;
+}
+
 const getEnv = setupTestEnv(test);
 
 test.serial('listResources and readResource route through the resource Activities', async (t) => {
@@ -160,10 +197,13 @@ test.serial(
   }
 );
 
-test.serial('a failing server is logged and skipped, and the failed listing is not memoized', async (t) => {
+test.serial('a failing server gives up on the default bound, is skipped, and is not memoized', async (t) => {
   const env = getEnv();
   const taskQueue = uid('adk-res-broken');
   const workflowId = uid('wf-res-broken');
+  // The fixture sets no `maximumAttempts`, so this is the default the resource
+  // Activities apply. Without it the Activity would retry forever on a
+  // status-less MCP error and the turn below would never return.
   const text = await withWorker(env, { taskQueue, plugins: [makePlugin()] }, () =>
     env.client.workflow.execute(mcpLoadResourceAgentFailing, { taskQueue, workflowId })
   );
@@ -173,6 +213,10 @@ test.serial('a failing server is logged and skipped, and the failed listing is n
   // Once per model call, because a rejected listing is not the memoized one.
   t.is(countScheduledActivities(events ?? [], 'brokenServer-listResources'), 2);
   t.is(countScheduledActivities(events ?? [], 'brokenServer-readResource'), 1);
+  // Each gave up after exactly three attempts, and each ended failed rather than
+  // still running.
+  t.deepEqual(finalAttempts(events ?? [], 'brokenServer-'), [3, 3, 3]);
+  t.is(countFailedActivities(events ?? [], 'brokenServer-'), 3);
 });
 
 test.serial('refreshResourceList re-lists the resources on every model call', async (t) => {

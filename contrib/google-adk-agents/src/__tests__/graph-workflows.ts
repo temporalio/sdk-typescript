@@ -746,8 +746,12 @@ export async function mcpLoadResourceAgent(turns: number, refreshResourceList = 
  * and skips both the listing and the read, so the turn still answers.
  */
 export async function mcpLoadResourceAgentFailing(): Promise<string> {
-  // A single attempt, so the failure surfaces instead of retrying forever.
-  const toolset = new TemporalMCPToolset({ name: 'brokenServer', activity: { retry: { maximumAttempts: 1 } } });
+  // `maximumAttempts` is deliberately left alone, so this exercises the bounded
+  // default the resource Activities apply; only the backoff is shortened.
+  const toolset = new TemporalMCPToolset({
+    name: 'brokenServer',
+    activity: { retry: { initialInterval: '1 millisecond' } },
+  });
   const agent = new LlmAgent({
     name: 'assistant',
     model: new TemporalModel('resource-model'),

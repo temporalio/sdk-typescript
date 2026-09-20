@@ -209,6 +209,13 @@ is logged and skipped, not raised. A factory-supplied toolset must be an
 `MCPToolset` (or expose `listResources` / `readResource`) for resources to work;
 connection params always do.
 
+Because they are skipped rather than raised, resource reads are best-effort and
+bounded: `listResources` and `readResource` default `activity.retry.maximumAttempts`
+to 3, where a tool call keeps Temporal's unlimited default. Without that bound an
+unreachable server would retry behind the model turn forever and never reach the
+skip path. Set `activity: { retry: { maximumAttempts: n } }` on the toolset to
+choose your own, or `0` for unlimited.
+
 ### Activities as tools
 
 Use `activityAsTool` to expose an existing Temporal Activity to the agent:
