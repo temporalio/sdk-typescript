@@ -47,9 +47,13 @@ test.serial('the sandbox registry resolves every built-in pattern to the Tempora
   const probe = await withWorker(env, { taskQueue, plugins: [makePlugin()] }, () =>
     env.client.workflow.execute(registryResolveProbe, { taskQueue, workflowId: uid('wf-route-registry') })
   );
-  t.is(probe.gemini, 'AutoRoutedTemporalModel');
-  t.is(probe.apigee, 'AutoRoutedTemporalModel');
-  t.false(probe.apigeeIsBuiltIn);
+  t.deepEqual(probe, {
+    gemini: 'AutoRoutedTemporalModel',
+    vertexEndpoint: 'AutoRoutedTemporalModel',
+    vertexGemini: 'AutoRoutedTemporalModel',
+    apigee: 'AutoRoutedTemporalModel',
+    apigeeIsBuiltIn: false,
+  });
 });
 
 test.serial('RoutedLlm routes between TemporalModel instances', async (t) => {
@@ -71,7 +75,11 @@ test.serial('autoRouteModels: false leaves the built-in classes registered in th
   const probe = await withWorker(env, { taskQueue, plugins: [makePlugin(false)] }, () =>
     env.client.workflow.execute(registryResolveProbe, { taskQueue, workflowId: uid('wf-route-off') })
   );
-  t.is(probe.gemini, 'Gemini');
-  t.is(probe.apigee, 'ApigeeLlm');
-  t.true(probe.apigeeIsBuiltIn);
+  t.deepEqual(probe, {
+    gemini: 'Gemini',
+    vertexEndpoint: 'Gemini',
+    vertexGemini: 'Gemini',
+    apigee: 'ApigeeLlm',
+    apigeeIsBuiltIn: true,
+  });
 });

@@ -682,6 +682,23 @@ export async function mcpLoadResourceAgent(turns: number, refreshResourceList = 
   return texts;
 }
 
+/**
+ * The same flow against a server whose Activities fail. Like ADK, the tool logs
+ * and skips both the listing and the read, so the turn still answers.
+ */
+export async function mcpLoadResourceAgentFailing(): Promise<string> {
+  // A single attempt, so the failure surfaces instead of retrying forever.
+  const toolset = new TemporalMCPToolset({ name: 'brokenServer', activity: { retry: { maximumAttempts: 1 } } });
+  const agent = new LlmAgent({
+    name: 'assistant',
+    model: new TemporalModel('resource-model'),
+    instruction: 'Answer from resources.',
+    tools: [loadMcpResourceTool(toolset)],
+  });
+  const { text } = await runOnce(agent, 'go');
+  return text;
+}
+
 // ---------------------------------------------------------------------------
 // Model auto-routing
 // ---------------------------------------------------------------------------
@@ -689,16 +706,7 @@ export async function mcpLoadResourceAgent(turns: number, refreshResourceList = 
 /** An agent configured with a raw model string, as in vanilla ADK code. */
 export async function rawModelStringAgent(model: string): Promise<{ text: string; errorMessage?: string }> {
   const agent = new LlmAgent({ name: 'assistant', model, instruction: 'Help.' });
-  const runner = new InMemoryRunner({ agent });
-  let text = '';
-  let errorMessage: string | undefined;
-  for await (const event of runner.runEphemeral({
-    userId: USER,
-    newMessage: { role: 'user', parts: [{ text: 'hi' }] },
-  })) {
-    if (event.errorMessage) errorMessage = event.errorMessage;
-    if (isFinalResponse(event)) text = stringifyContent(event);
-  }
+  const { text, errorMessage } = await runOnce(agent, 'hi');
   return { text, errorMessage };
 }
 
@@ -713,9 +721,28 @@ export async function routedLlmAgent(pick: 'a' | 'b'): Promise<string> {
   return text;
 }
 
-/** What the sandbox registry resolves built-in model patterns to. */
-export async function registryResolveProbe(): Promise<{ gemini: string; apigee: string; apigeeIsBuiltIn: boolean }> {
-  const gemini = LLMRegistry.resolve('gemini-2.5-flash');
+/**
+ * What the sandbox registry resolves built-in model patterns to: one name per
+ * entry of `Gemini.supportedModels` and `ApigeeLlm.supportedModels`, so an
+ * override that covered only the plain `gemini-*` pattern would show up here.
+ * `apigeeIsBuiltIn` additionally pins identity, proving the class the registry
+ * holds is the same `ApigeeLlm` object this module imports (the sandbox has one
+ * copy of ADK's shimmed `apigee_llm.js`, reached both directly and through
+ * `dist/web/common.js`) — which is what makes the in-place override possible.
+ */
+export async function registryResolveProbe(): Promise<{
+  gemini: string;
+  vertexEndpoint: string;
+  vertexGemini: string;
+  apigee: string;
+  apigeeIsBuiltIn: boolean;
+}> {
   const apigee = LLMRegistry.resolve('apigee/gemini-2.5-flash');
-  return { gemini: gemini.name, apigee: apigee.name, apigeeIsBuiltIn: apigee === (ApigeeLlm as unknown) };
+  return {
+    gemini: LLMRegistry.resolve('gemini-2.5-flash').name,
+    vertexEndpoint: LLMRegistry.resolve('projects/p/locations/l/endpoints/e').name,
+    vertexGemini: LLMRegistry.resolve('projects/p/locations/l/publishers/google/models/gemini-2.5-flash').name,
+    apigee: apigee.name,
+    apigeeIsBuiltIn: apigee === (ApigeeLlm as unknown),
+  };
 }

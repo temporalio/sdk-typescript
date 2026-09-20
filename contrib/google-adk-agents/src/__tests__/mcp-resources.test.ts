@@ -18,7 +18,12 @@ import { GoogleAdkPlugin } from '../index';
 import { mockMCPToolset, type MockMCPResourceDefinition } from '../testing';
 import { countScheduledActivities, echoDef, findInCauseChain, setupTestEnv, uid, withWorker } from './helpers';
 import { graphTestProvider } from './test-models';
-import { mcpListResources, mcpLoadResourceAgent, mcpReadResource } from './graph-workflows';
+import {
+  mcpListResources,
+  mcpLoadResourceAgent,
+  mcpLoadResourceAgentFailing,
+  mcpReadResource,
+} from './graph-workflows';
 
 const stubServerPath = path.resolve(__dirname, 'stub-mcp-server.js');
 
@@ -32,7 +37,12 @@ const readmeResource: MockMCPResourceDefinition = {
 function makePlugin(): GoogleAdkPlugin {
   return new GoogleAdkPlugin({
     modelProvider: graphTestProvider(),
-    mcpToolsets: { testServer: mockMCPToolset([echoDef], { resources: [readmeResource] }) },
+    mcpToolsets: {
+      testServer: mockMCPToolset([echoDef], { resources: [readmeResource] }),
+      brokenServer: () => {
+        throw new Error('MCP server unavailable.');
+      },
+    },
   });
 }
 
@@ -149,6 +159,21 @@ test.serial(
     t.is(countScheduledActivities(events ?? [], 'testServer-listResources'), 1);
   }
 );
+
+test.serial('a failing server is logged and skipped, and the failed listing is not memoized', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-res-broken');
+  const workflowId = uid('wf-res-broken');
+  const text = await withWorker(env, { taskQueue, plugins: [makePlugin()] }, () =>
+    env.client.workflow.execute(mcpLoadResourceAgentFailing, { taskQueue, workflowId })
+  );
+  // The turn completed: neither the listing nor the read failed it.
+  t.is(text, 'resource=missing; listed=none');
+  const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
+  // Once per model call, because a rejected listing is not the memoized one.
+  t.is(countScheduledActivities(events ?? [], 'brokenServer-listResources'), 2);
+  t.is(countScheduledActivities(events ?? [], 'brokenServer-readResource'), 1);
+});
 
 test.serial('refreshResourceList re-lists the resources on every model call', async (t) => {
   const env = getEnv();
