@@ -132,6 +132,15 @@ policy. To opt out, handle the error in an ADK `onModelErrorCallback`, pass
 that same error to `markModelFailureHandled`, and return a substitute event
 built with ADK's `createEvent`.
 
+ADK turns a model error into an event rather than rethrowing it, so a run can
+finish normally on a failure nobody saw; the plugin raises such a failure as the
+Workflow (or the Update handler that ran the turn) returns. What counts as the
+recovery is the same agent answering later in the same ADK invocation: a node
+`retryConfig` that re-runs the agent, or a graph that activates the node again,
+leaves nothing to raise. Another agent answering does not clear it, and neither
+does a later turn, which is a new question rather than a second go at the one
+that failed.
+
 ### MCP tools
 
 Use `TemporalMCPToolset` in Workflow code and register the matching MCP factory
@@ -213,6 +222,12 @@ const runner = new InMemoryRunner({ agent: graph });
 - **Input and output.** By default the node's input is passed to the Activity as
   its single argument and the Activity's result is the node's output; `args`
   maps the input (and `NodeContext`, for state) to the Activity's argument list.
+  An Activity returning nothing completes the node with an `undefined` output.
+- **Node names.** The node is named after the Activity unless `nodeName` says
+  otherwise, and the name may not contain a `.`: ADK reserves it as its node-path
+  separator, and a dotted name breaks the resume that fast-forwards a completed
+  node. `activityNode` refuses one, so a dotted Activity type
+  (`payments.charge`) needs a `nodeName`.
 - **Routing.** A node returns `createEvent({ route: 'approve', output })` and the
   edge `[router, { approve: a, [DEFAULT_ROUTE]: b }]` picks the branch; only that
   branch's Activity runs.
@@ -227,11 +242,22 @@ const runner = new InMemoryRunner({ agent: graph });
   with `exceptions: ['ActivityFailure']`; ADK matches error names), its backoff is
   a durable timer, and its jitter is drawn from the Workflow's `Math.random()`.
   A node `timeout` (seconds) is a durable timer that cancels the in-flight
-  Activity and fails the node with ADK's `NodeTimeoutError`.
+  Activity and fails the node with ADK's `NodeTimeoutError` once that
+  cancellation has settled, so a retry never overlaps the Activity it replaces.
+  What "settled" means is the Activity's `cancellationType`: unset
+  (`TRY_CANCEL`) it settles at once and the Activity winds down on its own; with
+  `WAIT_CANCELLATION_COMPLETED` the node waits for the Activity to acknowledge,
+  which it only does at its next heartbeat. The plugin runs this deadline
+  itself, because ADK's own races the node and then abandons the unwind.
+- **Fan-in.** Use a `JoinNode`: it is the node type that waits for every
+  predecessor, and its input is the map from predecessor name to that node's
+  output. ADK's `waitForOutput` flag is not a fan-in gate (it parks a node that
+  ended with no output and no route), so `activityNode` does not expose it.
 - **Resume.** ADK resumes a paused graph from the session's events: a node that
-  already produced output is fast-forwarded rather than re-run. `activityNode`
-  defaults `rerunOnResume` to `false`, so its Activity is not scheduled again;
-  ADK's `Workflow` and `LlmAgent` default it to `true`. Resume is at-least-once
+  already produced output is always fast-forwarded rather than re-run, so an
+  `activityNode`'s Activity is not scheduled again. (ADK's `rerunOnResume`
+  concerns a node that paused for input last turn, which an Activity node never
+  does, so `activityNode` does not expose it either.) Resume is at-least-once
   for a dynamic node's body — put side effects in `activityNode` /
   `activityAsTool` children, or make them idempotent.
 - `LongRunningFunctionTool`s (including a node-as-tool) cannot be used as a

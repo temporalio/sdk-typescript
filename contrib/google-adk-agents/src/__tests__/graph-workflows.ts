@@ -144,6 +144,28 @@ export async function graphFanOutJoin(): Promise<RunOutcome> {
   return runOnce(graph, 'go');
 }
 
+/**
+ * An Activity node whose Activity returns nothing. The node completes with an
+ * `undefined` output and its successor still runs, which is what ADK's
+ * `waitForOutput` would have parked forever.
+ */
+export async function graphVoidOutput(): Promise<RunOutcome> {
+  const graph = new Workflow({
+    name: 'void_output',
+    edges: [['START', activityNode({ name: 'voidActivity', args: () => [] }), node(() => 'after', { name: 'after' })]],
+  });
+  return runOnce(graph, 'go');
+}
+
+/** A dotted Activity type reaches the graph under a path-safe `nodeName`. */
+export async function graphDottedActivity(): Promise<RunOutcome> {
+  const graph = new Workflow({
+    name: 'dotted_activity',
+    edges: [['START', activityNode({ name: 'payments.charge', nodeName: 'payments_charge', args: () => [] })]],
+  });
+  return runOnce(graph, 'go');
+}
+
 /** An `LlmAgent` in task mode as a graph node; its `finish_task` call is the node's output. */
 export async function graphAgentTaskNode(prompt: string): Promise<RunOutcome> {
   const agent = new LlmAgent({
@@ -156,18 +178,39 @@ export async function graphAgentTaskNode(prompt: string): Promise<RunOutcome> {
   return runOnce(graph, prompt);
 }
 
-/** A 1-second node deadline around a 20-second Activity: ADK times the node out and cancels the Activity. */
+/** Activity options for a node whose deadline has to cancel an Activity that outlives it. */
+const CANCELLABLE: TemporalModelOptions['activity'] = {
+  startToCloseTimeout: '60 seconds',
+  // Wait for the Activity to acknowledge, which it does on its next heartbeat.
+  cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
+  heartbeatTimeout: '2 seconds',
+  retry: { maximumAttempts: 1 },
+};
+
+/** A 1-second node deadline around a much longer Activity: the node times out and cancels it. */
 export async function graphTimeout(): Promise<RunOutcome> {
   const graph = new Workflow({
     name: 'timeout_graph',
     edges: [
+      ['START', activityNode({ name: 'cancellableActivity', args: () => [], timeout: 1, activity: CANCELLABLE })],
+    ],
+  });
+  return runOnce(graph, 'go');
+}
+
+/** The same deadline with an ADK node retry: the second attempt must not overlap the first. */
+export async function graphTimeoutRetry(): Promise<RunOutcome> {
+  const graph = new Workflow({
+    name: 'timeout_retry_graph',
+    edges: [
       [
         'START',
         activityNode({
-          name: 'slowActivity',
+          name: 'cancellableActivity',
           args: () => [],
           timeout: 1,
-          activity: { startToCloseTimeout: '30 seconds', retry: { maximumAttempts: 1 } },
+          retryConfig: { maxAttempts: 2, initialDelay: 0.01, jitter: 0, exceptions: ['NodeTimeoutError'] },
+          activity: CANCELLABLE,
         }),
       ],
     ],
@@ -234,6 +277,59 @@ export async function graphAgentNodeModelFailure(model: string, recover: boolean
   });
   const graph = new Workflow({ name: 'agent_node_graph', edges: [['START', agent]] });
   return runOnce(graph, 'hi', recover ? [new RecoveringPlugin()] : undefined);
+}
+
+/**
+ * An `LlmAgent` node whose first model call fails and whose retry succeeds. ADK absorbed
+ * the first failure into an event, so the run finishes normally and the plugin must not
+ * raise the attempt ADK already recovered from.
+ */
+export async function graphRetriedAgentNode(): Promise<RunOutcome> {
+  const agent = new LlmAgent({
+    name: 'assistant',
+    model: new TemporalModel('fail-first-model', SINGLE_ATTEMPT),
+    instruction: 'Help.',
+  });
+  const graph = new Workflow({
+    name: 'retried_agent_graph',
+    edges: [
+      [
+        'START',
+        node(agent, {
+          name: 'assistant',
+          retryConfig: { maxAttempts: 2, initialDelay: 0.01, jitter: 0, exceptions: ['NodeReportedError'] },
+        }),
+      ],
+    ],
+  });
+  return runOnce(graph, 'hi');
+}
+
+/**
+ * Two agents run in order, the first one's model fails, the graph swallows its error and
+ * the second one answers, so the run finishes normally with a failure nobody recovered
+ * from. A success belongs to the agent that made the call, so the first agent's recording
+ * still ends the Workflow.
+ */
+export async function twoAgentsOneFailureSwallowed(): Promise<RunOutcome> {
+  const failing = new LlmAgent({
+    name: 'failing_agent',
+    model: new TemporalModel('boom', SINGLE_ATTEMPT),
+    instruction: 'Help.',
+  });
+  const healthy = new LlmAgent({ name: 'healthy_agent', model: new TemporalModel('fake-model'), instruction: 'Help.' });
+  const driver = node(
+    async (ctx: NodeContext) => {
+      try {
+        await ctx.runNode(failing, 'hi');
+      } catch {
+        // The graph carries on; only the plugin still knows the model call failed.
+      }
+      return (await ctx.runNode(healthy, 'hi')).output;
+    },
+    { name: 'driver', rerunOnResume: true }
+  );
+  return runOnce(new Workflow({ name: 'two_agents', edges: [['START', driver]] }), 'hi');
 }
 
 /** A plugin observing ADK 2.0's node callbacks. */
@@ -353,6 +449,24 @@ export async function dynamicActivityFailure(): Promise<RunOutcome> {
     rerunOnResume: true,
   });
   return runOnce(new Workflow({ name: 'dynamic_failure', edges: [['START', driver]] }), 'go');
+}
+
+/**
+ * A dynamic node running an `LlmAgent` whose model call fails. ADK absorbs the model
+ * error into a `NodeReportedError` and the dynamic scheduler wraps that in a
+ * `DynamicNodeFailError`, so the recorded model failure is two carriers deep.
+ */
+export async function dynamicAgentModelFailure(): Promise<RunOutcome> {
+  const agent = new LlmAgent({
+    name: 'assistant',
+    model: new TemporalModel('boom', SINGLE_ATTEMPT),
+    instruction: 'Help.',
+  });
+  const driver = node(async (ctx: NodeContext) => (await ctx.runNode(agent, 'hi')).output, {
+    name: 'driver',
+    rerunOnResume: true,
+  });
+  return runOnce(new Workflow({ name: 'dynamic_agent_failure', edges: [['START', driver]] }), 'go');
 }
 
 /**

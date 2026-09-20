@@ -81,6 +81,9 @@ export const HITL_RESPONSE_FAILURE_TYPE = 'GoogleAdkHitlResponseError';
 /** @internal */
 export const ACTIVITY_NODE_OUTSIDE_WORKFLOW_FAILURE_TYPE = 'GoogleAdkActivityNodeOutsideWorkflow';
 
+/** @internal */
+export const ACTIVITY_NODE_NAME_FAILURE_TYPE = 'GoogleAdkActivityNodeName';
+
 /**
  * Error type for an ADK workflow-runtime node that exceeded its `timeout`.
  * ADK raises a plain `NodeTimeoutError`; the plugin converts it to a

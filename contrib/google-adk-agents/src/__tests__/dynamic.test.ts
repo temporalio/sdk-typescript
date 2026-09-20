@@ -19,6 +19,7 @@ import * as activities from './test-activities';
 import { graphTestProvider } from './test-models';
 import {
   dynamicActivityFailure,
+  dynamicAgentModelFailure,
   dynamicCancellation,
   dynamicGather,
   dynamicLoop,
@@ -70,6 +71,20 @@ test.serial('a dynamic node Activity failure keeps its ActivityFailure cause cha
   // instead, so the chain matches what a static Activity node produces.
   t.not(findInCauseChain(err, ActivityFailure), undefined);
   t.is(findInCauseChain(err, ApplicationFailure)?.type, 'TestPermanentFailure');
+});
+
+test.serial('a dynamic agent node whose model call fails keeps the model failure chain', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-dyn-agent-fail');
+  const err = await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, () =>
+    t.throwsAsync(
+      env.client.workflow.execute(dynamicAgentModelFailure, { taskQueue, workflowId: uid('wf-dyn-agent-fail') })
+    )
+  );
+  // The recording sits under a `NodeReportedError` under a `DynamicNodeFailError`, so
+  // both carriers have to be unwrapped before the frame's recording is the answer.
+  t.not(findInCauseChain(err, ActivityFailure), undefined);
+  t.is(findInCauseChain(err, ApplicationFailure)?.type, 'GoogleAdkModelError.400');
 });
 
 test.serial('cancelling a Workflow running a dynamic node Activity ends it CANCELLED', async (t) => {

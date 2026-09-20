@@ -39,10 +39,26 @@ import { ADK_RUNTIME_FAILURE_TYPES } from './error-types';
 // `TemporalModel`), and both have to reach the same recordings.
 const ABSORBED = '__temporal_googleAdkAbsorbedFailures';
 
+/** A model call that failed and that ADK absorbed into an event instead of rethrowing. */
+interface Recording {
+  /** The failure the `TemporalModel` call threw. */
+  error: unknown;
+  /** The `adk_agent_name` label of the request that failed. */
+  agent: string;
+  /**
+   * The ADK invocation the failed call belonged to, identified by the `AbortSignal` ADK
+   * hands the model (`InvocationContext.abortSignal`). A `Workflow` run makes one signal
+   * and gives every node the same object, so a node retry and a re-activation of the same
+   * node share it while a later turn does not. `undefined` for a plain agent turn, where
+   * the runner sets no signal and one turn cannot be told from the next.
+   */
+  invocation: AbortSignal | undefined;
+}
+
 /** What one inbound frame — the main function, a Signal handler, an Update handler — absorbed. */
 interface Frame {
-  /** Failures no caller has marked handled, in the order they were absorbed. */
-  pending: unknown[];
+  /** Failures no caller has marked handled or superseded, in the order they were absorbed. */
+  pending: Recording[];
   /**
    * The frame's first absorbed cancellation, held apart from `pending`: whether it is
    * the execution's outcome is only knowable once the frame returns, and it outranks
@@ -79,14 +95,34 @@ function openFrame(): Frame | undefined {
 }
 
 /** @internal */
-export function recordAbsorbedFailure(err: unknown): void {
+export function recordAbsorbedFailure(err: unknown, agent: string, invocation: AbortSignal | undefined): void {
   const frame = openFrame();
   if (frame === undefined) return;
   if (isCancellation(err)) {
     frame.cancellation ??= err;
   } else {
-    frame.pending.push(err);
+    frame.pending.push({ error: err, agent, invocation });
   }
+}
+
+/**
+ * Declares that a `TemporalModel` call succeeded, which spends whatever the same agent
+ * absorbed earlier in the same ADK invocation: that is ADK having retried the node (or
+ * activated it again) and got its answer, and a run finishing normally must not fail on
+ * the attempt it recovered from.
+ *
+ * Both halves of the key matter. A sibling agent answering says nothing about this one's
+ * failure, and a later *turn* by the same agent is a new question, not a second go at the
+ * one that failed — which is why a call with no invocation to compare (a plain agent turn
+ * outside a graph, where ADK sets no signal) never clears anything.
+ *
+ * @internal
+ */
+export function recordModelSuccess(agent: string, invocation: AbortSignal | undefined): void {
+  if (invocation === undefined) return;
+  const frame = openFrame();
+  if (frame === undefined) return;
+  frame.pending = frame.pending.filter((recording) => recording.agent !== agent || recording.invocation !== invocation);
 }
 
 /**
@@ -107,7 +143,7 @@ export function markModelFailureHandled(error: unknown): void {
   if (!inWorkflowContext()) return;
   const frame = openFrame();
   if (frame === undefined) return;
-  const at = frame.pending.indexOf(error);
+  const at = frame.pending.findIndex((recording) => recording.error === error);
   if (at !== -1) frame.pending.splice(at, 1);
 }
 
@@ -120,7 +156,7 @@ function raiseAbsorbed(frame: Frame): void {
     // `CancelledFailure` pair, which any wrapper would hide.
     throw frame.cancellation;
   }
-  if (frame.pending.length > 0) throw frame.pending[0];
+  if (frame.pending.length > 0) throw frame.pending[0]!.error;
 }
 
 /**
@@ -140,26 +176,50 @@ const NODE_REPORTED_ERROR = 'NodeReportedError';
 const DYNAMIC_NODE_FAIL_ERROR = 'DynamicNodeFailError';
 
 /**
+ * Follows ADK's dynamic-node carriers down to the error a child actually raised. Nesting
+ * one dynamic run inside another wraps the carrier again, and the outer ones say nothing
+ * about what went wrong. `.error` is always an `Error` where ADK sets it; the guards make
+ * a hand-built or cyclic carrier terminate rather than spin.
+ */
+function innermostNodeFailure(err: Error): Error {
+  const seen = new Set<Error>([err]);
+  let current = err;
+  while (current.name === DYNAMIC_NODE_FAIL_ERROR) {
+    const wrapped: unknown = (current as { error?: unknown }).error;
+    if (!(wrapped instanceof Error) || seen.has(wrapped)) break;
+    seen.add(wrapped);
+    current = wrapped;
+  }
+  return current;
+}
+
+/**
  * Converts an ADK workflow-runtime error escaping a frame into the failure that should
- * end the execution: the frame's recorded model failure when the error merely reports
- * that a model call was absorbed, the Temporal failure a dynamic node's wrapper carries,
- * otherwise a non-retryable `ApplicationFailure` typed per
- * {@link ADK_RUNTIME_FAILURE_TYPES} with the ADK error as its cause. Anything else —
- * a `TemporalFailure`, a user's own error — is returned unchanged.
+ * end the execution. A dynamic node's carrier is unwrapped first, so the decision is the
+ * one a static node would have produced: a Temporal failure the child raised is returned
+ * as it is, an absorbed model call is re-raised from the frame's recording, and anything
+ * else becomes a non-retryable `ApplicationFailure` typed per
+ * {@link ADK_RUNTIME_FAILURE_TYPES} with the ADK error as its cause. Anything the map does
+ * not name — a `TemporalFailure`, a user's own error — is returned unchanged.
  */
 function toWorkflowFailure(err: unknown, frame: Frame): unknown {
   if (!(err instanceof Error)) return err;
   const type = ADK_RUNTIME_FAILURE_TYPES[err.name];
   if (type === undefined) return err;
-  if (err.name === NODE_REPORTED_ERROR && frame.pending.length > 0) return frame.pending[0];
-  if (err.name === DYNAMIC_NODE_FAIL_ERROR) {
-    // A Temporal failure the dynamic child raised is what must end the execution: a
-    // cancelled Activity has to end it CANCELLED rather than FAILED, and a failed one
-    // keeps the cause chain (status, retry state) that the wrapper would hide.
-    const wrapped: unknown = (err as { error?: unknown }).error;
-    if (wrapped instanceof TemporalFailure) return wrapped;
-  }
-  return ApplicationFailure.create({ message: err.message, type, nonRetryable: true, cause: err });
+  const cause = innermostNodeFailure(err);
+  // A Temporal failure the child raised is what must end the execution: a cancelled
+  // Activity has to end it CANCELLED rather than FAILED, and a failed one keeps the
+  // cause chain (status, retry state) that the carrier would hide.
+  if (cause instanceof TemporalFailure) return cause;
+  if (cause.name === NODE_REPORTED_ERROR && frame.pending.length > 0) return frame.pending[0]!.error;
+  // The innermost error names the failure; the carrier's own type is the fallback for a
+  // child error the map does not know.
+  return ApplicationFailure.create({
+    message: cause.message,
+    type: ADK_RUNTIME_FAILURE_TYPES[cause.name] ?? type,
+    nonRetryable: true,
+    cause,
+  });
 }
 
 async function surfaceAbsorbedFailure<T>(frame: Frame, next: () => Promise<T>): Promise<T> {

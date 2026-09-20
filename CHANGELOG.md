@@ -35,7 +35,8 @@ to docs, or any other relevant information.
     so its ids are replay-stable;
   - the workflow (graph) runtime — `Workflow`, `node()`, `JoinNode`, routing, dynamic nodes,
     node-as-tool, node retries and timeouts — runs unchanged; `activityNode` makes a registered
-    Activity a graph node (its abort cancels the in-flight Activity);
+    Activity a graph node, and its deadline (or a sibling's failure) cancels the in-flight
+    Activity and waits for that cancellation to settle before failing the node;
   - durable human-in-the-loop: `pendingHitlRequests`, `hitlInputResponse` and
     `hitlConfirmationResponse` supply ADK's wire format (refusing an answer with a
     `GoogleAdkHitlResponseError` `ApplicationFailure`, so building the response in a Signal or
