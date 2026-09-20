@@ -157,13 +157,14 @@ export class TemporalModel extends BaseLlm {
         responses = await activities['adk-invokeModel']({ model: this.model, request: wire });
       }
     } catch (err) {
-      if (agentName !== undefined) recordAbsorbedFailure(err, agentName);
+      if (agentName !== undefined) recordAbsorbedFailure(err, agentName, abortSignal);
       throw err;
     }
-    // This agent got an answer, so an earlier failure of its own that ADK absorbed has
-    // been recovered from (a node retry, a re-activated graph node) and must not fail
-    // the Workflow the run is about to finish normally.
-    if (agentName !== undefined) recordModelSuccess(agentName);
+    // This agent got an answer, so an earlier failure of its own in the same invocation
+    // (a node retry, a re-activated graph node) has been recovered from and must not fail
+    // the Workflow the run is about to finish normally. `abortSignal` is ADK's
+    // `InvocationContext.abortSignal`, which identifies that invocation.
+    if (agentName !== undefined) recordModelSuccess(agentName, abortSignal);
 
     for (const response of responses) {
       yield response;

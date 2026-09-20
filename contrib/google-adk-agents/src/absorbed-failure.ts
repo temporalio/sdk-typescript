@@ -43,12 +43,16 @@ const ABSORBED = '__temporal_googleAdkAbsorbedFailures';
 interface Recording {
   /** The failure the `TemporalModel` call threw. */
   error: unknown;
-  /**
-   * The `adk_agent_name` label of the request that failed. A later call for the same
-   * agent that succeeds is ADK having recovered from this one (a node retry, or a graph
-   * re-activation), so the recording is dropped rather than raised.
-   */
+  /** The `adk_agent_name` label of the request that failed. */
   agent: string;
+  /**
+   * The ADK invocation the failed call belonged to, identified by the `AbortSignal` ADK
+   * hands the model (`InvocationContext.abortSignal`). A `Workflow` run makes one signal
+   * and gives every node the same object, so a node retry and a re-activation of the same
+   * node share it while a later turn does not. `undefined` for a plain agent turn, where
+   * the runner sets no signal and one turn cannot be told from the next.
+   */
+  invocation: AbortSignal | undefined;
 }
 
 /** What one inbound frame — the main function, a Signal handler, an Update handler — absorbed. */
@@ -91,29 +95,34 @@ function openFrame(): Frame | undefined {
 }
 
 /** @internal */
-export function recordAbsorbedFailure(err: unknown, agent: string): void {
+export function recordAbsorbedFailure(err: unknown, agent: string, invocation: AbortSignal | undefined): void {
   const frame = openFrame();
   if (frame === undefined) return;
   if (isCancellation(err)) {
     frame.cancellation ??= err;
   } else {
-    frame.pending.push({ error: err, agent });
+    frame.pending.push({ error: err, agent, invocation });
   }
 }
 
 /**
- * Declares that a `TemporalModel` call for `agent` succeeded, so whatever that agent
- * absorbed earlier in this frame is spent: ADK retried the node (or the graph activated
- * it again) and got its answer, and a run that finished normally must not fail on the
- * attempt it recovered from. Scoped to the agent because a sibling agent's failure in the
- * same run is still unhandled.
+ * Declares that a `TemporalModel` call succeeded, which spends whatever the same agent
+ * absorbed earlier in the same ADK invocation: that is ADK having retried the node (or
+ * activated it again) and got its answer, and a run finishing normally must not fail on
+ * the attempt it recovered from.
+ *
+ * Both halves of the key matter. A sibling agent answering says nothing about this one's
+ * failure, and a later *turn* by the same agent is a new question, not a second go at the
+ * one that failed — which is why a call with no invocation to compare (a plain agent turn
+ * outside a graph, where ADK sets no signal) never clears anything.
  *
  * @internal
  */
-export function recordModelSuccess(agent: string): void {
+export function recordModelSuccess(agent: string, invocation: AbortSignal | undefined): void {
+  if (invocation === undefined) return;
   const frame = openFrame();
   if (frame === undefined) return;
-  frame.pending = frame.pending.filter((recording) => recording.agent !== agent);
+  frame.pending = frame.pending.filter((recording) => recording.agent !== agent || recording.invocation !== invocation);
 }
 
 /**

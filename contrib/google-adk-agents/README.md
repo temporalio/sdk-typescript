@@ -134,10 +134,12 @@ built with ADK's `createEvent`.
 
 ADK turns a model error into an event rather than rethrowing it, so a run can
 finish normally on a failure nobody saw; the plugin raises such a failure as the
-Workflow (or the Update handler that ran the turn) returns. A later successful
-call by the same agent counts as the recovery: a node `retryConfig` that
-re-runs the agent, or a graph that activates it again, leaves nothing to raise.
-A success by a different agent does not clear it.
+Workflow (or the Update handler that ran the turn) returns. What counts as the
+recovery is the same agent answering later in the same ADK invocation: a node
+`retryConfig` that re-runs the agent, or a graph that activates the node again,
+leaves nothing to raise. Another agent answering does not clear it, and neither
+does a later turn, which is a new question rather than a second go at the one
+that failed.
 
 ### MCP tools
 
