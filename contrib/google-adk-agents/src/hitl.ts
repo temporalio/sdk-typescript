@@ -58,10 +58,18 @@ export interface HitlConfirmation {
 
 /**
  * The pauses in `events` that still await an answer, excluding credential
- * requests (see the module doc). Wraps ADK's `getPendingUserInputRequests`,
- * which treats a `functionResponse` with a matching `id` anywhere later in the
- * events as the answer. Pass the session's events — collected from the
- * `runAsync` iteration, or read from `runner.sessionService.getSession(...)`.
+ * requests (see the module doc). Pass the session's events, collected from the
+ * `runAsync` iteration or read from `runner.sessionService.getSession(...)`.
+ *
+ * This wraps ADK's `getPendingUserInputRequests`, whose bookkeeping is coarser
+ * than it looks: a request counts as answered as soon as *any* `functionResponse`
+ * anywhere in `events` carries its id, whoever authored it and whether or not
+ * ADK went on to accept it (a reply its `responseSchema` refuses leaves the run
+ * paused but drops it from this list). The converse also holds: an answer that
+ * is not a function response never clears it, so a plain-text gate approval
+ * (`runConfig.plainTextToolConfirmation`) and a text reply to an agent's own
+ * `requestInputTool` both keep being listed. A driver loop that uses those has
+ * to remember what it already answered.
  */
 export function pendingHitlRequests(events: readonly Event[]): HitlRequest[] {
   return getPendingUserInputRequests(events).filter((request) => request.kind !== 'credential');
@@ -71,29 +79,22 @@ export function pendingHitlRequests(events: readonly Event[]): HitlRequest[] {
  * Builds the `Part` answering an input request (`adk_request_input`). Put it
  * in the next turn's `newMessage` as `{ role: 'user', parts: [part] }`.
  *
- * A plain object `value` is delivered as-is, so it can satisfy the request's
+ * A plain object `value` is sent as-is, so it can satisfy the request's
  * `responseSchema`; anything else is wrapped in the `{ result: value }`
- * envelope ADK unwraps. ADK parses a **string** answer as JSON unless the
- * request declared a schema that accepts strings (`type: 'string'`), so a
- * string that reads as a JSON number/boolean/null/object — `'42'`, `'true'` —
- * would reach the node as that other type. Rather than let that happen
- * silently, this throws for such a string: declare a string `responseSchema` on
- * the `RequestInput`, or pass the parsed value yourself.
+ * envelope ADK unwraps. The unwrap is by shape, not by who wrote it: ADK
+ * delivers the bare value of any response whose single key is `result`, so a
+ * `value` of `{ result: x }` reaches the node as `x`.
+ *
+ * ADK also parses a **string** it unwraps as JSON, unless the request declared
+ * a schema that accepts strings (`type: 'string'`), so `'42'` or `'true'` would
+ * reach the node as a number or a boolean. Rather than let that happen
+ * silently, this throws: declare a string `responseSchema` on the
+ * `RequestInput`, or pass the parsed value yourself.
  */
 export function hitlInputResponse(request: HitlRequest, value: unknown): Part {
   assertKind(request, 'input', 'hitlInputResponse');
-  if (typeof value === 'string' && !acceptsString(request.responseSchema)) {
-    const parsed = parseJsonIfPossible(value);
-    if (parsed !== NOT_JSON && typeof parsed !== 'string') {
-      throw new TypeError(
-        `hitlInputResponse: the string ${JSON.stringify(value)} answering interrupt '${request.interruptId}' ` +
-          `would be delivered to the node as JSON (${typeof parsed}), because the request declared no ` +
-          'schema accepting a string. Declare a string responseSchema on the RequestInput, or pass the ' +
-          'parsed value instead of the string.'
-      );
-    }
-  }
   const response = isPlainObject(value) ? value : { result: value };
+  assertNoJsonCoercion(request, response);
   return {
     functionResponse: {
       id: request.interruptId,
@@ -156,6 +157,28 @@ function acceptsString(schema: unknown): boolean {
   }
   return false;
 }
+
+/**
+ * Refuses a response whose text ADK would retype on the way in. Applies the
+ * same two steps as ADK's `unwrapResponse`
+ * (`workflow/utils/rehydration_utils.ts`): unwrap a response whose only key is
+ * `result`, then JSON-parse a string the declared schema does not accept.
+ */
+function assertNoJsonCoercion(request: HitlRequest, response: Record<string, unknown>): void {
+  if (Object.keys(response).length !== 1 || !(RESULT_KEY in response)) return;
+  const unwrapped = response[RESULT_KEY];
+  if (typeof unwrapped !== 'string' || acceptsString(request.responseSchema)) return;
+  const parsed = parseJsonIfPossible(unwrapped);
+  if (parsed === NOT_JSON || typeof parsed === 'string') return;
+  throw new TypeError(
+    `hitlInputResponse: the string ${JSON.stringify(unwrapped)} answering interrupt '${request.interruptId}' ` +
+      `would be delivered to the node as JSON (${typeof parsed}), because the request declared no ` +
+      'schema accepting a string. Declare a string responseSchema on the RequestInput, or pass the ' +
+      'parsed value instead of the string.'
+  );
+}
+
+const RESULT_KEY = 'result';
 
 const NOT_JSON = Symbol('not-json');
 
