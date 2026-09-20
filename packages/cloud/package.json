@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/cloud",
-  "version": "1.23.0",
+  "version": "1.24.0",
   "description": "Temporal.io SDK — Temporal Cloud Client",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
@@ -16,7 +16,7 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "@grpc/grpc-js": "^1.12.4",
+    "@grpc/grpc-js": "^1.12.7",
     "@temporalio/client": "workspace:*",
     "@temporalio/common": "workspace:*",
     "@temporalio/proto": "workspace:*"

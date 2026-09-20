@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/nyc-test-coverage",
-  "version": "1.23.0",
+  "version": "1.24.0",
   "description": "Temporal.io SDK code coverage integration",
   "keywords": [
     "temporal",
@@ -32,7 +32,7 @@
     "convert-source-map": "^2.0.0",
     "istanbul-lib-coverage": "^3.2.2",
     "istanbul-lib-instrument": "^6.0.1",
-    "ts-loader": "^9.5.1"
+    "ts-loader": "^9.6.0"
   },
   "devDependencies": {
     "@temporalio/common": "workspace:*",

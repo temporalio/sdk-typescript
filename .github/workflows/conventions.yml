@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
 
@@ -38,7 +38,7 @@ jobs:
           components: clippy
 
       - name: Rust Cargo and Build cache
-        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-bin: false
           workspaces: packages/core-bridge -> target
@@ -46,6 +46,18 @@ jobs:
           shared-key: linux-x64
           env-vars: ''
           save-if: false
+
+      - name: Install nexgen
+        run: cargo install nexgen --version '=0.2.6' --locked --features advanced
+
+      - name: Check generated System Nexus bindings are up to date
+        run: |
+          pnpm --filter @temporalio/workflow run gen:system-nexus
+          if [ -n "$(git status --porcelain -- packages/workflow/src/nexus/system/generated)" ]; then
+            git diff -- packages/workflow/src/nexus/system/generated
+            echo "::error::System Nexus bindings are out of date. Run 'pnpm --filter @temporalio/workflow run gen:system-nexus' with nexgen 0.2.6 and commit the result."
+            exit 1
+          fi
 
       # eslint-import-resolver-typescript requires packages to be built
       - name: Compile all non-rust code
