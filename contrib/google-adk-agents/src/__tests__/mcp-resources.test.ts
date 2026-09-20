@@ -10,7 +10,8 @@ import path from 'node:path';
 
 import test from 'ava';
 import { BaseToolset, type BaseTool, type MCPConnectionParams, type ReadonlyContext } from '@google/adk';
-import { ApplicationFailure } from '@temporalio/common';
+import { Context as ActivityContext } from '@temporalio/activity';
+import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
 import { MockActivityEnvironment } from '@temporalio/testing';
 
 import { createMCPActivities } from '../activities';
@@ -21,6 +22,7 @@ import { graphTestProvider } from './test-models';
 import {
   mcpListResources,
   mcpLoadResourceAgent,
+  mcpLoadResourceAgentCancelled,
   mcpLoadResourceAgentFailing,
   mcpReadResource,
 } from './graph-workflows';
@@ -34,6 +36,50 @@ const readmeResource: MockMCPResourceDefinition = {
   contents: [{ uri: 'file:///readme.md', mimeType: 'text/markdown', text: README_TEXT }],
 };
 
+/** Entries into {@link HangingResourceToolset.readResource} on this worker. */
+let hangingReads = 0;
+
+/**
+ * Lists `readme` like the mock, but hangs on the read until the Activity's
+ * cancellation signal fires and then rejects with an `AbortError`, the way an
+ * MCP client honouring the signal does. It reads the signal off the Activity
+ * context because ADK's `MCPToolset.readResource(name)` takes none.
+ */
+class HangingResourceToolset extends BaseToolset {
+  constructor() {
+    super([]);
+  }
+
+  override async getTools(_context?: ReadonlyContext): Promise<BaseTool[]> {
+    return [];
+  }
+
+  async listResources(): Promise<string[]> {
+    return [readmeResource.name];
+  }
+
+  async readResource(_name: string): Promise<never> {
+    hangingReads++;
+    const signal = ActivityContext.current().cancellationSignal;
+    return new Promise<never>((_resolve, reject) => {
+      const abort = (): void => reject(Object.assign(new Error('The operation was aborted'), { name: 'AbortError' }));
+      if (signal.aborted) return abort();
+      signal.addEventListener('abort', abort, { once: true });
+    });
+  }
+
+  override async close(): Promise<void> {}
+}
+
+/** Resolves once the hanging read is genuinely in flight, so the cancel lands on a running Activity. */
+async function waitForHangingRead(count: number): Promise<void> {
+  const deadline = Date.now() + 10_000;
+  while (hangingReads < count) {
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${count} hanging reads`);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+}
+
 function makePlugin(): GoogleAdkPlugin {
   return new GoogleAdkPlugin({
     modelProvider: graphTestProvider(),
@@ -42,6 +88,7 @@ function makePlugin(): GoogleAdkPlugin {
       brokenServer: () => {
         throw new Error('MCP server unavailable.');
       },
+      hangingServer: () => new HangingResourceToolset(),
     },
   });
 }
@@ -217,6 +264,64 @@ test.serial('a failing server gives up on the default bound, is skipped, and is 
   // still running.
   t.deepEqual(finalAttempts(events ?? [], 'brokenServer-'), [3, 3, 3]);
   t.is(countFailedActivities(events ?? [], 'brokenServer-'), 3);
+});
+
+test.serial('cancelling a hanging read ends the Activity cancelled and re-raises through the tool', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-res-cancel');
+  const workflowId = uid('wf-res-cancel');
+  const before = hangingReads;
+  await withWorker(env, { taskQueue, plugins: [makePlugin()] }, async () => {
+    const handle = await env.client.workflow.start(mcpLoadResourceAgentCancelled, { taskQueue, workflowId });
+    // Cancel a read that is genuinely in flight, so the Activity really reaches
+    // its catch rather than being cancelled before it is dispatched.
+    await waitForHangingRead(before + 1);
+    await handle.cancel();
+    await t.throwsAsync(handle.result());
+    // Cancelled, not completed: the tool re-raised instead of logging and
+    // skipping, which is what it does for an ordinary read failure.
+    t.is((await handle.describe()).status.name, 'CANCELLED');
+
+    const { events } = await handle.fetchHistory();
+    t.is(countScheduledActivities(events ?? [], 'hangingServer-readResource'), 1);
+    t.true(
+      (events ?? []).some((e) => e.activityTaskCanceledEventAttributes != null),
+      'expected the read Activity to end cancelled'
+    );
+    t.false(
+      (events ?? []).some((e) => e.activityTaskFailedEventAttributes != null),
+      'expected no Activity failure: a cancel must not be classified as an MCP error'
+    );
+    // A retry would enter the read a second time.
+    t.is(hangingReads, before + 1);
+  });
+});
+
+test('readResource raises the cancellation rather than an MCP failure', async (t) => {
+  const activities = createMCPActivities({ hanging: () => new HangingResourceToolset() });
+  const readResource = activities['hanging-readResource'] as unknown as (args: { name: string }) => Promise<unknown>;
+  const mockEnv = new MockActivityEnvironment();
+  mockEnv.cancel();
+  const err = await t.throwsAsync(mockEnv.run(readResource, { name: 'readme' }));
+  t.true(err instanceof CancelledFailure, `expected a CancelledFailure, got ${err?.constructor.name}`);
+  t.false(err instanceof ApplicationFailure);
+});
+
+test('listResources raises the cancellation rather than an MCP failure', async (t) => {
+  const activities = createMCPActivities({
+    hanging: () => {
+      const toolset = new HangingResourceToolset();
+      // The listing is what hangs here; `readResource` covers the other catch.
+      toolset.listResources = () => toolset.readResource('readme');
+      return toolset;
+    },
+  });
+  const listResources = activities['hanging-listResources'] as unknown as () => Promise<unknown>;
+  const mockEnv = new MockActivityEnvironment();
+  mockEnv.cancel();
+  const err = await t.throwsAsync(mockEnv.run(listResources));
+  t.true(err instanceof CancelledFailure, `expected a CancelledFailure, got ${err?.constructor.name}`);
+  t.false(err instanceof ApplicationFailure);
 });
 
 test.serial('refreshResourceList re-lists the resources on every model call', async (t) => {

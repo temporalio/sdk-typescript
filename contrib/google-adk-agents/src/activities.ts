@@ -236,9 +236,9 @@ function mcpActivitiesForName(
     },
 
     [`${name}-listResources`]: async (): Promise<string[]> => {
+      const abortSignal = ActivityContext.current().cancellationSignal;
       const stopHeartbeat = startAdaptiveHeartbeat();
       try {
-        const abortSignal = ActivityContext.current().cancellationSignal;
         const produced = factory();
         if (!isBaseToolset(produced)) {
           return await withOneSession(produced, async (session) => {
@@ -248,6 +248,7 @@ function mcpActivitiesForName(
         }
         return await resourceCapable(produced, name).listResources();
       } catch (err) {
+        rethrowIfCancelled(err, abortSignal);
         throw toApplicationFailure(err, MCP_ERROR_FAILURE_TYPE);
       } finally {
         stopHeartbeat();
@@ -255,9 +256,9 @@ function mcpActivitiesForName(
     },
 
     [`${name}-readResource`]: async (args: MCPReadResourceArgs): Promise<MCPResourceContents[]> => {
+      const abortSignal = ActivityContext.current().cancellationSignal;
       const stopHeartbeat = startAdaptiveHeartbeat();
       try {
-        const abortSignal = ActivityContext.current().cancellationSignal;
         const produced = factory();
         if (!isBaseToolset(produced)) {
           // One session for the name → URI lookup and the read; ADK's own
@@ -273,6 +274,7 @@ function mcpActivitiesForName(
         }
         return await resourceCapable(produced, name).readResource(args.name);
       } catch (err) {
+        rethrowIfCancelled(err, abortSignal);
         throw toApplicationFailure(err, MCP_ERROR_FAILURE_TYPE);
       } finally {
         stopHeartbeat();

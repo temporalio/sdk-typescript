@@ -762,6 +762,39 @@ export async function mcpLoadResourceAgentFailing(): Promise<string> {
   return text;
 }
 
+/**
+ * The same flow against a server whose read hangs until its Activity is
+ * cancelled. Cancelling the Workflow must end that Activity cancelled on its
+ * first attempt, and the tool must re-raise the cancellation rather than log and
+ * skip it, so this Workflow ends cancelled instead of answering.
+ *
+ * `WAIT_CANCELLATION_COMPLETED` is what makes the outcome observable: under the
+ * default `TRY_CANCEL` the Workflow stops waiting the moment it requests the
+ * cancel, so it closes before the Activity reports how it ended. The
+ * `heartbeatTimeout` is what makes it prompt: an Activity is told about a cancel
+ * in its heartbeat response, and the plugin heartbeats at half that timeout.
+ * `maximumAttempts` is set explicitly to show retries were on the table.
+ */
+export async function mcpLoadResourceAgentCancelled(): Promise<string> {
+  const toolset = new TemporalMCPToolset({
+    name: 'hangingServer',
+    activity: {
+      startToCloseTimeout: '20 seconds',
+      heartbeatTimeout: '6 seconds',
+      retry: { maximumAttempts: 3, initialInterval: '1 second' },
+      cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
+    },
+  });
+  const agent = new LlmAgent({
+    name: 'assistant',
+    model: new TemporalModel('resource-model'),
+    instruction: 'Answer from resources.',
+    tools: [loadMcpResourceTool(toolset)],
+  });
+  const { text } = await runOnce(agent, 'go');
+  return text;
+}
+
 // ---------------------------------------------------------------------------
 // Model auto-routing
 // ---------------------------------------------------------------------------
