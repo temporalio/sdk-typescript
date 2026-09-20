@@ -8,6 +8,14 @@ import { ACTIVITY_TOOL_OUTSIDE_WORKFLOW_FAILURE_TYPE } from './error-types';
 import { activityOptionsFrom } from './model';
 
 /**
+ * Whether an Activity tool call needs human approval before it runs: a flag, or
+ * a predicate over the model's arguments. Spelled apart from ADK's own
+ * `RequireConfirmation`, which an agent module imports from `@google/adk` in the
+ * same breath as this one.
+ */
+export type ActivityRequireConfirmation = RequireConfirmation<Record<string, unknown>>;
+
+/**
  * Options for {@link activityAsTool}.
  */
 export interface ActivityAsToolOptions {
@@ -40,7 +48,7 @@ export interface ActivityAsToolOptions {
    * confirmation" error as its output instead of pausing; use a `RequestInput`
    * node for graph-level approval.
    */
-  requireConfirmation?: RequireConfirmation<Record<string, unknown>>;
+  requireConfirmation?: ActivityRequireConfirmation;
 }
 
 /**
@@ -49,7 +57,7 @@ export interface ActivityAsToolOptions {
 class ActivityTool extends BaseTool {
   private readonly parameters?: Schema;
   private readonly activityOptions?: ActivityOptions;
-  private readonly requireConfirmation?: RequireConfirmation<Record<string, unknown>>;
+  private readonly requireConfirmation?: ActivityRequireConfirmation;
 
   constructor(options: ActivityAsToolOptions) {
     super({ name: options.name, description: options.description });

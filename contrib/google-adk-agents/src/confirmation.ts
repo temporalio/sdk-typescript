@@ -23,6 +23,9 @@ import type { Context } from '@google/adk';
  * its arguments — ADK re-evaluates it when binding the human's approval to the
  * pinned call (`BaseTool.checkRequireConfirmation`), and an answer of `false`
  * at that point refuses the approval.
+ *
+ * @internal the package exports the bound forms, `ActivityRequireConfirmation`
+ * and `MCPRequireConfirmation`.
  */
 export type RequireConfirmation<TArgs> = boolean | ((args: TArgs, toolContext?: Context) => boolean | Promise<boolean>);
 
