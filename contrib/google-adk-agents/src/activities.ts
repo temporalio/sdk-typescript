@@ -25,7 +25,10 @@ import {
 } from '@google/adk';
 import type { FunctionDeclaration } from '@google/genai';
 import type { Duration } from '@temporalio/common';
-import { ApplicationFailure } from '@temporalio/common';
+import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
+// The Worker's own predicate, so this module and the Worker never disagree on
+// what counts as an abort (it is a structural check, not `instanceof Error`).
+import { isAbortError } from '@temporalio/common/lib/type-helpers';
 import { Context as ActivityContext } from '@temporalio/activity';
 import { WorkflowStreamClient } from '@temporalio/workflow-streams/client';
 
@@ -42,6 +45,32 @@ const DEFAULT_STREAM_BATCH_INTERVAL = '100 milliseconds';
 
 const RETRYABLE_STATUS = new Set([408, 409, 429]);
 
+/**
+ * Lets a cancellation out of an Activity untouched, ahead of any failure
+ * classification.
+ *
+ * The Worker reports an Activity as cancelled only when a cancel was requested
+ * *and* the error leaving the Activity function is a `CancelledFailure` or an
+ * `AbortError` (`Activity.run` in `@temporalio/worker`); everything else is a
+ * failure and is retried under the Activity's retry policy. Every catch in this
+ * module funnels through {@link toApplicationFailure}, so without this guard a
+ * model or MCP client that rejects when its `AbortSignal` fires would turn a
+ * cancel into a retryable `GoogleAdkModelError` / `GoogleAdkMCPError` and keep
+ * the attempt chain going.
+ *
+ * Call it first in every Activity catch, before classifying.
+ */
+function rethrowIfCancelled(err: unknown, signal: AbortSignal): void {
+  if (!signal.aborted) return;
+  // Already the shape the Worker wants; keep the original reason and stack.
+  if (err instanceof CancelledFailure) throw err;
+  // An `AbortError` reports as cancelled too, but the signal's reason is the
+  // `CancelledFailure` the Worker aborted with. Preferring it carries the cancel
+  // reason through, and lets a pause or a reset be reported as such rather than
+  // as a plain cancel.
+  if (isAbortError(err)) throw signal.reason instanceof CancelledFailure ? signal.reason : err;
+}
+
 /** Kept local (not imported from `plugin.ts`) to avoid an import cycle. @internal */
 export interface ModelActivitiesOptions {
   /** Reconstructs a `BaseLlm` from a model name; defaults to the ADK registry. */
@@ -54,17 +83,18 @@ export function createModelActivities(options: ModelActivitiesOptions = {}): Mod
 
   return {
     async 'adk-invokeModel'(args: InvokeModelArgs): Promise<LlmResponse[]> {
+      const abortSignal = ActivityContext.current().cancellationSignal;
       const stopHeartbeat = startAdaptiveHeartbeat();
       try {
         const model = resolveModel(args.model);
         const request = fromWireRequest(args.request);
-        const abortSignal = ActivityContext.current().cancellationSignal;
         const responses: LlmResponse[] = [];
         for await (const response of model.generateContentAsync(request, false, abortSignal)) {
           responses.push(response);
         }
         return responses;
       } catch (err) {
+        rethrowIfCancelled(err, abortSignal);
         throw toApplicationFailure(err);
       } finally {
         stopHeartbeat();
@@ -72,6 +102,7 @@ export function createModelActivities(options: ModelActivitiesOptions = {}): Mod
     },
 
     async 'adk-invokeModelStreaming'(args: InvokeModelStreamingArgs): Promise<LlmResponse[]> {
+      const abortSignal = ActivityContext.current().cancellationSignal;
       const stopHeartbeat = startAdaptiveHeartbeat();
       let stream: ReturnType<typeof WorkflowStreamClient.fromWithinActivity> | undefined;
       try {
@@ -81,7 +112,6 @@ export function createModelActivities(options: ModelActivitiesOptions = {}): Mod
         const events = stream.topic<LlmResponse>(args.streamingTopic);
         const model = resolveModel(args.model);
         const request = fromWireRequest(args.request);
-        const abortSignal = ActivityContext.current().cancellationSignal;
         const responses: LlmResponse[] = [];
         for await (const response of model.generateContentAsync(request, true, abortSignal)) {
           // Heartbeat per chunk so a slow stream isn't mistaken for a stuck worker.
@@ -91,6 +121,7 @@ export function createModelActivities(options: ModelActivitiesOptions = {}): Mod
         }
         return responses;
       } catch (err) {
+        rethrowIfCancelled(err, abortSignal);
         throw toApplicationFailure(err);
       } finally {
         try {
@@ -150,6 +181,7 @@ function mcpActivitiesForName(
 ): Record<string, (args: never) => Promise<unknown>> {
   return {
     [`${name}-listTools`]: async (): Promise<FunctionDeclaration[]> => {
+      const abortSignal = ActivityContext.current().cancellationSignal;
       const stopHeartbeat = startAdaptiveHeartbeat();
       let owned: MCPToolset | undefined;
       try {
@@ -161,6 +193,7 @@ function mcpActivitiesForName(
         // `processLlmRequest` calls it the same way.
         return tools.map((tool) => tool._getDeclaration()).filter((d): d is FunctionDeclaration => d !== undefined);
       } catch (err) {
+        rethrowIfCancelled(err, abortSignal);
         throw toApplicationFailure(err, MCP_ERROR_FAILURE_TYPE);
       } finally {
         try {
@@ -173,9 +206,9 @@ function mcpActivitiesForName(
     },
 
     [`${name}-callTool`]: async (args: MCPCallToolArgs): Promise<unknown> => {
+      const abortSignal = ActivityContext.current().cancellationSignal;
       const stopHeartbeat = startAdaptiveHeartbeat();
       try {
-        const abortSignal = ActivityContext.current().cancellationSignal;
         const produced = factory();
         if (!isBaseToolset(produced)) {
           return await withOneSession(produced, (session) =>
@@ -195,6 +228,7 @@ function mcpActivitiesForName(
         const toolContext = { abortSignal } as unknown as AdkToolContext;
         return await tool.runAsync({ args: args.args, toolContext });
       } catch (err) {
+        rethrowIfCancelled(err, abortSignal);
         throw toApplicationFailure(err, MCP_ERROR_FAILURE_TYPE);
       } finally {
         stopHeartbeat();

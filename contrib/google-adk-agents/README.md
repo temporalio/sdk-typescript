@@ -557,6 +557,11 @@ Cautions:
   on a stalled call is `startToCloseTimeout`, one minute by default.
 - Streaming topic delivery is at-least-once. The deterministic Workflow value is
   the Activity result, not the stream side channel.
+- Cancelling a Workflow cancels its in-flight model and MCP Activities. Both pass
+  the Activity's cancellation signal down to the model / MCP client, and once that
+  signal has fired the resulting error is raised as a cancellation instead of
+  being classified as a model or MCP failure, so the attempt ends cancelled rather
+  than being retried.
 
 ## Troubleshooting
 

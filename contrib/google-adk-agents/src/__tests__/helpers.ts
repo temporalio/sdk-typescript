@@ -143,6 +143,64 @@ export class SlowLlm extends BaseLlm {
   }
 }
 
+/** The `AbortError` a `fetch`-based client rejects with once its signal fires. */
+export function abortError(): Error {
+  return Object.assign(new Error('The operation was aborted'), { name: 'AbortError' });
+}
+
+/** Entries into {@link AbortingLlm} on this worker, for {@link waitForAbortingLlm}. */
+let abortingLlmEntries = 0;
+
+/** How many times {@link AbortingLlm} has been entered on this worker. */
+export function abortingLlmCallCount(): number {
+  return abortingLlmEntries;
+}
+
+/**
+ * Resolves once {@link AbortingLlm} has been entered at least `count` times, so
+ * a test cancels a model Activity that is genuinely running rather than one the
+ * server may cancel before it ever dispatches.
+ */
+export async function waitForAbortingLlm(count = 1): Promise<void> {
+  const deadline = Date.now() + 10_000;
+  while (abortingLlmEntries < count) {
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${count} AbortingLlm calls`);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+}
+
+/**
+ * A model that yields nothing and rejects with an `AbortError` once its abort
+ * signal fires, the way a `fetch`-based client does. {@link SlowLlm} resolves on
+ * abort and then yields a response, so only this double reaches the cancellation
+ * branch of the model Activity's catch.
+ */
+export class AbortingLlm extends BaseLlm {
+  static override readonly supportedModels: Array<string | RegExp> = ['abort-model'];
+
+  // eslint-disable-next-line require-yield -- a model double that only ever rejects
+  override async *generateContentAsync(
+    _llmRequest: LlmRequest,
+    _stream?: boolean,
+    abortSignal?: AbortSignal
+  ): AsyncGenerator<LlmResponse, void> {
+    abortingLlmEntries++;
+    // Fail loudly rather than hang if a caller forgets the signal.
+    if (!abortSignal) throw new Error('AbortingLlm requires an abort signal.');
+    await new Promise<never>((_resolve, reject) => {
+      if (abortSignal.aborted) {
+        reject(abortError());
+        return;
+      }
+      abortSignal.addEventListener('abort', () => reject(abortError()), { once: true });
+    });
+  }
+
+  override async connect(_llmRequest: LlmRequest): Promise<BaseLlmConnection> {
+    throw new Error('AbortingLlm does not connect.');
+  }
+}
+
 /**
  * A model double that drives exactly one tool call. Its first turn emits a
  * `functionCall` for `toolName`; the turn after the tool ran emits the final
@@ -209,13 +267,14 @@ export class ToolCallingLlm extends BaseLlm {
 
 /**
  * A `modelProvider` that maps `boom` → {@link ThrowingLlm}, `slow-model` →
- * {@link SlowLlm}, and everything else → {@link FakeLlm} (optionally with
- * canned responses).
+ * {@link SlowLlm}, `abort-model` → {@link AbortingLlm}, and everything else →
+ * {@link FakeLlm} (optionally with canned responses).
  */
 export function defaultTestProvider(responses?: LlmResponse[]): (model: string) => BaseLlm {
   return (model: string): BaseLlm => {
     if (model === 'boom') return new ThrowingLlm({ model });
     if (model === 'slow-model') return new SlowLlm({ model });
+    if (model === 'abort-model') return new AbortingLlm({ model });
     return new FakeLlm({ model, responses });
   };
 }
