@@ -7,12 +7,11 @@ import type {
   VersioningOverride,
   PayloadTypeInfo,
 } from '@temporalio/common';
-import { toCanonicalString } from '@temporalio/common';
+import { versioningOverrideToProto } from '@temporalio/common/lib/worker-deployments';
 import type { Duration } from '@temporalio/common/lib/time';
 import { msOptionalToTs } from '@temporalio/common/lib/time';
 import type { Replace } from '@temporalio/common/lib/type-helpers';
-import type { google } from '@temporalio/proto';
-import { temporal } from '@temporalio/proto';
+import type { google, temporal } from '@temporalio/proto';
 
 export * from '@temporalio/common/lib/workflow-options';
 
@@ -165,26 +164,3 @@ export interface WorkflowSignalWithStartOptionsWithArgs<SignalArgs extends any[]
  * Options for starting a Workflow
  */
 export type WorkflowStartOptions<T extends Workflow = Workflow> = WithWorkflowArgs<T, WorkflowOptions>;
-
-function versioningOverrideToProto(
-  vo: VersioningOverride | undefined
-): temporal.api.workflow.v1.IVersioningOverride | undefined {
-  if (!vo) return undefined;
-
-  // TODO: Remove deprecated field assignments when versioning is non-experimental
-  if (vo === 'AUTO_UPGRADE') {
-    return {
-      autoUpgrade: true,
-      behavior: temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_AUTO_UPGRADE,
-    };
-  }
-
-  return {
-    pinned: {
-      version: vo.pinnedTo,
-      behavior: temporal.api.workflow.v1.VersioningOverride.PinnedOverrideBehavior.PINNED_OVERRIDE_BEHAVIOR_PINNED,
-    },
-    behavior: temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED,
-    pinnedVersion: toCanonicalString(vo.pinnedTo),
-  };
-}

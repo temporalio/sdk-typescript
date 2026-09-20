@@ -4,7 +4,11 @@ import test from 'ava';
 import * as proto from '@temporalio/proto';
 import { ValueError } from '@temporalio/common';
 import type { Payload } from '@temporalio/common';
-import { StorageDriverClaim, type StorageDriverStoreContext } from '@temporalio/common/lib/converter/extstore';
+import {
+  StorageDriverClaim,
+  type StorageDriverLimiter,
+  type StorageDriverStoreContext,
+} from '@temporalio/common/lib/converter/extstore';
 import { GcsStorageDriver } from '../driver';
 import type { GcsStorageDriverClient } from '../client';
 
@@ -41,7 +45,17 @@ class FakeGcsClient implements GcsStorageDriverClient {
   }
 }
 
+/** Grants every permit immediately, so the driver can be exercised without an ExternalStorage. */
+function passthroughLimiter<Item>(): StorageDriverLimiter<Item> {
+  return {
+    permit<T>(_item: Item, operation: () => Promise<T>): Promise<T> {
+      return operation();
+    },
+  };
+}
+
 const workflowContext: StorageDriverStoreContext = {
+  limiter: passthroughLimiter(),
   target: { kind: 'workflow', namespace: 'my-ns', type: 'MyWorkflow', id: 'wf-1', runId: 'run-1' },
 };
 
@@ -51,7 +65,7 @@ test('store then retrieve round-trips the payload bytes', async (t) => {
 
   const [claim] = await driver.store(workflowContext, [original]);
   assert(claim);
-  const [retrieved] = await driver.retrieve({}, [claim]);
+  const [retrieved] = await driver.retrieve({ limiter: passthroughLimiter() }, [claim]);
   assert(retrieved);
 
   t.deepEqual(payloadBytes(retrieved), payloadBytes(original));
@@ -94,7 +108,7 @@ test('retrieve accepts a claim with object and camelCase hash keys written by <=
     hashValue: createHash('sha256').update(payloadBytes(original)).digest('hex'),
   });
 
-  const [retrieved] = await driver.retrieve({}, [legacyClaim]);
+  const [retrieved] = await driver.retrieve({ limiter: passthroughLimiter() }, [legacyClaim]);
   assert(retrieved);
 
   t.deepEqual(payloadBytes(retrieved), payloadBytes(original));
@@ -112,6 +126,7 @@ test('object name segments percent-encode only GCS-discouraged characters', asyn
         id: 'order+123=abc',
         runId: 'r~1',
       },
+      limiter: passthroughLimiter(),
     },
     [makePayload('"x"')]
   );
@@ -131,9 +146,10 @@ test('reserved and empty segments are encoded', async (t) => {
 
   // namespace '.' and type '..' are reserved object names; id is absent and runId is
   // empty. Reserved names escape to %2E / %2E%2E; empty or absent values become 'null'.
-  const [claim] = await driver.store({ target: { kind: 'workflow', namespace: '.', type: '..', runId: '' } }, [
-    makePayload('"x"'),
-  ]);
+  const [claim] = await driver.store(
+    { target: { kind: 'workflow', namespace: '.', type: '..', runId: '' }, limiter: passthroughLimiter() },
+    [makePayload('"x"')]
+  );
   assert(claim?.claimData.object_name);
 
   t.true(claim.claimData.object_name.startsWith('v0/ns/%2E/wt/%2E%2E/wi/null/ri/null/d/sha256/'));
@@ -142,7 +158,7 @@ test('reserved and empty segments are encoded', async (t) => {
 test('a target with no identity falls back to a bare digest object name', async (t) => {
   const driver = new GcsStorageDriver({ client: new FakeGcsClient(), bucket: 'b' });
 
-  const [claim] = await driver.store({}, [makePayload('"x"')]);
+  const [claim] = await driver.store({ limiter: passthroughLimiter() }, [makePayload('"x"')]);
   assert(claim?.claimData.object_name);
 
   t.regex(claim.claimData.object_name, /^v0\/d\/sha256\/[0-9a-f]{64}$/);
@@ -181,7 +197,7 @@ test('retrieve rejects when stored bytes fail the integrity check', async (t) =>
   assert(claim);
   client.objects.set(`${claim.claimData.bucket}/${claim.claimData.object_name}`, enc('tampered'));
 
-  await t.throwsAsync(() => driver.retrieve({}, [claim]), {
+  await t.throwsAsync(() => driver.retrieve({ limiter: passthroughLimiter() }, [claim]), {
     instanceOf: ValueError,
     message: /integrity check failed/,
   });
@@ -203,7 +219,7 @@ test('retrieve rejects a claim missing hash information', async (t) => {
 
   const claim = new StorageDriverClaim({ bucket: 'b', object_name: 'some-object' });
 
-  await t.throwsAsync(() => driver.retrieve({}, [claim]), {
+  await t.throwsAsync(() => driver.retrieve({ limiter: passthroughLimiter() }, [claim]), {
     instanceOf: ValueError,
     message: /missing required content hash information/,
   });

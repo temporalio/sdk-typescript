@@ -15,6 +15,7 @@ import type {
   VersioningBehavior,
   WorkflowDefinitionOptions,
   WorkflowSerializationContext,
+  SerializationContext,
   PayloadTypeInfo,
   TypeInfo,
 } from '@temporalio/common';
@@ -73,13 +74,19 @@ import type {
   EnhancedStackTrace,
 } from './interfaces';
 import { ContinueAsNew } from './interfaces';
-import { createInboundEventMarker, createInboundUpdateMarker, eventGroupMarkersToProto } from './event-groups';
+import {
+  createInboundEventMarker,
+  createInboundUpdateMarker,
+  eventGroupMarkersToProto,
+  type EventGroup,
+} from './event-groups';
 import { type SinkCall } from './sinks';
 import { untrackPromise } from './stack-helpers';
 import pkg from './pkg';
 import type { SdkFlag } from './flags';
 import { assertValidFlag } from './flags';
 import { executeWithLifecycleLogging, log } from './logs';
+import { deserializeSystemNexusOutput } from './nexus/system/payload-converter';
 
 const StartChildWorkflowExecutionFailedCause = {
   WORKFLOW_ALREADY_EXISTS: 'WORKFLOW_ALREADY_EXISTS',
@@ -191,6 +198,12 @@ export class Activator implements ActivationHandler {
     signalWorkflow: new Map<number, Completion<void, WorkflowSerializationContext>>(),
     cancelWorkflow: new Map<number, Completion<void, WorkflowSerializationContext>>(),
   };
+
+  /** System Nexus operation metadata retained until its response is decoded. */
+  readonly systemNexusOperationContexts = new Map<
+    number,
+    { service: string; operation: string; context?: SerializationContext; outputType?: TypeInfo }
+  >();
 
   /**
    * Holds buffered Update calls until a handler is registered
@@ -813,6 +826,8 @@ export class Activator implements ActivationHandler {
   public resolveNexusOperation(activation: coresdk.workflow_activation.IResolveNexusOperation): void {
     const seq = getSeq(activation);
     const context = this.workflowSerializationContext();
+    const systemNexus = this.systemNexusOperationContexts.get(seq);
+    this.systemNexusOperationContexts.delete(seq);
 
     if (activation.result?.completed) {
       // It is possible for ResolveNexusOperation to be received without a prior ResolveNexusOperationStart,
@@ -828,21 +843,24 @@ export class Activator implements ActivationHandler {
         outputTypeInfo = completion.outputTypeInfo;
         resolveResult = completion.resolve;
       }
-      const result = fromPayloadWithTypeInfo(
-        this.payloadConverter,
-        activation.result.completed,
-        context,
-        outputTypeInfo
-      );
+      const result =
+        deserializeSystemNexusOutput(
+          systemNexus?.service,
+          systemNexus?.operation,
+          activation.result.completed,
+          this.payloadConverter,
+          systemNexus?.context,
+          systemNexus?.outputType
+        ) ?? fromPayloadWithTypeInfo(this.payloadConverter, activation.result.completed, context, outputTypeInfo);
       resolveResult(result);
     } else {
       let err: Error;
       if (activation.result?.failed) {
-        err = this.failureToError(activation.result.failed);
+        err = this.failureToError(activation.result.failed, systemNexus?.context);
       } else if (activation.result?.cancelled) {
-        err = this.failureToError(activation.result.cancelled);
+        err = this.failureToError(activation.result.cancelled, systemNexus?.context);
       } else if (activation.result?.timedOut) {
-        err = this.failureToError(activation.result.timedOut);
+        err = this.failureToError(activation.result.timedOut, systemNexus?.context);
       }
 
       const completion =
@@ -1247,7 +1265,7 @@ export class Activator implements ActivationHandler {
     this.knownPresentPatches.add(activation.patchId);
   }
 
-  public patchInternal(patchId: string, deprecated: boolean): boolean {
+  public patchInternal(patchId: string, deprecated: boolean, eventGroups?: EventGroup[]): boolean {
     if (this.workflow === undefined) {
       throw new IllegalStateError('Patches cannot be used before Workflow starts');
     }
@@ -1274,7 +1292,7 @@ export class Activator implements ActivationHandler {
     if (usePatch && !this.sentPatches.has(patchId)) {
       this.pushCommand({
         setPatchMarker: { patchId, deprecated },
-        eventGroupMarkers: eventGroupMarkersToProto(undefined),
+        eventGroupMarkers: eventGroupMarkersToProto(eventGroups),
       });
       this.sentPatches.add(patchId);
     }
@@ -1511,8 +1529,7 @@ export class Activator implements ActivationHandler {
     return this.failureConverter.errorToFailure(err, this.payloadConverter, context);
   }
 
-  failureToError(failure: ProtoFailure): Error {
-    const context = this.workflowSerializationContext();
+  failureToError(failure: ProtoFailure, context: SerializationContext = this.workflowSerializationContext()): Error {
     return this.failureConverter.failureToError(failure, this.payloadConverter, context);
   }
 

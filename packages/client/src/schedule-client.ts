@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { status as grpcStatus } from '@grpc/grpc-js';
-import type { Workflow } from '@temporalio/common';
+import { ExternalStorageError, type Workflow } from '@temporalio/common';
 import {
   decodeSearchAttributes,
   decodeTypedSearchAttributes,
@@ -414,6 +414,7 @@ export class ScheduleClient extends BaseClient {
     let nextPageToken: Uint8Array | undefined = undefined;
     for (;;) {
       let response: temporal.api.workflowservice.v1.ListSchedulesResponse;
+      const externalStorage = this.dataConverter.externalStorage;
       try {
         response = await this.workflowService.listSchedules({
           nextPageToken,
@@ -421,12 +422,10 @@ export class ScheduleClient extends BaseClient {
           maximumPageSize: options?.pageSize,
           query: options?.query,
         });
+        await visit(response, walkListSchedulesResponse, extstoreInboundOptions(externalStorage));
       } catch (e) {
         this.rethrowGrpcError(e, 'Failed to list schedules', undefined);
       }
-
-      const externalStorage = this.dataConverter.externalStorage;
-      await visit(response, walkListSchedulesResponse, extstoreInboundOptions(externalStorage));
 
       for (const raw of response.schedules ?? []) {
         yield <ScheduleSummary>{
@@ -576,6 +575,9 @@ export class ScheduleClient extends BaseClient {
       }
 
       throw new ServiceError(fallbackMessage, { cause: err });
+    }
+    if (err instanceof ExternalStorageError) {
+      throw new ServiceError('External storage failed', { cause: err });
     }
     throw new ServiceError('Unexpected error while making gRPC request', { cause: err as Error });
   }
