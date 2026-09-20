@@ -68,9 +68,10 @@ export type MCPToolsetFactory = () => BaseToolset | MCPConnectionParams;
 
 /**
  * Whether an MCP tool call needs human approval before it runs: a flag for
- * every tool of the toolset, or a predicate over the advertised tool name and
- * the model's arguments. A predicate MUST be a pure function of its inputs —
- * ADK re-evaluates it when binding the human's approval to the pinned call and
+ * every tool of the toolset, or a predicate over the model's arguments and the
+ * tool name as advertised to the model, which carries the toolset's `prefix`
+ * when it sets one. A predicate MUST be a pure function of its inputs — ADK
+ * re-evaluates it when binding the human's approval to the pinned call and
  * refuses the approval if it then answers `false`.
  */
 export type MCPRequireConfirmation =

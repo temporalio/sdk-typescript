@@ -27,15 +27,13 @@ export type {
 } from './mcp';
 
 export { activityAsTool } from './tools';
-export type { ActivityAsToolOptions } from './tools';
+export type { ActivityAsToolOptions, ActivityRequireConfirmation } from './tools';
 
 export { activityNode } from './nodes';
 export type { ActivityNodeOptions } from './nodes';
 
 export { pendingHitlRequests, hitlInputResponse, hitlConfirmationResponse } from './hitl';
 export type { HitlRequest, HitlConfirmation } from './hitl';
-
-export type { RequireConfirmation } from './confirmation';
 
 export {
   ADK_RUNTIME_FAILURE_TYPES,

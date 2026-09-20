@@ -339,11 +339,12 @@ export async function reviewWorkflow(prompt: string): Promise<unknown> {
 - `pendingHitlRequests(events)` returns ADK's `UserInputRequest`s (plain JSON, so a
   Query can return them) that still await an answer, minus credential requests.
 - `hitlInputResponse(request, value)` answers an input request: a plain object is
-  delivered as-is, anything else is wrapped in ADK's `{ result: value }` envelope.
-  ADK parses a _string_ answer as JSON unless the request declared a
-  `responseSchema` that accepts strings, so a string that reads as a number,
-  boolean or `null` is refused rather than silently retyped — declare a string
-  schema on the `RequestInput`, or pass the parsed value.
+  sent as-is, anything else is wrapped in ADK's `{ result: value }` envelope.
+  ADK unwraps that envelope by shape (any response whose single key is `result`)
+  and parses the _string_ it unwraps as JSON, unless the request declared a
+  `responseSchema` that accepts strings. A string that reads as JSON is therefore
+  refused rather than silently retyped — declare a string schema on the
+  `RequestInput`, or pass the parsed value.
 - `hitlConfirmationResponse(request, { confirmed, payload? })` answers a tool
   gate. ADK reads approvals from the **latest** user message only, so answer every
   pending confirmation in one message, and rebuild the agent for the resumed turn
@@ -377,8 +378,10 @@ export async function reviewWorkflow(prompt: string): Promise<unknown> {
   ordinary text turn instead, and track the answered id yourself (ADK's list
   clears only on a function response). Graph `RequestInput` nodes and node-tools
   receive `hitlInputResponse` values as their input.
-- Each turn appends to the session and to the Workflow history; for very long
-  conversations, `continueAsNew` between turns.
+- Each turn appends to the session and to the Workflow history. A conversation
+  long enough to need `continueAsNew` has to carry the session's events into the
+  next run and replay them into a fresh session: an `InMemoryRunner`'s session
+  does not survive the boundary.
 
 ### Failures
 

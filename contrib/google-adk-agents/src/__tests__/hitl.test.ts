@@ -324,6 +324,14 @@ test('hitlInputResponse wraps bare values, passes objects through, and refuses a
     message: /would be delivered to the node as JSON/,
   });
   t.throws(() => hitlInputResponse(request, 'true'), { instanceOf: TypeError });
+  // ADK unwraps any single-key `{ result: … }` object, so the same coercion applies
+  // to an object the caller wrote itself.
+  t.throws(() => hitlInputResponse(request, { result: '42' }), { instanceOf: TypeError });
+  // A second key defeats the unwrap, so the object arrives whole and nothing is parsed.
+  t.deepEqual(hitlInputResponse(request, { result: '42', unit: 'm' }).functionResponse?.response, {
+    result: '42',
+    unit: 'm',
+  });
   // A string schema keeps the text verbatim, so the same answer is fine.
   const stringRequest: HitlRequest = { ...request, responseSchema: { type: 'string' } };
   t.deepEqual(hitlInputResponse(stringRequest, '42').functionResponse?.response, { result: '42' });
