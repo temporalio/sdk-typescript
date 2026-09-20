@@ -27,6 +27,7 @@ import {
 import { Type } from '@google/genai';
 import { ActivityFailure, ApplicationFailure, type Duration } from '@temporalio/common';
 import {
+  ActivityCancellationType,
   CancellationScope,
   condition,
   continueAsNew,
@@ -103,6 +104,36 @@ export async function modelCallWithTimeout(): Promise<string> {
     activity: {
       startToCloseTimeout: '1 second',
       retry: { maximumAttempts: 1 },
+    },
+  });
+  let text = '';
+  for await (const response of llm.generateContentAsync(makeRequest('hi'))) {
+    text += collectText(response.content?.parts);
+  }
+  return text;
+}
+
+/**
+ * One model call against a model that rejects with an `AbortError` when the
+ * Activity's cancellation signal fires, under a retry policy that would keep
+ * retrying an ordinary failure. Cancelling the Workflow must end the Activity
+ * cancelled on its first attempt rather than failing and retrying it.
+ *
+ * `WAIT_CANCELLATION_COMPLETED` is what makes the outcome observable: under the
+ * default `TRY_CANCEL` the Workflow stops waiting the moment it requests the
+ * cancel, so it closes before the Activity ever reports how it ended. The
+ * `heartbeatTimeout` is what makes it prompt: an Activity is told about a cancel
+ * in its heartbeat response, and the plugin heartbeats at half that timeout. Six
+ * seconds keeps the cancel under three while leaving a slow CI worker three more
+ * before the heartbeat itself would time out.
+ */
+export async function cancellableModelCall(): Promise<string> {
+  const llm = new TemporalModel('abort-model', {
+    activity: {
+      startToCloseTimeout: '20 seconds',
+      heartbeatTimeout: '6 seconds',
+      retry: { maximumAttempts: 3, initialInterval: '1 second' },
+      cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
     },
   });
   let text = '';
