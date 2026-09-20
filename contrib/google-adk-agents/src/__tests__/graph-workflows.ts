@@ -41,6 +41,7 @@ import {
 import type { Content, FunctionDeclaration, Part } from '@google/genai';
 import { Type } from '@google/genai';
 import { z } from 'zod';
+import { ApplicationFailure } from '@temporalio/common';
 import { condition, defineQuery, defineUpdate, setHandler } from '@temporalio/workflow';
 
 import {
@@ -385,6 +386,9 @@ export const plainTextTurnUpdate = defineUpdate<void, [string]>('plainTextTurn')
  */
 export const answerAsTextUpdate = defineUpdate<void, [string, string]>('answerAsText');
 
+/** How long a fixture waits for the test to answer before failing (see `runWithHitl`). */
+const HITL_ANSWER_TIMEOUT = '60 seconds';
+
 interface HitlState {
   pending: HitlRequest[];
   answers: Map<string, unknown>;
@@ -438,17 +442,26 @@ async function runWithHitl(
     state.pending = pending;
     if (pending.length === 0) return { ...outcome, turns };
 
-    await condition(
+    // A bounded wait: a fixture that is never answered must fail its Workflow
+    // rather than block `handle.result()` until the ava worker is killed.
+    const answeredInTime = await condition(
       () =>
         state.plainText !== undefined ||
-        pending.some((r) => state.answers.has(r.interruptId) || state.textAnswers.has(r.interruptId))
+        pending.some((r) => state.answers.has(r.interruptId) || state.textAnswers.has(r.interruptId)),
+      HITL_ANSWER_TIMEOUT
     );
+    if (!answeredInTime) {
+      throw ApplicationFailure.nonRetryable(
+        `no HITL answer within ${HITL_ANSWER_TIMEOUT} for ${JSON.stringify(pending.map((r) => r.interruptId))}`,
+        'TestHitlAnswerTimeout'
+      );
+    }
     if (state.plainText !== undefined) {
       // A plain-text approval runs the tool but never answers the gate's function
       // call, so ADK keeps listing it; the loop marks it answered itself.
       for (const r of pending) state.answered.add(r.interruptId);
       newMessage = { role: 'user', parts: [{ text: state.plainText }] };
-      runConfig = { plainTextToolConfirmation: true } as RunConfig;
+      runConfig = { plainTextToolConfirmation: true };
       state.plainText = undefined;
       continue;
     }
@@ -563,8 +576,10 @@ export async function hitlConfirmMcpTool(): Promise<RunOutcome & { turns: number
 
 /**
  * A `BaseTool` that gates itself at run time without declaring it through
- * `checkRequireConfirmation`: ADK's resume path still binds the approval,
- * because the gate was requested by the tool's own agent-authored event.
+ * `checkRequireConfirmation` — what a tool body calling
+ * `toolContext.requestConfirmation()` looks like. ADK 2.0.0 refuses to bind the
+ * approval to it (`confirmation_not_required`), which is why the plugin's tools
+ * declare their gate instead.
  */
 class DynamicGateTool extends BaseTool {
   constructor() {
@@ -605,7 +620,11 @@ class ConfirmDangerPolicy implements BasePolicyEngine {
   }
 }
 
-/** ADK's `SecurityPlugin` gates an ungated activity tool through the same HITL loop. */
+/**
+ * ADK's `SecurityPlugin` gating an ungated activity tool: its CONFIRM outcome
+ * raises the pause, but the approval hits the same ADK 2.0.0 limit as
+ * {@link DynamicGateTool} because the tool itself never declared a gate.
+ */
 export async function hitlSecurityPlugin(): Promise<RunOutcome & { turns: number }> {
   const agent = new LlmAgent({
     name: 'assistant',
