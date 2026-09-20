@@ -5,7 +5,6 @@
  */
 
 import { Context } from '@temporalio/activity';
-import { ApplicationFailure } from '@temporalio/common';
 
 /** Real executions, keyed by workflow id, in order: `<activity>:<detail>`. */
 const executions = new Map<string, string[]>();
@@ -26,6 +25,8 @@ export function executionsFor(workflowId: string): string[] {
   return executions.get(workflowId) ?? [];
 }
 
+/** Echoes `id` back, recording the value the Workflow actually sent. */
 export async function echoId(id: string): Promise<string> {
+  record(`echoId:${id}`);
   return id;
 }
