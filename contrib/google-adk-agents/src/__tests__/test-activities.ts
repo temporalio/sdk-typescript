@@ -61,6 +61,22 @@ export async function rejectActivity(): Promise<string> {
   return 'rejected';
 }
 
+/**
+ * Sleeps well past any test deadline, heartbeating so the server can deliver a
+ * cancellation, and reports one as a cancellation, so history carries an
+ * `ActivityTaskCanceled` the caller can order against.
+ */
+export async function cancellableActivity(): Promise<string> {
+  record('cancellableActivity');
+  const ctx = Context.current();
+  for (let i = 0; i < 600; i++) {
+    ctx.heartbeat(i);
+    // Throws `CancelledFailure` once the cancellation reaches this Activity.
+    await ctx.sleep(100);
+  }
+  return 'too late';
+}
+
 /** Sleeps well past any test deadline, but stops at once when the Activity is cancelled. */
 export async function slowActivity(): Promise<string> {
   record('slowActivity');

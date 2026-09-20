@@ -237,7 +237,13 @@ const runner = new InMemoryRunner({ agent: graph });
   with `exceptions: ['ActivityFailure']`; ADK matches error names), its backoff is
   a durable timer, and its jitter is drawn from the Workflow's `Math.random()`.
   A node `timeout` (seconds) is a durable timer that cancels the in-flight
-  Activity and fails the node with ADK's `NodeTimeoutError`.
+  Activity and fails the node with ADK's `NodeTimeoutError` once that
+  cancellation has settled, so a retry never overlaps the Activity it replaces.
+  What "settled" means is the Activity's `cancellationType`: unset
+  (`TRY_CANCEL`) it settles at once and the Activity winds down on its own; with
+  `WAIT_CANCELLATION_COMPLETED` the node waits for the Activity to acknowledge,
+  which it only does at its next heartbeat. The plugin runs this deadline
+  itself, because ADK's own races the node and then abandons the unwind.
 - **Fan-in.** Use a `JoinNode`: it is the node type that waits for every
   predecessor, and its input is the map from predecessor name to that node's
   output. ADK's `waitForOutput` flag is not a fan-in gate (it parks a node that

@@ -151,18 +151,39 @@ export async function graphAgentTaskNode(prompt: string): Promise<RunOutcome> {
   return runOnce(graph, prompt);
 }
 
-/** A 1-second node deadline around a 20-second Activity: ADK times the node out and cancels the Activity. */
+/** Activity options for a node whose deadline has to cancel an Activity that outlives it. */
+const CANCELLABLE: TemporalModelOptions['activity'] = {
+  startToCloseTimeout: '60 seconds',
+  // Wait for the Activity to acknowledge, which it does on its next heartbeat.
+  cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
+  heartbeatTimeout: '2 seconds',
+  retry: { maximumAttempts: 1 },
+};
+
+/** A 1-second node deadline around a much longer Activity: the node times out and cancels it. */
 export async function graphTimeout(): Promise<RunOutcome> {
   const graph = new Workflow({
     name: 'timeout_graph',
     edges: [
+      ['START', activityNode({ name: 'cancellableActivity', args: () => [], timeout: 1, activity: CANCELLABLE })],
+    ],
+  });
+  return runOnce(graph, 'go');
+}
+
+/** The same deadline with an ADK node retry: the second attempt must not overlap the first. */
+export async function graphTimeoutRetry(): Promise<RunOutcome> {
+  const graph = new Workflow({
+    name: 'timeout_retry_graph',
+    edges: [
       [
         'START',
         activityNode({
-          name: 'slowActivity',
+          name: 'cancellableActivity',
           args: () => [],
           timeout: 1,
-          activity: { startToCloseTimeout: '30 seconds', retry: { maximumAttempts: 1 } },
+          retryConfig: { maxAttempts: 2, initialDelay: 0.01, jitter: 0, exceptions: ['NodeTimeoutError'] },
+          activity: CANCELLABLE,
         }),
       ],
     ],

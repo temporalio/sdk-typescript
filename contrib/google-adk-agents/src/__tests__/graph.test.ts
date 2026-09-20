@@ -36,6 +36,7 @@ import {
   graphRouting,
   graphSequential,
   graphTimeout,
+  graphTimeoutRetry,
   graphVoidOutput,
   twoAgentsOneFailureSwallowed,
 } from './graph-workflows';
@@ -150,7 +151,7 @@ test.serial('an LlmAgent node in task mode reports its finish_task result as the
   t.is(countScheduledActivities(await history(workflowId), 'adk-invokeModel'), 1);
 });
 
-test.serial('a node timeout cancels the in-flight Activity and fails the Workflow with a typed failure', async (t) => {
+test.serial('a node timeout waits for the cancelled Activity before failing the Workflow', async (t) => {
   const env = getEnv();
   const taskQueue = uid('adk-graph-timeout');
   const workflowId = uid('wf-graph-timeout');
@@ -164,11 +165,34 @@ test.serial('a node timeout cancels the in-flight Activity and fails the Workflo
   t.is(failure?.type, 'GoogleAdkNodeTimeoutError');
   t.is(failure?.nonRetryable, true);
   t.is(findInCauseChain(err, TimeoutFailure), undefined);
-  // The abort bridge cancelled the Activity (rather than leaving it to its 30s timeout).
+  // The deadline cancelled the Activity and the node waited for that cancellation to
+  // complete, rather than leaving it running behind a Workflow that had moved on.
   const events = await history(workflowId);
+  const cancelled = events.findIndex((e) => e.activityTaskCanceledEventAttributes != null);
+  const failed = events.findIndex((e) => e.workflowExecutionFailedEventAttributes != null);
+  t.true(cancelled !== -1, 'expected an ActivityTaskCanceled event');
+  t.true(failed !== -1, 'expected a WorkflowExecutionFailed event');
+  t.true(cancelled < failed, `ActivityTaskCanceled (${cancelled}) must precede the failure (${failed})`);
+});
+
+test.serial('an ADK retry after a node timeout does not overlap the cancelled Activity', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-graph-timeout-retry');
+  const workflowId = uid('wf-graph-timeout-retry');
+  const err = await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, () =>
+    t.throwsAsync(env.client.workflow.execute(graphTimeoutRetry, { taskQueue, workflowId }))
+  );
+  t.is(findInCauseChain(err, ApplicationFailure)?.type, 'GoogleAdkNodeTimeoutError');
+  const events = await history(workflowId);
+  const at = (match: (e: (typeof events)[number]) => boolean) =>
+    events.map((e, i) => (match(e) ? i : -1)).filter((i) => i !== -1);
+  const scheduled = at((e) => e.activityTaskScheduledEventAttributes != null);
+  const cancelled = at((e) => e.activityTaskCanceledEventAttributes != null);
+  t.is(scheduled.length, 2, 'ADK retried the timed-out node once');
+  t.is(cancelled.length, 2, 'both attempts cancelled their Activity');
   t.true(
-    events.some((e) => e.activityTaskCancelRequestedEventAttributes !== undefined),
-    'expected an ActivityTaskCancelRequested event'
+    scheduled[1]! > cancelled[0]!,
+    `the retry (${scheduled[1]}) must be scheduled after the first cancellation completed (${cancelled[0]})`
   );
 });
 
