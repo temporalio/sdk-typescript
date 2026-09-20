@@ -27,7 +27,7 @@ export { activityNode } from './nodes';
 export type { ActivityNodeOptions } from './nodes';
 
 export { pendingHitlRequests, hitlInputResponse, hitlConfirmationResponse } from './hitl';
-export type { HitlRequest, HitlConfirmation } from './hitl';
+export type { HitlRequest, HitlInputRequest, HitlConfirmationRequest, HitlConfirmation } from './hitl';
 
 export {
   ADK_RUNTIME_FAILURE_TYPES,

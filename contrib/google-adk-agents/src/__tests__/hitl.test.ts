@@ -17,7 +17,14 @@ import type { TestWorkflowEnvironment } from '@temporalio/testing';
 import { Worker } from '@temporalio/worker';
 
 import { GoogleAdkPlugin } from '../index';
-import { hitlConfirmationResponse, hitlInputResponse, pendingHitlRequests, type HitlRequest } from '../workflow';
+import {
+  hitlConfirmationResponse,
+  hitlInputResponse,
+  pendingHitlRequests,
+  type HitlConfirmationRequest,
+  type HitlInputRequest,
+  type HitlRequest,
+} from '../workflow';
 import { mockMCPToolset } from '../testing';
 import {
   countScheduledActivities,
@@ -310,7 +317,7 @@ test.serial('a resumed dynamic node fast-forwards its completed Activity child i
 
 // Wire-format helpers (unit)
 test('hitlInputResponse wraps bare values, passes objects through, and refuses a silently coerced string', (t) => {
-  const request: HitlRequest = { kind: 'input', interruptId: 'i1', functionCallName: 'adk_request_input' };
+  const request: HitlInputRequest = { kind: 'input', interruptId: 'i1', functionCallName: 'adk_request_input' };
   t.deepEqual(hitlInputResponse(request, 'ship-it'), {
     functionResponse: { id: 'i1', name: 'adk_request_input', response: { result: 'ship-it' } },
   });
@@ -341,16 +348,30 @@ test('hitlInputResponse wraps bare values, passes objects through, and refuses a
     unit: 'm',
   });
   // A string schema keeps the text verbatim, so the same answer is fine.
-  const stringRequest: HitlRequest = { ...request, responseSchema: { type: 'string' } };
+  const stringRequest: HitlInputRequest = { ...request, responseSchema: { type: 'string' } };
   t.deepEqual(hitlInputResponse(stringRequest, '42').functionResponse?.response, { result: '42' });
-  // Wrong kind.
-  t.throws(() => hitlInputResponse({ ...request, kind: 'confirmation' }, 'x'), {
+  // Wrong kind. The signature rejects it at compile time; the cast stands in for a
+  // request that reached a Client as plain JSON over a Query, where it cannot.
+  t.throws(() => hitlInputResponse({ ...request, kind: 'confirmation' } as unknown as HitlInputRequest, 'x'), {
     message: /has kind 'confirmation', not 'input'/,
   });
+  // A credential request is not in `HitlRequest` at all, and is refused by name.
+  t.throws(
+    () =>
+      hitlInputResponse(
+        {
+          kind: 'credential',
+          interruptId: 'c1',
+          functionCallName: 'adk_request_credential',
+        } as unknown as HitlInputRequest,
+        'x'
+      ),
+    { message: /Credential requests are not answerable from a Workflow/ }
+  );
 });
 
 test('hitlConfirmationResponse emits the ToolConfirmation shape ADK parses', (t) => {
-  const request: HitlRequest = {
+  const request: HitlConfirmationRequest = {
     kind: 'confirmation',
     interruptId: 'adk-1',
     functionCallName: 'adk_request_confirmation',
@@ -367,9 +388,13 @@ test('hitlConfirmationResponse emits the ToolConfirmation shape ADK parses', (t)
       payload: { p: 1 },
     }
   );
-  t.throws(() => hitlConfirmationResponse({ ...request, kind: 'input' }, { confirmed: true }), {
-    message: /has kind 'input', not 'confirmation'/,
-  });
+  t.throws(
+    () =>
+      hitlConfirmationResponse({ ...request, kind: 'input' } as unknown as HitlConfirmationRequest, {
+        confirmed: true,
+      }),
+    { message: /has kind 'input', not 'confirmation'/ }
+  );
 });
 
 test('pendingHitlRequests reports input and confirmation pauses but drops credential requests', (t) => {

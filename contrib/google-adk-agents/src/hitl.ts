@@ -36,15 +36,31 @@ import {
   REQUEST_CONFIRMATION_FUNCTION_CALL_NAME,
   REQUEST_INPUT_FUNCTION_CALL_NAME,
   type Event,
+  type UserInputKind,
   type UserInputRequest,
 } from '@google/adk';
 
 /**
- * A pause awaiting a human answer: ADK's own {@link UserInputRequest}, plain
- * JSON, so a Workflow Query can return it as-is. `kind` is `'input'` or
- * `'confirmation'` here — see {@link pendingHitlRequests}.
+ * A pause awaiting free-form or structured data: ADK's own
+ * {@link UserInputRequest} narrowed to `kind: 'input'`. Answer it with
+ * {@link hitlInputResponse}.
  */
-export type HitlRequest = UserInputRequest;
+export type HitlInputRequest = Omit<UserInputRequest, 'kind'> & { kind: 'input' };
+
+/**
+ * A pause awaiting approval of a tool call gated with `requireConfirmation`:
+ * ADK's own {@link UserInputRequest} narrowed to `kind: 'confirmation'`.
+ * Answer it with {@link hitlConfirmationResponse}.
+ */
+export type HitlConfirmationRequest = Omit<UserInputRequest, 'kind'> & { kind: 'confirmation' };
+
+/**
+ * A pause awaiting a human answer, plain JSON so a Workflow Query can return it
+ * as-is. A discriminated union on `kind`, so narrowing on it picks the builder:
+ * ADK's third kind, `'credential'`, is absent because {@link pendingHitlRequests}
+ * never reports one and neither builder accepts one (see the module doc).
+ */
+export type HitlRequest = HitlInputRequest | HitlConfirmationRequest;
 
 /** The human's decision for a tool gated with `requireConfirmation`. */
 export interface HitlConfirmation {
@@ -72,7 +88,7 @@ export interface HitlConfirmation {
  * to remember what it already answered.
  */
 export function pendingHitlRequests(events: readonly Event[]): HitlRequest[] {
-  return getPendingUserInputRequests(events).filter((request) => request.kind !== 'credential');
+  return getPendingUserInputRequests(events).filter((request): request is HitlRequest => request.kind !== 'credential');
 }
 
 /**
@@ -92,7 +108,7 @@ export function pendingHitlRequests(events: readonly Event[]): HitlRequest[] {
  * string `responseSchema` on the `RequestInput`, or pass the parsed value
  * yourself.
  */
-export function hitlInputResponse(request: HitlRequest, value: unknown): Part {
+export function hitlInputResponse(request: HitlInputRequest, value: unknown): Part {
   assertKind(request, 'input', 'hitlInputResponse');
   const response = isPlainObject(value) ? value : { result: value };
   assertNoJsonCoercion(request, response);
@@ -112,7 +128,7 @@ export function hitlInputResponse(request: HitlRequest, value: unknown): Part {
  * `newMessage`, and rebuild the agent for the resumed turn with the same tool
  * names — an approval naming a tool the agent no longer has is refused.
  */
-export function hitlConfirmationResponse(request: HitlRequest, decision: HitlConfirmation): Part {
+export function hitlConfirmationResponse(request: HitlConfirmationRequest, decision: HitlConfirmation): Part {
   assertKind(request, 'confirmation', 'hitlConfirmationResponse');
   const response: Record<string, unknown> = { confirmed: decision.confirmed === true };
   if (decision.hint !== undefined) response.hint = decision.hint;
@@ -126,7 +142,13 @@ export function hitlConfirmationResponse(request: HitlRequest, decision: HitlCon
   };
 }
 
-function assertKind(request: HitlRequest, kind: HitlRequest['kind'], helper: string): void {
+/**
+ * Guards the `kind` the signature already demands. The types make a wrong kind a
+ * compile error, but a request that crossed a Query or Update boundary arrives
+ * as plain JSON, so the check has to exist at run time too — hence ADK's wide
+ * {@link UserInputRequest} here, credential variant included.
+ */
+function assertKind(request: UserInputRequest, kind: UserInputKind, helper: string): void {
   if (request.kind !== kind) {
     throw new TypeError(
       `${helper}: interrupt '${request.interruptId}' has kind '${request.kind}', not '${kind}'. ` +
@@ -169,7 +191,7 @@ function acceptsString(schema: unknown): boolean {
  * returns the parsed value, so `'"foo"'` reaches the node as `foo` with the
  * quotes gone. Only text that is not JSON at all survives verbatim.
  */
-function assertNoJsonCoercion(request: HitlRequest, response: Record<string, unknown>): void {
+function assertNoJsonCoercion(request: HitlInputRequest, response: Record<string, unknown>): void {
   if (Object.keys(response).length !== 1 || !(RESULT_KEY in response)) return;
   const unwrapped = response[RESULT_KEY];
   if (typeof unwrapped !== 'string' || acceptsString(request.responseSchema)) return;

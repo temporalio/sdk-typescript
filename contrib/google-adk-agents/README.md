@@ -296,7 +296,9 @@ export async function reviewWorkflow(prompt: string): Promise<unknown> {
 ```
 
 - `pendingHitlRequests(events)` returns ADK's `UserInputRequest`s (plain JSON, so a
-  Query can return them) that still await an answer, minus credential requests.
+  Query can return them) that still await an answer, minus credential requests. The
+  returned `HitlRequest` is a union of `HitlInputRequest` and `HitlConfirmationRequest`
+  discriminated on `kind`, so narrowing on `kind` picks the builder that accepts it.
 - `hitlInputResponse(request, value)` answers an input request: a plain object is
   sent as-is, anything else is wrapped in ADK's `{ result: value }` envelope.
   ADK unwraps that envelope by shape (any response whose single key is `result`)
