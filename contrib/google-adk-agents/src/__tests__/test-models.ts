@@ -1,7 +1,7 @@
 /**
- * Scripted `BaseLlm` doubles for the graph / HITL / MCP-resource tests, plus a
- * `modelProvider` that maps model names to them. Like the doubles in
- * `helpers.ts`, every model is rebuilt per Activity, so each derives its turn
+ * Scripted `BaseLlm` doubles for the graph / dynamic / HITL / MCP-resource
+ * tests, plus a `modelProvider` that maps model names to them. Like the doubles
+ * in `helpers.ts`, every model is rebuilt per Activity, so each derives its turn
  * from the request rather than from instance state.
  */
 
@@ -19,6 +19,27 @@ function functionResponses(llmRequest: LlmRequest): FunctionResponse[] {
 
 function textResponse(text: string): LlmResponse {
   return { content: { role: 'model', parts: [{ text }] }, turnComplete: true };
+}
+
+/**
+ * A model that answers with the number of `contents` its request carried, so a test can
+ * witness what a context compactor removed from the history the agent sends.
+ */
+class ContentsCountingLlm extends BaseLlm {
+  override async *generateContentAsync(
+    llmRequest: LlmRequest,
+    _stream?: boolean,
+    _abortSignal?: AbortSignal
+  ): AsyncGenerator<LlmResponse, void> {
+    yield {
+      content: { role: 'model', parts: [{ text: `contents:${(llmRequest.contents ?? []).length}` }] },
+      turnComplete: true,
+    };
+  }
+
+  override async connect(_llmRequest: LlmRequest): Promise<BaseLlmConnection> {
+    throw new Error('ContentsCountingLlm does not connect.');
+  }
 }
 
 /**
@@ -146,8 +167,9 @@ export class ResourceLlm extends BaseLlm {
 }
 
 /**
- * The `modelProvider` for the graph / HITL / resource suites. Names encode the
- * scenario; everything else falls through to {@link defaultTestProvider}.
+ * The `modelProvider` for the graph / dynamic / HITL / resource suites. Names
+ * encode the scenario; everything else falls through to
+ * {@link defaultTestProvider}.
  */
 export function graphTestProvider(): (model: string) => BaseLlm {
   const fallback = defaultTestProvider();
@@ -159,6 +181,8 @@ export function graphTestProvider(): (model: string) => BaseLlm {
         return new ToolCallingLlm({ model, toolName: 'enrich_flow', toolArgs: { value: 7 } });
       case 'enrich-flow-genai-model':
         return new ToolCallingLlm({ model, toolName: 'enrich_flow', toolArgs: { request: '7' } });
+      case 'contents-counting-model':
+        return new ContentsCountingLlm({ model });
       case 'request-input-model':
         return new RequestInputLlm({ model });
       case 'confirm-danger-model':

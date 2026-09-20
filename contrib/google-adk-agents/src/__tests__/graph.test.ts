@@ -6,9 +6,19 @@
 
 import test from 'ava';
 import { ActivityFailure, ApplicationFailure, TimeoutFailure } from '@temporalio/common';
+import { Worker } from '@temporalio/worker';
 
 import { GoogleAdkPlugin } from '../index';
-import { countScheduledActivities, findInCauseChain, setupTestEnv, uid, withWorker } from './helpers';
+import {
+  countScheduledActivities,
+  findInCauseChain,
+  getScheduledActivitySummaries,
+  REUSE_V8_CONTEXT,
+  setupTestEnv,
+  uid,
+  withWorker,
+  workflowsPath,
+} from './helpers';
 import * as activities from './test-activities';
 import { graphTestProvider } from './test-models';
 import {
@@ -82,7 +92,10 @@ test.serial('fan-out Activity nodes join, keyed by node name', async (t) => {
     env.client.workflow.execute(graphFanOutJoin, { taskQueue, workflowId })
   );
   t.deepEqual(result.output, { enrich_a: 'enriched-alpha', enrich_b: 'enriched-beta' });
-  t.is(countScheduledActivities(await history(workflowId), 'enrichItem'), 2);
+  const events = await history(workflowId);
+  t.is(countScheduledActivities(events, 'enrichItem'), 2);
+  // Both nodes run the one `enrichItem` Activity, so the summary names the node.
+  t.deepEqual(getScheduledActivitySummaries(events, 'enrichItem').sort(), ['adk.node enrich_a', 'adk.node enrich_b']);
 });
 
 test.serial('an LlmAgent node in task mode reports its finish_task result as the node output', async (t) => {
@@ -131,8 +144,6 @@ test.serial('ADK node retries with jitter re-run a failed Activity and replay de
   // The backoff between attempts is a durable timer whose jitter came from the
   // Workflow's seeded `Math.random()`; the cache-disabled worker already replayed
   // it on every task, and a full replay of the history must agree too.
-  const { Worker } = await import('@temporalio/worker');
-  const { REUSE_V8_CONTEXT, workflowsPath } = await import('./helpers');
   await Worker.runReplayHistory(
     { workflowsPath, reuseV8Context: REUSE_V8_CONTEXT, plugins: [makePlugin()] },
     await env.client.workflow.getHandle(workflowId).fetchHistory()
@@ -199,11 +210,13 @@ test.serial('an App root with resumability enabled runs through InMemoryRunner',
   t.is(text, 'fake-response:fake-model');
 });
 
-test.serial('a truncating context compactor runs across turns in one session', async (t) => {
+test.serial('a truncating context compactor drops old events across turns in one session', async (t) => {
   const env = getEnv();
   const taskQueue = uid('adk-graph-compact');
   const texts = await withWorker(env, { taskQueue, plugins: [makePlugin()] }, () =>
     env.client.workflow.execute(compactedAgent, { taskQueue, workflowId: uid('wf-graph-compact'), args: [3] })
   );
-  t.deepEqual(texts, ['fake-response:fake-model', 'fake-response:fake-model', 'fake-response:fake-model']);
+  // Each turn adds two events; the compactor (threshold 2) truncates, so the history the
+  // model receives stops growing instead of reaching 5 on the third turn.
+  t.deepEqual(texts, ['contents:1', 'contents:2', 'contents:2']);
 });

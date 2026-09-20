@@ -115,7 +115,13 @@ export const STATE_SCHEMA_FAILURE_TYPE = 'GoogleAdkStateSchemaError';
 /** Error type for an ADK invocation aborted through its `abortSignal` (`InvocationAbortedError`). */
 export const INVOCATION_ABORTED_FAILURE_TYPE = 'GoogleAdkInvocationAbortedError';
 
-/** Error type for a dynamic node ADK failed explicitly (`DynamicNodeFailError`). */
+/**
+ * Error type for a dynamic node (`ctx.runNode`) whose child failed
+ * (`DynamicNodeFailError`). ADK wraps the child's error in it; when that error
+ * was a Temporal failure — a failed or cancelled Activity — the plugin raises
+ * the original instead, so a cancelled execution still ends CANCELLED and the
+ * cause chain matches a static node's.
+ */
 export const DYNAMIC_NODE_FAIL_FAILURE_TYPE = 'GoogleAdkDynamicNodeFailError';
 
 /**
