@@ -28,6 +28,7 @@ import {
 } from '@google/adk';
 import { Type } from '@google/genai';
 import { z } from 'zod';
+import { ActivityCancellationType } from '@temporalio/workflow';
 
 import { activityNode, markModelFailureHandled, TemporalModel, type TemporalModelOptions } from '../workflow';
 
@@ -307,6 +308,42 @@ export async function dynamicGather(): Promise<RunOutcome> {
     { name: 'driver', rerunOnResume: true }
   );
   return runOnce(new Workflow({ name: 'dynamic_gather', edges: [['START', driver]] }), 'go');
+}
+
+/** A dynamic node whose Activity fails for good. ADK wraps a dynamic child's error in a `DynamicNodeFailError`. */
+export async function dynamicActivityFailure(): Promise<RunOutcome> {
+  const failing = activityNode({
+    name: 'failingActivity',
+    args: () => [],
+    activity: { retry: { maximumAttempts: 1 } },
+  });
+  const driver = node(async (ctx: NodeContext) => (await ctx.runNode(failing, undefined)).output, {
+    name: 'driver',
+    rerunOnResume: true,
+  });
+  return runOnce(new Workflow({ name: 'dynamic_failure', edges: [['START', driver]] }), 'go');
+}
+
+/**
+ * A dynamic node running an Activity that outlives the test. `TRY_CANCEL` reports the
+ * cancellation to the Workflow without waiting for the Activity to wind down, so the run
+ * ends as soon as the Workflow is cancelled.
+ */
+export async function dynamicCancellation(): Promise<RunOutcome> {
+  const slow = activityNode({
+    name: 'slowActivity',
+    args: () => [],
+    activity: {
+      startToCloseTimeout: '30 seconds',
+      cancellationType: ActivityCancellationType.TRY_CANCEL,
+      retry: { maximumAttempts: 1 },
+    },
+  });
+  const driver = node(async (ctx: NodeContext) => (await ctx.runNode(slow, undefined)).output, {
+    name: 'driver',
+    rerunOnResume: true,
+  });
+  return runOnce(new Workflow({ name: 'dynamic_cancel', edges: [['START', driver]] }), 'go');
 }
 
 /**

@@ -250,7 +250,7 @@ therefore converts the ones a graph produces as outcomes into non-retryable
 | `IntentMismatchError`       | `GoogleAdkIntentMismatchError`                                                                                                |
 | `StateSchemaError`          | `GoogleAdkStateSchemaError`                                                                                                   |
 | `InvocationAbortedError`    | `GoogleAdkInvocationAbortedError`                                                                                             |
-| `DynamicNodeFailError`      | `GoogleAdkDynamicNodeFailError`                                                                                               |
+| `DynamicNodeFailError`      | `GoogleAdkDynamicNodeFailError` (or the Temporal failure the dynamic child raised, which the wrapper carries outside `cause`) |
 
 The mapping is exported as `ADK_RUNTIME_FAILURE_TYPES`. Anything else ADK throws
 — a malformed human reply, `StreamingMode.BIDI`, a reserved function _call_ in a

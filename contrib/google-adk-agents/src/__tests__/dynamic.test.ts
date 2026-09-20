@@ -4,12 +4,26 @@
  */
 
 import test from 'ava';
+import { ActivityFailure, ApplicationFailure, CancelledFailure } from '@temporalio/common';
 
 import { GoogleAdkPlugin } from '../index';
-import { countScheduledActivities, setupTestEnv, uid, withWorker } from './helpers';
+import {
+  countScheduledActivities,
+  findInCauseChain,
+  setupTestEnv,
+  uid,
+  waitForScheduledActivities,
+  withWorker,
+} from './helpers';
 import * as activities from './test-activities';
 import { graphTestProvider } from './test-models';
-import { dynamicGather, dynamicLoop, workflowAsTool } from './graph-workflows';
+import {
+  dynamicActivityFailure,
+  dynamicCancellation,
+  dynamicGather,
+  dynamicLoop,
+  workflowAsTool,
+} from './graph-workflows';
 
 const getEnv = setupTestEnv(test);
 
@@ -43,6 +57,35 @@ test.serial('a dynamic node fans out Activity nodes with Promise.all', async (t)
   const firstCompleted = (events ?? []).findIndex((e) => e.activityTaskCompletedEventAttributes);
   t.is(scheduled.length, 2);
   t.true(scheduled.every(({ i }) => i < firstCompleted));
+});
+
+test.serial('a dynamic node Activity failure keeps its ActivityFailure cause chain', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-dyn-fail');
+  const err = await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, () =>
+    t.throwsAsync(env.client.workflow.execute(dynamicActivityFailure, { taskQueue, workflowId: uid('wf-dyn-fail') }))
+  );
+  // ADK wraps a dynamic child's error in a `DynamicNodeFailError`, which carries the
+  // original on `.error` rather than on `.cause`; the plugin raises the Temporal failure
+  // instead, so the chain matches what a static Activity node produces.
+  t.not(findInCauseChain(err, ActivityFailure), undefined);
+  t.is(findInCauseChain(err, ApplicationFailure)?.type, 'TestPermanentFailure');
+});
+
+test.serial('cancelling a Workflow running a dynamic node Activity ends it CANCELLED', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-dyn-cancel');
+  const workflowId = uid('wf-dyn-cancel');
+  await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, async () => {
+    const handle = await env.client.workflow.start(dynamicCancellation, { taskQueue, workflowId });
+    await waitForScheduledActivities(env, workflowId, 'slowActivity');
+    await handle.cancel();
+    const err = await t.throwsAsync(handle.result());
+    // The `DynamicNodeFailError` wrapping the cancelled Activity must not become an
+    // `ApplicationFailure`: that would end the execution FAILED instead of CANCELLED.
+    t.not(findInCauseChain(err, CancelledFailure), undefined);
+    t.is((await handle.describe()).status.name, 'CANCELLED');
+  });
 });
 
 test.serial('a Workflow with a Zod inputSchema is a tool with real parameters', async (t) => {
