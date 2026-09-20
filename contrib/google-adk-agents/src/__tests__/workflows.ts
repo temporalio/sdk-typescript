@@ -123,13 +123,15 @@ export async function modelCallWithTimeout(): Promise<string> {
  * default `TRY_CANCEL` the Workflow stops waiting the moment it requests the
  * cancel, so it closes before the Activity ever reports how it ended. The
  * `heartbeatTimeout` is what makes it prompt: an Activity is told about a cancel
- * in its heartbeat response, and the plugin heartbeats at half that timeout.
+ * in its heartbeat response, and the plugin heartbeats at half that timeout. Six
+ * seconds keeps the cancel under three while leaving a slow CI worker three more
+ * before the heartbeat itself would time out.
  */
 export async function cancellableModelCall(): Promise<string> {
   const llm = new TemporalModel('abort-model', {
     activity: {
       startToCloseTimeout: '20 seconds',
-      heartbeatTimeout: '4 seconds',
+      heartbeatTimeout: '6 seconds',
       retry: { maximumAttempts: 3, initialInterval: '1 second' },
       cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
     },
