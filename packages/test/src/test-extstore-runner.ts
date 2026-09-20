@@ -1,7 +1,13 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import test from 'ava';
-import { ValueError, type Payload } from '@temporalio/common';
-import { ExternalStorage } from '@temporalio/common/lib/converter/extstore';
+import {
+  ExternalStorageDriverError,
+  ExternalStorageReferenceError,
+  ExternalStorageUnregisteredDriverError,
+  type Logger,
+  type Payload,
+} from '@temporalio/common';
+import { ExternalStorage, StorageDriverClaim } from '@temporalio/common/lib/converter/extstore';
 import type { StorageDriverSelectContext, StorageDriverTargetInfo } from '@temporalio/common/lib/converter/extstore';
 import {
   ExternalStorageMetricsAccumulator,
@@ -10,7 +16,7 @@ import {
 } from '@temporalio/common/lib/internal-non-workflow';
 import { encode } from '@temporalio/common/lib/encoding';
 import { METADATA_ENCODING_KEY } from '@temporalio/common/lib/converter/types';
-import { makeFakeDriver } from './extstore-fake-driver';
+import { makeFakeDriver, type FakeDriver } from './extstore-fake-driver';
 
 /** Build a Payload whose proto-encoded size is at least `bodyBytes`. */
 function makePayload(bodyBytes: number): Payload {
@@ -107,7 +113,7 @@ test('store selector returning null leaves the payload inline', async (t) => {
   t.deepEqual(result, [originalPayload]);
 });
 
-test('store throws ValueError when selector returns an unregistered driver', async (t) => {
+test('store throws ExternalStorageUnregisteredDriverError when selector returns an unregistered driver', async (t) => {
   const registeredDriver = makeFakeDriver({ name: 'a' });
   const strangerDriver = makeFakeDriver({ name: 'a' }); // same name, different identity
   const runner = new ExternalStorageRunner(
@@ -119,25 +125,27 @@ test('store throws ValueError when selector returns an unregistered driver', asy
   );
 
   await t.throwsAsync(() => runner.store([makePayload(1)]), {
-    instanceOf: ValueError,
+    instanceOf: ExternalStorageUnregisteredDriverError,
   });
 });
 
-test('store propagates driver errors unchanged', async (t) => {
+test('store wraps driver errors in ExternalStorageDriverError', async (t) => {
   const boom = new Error('disk full');
   const driver = makeFakeDriver({ name: 's3', onStore: () => Promise.reject(boom) });
   const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }));
 
-  const err = await t.throwsAsync(() => runner.store([makePayload(1)]));
-  t.is(err, boom);
+  const err = await t.throwsAsync(() => runner.store([makePayload(1)]), {
+    instanceOf: ExternalStorageDriverError,
+  });
+  t.is(err?.cause, boom);
 });
 
-test('store raises ValueError on claim arity mismatch', async (t) => {
+test('store raises ExternalStorageReferenceError on claim arity mismatch', async (t) => {
   const driver = makeFakeDriver({ name: 's3', onStore: () => [] });
   const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }));
 
   await t.throwsAsync(() => runner.store([makePayload(1)]), {
-    instanceOf: ValueError,
+    instanceOf: ExternalStorageReferenceError,
   });
 });
 
@@ -233,7 +241,7 @@ test('store and retrieve report the same total size', async (t) => {
   t.true(downloaded.totalSizeBytes!.toNumber() > 0);
 });
 
-test('retrieve raises ValueError when the driver name is unknown', async (t) => {
+test('retrieve raises ExternalStorageUnregisteredDriverError when the driver name is unknown', async (t) => {
   const writerDriver = makeFakeDriver({ name: 'writer' });
   const writerRunner = new ExternalStorageRunner(
     new ExternalStorage({ drivers: [writerDriver], payloadSizeThreshold: 0 })
@@ -244,11 +252,11 @@ test('retrieve raises ValueError when the driver name is unknown', async (t) => 
   const readerRunner = new ExternalStorageRunner(new ExternalStorage({ drivers: [readerDriver] }));
 
   await t.throwsAsync(() => readerRunner.retrieve(storedPayloads), {
-    instanceOf: ValueError,
+    instanceOf: ExternalStorageUnregisteredDriverError,
   });
 });
 
-test('retrieve raises ValueError on payload arity mismatch', async (t) => {
+test('retrieve raises ExternalStorageReferenceError on payload arity mismatch', async (t) => {
   const payloadsToStore = [makePayload(1), makePayload(2)];
   const payloadsToRetrieve = [makePayload(1)];
 
@@ -264,11 +272,11 @@ test('retrieve raises ValueError on payload arity mismatch', async (t) => {
   );
 
   await t.throwsAsync(() => readerRunner.retrieve(storedPayloads), {
-    instanceOf: ValueError,
+    instanceOf: ExternalStorageReferenceError,
   });
 });
 
-test('retrieve propagates driver errors unchanged', async (t) => {
+test('retrieve wraps driver errors in ExternalStorageDriverError', async (t) => {
   const boom = new Error('object gone');
   const writerDriver = makeFakeDriver({ name: 's3' });
   const writerRunner = new ExternalStorageRunner(
@@ -281,8 +289,10 @@ test('retrieve propagates driver errors unchanged', async (t) => {
     new ExternalStorage({ drivers: [readerDriver], payloadSizeThreshold: 0 })
   );
 
-  const err = await t.throwsAsync(() => readerRunner.retrieve(storedPayloads));
-  t.is(err, boom);
+  const err = await t.throwsAsync(() => readerRunner.retrieve(storedPayloads), {
+    instanceOf: ExternalStorageDriverError,
+  });
+  t.is(err?.cause, boom);
 });
 
 test('retrieve only resolves reference payloads, passing others through', async (t) => {
@@ -367,4 +377,218 @@ test('retrieve aborts sibling drivers on first failure', async (t) => {
 
   await t.throwsAsync(() => readerRunner.retrieve(storedPayloads));
   t.true(readerBAborted);
+});
+
+// ============================================================================
+// Concurrency limits
+// ============================================================================
+
+/** Resolves after queued semaphore waiters have had a chance to settle. */
+function flush(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
+/** A promise the test resolves on demand, plus a peak-concurrency counter around it. */
+function makeGate(): { release: () => void; hold: <T>(produce: () => T) => Promise<T>; peak: () => number } {
+  let release!: () => void;
+  const opened = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let inFlight = 0;
+  let peak = 0;
+  return {
+    release,
+    peak: () => peak,
+    async hold<T>(produce: () => T): Promise<T> {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await opened;
+      inFlight -= 1;
+      return produce();
+    },
+  };
+}
+
+function makeRecordingLogger(): { logger: Logger; warnings: string[] } {
+  const warnings: string[] = [];
+  const noop = (): void => undefined;
+  return {
+    warnings,
+    logger: {
+      log: noop,
+      trace: noop,
+      debug: noop,
+      info: noop,
+      error: noop,
+      warn: (message: string) => {
+        warnings.push(message);
+      },
+    },
+  };
+}
+
+test('maxDriverOperations is shared by every message using the same ExternalStorage', async (t) => {
+  const gate = makeGate();
+  const driver = makeFakeDriver({
+    name: 's3',
+    onStore: (payloads, context) =>
+      Promise.all(
+        payloads.map((payload) =>
+          context.limiter.permit(payload, () => gate.hold(() => new StorageDriverClaim({ id: 'x' })))
+        )
+      ),
+  });
+  const externalStorage = new ExternalStorage({
+    drivers: [driver],
+    payloadSizeThreshold: 0,
+    concurrency: { maxDriverOperations: 3, maxOperationsPerMessage: 10 },
+  });
+
+  const firstMessage = new ExternalStorageRunner(externalStorage);
+  const secondMessage = new ExternalStorageRunner(externalStorage);
+  const stores = [
+    firstMessage.store([makePayload(8), makePayload(8), makePayload(8)]),
+    secondMessage.store([makePayload(8), makePayload(8), makePayload(8)]),
+  ];
+  await flush();
+  t.is(gate.peak(), 3);
+
+  gate.release();
+  await Promise.all(stores);
+  t.is(gate.peak(), 3);
+});
+
+test('warns when a driver completes a store without taking a permit', async (t) => {
+  const { logger, warnings } = makeRecordingLogger();
+  const runner = new ExternalStorageRunner(
+    new ExternalStorage({ drivers: [makeFakeDriver({ name: 's3' })], payloadSizeThreshold: 0 }),
+    undefined,
+    logger
+  );
+
+  await runner.store([makePayload(8)]);
+
+  t.is(warnings.length, 1);
+  t.regex(warnings[0]!, /'s3' completed a store without taking a permit/);
+});
+
+test('warns when a driver completes a retrieve without taking a permit', async (t) => {
+  const { logger, warnings } = makeRecordingLogger();
+  const externalStorage = new ExternalStorage({
+    drivers: [makeFakeDriver({ name: 's3' })],
+    payloadSizeThreshold: 0,
+  });
+  const references = await new ExternalStorageRunner(externalStorage).store([makePayload(8)]);
+
+  await new ExternalStorageRunner(externalStorage, undefined, logger).retrieve(references);
+
+  t.is(warnings.length, 1);
+  t.regex(warnings[0]!, /'s3' completed a retrieve without taking a permit/);
+});
+
+test('does not warn when a driver takes a permit', async (t) => {
+  const { logger, warnings } = makeRecordingLogger();
+  const driver = makeFakeDriver({
+    name: 's3',
+    onStore: (payloads, context) =>
+      Promise.all(
+        payloads.map((payload) =>
+          context.limiter.permit(payload, () => Promise.resolve(new StorageDriverClaim({ id: 'x' })))
+        )
+      ),
+  });
+  const runner = new ExternalStorageRunner(
+    new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }),
+    undefined,
+    logger
+  );
+
+  await runner.store([makePayload(8)]);
+
+  t.deepEqual(warnings, []);
+});
+
+/** A driver whose every request takes a permit and blocks on `gate`, so peak concurrency is observable. */
+function makePermittingDriver(name: string, gate: ReturnType<typeof makeGate>): FakeDriver {
+  return makeFakeDriver({
+    name,
+    onStore: (payloads, context) =>
+      Promise.all(
+        payloads.map((payload) =>
+          context.limiter.permit(payload, () => gate.hold(() => new StorageDriverClaim({ id: 'x' })))
+        )
+      ),
+    onRetrieve: (claims, context) =>
+      Promise.all(claims.map((claim) => context.limiter.permit(claim, () => gate.hold(() => makePayload(8))))),
+  });
+}
+
+test('maxOperationsPerMessage bounds concurrent operations within one message', async (t) => {
+  const gate = makeGate();
+  const runner = new ExternalStorageRunner(
+    new ExternalStorage({
+      drivers: [makePermittingDriver('s3', gate)],
+      payloadSizeThreshold: 0,
+      concurrency: { maxDriverOperations: 100, maxOperationsPerMessage: 3 },
+    })
+  );
+
+  const payloadSites = Array.from({ length: 4 }, () => runner.store([makePayload(8), makePayload(8), makePayload(8)]));
+  await flush();
+  t.is(gate.peak(), 3);
+
+  gate.release();
+  await Promise.all(payloadSites);
+  t.is(gate.peak(), 3);
+});
+
+test('maxOperationsPerMessage bounds concurrent operations on the retrieve path', async (t) => {
+  const gate = makeGate();
+  const externalStorage = new ExternalStorage({
+    drivers: [makePermittingDriver('s3', gate)],
+    payloadSizeThreshold: 0,
+    concurrency: { maxDriverOperations: 100, maxOperationsPerMessage: 3 },
+  });
+  gate.release();
+  const references = await new ExternalStorageRunner(externalStorage).store(
+    Array.from({ length: 6 }, () => makePayload(8))
+  );
+
+  const slowGate = makeGate();
+  const retrieving = new ExternalStorageRunner(
+    new ExternalStorage({
+      drivers: [makePermittingDriver('s3', slowGate)],
+      payloadSizeThreshold: 0,
+      concurrency: { maxDriverOperations: 100, maxOperationsPerMessage: 3 },
+    })
+  );
+  const payloadSites = references.map((reference) => retrieving.retrieve([reference]));
+  await flush();
+  t.is(slowGate.peak(), 3);
+
+  slowGate.release();
+  await Promise.all(payloadSites);
+  t.is(slowGate.peak(), 3);
+});
+
+test('each message gets its own maxOperationsPerMessage budget', async (t) => {
+  const gate = makeGate();
+  const externalStorage = new ExternalStorage({
+    drivers: [makePermittingDriver('s3', gate)],
+    payloadSizeThreshold: 0,
+    concurrency: { maxDriverOperations: 100, maxOperationsPerMessage: 2 },
+  });
+
+  const firstMessage = new ExternalStorageRunner(externalStorage);
+  const secondMessage = new ExternalStorageRunner(externalStorage);
+  const stores = [
+    firstMessage.store([makePayload(8), makePayload(8), makePayload(8)]),
+    secondMessage.store([makePayload(8), makePayload(8), makePayload(8)]),
+  ];
+  await flush();
+  t.is(gate.peak(), 4);
+
+  gate.release();
+  await Promise.all(stores);
+  t.is(gate.peak(), 4);
 });

@@ -97,7 +97,9 @@ import type {
 } from './worker-options';
 import { compileWorkerOptions, isCodeBundleOption, isPathBundleOption, toNativeWorkerOptions } from './worker-options';
 import { WorkflowCodecRunner } from './workflow-codec-runner';
+import { isSystemNexusEnvelope, transformEncodedSystemNexusEnvelope } from './system-nexus-operations';
 import { defaultWorkflowInterceptorModules, WorkflowCodeBundler } from './workflow/bundler';
+import { assertWorkflowBundleSdkVersion } from './workflow/bundle-metadata';
 import { isBunPre1_4 } from './workflow/bun';
 import type { Workflow, WorkflowCreator } from './workflow/interface';
 import { ReusableVMWorkflowCreator } from './workflow/reusable-vm';
@@ -1103,7 +1105,11 @@ export class Worker {
                         `Got start event for an already running activity: ${base64TaskToken}`
                       );
                     }
-                    await visit(task, walkActivityTask, extstoreInboundOptions(loadedDataConverter.externalStorage));
+                    await visit(
+                      task,
+                      walkActivityTask,
+                      extstoreInboundOptions(loadedDataConverter.externalStorage, { logger: this.logger })
+                    );
                     info = await extractActivityInfo({
                       task,
                       dataConverter: loadedDataConverter,
@@ -1295,7 +1301,7 @@ export class Worker {
                 await visit(
                   completion,
                   walkActivityTaskCompletion,
-                  extstoreStoreOptions(externalStorage, { initialTarget })
+                  extstoreStoreOptions(externalStorage, { initialTarget, logger: this.logger })
                 );
               } catch (e) {
                 const error = ensureApplicationFailure(e);
@@ -1352,7 +1358,7 @@ export class Worker {
                 await visit(
                   task,
                   walkNexusTask,
-                  extstoreInboundOptions(this.options.loadedDataConverter.externalStorage)
+                  extstoreInboundOptions(this.options.loadedDataConverter.externalStorage, { logger: this.logger })
                 );
               } catch (e) {
                 this.logger.error(
@@ -1396,7 +1402,11 @@ export class Worker {
         let completion = result;
         if (externalStorage) {
           try {
-            await visit(completion, walkNexusTaskCompletion, extstoreStoreOptions(externalStorage));
+            await visit(
+              completion,
+              walkNexusTaskCompletion,
+              extstoreStoreOptions(externalStorage, { logger: this.logger })
+            );
           } catch (e) {
             this.logger.error(`Error while offloading Nexus task result to external storage: ${errorMessage(e)}`, {
               taskToken: completion.taskToken ? formatTaskToken(completion.taskToken) : undefined,
@@ -1573,7 +1583,7 @@ export class Worker {
       await visit(
         activation,
         walkWorkflowActivation,
-        extstoreInboundOptions(externalStorage, { metrics: downloadMetrics })
+        extstoreInboundOptions(externalStorage, { metrics: downloadMetrics, logger: this.logger })
       );
       const decodedActivation = await workflowCodecRunner.decodeActivation(activation);
 
@@ -1595,21 +1605,46 @@ export class Worker {
         if (externalStorage && !this.isReplayWorker) {
           const namespace = workflowCodecRunner.workflowContext.namespace;
           uploadMetrics = new ExternalStorageMetricsAccumulator();
-          await visit(
-            encodedCompletion,
-            walkWorkflowActivationCompletion,
-            extstoreStoreOptions(externalStorage, {
-              initialTarget: {
-                kind: 'workflow',
-                namespace,
-                id: workflowCodecRunner.workflowContext.workflowId,
-                runId: activation.runId,
-                type: workflow.info.workflowType,
-              },
-              deriveContext: workflowCommandStoreTarget(namespace, workflow.info),
-              metrics: uploadMetrics,
-            })
-          );
+          const systemNexusInputs: Array<{
+            command: coresdk.workflow_commands.IScheduleNexusOperation;
+            payload: Payload;
+          }> = [];
+          for (const command of encodedCompletion.successful?.commands ?? []) {
+            const schedule = command.scheduleNexusOperation;
+            if (schedule?.input != null && isSystemNexusEnvelope(schedule.input)) {
+              systemNexusInputs.push({ command: schedule, payload: schedule.input });
+              schedule.input = undefined;
+            }
+          }
+          const visitorOptions = extstoreStoreOptions(externalStorage, {
+            initialTarget: {
+              kind: 'workflow',
+              namespace,
+              id: workflowCodecRunner.workflowContext.workflowId,
+              runId: activation.runId,
+              type: workflow.info.workflowType,
+            },
+            deriveContext: workflowCommandStoreTarget(namespace, workflow.info),
+            metrics: uploadMetrics,
+            logger: this.logger,
+          });
+          await visit(encodedCompletion, walkWorkflowActivationCompletion, visitorOptions);
+          for (const { command, payload } of systemNexusInputs) {
+            const context =
+              workflowCodecRunner.systemNexusOperationContext(command.seq) ?? workflowCodecRunner.workflowContext;
+            const initialTarget: StorageDriverTargetInfo =
+              context.type === 'workflow'
+                ? { kind: 'workflow', namespace: context.namespace, id: context.workflowId }
+                : {
+                    kind: 'activity',
+                    namespace: context.namespace,
+                    id: context.activityId,
+                  };
+            command.input = await transformEncodedSystemNexusEnvelope(command.service, command.operation, payload, {
+              ...visitorOptions,
+              initialContext: initialTarget,
+            });
+          }
         }
         encodedCompletion.payloadDownloadMetrics = downloadMetrics?.toProto();
         encodedCompletion.payloadUploadMetrics = uploadMetrics?.toProto();
@@ -1959,7 +1994,10 @@ export class Worker {
                 await visit(
                   heartbeat,
                   walkActivityHeartbeat,
-                  extstoreStoreOptions(externalStorage, { initialTarget: activityStorageTarget(info) })
+                  extstoreStoreOptions(externalStorage, {
+                    initialTarget: activityStorageTarget(info),
+                    logger: this.logger,
+                  })
                 );
               }
               const arr = coresdk.ActivityHeartbeat.encodeDelimited(heartbeat).finish();
@@ -2332,6 +2370,8 @@ export class Worker {
 }
 
 export function parseWorkflowCode(code: string, codePath?: string): WorkflowBundleWithSourceMapAndFilename {
+  assertWorkflowBundleSdkVersion(code, pkg.version);
+
   const [actualCode, sourceMapJson] = extractSourceMap(code);
   const sourceMap: RawSourceMap = JSON.parse(sourceMapJson);
 
