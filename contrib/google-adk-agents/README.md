@@ -277,9 +277,12 @@ Cautions:
   checks against ADK's full typings, but these are `undefined` at run time in a
   Workflow: the MCP classes (`MCPToolset`, `MCPSessionManager` — use
   `TemporalMCPToolset`), a2a, `DatabaseSessionService`, `GcsArtifactService` /
-  `FileArtifactService`, telemetry setup, `LocalEnvironment`, the agent registry.
-  Present but non-functional there: the skills loaders, the code executors, and
+  `FileArtifactService`, the local code executors (`UnsafeLocalCodeExecutor`,
+  `AgentEngineSandboxCodeExecutor`), telemetry setup, `LocalEnvironment`, the
+  agent registry. Present but non-functional there: the skills loaders and
   `ApigeeLlm` (replaced by an inert class; wrap it in `TemporalModel`).
+  `BuiltInCodeExecutor` does work — it only adds Gemini's code-execution tool to
+  the request the model Activity carries.
 - **Thread-pool tool execution** and any ADK extension point that performs I/O;
   move it behind an Activity.
 
