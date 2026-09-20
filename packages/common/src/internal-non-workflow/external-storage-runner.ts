@@ -7,21 +7,44 @@ import { performance } from 'node:perf_hooks';
 
 import { temporal } from '@temporalio/proto';
 
+import { limit, type ConcurrencyLimit } from '../concurrency/limit';
 import { StorageDriverClaim } from '../converter/extstore';
 import type {
   ExternalStorage,
   StorageDriver,
+  StorageDriverLimiter,
   StorageDriverRetrieveContext,
   StorageDriverSelectContext,
   StorageDriverStoreContext,
   StorageDriverTargetInfo,
 } from '../converter/extstore';
-import { ValueError } from '../errors';
+import {
+  ExternalStorageDriverError,
+  ExternalStorageReferenceError,
+  ExternalStorageUnregisteredDriverError,
+} from '../errors';
+import type { Logger } from '../logger';
 import type { Payload } from '../interfaces';
 import type { ExternalStorageMetricsAccumulator } from './external-storage-metrics';
 import { decodeReferencePayload, encodeReferencePayload, isReferencePayload } from './extstore-helpers';
 
 const PayloadProto = temporal.api.common.v1.Payload;
+
+/**
+ * The map that holds extstore operation limits for each {@link ExternalStorage} instance.
+ * Each time an {@link ExternalStorageRunner} is created, it retrieves the limit from this
+ * based on the `ExternalStorage` config it's passed.
+ */
+const driverOperationLimits = new WeakMap<ExternalStorage, ConcurrencyLimit>();
+
+function driverOperationLimitFor(externalStorage: ExternalStorage): ConcurrencyLimit {
+  let operationLimit = driverOperationLimits.get(externalStorage);
+  if (operationLimit === undefined) {
+    operationLimit = limit(externalStorage.concurrency.maxDriverOperations);
+    driverOperationLimits.set(externalStorage, operationLimit);
+  }
+  return operationLimit;
+}
 
 /** @internal @experimental */
 export interface ExternalStoreOptions {
@@ -44,10 +67,51 @@ export interface ExternalRetrieveOptions {
  * @experimental
  */
 export class ExternalStorageRunner {
+  private readonly messageLimit: ConcurrencyLimit;
+  private readonly driverOperationLimit: ConcurrencyLimit;
+
   constructor(
     private readonly externalStorage: ExternalStorage,
-    private readonly metrics?: ExternalStorageMetricsAccumulator
-  ) {}
+    private readonly metrics?: ExternalStorageMetricsAccumulator,
+    private readonly logger?: Logger
+  ) {
+    this.messageLimit = limit(externalStorage.concurrency.maxOperationsPerMessage);
+    this.driverOperationLimit = driverOperationLimitFor(externalStorage);
+  }
+
+  /**
+   * Builds the limiter handed to drivers which is used to cooperatively limit the total number
+   * of concurrent extstore operations.
+   */
+  private makeLimiter<Item>(abortSignal: AbortSignal): { limiter: StorageDriverLimiter<Item>; used: () => boolean } {
+    const { messageLimit, driverOperationLimit } = this;
+    let used = false;
+    const limiter: StorageDriverLimiter<Item> = {
+      permit<T>(_item: Item, operation: () => Promise<T>): Promise<T> {
+        used = true;
+        return messageLimit(() =>
+          driverOperationLimit(async () => {
+            abortSignal.throwIfAborted();
+            return await operation();
+          })
+        );
+      },
+    };
+    return { limiter, used: () => used };
+  }
+
+  /**
+   * Warn a message if a driver completes an operation without taking a permit.
+   */
+  private warnIfLimiterUnused(driverName: string, used: boolean, operation: 'store' | 'retrieve'): void {
+    if (used) return;
+    this.logger?.warn(
+      `Storage driver '${driverName}' completed a ${operation} without taking a permit from ` +
+        `context.limiter. Its requests are not counted against ` +
+        `ExternalStorage.concurrency.maxDriverOperations, so their number is unbounded.`,
+      { driverName }
+    );
+  }
 
   /**
    * Replace each payload above the configured size threshold with a reference payload.
@@ -60,7 +124,6 @@ export class ExternalStorageRunner {
     const { driverSelector, payloadSizeThreshold } = this.externalStorage;
     const { batchSignal, batchController } = makeBatchSignal(options.abortSignal);
     const selectCtx: StorageDriverSelectContext = { abortSignal: batchSignal, target: options.target };
-    const storeCtx: StorageDriverStoreContext = { abortSignal: batchSignal, target: options.target };
 
     interface StoreItem {
       index: number;
@@ -76,7 +139,7 @@ export class ExternalStorageRunner {
       const selected = driverSelector(selectCtx, payload);
       if (selected === null) continue;
       if (this.externalStorage.getDriver(selected.name) !== selected) {
-        throw new ValueError(
+        throw new ExternalStorageUnregisteredDriverError(
           `Driver '${selected.name}' returned by driverSelector is not registered in ExternalStorage.drivers`
         );
       }
@@ -95,12 +158,22 @@ export class ExternalStorageRunner {
     const { metrics } = this;
     await runWithAbortOnFirstError(batchController, [...driverGroups.values()], async (group) => {
       const startMs = metrics ? performance.now() : 0;
-      const claims = await group.driver.store(
-        storeCtx,
-        group.items.map((it) => it.payload)
-      );
+      const { limiter, used } = this.makeLimiter<Payload>(batchSignal);
+      const storeCtx: StorageDriverStoreContext = { abortSignal: batchSignal, target: options.target, limiter };
+      let claims: StorageDriverClaim[];
+      try {
+        claims = await group.driver.store(
+          storeCtx,
+          group.items.map((it) => it.payload)
+        );
+      } catch (cause) {
+        throw new ExternalStorageDriverError(`Storage driver '${group.driver.name}' failed to store payloads`, {
+          cause,
+        });
+      }
+      this.warnIfLimiterUnused(group.driver.name, used(), 'store');
       if (claims.length !== group.items.length) {
-        throw new ValueError(
+        throw new ExternalStorageReferenceError(
           `Driver '${group.driver.name}' returned ${claims.length} claims for ${group.items.length} payloads`
         );
       }
@@ -129,7 +202,6 @@ export class ExternalStorageRunner {
     if (payloads.length === 0) return payloads;
 
     const { batchSignal, batchController } = makeBatchSignal(options.abortSignal);
-    const retrieveCtx: StorageDriverRetrieveContext = { abortSignal: batchSignal };
 
     interface RetrieveItem {
       index: number;
@@ -140,10 +212,15 @@ export class ExternalStorageRunner {
 
     for (const [i, payload] of payloads.entries()) {
       if (!isReferencePayload(payload)) continue;
-      const decoded = decodeReferencePayload(payload);
+      let decoded: ReturnType<typeof decodeReferencePayload>;
+      try {
+        decoded = decodeReferencePayload(payload);
+      } catch (cause) {
+        throw new ExternalStorageReferenceError('Failed to decode external storage reference', { cause });
+      }
       const driver = this.externalStorage.getDriver(decoded.driverName);
       if (driver === null) {
-        throw new ValueError(`No driver registered with name '${decoded.driverName}'`);
+        throw new ExternalStorageUnregisteredDriverError(`No driver registered with name '${decoded.driverName}'`);
       }
       let group = driverGroups.get(decoded.driverName);
       if (group === undefined) {
@@ -159,12 +236,22 @@ export class ExternalStorageRunner {
     const { metrics } = this;
     await runWithAbortOnFirstError(batchController, [...driverGroups.values()], async (group) => {
       const startMs = metrics ? performance.now() : 0;
-      const retrieved = await group.driver.retrieve(
-        retrieveCtx,
-        group.items.map((it) => it.claim)
-      );
+      const { limiter, used } = this.makeLimiter<StorageDriverClaim>(batchSignal);
+      const retrieveCtx: StorageDriverRetrieveContext = { abortSignal: batchSignal, limiter };
+      let retrieved: Payload[];
+      try {
+        retrieved = await group.driver.retrieve(
+          retrieveCtx,
+          group.items.map((it) => it.claim)
+        );
+      } catch (cause) {
+        throw new ExternalStorageDriverError(`Storage driver '${group.driver.name}' failed to retrieve payloads`, {
+          cause,
+        });
+      }
+      this.warnIfLimiterUnused(group.driver.name, used(), 'retrieve');
       if (retrieved.length !== group.items.length) {
-        throw new ValueError(
+        throw new ExternalStorageReferenceError(
           `Driver '${group.driver.name}' returned ${retrieved.length} payloads for ${group.items.length} claims`
         );
       }
