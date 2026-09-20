@@ -119,14 +119,23 @@ for (const { file, record } of RECORDED) {
     const fixture = path.join(historiesDir, file);
 
     const live = await record(env);
-    await Worker.runReplayHistory(replayOptions(), live);
-
     if (UPDATE_HISTORIES) {
       writeFileSync(fixture, historyToJSON(live as Parameters<typeof historyToJSON>[0]));
       t.log(`re-recorded ${fixture}`);
     }
-    // `runReplayHistory` accepts the JSON form and converts it itself.
-    const recorded: unknown = JSON.parse(readFileSync(fixture, 'utf8'));
-    await t.notThrowsAsync(Worker.runReplayHistory(replayOptions(), recorded), `replaying ${file}`);
+
+    // Both histories go through ONE replay Worker: each one builds a bundle and takes the
+    // native runtime through another start/shutdown cycle, which CI has seen crash when a
+    // process does it several times over. `runReplayHistories` takes a history in its JSON
+    // form too, and reports a determinism violation per history instead of throwing.
+    const replayed: string[] = [];
+    for await (const result of Worker.runReplayHistories(replayOptions(), [
+      { workflowId: 'live', history: live },
+      { workflowId: 'recorded', history: JSON.parse(readFileSync(fixture, 'utf8')) },
+    ])) {
+      t.is(result.error, undefined, `replaying ${file} as ${result.workflowId}`);
+      replayed.push(result.workflowId);
+    }
+    t.deepEqual(replayed, ['live', 'recorded']);
   });
 }
