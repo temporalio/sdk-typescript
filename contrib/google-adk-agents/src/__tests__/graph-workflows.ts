@@ -351,6 +351,24 @@ export async function dynamicActivityFailure(): Promise<RunOutcome> {
 }
 
 /**
+ * A dynamic node running an `LlmAgent` whose model call fails. ADK absorbs the model
+ * error into a `NodeReportedError` and the dynamic scheduler wraps that in a
+ * `DynamicNodeFailError`, so the recorded model failure is two carriers deep.
+ */
+export async function dynamicAgentModelFailure(): Promise<RunOutcome> {
+  const agent = new LlmAgent({
+    name: 'assistant',
+    model: new TemporalModel('boom', SINGLE_ATTEMPT),
+    instruction: 'Help.',
+  });
+  const driver = node(async (ctx: NodeContext) => (await ctx.runNode(agent, 'hi')).output, {
+    name: 'driver',
+    rerunOnResume: true,
+  });
+  return runOnce(new Workflow({ name: 'dynamic_agent_failure', edges: [['START', driver]] }), 'go');
+}
+
+/**
  * A dynamic node running an Activity that outlives the test. `TRY_CANCEL` reports the
  * cancellation to the Workflow without waiting for the Activity to wind down, so the run
  * ends as soon as the Workflow is cancelled.

@@ -140,26 +140,50 @@ const NODE_REPORTED_ERROR = 'NodeReportedError';
 const DYNAMIC_NODE_FAIL_ERROR = 'DynamicNodeFailError';
 
 /**
+ * Follows ADK's dynamic-node carriers down to the error a child actually raised. Nesting
+ * one dynamic run inside another wraps the carrier again, and the outer ones say nothing
+ * about what went wrong. `.error` is always an `Error` where ADK sets it; the guards make
+ * a hand-built or cyclic carrier terminate rather than spin.
+ */
+function innermostNodeFailure(err: Error): Error {
+  const seen = new Set<Error>([err]);
+  let current = err;
+  while (current.name === DYNAMIC_NODE_FAIL_ERROR) {
+    const wrapped: unknown = (current as { error?: unknown }).error;
+    if (!(wrapped instanceof Error) || seen.has(wrapped)) break;
+    seen.add(wrapped);
+    current = wrapped;
+  }
+  return current;
+}
+
+/**
  * Converts an ADK workflow-runtime error escaping a frame into the failure that should
- * end the execution: the frame's recorded model failure when the error merely reports
- * that a model call was absorbed, the Temporal failure a dynamic node's wrapper carries,
- * otherwise a non-retryable `ApplicationFailure` typed per
- * {@link ADK_RUNTIME_FAILURE_TYPES} with the ADK error as its cause. Anything else —
- * a `TemporalFailure`, a user's own error — is returned unchanged.
+ * end the execution. A dynamic node's carrier is unwrapped first, so the decision is the
+ * one a static node would have produced: a Temporal failure the child raised is returned
+ * as it is, an absorbed model call is re-raised from the frame's recording, and anything
+ * else becomes a non-retryable `ApplicationFailure` typed per
+ * {@link ADK_RUNTIME_FAILURE_TYPES} with the ADK error as its cause. Anything the map does
+ * not name — a `TemporalFailure`, a user's own error — is returned unchanged.
  */
 function toWorkflowFailure(err: unknown, frame: Frame): unknown {
   if (!(err instanceof Error)) return err;
   const type = ADK_RUNTIME_FAILURE_TYPES[err.name];
   if (type === undefined) return err;
-  if (err.name === NODE_REPORTED_ERROR && frame.pending.length > 0) return frame.pending[0];
-  if (err.name === DYNAMIC_NODE_FAIL_ERROR) {
-    // A Temporal failure the dynamic child raised is what must end the execution: a
-    // cancelled Activity has to end it CANCELLED rather than FAILED, and a failed one
-    // keeps the cause chain (status, retry state) that the wrapper would hide.
-    const wrapped: unknown = (err as { error?: unknown }).error;
-    if (wrapped instanceof TemporalFailure) return wrapped;
-  }
-  return ApplicationFailure.create({ message: err.message, type, nonRetryable: true, cause: err });
+  const cause = innermostNodeFailure(err);
+  // A Temporal failure the child raised is what must end the execution: a cancelled
+  // Activity has to end it CANCELLED rather than FAILED, and a failed one keeps the
+  // cause chain (status, retry state) that the carrier would hide.
+  if (cause instanceof TemporalFailure) return cause;
+  if (cause.name === NODE_REPORTED_ERROR && frame.pending.length > 0) return frame.pending[0];
+  // The innermost error names the failure; the carrier's own type is the fallback for a
+  // child error the map does not know.
+  return ApplicationFailure.create({
+    message: cause.message,
+    type: ADK_RUNTIME_FAILURE_TYPES[cause.name] ?? type,
+    nonRetryable: true,
+    cause,
+  });
 }
 
 async function surfaceAbsorbedFailure<T>(frame: Frame, next: () => Promise<T>): Promise<T> {
