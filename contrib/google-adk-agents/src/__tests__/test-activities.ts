@@ -36,6 +36,11 @@ export async function summarize(text: string): Promise<string> {
   return `${text} summarized`;
 }
 
+/** Returns nothing, so the node it backs completes with an `undefined` output. */
+export async function voidActivity(): Promise<void> {
+  record('voidActivity');
+}
+
 export async function enrichItem(item: string): Promise<string> {
   record(`enrichItem:${item}`);
   return `enriched-${item}`;

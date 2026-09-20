@@ -117,6 +117,19 @@ export async function graphFanOutJoin(): Promise<RunOutcome> {
   return runOnce(graph, 'go');
 }
 
+/**
+ * An Activity node whose Activity returns nothing. The node completes with an
+ * `undefined` output and its successor still runs, which is what ADK's
+ * `waitForOutput` would have parked forever.
+ */
+export async function graphVoidOutput(): Promise<RunOutcome> {
+  const graph = new Workflow({
+    name: 'void_output',
+    edges: [['START', activityNode({ name: 'voidActivity', args: () => [] }), node(() => 'after', { name: 'after' })]],
+  });
+  return runOnce(graph, 'go');
+}
+
 /** An `LlmAgent` in task mode as a graph node; its `finish_task` call is the node's output. */
 export async function graphAgentTaskNode(prompt: string): Promise<RunOutcome> {
   const agent = new LlmAgent({

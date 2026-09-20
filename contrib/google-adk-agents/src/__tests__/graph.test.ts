@@ -33,6 +33,7 @@ import {
   graphRouting,
   graphSequential,
   graphTimeout,
+  graphVoidOutput,
 } from './graph-workflows';
 
 const getEnv = setupTestEnv(test);
@@ -96,6 +97,19 @@ test.serial('fan-out Activity nodes join, keyed by node name', async (t) => {
   t.is(countScheduledActivities(events, 'enrichItem'), 2);
   // Both nodes run the one `enrichItem` Activity, so the summary names the node.
   t.deepEqual(getScheduledActivitySummaries(events, 'enrichItem').sort(), ['adk.node enrich_a', 'adk.node enrich_b']);
+});
+
+test.serial('an Activity node returning nothing completes and its successor runs', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-graph-void');
+  const workflowId = uid('wf-graph-void');
+  const result = await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, () =>
+    env.client.workflow.execute(graphVoidOutput, { taskQueue, workflowId })
+  );
+  // ADK's `waitForOutput` parks exactly this node forever, which is why
+  // `activityNode` does not expose it; fan in with a `JoinNode` instead.
+  t.is(result.output, 'after');
+  t.is(countScheduledActivities(await history(workflowId), 'voidActivity'), 1);
 });
 
 test.serial('an LlmAgent node in task mode reports its finish_task result as the node output', async (t) => {

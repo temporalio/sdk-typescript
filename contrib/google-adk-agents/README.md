@@ -225,10 +225,15 @@ const runner = new InMemoryRunner({ agent: graph });
   a durable timer, and its jitter is drawn from the Workflow's `Math.random()`.
   A node `timeout` (seconds) is a durable timer that cancels the in-flight
   Activity and fails the node with ADK's `NodeTimeoutError`.
+- **Fan-in.** Use a `JoinNode`: it is the node type that waits for every
+  predecessor, and its input is the map from predecessor name to that node's
+  output. ADK's `waitForOutput` flag is not a fan-in gate (it parks a node that
+  ended with no output and no route), so `activityNode` does not expose it.
 - **Resume.** ADK resumes a paused graph from the session's events: a node that
-  already produced output is fast-forwarded rather than re-run. `activityNode`
-  defaults `rerunOnResume` to `false`, so its Activity is not scheduled again;
-  ADK's `Workflow` and `LlmAgent` default it to `true`. Resume is at-least-once
+  already produced output is always fast-forwarded rather than re-run, so an
+  `activityNode`'s Activity is not scheduled again. (ADK's `rerunOnResume`
+  concerns a node that paused for input last turn, which an Activity node never
+  does, so `activityNode` does not expose it either.) Resume is at-least-once
   for a dynamic node's body — put side effects in `activityNode` /
   `activityAsTool` children, or make them idempotent.
 - `LongRunningFunctionTool`s (including a node-as-tool) cannot be used as a

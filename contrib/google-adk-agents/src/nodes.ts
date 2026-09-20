@@ -65,15 +65,6 @@ export interface ActivityNodeOptions<TInput = unknown> {
 
   // --- ADK node configuration, passed through to the node ---
   /**
-   * Whether the node re-runs when a paused (human-in-the-loop) run resumes.
-   * Default `false`: a node that already produced its output is fast-forwarded
-   * from the session and the Activity is not scheduled again. (ADK's `Workflow`
-   * and `LlmAgent` default to `true` for themselves.)
-   */
-  rerunOnResume?: boolean;
-  /** Fan-in: only produce output once every predecessor has triggered the node. */
-  waitForOutput?: boolean;
-  /**
    * ADK graph-level retry. Its backoff becomes a durable Workflow timer; its
    * jitter is drawn from the Workflow's `Math.random()`. Match a Temporal
    * Activity failure with `exceptions: ['ActivityFailure']` (ADK matches error
@@ -100,7 +91,19 @@ export interface ActivityNodeOptions<TInput = unknown> {
  *
  * Inside a Workflow the node's input (or the arguments `args` derives from it)
  * is sent to the Activity and the Activity's result becomes the node's output,
- * which flows to the successors. The node can only run inside a Workflow.
+ * which flows to the successors. An Activity returning nothing completes the
+ * node with an `undefined` output. The node can only run inside a Workflow.
+ *
+ * Two of ADK's node flags are deliberately not exposed. `waitForOutput` is not
+ * a fan-in gate: it parks a node in `WAITING` when the node ended with neither
+ * an output nor a route (`Workflow.handleCompletion`), which for an Activity
+ * node is a no-op when the Activity returns a value and a hang when it returns
+ * `undefined`. Fan in with a `JoinNode`, the node type that does wait for every
+ * predecessor (`BaseNode.requiresAllPredecessors`), and whose input is the map
+ * from predecessor name to output. `rerunOnResume` only decides what happens to
+ * a node that paused for input last turn (`Workflow.scheduleNode`); a node that
+ * completed is always fast-forwarded, and an Activity node never raises an
+ * interrupt, so neither value could change anything.
  */
 export function activityNode<TInput = unknown, TOutput = unknown>(
   options: ActivityNodeOptions<TInput>
@@ -127,11 +130,8 @@ export function activityNode<TInput = unknown, TOutput = unknown>(
     return (await underNodeAbort(ctx, () => run(...activityArgs))) as TOutput;
   };
 
-  const config: FunctionNodeConfig = {
-    rerunOnResume: options.rerunOnResume ?? false,
-  };
+  const config: FunctionNodeConfig = {};
   if (description !== undefined) config.description = description;
-  if (options.waitForOutput !== undefined) config.waitForOutput = options.waitForOutput;
   if (options.retryConfig !== undefined) config.retryConfig = options.retryConfig;
   if (options.timeout !== undefined) config.timeout = options.timeout;
   if (options.inputSchema !== undefined) config.inputSchema = options.inputSchema;
