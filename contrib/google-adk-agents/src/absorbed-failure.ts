@@ -39,10 +39,22 @@ import { ADK_RUNTIME_FAILURE_TYPES } from './error-types';
 // `TemporalModel`), and both have to reach the same recordings.
 const ABSORBED = '__temporal_googleAdkAbsorbedFailures';
 
+/** A model call that failed and that ADK absorbed into an event instead of rethrowing. */
+interface Recording {
+  /** The failure the `TemporalModel` call threw. */
+  error: unknown;
+  /**
+   * The `adk_agent_name` label of the request that failed. A later call for the same
+   * agent that succeeds is ADK having recovered from this one (a node retry, or a graph
+   * re-activation), so the recording is dropped rather than raised.
+   */
+  agent: string;
+}
+
 /** What one inbound frame — the main function, a Signal handler, an Update handler — absorbed. */
 interface Frame {
-  /** Failures no caller has marked handled, in the order they were absorbed. */
-  pending: unknown[];
+  /** Failures no caller has marked handled or superseded, in the order they were absorbed. */
+  pending: Recording[];
   /**
    * The frame's first absorbed cancellation, held apart from `pending`: whether it is
    * the execution's outcome is only knowable once the frame returns, and it outranks
@@ -79,14 +91,29 @@ function openFrame(): Frame | undefined {
 }
 
 /** @internal */
-export function recordAbsorbedFailure(err: unknown): void {
+export function recordAbsorbedFailure(err: unknown, agent: string): void {
   const frame = openFrame();
   if (frame === undefined) return;
   if (isCancellation(err)) {
     frame.cancellation ??= err;
   } else {
-    frame.pending.push(err);
+    frame.pending.push({ error: err, agent });
   }
+}
+
+/**
+ * Declares that a `TemporalModel` call for `agent` succeeded, so whatever that agent
+ * absorbed earlier in this frame is spent: ADK retried the node (or the graph activated
+ * it again) and got its answer, and a run that finished normally must not fail on the
+ * attempt it recovered from. Scoped to the agent because a sibling agent's failure in the
+ * same run is still unhandled.
+ *
+ * @internal
+ */
+export function recordModelSuccess(agent: string): void {
+  const frame = openFrame();
+  if (frame === undefined) return;
+  frame.pending = frame.pending.filter((recording) => recording.agent !== agent);
 }
 
 /**
@@ -107,7 +134,7 @@ export function markModelFailureHandled(error: unknown): void {
   if (!inWorkflowContext()) return;
   const frame = openFrame();
   if (frame === undefined) return;
-  const at = frame.pending.indexOf(error);
+  const at = frame.pending.findIndex((recording) => recording.error === error);
   if (at !== -1) frame.pending.splice(at, 1);
 }
 
@@ -120,7 +147,7 @@ function raiseAbsorbed(frame: Frame): void {
     // `CancelledFailure` pair, which any wrapper would hide.
     throw frame.cancellation;
   }
-  if (frame.pending.length > 0) throw frame.pending[0];
+  if (frame.pending.length > 0) throw frame.pending[0]!.error;
 }
 
 /**
@@ -175,7 +202,7 @@ function toWorkflowFailure(err: unknown, frame: Frame): unknown {
   // Activity has to end it CANCELLED rather than FAILED, and a failed one keeps the
   // cause chain (status, retry state) that the carrier would hide.
   if (cause instanceof TemporalFailure) return cause;
-  if (cause.name === NODE_REPORTED_ERROR && frame.pending.length > 0) return frame.pending[0];
+  if (cause.name === NODE_REPORTED_ERROR && frame.pending.length > 0) return frame.pending[0]!.error;
   // The innermost error names the failure; the carrier's own type is the fallback for a
   // child error the map does not know.
   return ApplicationFailure.create({

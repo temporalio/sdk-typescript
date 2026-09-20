@@ -31,13 +31,50 @@ class ContentsCountingLlm extends BaseLlm {
 }
 
 /**
+ * Fails its first call with an HTTP 400 and succeeds on every later one. The counter lives
+ * in the provider closure, not on the model, because the plugin rebuilds a model per
+ * Activity; from the Workflow's side the sequence is still fail-then-succeed, and the
+ * Activity runs once per attempt however often the Workflow replays.
+ */
+class FailFirstLlm extends BaseLlm {
+  private readonly calls: { count: number };
+
+  constructor(options: { model: string; calls: { count: number } }) {
+    super({ model: options.model });
+    this.calls = options.calls;
+  }
+
+  override async *generateContentAsync(
+    _llmRequest: LlmRequest,
+    _stream?: boolean,
+    _abortSignal?: AbortSignal
+  ): AsyncGenerator<LlmResponse, void> {
+    this.calls.count += 1;
+    if (this.calls.count === 1) {
+      throw Object.assign(new Error('bad request'), { status: 400 });
+    }
+    yield {
+      content: { role: 'model', parts: [{ text: `recovered-on-attempt-${this.calls.count}` }] },
+      turnComplete: true,
+    };
+  }
+
+  override async connect(_llmRequest: LlmRequest): Promise<BaseLlmConnection> {
+    throw new Error('FailFirstLlm does not connect.');
+  }
+}
+
+/**
  * The `modelProvider` for the graph / dynamic suites. Names encode the
  * scenario; everything else falls through to {@link defaultTestProvider}.
  */
 export function graphTestProvider(): (model: string) => BaseLlm {
   const fallback = defaultTestProvider();
+  const failFirstCalls = { count: 0 };
   return (model: string): BaseLlm => {
     switch (model) {
+      case 'fail-first-model':
+        return new FailFirstLlm({ model, calls: failFirstCalls });
       case 'finish-task-model':
         return new ToolCallingLlm({ model, toolName: 'finish_task', toolArgs: { result: 'task-done' } });
       case 'enrich-flow-model':

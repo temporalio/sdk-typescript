@@ -132,6 +132,13 @@ policy. To opt out, handle the error in an ADK `onModelErrorCallback`, pass
 that same error to `markModelFailureHandled`, and return a substitute event
 built with ADK's `createEvent`.
 
+ADK turns a model error into an event rather than rethrowing it, so a run can
+finish normally on a failure nobody saw; the plugin raises such a failure as the
+Workflow (or the Update handler that ran the turn) returns. A later successful
+call by the same agent counts as the recovery: a node `retryConfig` that
+re-runs the agent, or a graph that activates it again, leaves nothing to raise.
+A success by a different agent does not clear it.
+
 ### MCP tools
 
 Use `TemporalMCPToolset` in Workflow code and register the matching MCP factory

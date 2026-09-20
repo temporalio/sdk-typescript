@@ -20,7 +20,7 @@ import { BaseLlm, LLMRegistry, type BaseLlmConnection, type LlmRequest, type Llm
 import { ApplicationFailure, type Duration } from '@temporalio/common';
 import { type ActivityOptions, inWorkflowContext, proxyActivities } from '@temporalio/workflow';
 
-import { recordAbsorbedFailure } from './absorbed-failure';
+import { recordAbsorbedFailure, recordModelSuccess } from './absorbed-failure';
 import { STREAMING_TOPIC_REQUIRED_FAILURE_TYPE, UNSUPPORTED_FAILURE_TYPE } from './error-types';
 
 export interface TemporalModelOptions {
@@ -129,7 +129,7 @@ export class TemporalModel extends BaseLlm {
     // ADK's agent flow stamps this label on every request just before calling the
     // model, and a request built by hand for a direct call carries none. Only that
     // flow absorbs a throw, so only it needs the failure recorded.
-    const throughAgentRun = llmRequest.config?.labels?.[ADK_AGENT_NAME_LABEL] !== undefined;
+    const agentName = llmRequest.config?.labels?.[ADK_AGENT_NAME_LABEL];
 
     let responses: LlmResponse[];
     try {
@@ -157,9 +157,13 @@ export class TemporalModel extends BaseLlm {
         responses = await activities['adk-invokeModel']({ model: this.model, request: wire });
       }
     } catch (err) {
-      if (throughAgentRun) recordAbsorbedFailure(err);
+      if (agentName !== undefined) recordAbsorbedFailure(err, agentName);
       throw err;
     }
+    // This agent got an answer, so an earlier failure of its own that ADK absorbed has
+    // been recovered from (a node retry, a re-activated graph node) and must not fail
+    // the Workflow the run is about to finish normally.
+    if (agentName !== undefined) recordModelSuccess(agentName);
 
     for (const response of responses) {
       yield response;

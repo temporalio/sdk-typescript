@@ -231,6 +231,59 @@ export async function graphAgentNodeModelFailure(model: string, recover: boolean
   return runOnce(graph, 'hi', recover ? [new RecoveringPlugin()] : undefined);
 }
 
+/**
+ * An `LlmAgent` node whose first model call fails and whose retry succeeds. ADK absorbed
+ * the first failure into an event, so the run finishes normally and the plugin must not
+ * raise the attempt ADK already recovered from.
+ */
+export async function graphRetriedAgentNode(): Promise<RunOutcome> {
+  const agent = new LlmAgent({
+    name: 'assistant',
+    model: new TemporalModel('fail-first-model', SINGLE_ATTEMPT),
+    instruction: 'Help.',
+  });
+  const graph = new Workflow({
+    name: 'retried_agent_graph',
+    edges: [
+      [
+        'START',
+        node(agent, {
+          name: 'assistant',
+          retryConfig: { maxAttempts: 2, initialDelay: 0.01, jitter: 0, exceptions: ['NodeReportedError'] },
+        }),
+      ],
+    ],
+  });
+  return runOnce(graph, 'hi');
+}
+
+/**
+ * Two agents run in order, the first one's model fails, the graph swallows its error and
+ * the second one answers, so the run finishes normally with a failure nobody recovered
+ * from. A success belongs to the agent that made the call, so the first agent's recording
+ * still ends the Workflow.
+ */
+export async function twoAgentsOneFailureSwallowed(): Promise<RunOutcome> {
+  const failing = new LlmAgent({
+    name: 'failing_agent',
+    model: new TemporalModel('boom', SINGLE_ATTEMPT),
+    instruction: 'Help.',
+  });
+  const healthy = new LlmAgent({ name: 'healthy_agent', model: new TemporalModel('fake-model'), instruction: 'Help.' });
+  const driver = node(
+    async (ctx: NodeContext) => {
+      try {
+        await ctx.runNode(failing, 'hi');
+      } catch {
+        // The graph carries on; only the plugin still knows the model call failed.
+      }
+      return (await ctx.runNode(healthy, 'hi')).output;
+    },
+    { name: 'driver', rerunOnResume: true }
+  );
+  return runOnce(new Workflow({ name: 'two_agents', edges: [['START', driver]] }), 'hi');
+}
+
 /** A plugin observing ADK 2.0's node callbacks. */
 class NodeCallbackPlugin extends BasePlugin {
   readonly seen: string[] = [];

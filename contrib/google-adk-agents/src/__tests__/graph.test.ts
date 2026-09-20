@@ -31,11 +31,13 @@ import {
   graphDottedActivity,
   graphFanOutJoin,
   graphPluginNodeCallbacks,
+  graphRetriedAgentNode,
   graphRetry,
   graphRouting,
   graphSequential,
   graphTimeout,
   graphVoidOutput,
+  twoAgentsOneFailureSwallowed,
 } from './graph-workflows';
 
 const getEnv = setupTestEnv(test);
@@ -214,6 +216,35 @@ test.serial('an agent node whose model call fails surfaces the recorded model fa
   // ADK reports the absorbed model error as a `NodeReportedError`; the plugin raises
   // the recorded `ActivityFailure` instead, keeping the model failure's status.
   t.not(findInCauseChain(err, ActivityFailure), undefined);
+  t.is(findInCauseChain(err, ApplicationFailure)?.type, 'GoogleAdkModelError.400');
+});
+
+test.serial('an agent node whose retry succeeds does not fail on the attempt ADK recovered', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-graph-agent-retry');
+  const workflowId = uid('wf-graph-agent-retry');
+  const result = await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, () =>
+    env.client.workflow.execute(graphRetriedAgentNode, { taskQueue, workflowId })
+  );
+  // ADK absorbed the first model error into an event, retried the node, and got its
+  // answer, so the run finished normally and nothing is left to raise.
+  t.is(result.text, 'recovered-on-attempt-2');
+  t.is(countScheduledActivities(await history(workflowId), 'adk-invokeModel'), 2);
+});
+
+test.serial('one agent succeeding does not clear another agent absorbed failure', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-graph-seq-agents');
+  const err = await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, () =>
+    t.throwsAsync(
+      env.client.workflow.execute(twoAgentsOneFailureSwallowed, {
+        taskQueue,
+        workflowId: uid('wf-graph-seq-agents'),
+      })
+    )
+  );
+  // The second agent answering says nothing about the first agent's failure, which no
+  // callback handled, so the Workflow still ends on it.
   t.is(findInCauseChain(err, ApplicationFailure)?.type, 'GoogleAdkModelError.400');
 });
 
