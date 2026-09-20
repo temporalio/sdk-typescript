@@ -21,7 +21,7 @@
 
 import type { AsyncLocalStorage as ALS } from 'node:async_hooks';
 
-import { ApplicationFailure } from '@temporalio/common';
+import { ApplicationFailure, TemporalFailure } from '@temporalio/common';
 import {
   AsyncLocalStorage,
   CancellationScope,
@@ -132,10 +132,19 @@ function raiseAbsorbed(frame: Frame): void {
 const NODE_REPORTED_ERROR = 'NodeReportedError';
 
 /**
+ * The name of ADK's `DynamicNodeFailError`: the carrier a dynamic node (`ctx.runNode`)
+ * wraps whatever its child threw in, on `.error` rather than on `.cause`. A static node
+ * rethrows its child's error as it is, so the wrapper is unwrapped here to keep the two
+ * alike.
+ */
+const DYNAMIC_NODE_FAIL_ERROR = 'DynamicNodeFailError';
+
+/**
  * Converts an ADK workflow-runtime error escaping a frame into the failure that should
  * end the execution: the frame's recorded model failure when the error merely reports
- * that a model call was absorbed, otherwise a non-retryable `ApplicationFailure` typed
- * per {@link ADK_RUNTIME_FAILURE_TYPES} with the ADK error as its cause. Anything else —
+ * that a model call was absorbed, the Temporal failure a dynamic node's wrapper carries,
+ * otherwise a non-retryable `ApplicationFailure` typed per
+ * {@link ADK_RUNTIME_FAILURE_TYPES} with the ADK error as its cause. Anything else —
  * a `TemporalFailure`, a user's own error — is returned unchanged.
  */
 function toWorkflowFailure(err: unknown, frame: Frame): unknown {
@@ -143,6 +152,13 @@ function toWorkflowFailure(err: unknown, frame: Frame): unknown {
   const type = ADK_RUNTIME_FAILURE_TYPES[err.name];
   if (type === undefined) return err;
   if (err.name === NODE_REPORTED_ERROR && frame.pending.length > 0) return frame.pending[0];
+  if (err.name === DYNAMIC_NODE_FAIL_ERROR) {
+    // A Temporal failure the dynamic child raised is what must end the execution: a
+    // cancelled Activity has to end it CANCELLED rather than FAILED, and a failed one
+    // keeps the cause chain (status, retry state) that the wrapper would hide.
+    const wrapped: unknown = (err as { error?: unknown }).error;
+    if (wrapped instanceof TemporalFailure) return wrapped;
+  }
   return ApplicationFailure.create({ message: err.message, type, nonRetryable: true, cause: err });
 }
 

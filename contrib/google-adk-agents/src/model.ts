@@ -215,9 +215,10 @@ function toWireRequest(llmRequest: LlmRequest): WireLlmRequest {
 
 /**
  * Builds {@link ActivityOptions} from per-call {@link ActivityOptions} plus a
- * UI summary, defaulting `startToCloseTimeout`. Shared by the MCP and
- * `activityAsTool` boundaries so every Activity carries a `summary`; a
- * caller-supplied `options.summary` takes precedence over `defaultSummary`.
+ * UI summary, defaulting `startToCloseTimeout`. Shared by the MCP,
+ * `activityAsTool` and `activityNode` boundaries so every Activity carries a
+ * `summary`; a caller-supplied `options.summary` takes precedence over
+ * `defaultSummary`.
  *
  * @internal
  */

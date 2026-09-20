@@ -17,6 +17,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import test from 'ava';
+import type { HistoryAndWorkflowId } from '@temporalio/common';
 import { historyToJSON } from '@temporalio/common/lib/proto-utils';
 import type { TestWorkflowEnvironment } from '@temporalio/testing';
 import { Worker, type ReplayWorkerOptions } from '@temporalio/worker';
@@ -131,21 +132,34 @@ const RECORDED: Array<{ file: string; record: (env: TestWorkflowEnvironment) => 
   { file: 'hitl_workflow.json', record: recordHitlHistory },
 ];
 
-for (const { file, record } of RECORDED) {
-  // Graph / HITL histories replay live and from the checked-in fixture (E2E)
-  test.serial(`replays ${file} live and from the checked-in fixture`, async (t) => {
-    const env = getEnv();
+// Recorded histories replay live and from their checked-in fixtures (E2E)
+test.serial('replays every recorded scenario live and from its checked-in fixture', async (t) => {
+  const env = getEnv();
+
+  const histories: HistoryAndWorkflowId[] = [];
+  for (const { file, record } of RECORDED) {
     const fixture = path.join(historiesDir, file);
-
     const live = await record(env);
-    await Worker.runReplayHistory(replayOptions(), live);
-
     if (UPDATE_HISTORIES) {
       writeFileSync(fixture, historyToJSON(live as Parameters<typeof historyToJSON>[0]));
       t.log(`re-recorded ${fixture}`);
     }
-    // `runReplayHistory` accepts the JSON form and converts it itself.
-    const recorded: unknown = JSON.parse(readFileSync(fixture, 'utf8'));
-    await t.notThrowsAsync(Worker.runReplayHistory(replayOptions(), recorded), `replaying ${file}`);
-  });
-}
+    histories.push({ workflowId: `${file} live`, history: live });
+    // `runReplayHistories` takes a history in its JSON form too.
+    histories.push({ workflowId: `${file} recorded`, history: JSON.parse(readFileSync(fixture, 'utf8')) });
+  }
+
+  // Every history goes through ONE replay Worker: each one builds a bundle and takes the
+  // native runtime through another start/shutdown cycle, which CI has seen crash when a
+  // process does it several times over. `runReplayHistories` reports a determinism
+  // violation per history instead of throwing, so one bad scenario names itself.
+  const replayed: string[] = [];
+  for await (const result of Worker.runReplayHistories(replayOptions(), histories)) {
+    t.is(result.error, undefined, `replaying ${result.workflowId}`);
+    replayed.push(result.workflowId);
+  }
+  t.deepEqual(
+    replayed,
+    histories.map((h) => h.workflowId)
+  );
+});

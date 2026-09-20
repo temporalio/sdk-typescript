@@ -188,7 +188,7 @@ so it runs inside a Temporal Workflow unchanged. Use `activityNode` to make a
 registered Activity a node:
 
 ```typescript
-import { JoinNode, Workflow, createEvent, node } from '@google/adk';
+import { InMemoryRunner, JoinNode, Workflow } from '@google/adk';
 import { activityNode } from '@temporalio/google-adk-agents/workflow';
 
 const fetchA = activityNode({ name: 'fetchData', nodeName: 'fetch_a', args: () => ['a'] });
@@ -358,7 +358,7 @@ therefore converts the ones a graph produces as outcomes into non-retryable
 | `IntentMismatchError`       | `GoogleAdkIntentMismatchError`                                                                                                |
 | `StateSchemaError`          | `GoogleAdkStateSchemaError`                                                                                                   |
 | `InvocationAbortedError`    | `GoogleAdkInvocationAbortedError`                                                                                             |
-| `DynamicNodeFailError`      | `GoogleAdkDynamicNodeFailError`                                                                                               |
+| `DynamicNodeFailError`      | `GoogleAdkDynamicNodeFailError` (or the Temporal failure the dynamic child raised, which the wrapper carries outside `cause`) |
 
 The mapping is exported as `ADK_RUNTIME_FAILURE_TYPES`. Anything else ADK throws
 — a malformed human reply, `StreamingMode.BIDI`, a reserved function _call_ in a
@@ -461,8 +461,8 @@ Cautions:
   so the plugin serves ADK a `crypto` module whose values come from a **named
   workflow random stream**: replay-stable, and independent of the Workflow's own
   `Math.random()` sequence. Those ids are **not cryptographically random** inside
-  a Workflow; nor is ADK's OAuth2 `state`, which is one reason credential flows are
-  unsupported there.
+  a Workflow; nor is ADK's OAuth2 `state`, which is one reason credential flows
+  are unsupported there.
 - ADK's node retry backoff and timeouts are durable timers; the retry jitter is
   drawn from the Workflow's `Math.random()`.
 - ADK resumes a paused run from the session events: completed nodes are
