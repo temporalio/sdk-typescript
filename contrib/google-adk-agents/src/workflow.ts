@@ -21,6 +21,7 @@ export { TemporalMCPToolset, loadMcpResourceTool } from './mcp';
 export type {
   TemporalMCPToolsetOptions,
   MCPToolsetFactory,
+  MCPRequireConfirmation,
   LoadMcpResourceToolOptions,
   MCPResourceContents,
 } from './mcp';
