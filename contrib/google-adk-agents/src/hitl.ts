@@ -86,10 +86,11 @@ export function pendingHitlRequests(events: readonly Event[]): HitlRequest[] {
  * `value` of `{ result: x }` reaches the node as `x`.
  *
  * ADK also parses a **string** it unwraps as JSON, unless the request declared
- * a schema that accepts strings (`type: 'string'`), so `'42'` or `'true'` would
- * reach the node as a number or a boolean. Rather than let that happen
- * silently, this throws: declare a string `responseSchema` on the
- * `RequestInput`, or pass the parsed value yourself.
+ * a schema that accepts strings (`type: 'string'`), so `'42'` reaches the node
+ * as a number and `'"foo"'` as `foo` with the quotes gone. Rather than let
+ * that happen silently, this throws for any string that parses: declare a
+ * string `responseSchema` on the `RequestInput`, or pass the parsed value
+ * yourself.
  */
 export function hitlInputResponse(request: HitlRequest, value: unknown): Part {
   assertKind(request, 'input', 'hitlInputResponse');
@@ -163,19 +164,30 @@ function acceptsString(schema: unknown): boolean {
  * same two steps as ADK's `unwrapResponse`
  * (`workflow/utils/rehydration_utils.ts`): unwrap a response whose only key is
  * `result`, then JSON-parse a string the declared schema does not accept.
+ *
+ * Text that parses is refused whatever it parses to, a string included: ADK
+ * returns the parsed value, so `'"foo"'` reaches the node as `foo` with the
+ * quotes gone. Only text that is not JSON at all survives verbatim.
  */
 function assertNoJsonCoercion(request: HitlRequest, response: Record<string, unknown>): void {
   if (Object.keys(response).length !== 1 || !(RESULT_KEY in response)) return;
   const unwrapped = response[RESULT_KEY];
   if (typeof unwrapped !== 'string' || acceptsString(request.responseSchema)) return;
   const parsed = parseJsonIfPossible(unwrapped);
-  if (parsed === NOT_JSON || typeof parsed === 'string') return;
+  if (parsed === NOT_JSON) return;
   throw new TypeError(
     `hitlInputResponse: the string ${JSON.stringify(unwrapped)} answering interrupt '${request.interruptId}' ` +
-      `would be delivered to the node as JSON (${typeof parsed}), because the request declared no ` +
-      'schema accepting a string. Declare a string responseSchema on the RequestInput, or pass the ' +
-      'parsed value instead of the string.'
+      `parses as JSON, so ADK would deliver ${describeDelivered(parsed)} to the node instead of the text. ` +
+      'The request declared no responseSchema that accepts a string: declare one on the RequestInput, or ' +
+      'pass the parsed value instead of the string.'
   );
+}
+
+/** Renders what ADK would hand the node, so a quote-stripped string is not mistaken for the text. */
+function describeDelivered(parsed: unknown): string {
+  return typeof parsed === 'string'
+    ? `the string ${JSON.stringify(parsed)}`
+    : `${JSON.stringify(parsed)} (${typeof parsed})`;
 }
 
 const RESULT_KEY = 'result';

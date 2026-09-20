@@ -321,9 +321,17 @@ test('hitlInputResponse wraps bare values, passes objects through, and refuses a
   // unless the schema accepts strings) — refused rather than coerced.
   t.throws(() => hitlInputResponse(request, '42'), {
     instanceOf: TypeError,
-    message: /would be delivered to the node as JSON/,
+    message: /parses as JSON, so ADK would deliver 42 \(number\)/,
   });
   t.throws(() => hitlInputResponse(request, 'true'), { instanceOf: TypeError });
+  // A quoted string parses to a *string*, and ADK still returns the parsed value,
+  // so the node would see `foo` rather than `"foo"`.
+  t.throws(() => hitlInputResponse(request, '"foo"'), {
+    instanceOf: TypeError,
+    message: /so ADK would deliver the string "foo" to the node/,
+  });
+  // Text that is not JSON at all reaches the node verbatim, so it is allowed.
+  t.deepEqual(hitlInputResponse(request, 'ship it').functionResponse?.response, { result: 'ship it' });
   // ADK unwraps any single-key `{ result: … }` object, so the same coercion applies
   // to an object the caller wrote itself.
   t.throws(() => hitlInputResponse(request, { result: '42' }), { instanceOf: TypeError });
