@@ -242,11 +242,14 @@ importers:
         version: 4.2.0
     devDependencies:
       '@google/adk':
-        specifier: '>=1.5.0 <1.6.0'
-        version: 1.5.0(@grpc/grpc-js@1.14.4)(@mikro-orm/mariadb@6.6.16(@mikro-orm/core@6.6.16)(pg@8.20.0))(@mikro-orm/mssql@6.6.16(@mikro-orm/core@6.6.16)(mariadb@3.4.5)(pg@8.20.0))(@mikro-orm/mysql@6.6.16(@mikro-orm/core@6.6.16)(@types/node@20.19.41)(mariadb@3.4.5)(pg@8.20.0))(@mikro-orm/postgresql@6.6.16(@mikro-orm/core@6.6.16)(mariadb@3.4.5))(@mikro-orm/sqlite@6.6.16(@mikro-orm/core@6.6.16)(mariadb@3.4.5)(pg@8.20.0))(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(encoding@0.1.13)
+        specifier: '>=2.0.0 <2.1.0'
+        version: 2.0.0(65a76ea5fdf967ec267748f00d79baab)
       '@google/genai':
         specifier: ^2.9.0
         version: 2.15.0(@modelcontextprotocol/sdk@1.26.0(zod@4.4.3))
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.26.0
+        version: 1.26.0(zod@4.4.3)
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.1
@@ -1964,7 +1967,6 @@ packages:
   '@google-cloud/opentelemetry-cloud-monitoring-exporter@0.21.0':
     resolution: {integrity: sha512-+lAew44pWt6rA4l8dQ1gGhH7Uo95wZKfq/GBf9aEyuNDDLQ2XppGEEReu6ujesSqTtZ8ueQFt73+7SReSHbwqg==}
     engines: {node: '>=18'}
-    deprecated: Google Cloud Platform now supports native OpenTelemetry Protocol (OTLP) endpoints via the Telemetry API. Please follow https://github.com/GoogleCloudPlatform/opentelemetry-operations-js/blob/main/MIGRATION.md
     peerDependencies:
       '@opentelemetry/api': ^1.9.0
       '@opentelemetry/core': ^2.0.0
@@ -1974,7 +1976,6 @@ packages:
   '@google-cloud/opentelemetry-cloud-trace-exporter@3.0.0':
     resolution: {integrity: sha512-mUfLJBFo+ESbO0dAGboErx2VyZ7rbrHcQvTP99yH/J72dGaPbH2IzS+04TFbTbEd1VW5R9uK3xq2CqawQaG+1Q==}
     engines: {node: '>=18'}
-    deprecated: Google Cloud Platform now supports native OpenTelemetry Protocol (OTLP) endpoints via the Telemetry API. Please follow https://github.com/GoogleCloudPlatform/opentelemetry-operations-js/blob/main/MIGRATION.md
     peerDependencies:
       '@opentelemetry/api': ^1.0.0
       '@opentelemetry/core': ^2.0.0
@@ -2013,14 +2014,40 @@ packages:
     resolution: {integrity: sha512-XMJIk7GIeavFLP5A3YEUlowKa5Y5PZRrnnuTJcqR0k+lFKkv7+IWpdRp+Xbqb8xNDrvQaE2hP2RYPUylyD5EdA==}
     engines: {node: '>=18.0.0'}
 
-  '@google/adk@1.5.0':
-    resolution: {integrity: sha512-DwgdpKeDJ7V+VQK9VZNpvYVXLLJ7xURfvA3nq5zWkwlioFUEbNwh0STDnLmJy0swmqKXgEeymjKNMrlc3eVY9g==}
+  '@google/adk@2.0.0':
+    resolution: {integrity: sha512-510Vsu0/2wYky3DoK5PkO9jtH3YZ4aEF0U/BTar3f0w0r5ZcwQigkTgv6rQB6UnopTV3YJD6yPOlaCJ6p8zBMw==}
     peerDependencies:
+      '@google-cloud/opentelemetry-cloud-monitoring-exporter': ^0.21.0
+      '@google-cloud/opentelemetry-cloud-trace-exporter': ^3.0.0
+      '@google-cloud/storage': ^7.17.1
       '@mikro-orm/mariadb': ^6.6.6
       '@mikro-orm/mssql': ^6.6.6
       '@mikro-orm/mysql': ^6.6.6
       '@mikro-orm/postgresql': ^6.6.6
       '@mikro-orm/sqlite': ^6.6.6
+      '@modelcontextprotocol/sdk': ^1.26.0
+      express: ^4.22.1 || ^5.1.0
+    peerDependenciesMeta:
+      '@google-cloud/opentelemetry-cloud-monitoring-exporter':
+        optional: true
+      '@google-cloud/opentelemetry-cloud-trace-exporter':
+        optional: true
+      '@google-cloud/storage':
+        optional: true
+      '@mikro-orm/mariadb':
+        optional: true
+      '@mikro-orm/mssql':
+        optional: true
+      '@mikro-orm/mysql':
+        optional: true
+      '@mikro-orm/postgresql':
+        optional: true
+      '@mikro-orm/sqlite':
+        optional: true
+      '@modelcontextprotocol/sdk':
+        optional: true
+      express:
+        optional: true
 
   '@google/genai@1.52.0':
     resolution: {integrity: sha512-gwSvbpiN/17O9TbsqSsE/OzZcpv5Fo4RQjdngGgogtuB9RsyJ8ZHhX5KjHj1bp5N9snN2eK8LDGXSaWW2hof8Q==}
@@ -4387,10 +4414,6 @@ packages:
     resolution: {integrity: sha512-mQw+2fkQbALzQ7V0MY0IqdnXNOeTtP4r0lN9z7AAawCXgqea7bDii20AYrIBrFd/Hx0M2Ocz6S111CaFkUcb0Q==}
     engines: {node: '>=0.8.x'}
 
-  eventsource-parser@3.0.6:
-    resolution: {integrity: sha512-Vo1ab+QXPzZ4tCa8SwIHJFaSzy4R6SHf7BY79rFBDf0idraZWAkYrDjDj8uWaSm3S2TK+hJ7/t1CEmZ7jXw+pg==}
-    engines: {node: '>=18.0.0'}
-
   eventsource-parser@3.1.0:
     resolution: {integrity: sha512-kJezFj9YFAMLeORyi7aCLxLbD5/qWMQnoMVlVPyHIll7lgRJCc3JVln9Vgl9nwQi0YkMnhdGTMNn7CkRRAptMg==}
     engines: {node: '>=18.0.0'}
@@ -4884,10 +4907,6 @@ packages:
 
   iconv-lite@0.6.3:
     resolution: {integrity: sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw==}
-    engines: {node: '>=0.10.0'}
-
-  iconv-lite@0.7.2:
-    resolution: {integrity: sha512-im9DjEDQ55s9fL4EYzOAv0yMqmMBSZp6G0VvFyTMPKWxiSBHUj9NW/qqLmXUwXrrM7AvqSlTCfvqRb0cM8yYqw==}
     engines: {node: '>=0.10.0'}
 
   iconv-lite@0.7.3:
@@ -7298,20 +7317,12 @@ packages:
 
 snapshots:
 
-  '@a2a-js/sdk@0.3.14(@grpc/grpc-js@1.14.4)(express@4.22.1)':
-    dependencies:
-      uuid: 11.1.0
-    optionalDependencies:
-      '@grpc/grpc-js': 1.14.4
-      express: 4.22.1
-
   '@a2a-js/sdk@0.3.14(@grpc/grpc-js@1.14.4)(express@5.2.1)':
     dependencies:
       uuid: 11.1.0
     optionalDependencies:
       '@grpc/grpc-js': 1.14.4
       express: 5.2.1
-    optional: true
 
   '@aashutoshrathi/word-wrap@1.2.6': {}
 
@@ -7831,10 +7842,12 @@ snapshots:
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   '@azure/abort-controller@2.2.0':
     dependencies:
       tslib: 2.8.1
+    optional: true
 
   '@azure/core-auth@1.11.0':
     dependencies:
@@ -7843,6 +7856,7 @@ snapshots:
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   '@azure/core-client@1.11.0':
     dependencies:
@@ -7855,6 +7869,7 @@ snapshots:
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   '@azure/core-lro@2.7.2':
     dependencies:
@@ -7864,12 +7879,15 @@ snapshots:
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   '@azure/core-paging@1.7.0':
     dependencies:
       tslib: 2.8.1
+    optional: true
 
-  '@azure/core-process@1.0.0': {}
+  '@azure/core-process@1.0.0':
+    optional: true
 
   '@azure/core-rest-pipeline@1.25.0':
     dependencies:
@@ -7882,10 +7900,12 @@ snapshots:
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   '@azure/core-tracing@1.4.0':
     dependencies:
       tslib: 2.8.1
+    optional: true
 
   '@azure/core-util@1.14.0':
     dependencies:
@@ -7894,6 +7914,7 @@ snapshots:
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   '@azure/identity@4.13.2':
     dependencies:
@@ -7911,6 +7932,7 @@ snapshots:
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   '@azure/keyvault-common@2.1.0':
     dependencies:
@@ -7924,6 +7946,7 @@ snapshots:
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   '@azure/keyvault-keys@4.10.2':
     dependencies:
@@ -7940,6 +7963,7 @@ snapshots:
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   '@azure/logger@1.4.0':
     dependencies:
@@ -7947,19 +7971,24 @@ snapshots:
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   '@azure/msal-browser@5.20.0':
     dependencies:
       '@azure/msal-common': 16.14.0
+    optional: true
 
-  '@azure/msal-common@16.13.0': {}
+  '@azure/msal-common@16.13.0':
+    optional: true
 
-  '@azure/msal-common@16.14.0': {}
+  '@azure/msal-common@16.14.0':
+    optional: true
 
   '@azure/msal-node@5.6.0':
     dependencies:
       '@azure/msal-common': 16.13.0
       jsonwebtoken: 9.0.3
+    optional: true
 
   '@babel/code-frame@7.27.1':
     dependencies:
@@ -8362,50 +8391,54 @@ snapshots:
   '@gar/promisify@1.1.3':
     optional: true
 
-  '@google-cloud/opentelemetry-cloud-monitoring-exporter@0.21.0(@opentelemetry/api@1.9.0)(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.7.1(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-metrics@2.7.1(@opentelemetry/api@1.9.0))(encoding@0.1.13)':
+  '@google-cloud/opentelemetry-cloud-monitoring-exporter@0.21.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@1.25.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.7.1(@opentelemetry/api@1.9.1))(encoding@0.1.13)':
     dependencies:
-      '@google-cloud/opentelemetry-resource-util': 3.0.0(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.7.1(@opentelemetry/api@1.9.0))(encoding@0.1.13)
+      '@google-cloud/opentelemetry-resource-util': 3.0.0(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@1.25.1(@opentelemetry/api@1.9.1))(encoding@0.1.13)
       '@google-cloud/precise-date': 4.0.0
-      '@opentelemetry/api': 1.9.0
+      '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.11.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/resources': 2.7.1(@opentelemetry/api@1.9.0)
-      '@opentelemetry/sdk-metrics': 2.7.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/resources': 1.25.1(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-metrics': 2.7.1(@opentelemetry/api@1.9.1)
       google-auth-library: 9.15.1(encoding@0.1.13)
       googleapis: 137.1.0(encoding@0.1.13)
     transitivePeerDependencies:
       - encoding
       - supports-color
+    optional: true
 
-  '@google-cloud/opentelemetry-cloud-trace-exporter@3.0.0(@opentelemetry/api@1.9.0)(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.7.1(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.0))(encoding@0.1.13)':
+  '@google-cloud/opentelemetry-cloud-trace-exporter@3.0.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@1.25.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@1.25.1(@opentelemetry/api@1.9.1))(encoding@0.1.13)':
     dependencies:
-      '@google-cloud/opentelemetry-resource-util': 3.0.0(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.7.1(@opentelemetry/api@1.9.0))(encoding@0.1.13)
+      '@google-cloud/opentelemetry-resource-util': 3.0.0(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@1.25.1(@opentelemetry/api@1.9.1))(encoding@0.1.13)
       '@grpc/grpc-js': 1.14.4
       '@grpc/proto-loader': 0.8.1
-      '@opentelemetry/api': 1.9.0
+      '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.11.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/resources': 2.7.1(@opentelemetry/api@1.9.0)
-      '@opentelemetry/sdk-trace-base': 2.7.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/resources': 1.25.1(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-base': 1.25.1(@opentelemetry/api@1.9.1)
       google-auth-library: 9.15.1(encoding@0.1.13)
     transitivePeerDependencies:
       - encoding
       - supports-color
+    optional: true
 
-  '@google-cloud/opentelemetry-resource-util@3.0.0(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.7.1(@opentelemetry/api@1.9.0))(encoding@0.1.13)':
+  '@google-cloud/opentelemetry-resource-util@3.0.0(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@1.25.1(@opentelemetry/api@1.9.1))(encoding@0.1.13)':
     dependencies:
       '@opentelemetry/core': 2.11.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/resources': 2.7.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/resources': 1.25.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/semantic-conventions': 1.39.0
       gcp-metadata: 6.1.1(encoding@0.1.13)
     transitivePeerDependencies:
       - encoding
       - supports-color
+    optional: true
 
   '@google-cloud/paginator@5.0.2':
     dependencies:
       arrify: 2.0.1
       extend: 3.0.2
 
-  '@google-cloud/precise-date@4.0.0': {}
+  '@google-cloud/precise-date@4.0.0':
+    optional: true
 
   '@google-cloud/projectify@4.0.0': {}
 
@@ -8442,22 +8475,13 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@google/adk@1.5.0(@grpc/grpc-js@1.14.4)(@mikro-orm/mariadb@6.6.16(@mikro-orm/core@6.6.16)(pg@8.20.0))(@mikro-orm/mssql@6.6.16(@mikro-orm/core@6.6.16)(mariadb@3.4.5)(pg@8.20.0))(@mikro-orm/mysql@6.6.16(@mikro-orm/core@6.6.16)(@types/node@20.19.41)(mariadb@3.4.5)(pg@8.20.0))(@mikro-orm/postgresql@6.6.16(@mikro-orm/core@6.6.16)(mariadb@3.4.5))(@mikro-orm/sqlite@6.6.16(@mikro-orm/core@6.6.16)(mariadb@3.4.5)(pg@8.20.0))(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(encoding@0.1.13)':
+  '@google/adk@2.0.0(65a76ea5fdf967ec267748f00d79baab)':
     dependencies:
-      '@a2a-js/sdk': 0.3.14(@grpc/grpc-js@1.14.4)(express@4.22.1)
-      '@google-cloud/opentelemetry-cloud-monitoring-exporter': 0.21.0(@opentelemetry/api@1.9.0)(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.7.1(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-metrics@2.7.1(@opentelemetry/api@1.9.0))(encoding@0.1.13)
-      '@google-cloud/opentelemetry-cloud-trace-exporter': 3.0.0(@opentelemetry/api@1.9.0)(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.7.1(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.0))(encoding@0.1.13)
-      '@google-cloud/storage': 7.21.0(encoding@0.1.13)
+      '@a2a-js/sdk': 0.3.14(@grpc/grpc-js@1.14.4)(express@5.2.1)
       '@google-cloud/vertexai': 1.12.0(@modelcontextprotocol/sdk@1.26.0(zod@4.4.3))(encoding@0.1.13)
       '@google/genai': 2.15.0(@modelcontextprotocol/sdk@1.26.0(zod@4.4.3))
       '@mikro-orm/core': 6.6.16
-      '@mikro-orm/mariadb': 6.6.16(@mikro-orm/core@6.6.16)(pg@8.20.0)
-      '@mikro-orm/mssql': 6.6.16(@mikro-orm/core@6.6.16)(mariadb@3.4.5)(pg@8.20.0)
-      '@mikro-orm/mysql': 6.6.16(@mikro-orm/core@6.6.16)(@types/node@20.19.41)(mariadb@3.4.5)(pg@8.20.0)
-      '@mikro-orm/postgresql': 6.6.16(@mikro-orm/core@6.6.16)(mariadb@3.4.5)
       '@mikro-orm/reflection': 6.6.16(@mikro-orm/core@6.6.16)
-      '@mikro-orm/sqlite': 6.6.16(@mikro-orm/core@6.6.16)(mariadb@3.4.5)(pg@8.20.0)
-      '@modelcontextprotocol/sdk': 1.26.0(zod@4.4.3)
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/api-logs': 0.205.0
       '@opentelemetry/exporter-logs-otlp-http': 0.205.0(@opentelemetry/api@1.9.0)
@@ -8470,7 +8494,6 @@ snapshots:
       '@opentelemetry/sdk-trace-base': 2.7.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-trace-node': 2.7.1(@opentelemetry/api@1.9.0)
       adm-zip: 0.5.18
-      express: 4.22.1
       google-auth-library: 10.9.1
       js-yaml: 4.1.1
       jsonpath-plus: 10.4.0
@@ -8478,11 +8501,20 @@ snapshots:
       winston: 3.19.0
       zod: 4.4.3
       zod-to-json-schema: 3.25.1(zod@4.4.3)
+    optionalDependencies:
+      '@google-cloud/opentelemetry-cloud-monitoring-exporter': 0.21.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@1.25.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.7.1(@opentelemetry/api@1.9.1))(encoding@0.1.13)
+      '@google-cloud/opentelemetry-cloud-trace-exporter': 3.0.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@1.25.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@1.25.1(@opentelemetry/api@1.9.1))(encoding@0.1.13)
+      '@google-cloud/storage': 7.21.0(encoding@0.1.13)
+      '@mikro-orm/mariadb': 6.6.16(@mikro-orm/core@6.6.16)(pg@8.20.0)
+      '@mikro-orm/mssql': 6.6.16(@mikro-orm/core@6.6.16)(mariadb@3.4.5)(pg@8.20.0)
+      '@mikro-orm/mysql': 6.6.16(@mikro-orm/core@6.6.16)(@types/node@20.19.41)(mariadb@3.4.5)(pg@8.20.0)
+      '@mikro-orm/postgresql': 6.6.16(@mikro-orm/core@6.6.16)(mariadb@3.4.5)
+      '@mikro-orm/sqlite': 6.6.16(@mikro-orm/core@6.6.16)(mariadb@3.4.5)(pg@8.20.0)
+      '@modelcontextprotocol/sdk': 1.26.0(zod@4.4.3)
+      express: 5.2.1
     transitivePeerDependencies:
       - '@bufbuild/protobuf'
-      - '@cfworker/json-schema'
       - '@grpc/grpc-js'
-      - '@opentelemetry/core'
       - bufferutil
       - encoding
       - supports-color
@@ -8604,7 +8636,8 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@js-joda/core@5.7.0': {}
+  '@js-joda/core@5.7.0':
+    optional: true
 
   '@js-sdsl/ordered-map@4.4.2': {}
 
@@ -8647,6 +8680,7 @@ snapshots:
       - sqlite3
       - supports-color
       - tedious
+    optional: true
 
   '@mikro-orm/knex@6.6.16(@mikro-orm/core@6.6.16)(mariadb@3.4.5)(pg@8.20.0)':
     dependencies:
@@ -8665,6 +8699,7 @@ snapshots:
       - sqlite3
       - supports-color
       - tedious
+    optional: true
 
   '@mikro-orm/knex@6.6.16(@mikro-orm/core@6.6.16)(mariadb@3.4.5)(pg@8.20.0)(sqlite3@5.1.7)':
     dependencies:
@@ -8683,6 +8718,7 @@ snapshots:
       - sqlite3
       - supports-color
       - tedious
+    optional: true
 
   '@mikro-orm/knex@6.6.16(@mikro-orm/core@6.6.16)(mariadb@3.4.5)(pg@8.20.0)(tedious@19.2.1)':
     dependencies:
@@ -8701,6 +8737,7 @@ snapshots:
       - sqlite3
       - supports-color
       - tedious
+    optional: true
 
   '@mikro-orm/mariadb@6.6.16(@mikro-orm/core@6.6.16)(pg@8.20.0)':
     dependencies:
@@ -8718,6 +8755,7 @@ snapshots:
       - sqlite3
       - supports-color
       - tedious
+    optional: true
 
   '@mikro-orm/mssql@6.6.16(@mikro-orm/core@6.6.16)(mariadb@3.4.5)(pg@8.20.0)':
     dependencies:
@@ -8736,6 +8774,7 @@ snapshots:
       - pg-query-stream
       - sqlite3
       - supports-color
+    optional: true
 
   '@mikro-orm/mysql@6.6.16(@mikro-orm/core@6.6.16)(@types/node@20.19.41)(mariadb@3.4.5)(pg@8.20.0)':
     dependencies:
@@ -8754,6 +8793,7 @@ snapshots:
       - sqlite3
       - supports-color
       - tedious
+    optional: true
 
   '@mikro-orm/postgresql@6.6.16(@mikro-orm/core@6.6.16)(mariadb@3.4.5)':
     dependencies:
@@ -8774,6 +8814,7 @@ snapshots:
       - sqlite3
       - supports-color
       - tedious
+    optional: true
 
   '@mikro-orm/reflection@6.6.16(@mikro-orm/core@6.6.16)':
     dependencies:
@@ -8800,6 +8841,7 @@ snapshots:
       - pg-query-stream
       - supports-color
       - tedious
+    optional: true
 
   '@modelcontextprotocol/sdk@1.26.0(zod@3.25.76)':
     dependencies:
@@ -8810,7 +8852,7 @@ snapshots:
       cors: 2.8.6
       cross-spawn: 7.0.6
       eventsource: 3.0.7
-      eventsource-parser: 3.0.6
+      eventsource-parser: 3.1.0
       express: 5.2.1
       express-rate-limit: 8.3.0(express@5.2.1)
       hono: 4.12.5
@@ -8832,7 +8874,7 @@ snapshots:
       cors: 2.8.6
       cross-spawn: 7.0.6
       eventsource: 3.0.7
-      eventsource-parser: 3.0.6
+      eventsource-parser: 3.1.0
       express: 5.2.1
       express-rate-limit: 8.3.0(express@5.2.1)
       hono: 4.12.5
@@ -9661,7 +9703,8 @@ snapshots:
       '@types/jsonfile': 6.1.4
       '@types/node': 20.19.41
 
-  '@types/geojson@7946.0.16': {}
+  '@types/geojson@7946.0.16':
+    optional: true
 
   '@types/got@9.6.12':
     dependencies:
@@ -9707,6 +9750,7 @@ snapshots:
   '@types/node@24.13.3':
     dependencies:
       undici-types: 7.18.2
+    optional: true
 
   '@types/node@26.4.1':
     dependencies:
@@ -9724,6 +9768,7 @@ snapshots:
   '@types/readable-stream@4.0.24':
     dependencies:
       '@types/node': 20.19.43
+    optional: true
 
   '@types/request@2.48.13':
     dependencies:
@@ -9953,6 +9998,7 @@ snapshots:
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   '@ungap/structured-clone@1.3.1': {}
 
@@ -10482,7 +10528,8 @@ snapshots:
 
   aws-sign2@0.7.0: {}
 
-  aws-ssl-profiles@1.1.2: {}
+  aws-ssl-profiles@1.1.2:
+    optional: true
 
   aws4@1.13.2: {}
 
@@ -10511,12 +10558,14 @@ snapshots:
   bindings@1.5.0:
     dependencies:
       file-uri-to-path: 1.0.0
+    optional: true
 
   bl@4.1.0:
     dependencies:
       buffer: 5.7.1
       inherits: 2.0.4
       readable-stream: 3.6.2
+    optional: true
 
   bl@6.1.6:
     dependencies:
@@ -10524,6 +10573,7 @@ snapshots:
       buffer: 6.0.3
       inherits: 2.0.4
       readable-stream: 4.7.0
+    optional: true
 
   bluebird@3.7.2: {}
 
@@ -10552,7 +10602,7 @@ snapshots:
       content-type: 1.0.5
       debug: 4.4.3
       http-errors: 2.0.1
-      iconv-lite: 0.7.2
+      iconv-lite: 0.7.3
       on-finished: 2.4.1
       qs: 6.14.1
       raw-body: 3.0.2
@@ -10599,6 +10649,7 @@ snapshots:
     dependencies:
       base64-js: 1.5.1
       ieee754: 1.2.1
+    optional: true
 
   buffer@6.0.3:
     dependencies:
@@ -10608,6 +10659,7 @@ snapshots:
   bundle-name@4.1.0:
     dependencies:
       run-applescript: 7.1.0
+    optional: true
 
   bytes@3.1.2: {}
 
@@ -10725,9 +10777,11 @@ snapshots:
     optionalDependencies:
       fsevents: 2.3.3
 
-  chownr@1.1.4: {}
+  chownr@1.1.4:
+    optional: true
 
-  chownr@2.0.0: {}
+  chownr@2.0.0:
+    optional: true
 
   chownr@3.0.0: {}
 
@@ -10803,7 +10857,8 @@ snapshots:
       color-convert: 3.1.3
       color-string: 2.1.4
 
-  colorette@2.0.19: {}
+  colorette@2.0.19:
+    optional: true
 
   colorette@2.0.20: {}
 
@@ -10811,7 +10866,8 @@ snapshots:
     dependencies:
       delayed-stream: 1.0.0
 
-  commander@10.0.1: {}
+  commander@10.0.1:
+    optional: true
 
   commander@11.1.0: {}
 
@@ -10973,6 +11029,7 @@ snapshots:
   debug@4.3.4:
     dependencies:
       ms: 2.1.2
+    optional: true
 
   debug@4.4.1:
     dependencies:
@@ -10992,12 +11049,14 @@ snapshots:
 
   deep-is@0.1.4: {}
 
-  default-browser-id@5.0.1: {}
+  default-browser-id@5.0.1:
+    optional: true
 
   default-browser@5.5.1:
     dependencies:
       bundle-name: 4.1.0
       default-browser-id: 5.0.1
+    optional: true
 
   defer-to-connect@2.0.1: {}
 
@@ -11007,7 +11066,8 @@ snapshots:
       es-errors: 1.3.0
       gopd: 1.2.0
 
-  define-lazy-prop@3.0.0: {}
+  define-lazy-prop@3.0.0:
+    optional: true
 
   define-properties@1.2.1:
     dependencies:
@@ -11020,13 +11080,15 @@ snapshots:
   delegates@1.0.0:
     optional: true
 
-  denque@2.1.0: {}
+  denque@2.1.0:
+    optional: true
 
   depd@2.0.0: {}
 
   destroy@1.2.0: {}
 
-  detect-libc@2.1.2: {}
+  detect-libc@2.1.2:
+    optional: true
 
   dir-glob@3.0.1:
     dependencies:
@@ -11395,7 +11457,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  esm@3.2.25: {}
+  esm@3.2.25:
+    optional: true
 
   espree@10.4.0:
     dependencies:
@@ -11439,15 +11502,14 @@ snapshots:
 
   events@3.3.0: {}
 
-  eventsource-parser@3.0.6: {}
-
   eventsource-parser@3.1.0: {}
 
   eventsource@3.0.7:
     dependencies:
-      eventsource-parser: 3.0.6
+      eventsource-parser: 3.1.0
 
-  expand-template@2.0.3: {}
+  expand-template@2.0.3:
+    optional: true
 
   express-rate-limit@5.5.1: {}
 
@@ -11585,7 +11647,8 @@ snapshots:
     dependencies:
       flat-cache: 4.0.1
 
-  file-uri-to-path@1.0.0: {}
+  file-uri-to-path@1.0.0:
+    optional: true
 
   fill-range@7.1.1:
     dependencies:
@@ -11679,7 +11742,8 @@ snapshots:
 
   fresh@2.0.0: {}
 
-  fs-constants@1.0.0: {}
+  fs-constants@1.0.0:
+    optional: true
 
   fs-extra@11.2.0:
     dependencies:
@@ -11696,6 +11760,7 @@ snapshots:
   fs-minipass@2.1.0:
     dependencies:
       minipass: 3.3.6
+    optional: true
 
   fs-monkey@1.1.0: {}
 
@@ -11768,6 +11833,7 @@ snapshots:
   generate-function@2.3.1:
     dependencies:
       is-property: 1.0.2
+    optional: true
 
   generator-function@2.0.1: {}
 
@@ -11788,7 +11854,8 @@ snapshots:
       hasown: 2.0.2
       math-intrinsics: 1.1.0
 
-  get-package-type@0.1.0: {}
+  get-package-type@0.1.0:
+    optional: true
 
   get-proto@1.0.1:
     dependencies:
@@ -11815,7 +11882,8 @@ snapshots:
     dependencies:
       resolve-pkg-maps: 1.0.0
 
-  getopts@2.3.0: {}
+  getopts@2.3.0:
+    optional: true
 
   getpass@0.1.7:
     dependencies:
@@ -11829,7 +11897,8 @@ snapshots:
       - conventional-commits-filter
       - conventional-commits-parser
 
-  github-from-package@0.0.0: {}
+  github-from-package@0.0.0:
+    optional: true
 
   glob-parent@5.1.2:
     dependencies:
@@ -11934,6 +12003,7 @@ snapshots:
     transitivePeerDependencies:
       - encoding
       - supports-color
+    optional: true
 
   googleapis@137.1.0(encoding@0.1.13):
     dependencies:
@@ -11942,6 +12012,7 @@ snapshots:
     transitivePeerDependencies:
       - encoding
       - supports-color
+    optional: true
 
   gopd@1.2.0: {}
 
@@ -12032,6 +12103,7 @@ snapshots:
   hasown@2.0.4:
     dependencies:
       function-bind: 1.1.2
+    optional: true
 
   headers-polyfill@4.0.3: {}
 
@@ -12084,6 +12156,7 @@ snapshots:
       debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   http-signature@1.4.0:
     dependencies:
@@ -12124,10 +12197,6 @@ snapshots:
       safer-buffer: 2.1.2
 
   iconv-lite@0.6.3:
-    dependencies:
-      safer-buffer: 2.1.2
-
-  iconv-lite@0.7.2:
     dependencies:
       safer-buffer: 2.1.2
 
@@ -12191,7 +12260,8 @@ snapshots:
       hasown: 2.0.2
       side-channel: 1.1.0
 
-  interpret@2.2.0: {}
+  interpret@2.2.0:
+    optional: true
 
   ip-address@10.1.0: {}
 
@@ -12244,6 +12314,7 @@ snapshots:
   is-core-module@2.16.2:
     dependencies:
       hasown: 2.0.4
+    optional: true
 
   is-data-view@1.0.2:
     dependencies:
@@ -12262,7 +12333,8 @@ snapshots:
 
   is-deflate@1.0.0: {}
 
-  is-docker@3.0.0: {}
+  is-docker@3.0.0:
+    optional: true
 
   is-error@2.2.2: {}
 
@@ -12293,6 +12365,7 @@ snapshots:
   is-inside-container@1.0.0:
     dependencies:
       is-docker: 3.0.0
+    optional: true
 
   is-lambda@1.0.1:
     optional: true
@@ -12318,7 +12391,8 @@ snapshots:
 
   is-promise@4.0.0: {}
 
-  is-property@1.0.2: {}
+  is-property@1.0.2:
+    optional: true
 
   is-regex@1.2.1:
     dependencies:
@@ -12372,6 +12446,7 @@ snapshots:
   is-wsl@3.1.1:
     dependencies:
       is-inside-container: 1.0.0
+    optional: true
 
   isarray@1.0.0: {}
 
@@ -12409,7 +12484,8 @@ snapshots:
 
   jose@6.1.3: {}
 
-  js-md4@0.3.2: {}
+  js-md4@0.3.2:
+    optional: true
 
   js-string-escape@1.0.1: {}
 
@@ -12564,6 +12640,7 @@ snapshots:
       pg: 8.20.0
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   knex@3.2.10(pg@8.20.0):
     dependencies:
@@ -12585,6 +12662,7 @@ snapshots:
       pg: 8.20.0
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   knex@3.2.10(pg@8.20.0)(sqlite3@5.1.7):
     dependencies:
@@ -12607,6 +12685,7 @@ snapshots:
       sqlite3: 5.1.7
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   knex@3.2.10(pg@8.20.0)(tedious@19.2.1):
     dependencies:
@@ -12629,6 +12708,7 @@ snapshots:
       tedious: 19.2.1
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   kuler@2.0.0: {}
 
@@ -12743,7 +12823,8 @@ snapshots:
 
   lru-cache@7.18.3: {}
 
-  lru.min@1.1.5: {}
+  lru.min@1.1.5:
+    optional: true
 
   make-fetch-happen@9.1.0:
     dependencies:
@@ -12779,6 +12860,7 @@ snapshots:
       denque: 2.1.0
       iconv-lite: 0.6.3
       lru-cache: 10.4.3
+    optional: true
 
   markdown-it-anchor@8.6.7(@types/markdown-it@14.1.2)(markdown-it@14.3.0):
     dependencies:
@@ -12941,8 +13023,10 @@ snapshots:
   minipass@3.3.6:
     dependencies:
       yallist: 4.0.0
+    optional: true
 
-  minipass@5.0.0: {}
+  minipass@5.0.0:
+    optional: true
 
   minipass@7.1.2: {}
 
@@ -12952,12 +13036,14 @@ snapshots:
     dependencies:
       minipass: 3.3.6
       yallist: 4.0.0
+    optional: true
 
   minizlib@3.1.0:
     dependencies:
       minipass: 7.1.3
 
-  mkdirp-classic@0.5.3: {}
+  mkdirp-classic@0.5.3:
+    optional: true
 
   mkdirp@1.0.4: {}
 
@@ -12967,7 +13053,8 @@ snapshots:
 
   ms@2.0.0: {}
 
-  ms@2.1.2: {}
+  ms@2.1.2:
+    optional: true
 
   ms@2.1.3: {}
 
@@ -12984,14 +13071,18 @@ snapshots:
       lru.min: 1.1.5
       named-placeholders: 1.1.6
       sql-escaper: 1.5.1
+    optional: true
 
   named-placeholders@1.1.6:
     dependencies:
       lru.min: 1.1.5
+    optional: true
 
-  napi-build-utils@2.0.0: {}
+  napi-build-utils@2.0.0:
+    optional: true
 
-  native-duplexpair@1.0.0: {}
+  native-duplexpair@1.0.0:
+    optional: true
 
   natural-compare@1.4.0: {}
 
@@ -13008,8 +13099,10 @@ snapshots:
   node-abi@3.96.0:
     dependencies:
       semver: 7.8.5
+    optional: true
 
-  node-addon-api@7.1.1: {}
+  node-addon-api@7.1.1:
+    optional: true
 
   node-domexception@1.0.0: {}
 
@@ -13128,6 +13221,7 @@ snapshots:
       define-lazy-prop: 3.0.0
       is-inside-container: 1.0.0
       wsl-utils: 0.1.0
+    optional: true
 
   openai@6.49.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.4.6)(ws@8.21.1)(zod@4.4.3):
     optionalDependencies:
@@ -13260,17 +13354,22 @@ snapshots:
   pg-cloudflare@1.4.0:
     optional: true
 
-  pg-connection-string@2.14.0: {}
+  pg-connection-string@2.14.0:
+    optional: true
 
-  pg-connection-string@2.6.2: {}
+  pg-connection-string@2.6.2:
+    optional: true
 
-  pg-int8@1.0.1: {}
+  pg-int8@1.0.1:
+    optional: true
 
   pg-pool@3.14.0(pg@8.20.0):
     dependencies:
       pg: 8.20.0
+    optional: true
 
-  pg-protocol@1.16.0: {}
+  pg-protocol@1.16.0:
+    optional: true
 
   pg-types@2.2.0:
     dependencies:
@@ -13279,6 +13378,7 @@ snapshots:
       postgres-bytea: 1.0.1
       postgres-date: 1.0.7
       postgres-interval: 1.2.0
+    optional: true
 
   pg@8.20.0:
     dependencies:
@@ -13289,10 +13389,12 @@ snapshots:
       pgpass: 1.0.5
     optionalDependencies:
       pg-cloudflare: 1.4.0
+    optional: true
 
   pgpass@1.0.5:
     dependencies:
       split2: 4.2.0
+    optional: true
 
   picocolors@1.1.1: {}
 
@@ -13344,21 +13446,28 @@ snapshots:
 
   possible-typed-array-names@1.1.0: {}
 
-  postgres-array@2.0.0: {}
+  postgres-array@2.0.0:
+    optional: true
 
-  postgres-array@3.0.4: {}
+  postgres-array@3.0.4:
+    optional: true
 
-  postgres-bytea@1.0.1: {}
+  postgres-bytea@1.0.1:
+    optional: true
 
-  postgres-date@1.0.7: {}
+  postgres-date@1.0.7:
+    optional: true
 
-  postgres-date@2.1.0: {}
+  postgres-date@2.1.0:
+    optional: true
 
   postgres-interval@1.2.0:
     dependencies:
       xtend: 4.0.2
+    optional: true
 
-  postgres-interval@4.0.2: {}
+  postgres-interval@4.0.2:
+    optional: true
 
   prebuild-install@7.1.3:
     dependencies:
@@ -13374,6 +13483,7 @@ snapshots:
       simple-get: 4.0.1
       tar-fs: 2.1.5
       tunnel-agent: 0.6.0
+    optional: true
 
   prelude-ls@1.2.1: {}
 
@@ -13441,7 +13551,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.2
-      '@types/node': 26.4.1
+      '@types/node': 20.19.43
       long: 5.3.2
 
   protobufjs@8.0.1:
@@ -13482,6 +13592,7 @@ snapshots:
     dependencies:
       end-of-stream: 1.4.5
       once: 1.4.0
+    optional: true
 
   pumpify@1.5.1:
     dependencies:
@@ -13526,7 +13637,7 @@ snapshots:
     dependencies:
       bytes: 3.1.2
       http-errors: 2.0.1
-      iconv-lite: 0.7.2
+      iconv-lite: 0.7.3
       unpipe: 1.0.0
 
   rc@1.2.8:
@@ -13569,6 +13680,7 @@ snapshots:
   rechoir@0.8.0:
     dependencies:
       resolve: 1.22.12
+    optional: true
 
   reflect-metadata@0.2.2: {}
 
@@ -13642,6 +13754,7 @@ snapshots:
       is-core-module: 2.16.2
       path-parse: 1.0.7
       supports-preserve-symlinks-flag: 1.0.0
+    optional: true
 
   resolve@1.22.8:
     dependencies:
@@ -13688,7 +13801,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  run-applescript@7.1.0: {}
+  run-applescript@7.1.0:
+    optional: true
 
   run-parallel@1.2.0:
     dependencies:
@@ -13863,13 +13977,15 @@ snapshots:
 
   signal-exit@4.1.0: {}
 
-  simple-concat@1.0.1: {}
+  simple-concat@1.0.1:
+    optional: true
 
   simple-get@4.0.1:
     dependencies:
       decompress-response: 6.0.0
       once: 1.4.0
       simple-concat: 1.0.1
+    optional: true
 
   sisteransi@1.0.5: {}
 
@@ -13933,9 +14049,11 @@ snapshots:
 
   sprintf-js@1.0.3: {}
 
-  sprintf-js@1.1.3: {}
+  sprintf-js@1.1.3:
+    optional: true
 
-  sql-escaper@1.5.1: {}
+  sql-escaper@1.5.1:
+    optional: true
 
   sqlite3@5.1.7:
     dependencies:
@@ -13948,10 +14066,13 @@ snapshots:
     transitivePeerDependencies:
       - bluebird
       - supports-color
+    optional: true
 
-  sqlstring-sqlite@0.1.1: {}
+  sqlstring-sqlite@0.1.1:
+    optional: true
 
-  sqlstring@2.3.3: {}
+  sqlstring@2.3.3:
+    optional: true
 
   sshpk@1.18.0:
     dependencies:
@@ -14103,6 +14224,7 @@ snapshots:
       mkdirp-classic: 0.5.3
       pump: 3.0.4
       tar-stream: 2.2.0
+    optional: true
 
   tar-stream@2.2.0:
     dependencies:
@@ -14111,6 +14233,7 @@ snapshots:
       fs-constants: 1.0.0
       inherits: 2.0.4
       readable-stream: 3.6.2
+    optional: true
 
   tar-stream@3.1.7:
     dependencies:
@@ -14129,6 +14252,7 @@ snapshots:
       minizlib: 2.1.2
       mkdirp: 1.0.4
       yallist: 4.0.0
+    optional: true
 
   tar@7.5.21:
     dependencies:
@@ -14138,7 +14262,8 @@ snapshots:
       minizlib: 3.1.0
       yallist: 5.0.0
 
-  tarn@3.1.2: {}
+  tarn@3.1.2:
+    optional: true
 
   tedious@19.2.1:
     dependencies:
@@ -14154,6 +14279,7 @@ snapshots:
       sprintf-js: 1.1.3
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   teeny-request@9.0.0(encoding@0.1.13):
     dependencies:
@@ -14198,7 +14324,8 @@ snapshots:
 
   through@2.3.8: {}
 
-  tildify@2.0.0: {}
+  tildify@2.0.0:
+    optional: true
 
   time-zone@1.0.0: {}
 
@@ -14281,7 +14408,8 @@ snapshots:
 
   tslib@2.8.1: {}
 
-  tsqlstring@1.0.1: {}
+  tsqlstring@1.0.1:
+    optional: true
 
   tsx@4.20.6:
     dependencies:
@@ -14377,7 +14505,8 @@ snapshots:
 
   undici-types@6.21.0: {}
 
-  undici-types@7.18.2: {}
+  undici-types@7.18.2:
+    optional: true
 
   undici-types@8.3.0: {}
 
@@ -14418,7 +14547,8 @@ snapshots:
     dependencies:
       punycode: 2.3.1
 
-  url-template@2.0.8: {}
+  url-template@2.0.8:
+    optional: true
 
   util-deprecate@1.0.2: {}
 
@@ -14698,6 +14828,7 @@ snapshots:
   wsl-utils@0.1.0:
     dependencies:
       is-wsl: 3.1.1
+    optional: true
 
   xml-naming@0.1.0: {}
 
@@ -14709,7 +14840,8 @@ snapshots:
 
   yallist@3.1.1: {}
 
-  yallist@4.0.0: {}
+  yallist@4.0.0:
+    optional: true
 
   yallist@5.0.0: {}
 

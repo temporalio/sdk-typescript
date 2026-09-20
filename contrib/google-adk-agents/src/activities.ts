@@ -5,6 +5,10 @@
  * `@temporalio/workflow-streams/client`) stay out of the Workflow bundle.
  * Workflows pass a model/toolset name rather than a live `BaseLlm`/MCP session;
  * both are rebuilt here, and the plugin never puts API keys in activity inputs.
+ *
+ * This module runs on the worker, where `@google/adk` resolves to its full
+ * (node) barrel — the one that includes MCP. The Workflow bundle pins ADK's web
+ * surface, which does not.
  */
 
 import {
@@ -20,7 +24,10 @@ import {
 } from '@google/adk';
 import type { FunctionDeclaration } from '@google/genai';
 import type { Duration } from '@temporalio/common';
-import { ApplicationFailure } from '@temporalio/common';
+import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
+// The Worker's own predicate, so this module and the Worker never disagree on
+// what counts as an abort (it is a structural check, not `instanceof Error`).
+import { isAbortError } from '@temporalio/common/lib/type-helpers';
 import { Context as ActivityContext } from '@temporalio/activity';
 import { WorkflowStreamClient } from '@temporalio/workflow-streams/client';
 
@@ -31,6 +38,32 @@ import type { MCPCallToolArgs, MCPToolsetFactory } from './mcp';
 const DEFAULT_STREAM_BATCH_INTERVAL = '100 milliseconds';
 
 const RETRYABLE_STATUS = new Set([408, 409, 429]);
+
+/**
+ * Lets a cancellation out of an Activity untouched, ahead of any failure
+ * classification.
+ *
+ * The Worker reports an Activity as cancelled only when a cancel was requested
+ * *and* the error leaving the Activity function is a `CancelledFailure` or an
+ * `AbortError` (`Activity.run` in `@temporalio/worker`); everything else is a
+ * failure and is retried under the Activity's retry policy. Every catch in this
+ * module funnels through {@link toApplicationFailure}, so without this guard a
+ * model or MCP client that rejects when its `AbortSignal` fires would turn a
+ * cancel into a retryable `GoogleAdkModelError` / `GoogleAdkMCPError` and keep
+ * the attempt chain going.
+ *
+ * Call it first in every Activity catch, before classifying.
+ */
+function rethrowIfCancelled(err: unknown, signal: AbortSignal): void {
+  if (!signal.aborted) return;
+  // Already the shape the Worker wants; keep the original reason and stack.
+  if (err instanceof CancelledFailure) throw err;
+  // An `AbortError` reports as cancelled too, but the signal's reason is the
+  // `CancelledFailure` the Worker aborted with. Preferring it carries the cancel
+  // reason through, and lets a pause or a reset be reported as such rather than
+  // as a plain cancel.
+  if (isAbortError(err)) throw signal.reason instanceof CancelledFailure ? signal.reason : err;
+}
 
 /** Kept local (not imported from `plugin.ts`) to avoid an import cycle. @internal */
 export interface ModelActivitiesOptions {
@@ -44,17 +77,18 @@ export function createModelActivities(options: ModelActivitiesOptions = {}): Mod
 
   return {
     async 'adk-invokeModel'(args: InvokeModelArgs): Promise<LlmResponse[]> {
+      const abortSignal = ActivityContext.current().cancellationSignal;
       const stopHeartbeat = startAdaptiveHeartbeat();
       try {
         const model = resolveModel(args.model);
         const request = fromWireRequest(args.request);
-        const abortSignal = ActivityContext.current().cancellationSignal;
         const responses: LlmResponse[] = [];
         for await (const response of model.generateContentAsync(request, false, abortSignal)) {
           responses.push(response);
         }
         return responses;
       } catch (err) {
+        rethrowIfCancelled(err, abortSignal);
         throw toApplicationFailure(err);
       } finally {
         stopHeartbeat();
@@ -62,6 +96,7 @@ export function createModelActivities(options: ModelActivitiesOptions = {}): Mod
     },
 
     async 'adk-invokeModelStreaming'(args: InvokeModelStreamingArgs): Promise<LlmResponse[]> {
+      const abortSignal = ActivityContext.current().cancellationSignal;
       const stopHeartbeat = startAdaptiveHeartbeat();
       let stream: ReturnType<typeof WorkflowStreamClient.fromWithinActivity> | undefined;
       try {
@@ -71,7 +106,6 @@ export function createModelActivities(options: ModelActivitiesOptions = {}): Mod
         const events = stream.topic<LlmResponse>(args.streamingTopic);
         const model = resolveModel(args.model);
         const request = fromWireRequest(args.request);
-        const abortSignal = ActivityContext.current().cancellationSignal;
         const responses: LlmResponse[] = [];
         for await (const response of model.generateContentAsync(request, true, abortSignal)) {
           // Heartbeat per chunk so a slow stream isn't mistaken for a stuck worker.
@@ -81,6 +115,7 @@ export function createModelActivities(options: ModelActivitiesOptions = {}): Mod
         }
         return responses;
       } catch (err) {
+        rethrowIfCancelled(err, abortSignal);
         throw toApplicationFailure(err);
       } finally {
         try {
@@ -112,6 +147,7 @@ function mcpActivitiesForName(
 ): Record<string, (args: never) => Promise<unknown>> {
   return {
     [`${name}-listTools`]: async (): Promise<FunctionDeclaration[]> => {
+      const abortSignal = ActivityContext.current().cancellationSignal;
       const stopHeartbeat = startAdaptiveHeartbeat();
       let owned: MCPToolset | undefined;
       try {
@@ -123,6 +159,7 @@ function mcpActivitiesForName(
         // `processLlmRequest` calls it the same way.
         return tools.map((tool) => tool._getDeclaration()).filter((d): d is FunctionDeclaration => d !== undefined);
       } catch (err) {
+        rethrowIfCancelled(err, abortSignal);
         throw toApplicationFailure(err, MCP_ERROR_FAILURE_TYPE);
       } finally {
         try {
@@ -135,9 +172,9 @@ function mcpActivitiesForName(
     },
 
     [`${name}-callTool`]: async (args: MCPCallToolArgs): Promise<unknown> => {
+      const abortSignal = ActivityContext.current().cancellationSignal;
       const stopHeartbeat = startAdaptiveHeartbeat();
       try {
-        const abortSignal = ActivityContext.current().cancellationSignal;
         const produced = factory();
         if (!isBaseToolset(produced)) {
           return await callToolOverOneSession(produced, args, abortSignal);
@@ -155,6 +192,7 @@ function mcpActivitiesForName(
         const toolContext = { abortSignal } as unknown as AdkToolContext;
         return await tool.runAsync({ args: args.args, toolContext });
       } catch (err) {
+        rethrowIfCancelled(err, abortSignal);
         throw toApplicationFailure(err, MCP_ERROR_FAILURE_TYPE);
       } finally {
         stopHeartbeat();
@@ -257,9 +295,24 @@ export function toApplicationFailure(err: unknown, baseType: string = MODEL_ERRO
   });
 }
 
+/** Bound on how far down an error's `cause` chain the HTTP status/headers are looked for. */
+const MAX_CAUSE_DEPTH = 8;
+
+/**
+ * Walks `err` and its `cause` chain — ADK 2.0 wraps MCP session failures as
+ * `new Error('Failed to create MCP session: …', { cause })`, so the transport
+ * error carrying the status sits one level down.
+ */
+function* causeChain(err: unknown): Generator<Record<string, unknown>> {
+  let current: unknown = err;
+  for (let depth = 0; depth < MAX_CAUSE_DEPTH && current && typeof current === 'object'; depth++) {
+    yield current as Record<string, unknown>;
+    current = (current as { cause?: unknown }).cause;
+  }
+}
+
 function readStatus(err: unknown): number | undefined {
-  if (err && typeof err === 'object') {
-    const e = err as Record<string, unknown>;
+  for (const e of causeChain(err)) {
     if (typeof e.status === 'number') return e.status;
     if (typeof e.status === 'string' && /^\d+$/.test(e.status)) return Number(e.status);
     const response = e.response as Record<string, unknown> | undefined;
@@ -272,22 +325,23 @@ function readStatus(err: unknown): number | undefined {
 }
 
 function readHeaders(err: unknown): Record<string, string> | undefined {
-  if (!err || typeof err !== 'object') return undefined;
-  const e = err as Record<string, unknown>;
-  const raw = e.headers ?? (e.response as Record<string, unknown> | undefined)?.headers;
-  if (!raw || typeof raw !== 'object') return undefined;
+  for (const e of causeChain(err)) {
+    const raw = e.headers ?? (e.response as Record<string, unknown> | undefined)?.headers;
+    if (!raw || typeof raw !== 'object') continue;
 
-  const maybeHeaders = raw as { forEach?: (cb: (value: string, key: string) => void) => void };
-  if (typeof maybeHeaders.forEach === 'function') {
-    const out: Record<string, string> = {};
-    maybeHeaders.forEach((value, key) => {
-      out[key.toLowerCase()] = value;
-    });
-    return out;
+    const maybeHeaders = raw as { forEach?: (cb: (value: string, key: string) => void) => void };
+    if (typeof maybeHeaders.forEach === 'function') {
+      const out: Record<string, string> = {};
+      maybeHeaders.forEach((value, key) => {
+        out[key.toLowerCase()] = value;
+      });
+      return out;
+    }
+    return Object.fromEntries(
+      Object.entries(raw as Record<string, unknown>).map(([k, v]) => [k.toLowerCase(), String(v)])
+    );
   }
-  return Object.fromEntries(
-    Object.entries(raw as Record<string, unknown>).map(([k, v]) => [k.toLowerCase(), String(v)])
-  );
+  return undefined;
 }
 
 /**

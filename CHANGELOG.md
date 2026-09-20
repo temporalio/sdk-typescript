@@ -19,8 +19,19 @@ to docs, or any other relevant information.
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- `@temporalio/google-adk-agents` now requires `@google/adk` `>=2.0.0 <2.1.0` (was `>=1.5.0 <1.6.0`).
+  ADK 2.0 changed its internals and its id generation, so a Workflow started under the 1.5 plugin
+  cannot be replayed by a Worker on this version: drain in-flight Workflows before upgrading, or
+  run the versions on separate task queues. `@modelcontextprotocol/sdk` is now an optional peer
+  dependency, needed only for `TemporalMCPToolset`.
+
 ### Added
 
+- `@temporalio/google-adk-agents` runs on Google ADK 2.0: the Workflow bundle now uses ADK's web
+  build, pinned regardless of the consumer's webpack target, and ADK's UUIDs are generated from a
+  named workflow random stream inside the sandbox, so its ids are replay-stable.
 - **Experimental**: Workflows can signal another Workflow and start it when absent with
   `signalWithStartWorkflow`.
 - **Experimental**: Workflow outbound interceptors can intercept Temporal System Nexus calls
@@ -46,6 +57,9 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- `@temporalio/google-adk-agents` no longer turns a cancelled model or MCP Activity into a retryable
+  `GoogleAdkModelError` / `GoogleAdkMCPError`. An error raised once the Activity's cancellation signal
+  has fired is re-raised as the cancellation, so the attempt ends cancelled instead of being retried.
 - `@temporalio/ai-sdk` now preserves text provider metadata when replaying streamed model responses
   inside Workflows.
 - The Workflow sandbox now exposes `atob` and `btoa`, allowing integrations such as `@temporalio/ai-sdk` to
