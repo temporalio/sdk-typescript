@@ -40,7 +40,7 @@ import {
   type ToolProcessLlmRequest,
 } from '@google/adk';
 import { ApplicationFailure } from '@temporalio/common';
-import { type ActivityOptions, inWorkflowContext, isCancellation, proxyActivities } from '@temporalio/workflow';
+import { type ActivityOptions, inWorkflowContext, isCancellation, log, proxyActivities } from '@temporalio/workflow';
 
 import { gateOnConfirmation } from './confirmation';
 import { MCP_TOOLSET_OUTSIDE_WORKFLOW_FAILURE_TYPE } from './error-types';
@@ -176,7 +176,7 @@ function mcpToolsetCtor(name: string): MCPToolsetCtor {
       `TemporalMCPToolset('${name}'): @google/adk's MCPToolset is not available in this runtime. ` +
         "ADK 2.0 ships MCP only on its full (node) barrel; the Workflow bundle pins ADK's web build, " +
         'which omits it. MCP traffic inside a Workflow is routed through the <name>-listTools / ' +
-        '<name>-callTool Activities and never needs it.',
+        '<name>-callTool / <name>-listResources / <name>-readResource Activities and never needs it.',
       MCP_TOOLSET_OUTSIDE_WORKFLOW_FAILURE_TYPE
     );
   }
@@ -426,7 +426,7 @@ class TemporalLoadMcpResourceTool extends BaseTool {
       }
     } catch (err) {
       if (isCancellation(err)) throw err;
-      console.warn(`Failed to list MCP resources: ${String(err)}`);
+      warn(`Failed to list MCP resources: ${String(err)}`);
     }
 
     const lastContent = llmRequest.contents.at(-1);
@@ -449,9 +449,23 @@ class TemporalLoadMcpResourceTool extends BaseTool {
         }
       } catch (err) {
         if (isCancellation(err)) throw err;
-        console.warn(`Failed to read MCP resource '${resourceName}': ${String(err)}`);
+        warn(`Failed to read MCP resource '${resourceName}': ${String(err)}`);
       }
     }
+  }
+}
+
+/**
+ * Where ADK's `LoadMcpResourceTool` calls its own `logger.warn`. Inside a
+ * Workflow that has to be the Workflow logger, so the message reaches the
+ * Worker's `Runtime.logger` with the run's metadata and is dropped on replay;
+ * on the direct ADK path there is no activator to log through.
+ */
+function warn(message: string): void {
+  if (inWorkflowContext()) {
+    log.warn(message);
+  } else {
+    console.warn(message);
   }
 }
 
