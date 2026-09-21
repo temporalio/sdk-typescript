@@ -200,11 +200,16 @@ heartbeat.unref?.();
 // Launch ava under the requested runtime. Default is Node (via npx). When
 // AVA_RUNTIME=bun, run ava under Bun — mirroring `bun run -b ava` — so the Bun test
 // matrix still exercises the SDK under Bun while sharing this wrapper's quiet output.
+//
+// AVA_CONCURRENCY=<n> overrides the package's configured ava `concurrency` (how many test
+// files run at once). CI uses it to run the long `packages/test` suite two files at a time
+// on Node, where that is safe, without changing what `pnpm test` does locally or under Bun.
 const forwarded = process.argv.slice(2);
+const concurrency = process.env.AVA_CONCURRENCY ? ['--concurrency', process.env.AVA_CONCURRENCY] : [];
 const [cmd, cmdArgs]: [string, string[]] =
   process.env.AVA_RUNTIME === 'bun'
-    ? ['bun', ['run', '-b', 'ava', '--tap', ...forwarded]]
-    : [process.platform === 'win32' ? 'npx.cmd' : 'npx', ['ava', '--tap', ...forwarded]];
+    ? ['bun', ['run', '-b', 'ava', '--tap', ...concurrency, ...forwarded]]
+    : [process.platform === 'win32' ? 'npx.cmd' : 'npx', ['ava', '--tap', ...concurrency, ...forwarded]];
 const child = spawn(cmd, cmdArgs, {
   cwd,
   shell: process.platform === 'win32',

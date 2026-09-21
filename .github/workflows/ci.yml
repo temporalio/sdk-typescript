@@ -217,10 +217,14 @@ jobs:
       # runs the workspace packages one at a time. Run it alongside the other packages instead,
       # which stay serial among themselves. Every suite starts its own ephemeral server or its own
       # task queues on the shared dev server, so the two groups do not interfere.
+      # `@temporalio/test` also runs two files at a time here (AVA_CONCURRENCY, read by
+      # scripts/ava-ci.ts): its files mostly wait on the dev server and on timers, so the second
+      # file cuts the suite by roughly a quarter. Bun keeps one file at a time, where two produced
+      # Nexus cancellation timeouts.
       - name: Run Tests (Node)
         if: matrix.node != 'bun'
         run: |
-          pnpm --filter @temporalio/test run test &
+          AVA_CONCURRENCY=2 pnpm --filter @temporalio/test run test &
           core_pid=$!
           pnpm --recursive --parallel --workspace-concurrency=1 --stream --filter '!@temporalio/test' run test &
           rest_pid=$!
