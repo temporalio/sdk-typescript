@@ -21,7 +21,7 @@ import {
   type RunAsyncToolRequest,
 } from '@google/adk';
 
-import type { MCPToolsetFactory } from './mcp';
+import type { MCPResourceContents, MCPToolsetFactory } from './mcp';
 
 /**
  * A deterministic {@link BaseLlm} test double. Yields the provided
@@ -79,20 +79,48 @@ export interface MockMCPToolDefinition {
   handler: (args: Record<string, unknown>) => unknown | Promise<unknown>;
 }
 
+/** A single MCP resource served by {@link mockMCPToolset}. */
+export interface MockMCPResourceDefinition {
+  /** The resource's advertised name. */
+  name: string;
+  /** What a read returns: text and/or base64 blob contents, as an MCP server sends them. */
+  contents: MCPResourceContents[];
+}
+
+/** Options for {@link mockMCPToolset}. */
+export interface MockMCPToolsetOptions {
+  /** Resources the toolset lists and reads (`TemporalMCPToolset.listResources` / `readResource`). */
+  resources?: MockMCPResourceDefinition[];
+}
+
 /**
- * An in-memory {@link BaseToolset} test double for MCP. Use via
+ * An in-memory {@link BaseToolset} test double for MCP, with ADK 2.0's
+ * `listResources` / `readResource` resource methods. Use via
  * {@link mockMCPToolset} as a `GoogleAdkPluginOptions.mcpToolsets` factory.
  */
 class MockMCPToolset extends BaseToolset {
   private readonly definitions: MockMCPToolDefinition[];
+  private readonly resources: MockMCPResourceDefinition[];
 
-  constructor(definitions: MockMCPToolDefinition[]) {
+  constructor(definitions: MockMCPToolDefinition[], resources: MockMCPResourceDefinition[]) {
     super([]);
     this.definitions = definitions;
+    this.resources = resources;
   }
 
   override async getTools(_context?: ReadonlyContext): Promise<BaseTool[]> {
     return this.definitions.map((def) => new MockMCPTool(def));
+  }
+
+  async listResources(): Promise<string[]> {
+    return this.resources.map((resource) => resource.name);
+  }
+
+  async readResource(name: string): Promise<MCPResourceContents[]> {
+    const resource = this.resources.find((candidate) => candidate.name === name);
+    // The same message ADK's `MCPToolset.getResourceInfo` raises for an unknown name.
+    if (!resource) throw new Error(`Resource with name '${name}' not found.`);
+    return resource.contents;
   }
 
   override async close(): Promise<void> {}
@@ -122,7 +150,10 @@ class MockMCPTool extends BaseTool {
  * — drop into `GoogleAdkPluginOptions.mcpToolsets` to test MCP routing without
  * a real server.
  */
-export function mockMCPToolset(definitions: MockMCPToolDefinition[]): MCPToolsetFactory {
-  const toolset = new MockMCPToolset(definitions);
+export function mockMCPToolset(
+  definitions: MockMCPToolDefinition[],
+  options: MockMCPToolsetOptions = {}
+): MCPToolsetFactory {
+  const toolset = new MockMCPToolset(definitions, options.resources ?? []);
   return () => toolset;
 }

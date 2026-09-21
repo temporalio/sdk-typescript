@@ -1,8 +1,9 @@
 /**
- * A stdio MCP server exposing one `echo` tool, recording its session boundaries and
- * tool requests to the file named by `MCP_STUB_LOG`. An unknown tool gets the reply a
- * real `McpServer` sends: a successful result carrying `isError: true`, never a
- * JSON-RPC error frame.
+ * A stdio MCP server exposing one `echo` tool and one `readme` resource, recording its
+ * session boundaries, tool and resource requests to the file named by `MCP_STUB_LOG`. An
+ * unknown tool gets the reply a real `McpServer` sends: a successful result carrying
+ * `isError: true`, never a JSON-RPC error frame. An unknown resource gets the JSON-RPC
+ * error a real server sends for `resources/read`.
  */
 
 import { appendFileSync } from 'node:fs';
@@ -19,6 +20,10 @@ const TOOLS = [
     description: 'Echoes the input value.',
     inputSchema: { type: 'object', properties: { value: { type: 'string' } }, required: ['value'] },
   },
+];
+
+const RESOURCES = [
+  { uri: 'file:///readme.md', name: 'readme', description: 'The stub README.', mimeType: 'text/markdown' },
 ];
 
 function record(entry: string): void {
@@ -40,7 +45,7 @@ function handle(message: JsonRpcMessage): void {
     case 'initialize':
       reply(message.id, {
         protocolVersion: message.params?.protocolVersion,
-        capabilities: { tools: {} },
+        capabilities: { tools: {}, resources: {} },
         serverInfo: { name: 'stub-mcp-server', version: '0.0.0' },
       });
       return;
@@ -59,6 +64,23 @@ function handle(message: JsonRpcMessage): void {
         return;
       }
       reply(message.id, { content: [{ type: 'text', text: JSON.stringify({ echoed: params.arguments?.value }) }] });
+      return;
+    }
+    case 'resources/list':
+      record('resources/list');
+      reply(message.id, { resources: RESOURCES });
+      return;
+    case 'resources/read': {
+      record('resources/read');
+      const params = (message.params ?? {}) as { uri?: string };
+      const resource = RESOURCES.find((candidate) => candidate.uri === params.uri);
+      if (!resource) {
+        replyError(message.id, -32002, `Resource not found: ${params.uri}`);
+        return;
+      }
+      reply(message.id, {
+        contents: [{ uri: resource.uri, mimeType: resource.mimeType, text: '# Stub\n\nHello from the stub resource.' }],
+      });
       return;
     }
     default:

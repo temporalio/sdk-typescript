@@ -9,7 +9,7 @@ routes non-deterministic boundaries out to Activities:
 
 - every **model call** (`generateContentAsync`) becomes a retryable, observable
   Activity,
-- every **MCP tool call** (list-tools / call-tool) becomes an Activity,
+- every **MCP tool call**, resource listing and resource read becomes an Activity,
 - an **Activity** can be a graph node (`activityNode`) or a tool (`activityAsTool`).
 
 Regular ADK `FunctionTool`s still run in the Workflow. If a tool performs I/O,
@@ -36,12 +36,12 @@ Versions of this plugin for `@google/adk` 1.5 are not compatible with 2.0, and a
 Workflow started under 1.5 cannot be replayed by a Worker on 2.0: ADK's internals
 and its id generation changed. Drain in-flight Workflows before switching, or run
 the two versions on separate task queues. Nothing in your Workflow code has to
-change.
+change; raw model strings (`model: 'gemini-2.5-flash'`) now work inside a Workflow
+without `TemporalModel` (see [Model routing](#model-routing)).
 
 ## Hello world
 
-Wrap the agent model in `TemporalModel`, then register `GoogleAdkPlugin` on the
-Worker.
+Register `GoogleAdkPlugin` on the Worker. Everything else is ordinary ADK code.
 
 ### `workflows.ts`
 
@@ -52,7 +52,8 @@ import { TemporalModel } from '@temporalio/google-adk-agents/workflow';
 export async function askAgent(prompt: string): Promise<string> {
   const agent = new LlmAgent({
     name: 'assistant',
-    // The only change from a vanilla ADK agent:
+    // Optional — a raw 'gemini-2.5-flash' string works too; wrap it to set
+    // Activity options (timeouts, retries, streaming) for the model calls.
     model: new TemporalModel('gemini-2.5-flash'),
     instruction: 'You are a helpful assistant.',
   });
@@ -141,6 +142,23 @@ leaves nothing to raise. Another agent answering does not clear it, and neither
 does a later turn, which is a new question rather than a second go at the one
 that failed.
 
+### Model routing
+
+Inside a Workflow, ADK's built-in model classes (`Gemini`, `ApigeeLlm`) cannot run:
+they call the network from the sandbox. The plugin therefore re-registers their
+model-name patterns in the Workflow's `LLMRegistry` to a `TemporalModel`, so an
+agent configured with a raw string — `model: 'gemini-2.5-flash'`,
+`model: 'apigee/…'` — is durable without any change, using `TemporalModel`'s
+default Activity options (a one-minute `startToCloseTimeout`, no streaming). Wrap
+the string in `new TemporalModel(name, options)` to customize.
+
+The Worker is untouched: there the real class runs inside the model Activity, so
+`GoogleAdkPluginOptions.modelProvider` still resolves the same names.
+
+`RoutedLlm` holds model _instances_, so build it from `TemporalModel`s. Set
+`autoRouteModels: false` on the plugin only if you register your own sandbox-safe
+`BaseLlm` for one of those patterns.
+
 ### MCP tools
 
 Use `TemporalMCPToolset` in Workflow code and register the matching MCP factory
@@ -173,6 +191,39 @@ the factory's job — see `MCPToolsetFactory`.
 
 Gate the toolset's tools behind human approval with
 `requireConfirmation` — see [Durable human-in-the-loop](#durable-human-in-the-loop).
+
+### MCP resources
+
+ADK 2.0's `MCPToolset` lists and reads MCP resources. `TemporalMCPToolset` does
+the same through `<name>-listResources` / `<name>-readResource` Activities, and
+`loadMcpResourceTool` is the counterpart of ADK's `LoadMcpResourceTool`: the model
+asks for resources by name, and on the next model call the tool appends their
+contents to the request.
+
+```typescript
+const toolset = new TemporalMCPToolset({ name: 'filesystem' });
+const agent = new LlmAgent({
+  name: 'reader',
+  model: new TemporalModel('gemini-2.5-flash'),
+  tools: [toolset, loadMcpResourceTool(toolset)],
+});
+```
+
+ADK re-lists the server's resources before every model call; the plugin lists
+once per tool instance instead (each listing is an Activity), and
+`loadMcpResourceTool(toolset, { refreshResourceList: true })` restores ADK's
+behavior. As in ADK, resource contents are appended to one request only — the
+model must ask again to see them on a later turn — and a failed listing or read
+is logged and skipped, not raised. A factory-supplied toolset must be an
+`MCPToolset` (or expose `listResources` / `readResource`) for resources to work;
+connection params always do.
+
+Because they are skipped rather than raised, resource reads are best-effort and
+bounded: `listResources` and `readResource` default `activity.retry.maximumAttempts`
+to 3, where a tool call keeps Temporal's unlimited default. Without that bound an
+unreachable server would retry behind the model turn forever and never reach the
+skip path. Set `activity: { retry: { maximumAttempts: n } }` on the toolset to
+choose your own, or `0` for unlimited.
 
 ### Activities as tools
 
@@ -444,9 +495,12 @@ import { fakeModelProvider, mockMCPToolset } from '@temporalio/google-adk-agents
 const plugin = new GoogleAdkPlugin({
   modelProvider: fakeModelProvider(),
   mcpToolsets: {
-    weather: mockMCPToolset([
-      /* tool defs */
-    ]),
+    weather: mockMCPToolset(
+      [
+        /* tool defs */
+      ],
+      { resources: [{ name: 'readme', contents: [{ uri: 'file:///readme.md', text: '# Hi' }] }] }
+    ),
   },
 });
 ```
@@ -530,7 +584,7 @@ Cautions:
   `FileArtifactService`, the local code executors (`UnsafeLocalCodeExecutor`,
   `AgentEngineSandboxCodeExecutor`), telemetry setup, `LocalEnvironment`, the
   agent registry. Present but non-functional there: the skills loaders and
-  `ApigeeLlm` (replaced by an inert class; wrap it in `TemporalModel`).
+  `ApigeeLlm` (routed to `TemporalModel` by default).
   `BuiltInCodeExecutor` does work — it only adds Gemini's code-execution tool to
   the request the model Activity carries.
 - **Thread-pool tool execution** and any ADK extension point that performs I/O;
@@ -557,19 +611,18 @@ Cautions:
 
 ## Troubleshooting
 
-- A cryptic sandbox error during a model call — for example `fetch is not defined`,
-  or a `... is not a function` error from a worker-only module like
-  `google-auth-library` (the plugin's bundler config aliases such modules to an
-  empty module in the Workflow bundle) — almost always means a model was not
-  wrapped in `TemporalModel`. If an agent is configured with a raw model string
-  (`model: 'gemini-2.5-flash'`) instead of `model: new TemporalModel('gemini-2.5-flash')`,
-  ADK resolves the string through its `LLMRegistry` inside the Workflow sandbox and
-  attempts a live network call from there. The sandbox blocks that call, and the
-  resulting error points nowhere near the actual mistake. Wrap the model in
-  `TemporalModel` so the call is routed out to an Activity.
+- A Workflow that resolves a model **name** ADK does not know (a third-party
+  `BaseLlm` you registered on the Worker only) throws `Model … not found` inside
+  the sandbox. Wrap it: `model: new TemporalModel('my-model')`, and let
+  `GoogleAdkPluginOptions.modelProvider` build it on the Worker.
 - `X is not a constructor` / `X is not a function` for an ADK symbol inside a
   Workflow means the symbol is one of the node-only services above: the Workflow
   bundle resolves ADK's web surface, which omits it. Use it worker-side.
+- A cryptic sandbox error during a model call (`fetch is not defined`, or a
+  `… is not a function` from a worker-only module such as `google-auth-library`)
+  means a `BaseLlm` performed I/O inside the Workflow — for instance
+  `autoRouteModels: false` with a raw Gemini string, or a custom `BaseLlm`
+  instance placed directly on an agent. Route it through `TemporalModel`.
 
 ## License
 
