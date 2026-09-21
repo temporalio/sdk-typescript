@@ -37,6 +37,11 @@ export async function summarize(text: string): Promise<string> {
   return `${text} summarized`;
 }
 
+/** Returns nothing, so the node it backs completes with an `undefined` output. */
+export async function voidActivity(): Promise<void> {
+  record('voidActivity');
+}
+
 export async function enrichItem(item: string): Promise<string> {
   record(`enrichItem:${item}`);
   return `enriched-${item}`;
@@ -55,6 +60,22 @@ export async function approveActivity(): Promise<string> {
 export async function rejectActivity(): Promise<string> {
   record('rejectActivity');
   return 'rejected';
+}
+
+/**
+ * Sleeps well past any test deadline, heartbeating so the server can deliver a
+ * cancellation, and reports one as a cancellation, so history carries an
+ * `ActivityTaskCanceled` the caller can order against.
+ */
+export async function cancellableActivity(): Promise<string> {
+  record('cancellableActivity');
+  const ctx = Context.current();
+  for (let i = 0; i < 600; i++) {
+    ctx.heartbeat(i);
+    // Throws `CancelledFailure` once the cancellation reaches this Activity.
+    await ctx.sleep(100);
+  }
+  return 'too late';
 }
 
 /** Sleeps well past any test deadline, but stops at once when the Activity is cancelled. */

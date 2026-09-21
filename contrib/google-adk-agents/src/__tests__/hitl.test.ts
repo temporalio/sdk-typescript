@@ -17,7 +17,15 @@ import type { TestWorkflowEnvironment } from '@temporalio/testing';
 import { Worker } from '@temporalio/worker';
 
 import { GoogleAdkPlugin } from '../index';
-import { hitlConfirmationResponse, hitlInputResponse, pendingHitlRequests, type HitlRequest } from '../workflow';
+import {
+  hitlConfirmationResponse,
+  hitlInputResponse,
+  pendingHitlRequests,
+  HITL_RESPONSE_FAILURE_TYPE,
+  type HitlConfirmationRequest,
+  type HitlInputRequest,
+  type HitlRequest,
+} from '../workflow';
 import { mockMCPToolset } from '../testing';
 import {
   countScheduledActivities,
@@ -125,6 +133,35 @@ test.serial('a RequestInput node pauses the graph until the answer arrives throu
     t.is(result.output, 'approved:ship-it');
     t.is(result.turns, 2);
   });
+});
+
+test.serial('an answer the builder refuses rejects the Update and leaves the Workflow healthy', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-hitl-reject-answer');
+  const workflowId = uid('wf-hitl-reject-answer');
+  await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, async () => {
+    const handle = await env.client.workflow.start(hitlInputNode, { taskQueue, workflowId });
+    await waitForPending(handle, 1, ['approval']);
+
+    // The handler builds the Part, so the coercion guard runs while the caller can
+    // still hear about it: '42' has no string schema and would reach the node as 42.
+    const rejected = await t.throwsAsync(handle.executeUpdate(respondHitlUpdate, { args: ['approval', '42'] }));
+    t.is(findInCauseChain(rejected, ApplicationFailure)?.type, 'GoogleAdkHitlResponseError');
+    // An id nothing is waiting on is refused the same way.
+    const unknownId = await t.throwsAsync(handle.executeUpdate(respondHitlUpdate, { args: ['nope', 1] }));
+    t.is(findInCauseChain(unknownId, ApplicationFailure)?.type, 'GoogleAdkHitlResponseError');
+
+    // The interrupt is still open, so the parsed value is accepted and the run finishes.
+    await handle.executeUpdate(respondHitlUpdate, { args: ['approval', 42] });
+    t.is((await handle.result()).output, 'approved:42');
+  });
+  // A rejected Update must not have failed a Workflow Task: that would retry the
+  // task forever with the bad answer already committed to history.
+  const { events } = await getEnv().client.workflow.getHandle(workflowId).fetchHistory();
+  t.deepEqual(
+    (events ?? []).filter((e) => e.workflowTaskFailedEventAttributes != null),
+    []
+  );
 });
 
 test.serial('a default interrupt id is a UUID and regenerates identically under replay', async (t) => {
@@ -310,7 +347,7 @@ test.serial('a resumed dynamic node fast-forwards its completed Activity child i
 
 // Wire-format helpers (unit)
 test('hitlInputResponse wraps bare values, passes objects through, and refuses a silently coerced string', (t) => {
-  const request: HitlRequest = { kind: 'input', interruptId: 'i1', functionCallName: 'adk_request_input' };
+  const request: HitlInputRequest = { kind: 'input', interruptId: 'i1', functionCallName: 'adk_request_input' };
   t.deepEqual(hitlInputResponse(request, 'ship-it'), {
     functionResponse: { id: 'i1', name: 'adk_request_input', response: { result: 'ship-it' } },
   });
@@ -319,30 +356,56 @@ test('hitlInputResponse wraps bare values, passes objects through, and refuses a
   t.deepEqual(hitlInputResponse(request, { userResponse: 'x' }).functionResponse?.response, { userResponse: 'x' });
   // '42' would reach the node as the number 42 (ADK parses string answers as JSON
   // unless the schema accepts strings) — refused rather than coerced.
-  t.throws(() => hitlInputResponse(request, '42'), {
-    instanceOf: TypeError,
-    message: /would be delivered to the node as JSON/,
+  // A non-retryable ApplicationFailure, not a TypeError: only a TemporalFailure
+  // rejects the Update whose handler builds the Part.
+  const refused = t.throws(() => hitlInputResponse(request, '42'), {
+    instanceOf: ApplicationFailure,
+    message: /parses as JSON, so ADK would deliver 42 \(number\)/,
   });
-  t.throws(() => hitlInputResponse(request, 'true'), { instanceOf: TypeError });
+  t.is(refused?.type, HITL_RESPONSE_FAILURE_TYPE);
+  t.is(refused?.nonRetryable, true);
+  t.throws(() => hitlInputResponse(request, 'true'), { instanceOf: ApplicationFailure });
+  // A quoted string parses to a *string*, and ADK still returns the parsed value,
+  // so the node would see `foo` rather than `"foo"`.
+  t.throws(() => hitlInputResponse(request, '"foo"'), {
+    instanceOf: ApplicationFailure,
+    message: /so ADK would deliver the string "foo" to the node/,
+  });
+  // Text that is not JSON at all reaches the node verbatim, so it is allowed.
+  t.deepEqual(hitlInputResponse(request, 'ship it').functionResponse?.response, { result: 'ship it' });
   // ADK unwraps any single-key `{ result: … }` object, so the same coercion applies
   // to an object the caller wrote itself.
-  t.throws(() => hitlInputResponse(request, { result: '42' }), { instanceOf: TypeError });
+  t.throws(() => hitlInputResponse(request, { result: '42' }), { instanceOf: ApplicationFailure });
   // A second key defeats the unwrap, so the object arrives whole and nothing is parsed.
   t.deepEqual(hitlInputResponse(request, { result: '42', unit: 'm' }).functionResponse?.response, {
     result: '42',
     unit: 'm',
   });
   // A string schema keeps the text verbatim, so the same answer is fine.
-  const stringRequest: HitlRequest = { ...request, responseSchema: { type: 'string' } };
+  const stringRequest: HitlInputRequest = { ...request, responseSchema: { type: 'string' } };
   t.deepEqual(hitlInputResponse(stringRequest, '42').functionResponse?.response, { result: '42' });
-  // Wrong kind.
-  t.throws(() => hitlInputResponse({ ...request, kind: 'confirmation' }, 'x'), {
+  // Wrong kind. The signature rejects it at compile time; the cast stands in for a
+  // request that reached a Client as plain JSON over a Query, where it cannot.
+  t.throws(() => hitlInputResponse({ ...request, kind: 'confirmation' } as unknown as HitlInputRequest, 'x'), {
     message: /has kind 'confirmation', not 'input'/,
   });
+  // A credential request is not in `HitlRequest` at all, and is refused by name.
+  t.throws(
+    () =>
+      hitlInputResponse(
+        {
+          kind: 'credential',
+          interruptId: 'c1',
+          functionCallName: 'adk_request_credential',
+        } as unknown as HitlInputRequest,
+        'x'
+      ),
+    { message: /Credential requests are not answerable from a Workflow/ }
+  );
 });
 
 test('hitlConfirmationResponse emits the ToolConfirmation shape ADK parses', (t) => {
-  const request: HitlRequest = {
+  const request: HitlConfirmationRequest = {
     kind: 'confirmation',
     interruptId: 'adk-1',
     functionCallName: 'adk_request_confirmation',
@@ -359,9 +422,13 @@ test('hitlConfirmationResponse emits the ToolConfirmation shape ADK parses', (t)
       payload: { p: 1 },
     }
   );
-  t.throws(() => hitlConfirmationResponse({ ...request, kind: 'input' }, { confirmed: true }), {
-    message: /has kind 'input', not 'confirmation'/,
-  });
+  t.throws(
+    () =>
+      hitlConfirmationResponse({ ...request, kind: 'input' } as unknown as HitlConfirmationRequest, {
+        confirmed: true,
+      }),
+    { message: /has kind 'input', not 'confirmation'/ }
+  );
 });
 
 test('pendingHitlRequests reports input and confirmation pauses but drops credential requests', (t) => {

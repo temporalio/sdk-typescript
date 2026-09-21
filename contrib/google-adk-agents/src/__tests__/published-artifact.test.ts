@@ -34,6 +34,7 @@ test('cjsRequireExposesPublicExports', (t) => {
   t.is(workflow.MCP_RESOURCES_UNSUPPORTED_FAILURE_TYPE, 'GoogleAdkMCPResourcesUnsupported');
   t.is(workflow.NODE_TIMEOUT_FAILURE_TYPE, 'GoogleAdkNodeTimeoutError');
   t.is(workflow.INTENT_MISMATCH_FAILURE_TYPE, 'GoogleAdkIntentMismatchError');
+  t.is(workflow.HITL_RESPONSE_FAILURE_TYPE, 'GoogleAdkHitlResponseError');
   t.is(workflow.ADK_RUNTIME_FAILURE_TYPES.NodeTimeoutError, 'GoogleAdkNodeTimeoutError');
   t.false('MCP_TOOLSET_OUTSIDE_WORKFLOW_FAILURE_TYPE' in workflow);
   t.false('ACTIVITY_TOOL_OUTSIDE_WORKFLOW_FAILURE_TYPE' in workflow);

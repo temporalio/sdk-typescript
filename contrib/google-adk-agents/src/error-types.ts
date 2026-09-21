@@ -65,8 +65,24 @@ export const MODEL_ERROR_FAILURE_TYPE = 'GoogleAdkModelError';
  */
 export const MCP_ERROR_FAILURE_TYPE = 'GoogleAdkMCPError';
 
+/**
+ * Error type for an answer the HITL wire-format helpers refuse: a request of the
+ * wrong `kind`, or a string ADK would silently retype on the way into the node.
+ * Non-retryable, and raised where the helper is called.
+ *
+ * It is an `ApplicationFailure` rather than a `TypeError` so that building the
+ * response inside an Update handler rejects the Update: the SDK rejects an update
+ * only for a `TemporalFailure` (`packages/workflow/src/internals.ts`), and any
+ * other error fails the Workflow Task instead, which then retries forever against
+ * an answer the caller can no longer take back.
+ */
+export const HITL_RESPONSE_FAILURE_TYPE = 'GoogleAdkHitlResponseError';
+
 /** @internal */
 export const ACTIVITY_NODE_OUTSIDE_WORKFLOW_FAILURE_TYPE = 'GoogleAdkActivityNodeOutsideWorkflow';
+
+/** @internal */
+export const ACTIVITY_NODE_NAME_FAILURE_TYPE = 'GoogleAdkActivityNodeName';
 
 /**
  * Error type when a `<name>-listResources` / `<name>-readResource` Activity finds

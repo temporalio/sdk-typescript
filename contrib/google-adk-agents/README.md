@@ -133,6 +133,15 @@ policy. To opt out, handle the error in an ADK `onModelErrorCallback`, pass
 that same error to `markModelFailureHandled`, and return a substitute event
 built with ADK's `createEvent`.
 
+ADK turns a model error into an event rather than rethrowing it, so a run can
+finish normally on a failure nobody saw; the plugin raises such a failure as the
+Workflow (or the Update handler that ran the turn) returns. What counts as the
+recovery is the same agent answering later in the same ADK invocation: a node
+`retryConfig` that re-runs the agent, or a graph that activates the node again,
+leaves nothing to raise. Another agent answering does not clear it, and neither
+does a later turn, which is a new question rather than a second go at the one
+that failed.
+
 ### Model routing
 
 Inside a Workflow, ADK's built-in model classes (`Gemini`, `ApigeeLlm`) cannot run:
@@ -264,6 +273,12 @@ const runner = new InMemoryRunner({ agent: graph });
 - **Input and output.** By default the node's input is passed to the Activity as
   its single argument and the Activity's result is the node's output; `args`
   maps the input (and `NodeContext`, for state) to the Activity's argument list.
+  An Activity returning nothing completes the node with an `undefined` output.
+- **Node names.** The node is named after the Activity unless `nodeName` says
+  otherwise, and the name may not contain a `.`: ADK reserves it as its node-path
+  separator, and a dotted name breaks the resume that fast-forwards a completed
+  node. `activityNode` refuses one, so a dotted Activity type
+  (`payments.charge`) needs a `nodeName`.
 - **Routing.** A node returns `createEvent({ route: 'approve', output })` and the
   edge `[router, { approve: a, [DEFAULT_ROUTE]: b }]` picks the branch; only that
   branch's Activity runs.
@@ -278,11 +293,22 @@ const runner = new InMemoryRunner({ agent: graph });
   with `exceptions: ['ActivityFailure']`; ADK matches error names), its backoff is
   a durable timer, and its jitter is drawn from the Workflow's `Math.random()`.
   A node `timeout` (seconds) is a durable timer that cancels the in-flight
-  Activity and fails the node with ADK's `NodeTimeoutError`.
+  Activity and fails the node with ADK's `NodeTimeoutError` once that
+  cancellation has settled, so a retry never overlaps the Activity it replaces.
+  What "settled" means is the Activity's `cancellationType`: unset
+  (`TRY_CANCEL`) it settles at once and the Activity winds down on its own; with
+  `WAIT_CANCELLATION_COMPLETED` the node waits for the Activity to acknowledge,
+  which it only does at its next heartbeat. The plugin runs this deadline
+  itself, because ADK's own races the node and then abandons the unwind.
+- **Fan-in.** Use a `JoinNode`: it is the node type that waits for every
+  predecessor, and its input is the map from predecessor name to that node's
+  output. ADK's `waitForOutput` flag is not a fan-in gate (it parks a node that
+  ended with no output and no route), so `activityNode` does not expose it.
 - **Resume.** ADK resumes a paused graph from the session's events: a node that
-  already produced output is fast-forwarded rather than re-run. `activityNode`
-  defaults `rerunOnResume` to `false`, so its Activity is not scheduled again;
-  ADK's `Workflow` and `LlmAgent` default it to `true`. Resume is at-least-once
+  already produced output is always fast-forwarded rather than re-run, so an
+  `activityNode`'s Activity is not scheduled again. (ADK's `rerunOnResume`
+  concerns a node that paused for input last turn, which an Activity node never
+  does, so `activityNode` does not expose it either.) Resume is at-least-once
   for a dynamic node's body — put side effects in `activityNode` /
   `activityAsTool` children, or make them idempotent.
 - `LongRunningFunctionTool`s (including a node-as-tool) cannot be used as a
@@ -298,12 +324,15 @@ ordinary Workflow code, and the plugin supplies the wire format:
 
 ```typescript
 import { InMemoryRunner } from '@google/adk';
-import type { Content } from '@google/genai';
+import type { Content, Part } from '@google/genai';
+import { ApplicationFailure } from '@temporalio/common';
 import { condition, defineQuery, defineUpdate, setHandler } from '@temporalio/workflow';
 import {
+  HITL_RESPONSE_FAILURE_TYPE,
   hitlConfirmationResponse,
   hitlInputResponse,
   pendingHitlRequests,
+  type HitlConfirmation,
   type HitlRequest,
 } from '@temporalio/google-adk-agents/workflow';
 
@@ -313,9 +342,22 @@ export const respondUpdate = defineUpdate<void, [string, unknown]>('respond');
 // `graph` is the Workflow built in the section above; any RunnableRoot works.
 export async function reviewWorkflow(prompt: string): Promise<unknown> {
   let pending: HitlRequest[] = [];
-  const answers = new Map<string, unknown>();
+  const answers = new Map<string, Part>();
   setHandler(pendingQuery, () => pending);
-  setHandler(respondUpdate, (interruptId, value) => void answers.set(interruptId, value));
+  // Build the response inside the handler, so a bad answer rejects the Update
+  // rather than failing a Workflow Task once it is already in history.
+  setHandler(respondUpdate, (interruptId, value) => {
+    const request = pending.find((r) => r.interruptId === interruptId);
+    if (!request) {
+      throw ApplicationFailure.nonRetryable(`nothing is waiting on '${interruptId}'`, HITL_RESPONSE_FAILURE_TYPE);
+    }
+    answers.set(
+      interruptId,
+      request.kind === 'confirmation'
+        ? hitlConfirmationResponse(request, value as HitlConfirmation)
+        : hitlInputResponse(request, value)
+    );
+  });
 
   const runner = new InMemoryRunner({ agent: graph });
   const session = await runner.sessionService.createSession({ appName: runner.appName, userId: 'user' });
@@ -334,27 +376,29 @@ export async function reviewWorkflow(prompt: string): Promise<unknown> {
     if (pending.length === 0) return output;
 
     await condition(() => pending.every((r) => answers.has(r.interruptId)));
-    newMessage = {
-      role: 'user',
-      parts: pending.map((r) =>
-        r.kind === 'confirmation'
-          ? hitlConfirmationResponse(r, answers.get(r.interruptId) as { confirmed: boolean })
-          : hitlInputResponse(r, answers.get(r.interruptId))
-      ),
-    };
+    newMessage = { role: 'user', parts: pending.map((r) => answers.get(r.interruptId)!) };
   }
 }
 ```
 
 - `pendingHitlRequests(events)` returns ADK's `UserInputRequest`s (plain JSON, so a
-  Query can return them) that still await an answer, minus credential requests.
+  Query can return them) that still await an answer, minus credential requests. The
+  returned `HitlRequest` is a union of `HitlInputRequest` and `HitlConfirmationRequest`
+  discriminated on `kind`, so narrowing on `kind` picks the builder that accepts it.
 - `hitlInputResponse(request, value)` answers an input request: a plain object is
   sent as-is, anything else is wrapped in ADK's `{ result: value }` envelope.
   ADK unwraps that envelope by shape (any response whose single key is `result`)
   and parses the _string_ it unwraps as JSON, unless the request declared a
   `responseSchema` that accepts strings. A string that reads as JSON is therefore
   refused rather than silently retyped — declare a string schema on the
-  `RequestInput`, or pass the parsed value.
+  `RequestInput`, or pass the parsed value. Any string that parses is refused, a
+  quoted one included: `'"foo"'` would reach the node as `foo`.
+- Both builders throw a non-retryable `ApplicationFailure` of type
+  `HITL_RESPONSE_FAILURE_TYPE` when they refuse an answer. Call them where the answer
+  arrives, in the Signal or Update handler, as above: the SDK rejects an Update only
+  for a `TemporalFailure`, so validating there tells the caller no, while letting a
+  bad answer through to the Workflow body would fail the Workflow Task over and over
+  with the answer already accepted.
 - `hitlConfirmationResponse(request, { confirmed, payload? })` answers a tool
   gate. ADK reads approvals from the **latest** user message only, so answer every
   pending confirmation in one message, and rebuild the agent for the resumed turn
@@ -363,8 +407,10 @@ export async function reviewWorkflow(prompt: string): Promise<unknown> {
 - Gate an Activity or MCP tool with `requireConfirmation` (a flag, or a predicate
   over the arguments that must be a pure function of them): the Activity is not
   scheduled until the human approves, and a rejection returns ADK's rejection
-  result to the model. A gate is only enforced on an `LlmAgent` turn; ADK's
-  workflow `ToolNode` does not route through confirmation. Declare the gate this
+  result to the model. The same gate applies to a `TemporalMCPToolset` used
+  directly with ADK (outside a Workflow, from `connectionParams`). A gate is only
+  enforced on an `LlmAgent` turn; ADK's workflow `ToolNode` does not route through
+  confirmation. Declare the gate this
   way rather than calling `toolContext.requestConfirmation()` from a tool body:
   ADK 2.0.0 binds an approval only to a tool whose `checkRequireConfirmation`
   says the call needs one, and refuses a gate requested only at run time — the

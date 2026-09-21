@@ -32,9 +32,12 @@ to docs, or any other relevant information.
 - `@temporalio/google-adk-agents` supports Google ADK 2.0's TypeScript feature set inside Workflows:
   - the workflow (graph) runtime — `Workflow`, `node()`, `JoinNode`, routing, dynamic nodes,
     `RequestInput`, node-as-tool, node retries and timeouts — runs unchanged; `activityNode` makes a
-    registered Activity a graph node (its abort cancels the in-flight Activity);
+    registered Activity a graph node, and its deadline (or a sibling's failure) cancels the
+    in-flight Activity and waits for that cancellation to settle before failing the node;
   - durable human-in-the-loop: `pendingHitlRequests`, `hitlInputResponse` and
-    `hitlConfirmationResponse` supply ADK's wire format, and `activityAsTool` /
+    `hitlConfirmationResponse` supply ADK's wire format (refusing an answer with a
+    `GoogleAdkHitlResponseError` `ApplicationFailure`, so building the response in a Signal or
+    Update handler rejects the call rather than failing the Workflow Task), and `activityAsTool` /
     `TemporalMCPToolset` gain `requireConfirmation` so an Activity or MCP tool call runs only once
     a human approves;
   - MCP resources: `TemporalMCPToolset.listResources` / `readResource` and `loadMcpResourceTool`,

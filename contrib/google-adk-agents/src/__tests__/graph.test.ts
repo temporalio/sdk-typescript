@@ -9,6 +9,7 @@ import { ActivityFailure, ApplicationFailure, TimeoutFailure } from '@temporalio
 import { Worker } from '@temporalio/worker';
 
 import { GoogleAdkPlugin } from '../index';
+import { activityNode } from '../workflow';
 import {
   countScheduledActivities,
   findInCauseChain,
@@ -27,12 +28,17 @@ import {
   graphActivityFailure,
   graphAgentNodeModelFailure,
   graphAgentTaskNode,
+  graphDottedActivity,
   graphFanOutJoin,
   graphPluginNodeCallbacks,
+  graphRetriedAgentNode,
   graphRetry,
   graphRouting,
   graphSequential,
   graphTimeout,
+  graphTimeoutRetry,
+  graphVoidOutput,
+  twoAgentsOneFailureSwallowed,
 } from './graph-workflows';
 
 const getEnv = setupTestEnv(test);
@@ -98,6 +104,42 @@ test.serial('fan-out Activity nodes join, keyed by node name', async (t) => {
   t.deepEqual(getScheduledActivitySummaries(events, 'enrichItem').sort(), ['adk.node enrich_a', 'adk.node enrich_b']);
 });
 
+test.serial('an Activity node returning nothing completes and its successor runs', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-graph-void');
+  const workflowId = uid('wf-graph-void');
+  const result = await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, () =>
+    env.client.workflow.execute(graphVoidOutput, { taskQueue, workflowId })
+  );
+  // ADK's `waitForOutput` parks exactly this node forever, which is why
+  // `activityNode` does not expose it; fan in with a `JoinNode` instead.
+  t.is(result.output, 'after');
+  t.is(countScheduledActivities(await history(workflowId), 'voidActivity'), 1);
+});
+
+test('activityNode refuses a node name carrying ADK path separator', (t) => {
+  // ADK splits a node path on '.', so a dotted name is unrecognisable on resume.
+  const err = t.throws(() => activityNode({ name: 'payments.charge' }), { instanceOf: ApplicationFailure });
+  t.is(err?.type, 'GoogleAdkActivityNodeName');
+  t.is(err?.nonRetryable, true);
+  t.true(err?.message.includes('payments_charge'), err?.message);
+  t.notThrows(() => activityNode({ name: 'payments.charge', nodeName: 'payments_charge' }));
+});
+
+test.serial('a dotted Activity type runs under a path-safe node name', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-graph-dotted');
+  const workflowId = uid('wf-graph-dotted');
+  const dotted = { ...activities, 'payments.charge': async () => 'charged' };
+  const result = await withWorker(env, { taskQueue, plugins: [makePlugin()], activities: dotted }, () =>
+    env.client.workflow.execute(graphDottedActivity, { taskQueue, workflowId })
+  );
+  t.is(result.output, 'charged');
+  const events = await history(workflowId);
+  t.is(countScheduledActivities(events, 'payments.charge'), 1);
+  t.deepEqual(getScheduledActivitySummaries(events, 'payments.charge'), ['adk.node payments_charge']);
+});
+
 test.serial('an LlmAgent node in task mode reports its finish_task result as the node output', async (t) => {
   const env = getEnv();
   const taskQueue = uid('adk-graph-task');
@@ -109,7 +151,7 @@ test.serial('an LlmAgent node in task mode reports its finish_task result as the
   t.is(countScheduledActivities(await history(workflowId), 'adk-invokeModel'), 1);
 });
 
-test.serial('a node timeout cancels the in-flight Activity and fails the Workflow with a typed failure', async (t) => {
+test.serial('a node timeout waits for the cancelled Activity before failing the Workflow', async (t) => {
   const env = getEnv();
   const taskQueue = uid('adk-graph-timeout');
   const workflowId = uid('wf-graph-timeout');
@@ -123,11 +165,34 @@ test.serial('a node timeout cancels the in-flight Activity and fails the Workflo
   t.is(failure?.type, 'GoogleAdkNodeTimeoutError');
   t.is(failure?.nonRetryable, true);
   t.is(findInCauseChain(err, TimeoutFailure), undefined);
-  // The abort bridge cancelled the Activity (rather than leaving it to its 30s timeout).
+  // The deadline cancelled the Activity and the node waited for that cancellation to
+  // complete, rather than leaving it running behind a Workflow that had moved on.
   const events = await history(workflowId);
+  const cancelled = events.findIndex((e) => e.activityTaskCanceledEventAttributes != null);
+  const failed = events.findIndex((e) => e.workflowExecutionFailedEventAttributes != null);
+  t.true(cancelled !== -1, 'expected an ActivityTaskCanceled event');
+  t.true(failed !== -1, 'expected a WorkflowExecutionFailed event');
+  t.true(cancelled < failed, `ActivityTaskCanceled (${cancelled}) must precede the failure (${failed})`);
+});
+
+test.serial('an ADK retry after a node timeout does not overlap the cancelled Activity', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-graph-timeout-retry');
+  const workflowId = uid('wf-graph-timeout-retry');
+  const err = await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, () =>
+    t.throwsAsync(env.client.workflow.execute(graphTimeoutRetry, { taskQueue, workflowId }))
+  );
+  t.is(findInCauseChain(err, ApplicationFailure)?.type, 'GoogleAdkNodeTimeoutError');
+  const events = await history(workflowId);
+  const at = (match: (e: (typeof events)[number]) => boolean) =>
+    events.map((e, i) => (match(e) ? i : -1)).filter((i) => i !== -1);
+  const scheduled = at((e) => e.activityTaskScheduledEventAttributes != null);
+  const cancelled = at((e) => e.activityTaskCanceledEventAttributes != null);
+  t.is(scheduled.length, 2, 'ADK retried the timed-out node once');
+  t.is(cancelled.length, 2, 'both attempts cancelled their Activity');
   t.true(
-    events.some((e) => e.activityTaskCancelRequestedEventAttributes !== undefined),
-    'expected an ActivityTaskCancelRequested event'
+    scheduled[1]! > cancelled[0]!,
+    `the retry (${scheduled[1]}) must be scheduled after the first cancellation completed (${cancelled[0]})`
   );
 });
 
@@ -175,6 +240,35 @@ test.serial('an agent node whose model call fails surfaces the recorded model fa
   // ADK reports the absorbed model error as a `NodeReportedError`; the plugin raises
   // the recorded `ActivityFailure` instead, keeping the model failure's status.
   t.not(findInCauseChain(err, ActivityFailure), undefined);
+  t.is(findInCauseChain(err, ApplicationFailure)?.type, 'GoogleAdkModelError.400');
+});
+
+test.serial('an agent node whose retry succeeds does not fail on the attempt ADK recovered', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-graph-agent-retry');
+  const workflowId = uid('wf-graph-agent-retry');
+  const result = await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, () =>
+    env.client.workflow.execute(graphRetriedAgentNode, { taskQueue, workflowId })
+  );
+  // ADK absorbed the first model error into an event, retried the node, and got its
+  // answer, so the run finished normally and nothing is left to raise.
+  t.is(result.text, 'recovered-on-attempt-2');
+  t.is(countScheduledActivities(await history(workflowId), 'adk-invokeModel'), 2);
+});
+
+test.serial('one agent succeeding does not clear another agent absorbed failure', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-graph-seq-agents');
+  const err = await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, () =>
+    t.throwsAsync(
+      env.client.workflow.execute(twoAgentsOneFailureSwallowed, {
+        taskQueue,
+        workflowId: uid('wf-graph-seq-agents'),
+      })
+    )
+  );
+  // The second agent answering says nothing about the first agent's failure, which no
+  // callback handled, so the Workflow still ends on it.
   t.is(findInCauseChain(err, ApplicationFailure)?.type, 'GoogleAdkModelError.400');
 });
 
