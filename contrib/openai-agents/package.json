@@ -94,7 +94,7 @@
     "@openai/agents-core": "~0.14.3",
     "@openai/agents-openai": "~0.14.3",
     "@opentelemetry/core": "^1.25.1",
-    "@opentelemetry/sdk-node": "^0.52.1",
+    "@opentelemetry/sdk-node": "^0.222.0",
     "@opentelemetry/sdk-trace-base": "^1.25.1",
     "@opentelemetry/semantic-conventions": "^1.25.1",
     "@temporalio/client": "workspace:*",
