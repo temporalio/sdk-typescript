@@ -49,6 +49,12 @@ export class Activity {
   public readonly abortController: AbortController = new AbortController();
 
   /**
+   * Aborted as soon as the Worker running this Activity initiates shutdown, i.e. before expiration of the shutdown
+   * grace period. Distinct from {@link abortController}, which is only aborted once the Activity itself gets cancelled.
+   */
+  public readonly workerShuttingDownAbortController: AbortController = new AbortController();
+
+  /**
    * Logger bound to `sdkComponent: worker`, with metadata from this activity.
    * This is the logger to use for all log messages emitted by the activity
    * worker. Note this is not exactly the same thing as the activity context
@@ -76,7 +82,8 @@ export class Activity {
     private readonly _client: Client | undefined, // May be undefined in the case of MockActivityEnvironment
     workerLogger: Logger,
     workerMetricMeter: MetricMeter,
-    interceptors: ActivityInterceptorsFactory[]
+    interceptors: ActivityInterceptorsFactory[],
+    workerShuttingDownSignal?: AbortSignal
   ) {
     this.workerLogger = LoggerWithComposedMetadata.compose(workerLogger, this.getLogAttributes.bind(this));
     this.metricMeter = MetricMeterWithComposedTags.compose(workerMetricMeter, this.getMetricTags.bind(this));
@@ -90,6 +97,22 @@ export class Activity {
         reject(err);
       };
     });
+    // The Worker owns a single signal shared by all of its Activities; each Activity derives its own controller from
+    // it, so that user code may add listeners without accumulating them on the Worker's own signal.
+    const workerShuttingDownPromise = new Promise<never>((_, reject) => {
+      this.workerShuttingDownAbortController.signal.addEventListener(
+        'abort',
+        () => reject(this.workerShuttingDownAbortController.signal.reason),
+        { once: true }
+      );
+    });
+    if (workerShuttingDownSignal !== undefined) {
+      if (workerShuttingDownSignal.aborted) {
+        this.notifyWorkerShuttingDown();
+      } else {
+        workerShuttingDownSignal.addEventListener('abort', () => this.notifyWorkerShuttingDown(), { once: true });
+      }
+    }
     this.context = new Context(
       info,
       promise,
@@ -99,10 +122,13 @@ export class Activity {
       // This is the activity context logger, to be used exclusively from user code
       LoggerWithComposedMetadata.compose(this.workerLogger, { sdkComponent: SdkComponent.activity }),
       this.metricMeter,
-      this.cancellationDetails
+      this.cancellationDetails,
+      workerShuttingDownPromise,
+      this.workerShuttingDownAbortController.signal
     );
     // Prevent unhandled rejection
     promise.catch(() => undefined);
+    workerShuttingDownPromise.catch(() => undefined);
     this.interceptors = { inbound: [], outbound: [] };
     interceptors
       .map((factory) => factory(this.context))
@@ -110,6 +136,17 @@ export class Activity {
         if (inbound) this.interceptors.inbound.push(inbound);
         if (outbound) this.interceptors.outbound.push(outbound);
       });
+  }
+
+  /**
+   * Notify this Activity that the Worker running it has started shutting down.
+   *
+   * Contrary to {@link cancel}, this doesn't request cancellation of the Activity; it merely gives the Activity an
+   * early chance to wrap up its work before the shutdown grace period expires, at which point it would get cancelled.
+   */
+  public notifyWorkerShuttingDown(): void {
+    if (this.workerShuttingDownAbortController.signal.aborted) return;
+    this.workerShuttingDownAbortController.abort(new CancelledFailure('WORKER_SHUTDOWN'));
   }
 
   protected getLogAttributes(): Record<string, unknown> {
