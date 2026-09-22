@@ -24,7 +24,7 @@
     "@temporalio/plugin": "workspace:*"
   },
   "devDependencies": {
-    "@opentelemetry/exporter-trace-otlp-grpc": "^0.217.0",
+    "@opentelemetry/exporter-trace-otlp-grpc": "^0.222.0",
     "@opentelemetry/sdk-node": "^0.217.0",
     "@opentelemetry/semantic-conventions": "^1.38.0",
     "@temporalio/activity": "workspace:*",
