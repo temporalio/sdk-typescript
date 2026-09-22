@@ -11,11 +11,6 @@
     "test:watch": "ava --watch ./lib/test-*.js",
     "test:bun": "bun run -b ava ./lib/test-*.js"
   },
-  "ava": {
-    "timeout": "60s",
-    "concurrency": 1,
-    "workerThreads": false
-  },
   "keywords": [
     "temporal",
     "workflow",

@@ -3,6 +3,7 @@
   "compilerOptions": {
     "module": "commonjs",
     "moduleResolution": "node",
+    "allowImportingTsExtensions": true,
     "types": ["node"],
     "rootDir": "../",
     "noEmit": true,
