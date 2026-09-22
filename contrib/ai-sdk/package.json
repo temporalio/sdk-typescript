@@ -61,7 +61,7 @@
     "ai": "^7.0.59"
   },
   "devDependencies": {
-    "@ai-sdk/mcp": "^2.0.30",
+    "@ai-sdk/mcp": "^2.0.45",
     "@ai-sdk/openai": "^4.0.37",
     "@ai-sdk/otel": "^1.0.59",
     "@ai-sdk/provider": "^4.0.7",
