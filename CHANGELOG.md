@@ -47,9 +47,7 @@ to docs, or any other relevant information.
 ### Fixed
 
 - Corrected the documented default of `ActivityOptions.cancellationType` and
-  `LocalActivityOptions.cancellationType`: it is `ActivityCancellationType.TRY_CANCEL`, not
-  `WAIT_CANCELLATION_COMPLETED`. Behavior is unchanged; an Activity call has always failed as soon as
-  its cancellation was requested unless the option was set.
+  `LocalActivityOptions.cancellationType`.
 - `@temporalio/ai-sdk` now preserves text provider metadata when replaying streamed model responses
   inside Workflows.
 - The Workflow sandbox now exposes `atob` and `btoa`, allowing integrations such as `@temporalio/ai-sdk` to
