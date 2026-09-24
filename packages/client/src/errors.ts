@@ -88,10 +88,18 @@ export class ActivityNotFoundError extends Error {}
 
 /**
  * Thrown by {@link AsyncCompletionClient} when trying to complete or heartbeat
- * an Activity for any reason apart from {@link ActivityNotFoundError}.
+ * an Activity for any reason apart from {@link ActivityNotFoundError}. If an
+ * underlying error exists, it will be stored in the `cause` property.
  */
 @SymbolBasedInstanceOfError('ActivityCompletionError')
-export class ActivityCompletionError extends Error {}
+export class ActivityCompletionError extends Error {
+  public readonly cause?: unknown;
+
+  constructor(message: string, opts?: { cause?: unknown }) {
+    super(message);
+    this.cause = opts?.cause;
+  }
+}
 
 /**
  * Thrown by {@link AsyncCompletionClient.heartbeat} when the Workflow has

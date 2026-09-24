@@ -16,7 +16,7 @@ wrap an existing Temporal Activity with `activityAsTool`.
 ## Install
 
 ```bash
-npm install @temporalio/google-adk-agents @google/adk @google/genai
+npm install @temporalio/google-adk-agents
 ```
 
 The supported peer range is `@google/adk` `>=1.5.0 <1.6.0` and `@google/genai`

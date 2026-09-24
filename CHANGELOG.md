@@ -19,6 +19,46 @@ to docs, or any other relevant information.
 
 ## [Unreleased]
 
+### Added
+
+- **Experimental**: Workflows can signal another Workflow and start it when absent with
+  `signalWithStartWorkflow`.
+- **Experimental**: Workflow outbound interceptors can intercept Temporal System Nexus calls
+  generically with `startSystemNexusOperation` or specifically with `signalWithStartWorkflow`.
+
+- **Experimental**: New External Storage concurrency controls.
+
+  - `ExternalStorage` takes a new `concurrency` option that holds two new concurrency limiting config values: `maxDriverOperations` caps how many are in flight across every driver registered on that `ExternalStorage` instance and `maxOperationsPerMessage` caps how many a single "message" may have in flight, where a message is any top-level input or ouput (e.g. a Workflow Task activation, a client request, a Nexus operation, etc)
+  - Both limits are cooperative and drivers must use the new `context.limiter` to take out a permit for each request.
+  - The bundled S3 and GCS drivers were updated to use the limiter.
+
+- **Experimental**: External storage failures now surface as dedicated error types exported from
+  `@temporalio/common`: `ExternalStorageDriverError`, `ExternalStorageUnregisteredDriverError`, and
+  `ExternalStorageReferenceError`, all extending the new `ExternalStorageError` base type.
+
+### Changed
+
+- Updated the following dependencies: `unionfs` from 4.5.1 to 4.6.0, `@grpc/grpc-js` from 1.12.4 to 1.12.7, `smol-toml` from 1.6.1 to 1.7.1
+  and `tar` from 7.5.11 to 7.5.21.
+- A Worker will now refuse to load and execute a Workflow bundle produced with a different version
+  of the SDK. This practice has never been supported, but was never formally prevented, resulting
+  in various subtle, hard to diagnose issues. This change could potentially result in
+
+### Fixed
+
+- `@temporalio/ai-sdk` now preserves text provider metadata when replaying streamed model responses
+  inside Workflows.
+- The Workflow sandbox now exposes `atob` and `btoa`, allowing integrations such as `@temporalio/ai-sdk` to
+  process image and file tool results containing base64 data.
+- `@temporalio/create` now supports comments and trailing commas in `tsconfig.json` files when
+  creating projects.
+
+### Changed
+
+- **Experimental**: `createEventGroup(...)` now takes the Event Group's ID as its first and only required argument; user-provided ID is used verbatim and should not contain sensitive information. The label is now optional and passed as a property on the second, object argument; it is a codec-encoded Payload. The user-facing type is now `EventGroup` (previously `EventGroupMarker`). Direct Event Group attachment is now supported on more APIs.
+
+## [1.24.0] - 2026-09-14
+
 ### Breaking Changes
 
 - `@temporalio/openai-agents` now requires `@openai/agents-core` and `@openai/agents-openai` `~0.14.3`. A project
@@ -26,6 +66,51 @@ to docs, or any other relevant information.
 - **Experimental**: External storage `StorageDriverSelector` now receives a
   `StorageDriverSelectContext` instead of a `StorageDriverStoreContext`. Update the parameter
   type; the new type carries the same `abortSignal` and `target` fields.
+
+### Added
+
+- **Experimental**: New methods for `ActivityHandle`: `pause`, `unpause`, `updateOptions` and `restoreOriginalOptions`.
+- `ActivityHandle.describe` now accepts options that can be used to include additional data associated
+  with activity execution, such as input and result.
+- **Experimental**: `@temporalio/openai-agents` can run OpenAI Agents `SandboxAgent`s as Temporal Workflows. SandboxAgent
+  operations are Activities; hosted tool credentials and sandbox environment values that reference allowlisted Worker
+  environment variables are resolved on Worker so their values are not recorded in Workflow history.
+- **Experimental**: Added `rawValueTypeInfo`, which allows `RawValue` inputs and results to be preserved across
+  serialization boundaries when explicitly configured on TypeInfo-aware APIs.
+- **Experimental**: External Storage download and upload metrics are now reported to Core on Workflow Activation
+  completions and included in its workflow-task duration log.
+
+### Changed
+
+- Standalone Activities APIs are stable.
+- `ActivityClient` now passes serialization context to data converter when interacting with standalone activities.
+- A workflow query issued from inside a Nexus operation handler now propagates the link the server
+  returns for the workflow that processed it, so the caller's Nexus operation event points back at
+  the queried workflow.
+- A `common.v1.Link.Workflow` now serializes to `temporal:///namespaces/{ns}/workflows/{wid}/{rid}`
+  with the optional `reason` as a query param, matching the other SDKs; previously it reused the
+  workflow event path and dropped `reason`. Inbound Workflow links are now parsed as well.
+
+### Fixed
+
+- Activity errors converted to `ApplicationFailure` now preserve native `Error.cause` chains in serialized failures.
+- Nexus handlers now report uncaught Workflow and standalone Activity already-started errors as
+  non-retryable `INTERNAL` Handler Errors, preventing retries when ID reuse or conflict
+  policies reject duplicate execution IDs.
+- Workflow activation failures now retain Workflow state until Core eviction, preventing premature
+  execution-context disposal after converter or codec errors.
+- Fixed non-sticky Workflow Task poller starvation on Workers configured with a small Workflow cache
+  (`maxCachedWorkflows`). Sticky pollers could consume every Workflow-cache permit and starve the
+  non-sticky poller, so a Worker could stop accepting new Workflows until a poll timed out (up to
+  ~60s). (Core fix: temporalio/sdk-rust#1534.)
+- Bumped the core-bridge HTTP/2 client stack (h2 0.4.13 → 0.4.19, hyper 1.8.1 → 1.11.0), picking up
+  upstream fixes for stream-cancel flow-control leaks and missed wakeups on reset/trailers that can
+  affect cancellation-heavy long-poll workloads.
+
+## [1.23.0] - 2026-08-25
+
+### Breaking Changes
+
 - Major upgrade of `protobufjs` to v8 and `protobufjs-cli` to v2.
 
   Temporal's protobuf messages types generated by `protobufjs` are exposed as part of our public
@@ -62,12 +147,6 @@ to docs, or any other relevant information.
 
 ### Added
 
-- **Experimental**: New methods for `ActivityHandle`: `pause`, `unpause`, `updateOptions` and `restoreOriginalOptions`.
-- `ActivityHandle.describe` now accepts options that can be used to include additional data associated
-  with activity execution, such as input and result.
-- **Experimental**: `@temporalio/openai-agents` can run OpenAI Agents `SandboxAgent`s as Temporal Workflows. SandboxAgent
-  operations are Activities; hosted tool credentials and sandbox environment values that reference allowlisted Worker
-  environment variables are resolved on Worker so their values are not recorded in Workflow history.
 - `createPayloadValidationError` in `@temporalio/common` creates a non-retryable
   `ApplicationFailure` with structured Payload validation details when provided. Passing `null` or
   `undefined` produces a failure without details.
@@ -84,8 +163,6 @@ to docs, or any other relevant information.
   arguments and results.
 - **Experimental**: Update definitions and named Update calls can use `TypeInfo` to convert Update arguments and
   results.
-- **Experimental**: Added `rawValueTypeInfo`, which allows `RawValue` inputs and results to be preserved across
-  serialization boundaries when explicitly configured on TypeInfo-aware APIs.
 - **Experimental**: `@temporalio/google-adk-agents` package for running Google ADK agents as durable Temporal Workflows,
   requiring `@google/adk@>=1.5.0 <1.6.0` as a peer dependency.
   ADK's OpenTelemetry agent-loop spans can be exported replay-safely from the Workflow sandbox by composing with
@@ -102,21 +179,11 @@ to docs, or any other relevant information.
   is a new form of Workflow-level metadata that allows for improved
   visibility into a Workflow execution's history by grouping logically
   related Events together based on user-defined or system-inferred criteria.
-- **Experimental**: External Storage download and upload metrics are now reported to Core on Workflow Activation
-  completions and included in its workflow-task duration log.
 
 ### Changed
 
-- Standalone Activities APIs are stable.
-- `ActivityClient` now passes serialization context to data converter when interacting with standalone activities.
-- A workflow query issued from inside a Nexus operation handler now propagates the link the server
-  returns for the workflow that processed it, so the caller's Nexus operation event points back at
-  the queried workflow.
 - Nexus is now generally available (GA) for calling Nexus Operations from Workflows and handling
   Workflow-backed Operations with `WorkflowRunOperationHandler`.
-- A `common.v1.Link.Workflow` now serializes to `temporal:///namespaces/{ns}/workflows/{wid}/{rid}`
-  with the optional `reason` as a query param, matching the other SDKs; previously it reused the
-  workflow event path and dropped `reason`. Inbound Workflow links are now parsed as well.
 - `@temporalio/ai-sdk` now requires `ai@>=7.0.59` as a peer dependency, up from `7.0.0`, since
   earlier releases threw a `TypeError` on import in runtimes without a global `fetch`.
 - A Payload Converter or Payload Codec that fails to decode a Nexus Operation's input with a
@@ -130,12 +197,6 @@ to docs, or any other relevant information.
 
 ### Fixed
 
-- Activity errors converted to `ApplicationFailure` now preserve native `Error.cause` chains in serialized failures.
-- Nexus handlers now report uncaught Workflow and standalone Activity already-started errors as
-  non-retryable `INTERNAL` Handler Errors, preventing retries when ID reuse or conflict
-  policies reject duplicate execution IDs.
-- Workflow activation failures now retain Workflow state until Core eviction, preventing premature
-  execution-context disposal after converter or codec errors.
 - Local Activities now fall back to a registered `default` activity when the requested type is not
   registered, matching non-local Activity dispatch. Previously the Workflow Task failed immediately
   with `ReferenceError` even if `default` was registered.
@@ -148,13 +209,6 @@ to docs, or any other relevant information.
   trigger a nondeterminism error.
 - `msOptionalToTs()` was incorrectly converting durations of `0` to `undefined`, resulting in incorrect behaviors
   in various places that takes optional durations where `0` is a legitimate value, e.g. `ApplicationFailure.nextRetryDelay()`. Durations of `0` are now properly preserved.
-- Fixed non-sticky Workflow Task poller starvation on Workers configured with a small Workflow cache
-  (`maxCachedWorkflows`). Sticky pollers could consume every Workflow-cache permit and starve the
-  non-sticky poller, so a Worker could stop accepting new Workflows until a poll timed out (up to
-  ~60s). (Core fix: temporalio/sdk-rust#1534.)
-- Bumped the core-bridge HTTP/2 client stack (h2 0.4.13 → 0.4.19, hyper 1.8.1 → 1.11.0), picking up
-  upstream fixes for stream-cancel flow-control leaks and missed wakeups on reset/trailers that can
-  affect cancellation-heavy long-poll workloads.
 
 ## [1.22.0] - 2026-08-05
 

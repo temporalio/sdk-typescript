@@ -53,6 +53,24 @@ export interface StorageDriverActivityInfo {
 export type StorageDriverTargetInfo = StorageDriverWorkflowInfo | StorageDriverActivityInfo;
 
 /**
+ * Bounds how many external storage operations all drivers managed by a single ExternalStorage
+ * instance may have in flight at once. This limit is cooperative which means driver
+ * implementations must use the provided context.limiter to acquire permits for each operation.
+ *
+ * This limit can be configured via {@link ExternalStorageConcurrency.maxDriverOperations}.
+ *
+ * n.b. taking permits from inside another permit can lead to deadlocks if the nesting exceeds
+ * the configured concurrency limit. It is up to the driver to determine what a single "operation"
+ * looks like.
+ *
+ * @experimental
+ */
+export interface StorageDriverLimiter<Item> {
+  /** Runs `operation` once a permit for `item` is available, releasing the permit when it settles. */
+  permit<T>(item: Item, operation: () => Promise<T>): Promise<T>;
+}
+
+/**
  * Context handed to {@link StorageDriver.store}.
  *
  * @experimental
@@ -62,6 +80,8 @@ export interface StorageDriverStoreContext {
   abortSignal?: AbortSignal;
   /** Identity of the workflow / activity that produced the payloads. */
   target?: StorageDriverTargetInfo;
+  /** Drivers should wrap each store request in {@link StorageDriverLimiter.permit}. */
+  limiter: StorageDriverLimiter<Payload>;
 }
 
 /**
@@ -83,6 +103,8 @@ export interface StorageDriverSelectContext {
  */
 export interface StorageDriverRetrieveContext {
   abortSignal?: AbortSignal;
+  /** Drivers should wrap each retrieve request in {@link StorageDriverLimiter.permit}. */
+  limiter: StorageDriverLimiter<StorageDriverClaim>;
 }
 
 /**
@@ -116,6 +138,46 @@ export type StorageDriverSelector = (context: StorageDriverSelectContext, payloa
 /** Default {@link ExternalStorage.payloadSizeThreshold}: 256 KiB. */
 const DEFAULT_PAYLOAD_SIZE_THRESHOLD = 256 * 1024;
 
+/** Default {@link ExternalStorageConcurrency.maxDriverOperations}. */
+const DEFAULT_MAX_DRIVER_OPERATIONS = 64;
+
+/** Default {@link ExternalStorageConcurrency.maxOperationsPerMessage}. */
+const DEFAULT_MAX_OPERATIONS_PER_MESSAGE = 8;
+
+/**
+ * Limits on concurrent external storage operations.
+ *
+ * @experimental
+ */
+export interface ExternalStorageConcurrency {
+  /**
+   * Maximum requests in flight at once across every driver registered on this
+   * {@link ExternalStorage} instance.
+   *
+   * Enforced through the {@link StorageDriverLimiter} handed to each driver.
+   *
+   * Share one instance between workers and clients for a single process-wide budget, or give each
+   * its own instance for independent budgets. Defaults to 64.
+   */
+  maxDriverOperations?: number;
+  /**
+   * Maximum requests in flight at once on behalf of a single message (e.g. a workflow task
+   * activation, an activity task, a client request, or a nexus operation).
+   *
+   * Every message gets its own budget of this size. This caps what any one message can take of
+   * the shared {@link maxDriverOperations} pool and keeps a message carrying many large payloads
+   * from starving the others. Defaults to 8.
+   */
+  maxOperationsPerMessage?: number;
+}
+
+function validateOperationCount(name: string, value: number): number {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+    throw new ValueError(`ExternalStorage.concurrency.${name} must be a positive integer, got ${String(value)}`);
+  }
+  return value;
+}
+
 /**
  * Configuration for external storage. Holds the registered drivers, an
  * optional selector, and the size threshold above which payloads are
@@ -132,17 +194,21 @@ export class ExternalStorage {
    */
   readonly driverSelector: StorageDriverSelector;
   readonly payloadSizeThreshold: number;
+  readonly concurrency: Required<ExternalStorageConcurrency>;
   private readonly driversByName: ReadonlyMap<string, StorageDriver>;
 
   constructor({
     drivers,
     driverSelector,
     payloadSizeThreshold = DEFAULT_PAYLOAD_SIZE_THRESHOLD,
+    concurrency = {},
   }: {
     drivers: StorageDriver[];
     driverSelector?: StorageDriverSelector;
     /** Omit for default (256 KiB). Set `0` to consider all payloads regardless of size. */
     payloadSizeThreshold?: number;
+    /** Omit for defaults (100 instance-wide, 10 per message). */
+    concurrency?: ExternalStorageConcurrency;
   }) {
     if (!Array.isArray(drivers) || drivers.length === 0) {
       throw new ValueError('ExternalStorage requires at least one driver');
@@ -172,9 +238,19 @@ export class ExternalStorage {
       throw new ValueError('ExternalStorage.driverSelector is required when more than one driver is registered');
     }
 
+    const maxDriverOperations = validateOperationCount(
+      'maxDriverOperations',
+      concurrency.maxDriverOperations ?? DEFAULT_MAX_DRIVER_OPERATIONS
+    );
+    const maxOperationsPerMessage = validateOperationCount(
+      'maxOperationsPerMessage',
+      concurrency.maxOperationsPerMessage ?? DEFAULT_MAX_OPERATIONS_PER_MESSAGE
+    );
+
     this.drivers = [...drivers];
     this.driverSelector = driverSelector ?? (() => drivers[0] as StorageDriver);
     this.payloadSizeThreshold = payloadSizeThreshold;
+    this.concurrency = { maxDriverOperations, maxOperationsPerMessage };
     this.driversByName = driversByName;
   }
 
