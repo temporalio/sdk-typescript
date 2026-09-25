@@ -112,7 +112,12 @@ import type {
   WorkflowUpdateOptions,
 } from './workflow-options';
 import { compileWorkflowOptions } from './workflow-options';
-import { decodeCountWorkflowExecutionsResponse, executionInfoFromRaw, rethrowKnownErrorTypes } from './helpers';
+import {
+  decodeCountWorkflowExecutionsResponse,
+  executionInfoFromRaw,
+  extractWorkflowExecutionAlreadyStartedRunId,
+  rethrowKnownErrorTypes,
+} from './helpers';
 import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base-client';
 import { BaseClient, defaultBaseClientOptions } from './base-client';
 import { mapAsyncIterable } from './iterators-utils';
@@ -1337,10 +1342,12 @@ export class WorkflowClient extends BaseClient {
     } catch (thrownError) {
       let err = thrownError;
       if (isGrpcServiceError(err) && err.code === grpcStatus.ALREADY_EXISTS) {
+        const runId = extractWorkflowExecutionAlreadyStartedRunId(err);
         err = new WorkflowExecutionAlreadyStartedError(
           'Workflow execution already started',
           input.workflowStartOptions.workflowId,
-          input.workflowType
+          input.workflowType,
+          runId
         );
       }
       if (!seenStart) {
@@ -1542,10 +1549,12 @@ export class WorkflowClient extends BaseClient {
       return response.runId;
     } catch (err: any) {
       if (err.code === grpcStatus.ALREADY_EXISTS) {
+        const runId = isGrpcServiceError(err) ? extractWorkflowExecutionAlreadyStartedRunId(err) : undefined;
         throw new WorkflowExecutionAlreadyStartedError(
           'Workflow execution already started',
           options.workflowId,
-          workflowType
+          workflowType,
+          runId
         );
       }
       this.rethrowGrpcError(err, 'Failed to signalWithStart Workflow', { workflowId: options.workflowId });
@@ -1587,10 +1596,12 @@ export class WorkflowClient extends BaseClient {
       };
     } catch (err: any) {
       if (err.code === grpcStatus.ALREADY_EXISTS) {
+        const runId = isGrpcServiceError(err) ? extractWorkflowExecutionAlreadyStartedRunId(err) : undefined;
         throw new WorkflowExecutionAlreadyStartedError(
           'Workflow execution already started',
           opts.workflowId,
-          workflowType
+          workflowType,
+          runId
         );
       }
       this.rethrowGrpcError(err, 'Failed to start Workflow', { workflowId: opts.workflowId });
