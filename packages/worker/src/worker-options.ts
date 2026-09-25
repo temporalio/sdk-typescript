@@ -12,7 +12,7 @@ import type {
 } from '@temporalio/common';
 import type { Duration } from '@temporalio/common/lib/time';
 import { msOptionalToNumber, msToNumber } from '@temporalio/common/lib/time';
-import { loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
+import { isLoadedDataConverter, loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import type { LoggerSinks, WorkflowInfo } from '@temporalio/workflow';
 import type { Context } from '@temporalio/activity';
 import type { native } from '@temporalio/core-bridge';
@@ -1153,7 +1153,9 @@ export function compileWorkerOptions(
     isolateExecutionTimeoutMs: msToNumber(opts.isolateExecutionTimeout),
     maxHeartbeatThrottleIntervalMs: msToNumber(opts.maxHeartbeatThrottleInterval),
     defaultHeartbeatThrottleIntervalMs: msToNumber(opts.defaultHeartbeatThrottleInterval),
-    loadedDataConverter: loadDataConverter(opts.dataConverter),
+    loadedDataConverter: isLoadedDataConverter(opts.dataConverter)
+      ? opts.dataConverter
+      : loadDataConverter(opts.dataConverter),
     activities,
     nexusServiceHandlers: nexusServiceHandlersFromOptions(opts),
     enableNonLocalActivities: opts.enableNonLocalActivities && activities.size > 0,
