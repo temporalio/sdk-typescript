@@ -46,6 +46,7 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- Workflow VM timeouts now include the `TMPRL1101` diagnostic and troubleshooting guidance while retaining the existing timeout threshold.
 - `@temporalio/ai-sdk` now preserves text provider metadata when replaying streamed model responses
   inside Workflows.
 - The Workflow sandbox now exposes `atob` and `btoa`, allowing integrations such as `@temporalio/ai-sdk` to

@@ -9,6 +9,7 @@ import { SourceMapConsumer } from 'source-map';
 import { cutoffStackTrace, IllegalStateError, convertDeploymentVersion } from '@temporalio/common';
 import { suggestContinueAsNewReasonsFromProto } from '@temporalio/common/lib/continue-as-new';
 import { tsToMs } from '@temporalio/common/lib/time';
+import { errorCode, isError } from '@temporalio/common/lib/type-helpers';
 import { coresdk } from '@temporalio/proto';
 import type { StackTraceFileLocation } from '@temporalio/workflow';
 import { type SinkCall } from '@temporalio/workflow/lib/sinks';
@@ -481,6 +482,11 @@ export abstract class BaseVMWorkflow implements Workflow {
 
       return completion;
     } catch (err) {
+      if (isError(err) && errorCode(err) === 'ERR_SCRIPT_EXECUTION_TIMEOUT') {
+        err.message =
+          '[TMPRL1101] Potential deadlock detected: Workflow did not yield control. ' +
+          `${err.message}. See https://github.com/temporalio/rules/blob/main/rules/TMPRL1101.md for troubleshooting.`;
+      }
       return {
         runId: this.activator.info.runId,
         // FIXME: Calling `activator.errorToFailure()` directly from outside the VM is unsafe, as it

@@ -1849,7 +1849,10 @@ test('logAndTimeout', async (t) => {
   compareCompletion(t, completion, {
     failed: {
       failure: {
-        message: 'Script execution timed out after 400ms',
+        message:
+          '[TMPRL1101] Potential deadlock detected: Workflow did not yield control. ' +
+          'Script execution timed out after 400ms. ' +
+          'See https://github.com/temporalio/rules/blob/main/rules/TMPRL1101.md for troubleshooting.',
         source: 'TypeScriptSDK',
         stackTrace: expectedStackTrace,
         cause: undefined,
