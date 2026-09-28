@@ -33,7 +33,10 @@ const integrationTest = makeTestFunction({ workflowsPath: require.resolve('./wor
 integrationTest('Client and Worker work with provided dataConverter', async (t) => {
   const { createWorker, taskQueue } = helpers(t);
   const dataConverter = { payloadConverterPath: require.resolve('./payload-converters/proto-payload-converter') };
-  const workflowBundle = await createTestWorkflowBundle({ workflowsPath: require.resolve('./workflows/protobufs') });
+  const workflowBundle = await createTestWorkflowBundle({
+    workflowsPath: require.resolve('./workflows/protobufs'),
+    payloadConverterPath: dataConverter.payloadConverterPath,
+  });
   const worker = await createWorker({ dataConverter, workflowBundle });
   const client = new WorkflowClient({
     connection: t.context.env.client.connection,
