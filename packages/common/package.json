@@ -73,14 +73,6 @@
       "types": "./lib/continue-as-new.d.ts",
       "default": "./lib/continue-as-new.js"
     },
-    "./internal/converter/payload-codec": {
-      "types": "./lib/converter/payload-codec.d.ts",
-      "default": "./lib/converter/payload-codec.js"
-    },
-    "./internal/converter/payload-converter": {
-      "types": "./lib/converter/payload-converter.d.ts",
-      "default": "./lib/converter/payload-converter.js"
-    },
     "./internal/converter/payload-search-attributes": {
       "types": "./lib/converter/payload-search-attributes.d.ts",
       "default": "./lib/converter/payload-search-attributes.js"
@@ -92,10 +84,6 @@
     "./internal/converter/serialization-context": {
       "types": "./lib/converter/serialization-context.d.ts",
       "default": "./lib/converter/serialization-context.js"
-    },
-    "./internal/converter/types": {
-      "types": "./lib/converter/types.d.ts",
-      "default": "./lib/converter/types.js"
     },
     "./internal/encoding": {
       "types": "./lib/encoding.d.ts",
@@ -133,14 +121,6 @@
       "types": "./lib/internal-workflow/objects-helpers.d.ts",
       "default": "./lib/internal-workflow/objects-helpers.js"
     },
-    "./internal/logger": {
-      "types": "./lib/logger.d.ts",
-      "default": "./lib/logger.js"
-    },
-    "./internal/metrics": {
-      "types": "./lib/metrics.d.ts",
-      "default": "./lib/metrics.js"
-    },
     "./internal/proto-utils": {
       "types": "./lib/proto-utils.d.ts",
       "default": "./lib/proto-utils.js"
@@ -173,10 +153,6 @@
       "types": "./lib/versioning-intent-enum.d.ts",
       "default": "./lib/versioning-intent-enum.js"
     },
-    "./internal/worker-deployments": {
-      "types": "./lib/worker-deployments.d.ts",
-      "default": "./lib/worker-deployments.js"
-    },
     "./internal/workflow-handle": {
       "types": "./lib/workflow-handle.d.ts",
       "default": "./lib/workflow-handle.js"
@@ -204,12 +180,6 @@
       "internal/continue-as-new": [
         "lib/continue-as-new.d.ts"
       ],
-      "internal/converter/payload-codec": [
-        "lib/converter/payload-codec.d.ts"
-      ],
-      "internal/converter/payload-converter": [
-        "lib/converter/payload-converter.d.ts"
-      ],
       "internal/converter/payload-search-attributes": [
         "lib/converter/payload-search-attributes.d.ts"
       ],
@@ -218,9 +188,6 @@
       ],
       "internal/converter/serialization-context": [
         "lib/converter/serialization-context.d.ts"
-      ],
-      "internal/converter/types": [
-        "lib/converter/types.d.ts"
       ],
       "internal/encoding": [
         "lib/encoding.d.ts"
@@ -249,12 +216,6 @@
       "internal/internal-workflow/objects-helpers": [
         "lib/internal-workflow/objects-helpers.d.ts"
       ],
-      "internal/logger": [
-        "lib/logger.d.ts"
-      ],
-      "internal/metrics": [
-        "lib/metrics.d.ts"
-      ],
       "internal/proto-utils": [
         "lib/proto-utils.d.ts"
       ],
@@ -278,9 +239,6 @@
       ],
       "internal/versioning-intent-enum": [
         "lib/versioning-intent-enum.d.ts"
-      ],
-      "internal/worker-deployments": [
-        "lib/worker-deployments.d.ts"
       ],
       "internal/workflow-handle": [
         "lib/workflow-handle.d.ts"

@@ -5,6 +5,7 @@ import {
   ExternalStorageReferenceError,
   ExternalStorageUnregisteredDriverError,
   ExternalStorage,
+  METADATA_ENCODING_KEY,
   StorageDriverClaim,
   type Logger,
   type Payload,
@@ -17,7 +18,6 @@ import {
   isReferencePayload,
 } from '@temporalio/common/internal/internal-non-workflow';
 import { encode } from '@temporalio/common/internal/encoding';
-import { METADATA_ENCODING_KEY } from '@temporalio/common/internal/converter/types';
 import { makeFakeDriver, type FakeDriver } from './extstore-fake-driver';
 
 /** Build a Payload whose proto-encoded size is at least `bodyBytes`. */

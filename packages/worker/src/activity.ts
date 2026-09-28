@@ -5,6 +5,7 @@ import type {
   ActivityFunction,
   ActivitySerializationContext,
   LoadedDataConverter,
+  Logger,
   MetricMeter,
   MetricTags,
   TypeInfo,
@@ -16,14 +17,13 @@ import {
   ensureApplicationFailure,
   FAILURE_SOURCE,
   IllegalStateError,
+  LoggerWithComposedMetadata,
+  MetricMeterWithComposedTags,
   SdkComponent,
 } from '@temporalio/common';
 import { encodeErrorToFailure, encodeToPayload } from '@temporalio/common/internal/internal-non-workflow';
 import { composeInterceptors } from '@temporalio/common/internal/interceptors';
 import { isAbortError } from '@temporalio/common/internal/type-helpers';
-import type { Logger } from '@temporalio/common/internal/logger';
-import { LoggerWithComposedMetadata } from '@temporalio/common/internal/logger';
-import { MetricMeterWithComposedTags } from '@temporalio/common/internal/metrics';
 import type { Client } from '@temporalio/client';
 import type { coresdk } from '@temporalio/proto';
 import type { ActivityCancellationDetailsHolder } from '@temporalio/common/internal/activity-cancellation-details';

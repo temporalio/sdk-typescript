@@ -1,7 +1,6 @@
 import * as nexus from 'nexus-rpc';
-import type { Payload } from '@temporalio/common';
+import type { Payload, PayloadConverter } from '@temporalio/common';
 import { defaultPayloadConverter } from '@temporalio/common';
-import type { PayloadConverter } from '@temporalio/common/internal/converter/payload-converter';
 
 export const payloadConverter: PayloadConverter = {
   toPayload<T>(value: T): Payload {

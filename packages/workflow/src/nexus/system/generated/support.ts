@@ -6,7 +6,6 @@ import {
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
 } from '@temporalio/common/internal/converter/payload-search-attributes';
-import { versioningOverrideToProto as commonVersioningOverrideToProto } from '@temporalio/common/internal/worker-deployments';
 import type { google, temporal } from '@temporalio/proto';
 import { workflowInfo } from '../../../workflow';
 import { currentSystemNexusPayloadConversion } from '../user-payload-converter';
@@ -197,7 +196,7 @@ export function versioningOverrideFromProto(
 export function versioningOverrideToProto(
   versioningOverride: common.VersioningOverride
 ): temporal.api.workflow.v1.IVersioningOverride {
-  return commonVersioningOverrideToProto(versioningOverride)!;
+  return common.versioningOverrideToProto(versioningOverride)!;
 }
 
 export function workflowIdReusePolicyFromProto(

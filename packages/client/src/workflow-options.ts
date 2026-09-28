@@ -7,7 +7,7 @@ import type {
   VersioningOverride,
   PayloadTypeInfo,
 } from '@temporalio/common';
-import { versioningOverrideToProto } from '@temporalio/common/internal/worker-deployments';
+import { versioningOverrideToProto } from '@temporalio/common';
 import type { Duration } from '@temporalio/common/internal/time';
 import { msOptionalToTs } from '@temporalio/common/internal/time';
 import type { Replace } from '@temporalio/common/internal/type-helpers';

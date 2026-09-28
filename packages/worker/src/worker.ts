@@ -26,6 +26,7 @@ import {
   SdkComponent,
   ApplicationFailure,
   ensureApplicationFailure,
+  LoggerWithComposedMetadata,
   TypedSearchAttributes,
   decodePriority,
   CancelledFailure,
@@ -61,7 +62,6 @@ import {
   tsToDate,
   tsToMs,
 } from '@temporalio/common/internal/time';
-import { LoggerWithComposedMetadata } from '@temporalio/common/internal/logger';
 import type { NonNullableObject, OmitFirstParam } from '@temporalio/common/internal/type-helpers';
 import { errorMessage } from '@temporalio/common/internal/type-helpers';
 import { workflowLogAttributes } from '@temporalio/workflow/internal/logs';

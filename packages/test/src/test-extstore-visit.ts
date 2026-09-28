@@ -1,6 +1,6 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import test from 'ava';
-import { ExternalStorage, ExternalStorageNotConfiguredError, type Payload } from '@temporalio/common';
+import { ExternalStorage, ExternalStorageNotConfiguredError, METADATA_ENCODING_KEY, type Payload } from '@temporalio/common';
 import {
   ExternalStorageRunner,
   extstoreInboundOptions,
@@ -18,7 +18,6 @@ import {
   walkWorkflowActivationCompletion,
 } from '@temporalio/common/internal/internal-non-workflow';
 import { encode } from '@temporalio/common/internal/encoding';
-import { METADATA_ENCODING_KEY } from '@temporalio/common/internal/converter/types';
 import type { coresdk, temporal } from '@temporalio/proto';
 import { makeFakeDriver } from './extstore-fake-driver';
 
