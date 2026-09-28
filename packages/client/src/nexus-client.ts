@@ -26,7 +26,6 @@ import { msOptionalToTs, optionalTsToDate, optionalTsToMs } from '@temporalio/co
 import { temporal } from '@temporalio/proto';
 import type { LoadedDataConverter, TypeInfo } from '@temporalio/common';
 import { ExternalStorageError } from '@temporalio/common';
-import type { SearchAttributeType, TypedSearchAttributeValue } from '@temporalio/common/internal/search-attributes';
 import { decode } from '@temporalio/common/internal/encoding';
 import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base-client';
 import { BaseClient, defaultBaseClientOptions } from './base-client';
@@ -55,6 +54,7 @@ import type {
   ListNexusOperationsOptions,
   NexusOperationExecutionCancellationInfo,
   NexusOperationExecutionCount,
+  NexusOperationExecutionCountGroupValue,
   NexusOperationExecutionDescription,
   NexusOperationExecution,
   RawNexusOperationExecutionCancellationInfo,
@@ -736,10 +736,10 @@ function nexusCountFromProto(
   };
 }
 
-function decodeCountGroupValue(value: temporal.api.common.v1.IPayload): TypedSearchAttributeValue<SearchAttributeType> {
-  const decoded = typedSearchAttributePayloadConverter.fromPayload<
-    TypedSearchAttributeValue<SearchAttributeType> | undefined
-  >(value);
+function decodeCountGroupValue(value: temporal.api.common.v1.IPayload): NexusOperationExecutionCountGroupValue {
+  const decoded = typedSearchAttributePayloadConverter.fromPayload<NexusOperationExecutionCountGroupValue | undefined>(
+    value
+  );
   if (decoded === undefined) {
     throw new ServiceError(
       'Received invalid Nexus operation count group value from server: ' +

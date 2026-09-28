@@ -13,7 +13,8 @@ import {
   upsertSearchAttributes,
   workflowInfo,
 } from '@temporalio/workflow';
-import { encodeSearchAttributeIndexedValueType } from '@temporalio/common/internal/search-attributes';
+// eslint-disable-next-line no-restricted-imports -- Test-only access to a non-public helper for registering search attributes.
+import { encodeSearchAttributeIndexedValueType } from '@temporalio/common/lib/search-attributes';
 import { waitUntil } from './helpers';
 import type { Context } from './helpers-integration';
 import { helpers, makeTestFunction } from './helpers-integration';

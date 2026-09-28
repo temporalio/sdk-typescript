@@ -121,10 +121,6 @@
       "types": "./lib/reserved.d.ts",
       "default": "./lib/reserved.js"
     },
-    "./internal/search-attributes": {
-      "types": "./lib/search-attributes.d.ts",
-      "default": "./lib/search-attributes.js"
-    },
     "./internal/time": {
       "types": "./lib/time.d.ts",
       "default": "./lib/time.js"
@@ -203,9 +199,6 @@
       ],
       "internal/reserved": [
         "lib/reserved.d.ts"
-      ],
-      "internal/search-attributes": [
-        "lib/search-attributes.d.ts"
       ],
       "internal/time": [
         "lib/time.d.ts"
