@@ -9,7 +9,7 @@ import { protoActivity } from './activities';
 import { cleanOptionalStackTrace, Worker } from './helpers';
 import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
 import { messageInstance, payloadConverter } from './payload-converters/proto-payload-converter';
-import { createTestWorkflowEnvironment } from './helpers-integration';
+import { helpers, makeTestFunction } from './helpers-integration';
 import * as workflows from './workflows';
 import { protobufWorkflow } from './workflows/protobufs';
 
@@ -28,22 +28,16 @@ function compareCompletion(
   );
 }
 
-test('Client and Worker work with provided dataConverter', async (t) => {
-  const env = await createTestWorkflowEnvironment();
-  t.teardown(() => env.teardown());
+const protoTest = makeTestFunction({ workflowsPath: require.resolve('./workflows/protobufs') });
+const workflowTest = makeTestFunction({ workflowsPath: require.resolve('./workflows') });
+
+protoTest('Client and Worker work with provided dataConverter', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
   const dataConverter = { payloadConverterPath: require.resolve('./payload-converters/proto-payload-converter') };
-  const taskQueue = `${__filename}/${t.title}`;
-  const worker = await Worker.create({
-    ...defaultOptions,
-    connection: env.nativeConnection,
-    namespace: env.client.options.namespace,
-    workflowsPath: require.resolve('./workflows/protobufs'),
-    taskQueue,
-    dataConverter,
-  });
+  const worker = await createWorker({ dataConverter });
   const client = new WorkflowClient({
-    connection: env.client.connection,
-    namespace: env.client.options.namespace,
+    connection: t.context.env.client.connection,
+    namespace: t.context.env.client.options.namespace,
     dataConverter,
   });
   await worker.runUntil(async () => {
@@ -57,20 +51,13 @@ test('Client and Worker work with provided dataConverter', async (t) => {
   });
 });
 
-test('fromPayload throws on Client when receiving result from client.execute()', async (t) => {
-  const env = await createTestWorkflowEnvironment();
-  t.teardown(() => env.teardown());
-  const taskQueue = `${__filename}/${t.title}`;
-  const worker = await Worker.create({
-    ...defaultOptions,
-    connection: env.nativeConnection,
-    namespace: env.client.options.namespace,
-    taskQueue,
-  });
+workflowTest('fromPayload throws on Client when receiving result from client.execute()', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+  const worker = await createWorker();
 
   const client = new WorkflowClient({
-    connection: env.client.connection,
-    namespace: env.client.options.namespace,
+    connection: t.context.env.client.connection,
+    namespace: t.context.env.client.options.namespace,
     dataConverter: {
       payloadConverterPath: require.resolve('./payload-converters/payload-converter-throws-from-payload'),
     },
