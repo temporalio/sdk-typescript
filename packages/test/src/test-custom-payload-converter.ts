@@ -6,10 +6,10 @@ import { toPayloads } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
 import { ProtoActivityResult } from '../protos/root';
 import { protoActivity } from './activities';
-import { cleanOptionalStackTrace, Worker } from './helpers';
+import { cleanOptionalStackTrace } from './helpers';
 import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
 import { messageInstance, payloadConverter } from './payload-converters/proto-payload-converter';
-import { helpers, makeTestFunction } from './helpers-integration';
+import { createTestWorkflowBundle, helpers, makeTestFunction } from './helpers-integration';
 import * as workflows from './workflows';
 import { protobufWorkflow } from './workflows/protobufs';
 
@@ -28,13 +28,13 @@ function compareCompletion(
   );
 }
 
-const protoTest = makeTestFunction({ workflowsPath: require.resolve('./workflows/protobufs') });
-const workflowTest = makeTestFunction({ workflowsPath: require.resolve('./workflows') });
+const integrationTest = makeTestFunction({ workflowsPath: require.resolve('./workflows') });
 
-protoTest('Client and Worker work with provided dataConverter', async (t) => {
+integrationTest('Client and Worker work with provided dataConverter', async (t) => {
   const { createWorker, taskQueue } = helpers(t);
   const dataConverter = { payloadConverterPath: require.resolve('./payload-converters/proto-payload-converter') };
-  const worker = await createWorker({ dataConverter });
+  const workflowBundle = await createTestWorkflowBundle({ workflowsPath: require.resolve('./workflows/protobufs') });
+  const worker = await createWorker({ dataConverter, workflowBundle });
   const client = new WorkflowClient({
     connection: t.context.env.client.connection,
     namespace: t.context.env.client.options.namespace,
@@ -51,7 +51,7 @@ protoTest('Client and Worker work with provided dataConverter', async (t) => {
   });
 });
 
-workflowTest('fromPayload throws on Client when receiving result from client.execute()', async (t) => {
+integrationTest('fromPayload throws on Client when receiving result from client.execute()', async (t) => {
   const { createWorker, taskQueue } = helpers(t);
   const worker = await createWorker();
 
