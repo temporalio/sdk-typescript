@@ -57,10 +57,6 @@
       "default": "./lib/index.js"
     },
     "./package.json": "./package.json",
-    "./internal/activity-cancellation-details": {
-      "types": "./lib/activity-cancellation-details.d.ts",
-      "default": "./lib/activity-cancellation-details.js"
-    },
     "./internal/activity-options": {
       "types": "./lib/activity-options.d.ts",
       "default": "./lib/activity-options.js"
@@ -152,9 +148,6 @@
   },
   "typesVersions": {
     "*": {
-      "internal/activity-cancellation-details": [
-        "lib/activity-cancellation-details.d.ts"
-      ],
       "internal/activity-options": [
         "lib/activity-options.d.ts"
       ],

@@ -26,7 +26,6 @@ import { composeInterceptors } from '@temporalio/common/internal/interceptors';
 import { isAbortError } from '@temporalio/common/internal/type-helpers';
 import type { Client } from '@temporalio/client';
 import type { coresdk } from '@temporalio/proto';
-import type { ActivityCancellationDetailsHolder } from '@temporalio/common/internal/activity-cancellation-details';
 import type {
   ActivityExecuteInput,
   ActivityInboundCallsInterceptor,
@@ -43,7 +42,7 @@ export type CancelReason =
 
 export class Activity {
   protected cancelReason?: CancelReason;
-  protected cancellationDetails: ActivityCancellationDetailsHolder;
+  protected cancellationDetails: { details?: ActivityCancellationDetails };
   public readonly context: Context;
   public cancel: (reason: CancelReason, details: ActivityCancellationDetails) => void = () => undefined;
   public readonly abortController: AbortController = new AbortController();
