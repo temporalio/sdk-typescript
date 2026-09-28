@@ -34,7 +34,6 @@ import {
   extractWorkflowTypeAndConfig,
   ExternalStorageError,
 } from '@temporalio/common';
-import { encodeUserMetadata } from '@temporalio/common/internal/internal-non-workflow/codec-helpers';
 import { encodeUnifiedSearchAttributes } from '@temporalio/common/internal/converter/payload-search-attributes';
 import { composeInterceptors } from '@temporalio/common/internal/interceptors';
 import type { History } from '@temporalio/common/internal/proto-utils';
@@ -46,6 +45,7 @@ import {
   decodeOptionalSinglePayload,
   encodeMapToPayloads,
   encodeToPayloadsWithContext,
+  encodeUserMetadata,
   extstoreInboundOptions,
   extstoreStoreOptions,
   visit,

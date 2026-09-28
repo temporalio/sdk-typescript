@@ -105,21 +105,9 @@
       "types": "./lib/internal-non-workflow/index.d.ts",
       "default": "./lib/internal-non-workflow/index.js"
     },
-    "./internal/internal-non-workflow/codec-helpers": {
-      "types": "./lib/internal-non-workflow/codec-helpers.d.ts",
-      "default": "./lib/internal-non-workflow/codec-helpers.js"
-    },
     "./internal/internal-workflow": {
       "types": "./lib/internal-workflow/index.d.ts",
       "default": "./lib/internal-workflow/index.js"
-    },
-    "./internal/internal-workflow/enums-helpers": {
-      "types": "./lib/internal-workflow/enums-helpers.d.ts",
-      "default": "./lib/internal-workflow/enums-helpers.js"
-    },
-    "./internal/internal-workflow/objects-helpers": {
-      "types": "./lib/internal-workflow/objects-helpers.d.ts",
-      "default": "./lib/internal-workflow/objects-helpers.js"
     },
     "./internal/proto-utils": {
       "types": "./lib/proto-utils.d.ts",
@@ -204,17 +192,8 @@
       "internal/internal-non-workflow": [
         "lib/internal-non-workflow/index.d.ts"
       ],
-      "internal/internal-non-workflow/codec-helpers": [
-        "lib/internal-non-workflow/codec-helpers.d.ts"
-      ],
       "internal/internal-workflow": [
         "lib/internal-workflow/index.d.ts"
-      ],
-      "internal/internal-workflow/enums-helpers": [
-        "lib/internal-workflow/enums-helpers.d.ts"
-      ],
-      "internal/internal-workflow/objects-helpers": [
-        "lib/internal-workflow/objects-helpers.d.ts"
       ],
       "internal/proto-utils": [
         "lib/proto-utils.d.ts"

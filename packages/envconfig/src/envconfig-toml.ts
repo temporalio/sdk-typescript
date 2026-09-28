@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as os from 'os';
 import type { TomlTable } from 'smol-toml';
 import { parse, stringify } from 'smol-toml';
-import { filterNullAndUndefined } from '@temporalio/common/internal/internal-workflow/objects-helpers';
+import { filterNullAndUndefined } from '@temporalio/common/internal/internal-workflow';
 import { decode, encode } from '@temporalio/common/internal/encoding';
 import type { ConfigDataSource, LoadClientConfigOptions, LoadClientProfileOptions } from './types';
 

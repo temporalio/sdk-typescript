@@ -9,7 +9,7 @@ import {
 } from '@temporalio/common/internal/converter/payload-search-attributes';
 import type { Replace } from '@temporalio/common/internal/type-helpers';
 import { optionalTsToDate, requiredTsToDate } from '@temporalio/common/internal/time';
-import { decodeMapFromPayloads } from '@temporalio/common/internal/internal-non-workflow/codec-helpers';
+import { decodeMapFromPayloads } from '@temporalio/common/internal/internal-non-workflow';
 import { temporal, google } from '@temporalio/proto';
 import type {
   CountWorkflowExecution,

@@ -7,7 +7,6 @@ import {
   decompileRetryPolicy,
   extractWorkflowType,
 } from '@temporalio/common';
-import { encodeUserMetadata, decodeUserMetadata } from '@temporalio/common/internal/internal-non-workflow/codec-helpers';
 import {
   encodeUnifiedSearchAttributes,
   decodeSearchAttributes,
@@ -17,8 +16,10 @@ import type { Headers } from '@temporalio/common/internal/interceptors';
 import {
   decodeArrayFromPayloads,
   decodeMapFromPayloads,
+  decodeUserMetadata,
   encodeMapToPayloads,
   encodeToPayloadsWithContext,
+  encodeUserMetadata,
 } from '@temporalio/common/internal/internal-non-workflow';
 import { temporal } from '@temporalio/proto';
 import {
