@@ -1,7 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as iface from '@temporalio/proto';
-import { historyToJSON } from '@temporalio/common/lib/proto-utils';
+import { historyToJSON } from '@temporalio/common/internal/proto-utils';
 
 /**
  * Load a history file from a given path. Supports both JSON and binary formats.

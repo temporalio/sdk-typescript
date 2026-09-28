@@ -19,8 +19,8 @@ import {
   TimeoutType,
   WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
-import { tsToMs } from '@temporalio/common/lib/time';
-import type { UnsafeWorkflowInfo, WorkflowInfo } from '@temporalio/workflow/lib/interfaces';
+import { tsToMs } from '@temporalio/common/internal/time';
+import type { UnsafeWorkflowInfo, WorkflowInfo } from '@temporalio/workflow/internal/interfaces';
 
 import {
   CancellationScope,

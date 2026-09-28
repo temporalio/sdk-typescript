@@ -86,7 +86,7 @@ module.exports = patchProtobufRoot(unpatchedRoot);
 // pbjs -t static-module *.proto | pbts -o root.d.ts -
 
 // src/payload-converter.ts
-import { DefaultPayloadConverterWithProtobufs } from '@temporalio/common/lib/protobufs';
+import { DefaultPayloadConverterWithProtobufs } from '@temporalio/common/internal/protobufs';
 import root from '../protos/root';
 
 export const payloadConverter = new DefaultPayloadConverterWithProtobufs({ protobufRoot: root });

@@ -2,12 +2,12 @@ import { randomUUID } from 'crypto';
 import type { Payload, PayloadCodec, SerializationContext } from '@temporalio/common';
 import { defaultPayloadConverter, ExternalStorage } from '@temporalio/common';
 import { Client } from '@temporalio/client';
-import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
-import { isReferencePayload } from '@temporalio/common/lib/internal-non-workflow';
+import { ProtobufBinaryPayloadConverter } from '@temporalio/common/internal/converter/protobuf-payload-converters';
+import { isReferencePayload } from '@temporalio/common/internal/internal-non-workflow';
 import * as protoRoot from '@temporalio/proto';
 import { defineSignal, setHandler } from '@temporalio/workflow';
 import type { WorkflowInterceptors } from '@temporalio/workflow';
-import { signalWithStartWorkflow } from '@temporalio/workflow/lib/nexus/system/generated/operations/signal-with-start-workflow';
+import { signalWithStartWorkflow } from '@temporalio/workflow/internal/nexus/system/generated/operations/signal-with-start-workflow';
 import { makeFakeDriver } from './extstore-fake-driver';
 import { helpers, makeTestFunction } from './helpers-integration';
 

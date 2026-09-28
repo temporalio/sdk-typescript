@@ -1,4 +1,4 @@
-import { DefaultPayloadConverterWithProtobufs } from '@temporalio/common/lib/protobufs';
+import { DefaultPayloadConverterWithProtobufs } from '@temporalio/common/internal/protobufs';
 import root, { foo } from '../../protos/root'; // eslint-disable-line import/default
 
 // Used in tests

@@ -13,7 +13,7 @@ import { Worker as NodeWorker } from 'node:worker_threads';
 import { setTimeout } from 'node:timers/promises';
 import { coresdk } from '@temporalio/proto';
 import { IllegalStateError, type SinkCall } from '@temporalio/workflow';
-import { createUnsafeRandomSource } from '@temporalio/workflow/lib/random-helpers';
+import { createUnsafeRandomSource } from '@temporalio/workflow/internal/random-helpers';
 import type { Logger } from '@temporalio/common';
 import type { PatchActivationCallback } from '../worker-options';
 import { UnexpectedError } from '../errors';

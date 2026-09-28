@@ -8,7 +8,7 @@ import {
   StorageDriverClaim,
   type StorageDriverLimiter,
   type StorageDriverStoreContext,
-} from '@temporalio/common/lib/converter/extstore';
+} from '@temporalio/common';
 import { GcsStorageDriver } from '../driver';
 import type { GcsStorageDriverClient } from '../client';
 

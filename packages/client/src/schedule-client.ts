@@ -5,9 +5,9 @@ import {
   decodeSearchAttributes,
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
-} from '@temporalio/common/lib/converter/payload-search-attributes';
-import type { Headers } from '@temporalio/common/lib/interceptors';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
+} from '@temporalio/common/internal/converter/payload-search-attributes';
+import type { Headers } from '@temporalio/common/internal/interceptors';
+import { composeInterceptors } from '@temporalio/common/internal/interceptors';
 import {
   encodeMapToPayloads,
   decodeMapFromPayloads,
@@ -18,8 +18,8 @@ import {
   walkDescribeScheduleResponse,
   walkListSchedulesResponse,
   walkUpdateScheduleRequest,
-} from '@temporalio/common/lib/internal-non-workflow';
-import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
+} from '@temporalio/common/internal/internal-non-workflow';
+import { filterNullAndUndefined } from '@temporalio/common/internal/internal-workflow';
 import { temporal } from '@temporalio/proto';
 import {
   optionalDateToTs,
@@ -27,8 +27,8 @@ import {
   optionalTsToMs,
   requiredTsToDate,
   tsToDate,
-} from '@temporalio/common/lib/time';
-import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
+} from '@temporalio/common/internal/time';
+import { SymbolBasedInstanceOfError } from '@temporalio/common/internal/type-helpers';
 import type { CreateScheduleInput, CreateScheduleOutput, ScheduleClientInterceptor } from './interceptors';
 import type { WorkflowService } from './types';
 import { isGrpcServiceError, ServiceError } from './errors';

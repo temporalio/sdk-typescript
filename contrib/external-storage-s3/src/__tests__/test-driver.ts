@@ -8,7 +8,7 @@ import {
   StorageDriverClaim,
   type StorageDriverLimiter,
   type StorageDriverStoreContext,
-} from '@temporalio/common/lib/converter/extstore';
+} from '@temporalio/common';
 import { S3StorageDriver } from '../driver';
 import type { S3StorageDriverClient, S3RequestOptions } from '../client';
 

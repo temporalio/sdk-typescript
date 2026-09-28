@@ -2,10 +2,10 @@ import assert from 'assert';
 import test from 'ava';
 import * as nexus from 'nexus-rpc';
 import type { Client } from '@temporalio/client';
-import { type InternalActivityStartOptions, InternalActivityStartOptionsSymbol } from '@temporalio/client/lib/internal';
+import { type InternalActivityStartOptions, InternalActivityStartOptionsSymbol } from '@temporalio/client/internal/internal';
 import * as temporalnexus from '@temporalio/nexus';
-import { asyncLocalStorage } from '@temporalio/nexus/lib/context';
-import { base64URLEncodeNoPadding, OperationTokenType } from '@temporalio/nexus/lib/token';
+import { asyncLocalStorage } from '@temporalio/nexus/internal/context';
+import { base64URLEncodeNoPadding, OperationTokenType } from '@temporalio/nexus/internal/token';
 
 async function echoWorkflow(input: string): Promise<string> {
   return input;

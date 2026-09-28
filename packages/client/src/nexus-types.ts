@@ -5,10 +5,10 @@ import type {
   SearchAttributeType,
   TypedSearchAttributes,
 } from '@temporalio/common';
-import type { TypedSearchAttributeValue } from '@temporalio/common/lib/search-attributes';
-import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
+import type { TypedSearchAttributeValue } from '@temporalio/common/internal/search-attributes';
+import { makeProtoEnumConverters } from '@temporalio/common/internal/internal-workflow';
 import type { temporal } from '@temporalio/proto';
-import type { Replace } from '@temporalio/common/lib/type-helpers';
+import type { Replace } from '@temporalio/common/internal/type-helpers';
 
 /**
  * Defines whether to allow re-using an operation ID from a previously *completed* Nexus operation.

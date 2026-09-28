@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import path from 'node:path';
 import test from 'ava';
 import Long from 'long';
-import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
+import { historyFromJSON } from '@temporalio/common/internal/proto-utils';
 import proto from '@temporalio/proto'; // eslint-disable-line import/default
 
 const EventType = proto.temporal.api.enums.v1.EventType;

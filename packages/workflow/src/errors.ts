@@ -1,5 +1,5 @@
 import { ActivityFailure, CancelledFailure, ChildWorkflowFailure, NexusOperationFailure } from '@temporalio/common';
-import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
+import { SymbolBasedInstanceOfError } from '@temporalio/common/internal/type-helpers';
 import type { coresdk } from '@temporalio/proto';
 
 /**

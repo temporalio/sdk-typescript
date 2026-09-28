@@ -1,5 +1,5 @@
-import { getActivator } from '@temporalio/workflow/lib/global-attributes';
-import type { SdkFlag } from '@temporalio/workflow/lib/flags';
+import { getActivator } from '@temporalio/workflow/internal/global-attributes';
+import type { SdkFlag } from '@temporalio/workflow/internal/flags';
 
 const defaultValueOverrides = new Map<number, boolean>();
 

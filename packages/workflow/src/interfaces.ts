@@ -18,8 +18,8 @@ import type {
   SuggestContinueAsNewReason,
   PayloadTypeInfo,
 } from '@temporalio/common';
-import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
-import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
+import { SymbolBasedInstanceOfError } from '@temporalio/common/internal/type-helpers';
+import { makeProtoEnumConverters } from '@temporalio/common/internal/internal-workflow/enums-helpers';
 import type { coresdk } from '@temporalio/proto';
 import type { EventGroup } from './event-groups';
 

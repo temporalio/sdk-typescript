@@ -1,6 +1,6 @@
 import asyncRetry from 'async-retry';
 import type { WorkflowHandle } from '@temporalio/client';
-import { TEMPORAL_RESERVED_PREFIX } from '@temporalio/common/lib/reserved';
+import { TEMPORAL_RESERVED_PREFIX } from '@temporalio/common/internal/reserved';
 import {
   reservedNames,
   wfReadyQuery,

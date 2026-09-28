@@ -7,20 +7,20 @@ import { URL, URLSearchParams } from 'node:url';
 import { TextDecoder, TextEncoder } from 'node:util';
 import { SourceMapConsumer } from 'source-map';
 import { cutoffStackTrace, IllegalStateError, convertDeploymentVersion } from '@temporalio/common';
-import { suggestContinueAsNewReasonsFromProto } from '@temporalio/common/lib/continue-as-new';
-import { tsToMs } from '@temporalio/common/lib/time';
+import { suggestContinueAsNewReasonsFromProto } from '@temporalio/common/internal/continue-as-new';
+import { tsToMs } from '@temporalio/common/internal/time';
 import { coresdk } from '@temporalio/proto';
 import type { StackTraceFileLocation } from '@temporalio/workflow';
-import { type SinkCall } from '@temporalio/workflow/lib/sinks';
-import type * as internals from '@temporalio/workflow/lib/worker-interface';
-import type { Activator } from '@temporalio/workflow/lib/internals';
-import { SdkFlags } from '@temporalio/workflow/lib/flags';
+import { type SinkCall } from '@temporalio/workflow/internal/sinks';
+import type * as internals from '@temporalio/workflow/internal/worker-interface';
+import type { Activator } from '@temporalio/workflow/internal/internals';
+import { SdkFlags } from '@temporalio/workflow/internal/flags';
 import { UnhandledRejectionError } from '../errors';
 import type { Workflow } from './interface';
 import type { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
 
 // We need this import for the ambient global extensions
-import '@temporalio/workflow/lib/global-attributes'; // eslint-disable-line import/no-unassigned-import
+import '@temporalio/workflow/internal/global-attributes'; // eslint-disable-line import/no-unassigned-import
 import { isBunPre1_4 } from './bun';
 
 // Best effort to catch unhandled rejections from workflow code.

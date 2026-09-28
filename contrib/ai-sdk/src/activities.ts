@@ -16,7 +16,7 @@ import type { MCPClient } from '@ai-sdk/mcp';
 import { ApplicationFailure } from '@temporalio/common';
 import { Context } from '@temporalio/activity';
 import { WorkflowStreamClient } from '@temporalio/workflow-streams/client';
-import { msOptionalToNumber, type Duration } from '@temporalio/common/lib/time';
+import { msOptionalToNumber, type Duration } from '@temporalio/common/internal/time';
 import type { McpClientFactories, McpClientFactory } from './mcp';
 
 const encoder = new TextEncoder();

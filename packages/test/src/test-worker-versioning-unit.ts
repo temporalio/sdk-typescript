@@ -1,5 +1,5 @@
 import test from 'ava';
-import { reachabilityResponseFromProto, UnversionedBuildId } from '@temporalio/client/lib/task-queue-client';
+import { reachabilityResponseFromProto, UnversionedBuildId } from '@temporalio/client/internal/task-queue-client';
 import { temporal } from '@temporalio/proto';
 import { Worker } from '@temporalio/worker';
 

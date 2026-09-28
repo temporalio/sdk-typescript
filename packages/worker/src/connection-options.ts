@@ -1,6 +1,6 @@
 import type { native } from '@temporalio/core-bridge';
-import type { Duration } from '@temporalio/common/lib/time';
-import { msToNumber } from '@temporalio/common/lib/time';
+import type { Duration } from '@temporalio/common/internal/time';
+import { msToNumber } from '@temporalio/common/internal/time';
 import {
   joinProtoHostPort,
   normalizeGrpcEndpointAddress,
@@ -8,7 +8,7 @@ import {
   parseHttpConnectProxyAddress,
   ProxyConfig,
   TLSConfig,
-} from '@temporalio/common/lib/internal-non-workflow';
+} from '@temporalio/common/internal/internal-non-workflow';
 import type { Metadata } from '@temporalio/client';
 import pkg from './pkg';
 import type { NativeConnectionPlugin } from './connection';

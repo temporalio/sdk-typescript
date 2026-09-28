@@ -10,7 +10,7 @@ import {
 } from '@openai/agents-core/sandbox';
 import { deserializeManifest, serializeManifestRecord } from '@openai/agents-core/sandbox/internal';
 import { ApplicationFailure, type ActivityOptions } from '@temporalio/common';
-import { setActivator } from '@temporalio/workflow/lib/global-attributes';
+import { setActivator } from '@temporalio/workflow/internal/global-attributes';
 import {
   SANDBOX_CLIENT_CREATE_SUFFIX,
   SANDBOX_CLIENT_DELETE_SUFFIX,

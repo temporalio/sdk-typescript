@@ -5,8 +5,8 @@ import {
   type SerializationContext,
   toPayloadWithTypeInfo,
 } from '@temporalio/common';
-import { msOptionalToTs } from '@temporalio/common/lib/time';
-import { userMetadataToPayload } from '@temporalio/common/lib/user-metadata';
+import { msOptionalToTs } from '@temporalio/common/internal/time';
+import { userMetadataToPayload } from '@temporalio/common/internal/user-metadata';
 import {
   makeProtoEnumConverters,
   encodeSystemNexusEnvelopeBytes,
@@ -14,7 +14,7 @@ import {
   SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE,
   TEMPORAL_SYSTEM_NEXUS_ENDPOINT,
-} from '@temporalio/common/lib/internal-workflow';
+} from '@temporalio/common/internal/internal-workflow';
 import type { coresdk } from '@temporalio/proto';
 import { eventGroupMarkersToProto } from './event-groups';
 import { systemNexusOperationDefinition } from './nexus/system/payload-converter';

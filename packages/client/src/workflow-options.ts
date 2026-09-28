@@ -7,13 +7,13 @@ import type {
   VersioningOverride,
   PayloadTypeInfo,
 } from '@temporalio/common';
-import { versioningOverrideToProto } from '@temporalio/common/lib/worker-deployments';
-import type { Duration } from '@temporalio/common/lib/time';
-import { msOptionalToTs } from '@temporalio/common/lib/time';
-import type { Replace } from '@temporalio/common/lib/type-helpers';
+import { versioningOverrideToProto } from '@temporalio/common/internal/worker-deployments';
+import type { Duration } from '@temporalio/common/internal/time';
+import { msOptionalToTs } from '@temporalio/common/internal/time';
+import type { Replace } from '@temporalio/common/internal/type-helpers';
 import type { google, temporal } from '@temporalio/proto';
 
-export * from '@temporalio/common/lib/workflow-options';
+export * from '@temporalio/common/internal/workflow-options';
 
 export interface CompiledWorkflowOptions extends WithCompiledWorkflowOptions<WorkflowOptions> {
   args: unknown[];

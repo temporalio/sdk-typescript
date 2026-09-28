@@ -51,5 +51,34 @@
     "lib",
     "!src/__tests__",
     "!lib/__tests__"
-  ]
+  ],
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json",
+    "./internal/context": {
+      "types": "./lib/context.d.ts",
+      "default": "./lib/context.js"
+    },
+    "./internal/token": {
+      "types": "./lib/token.d.ts",
+      "default": "./lib/token.js"
+    },
+    "./lib/*": {
+      "types": "./lib/*.d.ts",
+      "default": "./lib/*.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "internal/context": [
+        "lib/context.d.ts"
+      ],
+      "internal/token": [
+        "lib/token.d.ts"
+      ]
+    }
+  }
 }

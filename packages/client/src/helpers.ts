@@ -6,10 +6,10 @@ import {
   decodeSearchAttributes,
   decodeTypedSearchAttributes,
   searchAttributePayloadConverter,
-} from '@temporalio/common/lib/converter/payload-search-attributes';
-import type { Replace } from '@temporalio/common/lib/type-helpers';
-import { optionalTsToDate, requiredTsToDate } from '@temporalio/common/lib/time';
-import { decodeMapFromPayloads } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
+} from '@temporalio/common/internal/converter/payload-search-attributes';
+import type { Replace } from '@temporalio/common/internal/type-helpers';
+import { optionalTsToDate, requiredTsToDate } from '@temporalio/common/internal/time';
+import { decodeMapFromPayloads } from '@temporalio/common/internal/internal-non-workflow/codec-helpers';
 import { temporal, google } from '@temporalio/proto';
 import type {
   CountWorkflowExecution,

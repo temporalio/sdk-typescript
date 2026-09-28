@@ -44,5 +44,55 @@
   ],
   "engines": {
     "node": ">= 20.3.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json",
+    "./internal/connection": {
+      "types": "./lib/connection.d.ts",
+      "default": "./lib/connection.js"
+    },
+    "./internal/internal": {
+      "types": "./lib/internal.d.ts",
+      "default": "./lib/internal.js"
+    },
+    "./internal/iterators-utils": {
+      "types": "./lib/iterators-utils.d.ts",
+      "default": "./lib/iterators-utils.js"
+    },
+    "./internal/pkg": {
+      "types": "./lib/pkg.d.ts",
+      "default": "./lib/pkg.js"
+    },
+    "./internal/task-queue-client": {
+      "types": "./lib/task-queue-client.d.ts",
+      "default": "./lib/task-queue-client.js"
+    },
+    "./lib/*": {
+      "types": "./lib/*.d.ts",
+      "default": "./lib/*.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "internal/connection": [
+        "lib/connection.d.ts"
+      ],
+      "internal/internal": [
+        "lib/internal.d.ts"
+      ],
+      "internal/iterators-utils": [
+        "lib/iterators-utils.d.ts"
+      ],
+      "internal/pkg": [
+        "lib/pkg.d.ts"
+      ],
+      "internal/task-queue-client": [
+        "lib/task-queue-client.d.ts"
+      ]
+    }
   }
 }

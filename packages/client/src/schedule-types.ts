@@ -1,5 +1,5 @@
-import type { Replace } from '@temporalio/common/lib/type-helpers';
-import { checkExtends } from '@temporalio/common/lib/type-helpers';
+import type { Replace } from '@temporalio/common/internal/type-helpers';
+import { checkExtends } from '@temporalio/common/internal/type-helpers';
 import type {
   Duration,
   SearchAttributes,
@@ -7,7 +7,7 @@ import type {
   TypedSearchAttributes,
   SearchAttributePair,
 } from '@temporalio/common';
-import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
+import { makeProtoEnumConverters } from '@temporalio/common/internal/internal-workflow';
 import type { temporal } from '@temporalio/proto';
 import type { WorkflowStartOptions } from './workflow-options';
 

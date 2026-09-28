@@ -7,19 +7,19 @@ import {
   decompileRetryPolicy,
   extractWorkflowType,
 } from '@temporalio/common';
-import { encodeUserMetadata, decodeUserMetadata } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
+import { encodeUserMetadata, decodeUserMetadata } from '@temporalio/common/internal/internal-non-workflow/codec-helpers';
 import {
   encodeUnifiedSearchAttributes,
   decodeSearchAttributes,
   decodeTypedSearchAttributes,
-} from '@temporalio/common/lib/converter/payload-search-attributes';
-import type { Headers } from '@temporalio/common/lib/interceptors';
+} from '@temporalio/common/internal/converter/payload-search-attributes';
+import type { Headers } from '@temporalio/common/internal/interceptors';
 import {
   decodeArrayFromPayloads,
   decodeMapFromPayloads,
   encodeMapToPayloads,
   encodeToPayloadsWithContext,
-} from '@temporalio/common/lib/internal-non-workflow';
+} from '@temporalio/common/internal/internal-non-workflow';
 import { temporal } from '@temporalio/proto';
 import {
   msOptionalToTs,
@@ -28,7 +28,7 @@ import {
   optionalTsToDate,
   optionalTsToMs,
   requiredTsToDate,
-} from '@temporalio/common/lib/time';
+} from '@temporalio/common/internal/time';
 import type {
   CalendarSpec,
   CalendarSpecDescription,

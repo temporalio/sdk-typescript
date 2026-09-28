@@ -20,6 +20,105 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "internal/flags": [
+        "lib/flags.d.ts"
+      ],
+      "internal/global-attributes": [
+        "lib/global-attributes.d.ts"
+      ],
+      "internal/global-overrides": [
+        "lib/global-overrides.d.ts"
+      ],
+      "internal/interfaces": [
+        "lib/interfaces.d.ts"
+      ],
+      "internal/internals": [
+        "lib/internals.d.ts"
+      ],
+      "internal/logs": [
+        "lib/logs.d.ts"
+      ],
+      "internal/metrics": [
+        "lib/metrics.d.ts"
+      ],
+      "internal/nexus/system/generated/operations/signal-with-start-workflow": [
+        "lib/nexus/system/generated/operations/signal-with-start-workflow.d.ts"
+      ],
+      "internal/nexus/system/generated/registry": [
+        "lib/nexus/system/generated/registry.d.ts"
+      ],
+      "internal/random-helpers": [
+        "lib/random-helpers.d.ts"
+      ],
+      "internal/sinks": [
+        "lib/sinks.d.ts"
+      ],
+      "internal/worker-interface": [
+        "lib/worker-interface.d.ts"
+      ]
+    }
+  },
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json",
+    "./internal/flags": {
+      "types": "./lib/flags.d.ts",
+      "default": "./lib/flags.js"
+    },
+    "./internal/global-attributes": {
+      "types": "./lib/global-attributes.d.ts",
+      "default": "./lib/global-attributes.js"
+    },
+    "./internal/global-overrides": {
+      "types": "./lib/global-overrides.d.ts",
+      "default": "./lib/global-overrides.js"
+    },
+    "./internal/interfaces": {
+      "types": "./lib/interfaces.d.ts",
+      "default": "./lib/interfaces.js"
+    },
+    "./internal/internals": {
+      "types": "./lib/internals.d.ts",
+      "default": "./lib/internals.js"
+    },
+    "./internal/logs": {
+      "types": "./lib/logs.d.ts",
+      "default": "./lib/logs.js"
+    },
+    "./internal/metrics": {
+      "types": "./lib/metrics.d.ts",
+      "default": "./lib/metrics.js"
+    },
+    "./internal/nexus/system/generated/operations/signal-with-start-workflow": {
+      "types": "./lib/nexus/system/generated/operations/signal-with-start-workflow.d.ts",
+      "default": "./lib/nexus/system/generated/operations/signal-with-start-workflow.js"
+    },
+    "./internal/nexus/system/generated/registry": {
+      "types": "./lib/nexus/system/generated/registry.d.ts",
+      "default": "./lib/nexus/system/generated/registry.js"
+    },
+    "./internal/random-helpers": {
+      "types": "./lib/random-helpers.d.ts",
+      "default": "./lib/random-helpers.js"
+    },
+    "./internal/sinks": {
+      "types": "./lib/sinks.d.ts",
+      "default": "./lib/sinks.js"
+    },
+    "./internal/worker-interface": {
+      "types": "./lib/worker-interface.d.ts",
+      "default": "./lib/worker-interface.js"
+    },
+    "./lib/*": {
+      "types": "./lib/*.d.ts",
+      "default": "./lib/*.js"
+    }
+  },
   "scripts": {
     "build": "tsc --build",
     "gen:system-nexus": "tsx ./scripts/gen-system-nexus.ts",

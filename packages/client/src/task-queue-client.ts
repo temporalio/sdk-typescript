@@ -1,7 +1,7 @@
 import { status } from '@grpc/grpc-js';
-import type { RequireAtLeastOne } from '@temporalio/common/lib/type-helpers';
-import { assertNever, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
-import { filterNullAndUndefined, makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
+import type { RequireAtLeastOne } from '@temporalio/common/internal/type-helpers';
+import { assertNever, SymbolBasedInstanceOfError } from '@temporalio/common/internal/type-helpers';
+import { filterNullAndUndefined, makeProtoEnumConverters } from '@temporalio/common/internal/internal-workflow';
 import type { temporal } from '@temporalio/proto';
 import type { BaseClientOptions, LoadedWithDefaults } from './base-client';
 import { BaseClient, defaultBaseClientOptions } from './base-client';

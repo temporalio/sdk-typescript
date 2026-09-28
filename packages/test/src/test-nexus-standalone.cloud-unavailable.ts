@@ -21,7 +21,7 @@ import {
 import * as temporalnexus from '@temporalio/nexus';
 import * as workflow from '@temporalio/workflow';
 import { CancelledFailure, TerminatedFailure, ApplicationFailure, SearchAttributeType } from '@temporalio/common';
-import { generateWorkflowRunOperationToken } from '@temporalio/nexus/lib/token';
+import { generateWorkflowRunOperationToken } from '@temporalio/nexus/internal/token';
 import type { Context } from './helpers-integration';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { waitUntil } from './helpers';

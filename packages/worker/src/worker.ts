@@ -16,6 +16,7 @@ import type {
   MetricMeter,
   ActivitySerializationContext,
   PayloadTypeInfo,
+  StorageDriverTargetInfo,
 } from '@temporalio/common';
 import {
   DataConverter,
@@ -32,7 +33,7 @@ import {
   convertDeploymentVersion,
   isActivityFunctionWithOptions,
 } from '@temporalio/common';
-import type { Decoded } from '@temporalio/common/lib/internal-non-workflow';
+import type { Decoded } from '@temporalio/common/internal/internal-non-workflow';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
@@ -49,10 +50,9 @@ import {
   walkNexusTaskCompletion,
   walkWorkflowActivation,
   walkWorkflowActivationCompletion,
-} from '@temporalio/common/lib/internal-non-workflow';
-import type { StorageDriverTargetInfo } from '@temporalio/common/lib/converter/extstore';
-import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
-import type { Duration } from '@temporalio/common/lib/time';
+} from '@temporalio/common/internal/internal-non-workflow';
+import { historyFromJSON } from '@temporalio/common/internal/proto-utils';
+import type { Duration } from '@temporalio/common/internal/time';
 import {
   msToNumber,
   optionalTsToDate,
@@ -60,19 +60,19 @@ import {
   requiredTsToMs,
   tsToDate,
   tsToMs,
-} from '@temporalio/common/lib/time';
-import { LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
-import type { NonNullableObject, OmitFirstParam } from '@temporalio/common/lib/type-helpers';
-import { errorMessage } from '@temporalio/common/lib/type-helpers';
-import { workflowLogAttributes } from '@temporalio/workflow/lib/logs';
-import { createUnsafeRandomSource } from '@temporalio/workflow/lib/random-helpers';
+} from '@temporalio/common/internal/time';
+import { LoggerWithComposedMetadata } from '@temporalio/common/internal/logger';
+import type { NonNullableObject, OmitFirstParam } from '@temporalio/common/internal/type-helpers';
+import { errorMessage } from '@temporalio/common/internal/type-helpers';
+import { workflowLogAttributes } from '@temporalio/workflow/internal/logs';
+import { createUnsafeRandomSource } from '@temporalio/workflow/internal/random-helpers';
 import { native } from '@temporalio/core-bridge';
 import { Client } from '@temporalio/client';
 import type { temporal } from '@temporalio/proto';
 import { coresdk } from '@temporalio/proto';
 import { type SinkCall, type WorkflowInfo } from '@temporalio/workflow';
-import { throwIfReservedName } from '@temporalio/common/lib/reserved';
-import { suggestContinueAsNewReasonsFromProto } from '@temporalio/common/lib/continue-as-new';
+import { throwIfReservedName } from '@temporalio/common/internal/reserved';
+import { suggestContinueAsNewReasonsFromProto } from '@temporalio/common/internal/continue-as-new';
 import type { CancelReason } from './activity';
 import { Activity, activityLogAttributes } from './activity';
 import type { NativeConnection } from './connection';

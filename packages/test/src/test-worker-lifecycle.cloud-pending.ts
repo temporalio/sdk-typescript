@@ -4,7 +4,7 @@ import { setTimeout } from 'timers/promises';
 import test from 'ava';
 import { Client } from '@temporalio/client';
 import { PromiseCompletionTimeoutError, Runtime } from '@temporalio/worker';
-import { TransportError, UnexpectedError } from '@temporalio/worker/lib/errors';
+import { TransportError, UnexpectedError } from '@temporalio/worker/internal/errors';
 import { isBun, RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { defaultOptions } from './mock-native-worker';
 import { fillMemory } from './workflows';

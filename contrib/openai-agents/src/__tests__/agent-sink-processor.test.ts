@@ -1,7 +1,7 @@
 import test from 'ava';
 import type { Span as AgentSpan, SpanData } from '@openai/agents-core';
-import { setActivator } from '@temporalio/workflow/lib/global-attributes';
-import type { SinkCall } from '@temporalio/workflow/lib/sinks';
+import { setActivator } from '@temporalio/workflow/internal/global-attributes';
+import type { SinkCall } from '@temporalio/workflow/internal/sinks';
 import { AGENT_TRACING_SINK_NAME } from '../common/agent-sink-types';
 import { WorkflowAgentSinkProcessor, flushOpenSpans } from '../workflow/agent-sink-processor';
 

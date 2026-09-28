@@ -13,7 +13,7 @@ import {
   upsertSearchAttributes,
   workflowInfo,
 } from '@temporalio/workflow';
-import { encodeSearchAttributeIndexedValueType } from '@temporalio/common/lib/search-attributes';
+import { encodeSearchAttributeIndexedValueType } from '@temporalio/common/internal/search-attributes';
 import { waitUntil } from './helpers';
 import type { Context } from './helpers-integration';
 import { helpers, makeTestFunction } from './helpers-integration';

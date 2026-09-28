@@ -4,15 +4,15 @@ import type {
   SerializationContext,
   WorkflowSerializationContext,
 } from '@temporalio/common';
-import type { Decoded, Encoded, VisitOptions } from '@temporalio/common/lib/internal-non-workflow';
+import type { Decoded, Encoded, VisitOptions } from '@temporalio/common/internal/internal-non-workflow';
 import {
   decode,
   encode,
   visit,
   walkWorkflowActivation,
   walkWorkflowActivationCompletion,
-} from '@temporalio/common/lib/internal-non-workflow';
-import { limit } from '@temporalio/common/lib/concurrency/limit';
+} from '@temporalio/common/internal/internal-non-workflow';
+import { limit } from '@temporalio/common/internal/concurrency/limit';
 import { coresdk } from '@temporalio/proto';
 import { decodeSystemNexusOutput, encodeSystemNexusInput, isSystemNexusEnvelope } from './system-nexus-operations';
 

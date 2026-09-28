@@ -4,18 +4,20 @@ import {
   ExternalStorageDriverError,
   ExternalStorageReferenceError,
   ExternalStorageUnregisteredDriverError,
+  ExternalStorage,
+  StorageDriverClaim,
   type Logger,
   type Payload,
+  type StorageDriverSelectContext,
+  type StorageDriverTargetInfo,
 } from '@temporalio/common';
-import { ExternalStorage, StorageDriverClaim } from '@temporalio/common/lib/converter/extstore';
-import type { StorageDriverSelectContext, StorageDriverTargetInfo } from '@temporalio/common/lib/converter/extstore';
 import {
   ExternalStorageMetricsAccumulator,
   ExternalStorageRunner,
   isReferencePayload,
-} from '@temporalio/common/lib/internal-non-workflow';
-import { encode } from '@temporalio/common/lib/encoding';
-import { METADATA_ENCODING_KEY } from '@temporalio/common/lib/converter/types';
+} from '@temporalio/common/internal/internal-non-workflow';
+import { encode } from '@temporalio/common/internal/encoding';
+import { METADATA_ENCODING_KEY } from '@temporalio/common/internal/converter/types';
 import { makeFakeDriver, type FakeDriver } from './extstore-fake-driver';
 
 /** Build a Payload whose proto-encoded size is at least `bodyBytes`. */

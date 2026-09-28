@@ -3,7 +3,7 @@ import { setActivityOptions } from '@temporalio/activity';
 import * as workflow from '@temporalio/workflow';
 import type { SearchAttributePair } from '@temporalio/common';
 import { defineSearchAttributeKey, RawValue, SearchAttributeType, TypedSearchAttributes } from '@temporalio/common';
-import { payloadToJSON } from '@temporalio/common/lib/proto-utils';
+import { payloadToJSON } from '@temporalio/common/internal/proto-utils';
 import {
   buildIdTester,
   completableWorkflow,

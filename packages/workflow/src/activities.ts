@@ -4,7 +4,7 @@ import {
   decodeActivityCancellationType,
   type ActivityOptions as ActivityOptionsCommon,
   type LocalActivityOptions as LocalActivityOptionsCommon,
-} from '@temporalio/common/lib/activity-options';
+} from '@temporalio/common/internal/activity-options';
 import type { EventGroup } from './event-groups';
 
 /**

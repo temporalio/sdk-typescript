@@ -1,7 +1,7 @@
 import test from 'ava';
 import type * as nexus from 'nexus-rpc';
 import { temporal } from '@temporalio/proto';
-import { InternalWorkflowQueryOptionsSymbol, type InternalWorkflowHandle } from '@temporalio/client/lib/internal';
+import { InternalWorkflowQueryOptionsSymbol, type InternalWorkflowHandle } from '@temporalio/client/internal/internal';
 import { asyncLocalStorage, type HandlerContext } from '../context';
 import { TemporalOperationHandler, TemporalOperationResult } from '../workflow-helpers';
 import { makeHandlerContext, makeStartContext } from './helpers';

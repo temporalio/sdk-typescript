@@ -1,7 +1,7 @@
 import type { McpClient } from '@strands-agents/sdk';
 import { BedrockModel, type Model } from '@strands-agents/sdk';
 import type { Duration } from '@temporalio/common';
-import { msOptionalToNumber } from '@temporalio/common/lib/time';
+import { msOptionalToNumber } from '@temporalio/common/internal/time';
 import type { BundleOptions } from '@temporalio/worker';
 import { SimplePlugin } from '@temporalio/plugin';
 import { ModelActivity } from './model-activity';

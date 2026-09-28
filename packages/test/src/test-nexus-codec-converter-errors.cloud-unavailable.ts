@@ -3,7 +3,7 @@ import * as nexus from 'nexus-rpc';
 import type { Payload } from '@temporalio/common';
 import { ApplicationFailure, createPayloadValidationError, NexusOperationFailure } from '@temporalio/common';
 import { Client, WorkflowFailedError } from '@temporalio/client';
-import type { PayloadCodec } from '@temporalio/common/lib/converter/payload-codec';
+import type { PayloadCodec } from '@temporalio/common/internal/converter/payload-codec';
 import * as workflow from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { innermostHandlerError } from './helpers-nexus';

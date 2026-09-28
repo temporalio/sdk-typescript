@@ -18,15 +18,15 @@ import {
   IllegalStateError,
   SdkComponent,
 } from '@temporalio/common';
-import { encodeErrorToFailure, encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
-import { isAbortError } from '@temporalio/common/lib/type-helpers';
-import type { Logger } from '@temporalio/common/lib/logger';
-import { LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
-import { MetricMeterWithComposedTags } from '@temporalio/common/lib/metrics';
+import { encodeErrorToFailure, encodeToPayload } from '@temporalio/common/internal/internal-non-workflow';
+import { composeInterceptors } from '@temporalio/common/internal/interceptors';
+import { isAbortError } from '@temporalio/common/internal/type-helpers';
+import type { Logger } from '@temporalio/common/internal/logger';
+import { LoggerWithComposedMetadata } from '@temporalio/common/internal/logger';
+import { MetricMeterWithComposedTags } from '@temporalio/common/internal/metrics';
 import type { Client } from '@temporalio/client';
 import type { coresdk } from '@temporalio/proto';
-import type { ActivityCancellationDetailsHolder } from '@temporalio/common/lib/activity-cancellation-details';
+import type { ActivityCancellationDetailsHolder } from '@temporalio/common/internal/activity-cancellation-details';
 import type {
   ActivityExecuteInput,
   ActivityInboundCallsInterceptor,

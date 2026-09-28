@@ -1,5 +1,5 @@
 import type { Connection } from '@temporalio/client';
-import { msToTs } from '@temporalio/common/lib/time';
+import { msToTs } from '@temporalio/common/internal/time';
 
 // Starting with 1.20, we should no longer need to wait on namespace
 // TODO: Remove all of this once we are confident that this is no longer required

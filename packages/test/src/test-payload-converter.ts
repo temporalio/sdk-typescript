@@ -13,13 +13,13 @@ import {
   UndefinedPayloadConverter,
   ValueError,
 } from '@temporalio/common';
-import { SearchAttributePayloadConverter } from '@temporalio/common/lib/converter/payload-search-attributes';
-import { encode } from '@temporalio/common/lib/encoding';
+import { SearchAttributePayloadConverter } from '@temporalio/common/internal/converter/payload-search-attributes';
+import { encode } from '@temporalio/common/internal/encoding';
 import {
   DefaultPayloadConverterWithProtobufs,
   ProtobufBinaryPayloadConverter,
   ProtobufJsonPayloadConverter,
-} from '@temporalio/common/lib/protobufs';
+} from '@temporalio/common/internal/protobufs';
 import { DefaultLogger, Runtime } from '@temporalio/worker';
 import root from '../protos/root'; // eslint-disable-line import/default
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';

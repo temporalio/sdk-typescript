@@ -13,24 +13,24 @@ import {
   toPayloads,
   TypedSearchAttributes,
 } from '@temporalio/common';
-import { msToTs } from '@temporalio/common/lib/time';
+import { msToTs } from '@temporalio/common/internal/time';
 import { coresdk, temporal } from '@temporalio/proto';
 import { sleep as workflowSleep, type WorkflowInfo } from '@temporalio/workflow';
 import { DefaultLogger, LogTimestamp, type LogEntry } from '@temporalio/worker';
-import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
-import { invokePatchActivationCallback } from '@temporalio/worker/lib/workflow/patch-activation-callback';
-import { ThreadedVMWorkflowCreator } from '@temporalio/worker/lib/workflow/threaded-vm';
-import type { WorkflowBundleWithSourceMapAndFilename } from '@temporalio/worker/lib/workflow/workflow-worker-thread/input';
+import { WorkflowCodeBundler } from '@temporalio/worker/internal/workflow/bundler';
+import { invokePatchActivationCallback } from '@temporalio/worker/internal/workflow/patch-activation-callback';
+import { ThreadedVMWorkflowCreator } from '@temporalio/worker/internal/workflow/threaded-vm';
+import type { WorkflowBundleWithSourceMapAndFilename } from '@temporalio/worker/internal/workflow/workflow-worker-thread/input';
 import type { PatchActivationCallback, PatchActivationInput } from '@temporalio/worker';
-import type { VMWorkflow } from '@temporalio/worker/lib/workflow/vm';
-import { VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
-import type { WorkflowCreator } from '@temporalio/worker/lib/workflow/interface';
-import type { SdkFlag } from '@temporalio/workflow/lib/flags';
-import { SdkFlags } from '@temporalio/workflow/lib/flags';
-import { createUnsafeRandomSource } from '@temporalio/workflow/lib/random-helpers';
-import type { ReusableVMWorkflow } from '@temporalio/worker/lib/workflow/reusable-vm';
-import { ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
-import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
+import type { VMWorkflow } from '@temporalio/worker/internal/workflow/vm';
+import { VMWorkflowCreator } from '@temporalio/worker/internal/workflow/vm';
+import type { WorkflowCreator } from '@temporalio/worker/internal/workflow/interface';
+import type { SdkFlag } from '@temporalio/workflow/internal/flags';
+import { SdkFlags } from '@temporalio/workflow/internal/flags';
+import { createUnsafeRandomSource } from '@temporalio/workflow/internal/random-helpers';
+import type { ReusableVMWorkflow } from '@temporalio/worker/internal/workflow/reusable-vm';
+import { ReusableVMWorkflowCreator } from '@temporalio/worker/internal/workflow/reusable-vm';
+import { parseWorkflowCode } from '@temporalio/worker/internal/worker';
 import * as activityFunctions from './activities';
 import { isBun, cleanStackTrace, compareStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
 import type { ProcessedSignal } from './workflows';

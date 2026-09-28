@@ -129,9 +129,9 @@ import type {
   RetryPolicy,
 } from '@temporalio/common';
 import { IllegalStateError } from '@temporalio/common';
-import { msToNumber } from '@temporalio/common/lib/time';
+import { msToNumber } from '@temporalio/common/internal/time';
 
-import type { ActivityCancellationDetailsHolder } from '@temporalio/common/lib/activity-cancellation-details';
+import type { ActivityCancellationDetailsHolder } from '@temporalio/common/internal/activity-cancellation-details';
 import type { Client } from '@temporalio/client';
 
 export {

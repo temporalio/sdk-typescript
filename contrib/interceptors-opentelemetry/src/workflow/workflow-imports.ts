@@ -14,8 +14,8 @@ import type {
   AsyncLocalStorage as AsyncLocalStorageT,
   ContinueAsNew as ContinueAsNewT,
 } from '@temporalio/workflow';
-import type { getActivator as getActivatorT } from '@temporalio/workflow/lib/global-attributes';
-import type { SdkFlags as SdkFlagsT } from '@temporalio/workflow/lib/flags';
+import type { getActivator as getActivatorT } from '@temporalio/workflow/internal/global-attributes';
+import type { SdkFlags as SdkFlagsT } from '@temporalio/workflow/internal/flags';
 
 import { IllegalStateError } from '@temporalio/common';
 

@@ -9,9 +9,18 @@
       "types": "./lib/index.d.ts",
       "default": "./lib/index.js"
     },
+    "./package.json": "./package.json",
     "./otel": {
       "types": "./lib/otel.d.ts",
       "default": "./lib/otel.js"
+    },
+    "./internal/defaults": {
+      "types": "./lib/defaults.d.ts",
+      "default": "./lib/defaults.js"
+    },
+    "./internal/lambda-worker": {
+      "types": "./lib/lambda-worker.d.ts",
+      "default": "./lib/lambda-worker.js"
     },
     "./lib/*": {
       "types": "./lib/*.d.ts",
@@ -82,5 +91,15 @@
   "files": [
     "src",
     "lib"
-  ]
+  ],
+  "typesVersions": {
+    "*": {
+      "internal/defaults": [
+        "lib/defaults.d.ts"
+      ],
+      "internal/lambda-worker": [
+        "lib/lambda-worker.d.ts"
+      ]
+    }
+  }
 }

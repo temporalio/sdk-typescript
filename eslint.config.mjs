@@ -27,7 +27,18 @@ export default tseslint.config(
       eqeqeq: ['error', 'always', { null: 'ignore' }],
       'no-duplicate-imports': ['error', { allowSeparateTypeImports: true }],
       'object-shorthand': ['error', 'always'],
-      'no-restricted-imports': ['error', { patterns: ['@temporalio/*/src/*'] }],
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: ['@temporalio/*/src/*'], message: 'Import from the package root or a documented export.' },
+            {
+              group: ['@temporalio/*/lib', '@temporalio/*/lib/*'],
+              message: 'Import from the package root or a documented export, not lib.',
+            },
+          ],
+        },
+      ],
       '@typescript-eslint/no-deprecated': [
         'warn',
         {

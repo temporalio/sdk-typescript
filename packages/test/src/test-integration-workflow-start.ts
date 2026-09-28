@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { Client, WorkflowClient, WorkflowFailedError } from '@temporalio/client';
-import { tsToMs } from '@temporalio/common/lib/time';
+import { tsToMs } from '@temporalio/common/internal/time';
 import { WorkflowExecutionAlreadyStartedError } from '@temporalio/common';
 import * as workflows from './workflows';
 import {

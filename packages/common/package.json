@@ -50,5 +50,244 @@
     "lib",
     "!src/__tests__",
     "!lib/__tests__"
-  ]
+  ],
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json",
+    "./internal/activity-cancellation-details": {
+      "types": "./lib/activity-cancellation-details.d.ts",
+      "default": "./lib/activity-cancellation-details.js"
+    },
+    "./internal/activity-options": {
+      "types": "./lib/activity-options.d.ts",
+      "default": "./lib/activity-options.js"
+    },
+    "./internal/concurrency/limit": {
+      "types": "./lib/concurrency/limit.d.ts",
+      "default": "./lib/concurrency/limit.js"
+    },
+    "./internal/continue-as-new": {
+      "types": "./lib/continue-as-new.d.ts",
+      "default": "./lib/continue-as-new.js"
+    },
+    "./internal/converter/payload-codec": {
+      "types": "./lib/converter/payload-codec.d.ts",
+      "default": "./lib/converter/payload-codec.js"
+    },
+    "./internal/converter/payload-converter": {
+      "types": "./lib/converter/payload-converter.d.ts",
+      "default": "./lib/converter/payload-converter.js"
+    },
+    "./internal/converter/payload-search-attributes": {
+      "types": "./lib/converter/payload-search-attributes.d.ts",
+      "default": "./lib/converter/payload-search-attributes.js"
+    },
+    "./internal/converter/protobuf-payload-converters": {
+      "types": "./lib/converter/protobuf-payload-converters.d.ts",
+      "default": "./lib/converter/protobuf-payload-converters.js"
+    },
+    "./internal/converter/serialization-context": {
+      "types": "./lib/converter/serialization-context.d.ts",
+      "default": "./lib/converter/serialization-context.js"
+    },
+    "./internal/converter/types": {
+      "types": "./lib/converter/types.d.ts",
+      "default": "./lib/converter/types.js"
+    },
+    "./internal/encoding": {
+      "types": "./lib/encoding.d.ts",
+      "default": "./lib/encoding.js"
+    },
+    "./internal/errors": {
+      "types": "./lib/errors.d.ts",
+      "default": "./lib/errors.js"
+    },
+    "./internal/interceptors": {
+      "types": "./lib/interceptors.d.ts",
+      "default": "./lib/interceptors.js"
+    },
+    "./internal/interfaces": {
+      "types": "./lib/interfaces.d.ts",
+      "default": "./lib/interfaces.js"
+    },
+    "./internal/internal-non-workflow": {
+      "types": "./lib/internal-non-workflow/index.d.ts",
+      "default": "./lib/internal-non-workflow/index.js"
+    },
+    "./internal/internal-non-workflow/codec-helpers": {
+      "types": "./lib/internal-non-workflow/codec-helpers.d.ts",
+      "default": "./lib/internal-non-workflow/codec-helpers.js"
+    },
+    "./internal/internal-workflow": {
+      "types": "./lib/internal-workflow/index.d.ts",
+      "default": "./lib/internal-workflow/index.js"
+    },
+    "./internal/internal-workflow/enums-helpers": {
+      "types": "./lib/internal-workflow/enums-helpers.d.ts",
+      "default": "./lib/internal-workflow/enums-helpers.js"
+    },
+    "./internal/internal-workflow/objects-helpers": {
+      "types": "./lib/internal-workflow/objects-helpers.d.ts",
+      "default": "./lib/internal-workflow/objects-helpers.js"
+    },
+    "./internal/logger": {
+      "types": "./lib/logger.d.ts",
+      "default": "./lib/logger.js"
+    },
+    "./internal/metrics": {
+      "types": "./lib/metrics.d.ts",
+      "default": "./lib/metrics.js"
+    },
+    "./internal/proto-utils": {
+      "types": "./lib/proto-utils.d.ts",
+      "default": "./lib/proto-utils.js"
+    },
+    "./internal/protobufs": {
+      "types": "./lib/protobufs.d.ts",
+      "default": "./lib/protobufs.js"
+    },
+    "./internal/reserved": {
+      "types": "./lib/reserved.d.ts",
+      "default": "./lib/reserved.js"
+    },
+    "./internal/search-attributes": {
+      "types": "./lib/search-attributes.d.ts",
+      "default": "./lib/search-attributes.js"
+    },
+    "./internal/time": {
+      "types": "./lib/time.d.ts",
+      "default": "./lib/time.js"
+    },
+    "./internal/type-helpers": {
+      "types": "./lib/type-helpers.d.ts",
+      "default": "./lib/type-helpers.js"
+    },
+    "./internal/user-metadata": {
+      "types": "./lib/user-metadata.d.ts",
+      "default": "./lib/user-metadata.js"
+    },
+    "./internal/versioning-intent-enum": {
+      "types": "./lib/versioning-intent-enum.d.ts",
+      "default": "./lib/versioning-intent-enum.js"
+    },
+    "./internal/worker-deployments": {
+      "types": "./lib/worker-deployments.d.ts",
+      "default": "./lib/worker-deployments.js"
+    },
+    "./internal/workflow-handle": {
+      "types": "./lib/workflow-handle.d.ts",
+      "default": "./lib/workflow-handle.js"
+    },
+    "./internal/workflow-options": {
+      "types": "./lib/workflow-options.d.ts",
+      "default": "./lib/workflow-options.js"
+    },
+    "./lib/*": {
+      "types": "./lib/*.d.ts",
+      "default": "./lib/*.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "internal/activity-cancellation-details": [
+        "lib/activity-cancellation-details.d.ts"
+      ],
+      "internal/activity-options": [
+        "lib/activity-options.d.ts"
+      ],
+      "internal/concurrency/limit": [
+        "lib/concurrency/limit.d.ts"
+      ],
+      "internal/continue-as-new": [
+        "lib/continue-as-new.d.ts"
+      ],
+      "internal/converter/payload-codec": [
+        "lib/converter/payload-codec.d.ts"
+      ],
+      "internal/converter/payload-converter": [
+        "lib/converter/payload-converter.d.ts"
+      ],
+      "internal/converter/payload-search-attributes": [
+        "lib/converter/payload-search-attributes.d.ts"
+      ],
+      "internal/converter/protobuf-payload-converters": [
+        "lib/converter/protobuf-payload-converters.d.ts"
+      ],
+      "internal/converter/serialization-context": [
+        "lib/converter/serialization-context.d.ts"
+      ],
+      "internal/converter/types": [
+        "lib/converter/types.d.ts"
+      ],
+      "internal/encoding": [
+        "lib/encoding.d.ts"
+      ],
+      "internal/errors": [
+        "lib/errors.d.ts"
+      ],
+      "internal/interceptors": [
+        "lib/interceptors.d.ts"
+      ],
+      "internal/interfaces": [
+        "lib/interfaces.d.ts"
+      ],
+      "internal/internal-non-workflow": [
+        "lib/internal-non-workflow/index.d.ts"
+      ],
+      "internal/internal-non-workflow/codec-helpers": [
+        "lib/internal-non-workflow/codec-helpers.d.ts"
+      ],
+      "internal/internal-workflow": [
+        "lib/internal-workflow/index.d.ts"
+      ],
+      "internal/internal-workflow/enums-helpers": [
+        "lib/internal-workflow/enums-helpers.d.ts"
+      ],
+      "internal/internal-workflow/objects-helpers": [
+        "lib/internal-workflow/objects-helpers.d.ts"
+      ],
+      "internal/logger": [
+        "lib/logger.d.ts"
+      ],
+      "internal/metrics": [
+        "lib/metrics.d.ts"
+      ],
+      "internal/proto-utils": [
+        "lib/proto-utils.d.ts"
+      ],
+      "internal/protobufs": [
+        "lib/protobufs.d.ts"
+      ],
+      "internal/reserved": [
+        "lib/reserved.d.ts"
+      ],
+      "internal/search-attributes": [
+        "lib/search-attributes.d.ts"
+      ],
+      "internal/time": [
+        "lib/time.d.ts"
+      ],
+      "internal/type-helpers": [
+        "lib/type-helpers.d.ts"
+      ],
+      "internal/user-metadata": [
+        "lib/user-metadata.d.ts"
+      ],
+      "internal/versioning-intent-enum": [
+        "lib/versioning-intent-enum.d.ts"
+      ],
+      "internal/worker-deployments": [
+        "lib/worker-deployments.d.ts"
+      ],
+      "internal/workflow-handle": [
+        "lib/workflow-handle.d.ts"
+      ],
+      "internal/workflow-options": [
+        "lib/workflow-options.d.ts"
+      ]
+    }
+  }
 }

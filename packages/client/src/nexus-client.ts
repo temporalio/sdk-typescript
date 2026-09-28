@@ -1,13 +1,13 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
 import type * as nexus from 'nexus-rpc';
 import { v4 as uuid4 } from 'uuid';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
-import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
+import { composeInterceptors } from '@temporalio/common/internal/interceptors';
+import { SymbolBasedInstanceOfError } from '@temporalio/common/internal/type-helpers';
 import {
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
   typedSearchAttributePayloadConverter,
-} from '@temporalio/common/lib/converter/payload-search-attributes';
+} from '@temporalio/common/internal/converter/payload-search-attributes';
 import {
   decodeFromPayloadsAtIndex,
   decodeOptionalFailureToOptionalError,
@@ -20,14 +20,14 @@ import {
   walkListNexusOperationExecutionsResponse,
   walkPollNexusOperationExecutionResponse,
   walkStartNexusOperationExecutionRequest,
-} from '@temporalio/common/lib/internal-non-workflow';
-import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
-import { msOptionalToTs, optionalTsToDate, optionalTsToMs } from '@temporalio/common/lib/time';
+} from '@temporalio/common/internal/internal-non-workflow';
+import { filterNullAndUndefined } from '@temporalio/common/internal/internal-workflow';
+import { msOptionalToTs, optionalTsToDate, optionalTsToMs } from '@temporalio/common/internal/time';
 import { temporal } from '@temporalio/proto';
 import type { LoadedDataConverter, TypeInfo } from '@temporalio/common';
 import { ExternalStorageError } from '@temporalio/common';
-import type { SearchAttributeType, TypedSearchAttributeValue } from '@temporalio/common/lib/search-attributes';
-import { decode } from '@temporalio/common/lib/encoding';
+import type { SearchAttributeType, TypedSearchAttributeValue } from '@temporalio/common/internal/search-attributes';
+import { decode } from '@temporalio/common/internal/encoding';
 import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base-client';
 import { BaseClient, defaultBaseClientOptions } from './base-client';
 import { isGrpcServiceError, ServiceError } from './errors';

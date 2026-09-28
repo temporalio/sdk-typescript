@@ -11,8 +11,8 @@ import {
   TestService,
   InternalConnectionLikeSymbol,
 } from '@temporalio/client';
-import type { InternalConnectionOptions } from '@temporalio/client/lib/connection';
-import { InternalConnectionOptionsSymbol } from '@temporalio/client/lib/connection';
+import type { InternalConnectionOptions } from '@temporalio/client/internal/connection';
+import { InternalConnectionOptionsSymbol } from '@temporalio/client/internal/connection';
 import { TransportError } from './errors';
 import type { NativeConnectionOptions } from './connection-options';
 import { Runtime } from './runtime';

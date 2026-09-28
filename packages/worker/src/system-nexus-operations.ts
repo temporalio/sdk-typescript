@@ -1,17 +1,17 @@
 import type { Service as ProtobufService, Type as ProtobufType } from 'protobufjs';
 import type { Payload, SerializationContext } from '@temporalio/common';
 import { defaultPayloadConverter } from '@temporalio/common';
-import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
-import { isSerializationContext } from '@temporalio/common/lib/converter/serialization-context';
+import { ProtobufBinaryPayloadConverter } from '@temporalio/common/internal/converter/protobuf-payload-converters';
+import { isSerializationContext } from '@temporalio/common/internal/converter/serialization-context';
 import {
   decodeSystemNexusEnvelopeBytes,
   SYSTEM_NEXUS_CONTEXT_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE,
-} from '@temporalio/common/lib/internal-workflow';
-import { type VisitOptions, visit, walkPayloadsInMessage } from '@temporalio/common/lib/internal-non-workflow';
+} from '@temporalio/common/internal/internal-workflow';
+import { type VisitOptions, visit, walkPayloadsInMessage } from '@temporalio/common/internal/internal-non-workflow';
 import * as protoRoot from '@temporalio/proto';
-import { operationRegistry } from '@temporalio/workflow/lib/nexus/system/generated/registry';
+import { operationRegistry } from '@temporalio/workflow/internal/nexus/system/generated/registry';
 
 const protobufPayloadConverter = new ProtobufBinaryPayloadConverter(protoRoot);
 const protoRootWithLookup = protoRoot as typeof protoRoot & {

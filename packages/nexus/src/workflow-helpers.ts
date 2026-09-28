@@ -7,7 +7,7 @@ import type {
   SignalDefinition,
   UpdateDefinition,
 } from '@temporalio/common';
-import type { Replace } from '@temporalio/common/lib/type-helpers';
+import type { Replace } from '@temporalio/common/internal/type-helpers';
 import type {
   ActivityHandle,
   ActivityName,
@@ -27,14 +27,14 @@ import type {
   InternalWorkflowSignalOptions,
   InternalWorkflowStartOptions,
   InternalWorkflowUpdateOptions,
-} from '@temporalio/client/lib/internal';
+} from '@temporalio/client/internal/internal';
 import {
   InternalActivityStartOptionsSymbol,
   InternalWorkflowQueryOptionsSymbol,
   InternalWorkflowSignalOptionsSymbol,
   InternalWorkflowStartOptionsSymbol,
   InternalWorkflowUpdateOptionsSymbol,
-} from '@temporalio/client/lib/internal';
+} from '@temporalio/client/internal/internal';
 import { convertNexusLinkToTemporalLink, convertTemporalLinkToNexusLink } from './link-converter';
 import {
   assertActivityOperationToken,

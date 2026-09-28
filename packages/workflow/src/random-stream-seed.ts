@@ -1,4 +1,4 @@
-import { encode } from '@temporalio/common/lib/encoding';
+import { encode } from '@temporalio/common/internal/encoding';
 
 const RANDOM_STREAM_SEED_PREFIX = Array.from(encode('temporal-workflow-random-stream-v1'));
 

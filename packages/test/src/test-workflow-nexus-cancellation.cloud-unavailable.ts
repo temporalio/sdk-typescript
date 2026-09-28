@@ -5,7 +5,7 @@ import * as nexus from 'nexus-rpc';
 import { ApplicationFailure, NexusOperationFailure } from '@temporalio/common';
 import type { WorkflowHandle } from '@temporalio/client';
 import { WorkflowFailedError } from '@temporalio/client';
-import type { History } from '@temporalio/common/lib/proto-utils';
+import type { History } from '@temporalio/common/internal/proto-utils';
 import * as temporalnexus from '@temporalio/nexus';
 import * as workflow from '@temporalio/workflow';
 import type { Context } from './helpers-integration';

@@ -7,7 +7,7 @@ import {
   type StorageDriverClaim,
   type StorageDriverRetrieveContext,
   type StorageDriverStoreContext,
-} from '@temporalio/common/lib/converter/extstore';
+} from '@temporalio/common';
 
 function stubDriver(name: string, type = name): StorageDriver {
   return {

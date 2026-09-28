@@ -8,7 +8,7 @@ import {
   fromPayloadWithTypeInfo,
   WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
-import { encodeErrorToFailure, decodeOptionalSingle } from '@temporalio/common/lib/internal-non-workflow';
+import { encodeErrorToFailure, decodeOptionalSingle } from '@temporalio/common/internal/internal-non-workflow';
 import type { temporal } from '@temporalio/proto';
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

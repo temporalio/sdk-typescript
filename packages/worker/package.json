@@ -58,5 +58,132 @@
   ],
   "engines": {
     "node": ">= 20.3.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json",
+    "./internal/activity": {
+      "types": "./lib/activity.d.ts",
+      "default": "./lib/activity.js"
+    },
+    "./internal/connection-options": {
+      "types": "./lib/connection-options.d.ts",
+      "default": "./lib/connection-options.js"
+    },
+    "./internal/errors": {
+      "types": "./lib/errors.d.ts",
+      "default": "./lib/errors.js"
+    },
+    "./internal/nexus/conversions": {
+      "types": "./lib/nexus/conversions.d.ts",
+      "default": "./lib/nexus/conversions.js"
+    },
+    "./internal/pkg": {
+      "types": "./lib/pkg.d.ts",
+      "default": "./lib/pkg.js"
+    },
+    "./internal/utils": {
+      "types": "./lib/utils.d.ts",
+      "default": "./lib/utils.js"
+    },
+    "./internal/worker": {
+      "types": "./lib/worker.d.ts",
+      "default": "./lib/worker.js"
+    },
+    "./internal/worker-options": {
+      "types": "./lib/worker-options.d.ts",
+      "default": "./lib/worker-options.js"
+    },
+    "./internal/workflow-codec-runner": {
+      "types": "./lib/workflow-codec-runner.d.ts",
+      "default": "./lib/workflow-codec-runner.js"
+    },
+    "./internal/workflow/bundler": {
+      "types": "./lib/workflow/bundler.d.ts",
+      "default": "./lib/workflow/bundler.js"
+    },
+    "./internal/workflow/interface": {
+      "types": "./lib/workflow/interface.d.ts",
+      "default": "./lib/workflow/interface.js"
+    },
+    "./internal/workflow/patch-activation-callback": {
+      "types": "./lib/workflow/patch-activation-callback.d.ts",
+      "default": "./lib/workflow/patch-activation-callback.js"
+    },
+    "./internal/workflow/reusable-vm": {
+      "types": "./lib/workflow/reusable-vm.d.ts",
+      "default": "./lib/workflow/reusable-vm.js"
+    },
+    "./internal/workflow/threaded-vm": {
+      "types": "./lib/workflow/threaded-vm.d.ts",
+      "default": "./lib/workflow/threaded-vm.js"
+    },
+    "./internal/workflow/vm": {
+      "types": "./lib/workflow/vm.d.ts",
+      "default": "./lib/workflow/vm.js"
+    },
+    "./internal/workflow/workflow-worker-thread/input": {
+      "types": "./lib/workflow/workflow-worker-thread/input.d.ts",
+      "default": "./lib/workflow/workflow-worker-thread/input.js"
+    },
+    "./lib/*": {
+      "types": "./lib/*.d.ts",
+      "default": "./lib/*.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "internal/activity": [
+        "lib/activity.d.ts"
+      ],
+      "internal/connection-options": [
+        "lib/connection-options.d.ts"
+      ],
+      "internal/errors": [
+        "lib/errors.d.ts"
+      ],
+      "internal/nexus/conversions": [
+        "lib/nexus/conversions.d.ts"
+      ],
+      "internal/pkg": [
+        "lib/pkg.d.ts"
+      ],
+      "internal/utils": [
+        "lib/utils.d.ts"
+      ],
+      "internal/worker": [
+        "lib/worker.d.ts"
+      ],
+      "internal/worker-options": [
+        "lib/worker-options.d.ts"
+      ],
+      "internal/workflow-codec-runner": [
+        "lib/workflow-codec-runner.d.ts"
+      ],
+      "internal/workflow/bundler": [
+        "lib/workflow/bundler.d.ts"
+      ],
+      "internal/workflow/interface": [
+        "lib/workflow/interface.d.ts"
+      ],
+      "internal/workflow/patch-activation-callback": [
+        "lib/workflow/patch-activation-callback.d.ts"
+      ],
+      "internal/workflow/reusable-vm": [
+        "lib/workflow/reusable-vm.d.ts"
+      ],
+      "internal/workflow/threaded-vm": [
+        "lib/workflow/threaded-vm.d.ts"
+      ],
+      "internal/workflow/vm": [
+        "lib/workflow/vm.d.ts"
+      ],
+      "internal/workflow/workflow-worker-thread/input": [
+        "lib/workflow/workflow-worker-thread/input.d.ts"
+      ]
+    }
   }
 }

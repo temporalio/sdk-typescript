@@ -8,12 +8,12 @@ import {
   noopMetricMeter,
   ActivityCancellationDetails,
 } from '@temporalio/common';
-import { LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
+import { LoggerWithComposedMetadata } from '@temporalio/common/internal/logger';
 import type { Client } from '@temporalio/client';
 import type { ActivityInterceptorsFactory } from '@temporalio/worker';
 import { DefaultLogger } from '@temporalio/worker';
-import type { CancelReason } from '@temporalio/worker/lib/activity';
-import { Activity } from '@temporalio/worker/lib/activity';
+import type { CancelReason } from '@temporalio/worker/internal/activity';
+import { Activity } from '@temporalio/worker/internal/activity';
 
 export interface MockActivityEnvironmentOptions {
   interceptors?: ActivityInterceptorsFactory[];

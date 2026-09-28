@@ -5,5 +5,5 @@
  * @module
  */
 export { inWorkflowContext, proxySinks, workflowInfo, AsyncLocalStorage, ContinueAsNew } from '@temporalio/workflow';
-export { SdkFlags } from '@temporalio/workflow/lib/flags';
-export { getActivator } from '@temporalio/workflow/lib/global-attributes';
+export { SdkFlags } from '@temporalio/workflow/internal/flags';
+export { getActivator } from '@temporalio/workflow/internal/global-attributes';

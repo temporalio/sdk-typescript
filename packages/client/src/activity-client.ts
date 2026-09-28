@@ -20,14 +20,14 @@ import {
   decompileRetryPolicy,
   ExternalStorageError,
 } from '@temporalio/common';
-import type { Duration } from '@temporalio/common/lib/time';
-import { msOptionalToTs, msToNumber, optionalTsToDate, optionalTsToMs } from '@temporalio/common/lib/time';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
+import type { Duration } from '@temporalio/common/internal/time';
+import { msOptionalToTs, msToNumber, optionalTsToDate, optionalTsToMs } from '@temporalio/common/internal/time';
+import { composeInterceptors } from '@temporalio/common/internal/interceptors';
 import {
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
   searchAttributePayloadConverter,
-} from '@temporalio/common/lib/converter/payload-search-attributes';
+} from '@temporalio/common/internal/converter/payload-search-attributes';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
@@ -41,9 +41,9 @@ import {
   walkListActivityExecutionsResponse,
   walkPollActivityExecutionResponse,
   walkStartActivityExecutionRequest,
-} from '@temporalio/common/lib/internal-non-workflow';
+} from '@temporalio/common/internal/internal-non-workflow';
 import { temporal } from '@temporalio/proto';
-import type { Replace } from '@temporalio/common/lib/type-helpers';
+import type { Replace } from '@temporalio/common/internal/type-helpers';
 import type {
   ActivityCancelInput,
   ActivityClientInterceptor,

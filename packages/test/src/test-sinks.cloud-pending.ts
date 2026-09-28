@@ -5,7 +5,7 @@ import { Connection, WorkflowClient } from '@temporalio/client';
 import type { InjectedSinks, WorkerOptions, LogEntry } from '@temporalio/worker';
 import { DefaultLogger, Runtime, NativeConnection } from '@temporalio/worker';
 import type { SearchAttributes, WorkflowInfo } from '@temporalio/workflow';
-import type { UnsafeWorkflowInfo } from '@temporalio/workflow/lib/interfaces';
+import type { UnsafeWorkflowInfo } from '@temporalio/workflow/internal/interfaces';
 import type { TypedSearchAttributes } from '@temporalio/common';
 import { SdkComponent } from '@temporalio/common';
 import { RUN_INTEGRATION_TESTS, Worker, registerDefaultCustomSearchAttributes } from './helpers';

@@ -1,6 +1,6 @@
 // ORDER IS IMPORTANT! When a type is re-exported, TypeDoc will keep the first
 // one it encountered as canonical, and mark others as references to that one.
-export * as protobufs from '@temporalio/common/lib/protobufs';
+export * as protobufs from '@temporalio/common/internal/protobufs';
 export * as proto from '@temporalio/proto';
 export * as common from '@temporalio/common';
 export * as workflow from '@temporalio/workflow';

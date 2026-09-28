@@ -8,10 +8,10 @@ import { randomUUID } from 'crypto';
 import test from 'ava';
 import Long from 'long';
 import { createPayloadValidationError, defaultPayloadConverter, type PayloadCodec } from '@temporalio/common';
-import { msToTs } from '@temporalio/common/lib/time';
+import { msToTs } from '@temporalio/common/internal/time';
 import type { LogEntry, NativeConnection } from '@temporalio/worker';
 import { DefaultLogger, MetricsBuffer, Runtime } from '@temporalio/worker';
-import { UnexpectedError } from '@temporalio/worker/lib/errors';
+import { UnexpectedError } from '@temporalio/worker/internal/errors';
 import { isolateFreeWorker, Worker as MockWorker } from './mock-native-worker';
 
 test.serial('Worker.create debug log options are JSON serializable with buffered metrics and connection', async (t) => {

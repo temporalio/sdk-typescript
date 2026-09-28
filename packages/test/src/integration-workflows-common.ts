@@ -12,14 +12,14 @@ import {
   setDefaultUpdateHandler,
   setHandler,
 } from '@temporalio/workflow';
-import { SdkFlags } from '@temporalio/workflow/lib/flags';
+import { SdkFlags } from '@temporalio/workflow/internal/flags';
 import type { ActivityCancellationDetails, PayloadTypeInfo } from '@temporalio/common';
 import { ApplicationFailure, RawValue, rawValueTypeInfo } from '@temporalio/common';
 import {
   TEMPORAL_RESERVED_PREFIX,
   STACK_TRACE_QUERY_NAME,
   ENHANCED_STACK_TRACE_QUERY_NAME,
-} from '@temporalio/common/lib/reserved';
+} from '@temporalio/common/internal/reserved';
 import { activityStartedSignal } from './workflows/definitions';
 import type { Context } from './helpers-integration';
 import { helpers } from './helpers-integration';

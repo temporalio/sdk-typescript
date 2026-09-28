@@ -100,7 +100,7 @@ export {
   TerminatedFailure,
   TimeoutFailure,
 } from '@temporalio/common';
-export * from '@temporalio/common/lib/errors';
+export * from '@temporalio/common/internal/errors';
 export {
   ActivityFunction,
   ActivityInterface, // eslint-disable-line @typescript-eslint/no-deprecated
@@ -113,9 +113,9 @@ export {
   WorkflowResultType,
   WorkflowReturnType,
   WorkflowSignalType,
-} from '@temporalio/common/lib/interfaces';
-export * from '@temporalio/common/lib/workflow-handle';
-export * from '@temporalio/common/lib/workflow-options';
+} from '@temporalio/common/internal/interfaces';
+export * from '@temporalio/common/internal/workflow-handle';
+export * from '@temporalio/common/internal/workflow-options';
 export { AsyncLocalStorage, CancellationScope, CancellationScopeOptions } from './cancellation-scope';
 export * from './errors';
 export * from './interceptors';

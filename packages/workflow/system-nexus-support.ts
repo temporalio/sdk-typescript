@@ -1,10 +1,10 @@
 import * as common from '@temporalio/common';
-import { msToTs, requiredTsToMs } from '@temporalio/common/lib/time';
+import { msToTs, requiredTsToMs } from '@temporalio/common/internal/time';
 import {
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
-} from '@temporalio/common/lib/converter/payload-search-attributes';
-import { versioningOverrideToProto as commonVersioningOverrideToProto } from '@temporalio/common/lib/worker-deployments';
+} from '@temporalio/common/internal/converter/payload-search-attributes';
+import { versioningOverrideToProto as commonVersioningOverrideToProto } from '@temporalio/common/internal/worker-deployments';
 import type { google, temporal } from '@temporalio/proto';
 import { workflowInfo } from '../../../workflow';
 import { currentSystemNexusPayloadConversion } from '../user-payload-converter';

@@ -2,7 +2,7 @@ import { Model } from '@strands-agents/sdk';
 import type { BaseModelConfig, Message, ModelStreamEvent, StreamOptions } from '@strands-agents/sdk';
 import * as workflow from '@temporalio/workflow';
 import type { ActivityOptions } from '@temporalio/workflow';
-import type { Duration } from '@temporalio/common/lib/time';
+import type { Duration } from '@temporalio/common/internal/time';
 import type { InvokeModelInput, InvokeModelStreamingInput } from './model-activity';
 
 /**

@@ -1,7 +1,7 @@
 import type { ProviderV4 } from '@ai-sdk/provider';
 import { SimplePlugin } from '@temporalio/plugin';
 import type { BundleOptions } from '@temporalio/worker';
-import type { Duration } from '@temporalio/common/lib/time';
+import type { Duration } from '@temporalio/common/internal/time';
 import { createActivities, _evictMcpConnectionsForServer } from './activities';
 import type { McpClientFactories } from './mcp';
 

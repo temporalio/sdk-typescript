@@ -35,17 +35,17 @@ import {
   toPayloadsWithContext,
   TypedSearchAttributes,
 } from '@temporalio/common';
-import { userMetadataToPayload } from '@temporalio/common/lib/user-metadata';
+import { userMetadataToPayload } from '@temporalio/common/internal/user-metadata';
 import {
   encodeUnifiedSearchAttributes,
   searchAttributePayloadConverter,
-} from '@temporalio/common/lib/converter/payload-search-attributes';
-import { versioningIntentToProto } from '@temporalio/common/lib/versioning-intent-enum';
-import type { Duration } from '@temporalio/common/lib/time';
-import { msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/common/lib/time';
+} from '@temporalio/common/internal/converter/payload-search-attributes';
+import { versioningIntentToProto } from '@temporalio/common/internal/versioning-intent-enum';
+import type { Duration } from '@temporalio/common/internal/time';
+import { msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/common/internal/time';
 import type { temporal } from '@temporalio/proto';
-import { deepMerge } from '@temporalio/common/lib/internal-workflow';
-import { throwIfReservedName } from '@temporalio/common/lib/reserved';
+import { deepMerge } from '@temporalio/common/internal/internal-workflow';
+import { throwIfReservedName } from '@temporalio/common/internal/reserved';
 import { eventGroupMarkersToProto, type EventGroup, type EventGroupsOptions } from './event-groups';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import { composeInterceptors } from './interceptor-composition';

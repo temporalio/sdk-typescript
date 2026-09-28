@@ -1,4 +1,4 @@
-import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
+import { filterNullAndUndefined } from '@temporalio/common/internal/internal-workflow';
 import type { BaseClientOptions, LoadedWithDefaults } from './base-client';
 import { BaseClient, defaultBaseClientOptions } from './base-client';
 import type { ClientInterceptors } from './interceptors';

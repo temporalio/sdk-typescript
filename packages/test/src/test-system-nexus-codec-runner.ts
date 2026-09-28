@@ -1,13 +1,13 @@
 import test from 'ava';
 import type { Payload, SerializationContext } from '@temporalio/common';
 import { ApplicationFailure, defaultFailureConverter, defaultPayloadConverter } from '@temporalio/common';
-import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
+import { ProtobufBinaryPayloadConverter } from '@temporalio/common/internal/converter/protobuf-payload-converters';
 import {
   decodeSystemNexusEnvelopeBytes,
   encodeSystemNexusEnvelopeBytes,
-} from '@temporalio/common/lib/internal-workflow';
+} from '@temporalio/common/internal/internal-workflow';
 import * as protoRoot from '@temporalio/proto';
-import { WorkflowCodecRunner } from '@temporalio/worker/lib/workflow-codec-runner';
+import { WorkflowCodecRunner } from '@temporalio/worker/internal/workflow-codec-runner';
 import { FreePayloadCodec, makeContextTrace } from './payload-converters/serialization-context-converter';
 
 const targetContext = { type: 'workflow' as const, namespace: 'target-ns', workflowId: 'target-id' };
