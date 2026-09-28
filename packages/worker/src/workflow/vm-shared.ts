@@ -2,6 +2,7 @@ import v8 from 'node:v8';
 import vm from 'node:vm';
 import { AsyncLocalStorage as AsyncLocalStorageOriginal } from 'node:async_hooks';
 import assert from 'node:assert';
+import { atob, btoa } from 'node:buffer';
 import { URL, URLSearchParams } from 'node:url';
 import { TextDecoder, TextEncoder } from 'node:util';
 import { SourceMapConsumer } from 'source-map';
@@ -102,6 +103,8 @@ export function injectGlobals(context: vm.Context): void {
     TextEncoder,
     TextDecoder,
     AbortController,
+    atob,
+    btoa,
   };
   for (const [k, v] of Object.entries(globals)) {
     Object.defineProperty(sandboxGlobalThis, k, { value: v, writable: false, enumerable: true, configurable: false });

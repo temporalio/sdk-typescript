@@ -141,7 +141,7 @@ export type { WorkflowRandomStream } from './random-streams';
 export { getRandomStream, workflowRandom } from './random-streams';
 export { log } from './logs';
 export { Trigger } from './trigger';
-export { type EventGroupMarker, createEventGroup } from './event-groups';
+export { type EventGroup, type EventGroupsOptions, createEventGroup } from './event-groups';
 export * from './workflow';
 export { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
 export { metricMeter } from './metrics';
@@ -152,6 +152,7 @@ export {
   NexusOperationHandle,
   NexusOperationCancellationType,
 } from './nexus';
+export * from './nexus/system/generated';
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Deprecated APIs

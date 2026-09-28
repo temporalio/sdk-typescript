@@ -4,7 +4,11 @@ import test from 'ava';
 import * as proto from '@temporalio/proto';
 import { ValueError } from '@temporalio/common';
 import type { Payload } from '@temporalio/common';
-import { StorageDriverClaim, type StorageDriverStoreContext } from '@temporalio/common/lib/converter/extstore';
+import {
+  StorageDriverClaim,
+  type StorageDriverLimiter,
+  type StorageDriverStoreContext,
+} from '@temporalio/common/lib/converter/extstore';
 import { S3StorageDriver } from '../driver';
 import type { S3StorageDriverClient, S3RequestOptions } from '../client';
 
@@ -48,7 +52,17 @@ class FakeS3Client implements S3StorageDriverClient {
   }
 }
 
+/** Grants every permit immediately, so the driver can be exercised without an ExternalStorage. */
+function passthroughLimiter<Item>(): StorageDriverLimiter<Item> {
+  return {
+    permit<T>(_item: Item, operation: () => Promise<T>): Promise<T> {
+      return operation();
+    },
+  };
+}
+
 const workflowContext: StorageDriverStoreContext = {
+  limiter: passthroughLimiter(),
   target: { kind: 'workflow', namespace: 'my-ns', type: 'MyWorkflow', id: 'wf-1', runId: 'run-1' },
 };
 
@@ -58,7 +72,7 @@ test('store then retrieve round-trips the payload bytes', async (t) => {
 
   const [claim] = await driver.store(workflowContext, [original]);
   assert(claim);
-  const [retrieved] = await driver.retrieve({}, [claim]);
+  const [retrieved] = await driver.retrieve({ limiter: passthroughLimiter() }, [claim]);
   assert(retrieved);
 
   t.deepEqual(payloadBytes(retrieved), payloadBytes(original));
@@ -106,7 +120,7 @@ test('retrieve accepts a claim with camelCase hash keys written by <= 1.22.0', a
     hashValue: sha256Hex(payloadBytes(original)),
   });
 
-  const [retrieved] = await driver.retrieve({}, [legacyClaim]);
+  const [retrieved] = await driver.retrieve({ limiter: passthroughLimiter() }, [legacyClaim]);
   assert(retrieved);
 
   t.deepEqual(payloadBytes(retrieved), payloadBytes(original));
@@ -124,6 +138,7 @@ test('key segments percent-encode anything outside the S3 safe set', async (t) =
         id: 'order+123=abc',
         runId: 'r~1',
       },
+      limiter: passthroughLimiter(),
     },
     [makePayload('"x"')]
   );
@@ -140,7 +155,7 @@ test('key segments percent-encode anything outside the S3 safe set', async (t) =
 test('a target with no identity falls back to a bare digest key', async (t) => {
   const driver = new S3StorageDriver({ client: new FakeS3Client(), bucket: 'b' });
 
-  const [claim] = await driver.store({}, [makePayload('"x"')]);
+  const [claim] = await driver.store({ limiter: passthroughLimiter() }, [makePayload('"x"')]);
   assert(claim?.claimData.key);
 
   t.regex(claim.claimData.key, /^v0\/d\/sha256\/[0-9a-f]{64}$/);
@@ -149,7 +164,10 @@ test('a target with no identity falls back to a bare digest key', async (t) => {
 test('missing context segments are encoded as the literal "null"', async (t) => {
   const driver = new S3StorageDriver({ client: new FakeS3Client(), bucket: 'b' });
 
-  const [claim] = await driver.store({ target: { kind: 'workflow', namespace: 'my-ns' } }, [makePayload('"x"')]);
+  const [claim] = await driver.store(
+    { target: { kind: 'workflow', namespace: 'my-ns' }, limiter: passthroughLimiter() },
+    [makePayload('"x"')]
+  );
   assert(claim?.claimData.key);
 
   t.true(claim.claimData.key.startsWith('v0/ns/my-ns/wt/null/wi/null/ri/null/d/sha256/'));
@@ -185,7 +203,7 @@ test('retrieve rejects when stored bytes fail the integrity check', async (t) =>
   assert(claim);
   client.objects.set(`${claim.claimData.bucket}/${claim.claimData.key}`, enc('tampered'));
 
-  await t.throwsAsync(() => driver.retrieve({}, [claim]), {
+  await t.throwsAsync(() => driver.retrieve({ limiter: passthroughLimiter() }, [claim]), {
     instanceOf: ValueError,
     message: /integrity check failed/,
   });
@@ -207,7 +225,7 @@ test('retrieve rejects a claim missing hash information', async (t) => {
 
   const claim = new StorageDriverClaim({ bucket: 'b', key: 'some-key' });
 
-  await t.throwsAsync(() => driver.retrieve({}, [claim]), {
+  await t.throwsAsync(() => driver.retrieve({ limiter: passthroughLimiter() }, [claim]), {
     instanceOf: ValueError,
     message: /missing required content hash information/,
   });

@@ -66,6 +66,17 @@ export function headersWithContext(headers: Headers): Headers {
 }
 
 /**
+ * Given headers represented as application values, return new headers with the
+ * current OpenTelemetry context inserted. The caller's payload converter is
+ * responsible for serializing these values later.
+ */
+export function rawHeadersWithContext(headers: Record<string, unknown> | undefined): Record<string, unknown> {
+  const carrier: Record<string, string> = {};
+  otel.propagation.inject(otel.context.active(), carrier, otel.defaultTextMapSetter);
+  return { ...headers, [TRACE_HEADER]: carrier };
+}
+
+/**
  * Given Nexus headers, return new headers with the current otel context injected directly
  */
 export function nexusHeadersWithContext(headers: Record<string, string>): Record<string, string> {

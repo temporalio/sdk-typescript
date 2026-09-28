@@ -16,7 +16,7 @@ wrap an existing Temporal Activity with `activityAsTool`.
 ## Install
 
 ```bash
-npm install @temporalio/google-adk-agents @google/adk @google/genai
+npm install @temporalio/google-adk-agents
 ```
 
 The supported peer range is `@google/adk` `>=1.5.0 <1.6.0` and `@google/genai`
@@ -25,7 +25,7 @@ keyed to what ADK reaches at module load, so an ADK minor outside this range can
 break the Workflow bundle.
 
 Provide Gemini credentials to the Worker as usual, for example with
-`GOOGLE_API_KEY` or `GEMINI_API_KEY`.
+`GOOGLE_GENAI_API_KEY` or `GEMINI_API_KEY`.
 
 ## Hello world
 

@@ -38,7 +38,9 @@ serde_json = "1.0"
 temporalio-sdk-core = { version = "*", path = "./sdk-core/crates/sdk-core", features = [
   "ephemeral-server",
 ] }
-temporalio-client = { version = "*", path = "./sdk-core/crates/client" }
+temporalio-client = { version = "*", path = "./sdk-core/crates/client", features = [
+  "experimental",
+] }
 temporalio-common = { version = "*", path = "./sdk-core/crates/common", features = [
   "otel",
 ] }

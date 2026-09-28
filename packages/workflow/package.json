@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/workflow",
-  "version": "1.23.0",
+  "version": "1.24.0",
   "description": "Temporal.io SDK Workflow sub-package",
   "keywords": [
     "temporal",
@@ -22,6 +22,7 @@
   "types": "lib/index.d.ts",
   "scripts": {
     "build": "tsc --build",
+    "gen:system-nexus": "tsx ./scripts/gen-system-nexus.ts",
     "test": "tsx ../../scripts/ava-ci.ts ./lib/__tests__/test-*.js"
   },
   "ava": {

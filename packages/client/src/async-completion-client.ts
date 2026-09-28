@@ -1,6 +1,6 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
 import type { ActivitySerializationContext, PayloadTypeInfo, StorageDriverTargetInfo } from '@temporalio/common';
-import { ensureTemporalFailure } from '@temporalio/common';
+import { ensureTemporalFailure, ExternalStorageError } from '@temporalio/common';
 import {
   encodeErrorToFailure,
   encodeToPayloadsWithContext,
@@ -177,8 +177,10 @@ export class AsyncCompletionClient extends BaseClient {
       }
 
       throw new ActivityCompletionError(err.details || err.message);
+    } else if (err instanceof ExternalStorageError) {
+      throw new ActivityCompletionError('External storage failed', { cause: err });
     }
-    throw new ActivityCompletionError('Unexpected failure');
+    throw new ActivityCompletionError('Unexpected failure', { cause: err });
   }
 
   /**

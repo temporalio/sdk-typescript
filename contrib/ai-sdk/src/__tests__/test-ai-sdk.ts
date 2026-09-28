@@ -13,6 +13,7 @@ import type {
   LanguageModelV4FinishReason,
   LanguageModelV4GenerateResult,
   LanguageModelV4StreamResult,
+  LanguageModelV4StreamPart,
   LanguageModelV4Usage,
   ProviderV4,
 } from '@ai-sdk/provider';
@@ -53,9 +54,11 @@ import {
   embeddingWorkflow,
   generateObjectWorkflow,
   helloWorldAgent,
+  imageToolWorkflow,
   mcpSchemaTestWorkflow,
   mcpWorkflow,
   middlewareWorkflow,
+  streamingMetadataWorkflow,
   telemetryWorkflow,
   toolsWorkflow,
 } from './workflows/ai-sdk';
@@ -148,6 +151,43 @@ export class TestProvider implements ProviderV4 {
       throw new Error('Embedding model generator not provided');
     }
     return new TestEmbeddingModel(this.embeddingModelGenerator);
+  }
+}
+
+class StreamingTestProvider implements ProviderV4 {
+  readonly specificationVersion = 'v4';
+
+  constructor(private readonly parts: LanguageModelV4StreamPart[]) {}
+
+  languageModel(_modelId: string): LanguageModelV4 {
+    const parts = this.parts;
+    return {
+      specificationVersion: 'v4',
+      provider: 'temporal-test',
+      modelId: 'streaming-test-model',
+      supportedUrls: {},
+      async doGenerate(): Promise<LanguageModelV4GenerateResult> {
+        throw new Error('Generate not supported.');
+      },
+      async doStream(): Promise<LanguageModelV4StreamResult> {
+        return {
+          stream: new ReadableStream({
+            start(controller) {
+              for (const part of parts) controller.enqueue(part);
+              controller.close();
+            },
+          }),
+        };
+      },
+    };
+  }
+
+  embeddingModel(_modelId: string): EmbeddingModelV4 {
+    throw new Error('Not implemented.');
+  }
+
+  imageModel(_modelId: string): ImageModelV4 {
+    throw new Error('Not implemented.');
   }
 }
 
@@ -327,6 +367,56 @@ test('Tools workflow can use AI tools', async (t) => {
       );
       t.assert(activityTypes.includes('getWeather'), 'getWeather activity should have been called');
     }
+  });
+});
+
+function* imageToolWorkflowGenerator(): Generator<ModelResponse> {
+  yield toolCallResponse('screenshot', '{}');
+  yield textResponse('A transparent image');
+}
+
+test('Image tool results are converted inside the workflow sandbox', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+  const worker = await createWorker({
+    plugins: [new AiSdkPlugin({ modelProvider: new TestProvider(imageToolWorkflowGenerator()) })],
+  });
+
+  await worker.runUntil(async () => {
+    const result = await executeWorkflow(imageToolWorkflow, {
+      workflowExecutionTimeout: '10 seconds',
+    });
+    t.is(result, 'A transparent image');
+  });
+});
+
+test('Streaming text provider metadata survives activity execution and workflow replay', async (t) => {
+  const providerMetadata = { test: { source: 'delta' } };
+  const provider = new StreamingTestProvider([
+    { type: 'stream-start', warnings: [] },
+    { type: 'text-start', id: 'provider-part' },
+    { type: 'text-delta', id: 'provider-part', delta: 'hello', providerMetadata },
+    { type: 'text-end', id: 'provider-part' },
+    { type: 'finish', finishReason: createFinishReason('stop'), usage: createUsage() },
+  ]);
+  const { createWorker, executeWorkflow } = helpers(t);
+  const worker = await createWorker({ plugins: [new AiSdkPlugin({ modelProvider: provider })] });
+
+  await worker.runUntil(async () => {
+    const parts = await executeWorkflow(streamingMetadataWorkflow, {
+      workflowExecutionTimeout: '10 seconds',
+    });
+
+    t.deepEqual(parts, [
+      { type: 'stream-start', warnings: [] },
+      { type: 'text-start', id: 'part-0', providerMetadata },
+      { type: 'text-delta', id: 'part-0', delta: 'hello' },
+      { type: 'text-end', id: 'part-0' },
+      {
+        type: 'finish',
+        finishReason: { unified: 'stop' },
+        usage: { inputTokens: { total: 10 }, outputTokens: { total: 20 } },
+      },
+    ]);
   });
 });
 

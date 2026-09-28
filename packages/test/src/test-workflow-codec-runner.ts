@@ -1,6 +1,7 @@
 import test from 'ava';
 import type { Payload, PayloadCodec } from '@temporalio/common';
 import { ApplicationFailure, defaultFailureConverter, defaultPayloadConverter } from '@temporalio/common';
+import { walkPayloadsInMessage } from '@temporalio/common/lib/internal-non-workflow';
 import { coresdk } from '@temporalio/proto';
 import { WorkflowCodecRunner } from '@temporalio/worker/lib/workflow-codec-runner';
 import { FreePayloadCodec, makeContextTrace } from './payload-converters/serialization-context-converter';
@@ -34,7 +35,7 @@ test('decodeActivation binds workflow codec context for initializeWorkflow paylo
     workflowId: 'wf-1',
   });
 
-  const decoded = await runner.decodeActivation({
+  const activation = {
     runId: 'run-1',
     jobs: [
       {
@@ -49,11 +50,111 @@ test('decodeActivation binds workflow codec context for initializeWorkflow paylo
         },
       },
     ],
-  });
+  };
+  const decoded = await runner.decodeActivation(activation);
 
   t.deepEqual(traceFromPayload(decoded.jobs?.[0]?.initializeWorkflow?.arguments?.[0] as Payload), [
     'codec.decode.bound|wf-input|workflow.default.wf-1',
   ]);
+  t.deepEqual(traceFromPayload(activation.jobs[0]?.initializeWorkflow?.arguments?.[0] as Payload), []);
+});
+
+test('decodeActivation covers every initializeWorkflow payload field but headers and search attributes', async (t) => {
+  const runner = new WorkflowCodecRunner([new FreePayloadCodec()], {
+    type: 'workflow',
+    namespace: 'default',
+    workflowId: 'wf-1',
+  });
+
+  const decoded = await runner.decodeActivation({
+    runId: 'run-1',
+    jobs: [
+      {
+        initializeWorkflow: {
+          workflowId: 'wf-1',
+          workflowType: 'test',
+          randomnessSeed: { toBytes: () => new Uint8Array([1]) } as any,
+          firstExecutionRunId: 'run-1',
+          attempt: 1,
+          startTime: {} as any,
+          headers: { 'header-key': payload('header') },
+          continuedFailure: failureWithDetail('continued-failure'),
+          memo: { fields: { 'memo-key': payload('memo') } },
+          lastCompletionResult: { payloads: [payload('last-completion')] },
+          searchAttributes: { indexedFields: { 'attr-key': payload('search-attribute') } },
+        },
+      },
+    ],
+  });
+
+  const initializeWorkflow = decoded.jobs?.[0]?.initializeWorkflow;
+  t.deepEqual(
+    traceFromPayload(initializeWorkflow?.continuedFailure?.applicationFailureInfo?.details?.payloads?.[0] as Payload),
+    ['codec.decode.bound|continued-failure|workflow.default.wf-1']
+  );
+  t.deepEqual(traceFromPayload(initializeWorkflow?.memo?.fields?.['memo-key'] as Payload), [
+    'codec.decode.bound|memo|workflow.default.wf-1',
+  ]);
+  t.deepEqual(traceFromPayload(initializeWorkflow?.lastCompletionResult?.payloads?.[0] as Payload), [
+    'codec.decode.bound|last-completion|workflow.default.wf-1',
+  ]);
+  // Headers and search attributes are converted by the workflow itself, never by the codec.
+  t.deepEqual(traceFromPayload(initializeWorkflow?.headers?.['header-key'] as Payload), []);
+  t.deepEqual(traceFromPayload(initializeWorkflow?.searchAttributes?.indexedFields?.['attr-key'] as Payload), []);
+});
+
+test('decodeActivation decodes query, update, and signal inputs with workflow context', async (t) => {
+  const runner = new WorkflowCodecRunner([new FreePayloadCodec()], {
+    type: 'workflow',
+    namespace: 'default',
+    workflowId: 'wf-1',
+  });
+
+  const decoded = await runner.decodeActivation({
+    runId: 'run-1',
+    jobs: [
+      { queryWorkflow: { queryId: 'q-1', queryType: 'q', arguments: [payload('query-input')] } },
+      { doUpdate: { id: 'u-1', name: 'u', input: [payload('update-input')] } },
+      { signalWorkflow: { signalName: 's', input: [payload('signal-input')] } },
+    ],
+  });
+
+  t.deepEqual(traceFromPayload(decoded.jobs?.[0]?.queryWorkflow?.arguments?.[0] as Payload), [
+    'codec.decode.bound|query-input|workflow.default.wf-1',
+  ]);
+  t.deepEqual(traceFromPayload(decoded.jobs?.[1]?.doUpdate?.input?.[0] as Payload), [
+    'codec.decode.bound|update-input|workflow.default.wf-1',
+  ]);
+  t.deepEqual(traceFromPayload(decoded.jobs?.[2]?.signalWorkflow?.input?.[0] as Payload), [
+    'codec.decode.bound|signal-input|workflow.default.wf-1',
+  ]);
+});
+
+test('decodeActivation decodes resolveNexusOperationStart failures', async (t) => {
+  const runner = new WorkflowCodecRunner([new FreePayloadCodec()], {
+    type: 'workflow',
+    namespace: 'default',
+    workflowId: 'wf-1',
+  });
+
+  const decoded = await runner.decodeActivation({
+    runId: 'run-1',
+    jobs: [
+      {
+        resolveNexusOperationStart: {
+          seq: 8,
+          failed: failureWithDetail('nexus-start-failure'),
+        },
+      },
+    ],
+  });
+
+  t.deepEqual(
+    traceFromPayload(
+      decoded.jobs?.[0]?.resolveNexusOperationStart?.failed?.applicationFailureInfo?.details?.payloads?.[0] as Payload
+    ),
+    ['codec.decode.bound|nexus-start-failure|workflow.default.wf-1']
+  );
 });
 
 test('encodeCompletion stores activity context and decodeActivation reuses it for resolveActivity', async (t) => {
@@ -101,6 +202,44 @@ test('encodeCompletion stores activity context and decodeActivation reuses it fo
 
   t.deepEqual(traceFromPayload(decoded.jobs?.[0]?.resolveActivity?.result?.completed?.result as Payload), [
     'codec.decode.bound|activity-output|activity.default.wf-1.act-1.false',
+  ]);
+});
+
+test('encodeCompletion encodes event group marker labels with the command context', async (t) => {
+  const runner = new WorkflowCodecRunner([new FreePayloadCodec()], {
+    type: 'workflow',
+    namespace: 'default',
+    workflowId: 'wf-1',
+  });
+
+  const encoded = decodeCompletion(
+    await runner.encodeCompletion({
+      successful: {
+        commands: [
+          {
+            scheduleActivity: {
+              seq: 1,
+              activityId: 'act-1',
+              arguments: [payload('activity-input')],
+            },
+            eventGroupMarkers: [{ label: { id: 'group-1', label: payload('activity-marker') } }],
+          },
+          {
+            completeWorkflowExecution: {},
+            eventGroupMarkers: [{ label: { id: 'group-2', label: payload('workflow-marker') } }],
+          },
+        ],
+      },
+    })
+  );
+
+  const commands = encoded.successful?.commands ?? [];
+  t.deepEqual(traceFromPayload(commands[0]?.eventGroupMarkers?.[0]?.label?.label as Payload), [
+    'codec.encode.bound|activity-marker|activity.default.wf-1.act-1.false',
+  ]);
+  // A command that targets nothing of its own leaves its markers on the workflow context.
+  t.deepEqual(traceFromPayload(commands[1]?.eventGroupMarkers?.[0]?.label?.label as Payload), [
+    'codec.encode.bound|workflow-marker|workflow.default.wf-1',
   ]);
 });
 
@@ -353,4 +492,38 @@ test('runner remains compatible with codecs that ignore context', async (t) => {
   t.deepEqual(traceFromPayload(encoded.successful?.commands?.[0]?.completeWorkflowExecution?.result as Payload), [
     'codec.encode.free|wf-output',
   ]);
+});
+
+test('generic protobuf payload walking rejects an unrecognized root', (t) => {
+  t.throws(() => walkPayloadsInMessage({ $type: { fullName: '.example.Unknown' } }, {} as any, undefined), {
+    message: 'Unknown root message type: example.Unknown',
+  });
+});
+
+test('ordinary Nexus calls with a System Nexus service name are not rewritten', async (t) => {
+  const runner = new WorkflowCodecRunner([new FreePayloadCodec()], {
+    type: 'workflow',
+    namespace: 'caller-ns',
+    workflowId: 'caller-id',
+  });
+  const encoded = decodeCompletion(
+    await runner.encodeCompletion({
+      successful: {
+        commands: [
+          {
+            scheduleNexusOperation: {
+              seq: 43,
+              endpoint: 'ordinary-endpoint',
+              service: 'temporal.api.workflowservice.v1.WorkflowService',
+              operation: 'SignalWithStartWorkflowExecution',
+              input: payload('ordinary-nexus-input'),
+            },
+          },
+        ],
+      },
+    })
+  );
+  const envelope = encoded.successful?.commands?.[0]?.scheduleNexusOperation?.input;
+  t.not(envelope?.metadata?.encoding?.[0], 98);
+  t.deepEqual(traceFromPayload(envelope), ['codec.encode.bound|ordinary-nexus-input|workflow.caller-ns.caller-id']);
 });

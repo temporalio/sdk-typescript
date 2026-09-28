@@ -5,7 +5,7 @@ import {
   type ActivityOptions as ActivityOptionsCommon,
   type LocalActivityOptions as LocalActivityOptionsCommon,
 } from '@temporalio/common/lib/activity-options';
-import type { EventGroupMarker } from './event-groups';
+import type { EventGroup } from './event-groups';
 
 /**
  * Options for non-local activity invocation inside a workflow.
@@ -14,14 +14,13 @@ import type { EventGroupMarker } from './event-groups';
  */
 export type ActivityOptions = ActivityOptionsCommon & {
   /**
-   * Event group markers to attach to this activity. The markers will be reflected on the
-   * corresponding workflow history events, and may be used by tooling (UI/CLI) to group
-   * related events together. See {@link EventGroupMarker} and `createEventGroup` in the workflow
-   * package.
+   * Event Groups to attach to this activity. They will be reflected on the corresponding
+   * workflow history events, and may be used by tooling (UI/CLI) to group related events
+   * together. See {@link EventGroup} and {@link createEventGroup}.
    *
    * @experimental Event Groups is an experimental API and may change without notice.
    */
-  eventGroups?: EventGroupMarker[];
+  eventGroups?: EventGroup[];
 };
 
 /**
@@ -31,14 +30,13 @@ export type ActivityOptions = ActivityOptionsCommon & {
  */
 export type LocalActivityOptions = LocalActivityOptionsCommon & {
   /**
-   * Event group markers to attach to this local activity. The markers will be reflected on the
-   * corresponding workflow history events, and may be used by tooling (UI/CLI) to group
-   * related events together. See {@link EventGroupMarker} and `createEventGroup` in the workflow
-   * package.
+   * Event Groups to attach to this local activity. They will be reflected on the corresponding
+   * workflow history events, and may be used by tooling (UI/CLI) to group related events
+   * together. See {@link EventGroup} and {@link createEventGroup}.
    *
    * @experimental Event Groups is an experimental API and may change without notice.
    */
-  eventGroups?: EventGroupMarker[];
+  eventGroups?: EventGroup[];
 };
 
 export { ActivityCancellationType, encodeActivityCancellationType, decodeActivityCancellationType };

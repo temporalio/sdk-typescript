@@ -15,6 +15,7 @@ const LINK_EVENT_ID_PARAM = 'eventID';
 const LINK_EVENT_TYPE_PARAM = 'eventType';
 const LINK_REQUEST_ID_PARAM = 'requestID';
 const LINK_REFERENCE_TYPE_KEY = 'referenceType';
+const LINK_REASON_PARAM = 'reason';
 
 const EVENT_REFERENCE_TYPE = 'EventReference';
 const REQUEST_ID_REFERENCE_TYPE = 'RequestIdReference';
@@ -60,6 +61,11 @@ export function convertNexusLinkToTemporalLink(link: NexusLink): TemporalLink {
         nexusOperation: convertNexusLinkToNexusOperationLink(link),
       };
 
+    case WORKFLOW_TYPE:
+      return {
+        workflow: convertNexusLinkToWorkflowLink(link),
+      };
+
     case ACTIVITY_TYPE:
       return {
         activity: convertNexusLinkToActivityLink(link),
@@ -95,16 +101,17 @@ export function convertWorkflowEventLinkToNexusLink(we: WorkflowEventLink): Nexu
 /**
  * Converts a plain Workflow link (as opposed to a {@link WorkflowEventLink}) to a Nexus link.
  *
- * Used to point at a Workflow when there is no specific history event to reference, e.g. when an
- * UpdateWorkflow-backed Nexus operation fails validation and no Update Accepted event exists. The
- * resulting URL is the workflow history URL without a reference query; the link is distinguished
- * from a workflow event link by its {@link NexusLink.type}.
+ * A Workflow link addresses a Workflow execution as a whole rather than one event within it, so the
+ * URL carries no event path suffix and no reference query params. It is used when there is no history
+ * event to point at, e.g. a Query, or an UpdateWorkflow-backed Nexus operation that fails validation
+ * and so has no Update Accepted event. The absence of the `/history` suffix is what distinguishes
+ * this path from a workflow event link's.
  *
- * `runId` is required: an empty run segment produces `.../workflows/<wid>//history`, whose
- * double slash does not resolve to a valid Temporal UI workflow page. The server populates the
- * resolved run ID even on the plain Workflow link it returns for a validation failure, so a missing
- * run ID is unexpected; throwing (rather than coalescing to '') lets callers drop the link instead
- * of attaching a malformed URL.
+ * The optional `reason` explaining why the link exists is carried as a query param.
+ *
+ * `runId` is required: the server populates the resolved run ID even on the plain Workflow link it
+ * returns, so a missing one is unexpected; throwing (rather than coalescing to '') lets callers drop
+ * the link instead of attaching one that addresses no particular run.
  */
 export function convertWorkflowLinkToNexusLink(wl: WorkflowLink): NexusLink {
   if (!wl.namespace || !wl.workflowId || !wl.runId) {
@@ -115,13 +122,62 @@ export function convertWorkflowLinkToNexusLink(wl: WorkflowLink): NexusLink {
   const url = new URL(
     `temporal:///namespaces/${encodeURIComponent(wl.namespace)}/workflows/${encodeURIComponent(
       wl.workflowId
-    )}/${encodeURIComponent(wl.runId)}/history`
+    )}/${encodeURIComponent(wl.runId)}`
   );
+
+  if (wl.reason) {
+    const params = new URLSearchParams();
+    params.set(LINK_REASON_PARAM, wl.reason);
+    url.search = params.toString();
+  }
 
   return {
     url,
     type: WORKFLOW_TYPE,
   };
+}
+
+/**
+ * Converts a Nexus link back to a plain Workflow link.
+ *
+ * The run ID ends a Workflow link, so anything trailing is rejected. In particular this rejects the
+ * workflow event form, which ends in `history` and is otherwise identical.
+ */
+export function convertNexusLinkToWorkflowLink(link: NexusLink): WorkflowLink {
+  // /namespaces/:namespace/workflows/:workflowId/:runId
+  const [namespace, workflowId, runId] = parseTemporalLinkPath(link, 'workflows');
+
+  if (!namespace || !workflowId || !runId) {
+    throw new TypeError('Missing required fields: namespace, workflowId, or runId');
+  }
+
+  const workflowLink: WorkflowLink = { namespace, workflowId, runId };
+  const reason = link.url.searchParams.get(LINK_REASON_PARAM);
+  if (reason != null) {
+    workflowLink.reason = reason;
+  }
+  return workflowLink;
+}
+
+/**
+ * Validates a Temporal link path of the shape `/namespaces/:namespace/:collection/:id/:runId[/:tail]`
+ * and returns its three decoded variable segments.
+ *
+ * Passing no `tail` means nothing may follow the run ID, which is what separates a plain Workflow
+ * link from a workflow event link since both live under `workflows`.
+ */
+function parseTemporalLinkPath(link: NexusLink, collection: string, tail?: string): [string, string, string] {
+  const parts = link.url.pathname.split('/');
+  const expectedLength = tail == null ? 6 : 7;
+  if (
+    parts.length !== expectedLength ||
+    parts[1] !== 'namespaces' ||
+    parts[3] !== collection ||
+    (tail != null && parts[6] !== tail)
+  ) {
+    throw new TypeError(`Invalid URL path: ${link.url}`);
+  }
+  return [decodeURIComponent(parts[2]!), decodeURIComponent(parts[4]!), decodeURIComponent(parts[5]!)];
 }
 
 export function convertNexusOperationLinkToNexusLink(opLink: NexusOperationLink): NexusLink {
@@ -160,13 +216,7 @@ export function convertActivityLinkToNexusLink(activityLink: ActivityLink): Nexu
 
 export function convertNexusLinkToWorkflowEventLink(link: NexusLink): WorkflowEventLink {
   // /namespaces/:namespace/workflows/:workflowId/:runId/history
-  const parts = link.url.pathname.split('/');
-  if (parts.length !== 7 || parts[1] !== 'namespaces' || parts[3] !== 'workflows' || parts[6] !== 'history') {
-    throw new TypeError(`Invalid URL path: ${link.url}`);
-  }
-  const namespace = decodeURIComponent(parts[2]!);
-  const workflowId = decodeURIComponent(parts[4]!);
-  const runId = decodeURIComponent(parts[5]!);
+  const [namespace, workflowId, runId] = parseTemporalLinkPath(link, 'workflows', 'history');
 
   const query = link.url.searchParams;
   const refType = query.get(LINK_REFERENCE_TYPE_KEY);
@@ -192,13 +242,7 @@ export function convertNexusLinkToWorkflowEventLink(link: NexusLink): WorkflowEv
 
 function convertNexusLinkToNexusOperationLink(link: NexusLink): NexusOperationLink {
   // /namespaces/:namespace/nexus-operations/:operationId/:runId/details
-  const parts = link.url.pathname.split('/');
-  if (parts.length !== 7 || parts[1] !== 'namespaces' || parts[3] !== 'nexus-operations' || parts[6] !== 'details') {
-    throw new TypeError(`Invalid URL path: ${link.url}`);
-  }
-  const namespace = decodeURIComponent(parts[2]!);
-  const operationId = decodeURIComponent(parts[4]!);
-  const runId = decodeURIComponent(parts[5]!);
+  const [namespace, operationId, runId] = parseTemporalLinkPath(link, 'nexus-operations', 'details');
 
   if (!namespace || !operationId || !runId) {
     throw new TypeError('Missing required fields: namespace, operationId, or runId');
@@ -213,13 +257,7 @@ function convertNexusLinkToNexusOperationLink(link: NexusLink): NexusOperationLi
 
 function convertNexusLinkToActivityLink(link: NexusLink): ActivityLink {
   // /namespaces/:namespace/activities/:activityId/:runId/details
-  const parts = link.url.pathname.split('/');
-  if (parts.length !== 7 || parts[1] !== 'namespaces' || parts[3] !== 'activities' || parts[6] !== 'details') {
-    throw new TypeError(`Invalid URL path: ${link.url}`);
-  }
-  const namespace = decodeURIComponent(parts[2]!);
-  const activityId = decodeURIComponent(parts[4]!);
-  const runId = decodeURIComponent(parts[5]!);
+  const [namespace, activityId, runId] = parseTemporalLinkPath(link, 'activities', 'details');
 
   if (!namespace || !activityId || !runId) {
     throw new TypeError('Missing required fields: namespace, activityId, or runId');

@@ -111,15 +111,16 @@ export class InjectWorkflowModuleCacheGlobalPlugin {
 
     const replaced = new sources.ReplaceSource(source);
 
-    // Redirect the top-level declaration to the runtime-injected global.
-    const declStart = declaration.index;
-    const declEndInclusive = declStart + declaration[0].length - 1;
-    replaced.replace(declStart, declEndInclusive, declaration[0].replace('= {}', `= ${MODULE_CACHE_GLOBAL}`));
+    // Redirect the top-level declaration to the runtime-injected global. The declaration regexp
+    // ends at the empty-object initializer, so replacing only those last two characters avoids
+    // making this replacement sensitive to whitespace around the assignment operator.
+    const initializerStart = declaration.index + declaration[0].length - '{}'.length;
+    replaced.replace(initializerStart, initializerStart + '{}'.length - 1, MODULE_CACHE_GLOBAL);
 
     // Strip the marker so it never ships.
     // Note that `ReplaceSource.replace()` takes character indices from the
-    // _original_ source; there's thereforre no need to adjust the indices to
-    // account for the replacement we just performed (`= {}` => MODULE_CACHE_GLOBAL).
+    // _original_ source; there's therefore no need to adjust the indices to
+    // account for the replacement we just performed (`{}` => MODULE_CACHE_GLOBAL).
     const markerEndInclusive = markerIndex + MARKER_COMMENT.length - 1;
     replaced.replace(markerIndex, markerEndInclusive, '');
 

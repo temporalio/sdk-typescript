@@ -2,12 +2,7 @@ import { randomUUID } from 'crypto';
 import type { ExecutionContext, TestFn } from 'ava';
 import anyTest from 'ava';
 import * as rxjs from 'rxjs';
-import type {
-  ActivityHandle,
-  ActivityOptions,
-  ActivityClientInterceptor,
-  TypedActivityClient,
-} from '@temporalio/client';
+import type { ActivityHandle, ActivityOptions, ClientOptions, TypedActivityClient } from '@temporalio/client';
 import {
   ActivityExecutionStatus,
   ActivityExecutionAlreadyStartedError,
@@ -20,15 +15,17 @@ import {
 import type { Payload, PayloadCodec, PayloadTypeInfo } from '@temporalio/common';
 import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
 import type { Info } from '@temporalio/activity';
-import { activityInfo } from '@temporalio/activity';
+import { activityInfo, heartbeat } from '@temporalio/activity';
+import { msToNumber } from '@temporalio/common/lib/time';
 import type { TestWorkflowEnvironment } from './helpers';
-import { RUN_INTEGRATION_TESTS, waitUntil, Worker } from './helpers';
+import { assertEventually, RUN_INTEGRATION_TESTS, waitUntil, Worker } from './helpers';
 import { echo, throwAnError } from './activities';
 import { heartbeatCancellationDetailsActivity } from './activities/heartbeat-cancellation-details';
 import { createTestWorkflowEnvironment } from './helpers-integration';
 import { convertOrder, createAsyncOrderActivities } from './workflows/type-info/activities';
 import { activityTypeInfo } from './workflows/type-info/activity-type-info';
 import { Order, Receipt } from './workflows/type-info/models';
+import { encdec, makeContextTrace, standaloneActivityCtx } from './payload-converters/serialization-context-converter';
 
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
 // polling/retry strategies result in the expected behavior
@@ -67,6 +64,13 @@ const activities = {
       throw ApplicationFailure.nonRetryable('Expected workflowNamespace to be unset');
     }
   },
+  heartbeatFailComplete: async (_input: string) => {
+    heartbeat('heartbeat details');
+    if (activityInfo().attempt === 1) {
+      throw ApplicationFailure.create({ message: 'first attempt failure' });
+    }
+    return 'result';
+  },
 };
 
 interface ActivityInterface {
@@ -101,15 +105,16 @@ function assertReceipt(t: ExecutionContext, receipt: Receipt): void {
   t.is(typeof receipt.totalCents, 'bigint');
 }
 
-function makeClientWithActivityInterceptors(
-  env: TestWorkflowEnvironment,
-  interceptors: ActivityClientInterceptor[]
-): Client {
-  return new Client({
-    connection: env.client.connection,
-    namespace: env.client.options.namespace,
-    interceptors: { activity: interceptors },
-  });
+function makeClientWithOptions(env: TestWorkflowEnvironment, options: ClientOptions): Client {
+  return new Client(
+    Object.assign(
+      {
+        connection: env.client.connection,
+        namespace: env.client.options.namespace,
+      },
+      options
+    )
+  );
 }
 
 class BlockingEncodePayloadCodec implements PayloadCodec {
@@ -150,12 +155,7 @@ if (RUN_INTEGRATION_TESTS) {
   test.before(async (t) => {
     const env = await createTestWorkflowEnvironment({
       server: {
-        extraArgs: [
-          '--dynamic-config-value',
-          `activity.longPollTimeout="${LONG_POLL_TIMEOUT_MS}ms"`,
-          '--dynamic-config-value',
-          'activity.startDelayEnabled=true',
-        ],
+        extraArgs: ['--dynamic-config-value', `activity.longPollTimeout="${LONG_POLL_TIMEOUT_MS}ms"`],
       },
     });
 
@@ -295,25 +295,29 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Activity interceptors can provide input and result TypeInfo', async (t) => {
-    const client = makeClientWithActivityInterceptors(t.context.env, [
-      {
-        async start(input, next) {
-          return await next({
-            ...input,
-            options: {
-              ...input.options,
-              typeInfo: { inputTypes: activityTypeInfo.convertOrder.inputTypes },
+    const client = makeClientWithOptions(t.context.env, {
+      interceptors: {
+        activity: [
+          {
+            async start(input, next) {
+              return await next({
+                ...input,
+                options: {
+                  ...input.options,
+                  typeInfo: { inputTypes: activityTypeInfo.convertOrder.inputTypes },
+                },
+              });
             },
-          });
-        },
-        async getResult(input, next) {
-          return await next({
-            ...input,
-            outputType: activityTypeInfo.convertOrder.outputType,
-          });
-        },
+            async getResult(input, next) {
+              return await next({
+                ...input,
+                outputType: activityTypeInfo.convertOrder.outputType,
+              });
+            },
+          },
+        ],
       },
-    ]);
+    });
 
     const result = await client.activity.execute<Receipt>('convertOrder', {
       ...typeInfoActivityOptions,
@@ -463,6 +467,65 @@ if (RUN_INTEGRATION_TESTS) {
       status: 'COMPLETED',
       taskQueue,
     });
+  });
+
+  test('Describe activity with payloads - success', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const handle = await client.start('heartbeatFailComplete', {
+      ...defaultOptions,
+      id: activityId,
+      args: ['input'],
+    });
+
+    t.is(await handle.result(), 'result');
+
+    const description = await handle.describe({
+      includeInput: true,
+      includeOutcome: true,
+      includeHeartbeatDetails: true,
+      includeLastFailure: true,
+    });
+    t.true(description.hasInput);
+    t.true(description.hasResult);
+    t.true(description.hasHeartbeatDetails);
+    t.true(description.hasLastFailure);
+    t.false(description.hasOutcomeFailure);
+    t.deepEqual(await description.getInput<[string]>(), ['input']);
+    t.is(await description.getResult<string>(), 'result');
+    t.is(await description.getHeartbeatDetails<string>(), 'heartbeat details');
+    t.is((await description.getLastFailure())?.message, 'first attempt failure');
+    t.is(await description.getOutcomeFailure(), undefined);
+  });
+
+  test('Describe activity with payloads - failure', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const handle = await client.start('heartbeatFailComplete', {
+      ...defaultOptions,
+      id: activityId,
+      args: ['input'],
+      retry: { maximumAttempts: 1 },
+    });
+
+    await t.throwsAsync(() => handle.result(), { instanceOf: ActivityExecutionFailedError });
+
+    const description = await handle.describe({
+      includeInput: true,
+      includeOutcome: true,
+      includeHeartbeatDetails: true,
+      includeLastFailure: true,
+    });
+    t.true(description.hasInput);
+    t.false(description.hasResult);
+    t.true(description.hasHeartbeatDetails);
+    t.true(description.hasLastFailure);
+    t.true(description.hasOutcomeFailure);
+    t.deepEqual(await description.getInput<[string]>(), ['input']);
+    t.is(await description.getResult<string>(), undefined);
+    t.is(await description.getHeartbeatDetails<string>(), 'heartbeat details');
+    t.is((await description.getLastFailure())?.message, 'first attempt failure');
+    t.is((await description.getOutcomeFailure())?.message, 'first attempt failure');
   });
 
   test('Cancel activity', async (t) => {
@@ -634,6 +697,57 @@ if (RUN_INTEGRATION_TESTS) {
     const err = await t.throwsAsync(() => resultPromise, { instanceOf: ServiceError });
     t.assert(isGrpcCancelledError(err));
     t.context.activitySignalSubject.next(activityId);
+  });
+
+  test('Activity serialization context is used', async (t) => {
+    const ctxTaskQueue = taskQueue + '-with-serialization-context';
+
+    const dataConverter = {
+      payloadConverterPath: require.resolve('./payload-converters/serialization-context-converter'),
+      failureConverterPath: require.resolve('./payload-converters/serialization-context-converter'),
+    };
+
+    const worker = await Worker.create({
+      activities,
+      taskQueue: ctxTaskQueue,
+      dataConverter,
+      connection: t.context.env.nativeConnection,
+    });
+    const runPromise = worker.run();
+
+    const client = makeClientWithOptions(t.context.env, { dataConverter });
+
+    const activityId = randomUUID();
+    const ctx = standaloneActivityCtx(activityId);
+
+    const handle = await client.activity.start('echo', {
+      ...defaultOptions,
+      id: activityId,
+      taskQueue: ctxTaskQueue,
+      args: [makeContextTrace('input')],
+    });
+
+    const trace = await handle.result();
+    t.deepEqual(trace, {
+      label: 'input',
+      trace: [...encdec('input', ctx), ...encdec('input', ctx)],
+    });
+
+    const desc = await handle.describe({ includeInput: true, includeOutcome: true });
+    const input = await desc.getInput();
+    t.deepEqual(await desc.getInput(), [
+      {
+        label: 'input',
+        trace: encdec('input', ctx),
+      },
+    ]);
+    t.deepEqual(await desc.getResult(), {
+      label: 'input',
+      trace: [...encdec('input', ctx), ...encdec('input', ctx)],
+    });
+
+    worker.shutdown();
+    await runPromise;
   });
 
   test('Typed client - start activity', async (t) => {
@@ -862,5 +976,103 @@ if (RUN_INTEGRATION_TESTS) {
     };
 
     t.pass();
+  });
+
+  test('Pause and unpause activity', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const handle = await client.start('nonexistent-activity', {
+      ...defaultOptions,
+      id: activityId,
+    });
+
+    async function assertStatus(status: ActivityExecutionStatus): Promise<void> {
+      await assertEventually(t, async (tt) => {
+        tt.is((await handle.describe()).status, status);
+      });
+    }
+
+    await assertStatus(ActivityExecutionStatus.RUNNING);
+    await handle.pause();
+    await assertStatus(ActivityExecutionStatus.PAUSED);
+    await handle.unpause();
+    await assertStatus(ActivityExecutionStatus.RUNNING);
+    await handle.terminate('test cleanup');
+  });
+
+  test('Update activity options', async (t) => {
+    const originalDuration = msToNumber('5m');
+    const updatedDuration = msToNumber('10m');
+
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const handle = await client.start('nonexistent-activity', {
+      id: activityId,
+      taskQueue: 'original-task-queue',
+      scheduleToCloseTimeout: undefined,
+      scheduleToStartTimeout: undefined,
+      startToCloseTimeout: originalDuration,
+      heartbeatTimeout: originalDuration,
+      retry: { initialInterval: originalDuration },
+      priority: { fairnessKey: 'original' },
+      startDelay: originalDuration,
+    });
+
+    const updatedOptions = await handle.updateOptions({
+      scheduleToStartTimeout: updatedDuration,
+      startToCloseTimeout: updatedDuration,
+      heartbeatTimeout: undefined,
+      retry: { maximumInterval: updatedDuration },
+      priority: null,
+      startDelay: null,
+    });
+    t.is(updatedOptions.taskQueue, 'original-task-queue');
+    t.falsy(updatedOptions.scheduleToCloseTimeout);
+    t.is(updatedOptions.scheduleToStartTimeout, updatedDuration);
+    t.is(updatedOptions.startToCloseTimeout, updatedDuration);
+    t.is(updatedOptions.heartbeatTimeout, originalDuration);
+    t.not(updatedOptions.retry?.initialInterval, originalDuration); // retry policy has defaults
+    t.is(updatedOptions.retry?.maximumInterval, updatedDuration);
+    t.falsy(updatedOptions.priority);
+    t.falsy(updatedOptions.startDelay);
+
+    await assertEventually(t, async (tt) => {
+      const desc = await handle.describe();
+      tt.is(desc.taskQueue, 'original-task-queue');
+      tt.falsy(desc.scheduleToCloseTimeoutMs);
+      tt.is(desc.scheduleToStartTimeoutMs, updatedDuration);
+      tt.is(desc.startToCloseTimeoutMs, updatedDuration);
+      tt.is(desc.heartbeatTimeoutMs, originalDuration);
+      tt.not(desc.retryPolicy.initialInterval, originalDuration);
+      tt.is(desc.retryPolicy.maximumInterval, updatedDuration);
+      tt.falsy(desc.priority.fairnessKey);
+      tt.falsy(desc.startDelayMs);
+    });
+
+    const originalOptions = await handle.restoreOriginalOptions();
+    t.is(originalOptions.taskQueue, 'original-task-queue');
+    t.falsy(originalOptions.scheduleToCloseTimeout);
+    t.falsy(originalOptions.scheduleToStartTimeout);
+    t.is(originalOptions.startToCloseTimeout, originalDuration);
+    t.is(originalOptions.heartbeatTimeout, originalDuration);
+    t.is(originalOptions.retry?.initialInterval, originalDuration);
+    t.not(originalOptions.retry?.maximumInterval, updatedDuration);
+    t.is(originalOptions.priority?.fairnessKey, 'original');
+    t.is(originalOptions.startDelay, originalDuration);
+
+    await assertEventually(t, async (tt) => {
+      const desc = await handle.describe();
+      tt.is(desc.taskQueue, 'original-task-queue');
+      tt.falsy(desc.scheduleToCloseTimeoutMs);
+      tt.falsy(desc.scheduleToStartTimeoutMs);
+      tt.is(desc.startToCloseTimeoutMs, originalDuration);
+      tt.is(desc.heartbeatTimeoutMs, originalDuration);
+      tt.is(desc.retryPolicy.initialInterval, originalDuration);
+      tt.not(desc.retryPolicy.maximumInterval, updatedDuration);
+      tt.is(desc.priority.fairnessKey, 'original');
+      tt.is(desc.startDelayMs, originalDuration);
+    });
+
+    await handle.terminate('test cleanup');
   });
 }

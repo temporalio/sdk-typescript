@@ -4,10 +4,12 @@
  *
  * @module
  */
-import type { ConcurrencyLimit } from '../concurrency/limit';
+import { unbounded } from '../concurrency/limit';
 import type { ExternalStorage, StorageDriverTargetInfo } from '../converter/extstore';
 import { ExternalStorageNotConfiguredError } from '../errors';
+import type { Logger } from '../logger';
 import type { Payload } from '../interfaces';
+import type { ExternalStorageMetricsAccumulator } from './external-storage-metrics';
 import { ExternalStorageRunner } from './external-storage-runner';
 import { isReferencePayload } from './extstore-helpers';
 import type { ContextDeriver, VisitOptions } from './payload-visitor';
@@ -25,10 +27,11 @@ export interface ExternalStorageStoreOptions {
   initialTarget?: StorageDriverTargetInfo;
   /** Derives new storage target from the current message. */
   deriveContext?: ContextDeriver<StoreTarget>;
-  /** Bounds concurrent transform calls across payload sites. Omit for sequential. */
-  limit?: ConcurrencyLimit;
   /** Aborts the walk and every in-flight driver call. */
   abortSignal?: AbortSignal;
+  /** Collects metrics of the store operations performed during the walk. */
+  metrics?: ExternalStorageMetricsAccumulator;
+  logger?: Logger;
 }
 
 /**
@@ -37,9 +40,9 @@ export interface ExternalStorageStoreOptions {
  */
 export function extstoreStoreOptions(
   externalStorage: ExternalStorage,
-  { initialTarget, deriveContext, limit, abortSignal }: ExternalStorageStoreOptions = {}
+  { initialTarget, deriveContext, abortSignal, metrics, logger }: ExternalStorageStoreOptions = {}
 ): VisitOptions<StoreTarget> {
-  const runner = new ExternalStorageRunner(externalStorage);
+  const runner = new ExternalStorageRunner(externalStorage, metrics, logger);
   return {
     transformPayloads: (payloads, target, signal) => runner.store(payloads, { target, abortSignal: signal }),
     transformPayload: (payload, target, signal) =>
@@ -48,22 +51,26 @@ export function extstoreStoreOptions(
     initialContext: initialTarget,
     // Search attributes must keep their literal values so the server can index/search on them.
     skipSearchAttributes: true,
-    limit,
+    limit: unbounded(),
     abortSignal,
   };
 }
 
 function extstoreRetrieveOptions(
   externalStorage: ExternalStorage,
-  { limit, abortSignal }: { limit?: ConcurrencyLimit; abortSignal?: AbortSignal } = {}
+  {
+    abortSignal,
+    metrics,
+    logger,
+  }: { abortSignal?: AbortSignal; metrics?: ExternalStorageMetricsAccumulator; logger?: Logger } = {}
 ): VisitOptions<void> {
-  const runner = new ExternalStorageRunner(externalStorage);
+  const runner = new ExternalStorageRunner(externalStorage, metrics, logger);
   return {
     transformPayloads: (payloads, _context, signal) => runner.retrieve(payloads, { abortSignal: signal }),
     transformPayload: (payload, _context, signal) =>
       runner.retrieve([payload], { abortSignal: signal }).then((retrieved) => retrieved[0]!),
     skipSearchAttributes: true,
-    limit,
+    limit: unbounded(),
     abortSignal,
   };
 }
@@ -95,6 +102,11 @@ function extstoreDetectReferencesOptions(): VisitOptions<void> {
  * @internal
  * @experimental
  */
-export function extstoreInboundOptions(externalStorage: ExternalStorage | undefined): VisitOptions<void> {
-  return externalStorage ? extstoreRetrieveOptions(externalStorage) : extstoreDetectReferencesOptions();
+export function extstoreInboundOptions(
+  externalStorage: ExternalStorage | undefined,
+  { metrics, logger }: { metrics?: ExternalStorageMetricsAccumulator; logger?: Logger } = {}
+): VisitOptions<void> {
+  return externalStorage
+    ? extstoreRetrieveOptions(externalStorage, { metrics, logger })
+    : extstoreDetectReferencesOptions();
 }

@@ -4,7 +4,7 @@ import type { WorkflowOptions, WorkflowUpdateOptions } from './workflow-options'
 import type { ActivityOptions } from './activity-client';
 import type { WorkflowHandle, WorkflowUpdateHandle } from './workflow-client';
 import type { WorkflowUpdateStage } from './workflow-update-stage';
-import type { WorkflowSignalInput } from './interceptors';
+import type { WorkflowQueryInput, WorkflowSignalInput } from './interceptors';
 
 /**
  * A symbol used to attach extra, SDK-internal options to the `WorkflowClient.start()` call.
@@ -135,6 +135,39 @@ export interface InternalWorkflowSignalOptions {
 export type InternalWorkflowSignalInput = WorkflowSignalInput & InternalWorkflowSignalOptions;
 
 /**
+ * A symbol used to attach Nexus-specific options to a `WorkflowHandle.query()` call, so the client
+ * can capture the response link returned on the QueryWorkflowResponse.
+ *
+ * Unlike the signal variant there are no request links: a Query writes nothing to history, so
+ * `QueryWorkflowRequest` has no `links` field and there is no event to link from.
+ *
+ * @internal
+ * @hidden
+ */
+export const InternalWorkflowQueryOptionsSymbol = Symbol.for('__temporal_internal_client_workflow_query_options');
+export interface InternalWorkflowQueryOptions {
+  [InternalWorkflowQueryOptionsSymbol]?: {
+    /**
+     * Response link copied by the client from the QueryWorkflowResponse. Points at the Workflow
+     * execution that processed the Query rather than at an event, since a Query writes none. Only
+     * populated by servers that support Query response links; left unset otherwise.
+     */
+    responseLink?: temporal.api.common.v1.ILink;
+  };
+}
+
+/**
+ * The SDK-internal variant of {@link WorkflowQueryInput} that carries the
+ * {@link InternalWorkflowQueryOptionsSymbol} payload used by the Temporal Nexus helpers to capture
+ * the response link. Kept off the public `WorkflowQueryInput` so the symbol does not leak onto the
+ * interceptor surface.
+ *
+ * @internal
+ * @hidden
+ */
+export type InternalWorkflowQueryInput = WorkflowQueryInput & InternalWorkflowQueryOptions;
+
+/**
  * The SDK-internal surface of a `WorkflowHandle` used by the Temporal Nexus helpers to send a Signal
  * while forwarding request links and capturing the response link the server returns.
  *
@@ -147,7 +180,8 @@ export type InternalWorkflowSignalInput = WorkflowSignalInput & InternalWorkflow
  * @hidden
  */
 export type InternalWorkflowHandle = WorkflowHandle &
-  InternalWorkflowSignalOptions & {
+  InternalWorkflowSignalOptions &
+  InternalWorkflowQueryOptions & {
     /**
      * A single, non-overloaded view of {@link WorkflowHandle.startUpdate} used by the Temporal Nexus
      * helpers to start an Update-backed operation. The public `startUpdate` is overloaded to

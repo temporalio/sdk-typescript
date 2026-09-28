@@ -88,10 +88,18 @@ export class ActivityNotFoundError extends Error {}
 
 /**
  * Thrown by {@link AsyncCompletionClient} when trying to complete or heartbeat
- * an Activity for any reason apart from {@link ActivityNotFoundError}.
+ * an Activity for any reason apart from {@link ActivityNotFoundError}. If an
+ * underlying error exists, it will be stored in the `cause` property.
  */
 @SymbolBasedInstanceOfError('ActivityCompletionError')
-export class ActivityCompletionError extends Error {}
+export class ActivityCompletionError extends Error {
+  public readonly cause?: unknown;
+
+  constructor(message: string, opts?: { cause?: unknown }) {
+    super(message);
+    this.cause = opts?.cause;
+  }
+}
 
 /**
  * Thrown by {@link AsyncCompletionClient.heartbeat} when the Workflow has
@@ -117,8 +125,6 @@ export class ActivityResetError extends Error {}
 /**
  * Thrown by the {@link ActivityClient} while waiting on Activity execution result if execution completes with failure.
  * The failure is stored in the `cause` property.
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 @SymbolBasedInstanceOfError('ActivityExecutionFailedError')
 export class ActivityExecutionFailedError extends Error {
@@ -136,8 +142,6 @@ export class ActivityExecutionFailedError extends Error {
  * Thrown when starting an Activity failed because another Activity with the same ID already exists and reusing the ID
  * is not allowed under chosen ID reuse policy and ID conflict policy. See {@link ActivityOptions.idReusePolicy} and
  * {@link ActivityOptions.idConflictPolicy}.
- *
- * @experimental Standalone Activities are experimental. APIs may be subject to change.
  */
 @SymbolBasedInstanceOfError('ActivityExecutionAlreadyStartedError')
 export class ActivityExecutionAlreadyStartedError extends Error {
