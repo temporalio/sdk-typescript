@@ -74,34 +74,5 @@
     "timeout": "120s",
     "concurrency": 1,
     "workerThreads": false
-  },
-  "exports": {
-    ".": {
-      "types": "./lib/index.d.ts",
-      "default": "./lib/index.js"
-    },
-    "./package.json": "./package.json",
-    "./internal/client": {
-      "types": "./lib/client/index.d.ts",
-      "default": "./lib/client/index.js"
-    },
-    "./internal/worker": {
-      "types": "./lib/worker/index.d.ts",
-      "default": "./lib/worker/index.js"
-    },
-    "./lib/*": {
-      "types": "./lib/*.d.ts",
-      "default": "./lib/*.js"
-    }
-  },
-  "typesVersions": {
-    "*": {
-      "internal/client": [
-        "lib/client/index.d.ts"
-      ],
-      "internal/worker": [
-        "lib/worker/index.d.ts"
-      ]
-    }
   }
 }
