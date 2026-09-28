@@ -37,7 +37,7 @@ integrationTest('Client and Worker work with provided dataConverter', async (t) 
     workflowsPath: require.resolve('./workflows/protobufs'),
     payloadConverterPath: dataConverter.payloadConverterPath,
   });
-  const worker = await createWorker({ dataConverter, workflowBundle });
+  const worker = await createWorker({ dataConverter, workflowBundle, activities: { protoActivity } });
   const client = new WorkflowClient({
     connection: t.context.env.client.connection,
     namespace: t.context.env.client.options.namespace,
