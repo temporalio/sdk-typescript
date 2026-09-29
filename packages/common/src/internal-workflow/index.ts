@@ -3,6 +3,7 @@ export { ActivityCancellationType, encodeActivityCancellationType } from '../act
 export { decode, encode } from '../encoding';
 export { composeInterceptors, composeInterceptorsWith } from '../interceptors';
 export * from '../reserved';
+export { encodeSearchAttributeIndexedValueType } from '../search-attributes';
 export * from '../type-helpers';
 export { type UserMetadata, userMetadataToPayload } from '../user-metadata';
 export * from '../versioning-intent-enum';

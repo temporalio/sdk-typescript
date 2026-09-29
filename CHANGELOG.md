@@ -25,7 +25,7 @@ to docs, or any other relevant information.
   `signalWithStartWorkflow`.
 - **Experimental**: Workflow outbound interceptors can intercept Temporal System Nexus calls
   generically with `startSystemNexusOperation` or specifically with `signalWithStartWorkflow`.
-
+- `SearchAttributeKey` is now exported from the `@temporalio/common` package root.
 - **Experimental**: New External Storage concurrency controls.
 
   - `ExternalStorage` takes a new `concurrency` option that holds two new concurrency limiting config values: `maxDriverOperations` caps how many are in flight across every driver registered on that `ExternalStorage` instance and `maxOperationsPerMessage` caps how many a single "message" may have in flight, where a message is any top-level input or ouput (e.g. a Workflow Task activation, a client request, a Nexus operation, etc)
@@ -38,11 +38,26 @@ to docs, or any other relevant information.
 
 ### Changed
 
+- Packages now declare explicit package export maps.
+- Common's protobuf JSON and History conversion helpers now patch the protobuf root lazily on first
+  use instead of when the module is imported.
 - Updated the following dependencies: `unionfs` from 4.5.1 to 4.6.0, `@grpc/grpc-js` from 1.12.4 to 1.12.7, `smol-toml` from 1.6.1 to 1.7.1
   and `tar` from 7.5.11 to 7.5.21.
 - A Worker will now refuse to load and execute a Workflow bundle produced with a different version
   of the SDK. This practice has never been supported, but was never formally prevented, resulting
   in various subtle, hard to diagnose issues. This change could potentially result in
+
+### Deprecated
+
+- Undocumented imports through `@temporalio/*/lib/*` are deprecated. The wildcard remains
+  temporarily as a compatibility fallback. `@temporalio/common` will keep the following entrypoints
+  for compatibility: `@temporalio/common/lib/encoding`, `@temporalio/common/lib/protobufs`,
+  `@temporalio/common/lib/proto-utils`, and `@temporalio/common/lib/time`.
+
+### Breaking Changes
+
+- Undocumented package subpaths that are not covered by a package's explicit export map no longer
+  resolve.
 
 ### Fixed
 

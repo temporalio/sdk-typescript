@@ -77,6 +77,10 @@
       "types": "./lib/protobufs.d.ts",
       "default": "./lib/protobufs.js"
     },
+    "./lib/proto-utils": {
+      "types": "./lib/proto-utils.d.ts",
+      "default": "./lib/proto-utils.js"
+    },
     "./lib/time": {
       "types": "./lib/time.d.ts",
       "default": "./lib/time.js"
@@ -113,6 +117,9 @@
       ],
       "lib/protobufs": [
         "lib/protobufs.d.ts"
+      ],
+      "lib/proto-utils": [
+        "lib/proto-utils.d.ts"
       ],
       "lib/time": [
         "lib/time.d.ts"
