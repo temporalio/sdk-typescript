@@ -3,14 +3,22 @@ import type { Payload, PayloadConverter, SerializationContext, TypeInfo } from '
 import { defaultPayloadConverter, fromPayloadWithTypeInfo } from '@temporalio/common';
 import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
 import { isSerializationContext } from '@temporalio/common/lib/converter/serialization-context';
+import { METADATA_MESSAGE_TYPE_KEY } from '@temporalio/common/lib/converter/types';
+import { decode } from '@temporalio/common/lib/encoding';
 import {
   decodeSystemNexusEnvelopeBytes,
   SYSTEM_NEXUS_CONTEXT_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE,
 } from '@temporalio/common/lib/internal-workflow';
-import { type VisitOptions, visit, walkPayloadsInMessage } from '@temporalio/common/lib/internal-non-workflow';
+import {
+  type VisitOptions,
+  visit,
+  walkNexusTask,
+  walkPayloadsInMessage,
+} from '@temporalio/common/lib/internal-non-workflow';
 import * as protoRoot from '@temporalio/proto';
+import type { coresdk } from '@temporalio/proto';
 import { operationRegistry } from '@temporalio/workflow/lib/nexus/system/generated/registry';
 import { withSystemNexusPayloadConversion } from '@temporalio/workflow/lib/nexus/system/user-payload-converter';
 
@@ -28,31 +36,35 @@ function operationDefinition(
   return operationRegistry.find((entry) => entry.service === service && entry.operation === operation);
 }
 
-function messageTypeName(type: ProtobufType): string {
-  return type.fullName.replace(/^\./, '');
+/** The request type named by a System Nexus envelope's `messageType` metadata. */
+export function systemNexusRequestType(payload: Payload): string {
+  const value = payload.metadata?.[METADATA_MESSAGE_TYPE_KEY];
+  return value == null ? '<missing>' : decode(value);
 }
 
-function payloadMessageType(payload: Payload): string {
-  const value = payload.metadata?.messageType;
-  return value == null ? '<missing>' : new TextDecoder().decode(value);
-}
-
-export function operationDefinitionForPayload(payload: Payload): SystemOperation {
-  const actualMessageType = payloadMessageType(payload);
-  const definition = operationRegistry.find(
-    (entry) => messageTypeName(requestMessageType(entry.service, entry.operation)) === actualMessageType
+/** Whether `messageType` is the request type of a known System Nexus operation. */
+export function isKnownSystemNexusRequestType(messageType: string): boolean {
+  return operationRegistry.some(
+    (entry) => requestMessageType(entry.service, entry.operation).fullName.replace(/^\./, '') === messageType
   );
-  if (definition == null) {
-    throw new TypeError(`Unrecognized System Nexus envelope message type: ${actualMessageType}`);
-  }
-  return definition;
 }
 
 /** Whether this payload is a marked System Nexus outer envelope. */
-export function isSystemNexusEnvelope(payload: Payload | null | undefined): payload is Payload {
-  if (payload == null) return false;
-  const marker = payload.metadata?.[SYSTEM_NEXUS_PAYLOAD_METADATA_KEY];
+export function isSystemNexusEnvelope(payload: Payload | null | undefined): boolean {
+  const marker = payload?.metadata?.[SYSTEM_NEXUS_PAYLOAD_METADATA_KEY];
   return marker != null && bytesEqual(marker, SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE);
+}
+
+/** Parses the protobuf request carried by a marked System Nexus envelope. */
+export function decodeSystemNexusEnvelope(payload: Payload): Record<string, unknown> {
+  return protobufPayloadConverter.fromPayload<Record<string, unknown>>(payload);
+}
+
+/** Encodes `message` as the data of a copy of `envelope`, keeping its metadata (including the marker). */
+export function encodeSystemNexusEnvelope(envelope: Payload, message: Record<string, unknown>): Payload {
+  const encoded = protobufPayloadConverter.toPayload(message);
+  if (encoded == null) throw new Error('failed to encode System Nexus protobuf envelope');
+  return { ...envelope, data: encoded.data };
 }
 
 /** Converts a System Nexus request and applies the operation's input TypeInfo. */
@@ -112,6 +124,31 @@ export async function transformEncodedSystemNexusEnvelope<Ctx>(
   const transformed = protobufPayloadConverter.toPayload(message);
   if (transformed == null) throw new Error('failed to encode System Nexus protobuf envelope');
   return transformed;
+}
+
+/**
+ * Visits the payloads of a Nexus task. The payloads nested in a marked System Nexus start input are
+ * visited instead of the envelope itself, so inbound passes (e.g. External Storage retrieval) reach
+ * the user payloads the server placed inside the request.
+ *
+ * An envelope that cannot be parsed is left untouched for input decoding to reject.
+ */
+export async function visitNexusTask<Ctx>(task: coresdk.nexus.INexusTask, options: VisitOptions<Ctx>): Promise<void> {
+  const start = task.task?.request?.startOperation;
+  const envelope = start?.payload;
+  if (start == null || envelope == null || !isSystemNexusEnvelope(envelope)) {
+    await visit(task, walkNexusTask, options);
+    return;
+  }
+  let message: Record<string, unknown>;
+  try {
+    message = decodeSystemNexusEnvelope(envelope);
+  } catch {
+    return;
+  }
+  // The start operation payload is the only payload in a Nexus task, so walking the nested request covers the task.
+  await visit(message, walkPayloadsInMessage, options);
+  start.payload = encodeSystemNexusEnvelope(envelope, message);
 }
 
 function contextFromMetadata(payload: Payload): SerializationContext | undefined {

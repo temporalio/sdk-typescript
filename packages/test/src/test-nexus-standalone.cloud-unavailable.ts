@@ -29,9 +29,11 @@ import {
   ApplicationFailure,
   SearchAttributeType,
   RawValue,
+  ExternalStorage,
   type Payload,
   type PayloadCodec,
 } from '@temporalio/common';
+import { ExternalStorageRunner } from '@temporalio/common/lib/internal-non-workflow';
 import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
 import {
   SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
@@ -41,6 +43,7 @@ import { generateWorkflowRunOperationToken } from '@temporalio/nexus/lib/token';
 import type { Context } from './helpers-integration';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { waitUntil } from './helpers';
+import { makeFakeDriver } from './extstore-fake-driver';
 import { payloadConverter as stringManglingPayloadConverter } from './payload-converters/string-mangling-payload-converter';
 import {
   assertOrder,
@@ -268,6 +271,68 @@ test('standalone Nexus worker decodes nested payloads in a marked System Nexus i
     t.is(result, undefined);
   });
   t.is(decodedPayloadCount, 2);
+});
+
+test('standalone Nexus worker retrieves External Storage references nested in a marked System Nexus input', async (t) => {
+  const { createWorker, registerNexusEndpoint } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+  const driver = makeFakeDriver();
+  // Store the small nested payloads through a zero-threshold storage sharing the worker's driver, so the
+  // worker itself does not offload its (empty) operation result.
+  const offloadEverything = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 });
+  const [inputReference, signalReference] = await new ExternalStorageRunner(offloadEverything).store([
+    stringManglingPayloadConverter.toPayload('workflow-input'),
+    stringManglingPayloadConverter.toPayload('signal-input'),
+  ]);
+  const request = temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionRequest.create({
+    workflowType: { name: 'test-workflow' },
+    input: { payloads: [inputReference!] },
+    signalInput: { payloads: [signalReference!] },
+    workflowId: 'target-workflow-id',
+    taskQueue: { name: 'target-task-queue' },
+    signalName: 'test-signal',
+    namespace: t.context.env.client.options.namespace,
+  });
+  const payload = new ProtobufBinaryPayloadConverter(protoRoot).toPayload(request)!;
+  payload.metadata ??= {};
+  payload.metadata[SYSTEM_NEXUS_PAYLOAD_METADATA_KEY] = SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE;
+
+  const standaloneSystemPayloadHandlerService = nexus.service('standaloneSystemPayloadExtstoreService', {
+    decode: nexus.operation<SignalWithStartWorkflowRequest, void>({
+      inputType: workflowService.operations.signalWithStartWorkflow.inputType,
+    }),
+  });
+  const worker = await createWorker({
+    dataConverter: {
+      externalStorage: new ExternalStorage({ drivers: [driver] }),
+      payloadConverterPath: require.resolve('./payload-converters/string-mangling-payload-converter'),
+    },
+    nexusServices: [
+      nexus.serviceHandler(standaloneSystemPayloadHandlerService, {
+        async decode(_ctx, input) {
+          t.deepEqual(input.args, ['workflow-input']);
+          t.deepEqual(input.signalArgs, ['signal-input']);
+        },
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    // Standalone clients do not run the workflow System Nexus encoder, so RawValue preserves the marked protobuf envelope.
+    const standaloneSystemPayloadClientService = nexus.service('standaloneSystemPayloadExtstoreService', {
+      decode: nexus.operation<RawValue, void>(),
+    });
+    const service = t.context.env.client.nexus.createServiceClient({
+      endpoint: endpointName,
+      service: standaloneSystemPayloadClientService,
+    });
+    const result = await service.executeOperation('decode', RawValue.fromPayload(payload), {
+      id: `system-payload-extstore-${randomUUID()}`,
+      scheduleToCloseTimeout: '10s',
+    });
+    t.is(result, undefined);
+  });
+  t.true(driver.retrieveCalls.length > 0);
 });
 
 test('TypeInfo hydrates standalone start input and retained handle result', async (t) => {

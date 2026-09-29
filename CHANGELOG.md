@@ -25,6 +25,8 @@ to docs, or any other relevant information.
   `signalWithStartWorkflow`.
 - **Experimental**: Workflow outbound interceptors can intercept Temporal System Nexus calls
   generically with `startSystemNexusOperation` or specifically with `signalWithStartWorkflow`.
+- **Experimental**: Nexus workers decode Temporal System Nexus inputs sent by the server with the
+  System Nexus converter.
 
 - **Experimental**: New External Storage concurrency controls.
 
@@ -38,7 +40,6 @@ to docs, or any other relevant information.
 
 ### Changed
 
-- Nexus workers now decode marked Temporal System Nexus inputs with the System Nexus converter.
 - Updated the following dependencies: `unionfs` from 4.5.1 to 4.6.0, `@grpc/grpc-js` from 1.12.4 to 1.12.7, `smol-toml` from 1.6.1 to 1.7.1
   and `tar` from 7.5.11 to 7.5.21.
 - A Worker will now refuse to load and execute a Workflow bundle produced with a different version
