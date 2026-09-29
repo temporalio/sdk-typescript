@@ -2026,11 +2026,25 @@ export class Worker {
           }),
           takeWhile((out): out is HeartbeatSendRequest => out.type !== 'close'),
           mergeMap(async ({ heartbeat: { base64TaskToken, taskToken, details, onError, info } }) => {
-            let payload: Payload;
             const context = activitySerializationContextFromInfo(info);
             try {
+              let heartbeat: coresdk.IActivityHeartbeat;
               try {
-                payload = await encodeToPayload(this.options.loadedDataConverter, details, context);
+                const payload = await encodeToPayload(this.options.loadedDataConverter, details, context);
+                heartbeat = { taskToken, details: [payload] };
+                const { externalStorage } = this.options.loadedDataConverter;
+                if (externalStorage) {
+                  await visit(
+                    heartbeat,
+                    walkActivityHeartbeat,
+                    externalStorageStoreVisitOptions({
+                      externalStorage,
+                      initialTarget: activityStorageTarget(info),
+                      payloadCache: this.options.payloadCache,
+                      logger: this.logger,
+                    })
+                  );
+                }
               } catch (error: any) {
                 this.logger.warn('Failed to encode heartbeat details, cancelling Activity', {
                   error,
@@ -2038,20 +2052,6 @@ export class Worker {
                 });
                 onError();
                 return;
-              }
-              const heartbeat: coresdk.IActivityHeartbeat = { taskToken, details: [payload] };
-              const { externalStorage } = this.options.loadedDataConverter;
-              if (externalStorage) {
-                await visit(
-                  heartbeat,
-                  walkActivityHeartbeat,
-                  externalStorageStoreVisitOptions({
-                    externalStorage,
-                    initialTarget: activityStorageTarget(info),
-                    payloadCache: this.options.payloadCache,
-                    logger: this.logger,
-                  })
-                );
               }
               const arr = coresdk.ActivityHeartbeat.encodeDelimited(heartbeat).finish();
               this.nativeWorker.recordActivityHeartbeat(byteArrayToBuffer(arr));
