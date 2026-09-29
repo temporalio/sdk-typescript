@@ -32,7 +32,7 @@ function systemNexusPayload(input = 'workflow-input', signalInput?: string): Pay
   return payload;
 }
 
-test('Nexus worker decodes a marked System Nexus input with the System Nexus converter', async (t) => {
+test('decodePayload uses the System Nexus converter for a marked input', async (t) => {
   const result = (await decodePayload(
     defaultDataConverter,
     systemNexusPayload(),
@@ -65,13 +65,13 @@ const testSystemRequestType: TypeInfo<
   },
 };
 
-test('Nexus worker applies the operation input transfer type converter to a System Nexus input', async (t) => {
+test('decodePayload applies the input transfer type converter to a System Nexus input', async (t) => {
   const result = await decodePayload(defaultDataConverter, systemNexusPayload(), testSystemRequestType);
 
   t.deepEqual(result, { value: 'target-namespace' });
 });
 
-test('Nexus worker rejects an unknown marked System Nexus input before calling codecs', async (t) => {
+test('decodePayload rejects an unknown marked System Nexus input before calling codecs', async (t) => {
   for (const withCodec of [false, true]) {
     let decodeCount = 0;
     const codec: PayloadCodec = {
@@ -107,7 +107,7 @@ test('Nexus worker rejects an unknown marked System Nexus input before calling c
   }
 });
 
-test('Nexus worker applies codecs to nested payloads but not the System Nexus envelope', async (t) => {
+test('decodePayload applies codecs to nested payloads but not the System Nexus envelope', async (t) => {
   let decodeCount = 0;
   let encodeCount = 0;
   const codec: PayloadCodec = {
@@ -133,7 +133,7 @@ test('Nexus worker applies codecs to nested payloads but not the System Nexus en
   t.deepEqual(result.args, ['decoded-input']);
 });
 
-test('Nexus worker applies the configured payload converter to inner System Nexus payloads', async (t) => {
+test('decodePayload applies the configured converter to nested System Nexus payloads', async (t) => {
   const decoded: string[] = [];
   const dataConverter: LoadedDataConverter = {
     ...defaultDataConverter,
@@ -161,7 +161,7 @@ test('Nexus worker applies the configured payload converter to inner System Nexu
   t.deepEqual(decoded, ['workflow-input', 'signal-input']);
 });
 
-test('Nexus worker continues to use the configured converter for an unmarked input', async (t) => {
+test('decodePayload uses the configured converter for an unmarked input', async (t) => {
   let fromPayloadCount = 0;
   const dataConverter: LoadedDataConverter = {
     ...defaultDataConverter,
