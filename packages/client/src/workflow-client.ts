@@ -34,7 +34,6 @@ import {
   extractWorkflowTypeAndConfig,
   ExternalStorageError,
 } from '@temporalio/common';
-import { SymbolBasedInstanceOfError } from '@temporalio/common/internal/type-helpers';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
@@ -66,6 +65,7 @@ import {
   composeInterceptors,
   encodeUnifiedSearchAttributes,
   filterNullAndUndefined,
+  SymbolBasedInstanceOfError,
 } from '@temporalio/common/internal/internal-workflow';
 import { temporal } from '@temporalio/proto';
 import {

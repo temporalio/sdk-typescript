@@ -7,6 +7,7 @@ import {
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
   filterNullAndUndefined,
+  SymbolBasedInstanceOfError,
 } from '@temporalio/common/internal/internal-workflow';
 import {
   encodeMapToPayloads,
@@ -27,7 +28,6 @@ import {
   requiredTsToDate,
   tsToDate,
 } from '@temporalio/common/lib/time';
-import { SymbolBasedInstanceOfError } from '@temporalio/common/internal/type-helpers';
 import type { CreateScheduleInput, CreateScheduleOutput, ScheduleClientInterceptor } from './interceptors';
 import type { WorkflowService } from './types';
 import { isGrpcServiceError, ServiceError } from './errors';

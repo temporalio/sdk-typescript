@@ -5,9 +5,8 @@ import type {
   SearchAttributeType,
   TypedSearchAttributes,
 } from '@temporalio/common';
-import { makeProtoEnumConverters } from '@temporalio/common/internal/internal-workflow';
+import { makeProtoEnumConverters, type Replace } from '@temporalio/common/internal/internal-workflow';
 import type { temporal } from '@temporalio/proto';
-import type { Replace } from '@temporalio/common/internal/type-helpers';
 
 /**
  * Defines whether to allow re-using an operation ID from a previously *completed* Nexus operation.

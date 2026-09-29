@@ -1,6 +1,6 @@
 import * as grpc from '@grpc/grpc-js';
 import { IllegalStateError } from '@temporalio/common';
-import { isError, SymbolBasedInstanceOfError } from '@temporalio/common/internal/type-helpers';
+import { isError, SymbolBasedInstanceOfError } from '@temporalio/common/internal/internal-workflow';
 
 /**
  * The worker has been shut down

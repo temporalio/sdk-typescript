@@ -27,6 +27,7 @@ import {
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
   searchAttributePayloadConverter,
+  type Replace,
 } from '@temporalio/common/internal/internal-workflow';
 import {
   decodeArrayFromPayloads,
@@ -43,7 +44,6 @@ import {
   walkStartActivityExecutionRequest,
 } from '@temporalio/common/internal/internal-non-workflow';
 import { temporal } from '@temporalio/proto';
-import type { Replace } from '@temporalio/common/internal/type-helpers';
 import type {
   ActivityCancelInput,
   ActivityClientInterceptor,

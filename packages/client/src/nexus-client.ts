@@ -1,13 +1,13 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
 import type * as nexus from 'nexus-rpc';
 import { v4 as uuid4 } from 'uuid';
-import { SymbolBasedInstanceOfError } from '@temporalio/common/internal/type-helpers';
 import {
   composeInterceptors,
   decode,
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
   filterNullAndUndefined,
+  SymbolBasedInstanceOfError,
   typedSearchAttributePayloadConverter,
 } from '@temporalio/common/internal/internal-workflow';
 import {

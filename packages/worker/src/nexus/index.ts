@@ -11,8 +11,7 @@ import {
 import type { temporal, coresdk } from '@temporalio/proto';
 import { asyncLocalStorage } from '@temporalio/nexus/internal/context';
 import { encodeToPayload } from '@temporalio/common/internal/internal-non-workflow';
-import { isAbortError } from '@temporalio/common/internal/type-helpers';
-import { composeInterceptors } from '@temporalio/common/internal/internal-workflow';
+import { composeInterceptors, isAbortError } from '@temporalio/common/internal/internal-workflow';
 import type { Client } from '@temporalio/client';
 import type { Logger } from '../logger';
 import type {

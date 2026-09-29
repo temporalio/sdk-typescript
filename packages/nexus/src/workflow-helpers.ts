@@ -7,7 +7,7 @@ import type {
   SignalDefinition,
   UpdateDefinition,
 } from '@temporalio/common';
-import type { Replace } from '@temporalio/common/internal/type-helpers';
+import type { Replace } from '@temporalio/common/internal/internal-workflow';
 import type {
   ActivityHandle,
   ActivityName,

@@ -63,8 +63,12 @@ import {
   tsToDate,
   tsToMs,
 } from '@temporalio/common/lib/time';
-import type { NonNullableObject, OmitFirstParam } from '@temporalio/common/internal/type-helpers';
-import { errorMessage } from '@temporalio/common/internal/type-helpers';
+import {
+  errorMessage,
+  type NonNullableObject,
+  type OmitFirstParam,
+  throwIfReservedName,
+} from '@temporalio/common/internal/internal-workflow';
 import { workflowLogAttributes } from '@temporalio/workflow/internal/logs';
 import { createUnsafeRandomSource } from '@temporalio/workflow/internal/random-helpers';
 import { native } from '@temporalio/core-bridge';
@@ -72,7 +76,6 @@ import { Client } from '@temporalio/client';
 import type { temporal } from '@temporalio/proto';
 import { coresdk } from '@temporalio/proto';
 import { type SinkCall, type WorkflowInfo } from '@temporalio/workflow';
-import { throwIfReservedName } from '@temporalio/common/internal/internal-workflow';
 import type { CancelReason } from './activity';
 import { Activity, activityLogAttributes } from './activity';
 import type { NativeConnection } from './connection';

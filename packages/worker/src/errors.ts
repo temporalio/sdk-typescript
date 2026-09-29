@@ -1,5 +1,5 @@
 import { IllegalStateError } from '@temporalio/common';
-import { SymbolBasedInstanceOfError } from '@temporalio/common/internal/type-helpers';
+import { SymbolBasedInstanceOfError } from '@temporalio/common/internal/internal-workflow';
 import { errors as bridgeErrors } from '@temporalio/core-bridge';
 
 const { ShutdownError, TransportError, UnexpectedError } = bridgeErrors;

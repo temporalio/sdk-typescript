@@ -1,5 +1,5 @@
 import { EventEmitter, on, once } from 'node:events';
-import { isAbortError } from '@temporalio/common/internal/type-helpers';
+import { isAbortError } from '@temporalio/common/internal/internal-workflow';
 
 export interface MapAsyncOptions {
   /**
