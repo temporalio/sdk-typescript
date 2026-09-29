@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import type { Payload, PayloadCodec, SerializationContext } from '@temporalio/common';
 import { defaultPayloadConverter, ExternalStorage } from '@temporalio/common';
 import { Client } from '@temporalio/client';
-import { ProtobufBinaryPayloadConverter } from '@temporalio/common/internal/protobufs';
+import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/protobufs';
 import { isReferencePayload } from '@temporalio/common/internal/internal-non-workflow';
 import * as protoRoot from '@temporalio/proto';
 import { defineSignal, setHandler } from '@temporalio/workflow';

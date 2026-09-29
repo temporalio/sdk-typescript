@@ -73,7 +73,7 @@
       "types": "./lib/internal-workflow/index.d.ts",
       "default": "./lib/internal-workflow/index.js"
     },
-    "./internal/protobufs": {
+    "./lib/protobufs": {
       "types": "./lib/protobufs.d.ts",
       "default": "./lib/protobufs.js"
     },
@@ -105,6 +105,10 @@
       "types": "./lib/workflow-options.d.ts",
       "default": "./lib/workflow-options.js"
     },
+    "./lib/encoding": {
+      "types": "./lib/encoding.d.ts",
+      "default": "./lib/encoding.js"
+    },
     "./lib/*": {
       "types": "./lib/*.d.ts",
       "default": "./lib/*.js"
@@ -124,7 +128,10 @@
       "internal/internal-workflow": [
         "lib/internal-workflow/index.d.ts"
       ],
-      "internal/protobufs": [
+      "lib/encoding": [
+        "lib/encoding.d.ts"
+      ],
+      "lib/protobufs": [
         "lib/protobufs.d.ts"
       ],
       "internal/reserved": [

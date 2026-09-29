@@ -2,10 +2,10 @@
  * Entry point for classes and utilities related to using
  * {@link https://docs.temporal.io/typescript/data-converters#protobufs | Protobufs} for serialization.
  *
- * Import from `@temporalio/common/internal/protobufs`, for example:
+ * Import from `@temporalio/common/lib/protobufs`, for example:
  *
  * ```
- * import { patchProtobufRoot } from '@temporalio/common/internal/protobufs';
+ * import { patchProtobufRoot } from '@temporalio/common/lib/protobufs';
  * ```
  * @module
  */

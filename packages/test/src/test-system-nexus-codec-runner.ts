@@ -1,7 +1,7 @@
 import test from 'ava';
 import type { Payload, SerializationContext } from '@temporalio/common';
 import { ApplicationFailure, defaultFailureConverter, defaultPayloadConverter } from '@temporalio/common';
-import { ProtobufBinaryPayloadConverter } from '@temporalio/common/internal/protobufs';
+import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/protobufs';
 import {
   decodeSystemNexusEnvelopeBytes,
   encodeSystemNexusEnvelopeBytes,
