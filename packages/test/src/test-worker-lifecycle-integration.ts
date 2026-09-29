@@ -22,7 +22,13 @@ test.serial('Worker shuts down gracefully', async (t) => {
   await workerRun;
   t.is(worker.getState(), 'STOPPED');
   await t.throwsAsync(worker.run(), { message: 'Poller was already started' });
-  await assertEventually(t, (tt) => tt.is(Runtime._instance, undefined), 5_000);
+  await assertEventually(
+    t,
+    (tt) => {
+      tt.is(Runtime._instance, undefined);
+    },
+    5_000
+  );
 });
 
 test.serial("Worker.runUntil doesn't hang if provided promise survives to Worker's shutdown", async (t) => {
@@ -39,7 +45,13 @@ test.serial("Worker.runUntil doesn't hang if provided promise survives to Worker
   t.is(worker.getState(), 'DRAINING');
   await t.throwsAsync(p, { instanceOf: PromiseCompletionTimeoutError });
   t.is(worker.getState(), 'STOPPED');
-  await assertEventually(t, (tt) => tt.is(Runtime._instance, undefined), 5_000);
+  await assertEventually(
+    t,
+    (tt) => {
+      tt.is(Runtime._instance, undefined);
+    },
+    5_000
+  );
 });
 
 test.serial('Worker shuts down gracefully if interrupted before running', async (t) => {
