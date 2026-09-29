@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { ExecutionContext } from 'ava';
 import * as nexus from 'nexus-rpc';
+import * as protoRoot from '@temporalio/proto';
 import { temporal } from '@temporalio/proto';
 import type { NexusOperationExecutionCount } from '@temporalio/client';
 import {
@@ -20,11 +21,27 @@ import {
 } from '@temporalio/client';
 import * as temporalnexus from '@temporalio/nexus';
 import * as workflow from '@temporalio/workflow';
-import { CancelledFailure, TerminatedFailure, ApplicationFailure, SearchAttributeType } from '@temporalio/common';
+import type { SignalWithStartWorkflowRequest } from '@temporalio/workflow';
+import { workflowService } from '@temporalio/workflow/lib/nexus/system/generated/services';
+import {
+  CancelledFailure,
+  TerminatedFailure,
+  ApplicationFailure,
+  SearchAttributeType,
+  RawValue,
+  type Payload,
+  type PayloadCodec,
+} from '@temporalio/common';
+import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
+import {
+  SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
+  SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE,
+} from '@temporalio/common/lib/internal-workflow';
 import { generateWorkflowRunOperationToken } from '@temporalio/nexus/lib/token';
 import type { Context } from './helpers-integration';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { waitUntil } from './helpers';
+import { payloadConverter as stringManglingPayloadConverter } from './payload-converters/string-mangling-payload-converter';
 import {
   assertOrder,
   assertReceipt,
@@ -177,6 +194,80 @@ test('start sync operation and get result', async (t) => {
     const result = await handle.result();
     t.is(result.value, 'hello');
   });
+});
+
+test('standalone Nexus worker decodes nested payloads in a marked System Nexus input', async (t) => {
+  const { createWorker, registerNexusEndpoint } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+  let decodedPayloadCount = 0;
+  const codec: PayloadCodec = {
+    async encode(payloads) {
+      return payloads.map((payload) => ({ ...payload, data: payload.data?.map((byte) => byte + 1) }));
+    },
+    async decode(payloads) {
+      t.true(payloads.every((payload) => payload.metadata?.[SYSTEM_NEXUS_PAYLOAD_METADATA_KEY] == null));
+      decodedPayloadCount += payloads.length;
+      return payloads.map((payload) => ({ ...payload, data: payload.data?.map((byte) => byte - 1) }));
+    },
+  };
+  const encodedPayload = async (value: string): Promise<Payload> => {
+    const payload = stringManglingPayloadConverter.toPayload(value);
+    return (await codec.encode([payload]))[0]!;
+  };
+  const request = temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionRequest.create({
+    workflowType: { name: 'test-workflow' },
+    input: { payloads: [await encodedPayload('workflow-input')] },
+    signalInput: { payloads: [await encodedPayload('signal-input')] },
+    workflowId: 'target-workflow-id',
+    taskQueue: { name: 'target-task-queue' },
+    signalName: 'test-signal',
+    namespace: t.context.env.client.options.namespace,
+  });
+  const payload = new ProtobufBinaryPayloadConverter(protoRoot).toPayload(request)!;
+  payload.metadata ??= {};
+  payload.metadata[SYSTEM_NEXUS_PAYLOAD_METADATA_KEY] = SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE;
+
+  const standaloneSystemPayloadHandlerService = nexus.service('standaloneSystemPayloadService', {
+    decode: nexus.operation<SignalWithStartWorkflowRequest, void>({
+      inputType: workflowService.operations.signalWithStartWorkflow.inputType,
+    }),
+  });
+  const worker = await createWorker({
+    dataConverter: {
+      payloadCodecs: [codec],
+      payloadConverterPath: require.resolve('./payload-converters/string-mangling-payload-converter'),
+    },
+    nexusServices: [
+      nexus.serviceHandler(standaloneSystemPayloadHandlerService, {
+        async decode(_ctx, input) {
+          t.is(input.workflow, 'test-workflow');
+          t.deepEqual(input.args, ['workflow-input']);
+          t.deepEqual(input.signalArgs, ['signal-input']);
+          t.is(input.id, 'target-workflow-id');
+          t.is(input.taskQueue, 'target-task-queue');
+          t.is(input.signal, 'test-signal');
+          t.is(input.namespace, t.context.env.client.options.namespace);
+        },
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    // Standalone clients do not run the workflow System Nexus encoder, so RawValue preserves the marked protobuf envelope.
+    const standaloneSystemPayloadClientService = nexus.service('standaloneSystemPayloadService', {
+      decode: nexus.operation<RawValue, void>(),
+    });
+    const service = t.context.env.client.nexus.createServiceClient({
+      endpoint: endpointName,
+      service: standaloneSystemPayloadClientService,
+    });
+    const result = await service.executeOperation('decode', RawValue.fromPayload(payload), {
+      id: `system-payload-${randomUUID()}`,
+      scheduleToCloseTimeout: '10s',
+    });
+    t.is(result, undefined);
+  });
+  t.is(decodedPayloadCount, 2);
 });
 
 test('TypeInfo hydrates standalone start input and retained handle result', async (t) => {

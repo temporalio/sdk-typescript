@@ -8,8 +8,14 @@ import {
   fromPayloadWithTypeInfo,
   WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
-import { encodeErrorToFailure, decodeOptionalSingle } from '@temporalio/common/lib/internal-non-workflow';
+import { decode, encodeErrorToFailure, decodeOptionalSingle } from '@temporalio/common/lib/internal-non-workflow';
 import type { temporal } from '@temporalio/proto';
+import {
+  fromSystemNexusPayload,
+  isSystemNexusEnvelope,
+  operationDefinitionForPayload,
+  transformEncodedSystemNexusEnvelope,
+} from '../system-nexus-operations';
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Payloads
@@ -38,9 +44,12 @@ export async function decodePayload(
   payload: temporal.api.common.v1.IPayload | undefined,
   typeInfo?: TypeInfo
 ): Promise<unknown> {
+  const isSystemPayload = isSystemNexusEnvelope(payload);
   let decoded: Payload | undefined | null;
   try {
-    decoded = await decodeOptionalSingle(dataConverter.payloadCodecs, payload);
+    decoded = isSystemPayload
+      ? await decodeSystemNexus(dataConverter, payload)
+      : await decodeOptionalSingle(dataConverter.payloadCodecs, payload);
   } catch (err) {
     if (isPayloadValidationFailure(err)) {
       throw new nexus.HandlerError('BAD_REQUEST', `Invalid operation input`, {
@@ -58,7 +67,9 @@ export async function decodePayload(
   }
 
   try {
-    return fromPayloadWithTypeInfo(dataConverter.payloadConverter, decoded, undefined, typeInfo);
+    return isSystemPayload
+      ? fromSystemNexusPayload(decoded, dataConverter.payloadConverter, typeInfo)
+      : fromPayloadWithTypeInfo(dataConverter.payloadConverter, decoded, undefined, typeInfo);
   } catch (err) {
     if (isPayloadValidationFailure(err)) {
       throw new nexus.HandlerError('BAD_REQUEST', `Invalid operation input`, {
@@ -72,6 +83,28 @@ export async function decodePayload(
       cause: err,
     });
   }
+}
+
+async function decodeSystemNexus(dataConverter: LoadedDataConverter, payload: Payload): Promise<Payload> {
+  let operation: { service: string; operation: string };
+  try {
+    operation = operationDefinitionForPayload(payload);
+  } catch (err) {
+    throw new nexus.HandlerError('INTERNAL', err instanceof Error ? err.message : 'Invalid System Nexus envelope', {
+      cause: err,
+      retryableOverride: true,
+    });
+  }
+
+  if (dataConverter.payloadCodecs.length === 0) return payload;
+  return transformEncodedSystemNexusEnvelope(operation.service, operation.operation, payload, {
+    transformPayload: async (nestedPayload, context) =>
+      (await decode(dataConverter.payloadCodecs, [nestedPayload], context))[0]!,
+    transformPayloads: (nestedPayloads, context) => decode(dataConverter.payloadCodecs, nestedPayloads, context),
+    initialContext: undefined,
+    skipHeaders: true,
+    skipSearchAttributes: true,
+  });
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -1,6 +1,6 @@
 import type { Service as ProtobufService, Type as ProtobufType } from 'protobufjs';
-import type { Payload, SerializationContext } from '@temporalio/common';
-import { defaultPayloadConverter } from '@temporalio/common';
+import type { Payload, PayloadConverter, SerializationContext, TypeInfo } from '@temporalio/common';
+import { defaultPayloadConverter, fromPayloadWithTypeInfo } from '@temporalio/common';
 import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
 import { isSerializationContext } from '@temporalio/common/lib/converter/serialization-context';
 import {
@@ -12,6 +12,7 @@ import {
 import { type VisitOptions, visit, walkPayloadsInMessage } from '@temporalio/common/lib/internal-non-workflow';
 import * as protoRoot from '@temporalio/proto';
 import { operationRegistry } from '@temporalio/workflow/lib/nexus/system/generated/registry';
+import { withSystemNexusPayloadConversion } from '@temporalio/workflow/lib/nexus/system/user-payload-converter';
 
 const protobufPayloadConverter = new ProtobufBinaryPayloadConverter(protoRoot);
 const protoRootWithLookup = protoRoot as typeof protoRoot & {
@@ -27,11 +28,42 @@ function operationDefinition(
   return operationRegistry.find((entry) => entry.service === service && entry.operation === operation);
 }
 
+function messageTypeName(type: ProtobufType): string {
+  return type.fullName.replace(/^\./, '');
+}
+
+function payloadMessageType(payload: Payload): string {
+  const value = payload.metadata?.messageType;
+  return value == null ? '<missing>' : new TextDecoder().decode(value);
+}
+
+export function operationDefinitionForPayload(payload: Payload): SystemOperation {
+  const actualMessageType = payloadMessageType(payload);
+  const definition = operationRegistry.find(
+    (entry) => messageTypeName(requestMessageType(entry.service, entry.operation)) === actualMessageType
+  );
+  if (definition == null) {
+    throw new TypeError(`Unrecognized System Nexus envelope message type: ${actualMessageType}`);
+  }
+  return definition;
+}
+
 /** Whether this payload is a marked System Nexus outer envelope. */
-export function isSystemNexusEnvelope(payload: Payload | null | undefined): boolean {
+export function isSystemNexusEnvelope(payload: Payload | null | undefined): payload is Payload {
   if (payload == null) return false;
   const marker = payload.metadata?.[SYSTEM_NEXUS_PAYLOAD_METADATA_KEY];
   return marker != null && bytesEqual(marker, SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE);
+}
+
+/** Converts a System Nexus request and applies the operation's input TypeInfo. */
+export function fromSystemNexusPayload(
+  payload: Payload,
+  converter: PayloadConverter,
+  typeInfo: TypeInfo | undefined
+): unknown {
+  return withSystemNexusPayloadConversion(converter, undefined, () =>
+    fromPayloadWithTypeInfo(protobufPayloadConverter, payload, undefined, typeInfo)
+  );
 }
 
 export interface EncodedSystemNexusInput {
