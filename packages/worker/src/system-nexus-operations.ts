@@ -1,7 +1,7 @@
 import type { Service as ProtobufService, Type as ProtobufType } from 'protobufjs';
 import type { Payload, SerializationContext } from '@temporalio/common';
 import { defaultPayloadConverter } from '@temporalio/common';
-import { ProtobufBinaryPayloadConverter } from '@temporalio/common/internal/converter/protobuf-payload-converters';
+import { ProtobufBinaryPayloadConverter } from '@temporalio/common/internal/protobufs';
 import { isSerializationContext } from '@temporalio/common/internal/converter/serialization-context';
 import {
   decodeSystemNexusEnvelopeBytes,
