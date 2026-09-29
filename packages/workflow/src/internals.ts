@@ -38,8 +38,8 @@ import {
 import {
   decodeSearchAttributes,
   decodeTypedSearchAttributes,
-} from '@temporalio/common/internal/converter/payload-search-attributes';
-import { makeProtoEnumConverters } from '@temporalio/common/internal/internal-workflow';
+  makeProtoEnumConverters,
+} from '@temporalio/common/internal/internal-workflow';
 import type { coresdk, temporal } from '@temporalio/proto';
 import {
   TEMPORAL_RESERVED_PREFIX,

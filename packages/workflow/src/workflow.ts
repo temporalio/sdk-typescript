@@ -37,14 +37,14 @@ import {
 } from '@temporalio/common';
 import { userMetadataToPayload } from '@temporalio/common/internal/user-metadata';
 import {
+  deepMerge,
   encodeUnifiedSearchAttributes,
   searchAttributePayloadConverter,
-} from '@temporalio/common/internal/converter/payload-search-attributes';
+} from '@temporalio/common/internal/internal-workflow';
 import { versioningIntentToProto } from '@temporalio/common/internal/versioning-intent-enum';
 import type { Duration } from '@temporalio/common/internal/time';
 import { msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/common/internal/time';
 import type { temporal } from '@temporalio/proto';
-import { deepMerge } from '@temporalio/common/internal/internal-workflow';
 import { throwIfReservedName } from '@temporalio/common/internal/reserved';
 import { eventGroupMarkersToProto, type EventGroup, type EventGroupsOptions } from './event-groups';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';

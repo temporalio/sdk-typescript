@@ -5,7 +5,8 @@ import {
   decodeSearchAttributes,
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
-} from '@temporalio/common/internal/converter/payload-search-attributes';
+  filterNullAndUndefined,
+} from '@temporalio/common/internal/internal-workflow';
 import type { Headers } from '@temporalio/common/internal/interceptors';
 import { composeInterceptors } from '@temporalio/common/internal/interceptors';
 import {
@@ -19,7 +20,6 @@ import {
   walkListSchedulesResponse,
   walkUpdateScheduleRequest,
 } from '@temporalio/common/internal/internal-non-workflow';
-import { filterNullAndUndefined } from '@temporalio/common/internal/internal-workflow';
 import { temporal } from '@temporalio/proto';
 import {
   optionalDateToTs,

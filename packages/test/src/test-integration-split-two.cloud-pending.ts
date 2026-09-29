@@ -10,7 +10,7 @@ import {
   WorkflowExecutionAlreadyStartedError,
   WorkflowNotFoundError,
 } from '@temporalio/common';
-import { searchAttributePayloadConverter } from '@temporalio/common/internal/converter/payload-search-attributes';
+import { searchAttributePayloadConverter } from '@temporalio/common/internal/internal-workflow';
 import { msToNumber, tsToMs } from '@temporalio/common/internal/time';
 import {
   decode as payloadDecode,

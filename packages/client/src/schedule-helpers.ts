@@ -11,7 +11,7 @@ import {
   encodeUnifiedSearchAttributes,
   decodeSearchAttributes,
   decodeTypedSearchAttributes,
-} from '@temporalio/common/internal/converter/payload-search-attributes';
+} from '@temporalio/common/internal/internal-workflow';
 import type { Headers } from '@temporalio/common/internal/interceptors';
 import {
   decodeArrayFromPayloads,

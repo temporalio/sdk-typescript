@@ -13,7 +13,7 @@ import {
   UndefinedPayloadConverter,
   ValueError,
 } from '@temporalio/common';
-import { SearchAttributePayloadConverter } from '@temporalio/common/internal/converter/payload-search-attributes';
+import { SearchAttributePayloadConverter } from '@temporalio/common/internal/internal-workflow';
 import { encode } from '@temporalio/common/internal/encoding';
 import {
   DefaultPayloadConverterWithProtobufs,

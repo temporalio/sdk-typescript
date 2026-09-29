@@ -6,8 +6,9 @@ import { SymbolBasedInstanceOfError } from '@temporalio/common/internal/type-hel
 import {
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
+  filterNullAndUndefined,
   typedSearchAttributePayloadConverter,
-} from '@temporalio/common/internal/converter/payload-search-attributes';
+} from '@temporalio/common/internal/internal-workflow';
 import {
   decodeFromPayloadsAtIndex,
   decodeOptionalFailureToOptionalError,
@@ -21,7 +22,6 @@ import {
   walkPollNexusOperationExecutionResponse,
   walkStartNexusOperationExecutionRequest,
 } from '@temporalio/common/internal/internal-non-workflow';
-import { filterNullAndUndefined } from '@temporalio/common/internal/internal-workflow';
 import { msOptionalToTs, optionalTsToDate, optionalTsToMs } from '@temporalio/common/internal/time';
 import { temporal } from '@temporalio/proto';
 import type { LoadedDataConverter, TypeInfo } from '@temporalio/common';

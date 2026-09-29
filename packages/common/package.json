@@ -57,10 +57,6 @@
       "default": "./lib/index.js"
     },
     "./package.json": "./package.json",
-    "./internal/converter/payload-search-attributes": {
-      "types": "./lib/converter/payload-search-attributes.d.ts",
-      "default": "./lib/converter/payload-search-attributes.js"
-    },
     "./internal/converter/protobuf-payload-converters": {
       "types": "./lib/converter/protobuf-payload-converters.d.ts",
       "default": "./lib/converter/protobuf-payload-converters.js"
@@ -136,9 +132,6 @@
   },
   "typesVersions": {
     "*": {
-      "internal/converter/payload-search-attributes": [
-        "lib/converter/payload-search-attributes.d.ts"
-      ],
       "internal/converter/protobuf-payload-converters": [
         "lib/converter/protobuf-payload-converters.d.ts"
       ],

@@ -1,5 +1,14 @@
 export * from './enums-helpers';
 export { ActivityCancellationType, encodeActivityCancellationType } from '../activity-options';
+export {
+  SearchAttributePayloadConverter,
+  TypedSearchAttributePayloadConverter,
+  searchAttributePayloadConverter,
+  typedSearchAttributePayloadConverter,
+  encodeUnifiedSearchAttributes,
+  decodeSearchAttributes,
+  decodeTypedSearchAttributes,
+} from '../converter/payload-search-attributes';
 // These are consumed through the internal-workflow package entry point.
 // ts-prune-ignore-next
 export { SYSTEM_NEXUS_PAYLOAD_METADATA_KEY } from './system-nexus';

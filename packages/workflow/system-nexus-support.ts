@@ -3,7 +3,7 @@ import { msToTs, requiredTsToMs } from '@temporalio/common/internal/time';
 import {
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
-} from '@temporalio/common/internal/converter/payload-search-attributes';
+} from '@temporalio/common/internal/internal-workflow';
 import type { google, temporal } from '@temporalio/proto';
 import { workflowInfo } from '../../../workflow';
 import { currentSystemNexusPayloadConversion } from '../user-payload-converter';

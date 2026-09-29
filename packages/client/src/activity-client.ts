@@ -27,7 +27,7 @@ import {
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
   searchAttributePayloadConverter,
-} from '@temporalio/common/internal/converter/payload-search-attributes';
+} from '@temporalio/common/internal/internal-workflow';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
