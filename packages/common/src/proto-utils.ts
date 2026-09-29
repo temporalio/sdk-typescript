@@ -23,15 +23,33 @@ export interface JSONPayload {
 // rejects them by default, whereas the proto3-json-serializer this replaced always ignored them.
 const PARSE_OPTIONS = { ignoreUnknownFields: true };
 
-// Cast to any because the generated proto module types are missing the lookupType method
-const patched = patchProtobufRoot(proto) as any;
-const historyType = patched.lookupType('temporal.api.history.v1.History');
-const payloadType = patched.lookupType('temporal.api.common.v1.Payload');
+let protoJsonTypes:
+  | {
+      patched: any;
+      historyType: any;
+      payloadType: any;
+    }
+  | undefined;
+
+function getProtoJsonTypes() {
+  if (protoJsonTypes === undefined) {
+    // Cast to any because the generated proto module types are missing the lookupType method
+    const patched = patchProtobufRoot(proto) as any;
+    protoJsonTypes = {
+      patched,
+      historyType: patched.lookupType('temporal.api.history.v1.History'),
+      payloadType: patched.lookupType('temporal.api.common.v1.Payload'),
+    };
+  }
+  return protoJsonTypes;
+}
 
 /**
  * Convert a proto JSON representation of History to a valid History object
  */
 export function historyFromJSON(history: unknown): History {
+  const { historyType } = getProtoJsonTypes();
+
   function pascalCaseToConstantCase(s: string) {
     return s.replace(/[^\b][A-Z]/g, (m) => `${m[0]}_${m[1]}`).toUpperCase();
   }
@@ -93,6 +111,7 @@ export function historyFromJSON(history: unknown): History {
  * string that adheres to the same norm as JSON history files produced by other Temporal tools.
  */
 export function historyToJSON(history: History): string {
+  const { historyType } = getProtoJsonTypes();
   const protoJson = toJson(historyType, proto.temporal.api.history.v1.History.fromObject(history) as any);
   return JSON.stringify(protoJson, null, 2);
 }
@@ -101,6 +120,7 @@ export function historyToJSON(history: History): string {
  * Convert from protobuf payload to JSON
  */
 export function payloadToJSON(payload: Payload): JSONPayload {
+  const { patched, payloadType } = getProtoJsonTypes();
   return toJson(payloadType, patched.temporal.api.common.v1.Payload.create(payload)) as any;
 }
 
@@ -108,6 +128,7 @@ export function payloadToJSON(payload: Payload): JSONPayload {
  * Convert from JSON to protobuf payload
  */
 export function JSONToPayload(json: JSONPayload): Payload {
+  const { payloadType } = getProtoJsonTypes();
   const loaded = fromJson(payloadType, json as any, PARSE_OPTIONS);
   if (loaded === null) {
     throw new TypeError('Invalid payload');

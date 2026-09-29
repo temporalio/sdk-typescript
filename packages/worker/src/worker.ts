@@ -43,6 +43,7 @@ import {
   ExternalStorageMetricsAccumulator,
   extstoreInboundOptions,
   extstoreStoreOptions,
+  historyFromJSON,
   suggestContinueAsNewReasonsFromProto,
   visit,
   walkActivityHeartbeat,
@@ -53,7 +54,6 @@ import {
   walkWorkflowActivation,
   walkWorkflowActivationCompletion,
 } from '@temporalio/common/internal/internal-non-workflow';
-import { historyFromJSON } from '@temporalio/common/internal/proto-utils';
 import type { Duration } from '@temporalio/common/internal/time';
 import {
   msToNumber,

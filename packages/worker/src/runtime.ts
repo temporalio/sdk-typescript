@@ -6,7 +6,7 @@ import { filterNullAndUndefined } from '@temporalio/common/internal/internal-wor
 import type { Logger, MetricMeter } from '@temporalio/common';
 import { IllegalStateError, MetricMeterWithComposedTags, noopMetricMeter, SdkComponent } from '@temporalio/common';
 import { coresdk, temporal } from '@temporalio/proto';
-import { History } from '@temporalio/common/internal/proto-utils';
+import type { History } from '@temporalio/common/internal/internal-non-workflow';
 import { isFlushableLogger } from './logger';
 import type { MetricsBuffer } from './runtime-metrics';
 import { RuntimeMetricMeter } from './runtime-metrics';

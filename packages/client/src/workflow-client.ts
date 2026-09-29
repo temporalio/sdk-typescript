@@ -34,7 +34,6 @@ import {
   extractWorkflowTypeAndConfig,
   ExternalStorageError,
 } from '@temporalio/common';
-import type { History } from '@temporalio/common/internal/proto-utils';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/internal/type-helpers';
 import {
   decodeArrayFromPayloads,
@@ -46,6 +45,7 @@ import {
   encodeUserMetadata,
   extstoreInboundOptions,
   extstoreStoreOptions,
+  type History,
   visit,
   walkDescribeWorkflowExecutionResponse,
   walkExecuteMultiOperationRequest,

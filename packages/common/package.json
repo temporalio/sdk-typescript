@@ -73,10 +73,6 @@
       "types": "./lib/internal-workflow/index.d.ts",
       "default": "./lib/internal-workflow/index.js"
     },
-    "./internal/proto-utils": {
-      "types": "./lib/proto-utils.d.ts",
-      "default": "./lib/proto-utils.js"
-    },
     "./internal/protobufs": {
       "types": "./lib/protobufs.d.ts",
       "default": "./lib/protobufs.js"
@@ -127,9 +123,6 @@
       ],
       "internal/internal-workflow": [
         "lib/internal-workflow/index.d.ts"
-      ],
-      "internal/proto-utils": [
-        "lib/proto-utils.d.ts"
       ],
       "internal/protobufs": [
         "lib/protobufs.d.ts"
