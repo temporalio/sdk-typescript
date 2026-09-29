@@ -8,11 +8,11 @@ import type { Decoded, Encoded, VisitOptions } from '@temporalio/common/internal
 import {
   decode,
   encode,
+  limit,
   visit,
   walkWorkflowActivation,
   walkWorkflowActivationCompletion,
 } from '@temporalio/common/internal/internal-non-workflow';
-import { limit } from '@temporalio/common/internal/concurrency/limit';
 import { coresdk } from '@temporalio/proto';
 import { decodeSystemNexusOutput, encodeSystemNexusInput, isSystemNexusEnvelope } from './system-nexus-operations';
 

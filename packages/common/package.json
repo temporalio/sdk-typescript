@@ -57,10 +57,6 @@
       "default": "./lib/index.js"
     },
     "./package.json": "./package.json",
-    "./internal/concurrency/limit": {
-      "types": "./lib/concurrency/limit.d.ts",
-      "default": "./lib/concurrency/limit.js"
-    },
     "./internal/continue-as-new": {
       "types": "./lib/continue-as-new.d.ts",
       "default": "./lib/continue-as-new.js"
@@ -144,9 +140,6 @@
   },
   "typesVersions": {
     "*": {
-      "internal/concurrency/limit": [
-        "lib/concurrency/limit.d.ts"
-      ],
       "internal/continue-as-new": [
         "lib/continue-as-new.d.ts"
       ],

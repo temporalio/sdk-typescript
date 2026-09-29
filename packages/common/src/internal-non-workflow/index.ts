@@ -3,6 +3,7 @@
  *
  * @module
  */
+export * from '../concurrency/limit';
 export * from './codec-helpers';
 export * from './codec-types';
 export * from './data-converter-helpers';
