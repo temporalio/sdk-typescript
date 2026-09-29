@@ -81,10 +81,6 @@
       "types": "./lib/time.d.ts",
       "default": "./lib/time.js"
     },
-    "./internal/user-metadata": {
-      "types": "./lib/user-metadata.d.ts",
-      "default": "./lib/user-metadata.js"
-    },
     "./internal/versioning-intent-enum": {
       "types": "./lib/versioning-intent-enum.d.ts",
       "default": "./lib/versioning-intent-enum.js"
@@ -128,9 +124,6 @@
       ],
       "lib/time": [
         "lib/time.d.ts"
-      ],
-      "internal/user-metadata": [
-        "lib/user-metadata.d.ts"
       ],
       "internal/versioning-intent-enum": [
         "lib/versioning-intent-enum.d.ts"

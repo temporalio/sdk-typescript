@@ -35,12 +35,12 @@ import {
   toPayloadsWithContext,
   TypedSearchAttributes,
 } from '@temporalio/common';
-import { userMetadataToPayload } from '@temporalio/common/internal/user-metadata';
 import {
   deepMerge,
   encodeUnifiedSearchAttributes,
   searchAttributePayloadConverter,
   throwIfReservedName,
+  userMetadataToPayload,
 } from '@temporalio/common/internal/internal-workflow';
 import { versioningIntentToProto } from '@temporalio/common/internal/versioning-intent-enum';
 import type { Duration } from '@temporalio/common/lib/time';
