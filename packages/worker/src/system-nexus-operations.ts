@@ -2,14 +2,18 @@ import type { Service as ProtobufService, Type as ProtobufType } from 'protobufj
 import type { Payload, SerializationContext } from '@temporalio/common';
 import { defaultPayloadConverter } from '@temporalio/common';
 import { ProtobufBinaryPayloadConverter } from '@temporalio/common/internal/protobufs';
-import { isSerializationContext } from '@temporalio/common/internal/converter/serialization-context';
 import {
   decodeSystemNexusEnvelopeBytes,
   SYSTEM_NEXUS_CONTEXT_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE,
 } from '@temporalio/common/internal/internal-workflow';
-import { type VisitOptions, visit, walkPayloadsInMessage } from '@temporalio/common/internal/internal-non-workflow';
+import {
+  isSerializationContext,
+  type VisitOptions,
+  visit,
+  walkPayloadsInMessage,
+} from '@temporalio/common/internal/internal-non-workflow';
 import * as protoRoot from '@temporalio/proto';
 import { operationRegistry } from '@temporalio/workflow/internal/nexus/system/generated/registry';
 
