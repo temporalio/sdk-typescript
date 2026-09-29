@@ -114,7 +114,7 @@ export {
   WorkflowReturnType,
   WorkflowSignalType,
 } from '@temporalio/common/internal/interfaces';
-export * from '@temporalio/common/internal/workflow-handle';
+export type { BaseWorkflowHandle, WorkflowQueryOptions, WorkflowSignalOptions } from '@temporalio/common';
 export * from '@temporalio/common/internal/workflow-options';
 export { AsyncLocalStorage, CancellationScope, CancellationScopeOptions } from './cancellation-scope';
 export * from './errors';

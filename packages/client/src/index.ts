@@ -52,7 +52,7 @@ export {
 export { TLSConfig } from '@temporalio/common/internal/internal-non-workflow';
 export * from '@temporalio/common/internal/errors';
 export * from '@temporalio/common/internal/interfaces';
-export * from '@temporalio/common/internal/workflow-handle';
+export type { BaseWorkflowHandle, WorkflowQueryOptions, WorkflowSignalOptions } from '@temporalio/common';
 export * from './async-completion-client';
 export * from './activity-client';
 export * from './client';
