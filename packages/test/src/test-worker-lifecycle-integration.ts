@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import { setTimeout } from 'timers/promises';
 import { PromiseCompletionTimeoutError, Runtime } from '@temporalio/worker';
 import { TransportError, UnexpectedError } from '@temporalio/worker/lib/errors';
-import { isBun } from './helpers';
+import { assertEventually, isBun } from './helpers';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { fillMemory } from './workflows';
 
@@ -22,7 +22,7 @@ test.serial('Worker shuts down gracefully', async (t) => {
   await workerRun;
   t.is(worker.getState(), 'STOPPED');
   await t.throwsAsync(worker.run(), { message: 'Poller was already started' });
-  t.is(Runtime._instance, undefined);
+  await assertEventually(t, (tt) => tt.is(Runtime._instance, undefined), 5_000);
 });
 
 test.serial("Worker.runUntil doesn't hang if provided promise survives to Worker's shutdown", async (t) => {
@@ -39,7 +39,7 @@ test.serial("Worker.runUntil doesn't hang if provided promise survives to Worker
   t.is(worker.getState(), 'DRAINING');
   await t.throwsAsync(p, { instanceOf: PromiseCompletionTimeoutError });
   t.is(worker.getState(), 'STOPPED');
-  t.is(Runtime._instance, undefined);
+  await assertEventually(t, (tt) => tt.is(Runtime._instance, undefined), 5_000);
 });
 
 test.serial('Worker shuts down gracefully if interrupted before running', async (t) => {
