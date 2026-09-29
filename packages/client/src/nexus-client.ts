@@ -4,6 +4,7 @@ import { v4 as uuid4 } from 'uuid';
 import { composeInterceptors } from '@temporalio/common/internal/interceptors';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/internal/type-helpers';
 import {
+  decode,
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
   filterNullAndUndefined,
@@ -26,7 +27,6 @@ import { msOptionalToTs, optionalTsToDate, optionalTsToMs } from '@temporalio/co
 import { temporal } from '@temporalio/proto';
 import type { LoadedDataConverter, TypeInfo } from '@temporalio/common';
 import { ExternalStorageError } from '@temporalio/common';
-import { decode } from '@temporalio/common/internal/encoding';
 import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base-client';
 import { BaseClient, defaultBaseClientOptions } from './base-client';
 import { isGrpcServiceError, ServiceError } from './errors';

@@ -1,6 +1,5 @@
 import { readFileSync } from 'fs';
-import { filterNullAndUndefined } from '@temporalio/common/internal/internal-workflow';
-import { encode, decode } from '@temporalio/common/internal/encoding';
+import { decode, encode, filterNullAndUndefined } from '@temporalio/common/internal/internal-workflow';
 import type { ClientConfigProfile, ClientConfigTLS, ClientConfig, ConfigDataSource } from './types';
 import type { TomlClientConfig, TomlClientConfigProfile, TomlClientConfigTLS } from './envconfig-toml';
 import { normalizeGrpcMetaKey } from './envconfig-toml';

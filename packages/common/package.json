@@ -57,10 +57,6 @@
       "default": "./lib/index.js"
     },
     "./package.json": "./package.json",
-    "./internal/encoding": {
-      "types": "./lib/encoding.d.ts",
-      "default": "./lib/encoding.js"
-    },
     "./internal/errors": {
       "types": "./lib/errors.d.ts",
       "default": "./lib/errors.js"
@@ -124,9 +120,6 @@
   },
   "typesVersions": {
     "*": {
-      "internal/encoding": [
-        "lib/encoding.d.ts"
-      ],
       "internal/errors": [
         "lib/errors.d.ts"
       ],

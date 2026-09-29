@@ -1,5 +1,5 @@
 import type { TLSConfig } from '@temporalio/common/internal/internal-non-workflow';
-import { decode } from '@temporalio/common/internal/encoding';
+import { decode } from '@temporalio/common/internal/internal-workflow';
 import {
   configToTomlData,
   loadFromTomlData,

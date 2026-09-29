@@ -1,4 +1,4 @@
-import { decode } from '@temporalio/common/internal/encoding';
+import { decode } from '@temporalio/common/internal/internal-workflow';
 import { ApplicationFailure } from '@temporalio/workflow';
 
 export async function argsAndReturn(greeting: string, _skip: undefined, arr: Uint8Array): Promise<string> {
