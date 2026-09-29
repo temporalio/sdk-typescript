@@ -1,8 +1,8 @@
 import test from 'ava';
 import { ValueError } from '@temporalio/common';
-import type { Payload } from '@temporalio/common';
 import {
   ExternalStorage,
+  type Payload,
   type StorageDriver,
   type StorageDriverClaim,
   type StorageDriverRetrieveContext,

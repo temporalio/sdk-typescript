@@ -3,9 +3,9 @@ import { createHash } from 'node:crypto';
 import test from 'ava';
 import * as proto from '@temporalio/proto';
 import { ValueError } from '@temporalio/common';
-import type { Payload } from '@temporalio/common';
 import {
   StorageDriverClaim,
+  type Payload,
   type StorageDriverLimiter,
   type StorageDriverStoreContext,
 } from '@temporalio/common';
