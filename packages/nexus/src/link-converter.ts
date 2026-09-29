@@ -10,6 +10,7 @@ type NexusOperationLink = temporal.api.common.v1.Link.INexusOperation;
 type ActivityLink = temporal.api.common.v1.Link.IActivity;
 type EventReference = temporal.api.common.v1.Link.WorkflowEvent.IEventReference;
 type RequestIdReference = temporal.api.common.v1.Link.WorkflowEvent.IRequestIdReference;
+type EventTypeValue = temporal.api.enums.v1.EventType;
 
 const LINK_EVENT_ID_PARAM = 'eventID';
 const LINK_EVENT_TYPE_PARAM = 'eventType';
@@ -80,11 +81,7 @@ export function convertWorkflowEventLinkToNexusLink(we: WorkflowEventLink): Nexu
   if (!we.namespace || !we.workflowId || !we.runId) {
     throw new TypeError('Missing required fields: namespace, workflowId, or runId');
   }
-  const url = new URL(
-    `temporal:///namespaces/${encodeURIComponent(we.namespace)}/workflows/${encodeURIComponent(
-      we.workflowId
-    )}/${encodeURIComponent(we.runId)}/history`
-  );
+  const url = buildTemporalLinkUrl('workflows', we.namespace, we.workflowId, we.runId, 'history');
 
   if (we.eventRef != null) {
     url.search = convertLinkWorkflowEventEventReferenceToURLQuery(we.eventRef);
@@ -119,11 +116,7 @@ export function convertWorkflowLinkToNexusLink(wl: WorkflowLink): NexusLink {
       `Missing required fields: namespace, workflowId, or runId (namespace=${wl.namespace}, workflowId=${wl.workflowId}, runId=${wl.runId})`
     );
   }
-  const url = new URL(
-    `temporal:///namespaces/${encodeURIComponent(wl.namespace)}/workflows/${encodeURIComponent(
-      wl.workflowId
-    )}/${encodeURIComponent(wl.runId)}`
-  );
+  const url = buildTemporalLinkUrl('workflows', wl.namespace, wl.workflowId, wl.runId);
 
   if (wl.reason) {
     const params = new URLSearchParams();
@@ -160,6 +153,19 @@ export function convertNexusLinkToWorkflowLink(link: NexusLink): WorkflowLink {
 }
 
 /**
+ * Builds a Temporal link URL of the shape `/namespaces/:namespace/:collection/:id/:runId[/:tail]`.
+ *
+ * The mirror of {@link parseTemporalLinkPath}: the two share one description of the path shape, so
+ * a change to one has an obvious counterpart in the other.
+ */
+function buildTemporalLinkUrl(collection: string, namespace: string, id: string, runId: string, tail?: string): URL {
+  const path = `/namespaces/${encodeURIComponent(namespace)}/${collection}/${encodeURIComponent(
+    id
+  )}/${encodeURIComponent(runId)}`;
+  return new URL(`temporal://${path}${tail == null ? '' : `/${tail}`}`);
+}
+
+/**
  * Validates a Temporal link path of the shape `/namespaces/:namespace/:collection/:id/:runId[/:tail]`
  * and returns its three decoded variable segments.
  *
@@ -185,11 +191,7 @@ export function convertNexusOperationLinkToNexusLink(opLink: NexusOperationLink)
     throw new TypeError('Missing required fields: namespace, operationId, or runId');
   }
 
-  const url = new URL(
-    `temporal:///namespaces/${encodeURIComponent(opLink.namespace)}/nexus-operations/${encodeURIComponent(
-      opLink.operationId
-    )}/${encodeURIComponent(opLink.runId)}/details`
-  );
+  const url = buildTemporalLinkUrl('nexus-operations', opLink.namespace, opLink.operationId, opLink.runId, 'details');
 
   return {
     url,
@@ -202,10 +204,12 @@ export function convertActivityLinkToNexusLink(activityLink: ActivityLink): Nexu
     throw new TypeError('Missing required fields: namespace, activityId, or runId');
   }
 
-  const url = new URL(
-    `temporal:///namespaces/${encodeURIComponent(activityLink.namespace)}/activities/${encodeURIComponent(
-      activityLink.activityId
-    )}/${encodeURIComponent(activityLink.runId)}/details`
+  const url = buildTemporalLinkUrl(
+    'activities',
+    activityLink.namespace,
+    activityLink.activityId,
+    activityLink.runId,
+    'details'
   );
 
   return {
@@ -280,8 +284,7 @@ function convertLinkWorkflowEventEventReferenceToURLQuery(eventRef: EventReferen
     }
   }
   if (eventRef.eventType != null) {
-    const eventType = constantCaseToPascalCase(EventType[eventRef.eventType].replace('EVENT_TYPE_', ''));
-    params.set(LINK_EVENT_TYPE_PARAM, eventType);
+    params.set(LINK_EVENT_TYPE_PARAM, eventTypeToParam(eventRef.eventType));
   }
   return params.toString();
 }
@@ -292,14 +295,7 @@ function convertURLQueryToLinkWorkflowEventEventReference(query: URLSearchParams
   if (eventIdParam && /^\d+$/.test(eventIdParam)) {
     eventId = parseInt(eventIdParam, 10);
   }
-  const eventTypeParam = query.get(LINK_EVENT_TYPE_PARAM);
-  if (!eventTypeParam) {
-    throw new TypeError(`Missing eventType parameter`);
-  }
-  const eventType = EventType[normalizeEnumValue(eventTypeParam, 'EVENT_TYPE') as keyof typeof EventType];
-  if (eventType == null) {
-    throw new TypeError(`Unknown eventType parameter: ${eventTypeParam}`);
-  }
+  const eventType = eventTypeFromQuery(query);
   return { eventId: Long.fromNumber(eventId), eventType };
 }
 
@@ -310,14 +306,27 @@ function convertLinkWorkflowEventRequestIdReferenceToURLQuery(requestIdRef: Requ
     params.set(LINK_REQUEST_ID_PARAM, requestIdRef.requestId);
   }
   if (requestIdRef.eventType != null) {
-    const eventType = constantCaseToPascalCase(EventType[requestIdRef.eventType].replace('EVENT_TYPE_', ''));
-    params.set(LINK_EVENT_TYPE_PARAM, eventType);
+    params.set(LINK_EVENT_TYPE_PARAM, eventTypeToParam(requestIdRef.eventType));
   }
   return params.toString();
 }
 
 function convertURLQueryToLinkWorkflowEventRequestIdReference(query: URLSearchParams): RequestIdReference {
   const requestId = query.get(LINK_REQUEST_ID_PARAM);
+  const eventType = eventTypeFromQuery(query);
+  return { requestId, eventType };
+}
+
+/** Renders an event type as the short PascalCase name used on the wire. */
+function eventTypeToParam(eventType: EventTypeValue): string {
+  return constantCaseToPascalCase(EventType[eventType].replace('EVENT_TYPE_', ''));
+}
+
+/**
+ * Reads the event type from the query, accepting both the prefixed proto name and the short
+ * PascalCase name since either may arrive on the wire.
+ */
+function eventTypeFromQuery(query: URLSearchParams): EventTypeValue {
   const eventTypeParam = query.get(LINK_EVENT_TYPE_PARAM);
   if (!eventTypeParam) {
     throw new TypeError(`Missing eventType parameter`);
@@ -326,7 +335,7 @@ function convertURLQueryToLinkWorkflowEventRequestIdReference(query: URLSearchPa
   if (eventType == null) {
     throw new TypeError(`Unknown eventType parameter: ${eventTypeParam}`);
   }
-  return { requestId, eventType };
+  return eventType;
 }
 
 function normalizeEnumValue(value: string, prefix: string) {

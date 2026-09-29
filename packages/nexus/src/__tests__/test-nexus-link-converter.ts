@@ -499,3 +499,43 @@ test('Workflow link reason round trips a literal plus', (t) => {
   t.is(nexusLink.url.search, '?reason=a%2Bb');
   t.is(convertNexusLinkToWorkflowLink(nexusLink).reason, 'a+b');
 });
+
+test('every link type escapes its IDs and parses them back', (t) => {
+  // All four link types share one URL builder and one path parser, so each is checked against both:
+  // the exact path pins the encoding, and the round trip pins that the parser reads it back. A slash
+  // must stay inside its segment, and a space must be %20 rather than '+', which a path decoder
+  // reads as a literal plus.
+  const id = 'a/b c+d%e';
+  const escaped = 'a%2Fb%20c%2Bd%25e';
+  const cases = [
+    {
+      link: {
+        workflowEvent: {
+          namespace: id,
+          workflowId: id,
+          runId: id,
+          eventRef: makeEventRef(1, 'EVENT_TYPE_WORKFLOW_EXECUTION_STARTED'),
+        },
+      },
+      path: `/namespaces/${escaped}/workflows/${escaped}/${escaped}/history`,
+    },
+    {
+      link: { workflow: { namespace: id, workflowId: id, runId: id } },
+      path: `/namespaces/${escaped}/workflows/${escaped}/${escaped}`,
+    },
+    {
+      link: { nexusOperation: { namespace: id, operationId: id, runId: id } },
+      path: `/namespaces/${escaped}/nexus-operations/${escaped}/${escaped}/details`,
+    },
+    {
+      link: { activity: { namespace: id, activityId: id, runId: id } },
+      path: `/namespaces/${escaped}/activities/${escaped}/${escaped}/details`,
+    },
+  ];
+
+  for (const { link, path } of cases) {
+    const nexusLink = convertTemporalLinkToNexusLink(link);
+    t.is(nexusLink.url.pathname, path);
+    t.deepEqual(convertNexusLinkToTemporalLink(nexusLink), link);
+  }
+});
