@@ -43,6 +43,7 @@ import {
   ExternalStorageMetricsAccumulator,
   extstoreInboundOptions,
   extstoreStoreOptions,
+  suggestContinueAsNewReasonsFromProto,
   visit,
   walkActivityHeartbeat,
   walkActivityTask,
@@ -72,7 +73,6 @@ import type { temporal } from '@temporalio/proto';
 import { coresdk } from '@temporalio/proto';
 import { type SinkCall, type WorkflowInfo } from '@temporalio/workflow';
 import { throwIfReservedName } from '@temporalio/common/internal/reserved';
-import { suggestContinueAsNewReasonsFromProto } from '@temporalio/common/internal/continue-as-new';
 import type { CancelReason } from './activity';
 import { Activity, activityLogAttributes } from './activity';
 import type { NativeConnection } from './connection';

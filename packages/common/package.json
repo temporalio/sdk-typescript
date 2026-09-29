@@ -57,10 +57,6 @@
       "default": "./lib/index.js"
     },
     "./package.json": "./package.json",
-    "./internal/continue-as-new": {
-      "types": "./lib/continue-as-new.d.ts",
-      "default": "./lib/continue-as-new.js"
-    },
     "./internal/converter/payload-search-attributes": {
       "types": "./lib/converter/payload-search-attributes.d.ts",
       "default": "./lib/converter/payload-search-attributes.js"
@@ -140,9 +136,6 @@
   },
   "typesVersions": {
     "*": {
-      "internal/continue-as-new": [
-        "lib/continue-as-new.d.ts"
-      ],
       "internal/converter/payload-search-attributes": [
         "lib/converter/payload-search-attributes.d.ts"
       ],

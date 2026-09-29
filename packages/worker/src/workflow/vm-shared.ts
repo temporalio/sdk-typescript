@@ -7,7 +7,7 @@ import { URL, URLSearchParams } from 'node:url';
 import { TextDecoder, TextEncoder } from 'node:util';
 import { SourceMapConsumer } from 'source-map';
 import { cutoffStackTrace, IllegalStateError, convertDeploymentVersion } from '@temporalio/common';
-import { suggestContinueAsNewReasonsFromProto } from '@temporalio/common/internal/continue-as-new';
+import { suggestContinueAsNewReasonsFromProto } from '@temporalio/common/internal/internal-non-workflow';
 import { tsToMs } from '@temporalio/common/internal/time';
 import { coresdk } from '@temporalio/proto';
 import type { StackTraceFileLocation } from '@temporalio/workflow';
