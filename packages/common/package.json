@@ -57,10 +57,6 @@
       "default": "./lib/index.js"
     },
     "./package.json": "./package.json",
-    "./internal/activity-options": {
-      "types": "./lib/activity-options.d.ts",
-      "default": "./lib/activity-options.js"
-    },
     "./internal/concurrency/limit": {
       "types": "./lib/concurrency/limit.d.ts",
       "default": "./lib/concurrency/limit.js"
@@ -148,9 +144,6 @@
   },
   "typesVersions": {
     "*": {
-      "internal/activity-options": [
-        "lib/activity-options.d.ts"
-      ],
       "internal/concurrency/limit": [
         "lib/concurrency/limit.d.ts"
       ],
