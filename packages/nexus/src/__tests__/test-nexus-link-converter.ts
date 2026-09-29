@@ -500,40 +500,42 @@ test('Workflow link reason round trips a literal plus', (t) => {
   t.is(convertNexusLinkToWorkflowLink(nexusLink).reason, 'a+b');
 });
 
-test('every link type escapes its IDs into a single path segment', (t) => {
-  // IDs are user supplied, so a slash in one must not add a path segment and forge a different
-  // link shape. Asserted for all four types because they share one URL builder.
-  t.is(
-    convertWorkflowEventLinkToNexusLink({
-      namespace: 'ns',
-      workflowId: 'a/b',
-      runId: 'r',
-      eventRef: makeEventRef(1, 'EVENT_TYPE_WORKFLOW_EXECUTION_STARTED'),
-    }).url.pathname,
-    '/namespaces/ns/workflows/a%2Fb/r/history'
-  );
-  t.is(
-    convertWorkflowLinkToNexusLink({ namespace: 'ns', workflowId: 'a/b', runId: 'r' }).url.pathname,
-    '/namespaces/ns/workflows/a%2Fb/r'
-  );
-  t.is(
-    convertNexusOperationLinkToNexusLink({ namespace: 'ns', operationId: 'a/b', runId: 'r' }).url.pathname,
-    '/namespaces/ns/nexus-operations/a%2Fb/r/details'
-  );
-  t.is(
-    convertActivityLinkToNexusLink({ namespace: 'ns', activityId: 'a/b', runId: 'r' }).url.pathname,
-    '/namespaces/ns/activities/a%2Fb/r/details'
-  );
-});
+test('every link type escapes its IDs and parses them back', (t) => {
+  // All four link types share one URL builder and one path parser, so each is checked against both:
+  // the exact path pins the encoding, and the round trip pins that the parser reads it back. A slash
+  // must stay inside its segment, and a space must be %20 rather than '+', which a path decoder
+  // reads as a literal plus.
+  const id = 'a/b c+d%e';
+  const escaped = 'a%2Fb%20c%2Bd%25e';
+  const cases = [
+    {
+      link: {
+        workflowEvent: {
+          namespace: id,
+          workflowId: id,
+          runId: id,
+          eventRef: makeEventRef(1, 'EVENT_TYPE_WORKFLOW_EXECUTION_STARTED'),
+        },
+      },
+      path: `/namespaces/${escaped}/workflows/${escaped}/${escaped}/history`,
+    },
+    {
+      link: { workflow: { namespace: id, workflowId: id, runId: id } },
+      path: `/namespaces/${escaped}/workflows/${escaped}/${escaped}`,
+    },
+    {
+      link: { nexusOperation: { namespace: id, operationId: id, runId: id } },
+      path: `/namespaces/${escaped}/nexus-operations/${escaped}/${escaped}/details`,
+    },
+    {
+      link: { activity: { namespace: id, activityId: id, runId: id } },
+      path: `/namespaces/${escaped}/activities/${escaped}/${escaped}/details`,
+    },
+  ];
 
-test('every link type encodes a space as %20, never +', (t) => {
-  // A '+' in a path is a literal plus to the decoder, so a space encoded that way is lost.
-  t.is(
-    convertWorkflowLinkToNexusLink({ namespace: 'ns', workflowId: 'a b', runId: 'r' }).url.pathname,
-    '/namespaces/ns/workflows/a%20b/r'
-  );
-  t.is(
-    convertActivityLinkToNexusLink({ namespace: 'ns', activityId: 'a b', runId: 'r' }).url.pathname,
-    '/namespaces/ns/activities/a%20b/r/details'
-  );
+  for (const { link, path } of cases) {
+    const nexusLink = convertTemporalLinkToNexusLink(link);
+    t.is(nexusLink.url.pathname, path);
+    t.deepEqual(convertNexusLinkToTemporalLink(nexusLink), link);
+  }
 });
