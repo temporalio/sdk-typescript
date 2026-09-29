@@ -5,6 +5,7 @@ export { composeInterceptors, composeInterceptorsWith } from '../interceptors';
 export * from '../reserved';
 export * from '../type-helpers';
 export { type UserMetadata, userMetadataToPayload } from '../user-metadata';
+export * from '../versioning-intent-enum';
 export {
   SearchAttributePayloadConverter,
   TypedSearchAttributePayloadConverter,
