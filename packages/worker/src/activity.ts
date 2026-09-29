@@ -22,7 +22,7 @@ import {
   SdkComponent,
 } from '@temporalio/common';
 import { encodeErrorToFailure, encodeToPayload } from '@temporalio/common/internal/internal-non-workflow';
-import { composeInterceptors } from '@temporalio/common/internal/interceptors';
+import { composeInterceptors } from '@temporalio/common/internal/internal-workflow';
 import { isAbortError } from '@temporalio/common/internal/type-helpers';
 import type { Client } from '@temporalio/client';
 import type { coresdk } from '@temporalio/proto';

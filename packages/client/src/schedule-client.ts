@@ -1,14 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { status as grpcStatus } from '@grpc/grpc-js';
-import { ExternalStorageError, type Workflow } from '@temporalio/common';
+import { ExternalStorageError, type Headers, type Workflow } from '@temporalio/common';
 import {
+  composeInterceptors,
   decodeSearchAttributes,
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
   filterNullAndUndefined,
 } from '@temporalio/common/internal/internal-workflow';
-import type { Headers } from '@temporalio/common/internal/interceptors';
-import { composeInterceptors } from '@temporalio/common/internal/interceptors';
 import {
   encodeMapToPayloads,
   decodeMapFromPayloads,

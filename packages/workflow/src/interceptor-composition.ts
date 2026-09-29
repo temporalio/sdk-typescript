@@ -1,4 +1,5 @@
-import { composeInterceptorsWith, type Next } from '@temporalio/common/internal/interceptors';
+import type { Next } from '@temporalio/common';
+import { composeInterceptorsWith } from '@temporalio/common/internal/internal-workflow';
 import { getActivator } from './global-attributes';
 
 /**

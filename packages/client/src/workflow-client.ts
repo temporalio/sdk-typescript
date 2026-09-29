@@ -34,7 +34,6 @@ import {
   extractWorkflowTypeAndConfig,
   ExternalStorageError,
 } from '@temporalio/common';
-import { composeInterceptors } from '@temporalio/common/internal/interceptors';
 import type { History } from '@temporalio/common/internal/proto-utils';
 import { SymbolBasedInstanceOfError } from '@temporalio/common/internal/type-helpers';
 import {
@@ -63,7 +62,11 @@ import {
   walkUpdateWorkflowExecutionRequest,
   walkUpdateWorkflowExecutionResponse,
 } from '@temporalio/common/internal/internal-non-workflow';
-import { encodeUnifiedSearchAttributes, filterNullAndUndefined } from '@temporalio/common/internal/internal-workflow';
+import {
+  composeInterceptors,
+  encodeUnifiedSearchAttributes,
+  filterNullAndUndefined,
+} from '@temporalio/common/internal/internal-workflow';
 import { temporal } from '@temporalio/proto';
 import {
   ServiceError,

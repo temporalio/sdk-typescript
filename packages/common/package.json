@@ -61,10 +61,6 @@
       "types": "./lib/errors.d.ts",
       "default": "./lib/errors.js"
     },
-    "./internal/interceptors": {
-      "types": "./lib/interceptors.d.ts",
-      "default": "./lib/interceptors.js"
-    },
     "./internal/interfaces": {
       "types": "./lib/interfaces.d.ts",
       "default": "./lib/interfaces.js"
@@ -122,9 +118,6 @@
     "*": {
       "internal/errors": [
         "lib/errors.d.ts"
-      ],
-      "internal/interceptors": [
-        "lib/interceptors.d.ts"
       ],
       "internal/interfaces": [
         "lib/interfaces.d.ts"

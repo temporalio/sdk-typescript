@@ -1,6 +1,7 @@
 export * from './enums-helpers';
 export { ActivityCancellationType, encodeActivityCancellationType } from '../activity-options';
 export { decode, encode } from '../encoding';
+export { composeInterceptors, composeInterceptorsWith } from '../interceptors';
 export {
   SearchAttributePayloadConverter,
   TypedSearchAttributePayloadConverter,

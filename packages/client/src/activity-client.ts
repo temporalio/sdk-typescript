@@ -22,8 +22,8 @@ import {
 } from '@temporalio/common';
 import type { Duration } from '@temporalio/common/internal/time';
 import { msOptionalToTs, msToNumber, optionalTsToDate, optionalTsToMs } from '@temporalio/common/internal/time';
-import { composeInterceptors } from '@temporalio/common/internal/interceptors';
 import {
+  composeInterceptors,
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
   searchAttributePayloadConverter,
