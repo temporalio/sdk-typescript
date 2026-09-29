@@ -1,5 +1,5 @@
 import * as common from '@temporalio/common';
-import { msToTs, requiredTsToMs } from '@temporalio/common/internal/time';
+import { msToTs, requiredTsToMs } from '@temporalio/common/lib/time';
 import {
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,

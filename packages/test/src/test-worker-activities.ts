@@ -5,7 +5,7 @@ import dedent from 'dedent';
 import { activityInfo } from '@temporalio/activity';
 import { TemporalFailure, defaultPayloadConverter, toPayloads, ApplicationFailure } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
-import { tsToMs } from '@temporalio/common/internal/time';
+import { tsToMs } from '@temporalio/common/lib/time';
 import { httpGet } from './activities';
 import { cleanOptionalStackTrace, compareStackTrace, isBun } from './helpers';
 import type { Worker } from './mock-native-worker';

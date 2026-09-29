@@ -23,7 +23,7 @@ import {
   walkPollNexusOperationExecutionResponse,
   walkStartNexusOperationExecutionRequest,
 } from '@temporalio/common/internal/internal-non-workflow';
-import { msOptionalToTs, optionalTsToDate, optionalTsToMs } from '@temporalio/common/internal/time';
+import { msOptionalToTs, optionalTsToDate, optionalTsToMs } from '@temporalio/common/lib/time';
 import { temporal } from '@temporalio/proto';
 import type { LoadedDataConverter, TypeInfo } from '@temporalio/common';
 import { ExternalStorageError } from '@temporalio/common';

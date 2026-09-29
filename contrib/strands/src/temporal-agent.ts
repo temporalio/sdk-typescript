@@ -1,7 +1,7 @@
 import { Agent, AfterToolsEvent } from '@strands-agents/sdk';
 import type { AgentConfig } from '@strands-agents/sdk';
 import type { ActivityOptions } from '@temporalio/workflow';
-import type { Duration } from '@temporalio/common/internal/time';
+import type { Duration } from '@temporalio/common/lib/time';
 import { TemporalModel } from './temporal-model';
 import { TemporalMCPClient } from './temporal-mcp-client';
 

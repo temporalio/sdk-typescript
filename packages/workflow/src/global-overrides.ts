@@ -3,7 +3,7 @@
  *
  * @module
  */
-import { msToTs } from '@temporalio/common/internal/time';
+import { msToTs } from '@temporalio/common/lib/time';
 import { CancellationScope } from './cancellation-scope';
 import { currentRandom } from './current-random';
 import { DeterminismViolationError } from './errors';

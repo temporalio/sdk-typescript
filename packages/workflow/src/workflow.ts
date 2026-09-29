@@ -40,12 +40,12 @@ import {
   deepMerge,
   encodeUnifiedSearchAttributes,
   searchAttributePayloadConverter,
+  throwIfReservedName,
 } from '@temporalio/common/internal/internal-workflow';
 import { versioningIntentToProto } from '@temporalio/common/internal/versioning-intent-enum';
-import type { Duration } from '@temporalio/common/internal/time';
-import { msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/common/internal/time';
+import type { Duration } from '@temporalio/common/lib/time';
+import { msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/common/lib/time';
 import type { temporal } from '@temporalio/proto';
-import { throwIfReservedName } from '@temporalio/common/internal/reserved';
 import { eventGroupMarkersToProto, type EventGroup, type EventGroupsOptions } from './event-groups';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import { composeInterceptors } from './interceptor-composition';

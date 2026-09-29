@@ -5,7 +5,7 @@ import {
   type SerializationContext,
   toPayloadWithTypeInfo,
 } from '@temporalio/common';
-import { msOptionalToTs } from '@temporalio/common/internal/time';
+import { msOptionalToTs } from '@temporalio/common/lib/time';
 import { userMetadataToPayload } from '@temporalio/common/internal/user-metadata';
 import {
   makeProtoEnumConverters,

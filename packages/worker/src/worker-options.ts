@@ -10,13 +10,13 @@ import type {
   VersioningBehavior,
   WorkerDeploymentVersion,
 } from '@temporalio/common';
-import type { Duration } from '@temporalio/common/internal/time';
-import { msOptionalToNumber, msToNumber } from '@temporalio/common/internal/time';
+import type { Duration } from '@temporalio/common/lib/time';
+import { msOptionalToNumber, msToNumber } from '@temporalio/common/lib/time';
 import { loadDataConverter } from '@temporalio/common/internal/internal-non-workflow';
 import type { LoggerSinks, WorkflowInfo } from '@temporalio/workflow';
 import type { Context } from '@temporalio/activity';
 import type { native } from '@temporalio/core-bridge';
-import { throwIfReservedName } from '@temporalio/common/internal/reserved';
+import { throwIfReservedName } from '@temporalio/common/internal/internal-workflow';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import type { NativeConnection } from './connection';
 import type { CompiledWorkerInterceptors, WorkerInterceptors } from './interceptors';

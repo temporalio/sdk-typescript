@@ -1,5 +1,5 @@
 import * as activity from '@temporalio/activity';
-import { msToNumber, tsToMs } from '@temporalio/common/internal/time';
+import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
 import {
   cancelAbandonActivityBeforeStarted,
   cancellableScopesExtensiveChecksHelper,

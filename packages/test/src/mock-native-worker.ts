@@ -6,7 +6,7 @@ import {
   defaultPayloadConverter,
   fromPayloadsAtIndex,
 } from '@temporalio/common';
-import { msToTs } from '@temporalio/common/internal/time';
+import { msToTs } from '@temporalio/common/lib/time';
 import { coresdk } from '@temporalio/proto';
 import { DefaultLogger, Runtime, ShutdownError } from '@temporalio/worker';
 import { byteArrayToBuffer } from '@temporalio/worker/internal/utils';

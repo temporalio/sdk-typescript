@@ -13,7 +13,7 @@ import {
   toPayloads,
   TypedSearchAttributes,
 } from '@temporalio/common';
-import { msToTs } from '@temporalio/common/internal/time';
+import { msToTs } from '@temporalio/common/lib/time';
 import { coresdk, temporal } from '@temporalio/proto';
 import { sleep as workflowSleep, type WorkflowInfo } from '@temporalio/workflow';
 import { DefaultLogger, LogTimestamp, type LogEntry } from '@temporalio/worker';

@@ -4,7 +4,7 @@ import type { ConnectionOptions, InternalConnectionOptions } from '@temporalio/c
 import { InternalConnectionOptionsSymbol } from '@temporalio/client/internal/connection';
 import type { Duration } from '@temporalio/common';
 import { TypedSearchAttributes } from '@temporalio/common';
-import { msToNumber, msToTs, tsToMs } from '@temporalio/common/internal/time';
+import { msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
 import type { NativeConnectionPlugin, NativeConnectionOptions } from '@temporalio/worker';
 import { NativeConnection, Runtime } from '@temporalio/worker';
 import { native } from '@temporalio/core-bridge';

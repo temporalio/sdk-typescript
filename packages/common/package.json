@@ -77,11 +77,7 @@
       "types": "./lib/protobufs.d.ts",
       "default": "./lib/protobufs.js"
     },
-    "./internal/reserved": {
-      "types": "./lib/reserved.d.ts",
-      "default": "./lib/reserved.js"
-    },
-    "./internal/time": {
+    "./lib/time": {
       "types": "./lib/time.d.ts",
       "default": "./lib/time.js"
     },
@@ -134,10 +130,7 @@
       "lib/protobufs": [
         "lib/protobufs.d.ts"
       ],
-      "internal/reserved": [
-        "lib/reserved.d.ts"
-      ],
-      "internal/time": [
+      "lib/time": [
         "lib/time.d.ts"
       ],
       "internal/type-helpers": [

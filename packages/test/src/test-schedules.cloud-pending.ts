@@ -11,7 +11,7 @@ import type {
   ScheduleDescription,
 } from '@temporalio/client';
 import { defaultPayloadConverter, Client, Connection } from '@temporalio/client';
-import { msToNumber } from '@temporalio/common/internal/time';
+import { msToNumber } from '@temporalio/common/lib/time';
 import type { SearchAttributes } from '@temporalio/common';
 import { SearchAttributeType, TypedSearchAttributes, defineSearchAttributeKey } from '@temporalio/common';
 import { registerDefaultCustomSearchAttributes, RUN_INTEGRATION_TESTS, waitUntil } from './helpers';

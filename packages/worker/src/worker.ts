@@ -54,7 +54,7 @@ import {
   walkWorkflowActivation,
   walkWorkflowActivationCompletion,
 } from '@temporalio/common/internal/internal-non-workflow';
-import type { Duration } from '@temporalio/common/internal/time';
+import type { Duration } from '@temporalio/common/lib/time';
 import {
   msToNumber,
   optionalTsToDate,
@@ -62,7 +62,7 @@ import {
   requiredTsToMs,
   tsToDate,
   tsToMs,
-} from '@temporalio/common/internal/time';
+} from '@temporalio/common/lib/time';
 import type { NonNullableObject, OmitFirstParam } from '@temporalio/common/internal/type-helpers';
 import { errorMessage } from '@temporalio/common/internal/type-helpers';
 import { workflowLogAttributes } from '@temporalio/workflow/internal/logs';
@@ -72,7 +72,7 @@ import { Client } from '@temporalio/client';
 import type { temporal } from '@temporalio/proto';
 import { coresdk } from '@temporalio/proto';
 import { type SinkCall, type WorkflowInfo } from '@temporalio/workflow';
-import { throwIfReservedName } from '@temporalio/common/internal/reserved';
+import { throwIfReservedName } from '@temporalio/common/internal/internal-workflow';
 import type { CancelReason } from './activity';
 import { Activity, activityLogAttributes } from './activity';
 import type { NativeConnection } from './connection';

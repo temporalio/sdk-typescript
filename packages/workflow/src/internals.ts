@@ -38,14 +38,12 @@ import {
 import {
   decodeSearchAttributes,
   decodeTypedSearchAttributes,
+  ENHANCED_STACK_TRACE_QUERY_NAME,
   makeProtoEnumConverters,
+  STACK_TRACE_QUERY_NAME,
+  TEMPORAL_RESERVED_PREFIX,
 } from '@temporalio/common/internal/internal-workflow';
 import type { coresdk, temporal } from '@temporalio/proto';
-import {
-  TEMPORAL_RESERVED_PREFIX,
-  STACK_TRACE_QUERY_NAME,
-  ENHANCED_STACK_TRACE_QUERY_NAME,
-} from '@temporalio/common/internal/reserved';
 import type { RNG } from './alea';
 import { alea } from './alea';
 import { RootCancellationScope } from './cancellation-scope';

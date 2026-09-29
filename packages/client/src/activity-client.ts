@@ -20,8 +20,8 @@ import {
   decompileRetryPolicy,
   ExternalStorageError,
 } from '@temporalio/common';
-import type { Duration } from '@temporalio/common/internal/time';
-import { msOptionalToTs, msToNumber, optionalTsToDate, optionalTsToMs } from '@temporalio/common/internal/time';
+import type { Duration } from '@temporalio/common/lib/time';
+import { msOptionalToTs, msToNumber, optionalTsToDate, optionalTsToMs } from '@temporalio/common/lib/time';
 import {
   composeInterceptors,
   decodeTypedSearchAttributes,

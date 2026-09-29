@@ -8,8 +8,8 @@ import type {
   PayloadTypeInfo,
 } from '@temporalio/common';
 import { versioningOverrideToProto } from '@temporalio/common';
-import type { Duration } from '@temporalio/common/internal/time';
-import { msOptionalToTs } from '@temporalio/common/internal/time';
+import type { Duration } from '@temporalio/common/lib/time';
+import { msOptionalToTs } from '@temporalio/common/lib/time';
 import type { Replace } from '@temporalio/common/internal/type-helpers';
 import type { google, temporal } from '@temporalio/proto';
 

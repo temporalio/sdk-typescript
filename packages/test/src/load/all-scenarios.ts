@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
-import { msToNumber } from '@temporalio/common/internal/time';
+import { msToNumber } from '@temporalio/common/lib/time';
 import * as workflows from '../workflows';
 import type { Spec, AllInOneArgSpec } from './args';
 

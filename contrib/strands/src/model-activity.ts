@@ -1,7 +1,7 @@
 import { Message } from '@strands-agents/sdk';
 import type { Model, ModelStreamEvent, StreamOptions } from '@strands-agents/sdk';
 import { WorkflowStreamClient } from '@temporalio/workflow-streams/client';
-import type { Duration } from '@temporalio/common/internal/time';
+import type { Duration } from '@temporalio/common/lib/time';
 import { autoHeartbeat } from './heartbeat';
 
 /**

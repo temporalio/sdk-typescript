@@ -16,7 +16,7 @@ import type { Payload, PayloadCodec, PayloadTypeInfo } from '@temporalio/common'
 import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
 import type { Info } from '@temporalio/activity';
 import { activityInfo, heartbeat } from '@temporalio/activity';
-import { msToNumber } from '@temporalio/common/internal/time';
+import { msToNumber } from '@temporalio/common/lib/time';
 import type { TestWorkflowEnvironment } from './helpers';
 import { assertEventually, RUN_INTEGRATION_TESTS, waitUntil, Worker } from './helpers';
 import { echo, throwAnError } from './activities';

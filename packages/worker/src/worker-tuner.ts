@@ -1,6 +1,6 @@
 import { native } from '@temporalio/core-bridge';
-import type { Duration } from '@temporalio/common/internal/time';
-import { msToNumber } from '@temporalio/common/internal/time';
+import type { Duration } from '@temporalio/common/lib/time';
+import { msToNumber } from '@temporalio/common/lib/time';
 import type { Logger, WorkerDeploymentVersion } from '@temporalio/common';
 
 /**

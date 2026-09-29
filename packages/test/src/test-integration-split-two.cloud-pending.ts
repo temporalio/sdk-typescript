@@ -11,7 +11,7 @@ import {
   WorkflowNotFoundError,
 } from '@temporalio/common';
 import { searchAttributePayloadConverter } from '@temporalio/common/internal/internal-workflow';
-import { msToNumber, tsToMs } from '@temporalio/common/internal/time';
+import { msToNumber, tsToMs } from '@temporalio/common/lib/time';
 import {
   decode as payloadDecode,
   decodeFromPayloadsAtIndex,

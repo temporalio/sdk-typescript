@@ -1,7 +1,7 @@
 import type { AsyncLocalStorage as ALS } from 'node:async_hooks';
 import type { Duration } from '@temporalio/common';
 import { CancelledFailure, IllegalStateError } from '@temporalio/common';
-import { msOptionalToNumber } from '@temporalio/common/internal/time';
+import { msOptionalToNumber } from '@temporalio/common/lib/time';
 import { untrackPromise } from './stack-helpers';
 import { getActivator } from './global-attributes';
 import { SdkFlags } from './flags';

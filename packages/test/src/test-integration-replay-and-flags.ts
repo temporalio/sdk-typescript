@@ -1,5 +1,5 @@
 import asyncRetry from 'async-retry';
-import { tsToMs } from '@temporalio/common/internal/time';
+import { tsToMs } from '@temporalio/common/lib/time';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import {
   conditionTimeout0,
