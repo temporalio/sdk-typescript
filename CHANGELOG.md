@@ -46,6 +46,8 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- `@temporalio/ai-sdk` now supports MCP tool schemas when `ai` and `@ai-sdk/mcp` depend on
+  different versions of `@ai-sdk/provider-utils`.
 - `@temporalio/ai-sdk` now preserves text provider metadata when replaying streamed model responses
   inside Workflows.
 - The Workflow sandbox now exposes `atob` and `btoa`, allowing integrations such as `@temporalio/ai-sdk` to
