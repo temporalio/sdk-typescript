@@ -85,6 +85,17 @@ export const ACTIVITY_NODE_OUTSIDE_WORKFLOW_FAILURE_TYPE = 'GoogleAdkActivityNod
 export const ACTIVITY_NODE_NAME_FAILURE_TYPE = 'GoogleAdkActivityNodeName';
 
 /**
+ * Error type when a `<name>-listResources` / `<name>-readResource` Activity finds
+ * that the toolset its factory returned cannot serve MCP resources — it is a
+ * `BaseToolset` without ADK 2.0's `listResources` / `readResource` methods.
+ * Non-retryable, and raised inside the Activity, so it arrives wrapped in an
+ * `ActivityFailure`: match it through the `.cause` chain. A factory returning
+ * `MCPConnectionParams` never raises it: the plugin reads resources over a
+ * session it opens itself.
+ */
+export const MCP_RESOURCES_UNSUPPORTED_FAILURE_TYPE = 'GoogleAdkMCPResourcesUnsupported';
+
+/**
  * Error type for an ADK workflow-runtime node that exceeded its `timeout`.
  * ADK raises a plain `NodeTimeoutError`; the plugin converts it to a
  * non-retryable `ApplicationFailure` of this type as it leaves the Workflow

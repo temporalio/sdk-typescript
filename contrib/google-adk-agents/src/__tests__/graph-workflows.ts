@@ -1,7 +1,7 @@
 /**
- * Workflow fixtures for ADK 2.0's workflow (graph) runtime, dynamic nodes and
- * durable human-in-the-loop. Bundled into the sandbox through `workflows.ts`,
- * which re-exports this module.
+ * Workflow fixtures for ADK 2.0's workflow (graph) runtime, dynamic nodes,
+ * durable human-in-the-loop, MCP resources and model auto-routing. Bundled
+ * into the sandbox through `workflows.ts`, which re-exports this module.
  *
  * Every fixture runs the *native* ADK runtime inside the Workflow; the plugin
  * routes only model, Activity-node, activity-tool and MCP I/O to Activities.
@@ -9,6 +9,7 @@
 
 import {
   App,
+  ApigeeLlm,
   BasePlugin,
   BaseTool,
   createEvent,
@@ -18,10 +19,12 @@ import {
   isFinalResponse,
   JoinNode,
   LlmAgent,
+  LLMRegistry,
   node,
   PolicyOutcome,
   RequestInput,
   requestInputTool,
+  RoutedLlm,
   SecurityPlugin,
   stringifyContent,
   TruncatingContextCompactor,
@@ -50,6 +53,7 @@ import {
   hitlConfirmationResponse,
   HITL_RESPONSE_FAILURE_TYPE,
   hitlInputResponse,
+  loadMcpResourceTool,
   markModelFailureHandled,
   pendingHitlRequests,
   TemporalMCPToolset,
@@ -833,4 +837,144 @@ export async function dynamicResume(): Promise<RunOutcome & { turns: number }> {
     { name: 'driver', rerunOnResume: true }
   );
   return runWithHitl(new Workflow({ name: 'dynamic_resume', edges: [['START', driver]] }), 'go');
+}
+
+// ---------------------------------------------------------------------------
+// MCP resources
+// ---------------------------------------------------------------------------
+
+export async function mcpListResources(): Promise<string[]> {
+  return new TemporalMCPToolset({ name: 'testServer' }).listResources();
+}
+
+export async function mcpReadResource(name: string): Promise<unknown> {
+  // A single attempt, so an unknown resource fails the Workflow instead of retrying forever.
+  return new TemporalMCPToolset({ name: 'testServer', activity: { retry: { maximumAttempts: 1 } } }).readResource(name);
+}
+
+/** ADK's two-phase `load_mcp_resource` flow: ask for a resource, then answer with its contents. */
+export async function mcpLoadResourceAgent(turns: number, refreshResourceList = false): Promise<string[]> {
+  const toolset = new TemporalMCPToolset({ name: 'testServer' });
+  const agent = new LlmAgent({
+    name: 'assistant',
+    model: new TemporalModel('resource-model'),
+    instruction: 'Answer from resources.',
+    tools: [toolset, loadMcpResourceTool(toolset, { refreshResourceList })],
+  });
+  const runner = new InMemoryRunner({ agent });
+  const session = await runner.sessionService.createSession({ appName: runner.appName, userId: USER });
+  const texts: string[] = [];
+  for (let turn = 0; turn < turns; turn++) {
+    const { text } = await collect(
+      runner.runAsync({
+        userId: USER,
+        sessionId: session.id,
+        newMessage: { role: 'user', parts: [{ text: `turn-${turn}` }] },
+      })
+    );
+    texts.push(text);
+  }
+  return texts;
+}
+
+/**
+ * The same flow against a server whose Activities fail. Like ADK, the tool logs
+ * and skips both the listing and the read, so the turn still answers.
+ */
+export async function mcpLoadResourceAgentFailing(): Promise<string> {
+  // `maximumAttempts` is deliberately left alone, so this exercises the bounded
+  // default the resource Activities apply; only the backoff is shortened.
+  const toolset = new TemporalMCPToolset({
+    name: 'brokenServer',
+    activity: { retry: { initialInterval: '1 millisecond' } },
+  });
+  const agent = new LlmAgent({
+    name: 'assistant',
+    model: new TemporalModel('resource-model'),
+    instruction: 'Answer from resources.',
+    tools: [loadMcpResourceTool(toolset)],
+  });
+  const { text } = await runOnce(agent, 'go');
+  return text;
+}
+
+/**
+ * The same flow against a server whose read hangs until its Activity is
+ * cancelled. Cancelling the Workflow must end that Activity cancelled on its
+ * first attempt, and the tool must re-raise the cancellation rather than log and
+ * skip it, so this Workflow ends cancelled instead of answering.
+ *
+ * `WAIT_CANCELLATION_COMPLETED` is what makes the outcome observable: under the
+ * default `TRY_CANCEL` the Workflow stops waiting the moment it requests the
+ * cancel, so it closes before the Activity reports how it ended. The
+ * `heartbeatTimeout` is what makes it prompt: an Activity is told about a cancel
+ * in its heartbeat response, and the plugin heartbeats at half that timeout.
+ * `maximumAttempts` is set explicitly to show retries were on the table.
+ */
+export async function mcpLoadResourceAgentCancelled(): Promise<string> {
+  const toolset = new TemporalMCPToolset({
+    name: 'hangingServer',
+    activity: {
+      startToCloseTimeout: '20 seconds',
+      heartbeatTimeout: '6 seconds',
+      retry: { maximumAttempts: 3, initialInterval: '1 second' },
+      cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
+    },
+  });
+  const agent = new LlmAgent({
+    name: 'assistant',
+    model: new TemporalModel('resource-model'),
+    instruction: 'Answer from resources.',
+    tools: [loadMcpResourceTool(toolset)],
+  });
+  const { text } = await runOnce(agent, 'go');
+  return text;
+}
+
+// ---------------------------------------------------------------------------
+// Model auto-routing
+// ---------------------------------------------------------------------------
+
+/** An agent configured with a raw model string, as in vanilla ADK code. */
+export async function rawModelStringAgent(model: string): Promise<{ text: string; errorMessage?: string }> {
+  const agent = new LlmAgent({ name: 'assistant', model, instruction: 'Help.' });
+  const { text, errorMessage } = await runOnce(agent, 'hi');
+  return { text, errorMessage };
+}
+
+/** A `RoutedLlm` over two `TemporalModel`s; the router picks by key. */
+export async function routedLlmAgent(pick: 'a' | 'b'): Promise<string> {
+  const model = new RoutedLlm({
+    models: { a: new TemporalModel('fake-a'), b: new TemporalModel('fake-b') },
+    router: () => pick,
+  });
+  const agent = new LlmAgent({ name: 'assistant', model, instruction: 'Help.' });
+  const { text } = await runOnce(agent, 'hi');
+  return text;
+}
+
+/**
+ * What the sandbox registry resolves built-in model patterns to: one name per
+ * entry of `Gemini.supportedModels` and `ApigeeLlm.supportedModels`, so an
+ * override that covered only the plain `gemini-*` pattern would show up here.
+ * `apigeeIsBuiltIn` additionally pins identity, proving the class the registry
+ * holds is the same `ApigeeLlm` object this module imports (the sandbox has one
+ * copy of ADK's shimmed `apigee_llm.js`, reached both directly and through
+ * `dist/web/common.js`) — which is what makes the in-place override possible.
+ */
+export async function registryResolveProbe(): Promise<{
+  gemini: string;
+  vertexEndpoint: string;
+  vertexGemini: string;
+  apigee: string;
+  apigeeIsBuiltIn: boolean;
+}> {
+  const apigee = LLMRegistry.resolve('apigee/gemini-2.5-flash');
+  return {
+    gemini: LLMRegistry.resolve('gemini-2.5-flash').name,
+    vertexEndpoint: LLMRegistry.resolve('projects/p/locations/l/endpoints/e').name,
+    vertexGemini: LLMRegistry.resolve('projects/p/locations/l/publishers/google/models/gemini-2.5-flash').name,
+    apigee: apigee.name,
+    apigeeIsBuiltIn: apigee === (ApigeeLlm as unknown),
+  };
 }

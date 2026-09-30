@@ -29,23 +29,26 @@ to docs, or any other relevant information.
 
 ### Added
 
-- `@temporalio/google-adk-agents` supports Google ADK 2.0 inside Workflows:
-  - the Workflow bundle now uses ADK's web build, pinned regardless of the consumer's webpack
-    target, and ADK's UUIDs are generated from a named workflow random stream inside the sandbox,
-    so its ids are replay-stable;
+- `@temporalio/google-adk-agents` supports Google ADK 2.0's TypeScript feature set inside Workflows:
   - the workflow (graph) runtime — `Workflow`, `node()`, `JoinNode`, routing, dynamic nodes,
-    node-as-tool, node retries and timeouts — runs unchanged; `activityNode` makes a registered
-    Activity a graph node, and its deadline (or a sibling's failure) cancels the in-flight
-    Activity and waits for that cancellation to settle before failing the node;
+    `RequestInput`, node-as-tool, node retries and timeouts — runs unchanged; `activityNode` makes a
+    registered Activity a graph node, and its deadline (or a sibling's failure) cancels the
+    in-flight Activity and waits for that cancellation to settle before failing the node;
   - durable human-in-the-loop: `pendingHitlRequests`, `hitlInputResponse` and
     `hitlConfirmationResponse` supply ADK's wire format (refusing an answer with a
     `GoogleAdkHitlResponseError` `ApplicationFailure`, so building the response in a Signal or
     Update handler rejects the call rather than failing the Workflow Task), and `activityAsTool` /
     `TemporalMCPToolset` gain `requireConfirmation` so an Activity or MCP tool call runs only once
     a human approves;
+  - MCP resources: `TemporalMCPToolset.listResources` / `readResource` and `loadMcpResourceTool`,
+    backed by `<name>-listResources` / `<name>-readResource` Activities;
+  - raw model strings (`model: 'gemini-2.5-flash'`) resolve to `TemporalModel` inside a Workflow
+    (`GoogleAdkPluginOptions.autoRouteModels`, default on);
   - ADK's runtime errors (`NodeTimeoutError`, `IntentMismatchError`, …) fail the Workflow with typed
     `ApplicationFailure`s (`ADK_RUNTIME_FAILURE_TYPES`) instead of retrying the Workflow Task
-    forever.
+    forever;
+  - ADK's UUIDs are generated from a named workflow random stream inside the sandbox, so interrupt
+    and function-call ids are replay-stable. The Workflow bundle now uses ADK's web build.
 - **Experimental**: Workflows can signal another Workflow and start it when absent with
   `signalWithStartWorkflow`.
 - **Experimental**: Workflow outbound interceptors can intercept Temporal System Nexus calls
