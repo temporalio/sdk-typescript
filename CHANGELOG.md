@@ -29,9 +29,17 @@ to docs, or any other relevant information.
 
 ### Added
 
-- `@temporalio/google-adk-agents` runs on Google ADK 2.0: the Workflow bundle now uses ADK's web
-  build, pinned regardless of the consumer's webpack target, and ADK's UUIDs are generated from a
-  named workflow random stream inside the sandbox, so its ids are replay-stable.
+- `@temporalio/google-adk-agents` supports Google ADK 2.0 inside Workflows:
+  - the Workflow bundle now uses ADK's web build, pinned regardless of the consumer's webpack
+    target, and ADK's UUIDs are generated from a named workflow random stream inside the sandbox,
+    so its ids are replay-stable;
+  - the workflow (graph) runtime — `Workflow`, `node()`, `JoinNode`, routing, dynamic nodes,
+    node-as-tool, node retries and timeouts — runs unchanged; `activityNode` makes a registered
+    Activity a graph node, and its deadline (or a sibling's failure) cancels the in-flight
+    Activity and waits for that cancellation to settle before failing the node;
+  - ADK's runtime errors (`NodeTimeoutError`, `IntentMismatchError`, …) fail the Workflow with typed
+    `ApplicationFailure`s (`ADK_RUNTIME_FAILURE_TYPES`) instead of retrying the Workflow Task
+    forever.
 - **Experimental**: Workflows can signal another Workflow and start it when absent with
   `signalWithStartWorkflow`.
 - **Experimental**: Workflow outbound interceptors can intercept Temporal System Nexus calls

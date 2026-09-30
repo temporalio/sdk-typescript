@@ -20,7 +20,7 @@ import { BaseLlm, LLMRegistry, type BaseLlmConnection, type LlmRequest, type Llm
 import { ApplicationFailure, type Duration } from '@temporalio/common';
 import { type ActivityOptions, inWorkflowContext, proxyActivities } from '@temporalio/workflow';
 
-import { recordAbsorbedFailure } from './absorbed-failure';
+import { recordAbsorbedFailure, recordModelSuccess } from './absorbed-failure';
 import { STREAMING_TOPIC_REQUIRED_FAILURE_TYPE, UNSUPPORTED_FAILURE_TYPE } from './error-types';
 
 export interface TemporalModelOptions {
@@ -129,7 +129,7 @@ export class TemporalModel extends BaseLlm {
     // ADK's agent flow stamps this label on every request just before calling the
     // model, and a request built by hand for a direct call carries none. Only that
     // flow absorbs a throw, so only it needs the failure recorded.
-    const throughAgentRun = llmRequest.config?.labels?.[ADK_AGENT_NAME_LABEL] !== undefined;
+    const agentName = llmRequest.config?.labels?.[ADK_AGENT_NAME_LABEL];
 
     let responses: LlmResponse[];
     try {
@@ -157,9 +157,14 @@ export class TemporalModel extends BaseLlm {
         responses = await activities['adk-invokeModel']({ model: this.model, request: wire });
       }
     } catch (err) {
-      if (throughAgentRun) recordAbsorbedFailure(err);
+      if (agentName !== undefined) recordAbsorbedFailure(err, agentName, abortSignal);
       throw err;
     }
+    // This agent got an answer, so an earlier failure of its own in the same invocation
+    // (a node retry, a re-activated graph node) has been recovered from and must not fail
+    // the Workflow the run is about to finish normally. `abortSignal` is ADK's
+    // `InvocationContext.abortSignal`, which identifies that invocation.
+    if (agentName !== undefined) recordModelSuccess(agentName, abortSignal);
 
     for (const response of responses) {
       yield response;
@@ -215,9 +220,10 @@ function toWireRequest(llmRequest: LlmRequest): WireLlmRequest {
 
 /**
  * Builds {@link ActivityOptions} from per-call {@link ActivityOptions} plus a
- * UI summary, defaulting `startToCloseTimeout`. Shared by the MCP and
- * `activityAsTool` boundaries so every Activity carries a `summary`; a
- * caller-supplied `options.summary` takes precedence over `defaultSummary`.
+ * UI summary, defaulting `startToCloseTimeout`. Shared by the MCP,
+ * `activityAsTool` and `activityNode` boundaries so every Activity carries a
+ * `summary`; a caller-supplied `options.summary` takes precedence over
+ * `defaultSummary`.
  *
  * @internal
  */
