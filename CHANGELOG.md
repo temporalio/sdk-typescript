@@ -46,6 +46,8 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- Corrected the documented default of `ActivityOptions.cancellationType` and
+  `LocalActivityOptions.cancellationType`.
 - `@temporalio/ai-sdk` now preserves text provider metadata when replaying streamed model responses
   inside Workflows.
 - The Workflow sandbox now exposes `atob` and `btoa`, allowing integrations such as `@temporalio/ai-sdk` to
