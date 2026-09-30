@@ -1,7 +1,8 @@
 /**
- * Worker-side Activities for the E2E tests. They run on the worker (never
- * bundled) and record their real executions per Workflow, so a test can tell an
- * Activity that ran from one that was replayed.
+ * Worker-side Activities for the graph / dynamic / HITL E2E tests. They run on
+ * the worker (never bundled) and record their real executions per Workflow, so a
+ * test can tell an Activity that ran from one that was fast-forwarded on resume
+ * or never approved.
  */
 
 import { Context } from '@temporalio/activity';
@@ -109,6 +110,17 @@ export async function flakyActivity(): Promise<string> {
 export async function failingActivity(): Promise<never> {
   record('failingActivity');
   throw ApplicationFailure.nonRetryable('permanent failure', 'TestPermanentFailure');
+}
+
+export async function countedFetch(tag: string): Promise<string> {
+  record(`countedFetch:${tag}`);
+  return `fetched-${tag}`;
+}
+
+/** The tool-shaped Activity behind `activityAsTool` in the confirmation tests: receives the model's arguments. */
+export async function dangerActivity(args: { target: string }): Promise<string> {
+  record(`dangerActivity:${args.target}`);
+  return `danger-done:${args.target}`;
 }
 
 /** Echoes `id` back, recording the value the Workflow actually sent. */
