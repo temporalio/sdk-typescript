@@ -11,7 +11,7 @@ import type {
   SharedV4Warning,
   ProviderV4,
 } from '@ai-sdk/provider';
-import { asSchema, type FlexibleSchema, type Schema, type ToolExecutionOptions } from 'ai';
+import { asSchema, type Schema, type ToolExecutionOptions } from 'ai';
 import type { MCPClient } from '@ai-sdk/mcp';
 import { ApplicationFailure } from '@temporalio/common';
 import { Context } from '@temporalio/activity';
@@ -417,9 +417,8 @@ async function extractTools(mcpClient: MCPClient): Promise<Record<string, ListTo
         // Function-valued descriptions (resolved per tool context) cannot cross the
         // activity boundary; only plain strings are preserved.
         description: typeof v.description === 'string' ? v.description : undefined,
-        // Normalize the schema for serialization. Different provider-utils versions declare
-        // distinct unique symbol types, but both use Symbol.for('vercel.ai.schema') at runtime.
-        inputSchema: asSchema(v.inputSchema as FlexibleSchema<unknown>),
+        // Convert the FlexibleSchema to a Schema so that the shape is known outside the activity
+        inputSchema: asSchema(v.inputSchema),
       },
     ])
   );
