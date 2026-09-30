@@ -48,6 +48,9 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- `@temporalio/strands-agents` tools built on activities, `activityAsTool` and MCP tools, now give the
+  model the activity's own error message when a tool call fails, instead of "Activity task failed",
+  and attach that error to the tool result for hooks.
 - `@temporalio/ai-sdk` now preserves text provider metadata when replaying streamed model responses
   inside Workflows.
 - The Workflow sandbox now exposes `atob` and `btoa`, allowing integrations such as `@temporalio/ai-sdk` to

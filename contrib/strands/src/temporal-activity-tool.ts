@@ -107,11 +107,7 @@ export class TemporalActivityTool extends Tool {
           content: [toResultContent(response)],
         });
       }
-      return new ToolResultBlock({
-        toolUseId,
-        status: 'error',
-        content: [new TextBlock(String(err instanceof Error ? err.message : err))],
-      });
+      return activityErrorResult(toolUseId, err);
     }
     return new ToolResultBlock({
       toolUseId,
@@ -119,6 +115,22 @@ export class TemporalActivityTool extends Tool {
       content: [toResultContent(activityResult)],
     });
   }
+}
+
+/**
+ * The error result for a tool call whose activity failed. An `ActivityFailure`'s own message is
+ * the generic "Activity task failed", so the result carries its cause instead: what the activity
+ * threw, or the timeout or cancellation that ended it. The error is attached for hooks.
+ */
+export function activityErrorResult(toolUseId: string, err: unknown): ToolResultBlock {
+  const cause = err instanceof ActivityFailure && err.cause ? err.cause : err;
+  const error = cause instanceof Error ? cause : new Error(String(cause));
+  return new ToolResultBlock({
+    toolUseId,
+    status: 'error',
+    content: [new TextBlock(error.message)],
+    error,
+  });
 }
 
 function toResultContent(value: unknown): TextBlock | JsonBlock {
