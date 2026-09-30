@@ -171,23 +171,19 @@ below. Each row is exercised by the plugin's test suite.
 | Inside a **Workflow** body                       | ✅     | Replay-safe: deterministic IDs, emitted out-of-isolate, suppressed on replay. Works whether or not a parent trace is propagated in.                                |
 | Inside **signal / query / update** handlers      | ✅     | Handler-body `traceable` runs nest under the handler's run (workflow-body semantics). Temporal-internal queries (`__temporal*`, `__stack_trace`) are never traced. |
 
-**Concurrency caveat (workflow body only).** Inside a Workflow, parent
-resolution uses a synchronous context stack rather than `node:async_hooks`
-(which is unavailable in the workflow isolate). Sequential `await inner(...)`
-nesting is exact. Under `Promise.all(...)` fan-out, or for `traceable` calls
-made _after_ an `await` in the same scope, parenting falls back to the workflow
-run. This affects only the visual shape of the trace, never workflow history or
-control flow. Activity-body and client-side `traceable` use LangSmith's real
-async context and are unaffected.
+Inside a Workflow, parent resolution rides the SDK-provided `AsyncLocalStorage`
+the worker injects onto the workflow-sandbox global, so context propagates
+across `await` boundaries and `Promise.all(...)` fan-out exactly as it does
+outside the isolate — the same deterministic run tree replays identically.
 
 ## Process-wide effects to be aware of
 
 - **Workflow context provider.** Loading the plugin's workflow interceptor
   module installs a global LangSmith async-context provider inside the workflow
-  isolate (via `AsyncLocalStorageProviderSingleton.initializeGlobalInstance`).
-  This is what lets unchanged `traceable` calls find their parent inside a
-  Workflow. It is scoped to the workflow bundle and does not affect your
-  client/worker process context.
+  isolate (via `AsyncLocalStorageProviderSingleton.initializeGlobalInstance`),
+  backed by the SDK-provided `AsyncLocalStorage`. This is what lets unchanged
+  `traceable` calls find their parent inside a Workflow. It is scoped to the
+  workflow bundle and does not affect your client/worker process context.
 
 ## Composing with other plugins
 

@@ -177,11 +177,17 @@ if (RUN_INTEGRATION_TESTS) {
       const client = new Client({
         plugins: [plugin],
       });
+      const workflowType = workflows.interceptorTest.name;
       await worker.runUntil(
-        client.workflow.execute(workflows.smorgasbord, { taskQueue: 'test-otel', workflowId: randomUUID() })
+        client.workflow.execute(workflows.interceptorTest, {
+          taskQueue: 'test-otel',
+          workflowId: randomUUID(),
+        })
       );
       await otel.shutdown();
-      const originalSpan = spans.find(({ name }) => name === `${SpanName.WORKFLOW_START}${SPAN_DELIMITER}smorgasbord`);
+      const originalSpan = spans.find(
+        ({ name }) => name === `${SpanName.WORKFLOW_START}${SPAN_DELIMITER}${workflowType}`
+      );
       t.true(originalSpan !== undefined);
       t.log(
         spans.map((span) => ({ name: span.name, parentSpanId: span.parentSpanId, spanId: span.spanContext().spanId }))
@@ -189,7 +195,7 @@ if (RUN_INTEGRATION_TESTS) {
 
       const firstExecuteSpan = spans.find(
         ({ name, parentSpanId }) =>
-          name === `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}smorgasbord` &&
+          name === `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}${workflowType}` &&
           parentSpanId === originalSpan?.spanContext().spanId
       );
       t.true(firstExecuteSpan !== undefined);
@@ -197,7 +203,7 @@ if (RUN_INTEGRATION_TESTS) {
 
       const continueAsNewSpan = spans.find(
         ({ name, parentSpanId }) =>
-          name === `${SpanName.CONTINUE_AS_NEW}${SPAN_DELIMITER}smorgasbord` &&
+          name === `${SpanName.CONTINUE_AS_NEW}${SPAN_DELIMITER}${workflowType}` &&
           parentSpanId === firstExecuteSpan?.spanContext().spanId
       );
       t.true(continueAsNewSpan !== undefined);
@@ -205,7 +211,7 @@ if (RUN_INTEGRATION_TESTS) {
 
       const parentExecuteSpan = spans.find(
         ({ name, parentSpanId }) =>
-          name === `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}smorgasbord` &&
+          name === `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}${workflowType}` &&
           parentSpanId === continueAsNewSpan?.spanContext().spanId
       );
       t.true(parentExecuteSpan !== undefined);
@@ -810,19 +816,23 @@ if (RUN_INTEGRATION_TESTS) {
       const client = new Client({
         plugins: [plugin],
       });
+      const workflowType = workflows.interceptorTest.name;
       await worker.runUntil(
-        client.workflow.execute(workflows.smorgasbord, { taskQueue: 'test-otel-prebundled', workflowId: randomUUID() })
+        client.workflow.execute(workflows.interceptorTest, {
+          taskQueue: 'test-otel-prebundled',
+          workflowId: randomUUID(),
+        })
       );
       await provider.shutdown();
 
       // Verify that workflow spans were created
       const workflowStartSpan = spans.find(
-        ({ name }) => name === `${SpanName.WORKFLOW_START}${SPAN_DELIMITER}smorgasbord`
+        ({ name }) => name === `${SpanName.WORKFLOW_START}${SPAN_DELIMITER}${workflowType}`
       );
       t.true(workflowStartSpan !== undefined, 'WORKFLOW_START span should exist');
 
       const workflowExecuteSpan = spans.find(
-        ({ name }) => name === `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}smorgasbord`
+        ({ name }) => name === `${SpanName.WORKFLOW_EXECUTE}${SPAN_DELIMITER}${workflowType}`
       );
       t.true(workflowExecuteSpan !== undefined, 'WORKFLOW_EXECUTE span should exist');
 
@@ -1070,7 +1080,7 @@ test.skip('otel interceptors are complete', async (t) => {
   // Doing this instead of directly changing the `implements` to avoid leaking this in the docs
   const _wfl_inbound = {} as OpenTelemetryInboundInterceptor satisfies Required<WorkflowInboundCallsInterceptor>;
   const _wfl_outbound = {} as OpenTelemetryOutboundInterceptor satisfies Required<
-    Omit<WorkflowOutboundCallsInterceptor, 'startTimer'>
+    Omit<WorkflowOutboundCallsInterceptor, 'startTimer' | 'startSystemNexusOperation'>
   >;
   const _act_inbound =
     {} as OpenTelemetryActivityInboundInterceptor satisfies Required<ActivityInboundCallsInterceptor>;

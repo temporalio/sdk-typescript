@@ -2,7 +2,11 @@ import test from 'ava';
 import { coresdk } from '@temporalio/proto';
 import { limit } from '../concurrency/limit';
 import type { Payload } from '../interfaces';
-import { visitWorkflowActivation, visitWorkflowActivationCompletion } from '../internal-non-workflow/payload-visitor';
+import {
+  visit,
+  walkWorkflowActivation,
+  walkWorkflowActivationCompletion,
+} from '../internal-non-workflow/payload-visitor';
 
 // Lets the event loop run every async step that is currently ready
 const tick = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
@@ -61,7 +65,7 @@ test('a failing transform surfaces its error and aborts in-flight siblings', asy
   };
 
   const error = await t.throwsAsync(
-    visitWorkflowActivation(activation, {
+    visit(activation, walkWorkflowActivation, {
       transformPayload: async (p, _context, signal) => {
         const tag = read(p);
         if (tag === 'boom') {
@@ -84,6 +88,33 @@ test('a failing transform surfaces its error and aborts in-flight siblings', asy
   t.deepEqual(aborted.sort(), ['slow1', 'slow2']);
 });
 
+test('a transform still waiting on the concurrency limit is skipped once a sibling fails', async (t) => {
+  const started: string[] = [];
+  const activityResult = (data: string): coresdk.workflow_activation.IWorkflowActivationJob => ({
+    resolveActivity: { result: { completed: { result: payload(data) } } },
+  });
+  // Three payloads through a limit of 1: 'boom' runs first and fails, so 'a' and 'b' are still
+  // queued on the permit when the failure lands and must never invoke their transform.
+  const activation: coresdk.workflow_activation.IWorkflowActivation = {
+    jobs: [activityResult('boom'), activityResult('a'), activityResult('b')],
+  };
+
+  const error = await t.throwsAsync(
+    visit(activation, walkWorkflowActivation, {
+      transformPayload: async (p) => {
+        const tag = read(p);
+        started.push(tag);
+        if (tag === 'boom') throw new Error('boom');
+        return p;
+      },
+      transformPayloads: async (ps) => ps,
+      limit: limit(1),
+    })
+  );
+  t.is(error?.message, 'boom');
+  t.deepEqual(started, ['boom'], 'only the failing transform ran; queued siblings were skipped');
+});
+
 const completionWith = (...results: string[]): coresdk.workflow_completion.IWorkflowActivationCompletion => ({
   successful: {
     commands: results.map((r) => ({ completeWorkflowExecution: { result: payload(r) } })),
@@ -94,7 +125,7 @@ test('visitWorkflowActivationCompletion with an already-aborted signal skips the
   const counter = countingTransforms();
 
   const error = await t.throwsAsync(
-    visitWorkflowActivationCompletion(completionWith('a', 'b'), {
+    visit(completionWith('a', 'b'), walkWorkflowActivationCompletion, {
       ...counter.transforms,
       abortSignal: AbortSignal.abort(new Error('stop')),
     })
@@ -161,7 +192,7 @@ test('visits every payload site exactly once and writes back in place', async (t
   const activation = activationWithEveryPayloadSite();
 
   const seen: string[] = [];
-  await visitWorkflowActivation(activation, {
+  await visit(activation, walkWorkflowActivation, {
     ...perPayload<void>((p) => {
       seen.push(read(p));
       return payload(`${read(p)}#`);
@@ -172,8 +203,9 @@ test('visits every payload site exactly once and writes back in place', async (t
 
   // A second walk should observe the first walk's rewrites, proving writeback landed in place.
   const seenAgain: string[] = [];
-  await visitWorkflowActivation(
+  await visit(
     activation,
+    walkWorkflowActivation,
     perPayload<void>((p) => {
       seenAgain.push(read(p));
       return p;
@@ -189,10 +221,11 @@ test('visits every payload site exactly once and writes back in place', async (t
 test('an activation with no payloads makes no transform calls and resolves', async (t) => {
   const counter = countingTransforms();
 
-  await visitWorkflowActivation({ jobs: [] }, counter.transforms);
-  await visitWorkflowActivation({}, counter.transforms);
-  await visitWorkflowActivation(
+  await visit({ jobs: [] }, walkWorkflowActivation, counter.transforms);
+  await visit({}, walkWorkflowActivation, counter.transforms);
+  await visit(
     { jobs: [{ initializeWorkflow: { arguments: [], headers: {} } }, { fireTimer: {} }] },
+    walkWorkflowActivation,
     counter.transforms
   );
 
@@ -205,11 +238,11 @@ test('a repeated field may return any count, including zero', async (t) => {
   });
 
   const emptied = withInput();
-  await visitWorkflowActivation(emptied, { ...identity, transformPayloads: async () => [] });
+  await visit(emptied, walkWorkflowActivation, { ...identity, transformPayloads: async () => [] });
   t.deepEqual(emptied.jobs![0]!.signalWorkflow!.input, [], 'a repeated list can be emptied');
 
   const reframed = withInput();
-  await visitWorkflowActivation(reframed, { ...identity, transformPayloads: async () => [payload('merged')] });
+  await visit(reframed, walkWorkflowActivation, { ...identity, transformPayloads: async () => [payload('merged')] });
   t.deepEqual(reframed.jobs![0]!.signalWorkflow!.input!.map(read), ['merged'], 'count may shrink');
 });
 
@@ -219,7 +252,7 @@ test('context is derived per message and isolated across sibling jobs', async (t
   };
 
   const seen: Record<string, string> = {};
-  await visitWorkflowActivation<string>(activation, {
+  await visit(activation, walkWorkflowActivation, {
     initialContext: 'root',
     deriveContext: (_message, typeName, context) =>
       typeName === 'coresdk.workflow_activation.SignalWorkflow'
@@ -250,7 +283,7 @@ test('skipHeaders and skipSearchAttributes omit those sites', async (t) => {
   };
 
   const seen: string[] = [];
-  await visitWorkflowActivation(activation, {
+  await visit(activation, walkWorkflowActivation, {
     ...perPayload<void>((p) => {
       seen.push(read(p));
       return p;
@@ -273,8 +306,9 @@ test('visits completion command payloads: user metadata and a rejected update', 
   };
 
   const seen: string[] = [];
-  await visitWorkflowActivationCompletion(
+  await visit(
     completion,
+    walkWorkflowActivationCompletion,
     perPayload<void>((p) => {
       seen.push(read(p));
       return payload(`${read(p)}!`);
@@ -292,8 +326,9 @@ test('walks a decoded protobuf message instance, not just object literals', asyn
   const Type = coresdk.workflow_completion.WorkflowActivationCompletion;
   const decoded = Type.decode(Type.encode(completionWith('a', 'b')).finish());
 
-  await visitWorkflowActivationCompletion(
+  await visit(
     decoded,
+    walkWorkflowActivationCompletion,
     perPayload<void>((p) => payload(`${read(p)}!`))
   );
 
@@ -306,7 +341,7 @@ test('an identity transform leaves a real message byte-for-byte unchanged', asyn
   const original = Type.encode(activationWithEveryPayloadSite()).finish();
   const decoded = Type.decode(original);
 
-  await visitWorkflowActivation(decoded, identity);
+  await visit(decoded, walkWorkflowActivation, identity);
 
   t.deepEqual(Buffer.from(Type.encode(decoded).finish()), Buffer.from(original));
 });
@@ -344,7 +379,7 @@ test('a concurrency limit caps in-flight transforms across the whole activation'
   };
 
   const capped = tracked();
-  const cappedVisit = visitWorkflowActivation(activationWithEveryPayloadSite(), {
+  const cappedVisit = visit(activationWithEveryPayloadSite(), walkWorkflowActivation, {
     ...capped.transforms,
     limit: limit(4),
   });
@@ -354,7 +389,7 @@ test('a concurrency limit caps in-flight transforms across the whole activation'
   await cappedVisit;
 
   const sequential = tracked();
-  const sequentialVisit = visitWorkflowActivation(activationWithEveryPayloadSite(), {
+  const sequentialVisit = visit(activationWithEveryPayloadSite(), walkWorkflowActivation, {
     ...sequential.transforms,
     limit: limit(1),
   });
@@ -377,7 +412,7 @@ test('aborting mid-walk rejects and cancels in-flight transforms', async (t) => 
     }
   };
 
-  const visiting = visitWorkflowActivation(activationWithEveryPayloadSite(), {
+  const visiting = visit(activationWithEveryPayloadSite(), walkWorkflowActivation, {
     transformPayload: (p, _context, signal) => waitThenAbort(p, signal),
     transformPayloads: (ps, _context, signal) => waitThenAbort(ps, signal),
     limit: limit(16),

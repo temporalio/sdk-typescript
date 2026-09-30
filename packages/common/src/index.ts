@@ -7,10 +7,11 @@
 import * as encoding from './encoding';
 import * as helpers from './type-helpers';
 
-export * from './activity-options';
+export * from './activity-definition-options';
 export { ActivityCancellationDetailsOptions, ActivityCancellationDetails } from './activity-cancellation-details';
 export { SuggestContinueAsNewReason } from './continue-as-new';
 export * from './converter/data-converter';
+export * from './converter/extstore';
 export * from './converter/failure-converter';
 export * from './converter/payload-codec';
 export * from './converter/payload-converter';
@@ -30,6 +31,7 @@ export * from './priority';
 export * from './metrics';
 export * from './retry-policy';
 export type { Timestamp, Duration, StringValue } from './time';
+export type { ConverterHint, PayloadTypeInfo, TransferTypeConverter, TypeInfo } from './type-info';
 export * from './worker-deployments';
 export * from './workflow-definition-options';
 export * from './workflow-handle';
@@ -44,6 +46,28 @@ export {
   TypedSearchAttributes,
   defineSearchAttributeKey,
 } from './search-attributes';
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Deprecated APIs
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export {
+  /**
+   * @deprecated Import from `@temporalio/workflow` instead.
+   * @hidden
+   */
+  type ActivityOptions,
+  /**
+   * @deprecated Import from `@temporalio/workflow` instead.
+   * @hidden
+   */
+  type LocalActivityOptions,
+  /**
+   * @deprecated Import from `@temporalio/workflow` instead.
+   * @hidden
+   */
+  ActivityCancellationType,
+} from './activity-options';
 
 /**
  * Encode a UTF-8 string into a Uint8Array

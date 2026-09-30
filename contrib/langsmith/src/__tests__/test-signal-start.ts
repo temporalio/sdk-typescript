@@ -12,11 +12,13 @@
 import test from 'ava';
 
 import * as activities from './activities/langsmith';
-import { InMemoryRunCollector, withTracingWorker } from './helpers';
+import { InMemoryRunCollector, withTracingWorker, useSharedEnv } from './helpers';
 import * as workflows from './workflows/langsmith';
 
 process.env.LANGSMITH_TRACING = 'true';
 process.env.LANGCHAIN_CALLBACKS_BACKGROUND = 'false';
+
+useSharedEnv(test);
 
 test.serial('signalWithStart: LangSmith signal interceptor preserves workflow ordering', async (t) => {
   const collector = new InMemoryRunCollector();

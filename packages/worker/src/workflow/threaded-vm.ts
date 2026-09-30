@@ -15,19 +15,27 @@ import { coresdk } from '@temporalio/proto';
 import { IllegalStateError, type SinkCall } from '@temporalio/workflow';
 import { createUnsafeRandomSource } from '@temporalio/workflow/lib/random-helpers';
 import type { Logger } from '@temporalio/common';
+import type { PatchActivationCallback } from '../worker-options';
 import { UnexpectedError } from '../errors';
 import type {
+  PatchActivationCallbackRequest,
   WorkflowBundleWithSourceMapAndFilename,
   WorkerThreadInput,
   WorkerThreadRequest,
 } from './workflow-worker-thread/input';
 import type { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import type { WorkerThreadOutput, WorkerThreadResponse } from './workflow-worker-thread/output';
-import { isBun } from './bun';
+import { isBunPre1_4 } from './bun';
+import {
+  completePatchActivationCallback,
+  invokePatchActivationCallbackWithSnapshot,
+  writePatchActivationCallbackError,
+  writePatchActivationCallbackResult,
+} from './patch-activation-callback';
 
 // https://nodejs.org/api/worker_threads.html#event-exit
-// Bun exits with code 0 instead of 1
-export const TERMINATED_EXIT_CODE = isBun ? 0 : 1;
+// Bun pre 1.4 exits with code 0 instead of 1
+export const TERMINATED_EXIT_CODE = isBunPre1_4 ? 0 : 1;
 
 interface Completion<T> {
   resolve(value: T): void;
@@ -65,9 +73,15 @@ export class WorkerThreadClient {
 
   constructor(
     protected workerThread: NodeWorker,
-    protected logger: Logger
+    protected logger: Logger,
+    protected patchActivationCallback?: PatchActivationCallback
   ) {
-    workerThread.on('message', ({ requestId, result }: WorkerThreadResponse) => {
+    workerThread.on('message', (message: WorkerThreadResponse | PatchActivationCallbackRequest) => {
+      if (!('requestId' in message)) {
+        this.handlePatchActivationCallback(message);
+        return;
+      }
+      const { requestId, result } = message;
       const completion = this.requestIdToCompletion.get(requestId);
       if (completion === undefined) {
         throw new IllegalStateError(`Got completion for unknown requestId ${requestId}`);
@@ -106,6 +120,31 @@ export class WorkerThreadClient {
     });
   }
 
+  private handlePatchActivationCallback(request: PatchActivationCallbackRequest): void {
+    try {
+      if (this.patchActivationCallback === undefined) {
+        throw new IllegalStateError('Received patch activation callback request without a configured callback');
+      }
+      const result = invokePatchActivationCallbackWithSnapshot(
+        this.patchActivationCallback,
+        request.workflowInfo,
+        request.patchId
+      );
+      writePatchActivationCallbackResult(request.resultBuffer, result);
+    } catch (err) {
+      writePatchActivationCallbackError(request.resultBuffer, err);
+      this.logger.warn('Patch activation callback failed', {
+        error: err,
+        workflowId: request.workflowInfo.workflowId,
+        runId: request.workflowInfo.runId,
+        workflowType: request.workflowInfo.workflowType,
+        patchId: request.patchId,
+      });
+    } finally {
+      completePatchActivationCallback(request.resultBuffer);
+    }
+  }
+
   /**
    * Send input to Worker thread and await for output
    */
@@ -141,7 +180,7 @@ export class WorkerThreadClient {
     this.shutDownRequested = true;
     await this.send({ type: 'destroy' });
 
-    const exitCode = await (isBun ? this.terminateWithBunWorkaround() : this.workerThread.terminate());
+    const exitCode = await (isBunPre1_4 ? this.terminateWithBunWorkaround() : this.workerThread.terminate());
     if (exitCode !== null && exitCode !== TERMINATED_EXIT_CODE) {
       throw new UnexpectedError(`Failed to terminate Worker thread, exit code: ${exitCode}`);
     }
@@ -176,6 +215,7 @@ export interface ThreadedVMWorkflowCreatorOptions {
   reuseV8Context: boolean;
   registeredActivityNames: Set<string>;
   logger: Logger;
+  patchActivationCallback?: PatchActivationCallback;
 }
 
 /**
@@ -194,10 +234,18 @@ export class ThreadedVMWorkflowCreator implements WorkflowCreator {
     reuseV8Context,
     registeredActivityNames,
     logger,
+    patchActivationCallback,
   }: ThreadedVMWorkflowCreatorOptions): Promise<ThreadedVMWorkflowCreator> {
     const workerThreadClients = Array(threadPoolSize)
       .fill(0)
-      .map(() => new WorkerThreadClient(new NodeWorker(require.resolve('./workflow-worker-thread')), logger));
+      .map(
+        () =>
+          new WorkerThreadClient(
+            new NodeWorker(require.resolve('./workflow-worker-thread')),
+            logger,
+            patchActivationCallback
+          )
+      );
     await Promise.all(
       workerThreadClients.map((client) =>
         client.send({
@@ -206,6 +254,7 @@ export class ThreadedVMWorkflowCreator implements WorkflowCreator {
           isolateExecutionTimeoutMs,
           reuseV8Context,
           registeredActivityNames,
+          hasPatchActivationCallback: patchActivationCallback !== undefined,
         })
       )
     );
@@ -284,10 +333,10 @@ export class VMWorkflowThreadProxy implements Workflow {
   ): Promise<coresdk.workflow_completion.IWorkflowActivationCompletion> {
     const output = await this.workerThreadClient.send({
       type: 'activate-workflow',
-      // Some activation messages get silently dropped by Bun's postMessage.
+      // Before Bun 1.4.0, some activation messages get silently dropped by Bun's postMessage.
       // To work around this bug, we encode activations
       // An example of a failing activation can be found in test-payload-converter.ts 'Worker encodes/decodes a protobuf containing a binary array'
-      activation: isBun ? coresdk.workflow_activation.WorkflowActivation.encode(activation).finish() : activation,
+      activation: isBunPre1_4 ? coresdk.workflow_activation.WorkflowActivation.encode(activation).finish() : activation,
       runId: this.runId,
     });
     if (output?.type !== 'activation-completion') {

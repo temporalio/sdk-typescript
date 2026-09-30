@@ -1,8 +1,25 @@
 import type * as nexus from 'nexus-rpc';
+import {
+  defaultPayloadConverter,
+  type PayloadConverter,
+  type SerializationContext,
+  toPayloadWithTypeInfo,
+} from '@temporalio/common';
 import { msOptionalToTs } from '@temporalio/common/lib/time';
 import { userMetadataToPayload } from '@temporalio/common/lib/user-metadata';
-import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
+import {
+  makeProtoEnumConverters,
+  encodeSystemNexusEnvelopeBytes,
+  SYSTEM_NEXUS_CONTEXT_METADATA_KEY,
+  SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
+  SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE,
+  TEMPORAL_SYSTEM_NEXUS_ENDPOINT,
+} from '@temporalio/common/lib/internal-workflow';
 import type { coresdk } from '@temporalio/proto';
+import { eventGroupMarkersToProto } from './event-groups';
+import { systemNexusOperationDefinition } from './nexus/system/payload-converter';
+import { withSystemNexusPayloadConversion } from './nexus/system/user-payload-converter';
+import { dispatchSystemNexusSpecificInterceptors } from './nexus/system/generated/interceptors';
 import { CancellationScope } from './cancellation-scope';
 import { getActivator } from './global-attributes';
 import { composeInterceptors } from './interceptor-composition';
@@ -12,14 +29,12 @@ import type { StartNexusOperationInput, StartNexusOperationOutput, StartNexusOpe
 /**
  * A Nexus client for invoking Nexus Operations for a specific service from a Workflow.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface NexusServiceClient<T extends nexus.ServiceDefinition> {
   /**
    * Start a Nexus Operation and wait for its completion taking a {@link nexus.operation}.
    * Returns the operation's result.
    *
-   * @experimental Nexus support in Temporal SDK is experimental.
    */
   executeOperation<O extends T['operations'][keyof T['operations']]>(
     op: O,
@@ -38,7 +53,6 @@ export interface NexusServiceClient<T extends nexus.ServiceDefinition> {
    * the {@link nexus.ServiceDefinition} object; it may differ from the value of the `name` property
    * if one was explicitly specified on the {@link nexus.OperationDefinition} object.
    *
-   * @experimental Nexus support in Temporal SDK is experimental.
    */
   executeOperation<K extends nexus.OperationKey<T['operations']>>(
     op: K,
@@ -51,7 +65,6 @@ export interface NexusServiceClient<T extends nexus.ServiceDefinition> {
    *
    * Returns a handle that can be used to wait for the Operation's result.
    *
-   * @experimental Nexus support in Temporal SDK is experimental.
    */
   startOperation<O extends T['operations'][keyof T['operations']]>(
     op: O,
@@ -67,7 +80,6 @@ export interface NexusServiceClient<T extends nexus.ServiceDefinition> {
    * the {@link nexus.ServiceDefinition} object; it may differ from the value of the `name` property
    * if one was explicitly specified on the {@link nexus.OperationDefinition} object.
    *
-   * @experimental Nexus support in Temporal SDK is experimental.
    */
   startOperation<K extends nexus.OperationKey<T['operations']>>(
     op: K,
@@ -79,7 +91,6 @@ export interface NexusServiceClient<T extends nexus.ServiceDefinition> {
 /**
  * A handle to a Nexus Operation.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface NexusOperationHandle<T> {
   /**
@@ -114,7 +125,6 @@ export interface NexusServiceClientOptions<T> {
 /**
  * Create a Nexus client for invoking Nexus Operations from a Workflow.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export function createNexusServiceClient<T extends nexus.ServiceDefinition>(
   options: NexusServiceClientOptions<T>
@@ -134,15 +144,35 @@ export function createNexusServiceClient<T extends nexus.ServiceDefinition>(
       input: nexus.OperationInput<T['operations'][nexus.OperationKey<T['operations']>]>,
       operationOptions?: StartNexusOperationOptions
     ) {
-      const opName =
-        typeof operation === 'string'
-          ? // Casting as string to cover up the fact that `opName` might be undefined.
-            // If this happens, then `execute` will produce a `NexusOperationFailure.NOT_FOUND`.
-            (options.service.operations[operation]?.name as string)
-          : operation.name;
+      let operationDefinition: nexus.OperationDefinition<any, any> | undefined;
+      if (typeof operation === 'string') {
+        operationDefinition = options.service.operations[operation];
+      } else {
+        operationDefinition = operation;
+      }
+      // Casting as string to cover up the fact that `opName` might be undefined.
+      // If this happens, then `execute` will produce a `NexusOperationFailure.NOT_FOUND`.
+      const opName = operationDefinition?.name as string;
 
       const activator = getActivator();
       const seq = activator.nextSeqs.nexusOperation++;
+
+      if (options.endpoint === TEMPORAL_SYSTEM_NEXUS_ENDPOINT) {
+        return (await startSystemNexusOperationWithSpecificInterceptors({
+          endpoint: options.endpoint,
+          service: options.service.name,
+          operation: opName,
+          options: {
+            ...operationOptions,
+            cancellationType: operationOptions?.cancellationType ?? 'WAIT_CANCELLATION_COMPLETED',
+          },
+          headers: {},
+          input,
+          inputType: operationDefinition?.inputType,
+          outputType: operationDefinition?.outputType,
+          seq,
+        })) as NexusOperationHandle<nexus.OperationOutput<O>>;
+      }
 
       const execute = composeInterceptors(
         activator.interceptors.outbound,
@@ -165,6 +195,8 @@ export function createNexusServiceClient<T extends nexus.ServiceDefinition>(
         headers: {},
         seq,
         input,
+        inputType: operationDefinition?.inputType,
+        outputType: operationDefinition?.outputType,
       });
 
       return {
@@ -181,6 +213,63 @@ export function createNexusServiceClient<T extends nexus.ServiceDefinition>(
   return new NexusServiceClientImpl<T>();
 }
 
+/**
+ * Runs the generated operation-specific interceptor chain before the dedicated
+ * generic System Nexus interceptor hook. The operation-specific dispatcher is
+ * kept private: both public interceptor hooks use the ordinary Nexus contract.
+ */
+async function startSystemNexusOperationWithSpecificInterceptors<Output>(
+  input: StartNexusOperationInput
+): Promise<NexusOperationHandle<Output>> {
+  const activator = getActivator();
+  const generic = composeInterceptors(
+    activator.interceptors.outbound,
+    'startSystemNexusOperation',
+    startNexusOperationNextHandler
+  );
+
+  const makeHandle = async <Request, Result>(request: Request): Promise<NexusOperationHandle<Result>> => {
+    const { token, result } = await generic({ ...input, input: request });
+    return {
+      service: input.service,
+      operation: input.operation,
+      token,
+      async result(): Promise<Result> {
+        return (await result) as Result;
+      },
+    };
+  };
+  return (await dispatchSystemNexusSpecificInterceptors(
+    input.service,
+    input.operation,
+    activator.interceptors.outbound,
+    input.input,
+    makeHandle
+  )) as NexusOperationHandle<Output>;
+}
+
+/**
+ * Converts a System Nexus transfer envelope using the default JSON/protobuf
+ * representation. Nested application values are handled by the generated
+ * transfer-type converter while its scoped context is active.
+ */
+function systemNexusOuterPayloadConverter(context: SerializationContext | undefined): PayloadConverter {
+  return {
+    toPayload(value) {
+      const payload = defaultPayloadConverter.toPayload(encodeSystemNexusEnvelopeBytes(value));
+      payload.metadata ??= {};
+      payload.metadata[SYSTEM_NEXUS_PAYLOAD_METADATA_KEY] = SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE;
+      if (context != null) {
+        payload.metadata[SYSTEM_NEXUS_CONTEXT_METADATA_KEY] = new TextEncoder().encode(JSON.stringify(context));
+      }
+      return payload;
+    },
+    fromPayload(payload) {
+      return defaultPayloadConverter.fromPayload(payload);
+    },
+  };
+}
+
 function startNexusOperationNextHandler({
   input,
   endpoint,
@@ -189,13 +278,20 @@ function startNexusOperationNextHandler({
   operation,
   seq,
   headers,
+  inputType,
+  outputType,
 }: StartNexusOperationInput): Promise<StartNexusOperationOutput> {
   const activator = getActivator();
-  const context = {
+  const workflowContext = {
     type: 'workflow' as const,
     namespace: activator.info.namespace,
     workflowId: activator.info.workflowId,
   };
+  const serialization = serializeNexusOperation(
+    { input, endpoint, service, options, operation, inputType, outputType },
+    activator.payloadConverter,
+    workflowContext
+  );
 
   return new Promise<StartNexusOperationOutput>((resolve, reject) => {
     const scope = CancellationScope.current();
@@ -213,6 +309,7 @@ function startNexusOperationNextHandler({
           if (!completed) {
             activator.pushCommand({
               requestCancelNexusOperation: { seq },
+              eventGroupMarkers: eventGroupMarkersToProto(options?.eventGroups),
             });
           }
 
@@ -228,20 +325,73 @@ function startNexusOperationNextHandler({
         service,
         operation,
         nexusHeader: headers,
-        input: activator.payloadConverter.toPayload(input, context),
+        input: serialization.input,
         scheduleToCloseTimeout: msOptionalToTs(options?.scheduleToCloseTimeout),
         scheduleToStartTimeout: msOptionalToTs(options?.scheduleToStartTimeout),
         startToCloseTimeout: msOptionalToTs(options?.startToCloseTimeout),
         cancellationType: encodeNexusOperationCancellationType(options?.cancellationType),
       },
-      userMetadata: userMetadataToPayload(activator.payloadConverter, options?.summary, undefined, context),
+      userMetadata: serialization.userMetadata,
+      eventGroupMarkers: eventGroupMarkersToProto(options?.eventGroups),
     });
 
-    activator.completions.nexusOperationStart.set(seq, {
-      resolve,
-      reject,
-    });
+    if (serialization.systemNexus != null) {
+      activator.systemNexusOperationContexts.set(seq, {
+        service,
+        operation,
+        context: serialization.systemNexus.context,
+        outputType,
+      });
+      activator.completions.nexusOperationStart.set(seq, { resolve, reject });
+    } else {
+      activator.completions.nexusOperationStart.set(seq, {
+        resolve,
+        reject,
+        outputTypeInfo: outputType,
+      });
+    }
   });
+}
+
+interface SerializedNexusOperation {
+  input: ReturnType<PayloadConverter['toPayload']>;
+  userMetadata: ReturnType<typeof userMetadataToPayload>;
+  systemNexus?: { context?: SerializationContext };
+}
+
+/**
+ * Selects the wire representation and completion metadata for an operation.
+ * System Nexus uses a transfer envelope; all other endpoints use the ordinary
+ * Workflow payload representation.
+ */
+function serializeNexusOperation(
+  { input, endpoint, service, options, operation, inputType }: Omit<StartNexusOperationInput, 'seq' | 'headers'>,
+  payloadConverter: PayloadConverter,
+  workflowContext: SerializationContext
+): SerializedNexusOperation {
+  if (endpoint !== TEMPORAL_SYSTEM_NEXUS_ENDPOINT) {
+    return {
+      input: toPayloadWithTypeInfo(payloadConverter, input, workflowContext, inputType),
+      userMetadata: userMetadataToPayload(payloadConverter, options?.summary, undefined, workflowContext),
+      systemNexus: undefined,
+    };
+  }
+
+  const definition = systemNexusOperationDefinition(service, operation);
+  if (definition == null || inputType == null) {
+    throw new TypeError(`unsupported System Nexus operation: ${service}/${operation}`);
+  }
+  const context = definition.serializationContext?.(input as any);
+  const outerPayloadConverter = systemNexusOuterPayloadConverter(context);
+  return {
+    input: withSystemNexusPayloadConversion(payloadConverter, context, () =>
+      toPayloadWithTypeInfo(outerPayloadConverter, input, undefined, inputType)
+    ),
+    userMetadata: withSystemNexusPayloadConversion(payloadConverter, context, () =>
+      userMetadataToPayload(payloadConverter, options?.summary, undefined, context)
+    ),
+    systemNexus: { context },
+  };
 }
 
 /**
@@ -255,7 +405,6 @@ function startNexusOperationNextHandler({
  * Workflow itself, or from internal cancellation of the `CancellationScope` in which the
  * Operation call was made.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 // MAINTENANCE: Keep this typedoc in sync with the `StartNexusOperationOptions.cancellationType` field
 export const NexusOperationCancellationType = {

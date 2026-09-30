@@ -78,6 +78,7 @@ if (!wf.inWorkflowContext()) {
         workflowId: 'test-workflowId',
         namespace: 'default',
         firstExecutionRunId: runId,
+        originalExecutionRunId: runId,
         attempt: 1,
         taskTimeoutMs: 1000,
         taskQueue: 'test',
@@ -155,7 +156,12 @@ if (!wf.inWorkflowContext()) {
       initializeWorkflow: coresdk.workflow_activation.IInitializeWorkflow;
     } {
       return {
-        initializeWorkflow: { workflowId: info.workflowId, workflowType: info.workflowType, arguments: [] },
+        initializeWorkflow: {
+          workflowId: info.workflowId,
+          workflowType: info.workflowType,
+          arguments: [],
+          originalExecutionRunId: info.originalExecutionRunId,
+        },
       };
     }
 

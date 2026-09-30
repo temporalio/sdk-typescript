@@ -1,0 +1,1078 @@
+import { randomUUID } from 'crypto';
+import type { ExecutionContext, TestFn } from 'ava';
+import anyTest from 'ava';
+import * as rxjs from 'rxjs';
+import type { ActivityHandle, ActivityOptions, ClientOptions, TypedActivityClient } from '@temporalio/client';
+import {
+  ActivityExecutionStatus,
+  ActivityExecutionAlreadyStartedError,
+  ActivityExecutionFailedError,
+  Client,
+  ServiceError,
+  TerminatedFailure,
+  isGrpcCancelledError,
+} from '@temporalio/client';
+import type { Payload, PayloadCodec, PayloadTypeInfo } from '@temporalio/common';
+import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
+import type { Info } from '@temporalio/activity';
+import { activityInfo, heartbeat } from '@temporalio/activity';
+import { msToNumber } from '@temporalio/common/lib/time';
+import type { TestWorkflowEnvironment } from './helpers';
+import { assertEventually, RUN_INTEGRATION_TESTS, waitUntil, Worker } from './helpers';
+import { echo, throwAnError } from './activities';
+import { heartbeatCancellationDetailsActivity } from './activities/heartbeat-cancellation-details';
+import { createTestWorkflowEnvironment } from './helpers-integration';
+import { convertOrder, createAsyncOrderActivities } from './workflows/type-info/activities';
+import { activityTypeInfo } from './workflows/type-info/activity-type-info';
+import { Order, Receipt } from './workflows/type-info/models';
+import { encdec, makeContextTrace, standaloneActivityCtx } from './payload-converters/serialization-context-converter';
+
+// Use a reduced server long-poll expiration timeout, in order to confirm that client
+// polling/retry strategies result in the expected behavior
+const LONG_POLL_TIMEOUT_MS = 5000;
+
+export interface Context {
+  env: TestWorkflowEnvironment;
+  worker: Worker;
+  runPromise: Promise<void>;
+  activityStartedSubject: rxjs.Subject<string>;
+  activitySignalSubject: rxjs.Subject<string>;
+  asyncActivityStartedSubject: rxjs.Subject<Info>;
+}
+
+const activities = {
+  echo,
+  convertOrder,
+  throwAnError,
+  heartbeatCancellationDetailsActivity,
+  verifyStandaloneActivityInfo: async () => {
+    const info = activityInfo();
+    if (info.inWorkflow) {
+      throw ApplicationFailure.nonRetryable('Expected inWorkflow to be false');
+    }
+    if (!info.activityRunId || info.activityRunId.length === 0) {
+      throw ApplicationFailure.nonRetryable('Expected non-empty activityRunId');
+    }
+    if (info.workflowExecution !== undefined) {
+      throw ApplicationFailure.nonRetryable('Expected workflowExecution to be unset');
+    }
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
+    if (info.workflowNamespace !== undefined) {
+      throw ApplicationFailure.nonRetryable('Expected workflowNamespace to be unset');
+    }
+    if (info.workflowType !== undefined) {
+      throw ApplicationFailure.nonRetryable('Expected workflowNamespace to be unset');
+    }
+  },
+  heartbeatFailComplete: async (_input: string) => {
+    heartbeat('heartbeat details');
+    if (activityInfo().attempt === 1) {
+      throw ApplicationFailure.create({ message: 'first attempt failure' });
+    }
+    return 'result';
+  },
+};
+
+interface ActivityInterface {
+  noArgsReturnsVoid: () => Promise<void>;
+  numberArgReturnsVoid: (a: number) => Promise<void>;
+  stringAndNumberArgsReturnsVoid: (a: string, b: number) => Promise<void>;
+  noArgsReturnsNumber: () => Promise<number>;
+  numberArgReturnsNumber: (a: number) => Promise<number>;
+}
+
+const taskQueue = 'standalone-activities';
+const defaultOptions: Omit<ActivityOptions, 'id' | 'args'> = {
+  taskQueue,
+  scheduleToCloseTimeout: '1 minute',
+  idReusePolicy: 'ALLOW_DUPLICATE',
+};
+
+const typeInfoActivityOptions = {
+  ...defaultOptions,
+  retry: { maximumAttempts: 1 },
+};
+
+const test = anyTest as TestFn<Context>;
+
+async function waitForValue<T>(subject: rxjs.Subject<T>, value: T) {
+  await rxjs.firstValueFrom(subject.pipe(rxjs.first((v) => v === value)));
+}
+
+function assertReceipt(t: ExecutionContext, receipt: Receipt): void {
+  t.true(receipt instanceof Receipt);
+  t.is(receipt.summary(), 'order-1:12345');
+  t.is(typeof receipt.totalCents, 'bigint');
+}
+
+function makeClientWithOptions(env: TestWorkflowEnvironment, options: ClientOptions): Client {
+  return new Client(
+    Object.assign(
+      {
+        connection: env.client.connection,
+        namespace: env.client.options.namespace,
+      },
+      options
+    )
+  );
+}
+
+class BlockingEncodePayloadCodec implements PayloadCodec {
+  readonly encodingStarted: Promise<void>;
+  private readonly continueEncoding: Promise<void>;
+  private resolveEncodingStarted!: () => void;
+  private resolveContinueEncoding!: () => void;
+  private blockNextEncode = true;
+
+  constructor() {
+    this.encodingStarted = new Promise((resolve) => {
+      this.resolveEncodingStarted = resolve;
+    });
+    this.continueEncoding = new Promise((resolve) => {
+      this.resolveContinueEncoding = resolve;
+    });
+  }
+
+  async encode(payloads: Payload[]): Promise<Payload[]> {
+    if (this.blockNextEncode) {
+      this.blockNextEncode = false;
+      this.resolveEncodingStarted();
+      await this.continueEncoding;
+    }
+    return payloads;
+  }
+
+  async decode(payloads: Payload[]): Promise<Payload[]> {
+    return payloads;
+  }
+
+  releaseEncoding(): void {
+    this.resolveContinueEncoding();
+  }
+}
+
+if (RUN_INTEGRATION_TESTS) {
+  test.before(async (t) => {
+    const env = await createTestWorkflowEnvironment({
+      server: {
+        extraArgs: ['--dynamic-config-value', `activity.longPollTimeout="${LONG_POLL_TIMEOUT_MS}ms"`],
+      },
+    });
+
+    const activityStartedSubject = new rxjs.Subject<string>();
+    const activitySignalSubject = new rxjs.Subject<string>();
+    const asyncActivityStartedSubject = new rxjs.Subject<Info>();
+
+    const worker = await Worker.create({
+      activities: {
+        ...activities,
+        ...createAsyncOrderActivities(asyncActivityStartedSubject),
+        waitForSignal: async () => {
+          const activityId = activityInfo().activityId;
+          const wait = waitForValue(activitySignalSubject, activityId);
+          activityStartedSubject.next(activityId);
+          await wait;
+        },
+      },
+      taskQueue,
+      connection: env.nativeConnection,
+    });
+
+    const runPromise = worker.run();
+    // Catch the error here to avoid unhandled rejection
+    runPromise.catch((err) => {
+      console.error('Caught error while worker was running', err);
+    });
+
+    t.context = {
+      env,
+      worker,
+      runPromise,
+      activityStartedSubject,
+      activitySignalSubject,
+      asyncActivityStartedSubject,
+    };
+  });
+
+  test.after.always(async (t) => {
+    t.context.worker.shutdown();
+    await t.context.runPromise;
+    await t.context.env.teardown();
+  });
+
+  test('Get activity result - success', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const handle = await client.start('echo', {
+      ...defaultOptions,
+      id: activityId,
+      args: ['hello'],
+    });
+    t.is(await handle.result(), 'hello');
+    t.is(await client.getHandle(activityId).result(), 'hello');
+    t.is(await client.getHandle(activityId, handle.runId).result(), 'hello');
+  });
+
+  test('Get activity result - failure', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const handle = await client.start('throwAnError', {
+      ...defaultOptions,
+      id: activityId,
+      args: [true, 'failure'],
+    });
+    const err = await t.throwsAsync(() => handle.result(), { instanceOf: ActivityExecutionFailedError });
+    t.assert(err?.cause instanceof ApplicationFailure);
+    t.is(err?.cause?.message, 'failure');
+  });
+
+  test('Execute activity - success', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const result = await client.execute('echo', {
+      ...defaultOptions,
+      id: activityId,
+      args: ['hello'],
+    });
+    t.is(result, 'hello');
+  });
+
+  test('Start Activity preserves rich input and retained result with TypeInfo', async (t) => {
+    const client = t.context.env.client.activity;
+    const handle = await client.start<Receipt>('convertOrder', {
+      ...typeInfoActivityOptions,
+      id: randomUUID(),
+      args: [new Order('order-1', 12345n)],
+      typeInfo: activityTypeInfo.convertOrder,
+    });
+
+    assertReceipt(t, await handle.result());
+  });
+
+  test('Execute Activity preserves rich input and result with TypeInfo', async (t) => {
+    const client = t.context.env.client.activity;
+    const result = await client.execute<Receipt>('convertOrder', {
+      ...typeInfoActivityOptions,
+      id: randomUUID(),
+      args: [new Order('order-1', 12345n)],
+      typeInfo: activityTypeInfo.convertOrder,
+    });
+
+    assertReceipt(t, result);
+  });
+
+  test('Async Activity completion by full ID preserves a rich result', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityStarted = rxjs.firstValueFrom(t.context.asyncActivityStartedSubject);
+    const handle = await client.start<Receipt>('completeOrderAsync', {
+      ...typeInfoActivityOptions,
+      id: randomUUID(),
+      args: [new Order('order-1', 12345n)],
+      typeInfo: activityTypeInfo.convertOrder,
+    });
+    const info = await activityStarted;
+    await client.complete({ activityId: info.activityId, runId: info.activityRunId }, new Receipt('order-1', 12345n), {
+      typeInfo: { outputType: activityTypeInfo.convertOrder.outputType },
+    });
+    assertReceipt(t, await handle.result());
+  });
+
+  test('Detached Activity handle decodes its result with output TypeInfo', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const handle = await client.start<Receipt>('convertOrder', {
+      ...typeInfoActivityOptions,
+      id: activityId,
+      args: [new Order('order-1', 12345n)],
+      typeInfo: activityTypeInfo.convertOrder,
+    });
+
+    const detachedHandle = client.getHandleWithOptions<Receipt>(activityId, {
+      runId: handle.runId,
+      typeInfo: { outputType: activityTypeInfo.convertOrder.outputType },
+    });
+    assertReceipt(t, await detachedHandle.result());
+  });
+
+  test('Activity interceptors can provide input and result TypeInfo', async (t) => {
+    const client = makeClientWithOptions(t.context.env, {
+      interceptors: {
+        activity: [
+          {
+            async start(input, next) {
+              return await next({
+                ...input,
+                options: {
+                  ...input.options,
+                  typeInfo: { inputTypes: activityTypeInfo.convertOrder.inputTypes },
+                },
+              });
+            },
+            async getResult(input, next) {
+              return await next({
+                ...input,
+                outputType: activityTypeInfo.convertOrder.outputType,
+              });
+            },
+          },
+        ],
+      },
+    });
+
+    const result = await client.activity.execute<Receipt>('convertOrder', {
+      ...typeInfoActivityOptions,
+      id: randomUUID(),
+      args: [new Order('order-1', 12345n)],
+    });
+
+    assertReceipt(t, result);
+  });
+
+  test('Activity start snapshots output TypeInfo before asynchronous encoding', async (t) => {
+    const codec = new BlockingEncodePayloadCodec();
+    const client = new Client({
+      connection: t.context.env.client.connection,
+      namespace: t.context.env.client.options.namespace,
+      dataConverter: { payloadCodecs: [codec] },
+    });
+    const typeInfo: PayloadTypeInfo = { ...activityTypeInfo.convertOrder };
+    const start = client.activity.start<Receipt>('convertOrder', {
+      ...typeInfoActivityOptions,
+      id: randomUUID(),
+      args: [new Order('order-1', 12345n)],
+      typeInfo,
+    });
+
+    await codec.encodingStarted;
+    typeInfo.outputType = undefined;
+    codec.releaseEncoding();
+
+    assertReceipt(t, await (await start).result());
+  });
+
+  test('Execute activity - failure', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const err = await t.throwsAsync(
+      () =>
+        client.execute('throwAnError', {
+          ...defaultOptions,
+          id: activityId,
+          args: [true, 'failure'],
+        }),
+      { instanceOf: ActivityExecutionFailedError }
+    );
+    t.assert(err?.cause instanceof ApplicationFailure);
+    t.is(err?.cause?.message, 'failure');
+  });
+
+  test('Start activity with start delay', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const startDelayMs = 2000;
+    const handle = await client.start('echo', {
+      ...defaultOptions,
+      id: activityId,
+      args: ['hello'],
+      startDelay: startDelayMs,
+    });
+
+    t.is(await handle.result(), 'hello');
+
+    const description = await handle.describe();
+    t.is(description.status, ActivityExecutionStatus.COMPLETED);
+    t.truthy(description.scheduleTime);
+    t.truthy(description.lastStartedTime);
+    t.true(description.lastStartedTime!.getTime() - description.scheduleTime!.getTime() >= startDelayMs - 500);
+  });
+
+  test('Describe activity from start handle', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const handle = await client.start('echo', {
+      ...defaultOptions,
+      id: activityId,
+      args: ['hello'],
+    });
+    t.truthy(handle.runId);
+    await handle.result();
+
+    t.like(await handle.describe(), {
+      activityId,
+      activityRunId: handle.runId,
+      activityType: 'echo',
+      attempt: 1,
+      status: 'COMPLETED',
+      taskQueue,
+    });
+  });
+
+  test('Describe activity from ID handle', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+
+    const firstHandle = await client.start('echo', {
+      ...defaultOptions,
+      id: activityId,
+      args: ['hello'],
+    });
+    t.truthy(firstHandle.runId);
+    await firstHandle.result();
+
+    const secondHandle = await client.start('echo', {
+      ...defaultOptions,
+      id: activityId,
+      args: ['hello'],
+    });
+    t.truthy(firstHandle.runId);
+    t.assert(firstHandle.runId !== secondHandle.runId);
+    await secondHandle.result();
+
+    t.like(await client.getHandle(activityId).describe(), {
+      activityId,
+      activityRunId: secondHandle.runId,
+      activityType: 'echo',
+      attempt: 1,
+      status: 'COMPLETED',
+      taskQueue,
+    });
+  });
+
+  test('Describe activity from ID and run ID handle', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+
+    const firstHandle = await client.start('echo', {
+      ...defaultOptions,
+      id: activityId,
+      args: ['hello'],
+    });
+    t.truthy(firstHandle.runId);
+    await firstHandle.result();
+
+    const secondHandle = await client.start('echo', {
+      ...defaultOptions,
+      id: activityId,
+      args: ['hello'],
+    });
+    t.truthy(firstHandle.runId);
+    t.assert(firstHandle.runId !== secondHandle.runId);
+    await secondHandle.result();
+
+    t.like(await client.getHandle(activityId, firstHandle.runId).describe(), {
+      activityId,
+      activityRunId: firstHandle.runId,
+      activityType: 'echo',
+      attempt: 1,
+      status: 'COMPLETED',
+      taskQueue,
+    });
+  });
+
+  test('Describe activity with payloads - success', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const handle = await client.start('heartbeatFailComplete', {
+      ...defaultOptions,
+      id: activityId,
+      args: ['input'],
+    });
+
+    t.is(await handle.result(), 'result');
+
+    const description = await handle.describe({
+      includeInput: true,
+      includeOutcome: true,
+      includeHeartbeatDetails: true,
+      includeLastFailure: true,
+    });
+    t.true(description.hasInput);
+    t.true(description.hasResult);
+    t.true(description.hasHeartbeatDetails);
+    t.true(description.hasLastFailure);
+    t.false(description.hasOutcomeFailure);
+    t.deepEqual(await description.getInput<[string]>(), ['input']);
+    t.is(await description.getResult<string>(), 'result');
+    t.is(await description.getHeartbeatDetails<string>(), 'heartbeat details');
+    t.is((await description.getLastFailure())?.message, 'first attempt failure');
+    t.is(await description.getOutcomeFailure(), undefined);
+  });
+
+  test('Describe activity with payloads - failure', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const handle = await client.start('heartbeatFailComplete', {
+      ...defaultOptions,
+      id: activityId,
+      args: ['input'],
+      retry: { maximumAttempts: 1 },
+    });
+
+    await t.throwsAsync(() => handle.result(), { instanceOf: ActivityExecutionFailedError });
+
+    const description = await handle.describe({
+      includeInput: true,
+      includeOutcome: true,
+      includeHeartbeatDetails: true,
+      includeLastFailure: true,
+    });
+    t.true(description.hasInput);
+    t.false(description.hasResult);
+    t.true(description.hasHeartbeatDetails);
+    t.true(description.hasLastFailure);
+    t.true(description.hasOutcomeFailure);
+    t.deepEqual(await description.getInput<[string]>(), ['input']);
+    t.is(await description.getResult<string>(), undefined);
+    t.is(await description.getHeartbeatDetails<string>(), 'heartbeat details');
+    t.is((await description.getLastFailure())?.message, 'first attempt failure');
+    t.is((await description.getOutcomeFailure())?.message, 'first attempt failure');
+  });
+
+  test('Cancel activity', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const handle = await client.start('heartbeatCancellationDetailsActivity', {
+      ...defaultOptions,
+      id: activityId,
+      args: [{ shouldRetry: true }],
+    });
+    await handle.cancel('test cancellation');
+
+    const err: any = await t.throwsAsync(() => handle.result(), { instanceOf: ActivityExecutionFailedError });
+    t.assert(err?.cause instanceof CancelledFailure);
+
+    const description = await handle.describe();
+    t.is(description.status, 'CANCELED');
+    t.is(description.canceledReason, 'test cancellation');
+  });
+
+  test('Terminate activity', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const handle = await client.start('heartbeatCancellationDetailsActivity', {
+      ...defaultOptions,
+      id: activityId,
+      args: [{ shouldRetry: true }],
+    });
+    await handle.terminate('test termination');
+
+    const err: any = await t.throwsAsync(() => handle.result(), { instanceOf: ActivityExecutionFailedError });
+    t.assert(err?.cause instanceof TerminatedFailure);
+    t.is(err?.cause?.message, 'test termination');
+
+    const description = await handle.describe();
+    t.is(description.status, 'TERMINATED');
+  });
+
+  test('Count and list activities', async (t) => {
+    const client = t.context.env.client.activity;
+
+    const firstAndSecondActivityId = randomUUID();
+    const firstHandle = await client.start('echo', {
+      ...defaultOptions,
+      id: firstAndSecondActivityId,
+      args: ['hello'],
+    });
+    await firstHandle.result();
+
+    const secondHandle = await client.start('echo', {
+      ...defaultOptions,
+      id: firstAndSecondActivityId,
+      args: ['hello'],
+    });
+    await secondHandle.result();
+
+    const thirdActivityId = randomUUID();
+    const thirdHandle = await client.start('echo', {
+      ...defaultOptions,
+      id: thirdActivityId,
+      args: ['hello'],
+    });
+    await thirdHandle.result();
+
+    const query = `ActivityId='${firstAndSecondActivityId}' OR ActivityId='${thirdActivityId}'`;
+
+    // Visibility has update delay, repeating query until the activity count is as expected
+    await waitUntil(async () => {
+      const count = await client.count(query);
+      return count.count === 3;
+    }, 10000);
+
+    const isListed = {
+      [firstAndSecondActivityId + firstHandle.runId]: false,
+      [firstAndSecondActivityId + secondHandle.runId]: false,
+      [thirdActivityId + thirdHandle.runId]: false,
+    };
+
+    for await (const info of client.list(query)) {
+      t.is(info.activityType, 'echo');
+      t.is(info.taskQueue, taskQueue);
+
+      const id = info.activityId + info.activityRunId;
+      t.false(isListed[id]);
+      isListed[id] = true;
+    }
+
+    for (const id in isListed) {
+      t.true(isListed[id]);
+    }
+  });
+
+  test('Verify standalone activity info', async (t) => {
+    const client = t.context.env.client.activity;
+    await t.notThrowsAsync(() =>
+      client.execute('verifyStandaloneActivityInfo', {
+        ...defaultOptions,
+        id: randomUUID(),
+      })
+    );
+  });
+
+  test('Throws ActivityExecutionAlreadyExistsError on ID conflict', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const options: ActivityOptions = {
+      ...defaultOptions,
+      id: activityId,
+      idConflictPolicy: 'FAIL',
+    };
+
+    const activityStarted = waitForValue(t.context.activityStartedSubject, activityId);
+    const handle = await client.start('waitForSignal', options);
+    await activityStarted;
+
+    const err = await t.throwsAsync(() => client.start('waitForSignal', options), {
+      instanceOf: ActivityExecutionAlreadyStartedError,
+    });
+    t.is(err?.activityId, activityId);
+    t.is(err?.runId, handle.runId);
+
+    t.context.activitySignalSubject.next(activityId);
+    await handle.result();
+  });
+
+  test('Throws ActivityExecutionAlreadyExistsError on ID reuse', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const options: ActivityOptions = {
+      ...defaultOptions,
+      id: activityId,
+      args: ['hello'],
+      idReusePolicy: 'REJECT_DUPLICATE',
+    };
+
+    const handle = await client.start('echo', options);
+    await handle.result();
+    const err = await t.throwsAsync(() => client.start('echo', options), {
+      instanceOf: ActivityExecutionAlreadyStartedError,
+    });
+    t.is(err?.activityId, activityId);
+    t.is(err?.runId, handle.runId);
+  });
+
+  test('Wait for result longer than server long poll timeout', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const handle = await client.start('waitForSignal', {
+      ...defaultOptions,
+      id: activityId,
+    });
+    const resultPromise = handle.result();
+    setTimeout(() => t.context.activitySignalSubject.next(activityId), LONG_POLL_TIMEOUT_MS * 1.5);
+    await resultPromise;
+    t.pass();
+  });
+
+  test('Cancel waiting for result', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const handle = await client.start('waitForSignal', {
+      ...defaultOptions,
+      id: activityId,
+      scheduleToCloseTimeout: '5s',
+    });
+    const abortController = new AbortController();
+    const resultPromise = client.withAbortSignal(abortController.signal, () => handle.result());
+    setTimeout(() => abortController.abort(), LONG_POLL_TIMEOUT_MS * 0.25);
+    const err = await t.throwsAsync(() => resultPromise, { instanceOf: ServiceError });
+    t.assert(isGrpcCancelledError(err));
+    t.context.activitySignalSubject.next(activityId);
+  });
+
+  test('Activity serialization context is used', async (t) => {
+    const ctxTaskQueue = taskQueue + '-with-serialization-context';
+
+    const dataConverter = {
+      payloadConverterPath: require.resolve('./payload-converters/serialization-context-converter'),
+      failureConverterPath: require.resolve('./payload-converters/serialization-context-converter'),
+    };
+
+    const worker = await Worker.create({
+      activities,
+      taskQueue: ctxTaskQueue,
+      dataConverter,
+      connection: t.context.env.nativeConnection,
+    });
+    const runPromise = worker.run();
+
+    const client = makeClientWithOptions(t.context.env, { dataConverter });
+
+    const activityId = randomUUID();
+    const ctx = standaloneActivityCtx(activityId);
+
+    const handle = await client.activity.start('echo', {
+      ...defaultOptions,
+      id: activityId,
+      taskQueue: ctxTaskQueue,
+      args: [makeContextTrace('input')],
+    });
+
+    const trace = await handle.result();
+    t.deepEqual(trace, {
+      label: 'input',
+      trace: [...encdec('input', ctx), ...encdec('input', ctx)],
+    });
+
+    const desc = await handle.describe({ includeInput: true, includeOutcome: true });
+    const input = await desc.getInput();
+    t.deepEqual(await desc.getInput(), [
+      {
+        label: 'input',
+        trace: encdec('input', ctx),
+      },
+    ]);
+    t.deepEqual(await desc.getResult(), {
+      label: 'input',
+      trace: [...encdec('input', ctx), ...encdec('input', ctx)],
+    });
+
+    worker.shutdown();
+    await runPromise;
+  });
+
+  test('Typed client - start activity', async (t) => {
+    const client = t.context.env.client.activity.typed<typeof activities>();
+    const activityId = randomUUID();
+    const handle = await client.start('echo', {
+      ...defaultOptions,
+      id: activityId,
+      args: ['hello'],
+    });
+    t.is(await handle.result(), 'hello');
+  });
+
+  test('Typed client - execute activity', async (t) => {
+    const client = t.context.env.client.activity.typed<typeof activities>();
+    const activityId = randomUUID();
+    const result = await client.execute('echo', {
+      ...defaultOptions,
+      id: activityId,
+      args: ['hello'],
+    });
+    t.is(result, 'hello');
+  });
+
+  test('Typed client - type safety', async (t) => {
+    const options = {
+      ...defaultOptions,
+      id: 'ACTIVITY_ID',
+    };
+
+    const _ = async (client: TypedActivityClient<ActivityInterface>) => {
+      {
+        // OK
+        let _handle: ActivityHandle<void> = await client.start('noArgsReturnsVoid', { ...options });
+        let _result: void = await _handle.result();
+        _handle = await client.start('noArgsReturnsVoid', { ...options });
+        _handle = await client.start('noArgsReturnsVoid', { ...options, args: undefined });
+        _handle = await client.start('noArgsReturnsVoid', { ...options, args: [] });
+        _result = await client.execute('noArgsReturnsVoid', { ...options });
+        _result = await client.execute('noArgsReturnsVoid', { ...options, args: undefined });
+        _result = await client.execute('noArgsReturnsVoid', { ...options, args: [] });
+      }
+      {
+        const _handle: ActivityHandle<void> = await client.start('noArgsReturnsVoid', {
+          ...options,
+          args: [
+            // @ts-expect-error TS2322
+            1,
+          ],
+        });
+        const _result: void = await client.execute('noArgsReturnsVoid', {
+          ...options,
+          args: [
+            // @ts-expect-error TS2322
+            1,
+          ],
+        });
+      }
+      {
+        const // @ts-expect-error TS2322
+          _handle // end error
+          : ActivityHandle<number> = await client.start('noArgsReturnsVoid', { ...options });
+
+        const // @ts-expect-error TS2322
+          _result // end error
+          : number = await client.execute('noArgsReturnsVoid', { ...options });
+      }
+      {
+        // OK
+        let _handle: ActivityHandle<number> = await client.start('noArgsReturnsNumber', { ...options });
+        let _result: number = await _handle.result();
+        _handle = await client.start('noArgsReturnsNumber', { ...options });
+        _handle = await client.start('noArgsReturnsNumber', { ...options, args: undefined });
+        _handle = await client.start('noArgsReturnsNumber', { ...options, args: [] });
+        _result = await client.execute('noArgsReturnsNumber', { ...options });
+        _result = await client.execute('noArgsReturnsNumber', { ...options, args: undefined });
+        _result = await client.execute('noArgsReturnsNumber', { ...options, args: [] });
+      }
+      {
+        const // @ts-expect-error TS2322
+          _handle // end error
+          : ActivityHandle<void> = await client.start('noArgsReturnsNumber', { ...options });
+
+        const // @ts-expect-error TS2322
+          _result // end error
+          : void = await client.execute('noArgsReturnsNumber', { ...options });
+      }
+      {
+        const // @ts-expect-error TS2322
+          _handle // end error
+          : ActivityHandle<string> = await client.start('noArgsReturnsNumber', { ...options });
+
+        const // @ts-expect-error TS2322
+          _result // end error
+          : string = await client.execute('noArgsReturnsNumber', { ...options });
+      }
+      {
+        // OK
+        const _handle: ActivityHandle<number> = await client.start('numberArgReturnsNumber', { ...options, args: [1] });
+        let _result: number = await _handle.result();
+        _result = await client.execute('numberArgReturnsNumber', { ...options, args: [1] });
+      }
+      {
+        let _handle: ActivityHandle<number> = await client.start('numberArgReturnsNumber', {
+          ...options,
+          args: [
+            // @ts-expect-error TS2322
+            'a',
+          ],
+        });
+        _handle = await client.start('numberArgReturnsNumber', {
+          ...options,
+          // @ts-expect-error TS2322
+          args: [1, 2],
+        });
+        _handle = await client.start('numberArgReturnsNumber', {
+          ...options,
+          // @ts-expect-error TS2322
+          args: [],
+        });
+        _handle = await client.start('numberArgReturnsNumber', {
+          ...options,
+          // @ts-expect-error TS2322
+          args: undefined,
+        });
+        _handle = await client.start(
+          'numberArgReturnsNumber',
+          // @ts-expect-error TS2322
+          {
+            ...options,
+          }
+        );
+        let _result: number = await client.execute('numberArgReturnsNumber', {
+          ...options,
+          args: [
+            // @ts-expect-error TS2322
+            'a',
+          ],
+        });
+        _result = await client.execute('numberArgReturnsNumber', {
+          ...options,
+          // @ts-expect-error TS2322
+          args: [1, 2],
+        });
+        _result = await client.execute('numberArgReturnsNumber', {
+          ...options,
+          // @ts-expect-error TS2322
+          args: [],
+        });
+        _result = await client.execute('numberArgReturnsNumber', {
+          ...options,
+          // @ts-expect-error TS2322
+          args: undefined,
+        });
+        _result = await client.execute(
+          'numberArgReturnsNumber',
+          // @ts-expect-error TS2322
+          {
+            ...options,
+          }
+        );
+      }
+      {
+        // OK
+        const _handle: ActivityHandle<void> = await client.start('stringAndNumberArgsReturnsVoid', {
+          ...options,
+          args: ['a', 1],
+        });
+        let _result: void = await _handle.result();
+        _result = await client.execute('stringAndNumberArgsReturnsVoid', { ...options, args: ['a', 1] });
+      }
+      {
+        let _handle: ActivityHandle<void> = await client.start('stringAndNumberArgsReturnsVoid', {
+          ...options,
+          args: [
+            'a',
+            // @ts-expect-error TS2322
+            'b',
+          ],
+        });
+        _handle = await client.start('stringAndNumberArgsReturnsVoid', {
+          ...options,
+          args: [
+            // @ts-expect-error TS2322
+            1,
+            // end error
+            2,
+          ],
+        });
+        _handle = await client.start('stringAndNumberArgsReturnsVoid', {
+          ...options,
+          args: [
+            // @ts-expect-error TS2322
+            1,
+            // @ts-expect-error TS2322
+            'a',
+          ],
+        });
+        let _result: void = await client.execute('stringAndNumberArgsReturnsVoid', {
+          ...options,
+          args: [
+            'a',
+            // @ts-expect-error TS2322
+            'b',
+          ],
+        });
+        _result = await client.execute('stringAndNumberArgsReturnsVoid', {
+          ...options,
+          args: [
+            // @ts-expect-error TS2322
+            1,
+            // end error
+            2,
+          ],
+        });
+        _result = await client.execute('stringAndNumberArgsReturnsVoid', {
+          ...options,
+          args: [
+            // @ts-expect-error TS2322
+            1,
+            // @ts-expect-error TS2322
+            'a',
+          ],
+        });
+      }
+    };
+
+    t.pass();
+  });
+
+  test('Pause and unpause activity', async (t) => {
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const handle = await client.start('nonexistent-activity', {
+      ...defaultOptions,
+      id: activityId,
+    });
+
+    async function assertStatus(status: ActivityExecutionStatus): Promise<void> {
+      await assertEventually(t, async (tt) => {
+        tt.is((await handle.describe()).status, status);
+      });
+    }
+
+    await assertStatus(ActivityExecutionStatus.RUNNING);
+    await handle.pause();
+    await assertStatus(ActivityExecutionStatus.PAUSED);
+    await handle.unpause();
+    await assertStatus(ActivityExecutionStatus.RUNNING);
+    await handle.terminate('test cleanup');
+  });
+
+  test('Update activity options', async (t) => {
+    const originalDuration = msToNumber('5m');
+    const updatedDuration = msToNumber('10m');
+
+    const client = t.context.env.client.activity;
+    const activityId = randomUUID();
+    const handle = await client.start('nonexistent-activity', {
+      id: activityId,
+      taskQueue: 'original-task-queue',
+      scheduleToCloseTimeout: undefined,
+      scheduleToStartTimeout: undefined,
+      startToCloseTimeout: originalDuration,
+      heartbeatTimeout: originalDuration,
+      retry: { initialInterval: originalDuration },
+      priority: { fairnessKey: 'original' },
+      startDelay: originalDuration,
+    });
+
+    const updatedOptions = await handle.updateOptions({
+      scheduleToStartTimeout: updatedDuration,
+      startToCloseTimeout: updatedDuration,
+      heartbeatTimeout: undefined,
+      retry: { maximumInterval: updatedDuration },
+      priority: null,
+      startDelay: null,
+    });
+    t.is(updatedOptions.taskQueue, 'original-task-queue');
+    t.falsy(updatedOptions.scheduleToCloseTimeout);
+    t.is(updatedOptions.scheduleToStartTimeout, updatedDuration);
+    t.is(updatedOptions.startToCloseTimeout, updatedDuration);
+    t.is(updatedOptions.heartbeatTimeout, originalDuration);
+    t.not(updatedOptions.retry?.initialInterval, originalDuration); // retry policy has defaults
+    t.is(updatedOptions.retry?.maximumInterval, updatedDuration);
+    t.falsy(updatedOptions.priority);
+    t.falsy(updatedOptions.startDelay);
+
+    await assertEventually(t, async (tt) => {
+      const desc = await handle.describe();
+      tt.is(desc.taskQueue, 'original-task-queue');
+      tt.falsy(desc.scheduleToCloseTimeoutMs);
+      tt.is(desc.scheduleToStartTimeoutMs, updatedDuration);
+      tt.is(desc.startToCloseTimeoutMs, updatedDuration);
+      tt.is(desc.heartbeatTimeoutMs, originalDuration);
+      tt.not(desc.retryPolicy.initialInterval, originalDuration);
+      tt.is(desc.retryPolicy.maximumInterval, updatedDuration);
+      tt.falsy(desc.priority.fairnessKey);
+      tt.falsy(desc.startDelayMs);
+    });
+
+    const originalOptions = await handle.restoreOriginalOptions();
+    t.is(originalOptions.taskQueue, 'original-task-queue');
+    t.falsy(originalOptions.scheduleToCloseTimeout);
+    t.falsy(originalOptions.scheduleToStartTimeout);
+    t.is(originalOptions.startToCloseTimeout, originalDuration);
+    t.is(originalOptions.heartbeatTimeout, originalDuration);
+    t.is(originalOptions.retry?.initialInterval, originalDuration);
+    t.not(originalOptions.retry?.maximumInterval, updatedDuration);
+    t.is(originalOptions.priority?.fairnessKey, 'original');
+    t.is(originalOptions.startDelay, originalDuration);
+
+    await assertEventually(t, async (tt) => {
+      const desc = await handle.describe();
+      tt.is(desc.taskQueue, 'original-task-queue');
+      tt.falsy(desc.scheduleToCloseTimeoutMs);
+      tt.falsy(desc.scheduleToStartTimeoutMs);
+      tt.is(desc.startToCloseTimeoutMs, originalDuration);
+      tt.is(desc.heartbeatTimeoutMs, originalDuration);
+      tt.is(desc.retryPolicy.initialInterval, originalDuration);
+      tt.not(desc.retryPolicy.maximumInterval, updatedDuration);
+      tt.is(desc.priority.fairnessKey, 'original');
+      tt.is(desc.startDelayMs, originalDuration);
+    });
+
+    await handle.terminate('test cleanup');
+  });
+}

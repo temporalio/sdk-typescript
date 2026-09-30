@@ -233,8 +233,9 @@ function applyProfileEnvVars(profile: TomlClientConfigProfile, envProvider: Reco
 }
 
 function getTLSFromEnvVars(envProvider: Record<string, string | undefined>): TomlClientConfigTLS | undefined {
+  const tlsEnabled = envVarToBool(envProvider['TEMPORAL_TLS']);
   const tlsConfig: TomlClientConfigTLS = filterNullAndUndefined({
-    disabled: envVarToBool(envProvider['TEMPORAL_TLS']),
+    disabled: tlsEnabled === undefined ? undefined : !tlsEnabled,
     client_cert_path: envProvider['TEMPORAL_TLS_CLIENT_CERT_PATH'],
     client_cert_data: envProvider['TEMPORAL_TLS_CLIENT_CERT_DATA'],
     client_key_path: envProvider['TEMPORAL_TLS_CLIENT_KEY_PATH'],

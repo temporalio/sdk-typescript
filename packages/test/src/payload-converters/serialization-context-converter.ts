@@ -39,6 +39,10 @@ export function activityCtx(workflowId: string, activityId = '1', isLocal = fals
   return `activity.default.${workflowId}.${activityId}.${isLocal}`;
 }
 
+export function standaloneActivityCtx(activityId: string): string {
+  return `activity.default.${activityId}.${false}`;
+}
+
 export function enc(label: string, ctx: string): string {
   return `payload.encode.bound|${label}|${ctx}`;
 }

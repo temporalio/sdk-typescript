@@ -1,6 +1,7 @@
 // Modified from: https://github.com/vercel/next.js/blob/2425f4703c4c6164cecfdb6aa8f80046213f0cc6/packages/create-next-app/helpers/install.ts
 import { readFile, writeFile } from 'node:fs/promises';
 import { glob } from 'glob';
+import { applyEdits, modify, parse as parseJsonc, printParseErrorCode, type ParseError } from 'jsonc-parser';
 import { spawn } from './subprocess.js';
 import { isUrlOk } from './samples.js';
 
@@ -32,6 +33,22 @@ export function install({ root, useYarn }: InstallArgs): Promise<void> {
   });
 }
 
+export function updateTsconfigNodeVersion(contents: string, packageName: string): string | undefined {
+  const errors: ParseError[] = [];
+  const tsconfigJson = parseJsonc(contents, errors, { allowTrailingComma: true });
+  if (errors.length > 0) {
+    const error = errors[0]!;
+    throw new SyntaxError(`${printParseErrorCode(error.error)} at offset ${error.offset}`);
+  }
+  if (tsconfigJson.extends && /^@tsconfig\/node\d+\/tsconfig\.json$/.test(tsconfigJson.extends)) {
+    const edits = modify(contents, ['extends'], `${packageName}/tsconfig.json`, {
+      formattingOptions: { insertSpaces: true, tabSize: 2 },
+    });
+    return edits.length > 0 ? applyEdits(contents, edits) : undefined;
+  }
+  return undefined;
+}
+
 export async function updateNodeVersion({ root }: InstallArgs): Promise<void> {
   const currentNodeVersion = +process.versions.node.split('.')[0]!;
 
@@ -60,10 +77,9 @@ export async function updateNodeVersion({ root }: InstallArgs): Promise<void> {
 
     const tsconfigFileNames = await glob('**/tsconfig.json', { cwd: root, absolute: true, root: '' });
     for (const fileName of tsconfigFileNames) {
-      const tsconfigJson = JSON.parse((await readFile(fileName, 'utf8')).toString());
-      if (tsconfigJson.extends && /^@tsconfig\/node\d+\/tsconfig\.json$/.test(tsconfigJson.extends)) {
-        tsconfigJson.extends = `${packageName}/tsconfig.json`;
-        await writeFile(fileName, JSON.stringify(tsconfigJson, null, 2));
+      const updatedTsconfig = updateTsconfigNodeVersion(await readFile(fileName, 'utf8'), packageName);
+      if (updatedTsconfig) {
+        await writeFile(fileName, updatedTsconfig);
       }
     }
 

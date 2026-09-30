@@ -147,6 +147,32 @@ test('invokeModelStreaming publishes every part and assembles the final result',
   t.is(totalPublished, parts.length);
 });
 
+test('invokeModelStreaming retains the latest text provider metadata', async (t) => {
+  const startMetadata = { test: { source: 'start' } };
+  const deltaMetadata = { test: { source: 'delta' } };
+  const endMetadata = { test: { source: 'end' } };
+  const parts: LanguageModelV4StreamPart[] = [
+    { type: 'text-start', id: 'start-only', providerMetadata: startMetadata },
+    { type: 'text-delta', id: 'start-only', delta: 'first' },
+    { type: 'text-end', id: 'start-only' },
+    { type: 'text-start', id: 'updated-by-delta', providerMetadata: startMetadata },
+    { type: 'text-delta', id: 'updated-by-delta', delta: 'second', providerMetadata: deltaMetadata },
+    { type: 'text-end', id: 'updated-by-delta' },
+    { type: 'text-start', id: 'updated-by-end', providerMetadata: startMetadata },
+    { type: 'text-delta', id: 'updated-by-end', delta: 'third', providerMetadata: deltaMetadata },
+    { type: 'text-end', id: 'updated-by-end', providerMetadata: endMetadata },
+    { type: 'finish', finishReason: { unified: 'stop', raw: undefined }, usage },
+  ];
+
+  const { result } = await runStreamingActivity(parts);
+
+  t.deepEqual(result.content, [
+    { type: 'text', text: 'first', providerMetadata: startMetadata },
+    { type: 'text', text: 'second', providerMetadata: deltaMetadata },
+    { type: 'text', text: 'third', providerMetadata: endMetadata },
+  ]);
+});
+
 test('invokeModelStreaming throws when the stream emits an error and no finish part', async (t) => {
   const parts: LanguageModelV4StreamPart[] = [
     { type: 'stream-start', warnings: [] },

@@ -287,7 +287,7 @@ mod config {
     use neon::prelude::*;
     use temporalio_common::telemetry::CoreLogStreamConsumer;
     use temporalio_common::telemetry::{
-        HistogramBucketOverrides, Logger as CoreTelemetryLogger, MetricTemporality,
+        HistogramBucketOverrides, Logger as CoreTelemetryLogger, LoggerFormat, MetricTemporality,
         OtelCollectorOptions as CoreOtelCollectorOptions, OtlpProtocol,
         PrometheusExporterOptions as CorePrometheusExporterOptions,
         TelemetryOptions as CoreTelemetryOptions,
@@ -324,6 +324,7 @@ mod config {
     pub(super) enum LogExporterOptions {
         Console {
             filter: String,
+            format: Option<StringEncoded<LoggerFormat>>,
         },
         Forward {
             filter: String,
@@ -368,7 +369,7 @@ mod config {
 
     /// A private newtype so that we can implement `TryFromJs` on simple externally defined enums
     #[derive(Debug, Clone)]
-    struct StringEncoded<T>(T);
+    pub(super) struct StringEncoded<T>(T);
 
     impl
         TryInto<(
@@ -395,8 +396,11 @@ mod config {
             } = self;
 
             let (telemetry_logger, log_exporter) = match log_exporter {
-                LogExporterOptions::Console { filter } => (
-                    CoreTelemetryLogger::Console { filter },
+                LogExporterOptions::Console { filter, format } => (
+                    CoreTelemetryLogger::Console {
+                        filter,
+                        format: format.map(|format| *format),
+                    },
                     BridgeLogExporter::Console,
                 ),
                 LogExporterOptions::Forward { filter, receiver } => {
@@ -519,6 +523,26 @@ mod config {
                 _ => Err(BridgeError::TypeError {
                     field: None,
                     message: "Expected either 'cumulative' or 'delta'".to_string(),
+                }),
+            }
+        }
+    }
+
+    impl TryFromJs for StringEncoded<LoggerFormat> {
+        fn try_from_js<'cx, 'b>(
+            cx: &mut impl Context<'cx>,
+            js_value: Handle<'b, JsValue>,
+        ) -> BridgeResult<Self> {
+            let value = js_value.downcast::<JsString, _>(cx)?;
+            let value = value.value(cx);
+
+            match value.as_str() {
+                "compact" => Ok(Self(LoggerFormat::Compact)),
+                "pretty" => Ok(Self(LoggerFormat::Pretty)),
+                "json" => Ok(Self(LoggerFormat::Json)),
+                _ => Err(BridgeError::TypeError {
+                    field: None,
+                    message: "Expected 'compact', 'pretty', or 'json'".to_string(),
                 }),
             }
         }

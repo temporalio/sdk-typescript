@@ -1,7 +1,10 @@
 import test from 'ava';
-import { Agent, type FunctionTool, type RunContext, type RunResult } from '@openai/agents-core';
+import { Agent, Runner, type FunctionTool, type RunContext, type RunResult } from '@openai/agents-core';
+import { SandboxAgent } from '@openai/agents-core/sandbox';
 import { ApplicationFailure } from '@temporalio/common';
 import { agentAsTool, extractToolOutput } from '../workflow/agent-tools';
+import { temporalSandboxClient } from '../workflow/sandbox-client';
+import { TemporalOpenAIRunner } from '../workflow/runner';
 import { ToolSerializationError } from '../workflow/tools';
 
 const specialist = new Agent({
@@ -53,6 +56,66 @@ test('agentAsTool: invoke outside workflow context fails after JSON parse succee
   const err = await t.throwsAsync(() => tool.invoke({} as RunContext<any>, '{"input":"hi"}'));
   t.false(err instanceof ToolSerializationError, 'should fail after JSON parse, not during it');
   t.regex((err as Error).message, /Workflow Execution|workflowInfo/i);
+});
+
+test.serial('agentAsTool: nested SandboxAgent inherits parent sandbox config', async (t) => {
+  const sandboxAgent = new SandboxAgent({ name: 'Sandbox specialist', model: 'gpt-4o-mini' });
+  const tool = agentAsTool(sandboxAgent, { toolName: 'ask_sandbox' });
+  const parent = new Agent({ name: 'Parent', model: 'gpt-4o-mini', tools: [tool] });
+  const sandboxes = [{ client: temporalSandboxClient('first') }, { client: temporalSandboxClient('second') }];
+  const receivedSandboxes: unknown[] = [];
+  const originalTemporalRun = TemporalOpenAIRunner.prototype.run;
+  TemporalOpenAIRunner.prototype.run = async function (
+    this: TemporalOpenAIRunner,
+    agent: any,
+    input: any,
+    options?: any
+  ): Promise<any> {
+    if (agent instanceof SandboxAgent) receivedSandboxes.push(options?.runConfig?.sandbox);
+    return originalTemporalRun.call(this, agent, input, options);
+  } as any;
+  const originalRunnerRun = Runner.prototype.run;
+  Runner.prototype.run = async function (agent: any): Promise<any> {
+    if (agent instanceof SandboxAgent) return { interruptions: [], finalOutput: 'done' };
+    const output = await (agent.tools[0] as FunctionTool).invoke({} as RunContext<any>, '{"input":"hi"}');
+    return { interruptions: [], finalOutput: output };
+  } as any;
+  const originalActivator = globalThis.__TEMPORAL_ACTIVATOR__;
+  globalThis.__TEMPORAL_ACTIVATOR__ = { info: { workflowId: 'test', runId: 'test' } } as any;
+  try {
+    const runner = new TemporalOpenAIRunner();
+    for (const sandbox of sandboxes) {
+      const result = await runner.run(parent, 'hi', { runConfig: { sandbox } });
+      t.is(result.finalOutput, 'done');
+    }
+    t.deepEqual(receivedSandboxes, sandboxes);
+    t.is(parent.tools[0], tool);
+  } finally {
+    globalThis.__TEMPORAL_ACTIVATOR__ = originalActivator;
+    Runner.prototype.run = originalRunnerRun;
+    TemporalOpenAIRunner.prototype.run = originalTemporalRun;
+  }
+});
+
+test.serial('agentAsTool: nested SandboxAgent without parent sandbox config fails', async (t) => {
+  const sandboxAgent = new SandboxAgent({ name: 'Sandbox specialist', model: 'gpt-4o-mini' });
+  const tool = agentAsTool(sandboxAgent, { toolName: 'ask_sandbox' });
+  const parent = new Agent({ name: 'Parent', model: 'gpt-4o-mini', tools: [tool] });
+  const originalRunnerRun = Runner.prototype.run;
+  Runner.prototype.run = async function (agent: any): Promise<any> {
+    const output = await (agent.tools[0] as FunctionTool).invoke({} as RunContext<any>, '{"input":"hi"}');
+    return { interruptions: [], finalOutput: output };
+  } as any;
+  const originalActivator = globalThis.__TEMPORAL_ACTIVATOR__;
+  globalThis.__TEMPORAL_ACTIVATOR__ = { info: { workflowId: 'test', runId: 'test' } } as any;
+  try {
+    const err = await t.throwsAsync(() => new TemporalOpenAIRunner().run(parent, 'hi'));
+    t.true(err instanceof ApplicationFailure);
+    t.is((err as ApplicationFailure).type, 'SandboxConfigurationError');
+  } finally {
+    globalThis.__TEMPORAL_ACTIVATOR__ = originalActivator;
+    Runner.prototype.run = originalRunnerRun;
+  }
 });
 
 test('extractToolOutput: throws NestedAgentInterruption when nested run has interruptions', async (t) => {

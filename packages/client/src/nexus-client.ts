@@ -13,11 +13,19 @@ import {
   decodeOptionalFailureToOptionalError,
   decodeOptionalSinglePayload,
   encodeToPayload,
+  extstoreInboundOptions,
+  extstoreStoreOptions,
+  visit,
+  walkDescribeNexusOperationExecutionResponse,
+  walkListNexusOperationExecutionsResponse,
+  walkPollNexusOperationExecutionResponse,
+  walkStartNexusOperationExecutionRequest,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import { msOptionalToTs, optionalTsToDate, optionalTsToMs } from '@temporalio/common/lib/time';
 import { temporal } from '@temporalio/proto';
-import type { LoadedDataConverter } from '@temporalio/common';
+import type { LoadedDataConverter, TypeInfo } from '@temporalio/common';
+import { ExternalStorageError } from '@temporalio/common';
 import type { SearchAttributeType, TypedSearchAttributeValue } from '@temporalio/common/lib/search-attributes';
 import { decode } from '@temporalio/common/lib/encoding';
 import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base-client';
@@ -234,9 +242,11 @@ export class NexusClient extends BaseClient {
       options: StartNexusOperationOptions
     ): Promise<NexusOperationHandle<OperationOutput<T, Op>>> => {
       let operationName: string;
+      let inputType: TypeInfo | undefined;
+      let outputType: TypeInfo | undefined;
       if (typeof operation === 'string') {
-        const op = service.operations[operation];
-        if (op == null) {
+        const definition = service.operations[operation];
+        if (definition == null) {
           // The OperationReference<T> type guarantees that if operation is
           // a string then it is a key of service.operations. This runtime
           // check is for extra safety.
@@ -244,9 +254,13 @@ export class NexusClient extends BaseClient {
             `Unable to resolve Nexus operation name from key ${operation} for service ${service.name}`
           );
         }
-        operationName = op.name;
+        operationName = definition.name;
+        inputType = definition.inputType;
+        outputType = definition.outputType;
       } else {
         operationName = operation.name;
+        inputType = operation.inputType;
+        outputType = operation.outputType;
       }
 
       const handle = await this.startNexusOperation({
@@ -263,10 +277,12 @@ export class NexusClient extends BaseClient {
         idConflictPolicy: options.idConflictPolicy,
         searchAttributes: options.searchAttributes,
         headers: options.headers,
+        inputType,
+        outputType,
       });
 
-      // The interceptor layer returns NexusOperationHandle<unknown>, so reapply
-      // the output type here to match the OperationDefinition contract.
+      // NexusClientInterceptor is not generic in the operation definition, so its handle result type is unknown.
+      // Rebind that result to the output type promised by this typed service-client call.
       return handle as NexusOperationHandle<OperationOutput<T, Op>>;
     };
 
@@ -303,6 +319,7 @@ export class NexusClient extends BaseClient {
     return this.createNexusOperationHandle({
       operationId,
       runId: options?.runId,
+      outputType: options?.typeInfo?.outputType,
     });
   }
 
@@ -366,7 +383,7 @@ export class NexusClient extends BaseClient {
   }
 
   protected async startNexusOperationHandler(input: StartNexusOperationInput): Promise<NexusOperationHandle> {
-    const inputPayload = await encodeToPayload(this.dataConverter, input.arg);
+    const inputPayload = await encodeToPayload(this.dataConverter, input.arg, undefined, input.inputType);
     const searchAttributes =
       input.searchAttributes != null
         ? { indexedFields: encodeUnifiedSearchAttributes(undefined, input.searchAttributes) }
@@ -396,8 +413,12 @@ export class NexusClient extends BaseClient {
       nexusHeader: input.headers ?? {},
       userMetadata,
     };
+    const externalStorage = this.dataConverter.externalStorage;
     let res: temporal.api.workflowservice.v1.IStartNexusOperationExecutionResponse;
     try {
+      if (externalStorage) {
+        await visit(req, walkStartNexusOperationExecutionRequest, extstoreStoreOptions(externalStorage));
+      }
       res = await this.connection.workflowService.startNexusOperationExecution(req);
     } catch (err: unknown) {
       this.rethrowGrpcError(err, 'Failed to start Nexus operation', input.id);
@@ -405,10 +426,15 @@ export class NexusClient extends BaseClient {
     return this.createNexusOperationHandle({
       operationId: input.id,
       runId: res.runId ?? undefined,
+      outputType: input.outputType,
     });
   }
 
-  protected createNexusOperationHandle<O>(opts: { operationId: string; runId?: string }): NexusOperationHandle<O> {
+  protected createNexusOperationHandle<O>(opts: {
+    operationId: string;
+    runId?: string;
+    outputType?: TypeInfo;
+  }): NexusOperationHandle<O> {
     let cachedResult:
       | { state: 'not-requested' }
       | { state: 'success'; value: O }
@@ -423,6 +449,7 @@ export class NexusClient extends BaseClient {
             const result = (await this.client.getNexusOperationResult({
               operationId: this.operationId,
               runId: this.runId,
+              outputType: opts.outputType,
             })) as O;
             cachedResult = { state: 'success', value: result };
             return result;
@@ -470,15 +497,17 @@ export class NexusClient extends BaseClient {
     };
     for (;;) {
       let res: temporal.api.workflowservice.v1.IPollNexusOperationExecutionResponse;
+      const externalStorage = this.dataConverter.externalStorage;
       try {
         res = await this.connection.workflowService.pollNexusOperationExecution(req);
+        await visit(res, walkPollNexusOperationExecutionResponse, extstoreInboundOptions(externalStorage));
       } catch (err: unknown) {
         this.rethrowGrpcError(err, 'Failed to poll Nexus operation result', input.operationId);
       }
 
       // The operation is closed if we have a result or failure
       if (res.result) {
-        return await decodeFromPayloadsAtIndex(this.dataConverter, 0, [res.result]);
+        return await decodeFromPayloadsAtIndex(this.dataConverter, 0, [res.result], undefined, input.outputType);
       }
       if (res.failure) {
         const cause = await decodeOptionalFailureToOptionalError(this.dataConverter, res.failure);
@@ -497,8 +526,10 @@ export class NexusClient extends BaseClient {
       runId: input.runId ?? '',
     };
     let res: temporal.api.workflowservice.v1.IDescribeNexusOperationExecutionResponse;
+    const externalStorage = this.dataConverter.externalStorage;
     try {
       res = await this.connection.workflowService.describeNexusOperationExecution(req);
+      await visit(res, walkDescribeNexusOperationExecutionResponse, extstoreInboundOptions(externalStorage));
     } catch (err: unknown) {
       this.rethrowGrpcError(err, 'Failed to describe Nexus operation', input.operationId);
     }
@@ -544,6 +575,7 @@ export class NexusClient extends BaseClient {
     let nextPageToken: Uint8Array | undefined = undefined;
     for (;;) {
       let response: temporal.api.workflowservice.v1.IListNexusOperationExecutionsResponse;
+      const externalStorage = this.dataConverter.externalStorage;
       try {
         response = await this.connection.workflowService.listNexusOperationExecutions({
           namespace: this.options.namespace,
@@ -551,6 +583,7 @@ export class NexusClient extends BaseClient {
           pageSize: input.pageSize,
           nextPageToken,
         });
+        await visit(response, walkListNexusOperationExecutionsResponse, extstoreInboundOptions(externalStorage));
       } catch (err: unknown) {
         this.rethrowGrpcError(err, 'Failed to list Nexus operations', undefined);
       }
@@ -589,6 +622,9 @@ export class NexusClient extends BaseClient {
       throw new ServiceError(fallbackMessage, { cause: err });
     }
 
+    if (err instanceof ExternalStorageError) {
+      throw new ServiceError('External storage failed', { cause: err });
+    }
     throw new ServiceError('Unexpected error while making gRPC request', { cause: err as Error });
   }
 }

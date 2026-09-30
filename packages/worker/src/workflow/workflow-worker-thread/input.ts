@@ -1,6 +1,7 @@
 import type { RawSourceMap } from 'source-map';
 import type { coresdk } from '@temporalio/proto';
 import type { WorkflowCreateOptions } from '../interface';
+import type { PatchActivationWorkflowInfoSnapshot } from '../patch-activation-callback';
 
 export interface WorkflowBundleWithSourceMapAndFilename {
   code: string;
@@ -17,6 +18,7 @@ export interface Init {
   workflowBundle: WorkflowBundleWithSourceMapAndFilename;
   registeredActivityNames: Set<string>;
   reuseV8Context: boolean;
+  hasPatchActivationCallback: boolean;
 }
 
 /**
@@ -68,4 +70,12 @@ export type WorkerThreadInput = Init | Destroy | CreateWorkflow | ActivateWorkfl
 export interface WorkerThreadRequest {
   requestId: bigint;
   input: WorkerThreadInput;
+}
+
+/** A synchronous callback request sent from a Workflow thread to its owning Worker. */
+export interface PatchActivationCallbackRequest {
+  type: 'patch-activation-callback';
+  workflowInfo: PatchActivationWorkflowInfoSnapshot;
+  patchId: string;
+  resultBuffer: SharedArrayBuffer;
 }

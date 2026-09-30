@@ -4,7 +4,7 @@ import type { ExecutionContext, TestFn } from 'ava';
 import anyTest from 'ava';
 import dedent from 'dedent';
 import Long from 'long';
-import type { Payload } from '@temporalio/common';
+import type { Logger, Payload } from '@temporalio/common';
 import {
   ApplicationFailure,
   defaultFailureConverter,
@@ -15,10 +15,16 @@ import {
 } from '@temporalio/common';
 import { msToTs } from '@temporalio/common/lib/time';
 import { coresdk, temporal } from '@temporalio/proto';
-import { LogTimestamp } from '@temporalio/worker';
+import { sleep as workflowSleep, type WorkflowInfo } from '@temporalio/workflow';
+import { DefaultLogger, LogTimestamp, type LogEntry } from '@temporalio/worker';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
+import { invokePatchActivationCallback } from '@temporalio/worker/lib/workflow/patch-activation-callback';
+import { ThreadedVMWorkflowCreator } from '@temporalio/worker/lib/workflow/threaded-vm';
+import type { WorkflowBundleWithSourceMapAndFilename } from '@temporalio/worker/lib/workflow/workflow-worker-thread/input';
+import type { PatchActivationCallback, PatchActivationInput } from '@temporalio/worker';
 import type { VMWorkflow } from '@temporalio/worker/lib/workflow/vm';
 import { VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
+import type { WorkflowCreator } from '@temporalio/worker/lib/workflow/interface';
 import type { SdkFlag } from '@temporalio/workflow/lib/flags';
 import { SdkFlags } from '@temporalio/workflow/lib/flags';
 import { createUnsafeRandomSource } from '@temporalio/workflow/lib/random-helpers';
@@ -36,6 +42,7 @@ export interface Context {
   startTime: number;
   runId: string;
   workflowCreator: TestVMWorkflowCreator | TestReusableVMWorkflowCreator;
+  workflowBundle: WorkflowBundleWithSourceMapAndFilename;
 }
 
 const test = anyTest as TestFn<Context>;
@@ -71,6 +78,7 @@ test.before(async (t) => {
   const workflowsPath = path.join(__dirname, 'workflows');
   const bundler = new WorkflowCodeBundler({ workflowsPath });
   const workflowBundle = parseWorkflowCode((await bundler.createBundle()).code);
+  t.context.workflowBundle = workflowBundle;
   // FIXME: isolateExecutionTimeoutMs used to be 200 ms, but that's causing
   //        lot of flakes on CI. Revert this after investigation / resolution.
   t.context.workflowCreator = REUSE_V8_CONTEXT
@@ -96,6 +104,7 @@ test.beforeEach(async (t) => {
     runId,
     workflowType,
     workflowCreator,
+    workflowBundle: t.context.workflowBundle,
     startTime,
     workflow,
   };
@@ -109,38 +118,43 @@ async function createWorkflow(
   workflowType: string,
   runId: string,
   startTime: number,
-  workflowCreator: VMWorkflowCreator | ReusableVMWorkflowCreator
+  workflowCreator: WorkflowCreator
 ) {
   const workflow = (await workflowCreator.createWorkflow({
-    info: {
-      workflowType,
-      runId,
-      workflowId: 'test-workflowId',
-      namespace: 'default',
-      firstExecutionRunId: runId,
-      attempt: 1,
-      taskTimeoutMs: 1000,
-      taskQueue: 'test',
-      searchAttributes: {},
-      typedSearchAttributes: new TypedSearchAttributes(),
-      historyLength: 3,
-      historySize: 300,
-      continueAsNewSuggested: false,
-      targetWorkerDeploymentVersionChanged: false,
-      unsafe: {
-        isReplaying: false,
-        isReplayingHistoryEvents: false,
-        now: Date.now,
-        random: createUnsafeRandomSource(Math.random),
-      },
-      startTime: new Date(),
-      runStartTime: new Date(),
-    },
+    info: makeWorkflowInfo(workflowType, runId),
     randomnessSeed: Long.fromInt(1337).toBytes(),
     now: startTime,
     showStackTraceSources: true,
   })) as VMWorkflow;
   return workflow;
+}
+
+function makeWorkflowInfo(workflowType: string, runId: string): WorkflowInfo {
+  return {
+    workflowType,
+    runId,
+    workflowId: 'test-workflowId',
+    namespace: 'default',
+    firstExecutionRunId: runId,
+    originalExecutionRunId: runId,
+    attempt: 1,
+    taskTimeoutMs: 1000,
+    taskQueue: 'test',
+    searchAttributes: {},
+    typedSearchAttributes: new TypedSearchAttributes(),
+    historyLength: 3,
+    historySize: 300,
+    continueAsNewSuggested: false,
+    targetWorkerDeploymentVersionChanged: false,
+    unsafe: {
+      isReplaying: false,
+      isReplayingHistoryEvents: false,
+      now: Date.now,
+      random: createUnsafeRandomSource(Math.random),
+    },
+    startTime: new Date(),
+    runStartTime: new Date(),
+  };
 }
 
 async function activate(t: ExecutionContext<Context>, activation: coresdk.workflow_activation.IWorkflowActivation) {
@@ -167,9 +181,29 @@ async function activate(t: ExecutionContext<Context>, activation: coresdk.workfl
     return currPriority;
   }, 0);
 
+  // Core always sets originating_event_id on SignalWorkflow (the Signaled event), plus
+  // original_execution_run_id on InitializeWorkflow. Protobuf defaults the signal id to 0, which
+  // lang rejects as invalid; fill anything a test omitted so these activations stay shaped like
+  // what Core would actually hand out.
+  let nextSignaledEventId = 2;
+  for (const job of jobs) {
+    if (job.initializeWorkflow) {
+      if (!job.initializeWorkflow.originalExecutionRunId) {
+        job.initializeWorkflow.originalExecutionRunId = runId;
+      }
+    }
+    if (job.signalWorkflow && isUnsetEventId(job.signalWorkflow.originatingEventId)) {
+      job.signalWorkflow.originatingEventId = Long.fromNumber(nextSignaledEventId++);
+    }
+  }
+
   const completion = await workflow.activate(coresdk.workflow_activation.WorkflowActivation.fromObject(activation));
   t.deepEqual(completion.runId, runId);
   return completion;
+}
+
+function isUnsetEventId(eventId: Long | number | null | undefined): boolean {
+  return eventId == null || Long.fromValue(eventId).isZero();
 }
 
 function compareCompletion(
@@ -178,6 +212,7 @@ function compareCompletion(
   expected: coresdk.workflow_completion.IWorkflowActivationCompletion
 ) {
   const stackTraces = extractFailureStackTraces(req, expected);
+  omitUnspecifiedEventGroupMarkers(req, expected);
   t.deepEqual(
     coresdk.workflow_completion.WorkflowActivationCompletion.create(req).toJSON(),
     coresdk.workflow_completion.WorkflowActivationCompletion.create({
@@ -189,6 +224,24 @@ function compareCompletion(
   if (stackTraces) {
     for (const { actual, expected } of stackTraces) {
       compareStackTrace(t, actual, expected);
+    }
+  }
+}
+
+// Implicit signal/update markers now appear on commands issued from those handlers. These tests
+// predate that field and do not assert it; drop it unless the expected command listed markers.
+function omitUnspecifiedEventGroupMarkers(
+  req: coresdk.workflow_completion.IWorkflowActivationCompletion,
+  expected: coresdk.workflow_completion.IWorkflowActivationCompletion
+): void {
+  const reqCommands = req.successful?.commands;
+  const expectedCommands = expected.successful?.commands;
+  if (!reqCommands || !expectedCommands || reqCommands.length !== expectedCommands.length) {
+    return;
+  }
+  for (let i = 0; i < reqCommands.length; i++) {
+    if (reqCommands[i] != null && expectedCommands[i]?.eventGroupMarkers == null) {
+      delete reqCommands[i]!.eventGroupMarkers;
     }
   }
 }
@@ -265,7 +318,11 @@ function makeInitializeWorkflowJob(
   args?: Payload[]
 ): { initializeWorkflow: coresdk.workflow_activation.IInitializeWorkflow } {
   return {
-    initializeWorkflow: { workflowId: 'test-workflowId', workflowType, arguments: args },
+    initializeWorkflow: {
+      workflowId: 'test-workflowId',
+      workflowType,
+      arguments: args,
+    },
   };
 }
 
@@ -308,7 +365,7 @@ function makeFireTimerJob(seq: number): coresdk.workflow_activation.IWorkflowAct
 
 function makeResolveActivityJob(
   seq: number,
-  result: coresdk.activity_result.IActivityExecutionResult
+  result: coresdk.activity_result.IActivityResolution
 ): coresdk.workflow_activation.IWorkflowActivationJob {
   return {
     resolveActivity: { seq, result },
@@ -317,7 +374,7 @@ function makeResolveActivityJob(
 
 function makeResolveActivity(
   seq: number,
-  result: coresdk.activity_result.IActivityExecutionResult,
+  result: coresdk.activity_result.IActivityResolution,
   timestamp: number = Date.now()
 ): coresdk.workflow_activation.IWorkflowActivation {
   return makeActivation(timestamp, makeResolveActivityJob(seq, result));
@@ -360,9 +417,18 @@ async function makeSignalWorkflow(
   return makeActivation(timestamp, makeSignalWorkflowJob(signalName, args));
 }
 
-function makeSignalWorkflowJob(signalName: string, args: any[]): coresdk.workflow_activation.IWorkflowActivationJob {
+let nextMockSignaledEventId = 2;
+
+function makeSignalWorkflowJob(
+  signalName: string,
+  args: any[] = []
+): coresdk.workflow_activation.IWorkflowActivationJob {
   return {
-    signalWorkflow: { signalName, input: toPayloads(defaultPayloadConverter, ...args) },
+    signalWorkflow: {
+      signalName,
+      input: toPayloads(defaultPayloadConverter, ...args),
+      originatingEventId: Long.fromNumber(nextMockSignaledEventId++),
+    },
   };
 }
 
@@ -1872,6 +1938,284 @@ test('not-replay patchedWorkflow', async (t) => {
   t.deepEqual(logs, [['has change'], ['has change 2']]);
 });
 
+interface RunPatchedWorkflowWithCallbackOptions {
+  threaded?: boolean;
+  initialActivation?: coresdk.workflow_activation.IWorkflowActivation;
+  workflowType?: string;
+  logger?: Logger;
+  isolateExecutionTimeoutMs?: number;
+}
+
+async function runPatchedWorkflowWithCallback(
+  t: ExecutionContext<Context>,
+  callback: PatchActivationCallback,
+  {
+    threaded = false,
+    initialActivation,
+    workflowType = 'patchedWorkflow',
+    logger = new DefaultLogger('ERROR'),
+    isolateExecutionTimeoutMs = 400,
+  }: RunPatchedWorkflowWithCallbackOptions = {}
+): Promise<{ first: coresdk.workflow_completion.IWorkflowActivationCompletion; calls: PatchActivationInput[] }> {
+  const calls: PatchActivationInput[] = [];
+  const recordingCallback: PatchActivationCallback = (input) => {
+    calls.push(input);
+    return callback(input);
+  };
+  // VM creators share source maps by bundle filename, so the temporary creator needs its own key
+  // to avoid removing the suite-wide creator's source map when it is destroyed.
+  const workflowBundle = {
+    ...t.context.workflowBundle,
+    filename: `${t.context.workflowBundle.filename}-${t.context.runId}`,
+  };
+  let creator: WorkflowCreator;
+  if (threaded) {
+    creator = await ThreadedVMWorkflowCreator.create({
+      workflowBundle,
+      threadPoolSize: 1,
+      isolateExecutionTimeoutMs,
+      reuseV8Context: REUSE_V8_CONTEXT,
+      registeredActivityNames: new Set(),
+      logger,
+      patchActivationCallback: recordingCallback,
+    });
+  } else {
+    const internalCallback = (info: WorkflowInfo, patchId: string) =>
+      invokePatchActivationCallback(recordingCallback, info, patchId);
+    if (REUSE_V8_CONTEXT) {
+      creator = await TestReusableVMWorkflowCreator.create(
+        workflowBundle,
+        isolateExecutionTimeoutMs,
+        new Set(),
+        internalCallback
+      );
+    } else {
+      creator = await TestVMWorkflowCreator.create(
+        workflowBundle,
+        isolateExecutionTimeoutMs,
+        new Set(),
+        internalCallback
+      );
+    }
+  }
+  const runId = t.context.runId;
+  if (creator instanceof TestVMWorkflowCreator || creator instanceof TestReusableVMWorkflowCreator) {
+    creator.logs[runId] = [];
+  }
+  const workflow = await createWorkflow(workflowType, runId, Date.now(), creator);
+  try {
+    const first = await workflow.activate(initialActivation ?? makeStartWorkflow(workflowType));
+    if (first.successful?.commands?.some((command) => command.startTimer !== undefined)) {
+      await workflow.activate(makeFireTimer(1));
+    }
+    return { first, calls };
+  } finally {
+    await workflow.dispose();
+    await creator.destroy();
+  }
+}
+
+test('patch activation callback true patchedWorkflow', async (t) => {
+  const { first, calls } = await runPatchedWorkflowWithCallback(t, () => true);
+  compareCompletion(
+    t,
+    first,
+    makeSuccess([
+      makeSetPatchMarker('my-change-id', false),
+      makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(100) }),
+    ])
+  );
+  t.is(calls.length, 1);
+  t.is(calls[0]?.workflowInfo.workflowId, 'test-workflowId');
+  t.is(calls[0]?.patchId, 'my-change-id');
+});
+
+test('patch activation callback false patchedWorkflow', async (t) => {
+  const { first, calls } = await runPatchedWorkflowWithCallback(t, () => false);
+  compareCompletion(t, first, makeSuccess([makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(100) })]));
+  t.is(calls.length, 1);
+});
+
+test('patch activation callback validates result patchedWorkflow', async (t) => {
+  const { first } = await runPatchedWorkflowWithCallback(t, () => 'yes' as unknown as boolean, { threaded: true });
+  t.regex(first.failed?.failure?.message ?? '', /patchActivationCallback must return a boolean, got string/);
+});
+
+test('patch activation callback uses the same Worker snapshot in debug and threaded modes patchedWorkflow', async (t) => {
+  const expectedObservation = {
+    inputFrozen: true,
+    infoFrozen: true,
+    startTimeIsDate: true,
+    typedSearchAttributesRestored: true,
+    nowWorks: true,
+    randomWorks: true,
+  };
+  const observations: Array<Record<string, boolean>> = [];
+  for (const threaded of [false, true]) {
+    let sideEffects = 0;
+    const { first } = await runPatchedWorkflowWithCallback(
+      t,
+      (input) => {
+        sideEffects++;
+        observations.push({
+          inputFrozen: Object.isFrozen(input),
+          infoFrozen: Object.isFrozen(input.workflowInfo),
+          startTimeIsDate: input.workflowInfo.startTime instanceof Date,
+          typedSearchAttributesRestored: input.workflowInfo.typedSearchAttributes instanceof TypedSearchAttributes,
+          nowWorks: Number.isFinite(input.workflowInfo.unsafe.now()),
+          randomWorks: input.workflowInfo.unsafe.random.random() >= 0,
+        });
+        t.throws(() => workflowSleep(1), { message: /Workflow Execution/ });
+        return false;
+      },
+      { threaded }
+    );
+    t.falsy(first.failed);
+    t.is(sideEffects, 1);
+  }
+  t.is(observations.length, 2);
+  for (const observation of observations) {
+    t.deepEqual(observation, expectedObservation);
+  }
+});
+
+test('patch activation callback receives a detached WorkflowInfo snapshot patchedWorkflow', (t) => {
+  const workflowInfo = makeWorkflowInfo('patchedWorkflow', 'snapshot-run-id');
+  workflowInfo.searchAttributes.SnapshotKeywordField = ['original'];
+  invokePatchActivationCallback(
+    (input) => {
+      (input.workflowInfo.searchAttributes.SnapshotKeywordField as string[]).push('callback');
+      return false;
+    },
+    workflowInfo,
+    'my-change-id'
+  );
+  t.deepEqual(workflowInfo.searchAttributes.SnapshotKeywordField, ['original']);
+});
+
+test('threaded patch activation callback preserves closures patchedWorkflow', async (t) => {
+  let invoked = 0;
+  const { first, calls } = await runPatchedWorkflowWithCallback(
+    t,
+    () => {
+      invoked++;
+      return false;
+    },
+    { threaded: true }
+  );
+  t.falsy(first.failed);
+  t.is(invoked, 1);
+  t.is(calls.length, 1);
+});
+
+// Bun does not count time spent waiting for a main-thread callback toward the Workflow VM timeout.
+(isBun ? test.skip : test.serial)(
+  'slow patch activation callback blocks the Worker and counts toward isolate timeout patchedWorkflow',
+  async (t) => {
+    const isolateExecutionTimeoutMs = 100;
+    const delayMs = 200;
+    let callbackDurationMs = 0;
+    let mainThreadTimerFired = false;
+    let mainThreadTimerFiredBeforeCallbackReturned = false;
+    let mainThreadTimer: Promise<void> | undefined;
+    const { first, calls } = await runPatchedWorkflowWithCallback(
+      t,
+      () => {
+        mainThreadTimer = new Promise((resolve) => {
+          setTimeout(() => {
+            mainThreadTimerFired = true;
+            resolve();
+          }, 0);
+        });
+        const startedAt = Date.now();
+        do {
+          callbackDurationMs = Date.now() - startedAt;
+        } while (callbackDurationMs <= delayMs);
+        mainThreadTimerFiredBeforeCallbackReturned = mainThreadTimerFired;
+        return false;
+      },
+      { threaded: true, isolateExecutionTimeoutMs }
+    );
+
+    await mainThreadTimer;
+    t.true(callbackDurationMs > isolateExecutionTimeoutMs);
+    t.false(mainThreadTimerFiredBeforeCallbackReturned);
+    t.true(mainThreadTimerFired);
+    t.regex(
+      first.failed?.failure?.message ?? '',
+      new RegExp(`Script execution timed out after ${isolateExecutionTimeoutMs}ms`)
+    );
+    t.is(calls.length, 1);
+  }
+);
+
+test('history patch marker bypasses patch activation callback patchedWorkflow', async (t) => {
+  const initialActivation: coresdk.workflow_activation.IWorkflowActivation = {
+    runId: 'test-runId',
+    timestamp: msToTs(Date.now()),
+    isReplaying: true,
+    jobs: [makeInitializeWorkflowJob('patchedWorkflow'), makeNotifyHasPatchJob('my-change-id')],
+  };
+  const { first, calls } = await runPatchedWorkflowWithCallback(t, () => false, { initialActivation });
+  t.falsy(first.failed);
+  t.is(calls.length, 0);
+});
+
+test('replay without marker defers patch activation callback until live activation patchedWorkflow', async (t) => {
+  const initialActivation: coresdk.workflow_activation.IWorkflowActivation = {
+    runId: 'test-runId',
+    timestamp: msToTs(Date.now()),
+    isReplaying: true,
+    jobs: [makeInitializeWorkflowJob('patchedWorkflow')],
+  };
+  const { first, calls } = await runPatchedWorkflowWithCallback(
+    t,
+    (input) => {
+      t.false(input.workflowInfo.unsafe.isReplaying);
+      return false;
+    },
+    { initialActivation }
+  );
+  t.falsy(first.failed);
+  t.is(calls.length, 1);
+});
+
+test('deprecated patch bypasses patch activation callback deprecatePatchWorkflow', async (t) => {
+  const { first, calls } = await runPatchedWorkflowWithCallback(
+    t,
+    () => {
+      throw new Error('Patch activation callback should not be called');
+    },
+    { workflowType: 'deprecatePatchWorkflow' }
+  );
+  compareCompletion(t, first, makeSuccess([makeSetPatchMarker('my-change-id', true), makeCompleteWorkflowExecution()]));
+  t.is(calls.length, 0);
+});
+
+test('threaded patch activation callback logs complete errors before returning a compact failure patchedWorkflow', async (t) => {
+  const entries: LogEntry[] = [];
+  const logger = new DefaultLogger('WARN', (entry) => entries.push(entry));
+  const callbackError = new Error('callback failure with stack');
+  const { first } = await runPatchedWorkflowWithCallback(
+    t,
+    () => {
+      throw callbackError;
+    },
+    { threaded: true, logger }
+  );
+
+  t.regex(first.failed?.failure?.message ?? '', /Error: callback failure with stack/);
+  t.is(entries.length, 1);
+  t.is(entries[0]?.level, 'WARN');
+  t.is(entries[0]?.message, 'Patch activation callback failed');
+  t.is(entries[0]?.meta?.error, callbackError);
+  t.is(entries[0]?.meta?.workflowId, 'test-workflowId');
+  t.is(entries[0]?.meta?.runId, t.context.runId);
+  t.is(entries[0]?.meta?.workflowType, 'patchedWorkflow');
+  t.is(entries[0]?.meta?.patchId, 'my-change-id');
+  t.truthy(callbackError.stack);
+});
+
 test('replay-no-marker patchedWorkflow', async (t) => {
   const { logs, workflowType } = t.context;
   {
@@ -1994,9 +2338,7 @@ test('failUnlessSignaledBeforeStart', async (t) => {
   const { workflowType } = t.context;
   const completion = await activate(
     t,
-    makeActivation(undefined, makeInitializeWorkflowJob(workflowType), {
-      signalWorkflow: { signalName: 'someShallPass' },
-    })
+    makeActivation(undefined, makeInitializeWorkflowJob(workflowType), makeSignalWorkflowJob('someShallPass'))
   );
   compareCompletion(t, completion, makeSuccess(undefined, [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]));
 });
@@ -2034,13 +2376,7 @@ test('conditionRacer', async (t) => {
   {
     const completion = await activate(
       t,
-      makeActivation(
-        Date.now(),
-        {
-          signalWorkflow: { signalName: 'unblock', input: [] },
-        },
-        makeFireTimerJob(1)
-      )
+      makeActivation(Date.now(), makeSignalWorkflowJob('unblock'), makeFireTimerJob(1))
     );
     compareCompletion(
       t,
@@ -2068,15 +2404,9 @@ test('signalHandlersCanBeCleared', async (t) => {
       t,
       makeActivation(
         Date.now(),
-        {
-          signalWorkflow: { signalName: 'unblock', input: [] },
-        },
-        {
-          signalWorkflow: { signalName: 'unblock', input: [] },
-        },
-        {
-          signalWorkflow: { signalName: 'unblock', input: [] },
-        }
+        makeSignalWorkflowJob('unblock'),
+        makeSignalWorkflowJob('unblock'),
+        makeSignalWorkflowJob('unblock')
       )
     );
     compareCompletion(t, completion, makeSuccess([], [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]));
@@ -2203,13 +2533,13 @@ test('Buffered signals are dispatched to correct handler and in correct order - 
       makeActivation(
         undefined,
         makeInitializeWorkflowJob(workflowType),
-        { signalWorkflow: { signalName: 'non-existant', input: toPayloads(defaultPayloadConverter, 1) } },
-        { signalWorkflow: { signalName: 'signalA', input: toPayloads(defaultPayloadConverter, 2) } },
-        { signalWorkflow: { signalName: 'signalA', input: toPayloads(defaultPayloadConverter, 3) } },
-        { signalWorkflow: { signalName: 'signalC', input: toPayloads(defaultPayloadConverter, 4) } },
-        { signalWorkflow: { signalName: 'signalB', input: toPayloads(defaultPayloadConverter, 5) } },
-        { signalWorkflow: { signalName: 'non-existant', input: toPayloads(defaultPayloadConverter, 6) } },
-        { signalWorkflow: { signalName: 'signalB', input: toPayloads(defaultPayloadConverter, 7) } }
+        makeSignalWorkflowJob('non-existant', [1]),
+        makeSignalWorkflowJob('signalA', [2]),
+        makeSignalWorkflowJob('signalA', [3]),
+        makeSignalWorkflowJob('signalC', [4]),
+        makeSignalWorkflowJob('signalB', [5]),
+        makeSignalWorkflowJob('non-existant', [6]),
+        makeSignalWorkflowJob('signalB', [7])
       )
     );
 
@@ -2252,13 +2582,13 @@ test('Buffered signals dispatch is reentrant  - signalsOrdering2', async (t) => 
       makeActivation(
         undefined,
         makeInitializeWorkflowJob(workflowType),
-        { signalWorkflow: { signalName: 'non-existant', input: toPayloads(defaultPayloadConverter, 1) } },
-        { signalWorkflow: { signalName: 'signalA', input: toPayloads(defaultPayloadConverter, 2) } },
-        { signalWorkflow: { signalName: 'signalA', input: toPayloads(defaultPayloadConverter, 3) } },
-        { signalWorkflow: { signalName: 'signalB', input: toPayloads(defaultPayloadConverter, 4) } },
-        { signalWorkflow: { signalName: 'signalB', input: toPayloads(defaultPayloadConverter, 5) } },
-        { signalWorkflow: { signalName: 'signalC', input: toPayloads(defaultPayloadConverter, 6) } },
-        { signalWorkflow: { signalName: 'signalC', input: toPayloads(defaultPayloadConverter, 7) } }
+        makeSignalWorkflowJob('non-existant', [1]),
+        makeSignalWorkflowJob('signalA', [2]),
+        makeSignalWorkflowJob('signalA', [3]),
+        makeSignalWorkflowJob('signalB', [4]),
+        makeSignalWorkflowJob('signalB', [5]),
+        makeSignalWorkflowJob('signalC', [6]),
+        makeSignalWorkflowJob('signalC', [7])
       )
     );
     compareCompletion(
@@ -2306,11 +2636,9 @@ test("Pending promises can't unblock between signals and updates - 1.11.0+ - sig
 
   {
     const completion = await activate(t, {
-      ...makeActivation(
-        undefined,
-        { signalWorkflow: { signalName: 'fooSignal', input: [] } },
-        { doUpdate: { name: 'fooUpdate', protocolInstanceId: '2', id: 'second' } }
-      ),
+      ...makeActivation(undefined, makeSignalWorkflowJob('fooSignal'), {
+        doUpdate: { name: 'fooUpdate', protocolInstanceId: '2', id: 'second' },
+      }),
       isReplaying: false,
     });
     compareCompletion(
@@ -2350,11 +2678,9 @@ test("Pending promises can't unblock between signals and updates - pre-1.11.0 - 
 
   {
     const completion = await activate(t, {
-      ...makeActivation(
-        undefined,
-        { signalWorkflow: { signalName: 'fooSignal', input: [] } },
-        { doUpdate: { name: 'fooUpdate', protocolInstanceId: '2', id: 'second' } }
-      ),
+      ...makeActivation(undefined, makeSignalWorkflowJob('fooSignal'), {
+        doUpdate: { name: 'fooUpdate', protocolInstanceId: '2', id: 'second' },
+      }),
       isReplaying: true,
     });
     compareCompletion(

@@ -1,5 +1,6 @@
-import * as protoJsonSerializer from 'proto3-json-serializer';
-import type { Message, Namespace, Root, Type } from 'protobufjs';
+import * as protojson from 'protobufjs/ext/protojson';
+import * as protobufjslight from 'protobufjs/light';
+import type { Message, Root, Type } from 'protobufjs';
 import { decode, encode } from '../encoding';
 import { PayloadConverterError, ValueError } from '../errors';
 import type { Payload } from '../interfaces';
@@ -14,7 +15,23 @@ import {
 
 import { encodingTypes, METADATA_ENCODING_KEY, METADATA_MESSAGE_TYPE_KEY } from './types';
 
-const GLOBAL_BUFFER = globalThis.constructor.constructor('return globalThis.Buffer')();
+/**
+ * `protobufjs` optimizes allocations of `bytes` fields using `Buffer.allocUnsafe()`
+ * instead of `Uint8Array` if the global `Buffer` class exists. `Buffer.allocUnsafe()`
+ * carves small allocations out of a shared pool slab (of 64KB as of Node 24); the
+ * slab is retained as long as any one payload is reachable, which may effectively leak
+ * memory if payloads are not garbage collected within a reasonable timeframe, and pose
+ * other subtle issues (i.e. `Buffer` and `Uint8array` differ under `JSON.stringify`
+ * and deep equality). For those reasons, we walk through objects decoded by `protobufjs`
+ * and replace `Buffer`s with `Uint8Array`s.
+ *
+ * That fix adds unnecessary overhead in the very common case of decoding payloads
+ * inside the Workflow sandbox, as Node's `Buffer` class is known to be not available
+ * (protobufjs explicitly rejects `Buffer` polyfills).
+ *
+ * @hidden
+ */
+const PROTOBUFJS_MAY_ALLOCATE_BUFFERS = protobufjslight.util.Buffer != null;
 
 abstract class ProtobufPayloadConverter implements PayloadConverterWithEncoding {
   protected readonly root: Root | undefined;
@@ -123,70 +140,71 @@ export class ProtobufJsonPayloadConverter extends ProtobufPayloadConverter {
       return undefined;
     }
 
-    const hasBufferChanged = setBufferInGlobal();
-    try {
-      const jsonValue = protoJsonSerializer.toProto3JSON(value);
+    const jsonValue = protojson.toJson(value.$type, value);
 
-      return this.constructPayload({
-        messageTypeName: getNamespacedTypeName(value.$type),
-        message: encode(JSON.stringify(jsonValue)),
-      });
-    } finally {
-      resetBufferInGlobal(hasBufferChanged);
-    }
+    return this.constructPayload({
+      messageTypeName: getNamespacedTypeName(value.$type),
+      message: encode(JSON.stringify(jsonValue)),
+    });
   }
 
   public fromPayload<T>(content: Payload): T {
-    const hasBufferChanged = setBufferInGlobal();
-    try {
-      const { messageType, data } = this.validatePayload(content);
-      const res = protoJsonSerializer.fromProto3JSON(messageType, JSON.parse(decode(data))) as unknown as T;
-      if (Buffer.isBuffer(res)) {
-        return new Uint8Array(res) as any;
-      }
-      replaceBuffers(res);
-      return res;
-    } finally {
-      resetBufferInGlobal(hasBufferChanged);
+    const { messageType, data } = this.validatePayload(content);
+    const res = protojson.fromJson(messageType, JSON.parse(decode(data)), {
+      ignoreUnknownFields: true,
+    }) as unknown as T;
+    return replaceBuffers(res);
+  }
+}
+
+/**
+ * Recursively replace the `Buffer`s that `protobufjs` may have allocated for
+ * `bytes` fields with plain `Uint8Array`s; see {@link PROTOBUFJS_MAY_ALLOCATE_BUFFERS}.
+ */
+function replaceBuffers<X>(value: X): X {
+  if (PROTOBUFJS_MAY_ALLOCATE_BUFFERS) {
+    if (isBuffer(value)) {
+      return new Uint8Array(value) as unknown as X;
+    }
+    replaceBuffersInChildren(value);
+  }
+  return value;
+}
+
+function replaceBuffersInChildren(obj: unknown): void {
+  // Bail on binary leaves; descending into one would visit it a byte at a time
+  if (obj == null || typeof obj !== 'object' || ArrayBuffer.isView(obj)) return;
+
+  // Indexing rather than Object.entries() is a performance optimization for large arrays
+  if (Array.isArray(obj)) {
+    for (let i = 0; i < obj.length; i++) {
+      const child = obj[i];
+      if (isBuffer(child)) obj[i] = new Uint8Array(child);
+      else replaceBuffersInChildren(child);
+    }
+  } else {
+    const record = obj as Record<string, unknown>;
+    for (const [key, child] of Object.entries(record)) {
+      if (isBuffer(child)) record[key] = new Uint8Array(child);
+      else replaceBuffersInChildren(child);
     }
   }
 }
 
-function replaceBuffers<X>(obj: X) {
-  const replaceBuffersImpl = <Y>(value: any, key: string | number, target: Y) => {
-    if (Buffer.isBuffer(value)) {
-      // Need to copy. `Buffer` manages a pool slab, internally reused when Buffer objects are GC.
-      type T = keyof typeof target;
-      target[key as T] = new Uint8Array(value) as any;
-    } else {
-      replaceBuffers(value);
-    }
-  };
+function isBuffer(value: unknown): value is Buffer {
+  // Can't use `Buffer` as a function here (i.e. `instanceof Buffer`)
+  // because that would fail in the Workflow sandbox.
+  if (!isRecord(value)) return false;
 
-  if (obj != null && typeof obj === 'object') {
-    // Performance optimization for large arrays
-    if (Array.isArray(obj)) {
-      obj.forEach(replaceBuffersImpl);
-    } else {
-      for (const [key, value] of Object.entries(obj)) {
-        replaceBuffersImpl(value, key, obj);
-      }
-    }
-  }
-}
-
-function setBufferInGlobal(): boolean {
-  if (typeof globalThis.Buffer === 'undefined') {
-    globalThis.Buffer = GLOBAL_BUFFER;
-    return true;
-  }
-  return false;
-}
-
-function resetBufferInGlobal(hasChanged: boolean): void {
-  if (hasChanged) {
-    delete (globalThis as any).Buffer;
-  }
+  // Resolving `isBuffer` through the value's own `constructor` keeps this correct
+  // for `Buffer`s created in another realm, and avoids referencing the `Buffer`
+  // global, which is undefined in the Workflow sandbox.
+  const maybeBufferConstructor = value.constructor as BufferConstructor | undefined;
+  return (
+    maybeBufferConstructor?.name === 'Buffer' &&
+    typeof maybeBufferConstructor?.isBuffer === 'function' &&
+    maybeBufferConstructor?.isBuffer?.(value) === true
+  );
 }
 
 function isProtobufType(type: unknown): type is Type {
@@ -206,12 +224,11 @@ function isProtobufMessage(value: unknown): value is Message {
   return isRecord(value) && hasOwnProperty(value, '$type') && isProtobufType(value.$type);
 }
 
-function getNamespacedTypeName(node: Type | Namespace): string {
-  if (node.parent && !isRoot(node.parent)) {
-    return getNamespacedTypeName(node.parent) + '.' + node.name;
-  } else {
-    return node.name;
-  }
+function getNamespacedTypeName(type: Type): string {
+  // protobufjs qualifies names from the root down, e.g. `.temporal.api.common.v1.Payload`.
+  // The leading dot is not part of the name that goes on the wire.
+  const { fullName } = type;
+  return fullName.charAt(0) === '.' ? fullName.slice(1) : fullName;
 }
 
 function isRoot(root: unknown): root is Root {

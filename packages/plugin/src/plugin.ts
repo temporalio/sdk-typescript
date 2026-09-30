@@ -57,7 +57,10 @@ export interface SimplePluginOptions {
   readonly workflowsPath?: PluginParameter<string>;
   /** Workflow bundle configuration */
   readonly workflowBundle?: PluginParameter<WorkflowBundleOption>;
-  /** Worker-side interceptors. When a value is provided, interceptors will be appended  */
+  /** Worker-side interceptors. When a value is provided, interceptors will be appended.
+   * Note that `workflowModules` are only appended to worker options when a `workflowsPath` is
+   * used; with a workflow bundle, they are instead applied at bundling time (see
+   * `configureBundler`). */
   readonly workerInterceptors?: PluginParameter<WorkerInterceptors>;
   /** Context function to wrap worker execution */
   readonly runContext?: (next: () => Promise<void>) => Promise<void>;
@@ -104,14 +107,19 @@ export class SimplePlugin
    * @returns Modified worker options with plugin configuration applied
    */
   configureWorker(options: WorkerOptions): WorkerOptions {
+    const workflowsPath = resolveParameter(options.workflowsPath, this.options.workflowsPath);
     return {
       ...options,
       dataConverter: resolveDataConverter(options.dataConverter, this.options.dataConverter),
       activities: resolveAppendObjectParameter(options.activities, this.options.activities),
       nexusServices: resolveAppendParameter(options.nexusServices, this.options.nexusServices),
-      workflowsPath: resolveParameter(options.workflowsPath, this.options.workflowsPath),
+      workflowsPath,
       workflowBundle: resolveParameter(options.workflowBundle, this.options.workflowBundle),
-      interceptors: resolveWorkerInterceptors(options.interceptors, this.options.workerInterceptors),
+      interceptors: resolveWorkerInterceptors(
+        options.interceptors,
+        this.options.workerInterceptors,
+        workflowsPath != null
+      ),
     };
   }
 
@@ -121,12 +129,17 @@ export class SimplePlugin
    * @returns Modified replay worker options with plugin configuration applied
    */
   configureReplayWorker(options: ReplayWorkerOptions): ReplayWorkerOptions {
+    const workflowsPath = resolveParameter(options.workflowsPath, this.options.workflowsPath);
     return {
       ...options,
       dataConverter: resolveDataConverter(options.dataConverter, this.options.dataConverter),
-      workflowsPath: resolveParameter(options.workflowsPath, this.options.workflowsPath),
+      workflowsPath,
       workflowBundle: resolveParameter(options.workflowBundle, this.options.workflowBundle),
-      interceptors: resolveWorkerInterceptors(options.interceptors, this.options.workerInterceptors),
+      interceptors: resolveWorkerInterceptors(
+        options.interceptors,
+        this.options.workerInterceptors,
+        workflowsPath != null
+      ),
     };
   }
 
@@ -254,10 +267,20 @@ function resolveClientInterceptors(
   }));
 }
 
+/**
+ * Workflow interceptor module paths only apply when the worker bundles workflow code itself
+ * (i.e. a workflowsPath is used); with a prebuilt workflowBundle, they must instead be included
+ * at bundling time (see {@link SimplePlugin.configureBundler}). When `includeWorkflowModules` is
+ * false, the plugin's workflowModules are not appended and existing ones pass through untouched.
+ */
 function resolveWorkerInterceptors(
   existing?: WorkerInterceptors,
-  parameter?: PluginParameter<WorkerInterceptors>
+  parameter?: PluginParameter<WorkerInterceptors>,
+  includeWorkflowModules: boolean = true
 ): WorkerInterceptors | undefined {
+  if (!includeWorkflowModules && parameter !== undefined && typeof parameter !== 'function') {
+    parameter = { ...parameter, workflowModules: undefined };
+  }
   return resolveParameterWithResolution(existing, parameter, (existing, parameter) => ({
     client: resolveClientInterceptors(existing.client, parameter.client),
     activity: resolveAppendParameter(existing.activity, parameter.activity),

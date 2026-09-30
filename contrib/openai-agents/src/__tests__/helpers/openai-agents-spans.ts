@@ -99,6 +99,7 @@ interface SpanRecord {
   parentId: string | undefined;
   name: string;
   traceId: string;
+  data?: Record<string, unknown>;
 }
 
 // --------------------------------------------------------------------------
@@ -203,7 +204,14 @@ export interface AgentSdkSpan {
   parentId?: string;
   traceId: string;
   /** Agent SDK exposes name via `spanData.type` plus a discriminant field. */
-  spanData: { type: string; name?: string; from_agent?: string; to_agent?: string };
+  spanData: {
+    type: string;
+    name?: string;
+    turn?: number;
+    from_agent?: string;
+    to_agent?: string;
+    data?: Record<string, unknown>;
+  };
 }
 
 export interface AgentSdkTrace {
@@ -259,17 +267,19 @@ export class AgentSdkSpanCollector {
       parentId,
       name: incomingName,
       traceId: span.traceId,
+      data: span.spanData.data,
     };
     this.byId.set(span.spanId, record);
     this.records.push(record);
   }
 
   onSpanEnd(span: AgentSdkSpan): void {
-    // Re-derive the name at end. Some span types (notably `handoff`)
-    // populate fields like `to_agent` AFTER `start()` fires, so the
-    // start-time name reads `unknown`. Refresh in-place.
+    // Some span fields/data are populated after `start()`, so refresh name+data at end.
     const record = this.byId.get(span.spanId);
-    if (record) record.name = nameForAgentSdkSpan(span);
+    if (record) {
+      record.name = nameForAgentSdkSpan(span);
+      record.data = span.spanData.data;
+    }
   }
 
   forceFlush(): Promise<void> {
@@ -302,6 +312,8 @@ function nameForAgentSdkSpan(span: AgentSdkSpan): string {
       return `agent:${d.name}`;
     case 'function':
       return `function:${d.name}`;
+    case 'turn':
+      return `turn:${d.turn}`;
     case 'generation':
       return 'generation';
     case 'response':

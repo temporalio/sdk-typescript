@@ -14,7 +14,7 @@ import type {
 } from '@temporalio/worker';
 import { DefaultLogger, NativeConnection, Runtime, makeTelemetryFilterString } from '@temporalio/worker';
 import type * as workflow from '@temporalio/workflow';
-import type { temporal } from '@temporalio/proto';
+import { temporal } from '@temporalio/proto';
 
 // Import from test-helpers
 import type {
@@ -127,13 +127,16 @@ export function makeTestFunction<C extends Context = Context>(opts: TestFunction
 export function makeDefaultTestContextFunction(opts: TestFunctionOptions): (t: ExecutionContext) => Promise<Context> {
   return async (_t: ExecutionContext): Promise<Context> => {
     const env = await createTestWorkflowEnvironment(opts.workflowEnvironmentOpts);
-    return {
-      workflowBundle: await createTestWorkflowBundle({
+    try {
+      const workflowBundle = await createTestWorkflowBundle({
         workflowsPath: opts.workflowsPath,
         workflowInterceptorModules: opts.workflowInterceptorModules,
-      }),
-      env,
-    };
+      });
+      return { workflowBundle, env };
+    } catch (err) {
+      await env.teardown();
+      throw err;
+    }
   };
 }
 
@@ -171,7 +174,7 @@ export function helpers(t: ExecutionContext<Context>, env?: TestWorkflowEnvironm
   return {
     ...base,
     async createNativeConnection(opts?: Partial<NativeConnectionOptions>): Promise<NativeConnection> {
-      return await NativeConnection.connect({ address: testEnv.address, ...opts });
+      return await NativeConnection.connect({ ...testEnv.connectionOptions, address: testEnv.address, ...opts });
     },
     async runReplayHistory(
       opts: Partial<ReplayWorkerOptions>,
@@ -213,14 +216,26 @@ export function helpers(t: ExecutionContext<Context>, env?: TestWorkflowEnvironm
     },
     async updateHasBeenAdmitted(handle: WorkflowHandle<workflow.Workflow>, updateId: string): Promise<boolean> {
       try {
-        await testEnv.client.workflowService.pollWorkflowExecutionUpdate({
+        const res = await testEnv.client.workflowService.pollWorkflowExecutionUpdate({
           namespace: testEnv.client.options.namespace,
           updateRef: {
             workflowExecution: { workflowId: handle.workflowId },
             updateId,
           },
+          waitPolicy: {
+            lifecycleStage:
+              temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage
+                .UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ADMITTED,
+          },
         });
-        return true;
+        // UNSPECIFIED means the server waited out its long-poll without the Update reaching
+        // ADMITTED; treat that as "not yet" so the caller can retry.
+        return (
+          res.stage != null &&
+          res.stage !==
+            temporal.api.enums.v1.UpdateWorkflowExecutionLifecycleStage
+              .UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_UNSPECIFIED
+        );
       } catch (err) {
         if (isGrpcServiceError(err) && err.code === grpcStatus.NOT_FOUND) {
           return false;

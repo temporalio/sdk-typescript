@@ -59,6 +59,11 @@ export interface PayloadCodec {
 
 Temporal Server <--> Wire <--> `PayloadCodec` <--> `PayloadConverter` <--> User code
 
+System Nexus operations have an additional internal envelope at the Workflow-isolate boundary so
+the Worker can apply codecs to payloads nested in a generated protobuf request. See
+[System Nexus](https://github.com/temporalio/features/blob/main/features/system_nexus/README.md)
+for that protocol.
+
 ### Worker converter flow
 
 `PayloadCodec` only runs in the main thread.

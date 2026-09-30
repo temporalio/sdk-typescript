@@ -154,7 +154,12 @@ export type LogExporterConfig = {
  * Log directly to console
  */
 export interface ConsoleLogger {
-  console: {}; // eslint-disable-line @typescript-eslint/no-empty-object-type
+  console: {
+    /**
+     * Format for logs written directly to the console. Defaults to `'compact'` when omitted.
+     */
+    format?: 'compact' | 'pretty' | 'json';
+  };
 }
 
 /**
@@ -243,7 +248,6 @@ export interface OtelCollectorExporter {
      *
      * @format Starts with "grpc://" or "http://" for an unsecured connection (typical),
      *         or "grpcs://" or "https://" for a TLS connection.
-     * @note The `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable, if set, will override this property.
      */
     url: string;
 
@@ -479,6 +483,7 @@ function compileLoggerOptions(options: RuntimeOptions): [Logger, native.LogExpor
       {
         type: 'console',
         filter: loggingFilter ?? defaultFilter,
+        format: logging && 'console' in logging ? logging.console?.format ?? null : null,
       },
     ];
   }

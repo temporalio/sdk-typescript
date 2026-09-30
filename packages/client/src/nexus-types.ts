@@ -1,4 +1,10 @@
-import type { Duration, SearchAttributePair, SearchAttributeType, TypedSearchAttributes } from '@temporalio/common';
+import type {
+  Duration,
+  PayloadTypeInfo,
+  SearchAttributePair,
+  SearchAttributeType,
+  TypedSearchAttributes,
+} from '@temporalio/common';
 import type { TypedSearchAttributeValue } from '@temporalio/common/lib/search-attributes';
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import type { temporal } from '@temporalio/proto';
@@ -450,6 +456,11 @@ export interface GetNexusOperationHandleOptions {
    * If provided, targets this specific run of the operation. If absent, targets the latest run.
    */
   runId?: string;
+
+  /**
+   * Type information for decoding the operation result.
+   */
+  typeInfo?: Pick<PayloadTypeInfo, 'outputType'>;
 }
 
 /**

@@ -34,3 +34,12 @@ export function limit(concurrency: number): ConcurrencyLimit {
 export function sequential(): ConcurrencyLimit {
   return limit(1);
 }
+
+/**
+ * Creates a {@link ConcurrencyLimit} that imposes no limit.
+ *
+ * @internal
+ */
+export function unbounded(): ConcurrencyLimit {
+  return (fn) => fn();
+}

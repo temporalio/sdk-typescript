@@ -5,7 +5,8 @@ import type { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interfa
 import type { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
 import type { WorkflowModule } from './vm-shared';
 import { BaseVMWorkflow, globalHandlers, injectGlobals, setUnhandledRejectionHandler } from './vm-shared';
-import { isBun } from './bun';
+import { isBunPre1_4 } from './bun';
+import type { WorkflowPatchActivationCallback } from './patch-activation-callback';
 
 /**
  * A WorkflowCreator that creates VMWorkflows in the current isolate
@@ -20,7 +21,8 @@ export class VMWorkflowCreator implements WorkflowCreator {
     script: vm.Script,
     protected readonly workflowBundle: WorkflowBundleWithSourceMapAndFilename,
     protected readonly isolateExecutionTimeoutMs: number,
-    protected readonly registeredActivityNames: Set<string>
+    protected readonly registeredActivityNames: Set<string>,
+    protected readonly patchActivationCallback?: WorkflowPatchActivationCallback
   ) {
     if (!VMWorkflowCreator.unhandledRejectionHandlerHasBeenSet) {
       setUnhandledRejectionHandler((runId) => VMWorkflowCreator.workflowByRunId.get(runId));
@@ -59,6 +61,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
       getTimeOfDay: native.getTimeOfDay,
       registeredActivityNames: this.registeredActivityNames,
       stackTracesEnabled: globalHandlers.promiseHookInstalled,
+      patchActivationCallback: this.patchActivationCallback,
     });
     const activator = context.__TEMPORAL_ACTIVATOR__!;
     const newVM = new VMWorkflow(options.info.runId, context, activator, workflowModule);
@@ -101,12 +104,19 @@ export class VMWorkflowCreator implements WorkflowCreator {
     this: T,
     workflowBundle: WorkflowBundleWithSourceMapAndFilename,
     isolateExecutionTimeoutMs: number,
-    registeredActivityNames: Set<string>
+    registeredActivityNames: Set<string>,
+    patchActivationCallback?: WorkflowPatchActivationCallback
   ): Promise<InstanceType<T>> {
     globalHandlers.install();
     await globalHandlers.addWorkflowBundle(workflowBundle);
     const script = new vm.Script(workflowBundle.code, { filename: workflowBundle.filename });
-    return new this(script, workflowBundle, isolateExecutionTimeoutMs, registeredActivityNames) as InstanceType<T>;
+    return new this(
+      script,
+      workflowBundle,
+      isolateExecutionTimeoutMs,
+      registeredActivityNames,
+      patchActivationCallback
+    ) as InstanceType<T>;
   }
 
   /**
@@ -124,11 +134,11 @@ export class VMWorkflowCreator implements WorkflowCreator {
 export class VMWorkflow extends BaseVMWorkflow {
   public async dispose(): Promise<void> {
     this.workflowModule.dispose();
-    if (isBun) await new Promise(setImmediate);
+    if (isBunPre1_4) await new Promise(setImmediate);
 
     // This sandbox VM won't be reused, so we can destroy it now.
     this.workflowModule.destroy();
-    if (isBun) await new Promise(setImmediate);
+    if (isBunPre1_4) await new Promise(setImmediate);
 
     VMWorkflowCreator.workflowByRunId.delete(this.runId);
     delete this.context;

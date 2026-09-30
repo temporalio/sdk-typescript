@@ -161,8 +161,9 @@ export function buildListToolsActivity(
 ): (input: { server: string }) => Promise<McpToolInfo[]> {
   const name = listToolsActivityName(server);
   const fn = async (_input: { server: string }): Promise<McpToolInfo[]> => {
-    const client = await getConnection(server, factory, idleMs);
+    const record = acquireConnection(server, factory);
     try {
+      const client = await record.client;
       const tools = await client.listTools();
       return tools.map((t) => ({
         name: t.name,
@@ -174,6 +175,10 @@ export function buildListToolsActivity(
       // the next call reconnects to the current deployment.
       await _evictConnection(server);
       throw err;
+    } finally {
+      // No more in-flight call on this connection; let idle eviction resume
+      // (no-op if the connection was just evicted above).
+      releaseConnection(server, record, idleMs);
     }
   };
   Object.defineProperty(fn, 'name', { value: name });
@@ -181,61 +186,96 @@ export function buildListToolsActivity(
 }
 
 /**
- * Default for how long an idle MCP connection is kept open before it's
- * disconnected. The timer resets on every {@link callToolActivityName |
- * callTool} that reuses the connection. Override per worker via
- * `StrandsPlugin({ mcpConnectionIdleMs })`.
+ * Default for how long an *idle* MCP connection is kept open before it's
+ * disconnected. The window only starts once no {@link callToolActivityName |
+ * callTool} or {@link listToolsActivityName | listTools} activity is using the
+ * connection, so a call that runs longer than this is never cut off. Override
+ * per worker via `StrandsPlugin({ mcpConnectionIdleTimeout })`.
  */
 export const MCP_CONNECTION_IDLE_MS = 5 * 60 * 1000;
 
-// Worker-process caches, keyed by server name. Activities run in the worker's
-// Node process, so this module state is shared across every activity invocation on the worker.
-const CONNECTIONS: Map<string, Promise<McpClient>> = new Map();
-const IDLE_TIMERS: Map<string, NodeJS.Timeout> = new Map();
-
-function resetIdleTimer(server: string, idleMs: number): void {
-  const existing = IDLE_TIMERS.get(server);
-  if (existing !== undefined) clearTimeout(existing);
-  const timer = setTimeout(() => void _evictConnection(server), idleMs);
-  // Don't let an idle MCP connection keep the worker process alive.
-  timer.unref?.();
-  IDLE_TIMERS.set(server, timer);
+/** A worker-process MCP connection plus the state governing its idle eviction. */
+interface ConnectionRecord {
+  /** Resolves to the connected client, or rejects if the handshake failed. */
+  client: Promise<McpClient>;
+  /** Number of activities currently using this connection. */
+  inflight: number;
+  /** Armed only while `inflight` is 0. */
+  idleTimer?: NodeJS.Timeout;
 }
 
+// Worker-process cache, keyed by server name. Activities run in the worker's
+// Node process, so this module state is shared across every activity invocation on the worker.
+const CONNECTIONS: Map<string, ConnectionRecord> = new Map();
+
 export async function _evictConnection(server: string): Promise<void> {
-  const timer = IDLE_TIMERS.get(server);
-  if (timer !== undefined) {
-    clearTimeout(timer);
-    IDLE_TIMERS.delete(server);
-  }
-  const entry = CONNECTIONS.get(server);
-  if (entry === undefined) return;
+  const record = CONNECTIONS.get(server);
+  if (record === undefined) return;
+  // Delete before awaiting: a call arriving during `disconnect` must open a
+  // fresh connection rather than join the one being torn down.
   CONNECTIONS.delete(server);
+  if (record.idleTimer !== undefined) {
+    clearTimeout(record.idleTimer);
+    record.idleTimer = undefined;
+  }
   try {
-    const client = await entry;
+    const client = await record.client;
     await client.disconnect();
   } catch {
     // Best-effort; the session may already be broken.
   }
 }
 
-function getConnection(server: string, factory: () => McpClient, idleMs: number): Promise<McpClient> {
-  let entry = CONNECTIONS.get(server);
-  if (entry === undefined) {
-    entry = (async () => {
-      const client = factory();
-      await client.connect();
-      return client;
-    })();
-    CONNECTIONS.set(server, entry);
+/**
+ * Return the cached connection for `server`, opening one lazily if needed, and
+ * mark a call in flight so idle eviction can't disconnect underneath it.
+ * Concurrent first-callers dedupe onto a single connect handshake by awaiting
+ * the same record. Every caller must {@link releaseConnection} once its call
+ * completes.
+ */
+function acquireConnection(server: string, factory: () => McpClient): ConnectionRecord {
+  let record = CONNECTIONS.get(server);
+  if (record === undefined) {
+    const entry: ConnectionRecord = {
+      inflight: 0,
+      client: (async () => {
+        const client = factory();
+        await client.connect();
+        return client;
+      })(),
+    };
     // If the connect handshake fails, drop the rejected promise so the next
     // call retries instead of caching the failure forever.
-    entry.catch(() => {
+    entry.client.catch(() => {
       if (CONNECTIONS.get(server) === entry) CONNECTIONS.delete(server);
     });
+    CONNECTIONS.set(server, entry);
+    record = entry;
   }
-  resetIdleTimer(server, idleMs);
-  return entry;
+  record.inflight += 1;
+  if (record.idleTimer !== undefined) {
+    clearTimeout(record.idleTimer);
+    record.idleTimer = undefined;
+  }
+  return record;
+}
+
+/** Mark a call done; arm idle eviction once no calls remain in flight. */
+function releaseConnection(server: string, record: ConnectionRecord, idleMs: number): void {
+  record.inflight -= 1;
+  // Only the record still cached under this server arms a timer; a record
+  // already evicted must not schedule one, or it could later evict a
+  // different, healthy connection for the same server.
+  if (record.inflight > 0 || CONNECTIONS.get(server) !== record) return;
+  const timer = setTimeout(() => {
+    // `acquireConnection` clears this timer synchronously, so a pending timer
+    // implies the connection is still idle; re-checked to keep that invariant
+    // local.
+    if (record.inflight === 0) void _evictConnection(server);
+  }, idleMs);
+  // Don't let an idle MCP connection keep the worker process alive.
+  timer.unref?.();
+  record.idleTimer = timer;
 }
 
 /**
@@ -255,18 +295,23 @@ export function buildCallToolActivity(
     ActivityContext.current().log.debug(`Calling MCP tool ${input.toolName} on server ${server}`, {
       activityId: activityInfo().activityId,
     });
-    const client = await getConnection(server, factory, idleMs);
+    const record = acquireConnection(server, factory);
     // Dispatch by name without re-listing tools on the connection: the agent
     // already has the schema from `listTools`, and `McpClient.callTool` only
     // reads `tool.name` to build the request. A minimal `{ name }` matches the
     // by-name dispatch the Python SDK does via `session.call_tool`.
     const tool = { name: input.toolName } as unknown as Parameters<McpClient['callTool']>[0];
     try {
+      const client = await record.client;
       return await client.callTool(tool, input.args);
     } catch (err) {
       // The session may be broken; drop it so the next call reconnects.
       await _evictConnection(server);
       throw err;
+    } finally {
+      // No more in-flight call on this connection; let idle eviction resume
+      // (no-op if the connection was just evicted above).
+      releaseConnection(server, record, idleMs);
     }
   };
   Object.defineProperty(fn, 'name', { value: name });

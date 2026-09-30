@@ -33,14 +33,19 @@ export type TimeSkippingTestWorkflowEnvironmentOptions = {
   plugins?: (ClientPlugin | ConnectionPlugin | NativeConnectionPlugin)[];
 };
 
+export type ExistingServerConnectionOptions = Pick<NativeConnectionOptions, 'apiKey' | 'metadata' | 'tls'>;
+
 /**
- * Options for {@link TestWorkflowEnvironment.createExistingServer}
+ * Options for {@link TestWorkflowEnvironment.createFromExistingServer}
+ *
+ * Accepts connection options that can be used for both the client and worker connections.
  */
 export type ExistingServerTestWorkflowEnvironmentOptions = {
   /** If not set, defaults to localhost:7233 */
   address?: string;
   /** If not set, defaults to default */
   namespace?: string;
+  connectionOptions?: ExistingServerConnectionOptions;
   client?: ClientOptionsForTestEnv;
   plugins?: (ClientPlugin | ConnectionPlugin | NativeConnectionPlugin)[];
 };
@@ -99,7 +104,11 @@ export class TestWorkflowEnvironment {
     /**
      * Address used when constructing `connection` and `nativeConnection`
      */
-    public readonly address: string
+    public readonly address: string,
+    /**
+     * Connection options used when constructing `connection` and `nativeConnection`.
+     */
+    public readonly connectionOptions: ExistingServerConnectionOptions = {}
   ) {
     this.connection = connection;
     this.nativeConnection = nativeConnection;
@@ -198,6 +207,7 @@ export class TestWorkflowEnvironment {
   static async createFromExistingServer(
     opts?: ExistingServerTestWorkflowEnvironmentOptions
   ): Promise<TestWorkflowEnvironment> {
+    const { apiKey, metadata, tls } = opts?.connectionOptions ?? {};
     return await this.create({
       server: { type: 'existing' },
       client: opts?.client,
@@ -205,6 +215,7 @@ export class TestWorkflowEnvironment {
       namespace: opts?.namespace ?? 'default',
       supportsTimeSkipping: false,
       address: opts?.address,
+      connectionOptions: { apiKey, metadata, tls },
     });
   }
 
@@ -216,9 +227,10 @@ export class TestWorkflowEnvironment {
       supportsTimeSkipping: boolean;
       namespace?: string;
       address?: string;
+      connectionOptions?: ExistingServerConnectionOptions;
     }
   ): Promise<TestWorkflowEnvironment> {
-    const { supportsTimeSkipping, namespace, ...rest } = opts;
+    const { supportsTimeSkipping, namespace, connectionOptions, ...rest } = opts;
     const optsWithDefaults = addDefaults(filterNullAndUndefined(rest));
 
     let address: string;
@@ -243,12 +255,15 @@ export class TestWorkflowEnvironment {
       server = 'existing';
     }
 
+    const resolvedConnectionOptions = { ...(connectionOptions ?? {}) };
     const nativeConnection = await NativeConnection.connect(<NativeConnectionOptions & InternalConnectionOptions>{
+      ...resolvedConnectionOptions,
       address,
       plugins: opts.plugins,
       [InternalConnectionOptionsSymbol]: { supportsTestService: supportsTimeSkipping },
     });
     const connection = await Connection.connect(<ConnectionOptions & InternalConnectionOptions>{
+      ...resolvedConnectionOptions,
       address,
       plugins: opts.plugins,
       [InternalConnectionOptionsSymbol]: { supportsTestService: supportsTimeSkipping },
@@ -262,7 +277,8 @@ export class TestWorkflowEnvironment {
       connection,
       nativeConnection,
       namespace,
-      address
+      address,
+      resolvedConnectionOptions
     );
   }
 

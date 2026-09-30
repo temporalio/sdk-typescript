@@ -23,6 +23,7 @@ import {
 import { DefaultLogger, Runtime } from '@temporalio/worker';
 import root from '../protos/root'; // eslint-disable-line import/default
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { createTestWorkflowEnvironment } from './helpers-integration';
 import { defaultOptions } from './mock-native-worker';
 import { messageInstance } from './payload-converters/proto-payload-converter';
 import { protobufWorkflow } from './workflows/protobufs';
@@ -206,13 +207,20 @@ if (RUN_INTEGRATION_TESTS) {
       telemetryOptions: { logging: { forward: {}, filter: 'WARN' } },
     });
 
+    const env = await createTestWorkflowEnvironment();
+    t.teardown(() => env.teardown());
+
     const taskQueue = `${__filename}/${t.title}`;
     const worker = await Worker.create({
       ...defaultOptions,
+      connection: env.nativeConnection,
+      namespace: env.client.options.namespace,
       workflowsPath: require.resolve('./workflows/protobufs'),
       taskQueue,
     });
     const client = new WorkflowClient({
+      connection: env.client.connection,
+      namespace: env.client.options.namespace,
       dataConverter: { payloadConverterPath: require.resolve('./payload-converters/proto-payload-converter') },
     });
 
@@ -233,18 +241,26 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Worker encodes/decodes a protobuf containing a binary array', async (t) => {
+    const env = await createTestWorkflowEnvironment();
+    t.teardown(() => env.teardown());
     const binaryInstance = root.BinaryMessage.create({ data: encode('abc') });
     const dataConverter = { payloadConverterPath: require.resolve('./payload-converters/proto-payload-converter') };
     const taskQueue = `${__filename}/${t.title}`;
 
     const worker = await Worker.create({
       ...defaultOptions,
+      connection: env.nativeConnection,
+      namespace: env.client.options.namespace,
       workflowsPath: require.resolve('./workflows/echo-binary-protobuf'),
       taskQueue,
       dataConverter,
     });
 
-    const client = new WorkflowClient({ dataConverter });
+    const client = new WorkflowClient({
+      connection: env.client.connection,
+      namespace: env.client.options.namespace,
+      dataConverter,
+    });
 
     await worker.runUntil(async () => {
       const result = await client.execute(echoBinaryProtobuf, {

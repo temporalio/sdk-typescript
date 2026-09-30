@@ -1,25 +1,25 @@
-import { randomUUID } from 'crypto';
-import test from 'ava';
-import { WorkflowClient } from '@temporalio/client';
-import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { defaultOptions } from './mock-native-worker';
+import { helpers, makeTestFunction } from './helpers-integration';
 import { runActivityInDifferentTaskQueue } from './workflows';
 
-if (RUN_INTEGRATION_TESTS) {
-  test('Worker functions when asked not to run Workflows', async (t) => {
-    const { activities } = defaultOptions;
-    const workflowlessWorker = await Worker.create({ taskQueue: 'only-activities', activities });
-    const normalWorker = await Worker.create({ ...defaultOptions, taskQueue: 'also-workflows' });
-    const client = new WorkflowClient();
-    const result = await normalWorker.runUntil(
-      workflowlessWorker.runUntil(
-        client.execute(runActivityInDifferentTaskQueue, {
-          args: ['only-activities'],
-          taskQueue: 'also-workflows',
-          workflowId: randomUUID(),
-        })
-      )
-    );
-    t.is(result, 'hi');
+const test = makeTestFunction({ workflowsPath: require.resolve('./workflows') });
+
+test('Worker functions when asked not to run Workflows', async (t) => {
+  const { createWorker, executeWorkflow, taskQueue } = helpers(t);
+  const activitiesTaskQueue = `${taskQueue}-activities`;
+  const { activities } = defaultOptions;
+  const workflowlessWorker = await createWorker({
+    workflowBundle: undefined,
+    taskQueue: activitiesTaskQueue,
+    activities,
   });
-}
+  const normalWorker = await createWorker();
+  const result = await normalWorker.runUntil(
+    workflowlessWorker.runUntil(
+      executeWorkflow(runActivityInDifferentTaskQueue, {
+        args: [activitiesTaskQueue],
+      })
+    )
+  );
+  t.is(result, 'hi');
+});

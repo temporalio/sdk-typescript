@@ -17,6 +17,9 @@ contrib/*/package-lock.json
 .claude/settings.local.json
 mise.toml
 
+# Per-package test logs + summaries written by scripts/ava-ci.mjs
+.test-results/
+
 # One test creates persisted SQLite DBs; they should normally be deleted automatically,
 # but may be left behind in some error scenarios.
 packages/test/temporal-db-*.sqlite

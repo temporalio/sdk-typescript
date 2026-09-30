@@ -1,16 +1,17 @@
 import type {
   CommonWorkflowOptions,
   SignalDefinition,
+  SignalTypeInfo,
   WithWorkflowArgs,
   Workflow,
   VersioningOverride,
+  PayloadTypeInfo,
 } from '@temporalio/common';
-import { toCanonicalString } from '@temporalio/common';
+import { versioningOverrideToProto } from '@temporalio/common/lib/worker-deployments';
 import type { Duration } from '@temporalio/common/lib/time';
 import { msOptionalToTs } from '@temporalio/common/lib/time';
 import type { Replace } from '@temporalio/common/lib/type-helpers';
-import type { google } from '@temporalio/proto';
-import { temporal } from '@temporalio/proto';
+import type { google, temporal } from '@temporalio/proto';
 
 export * from '@temporalio/common/lib/workflow-options';
 
@@ -60,6 +61,13 @@ export interface WorkflowOptions extends CommonWorkflowOptions {
    * start it on a local worker running with this same client.
    */
   requestEagerStart?: boolean;
+
+  /**
+   * Type information used to encode and decode Workflow input and output.
+   *
+   * @experimental
+   */
+  typeInfo?: PayloadTypeInfo;
 }
 
 export type WithCompiledWorkflowOptions<T extends WorkflowOptions> = Replace<
@@ -97,11 +105,34 @@ export interface WorkflowUpdateOptions {
    * Update.
    */
   readonly updateId?: string;
+
+  /**
+   * Type information used to convert Update arguments and results when the Update is referenced by name.
+   *
+   * @experimental
+   */
+  typeInfo?: PayloadTypeInfo;
 }
 
-export type WorkflowSignalWithStartOptions<SignalArgs extends any[] = []> = SignalArgs extends [any, ...any[]]
+type WorkflowSignalWithStartOptionsBase<SignalArgs extends any[]> = SignalArgs extends [any, ...any[]]
   ? WorkflowSignalWithStartOptionsWithArgs<SignalArgs>
   : WorkflowSignalWithStartOptionsWithoutArgs<SignalArgs>;
+
+type SignalWithStartTypeInfoOptions =
+  | { signalTypeInfo?: never }
+  | {
+      signal: string;
+
+      /**
+       * Type information used to convert Signal arguments.
+       *
+       * @experimental
+       */
+      signalTypeInfo?: SignalTypeInfo;
+    };
+
+export type WorkflowSignalWithStartOptions<SignalArgs extends any[] = []> =
+  WorkflowSignalWithStartOptionsBase<SignalArgs> & SignalWithStartTypeInfoOptions;
 
 export interface WorkflowSignalWithStartOptionsWithoutArgs<SignalArgs extends any[]>
   extends Omit<WorkflowOptions, 'requestEagerStart'> {
@@ -133,26 +164,3 @@ export interface WorkflowSignalWithStartOptionsWithArgs<SignalArgs extends any[]
  * Options for starting a Workflow
  */
 export type WorkflowStartOptions<T extends Workflow = Workflow> = WithWorkflowArgs<T, WorkflowOptions>;
-
-function versioningOverrideToProto(
-  vo: VersioningOverride | undefined
-): temporal.api.workflow.v1.IVersioningOverride | undefined {
-  if (!vo) return undefined;
-
-  // TODO: Remove deprecated field assignments when versioning is non-experimental
-  if (vo === 'AUTO_UPGRADE') {
-    return {
-      autoUpgrade: true,
-      behavior: temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_AUTO_UPGRADE,
-    };
-  }
-
-  return {
-    pinned: {
-      version: vo.pinnedTo,
-      behavior: temporal.api.workflow.v1.VersioningOverride.PinnedOverrideBehavior.PINNED_OVERRIDE_BEHAVIOR_PINNED,
-    },
-    behavior: temporal.api.enums.v1.VersioningBehavior.VERSIONING_BEHAVIOR_PINNED,
-    pinnedVersion: toCanonicalString(vo.pinnedTo),
-  };
-}

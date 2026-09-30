@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import type { ExecutionContext } from 'ava';
 import type {
   CustomSlotSupplier,
@@ -8,6 +9,7 @@ import type {
   SlotReleaseContext,
   SlotReserveContext,
 } from '@temporalio/worker';
+import { ResourceBasedController } from '@temporalio/worker';
 import * as wf from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
 
@@ -50,6 +52,61 @@ test('Worker can run with resource based tuner', async (t) => {
   });
   const result = await worker.runUntil(executeWorkflow(successString));
   t.is(result, 'success');
+});
+
+test('Workers can share a resource based controller', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+  const firstTaskQueue = `${taskQueue}-first`;
+  const secondTaskQueue = `${taskQueue}-second`;
+  const controller = ResourceBasedController.create({
+    targetCpuUsage: 0.6,
+    targetMemoryUsage: 0.6,
+  });
+  const firstWorker = await createWorker({
+    taskQueue: firstTaskQueue,
+    tuner: {
+      controller,
+      activityTaskSlotOptions: {
+        minimumSlots: 2,
+        maximumSlots: 10,
+      },
+    },
+  });
+  const secondWorker = await createWorker({
+    taskQueue: secondTaskQueue,
+    tuner: {
+      workflowTaskSlotSupplier: {
+        type: 'resource-based',
+        controller,
+      },
+      activityTaskSlotSupplier: {
+        type: 'resource-based',
+        controller,
+      },
+      localActivityTaskSlotSupplier: {
+        type: 'fixed-size',
+        numSlots: 10,
+      },
+      nexusTaskSlotSupplier: {
+        type: 'fixed-size',
+        numSlots: 10,
+      },
+    },
+  });
+
+  const firstWorkflowResult = t.context.env.client.workflow.execute(successString, {
+    taskQueue: firstTaskQueue,
+    workflowId: randomUUID(),
+  });
+  const secondWorkflowResult = t.context.env.client.workflow.execute(successString, {
+    taskQueue: secondTaskQueue,
+    workflowId: randomUUID(),
+  });
+  const results = await Promise.all([
+    firstWorker.runUntil(firstWorkflowResult),
+    secondWorker.runUntil(secondWorkflowResult),
+  ]);
+  t.deepEqual(results, ['success', 'success']);
 });
 
 test('Worker can run with mixed slot suppliers in tuner', async (t) => {
@@ -138,7 +195,7 @@ test('Can assume defaults for resource based options', async (t) => {
   t.pass();
 });
 
-test('Cannot construct worker tuner with multiple different tuner options', async (t) => {
+test('Cannot construct worker tuner with multiple different resource based configurations', async (t) => {
   const { createWorker } = helpers(t);
   const tunerOptions1: ResourceBasedTunerOptions = {
     targetCpuUsage: 0.5,
@@ -170,7 +227,42 @@ test('Cannot construct worker tuner with multiple different tuner options', asyn
       },
     })
   );
-  t.is(error?.message, 'Cannot construct worker tuner with multiple different tuner options');
+  t.is(error?.message, 'Cannot construct worker tuner with multiple different resource-based tuner configurations');
+});
+
+test('Cannot construct worker tuner with multiple different resource based controllers', async (t) => {
+  const { createWorker } = helpers(t);
+  const firstController = ResourceBasedController.create({
+    targetCpuUsage: 0.5,
+    targetMemoryUsage: 0.5,
+  });
+  const secondController = ResourceBasedController.create({
+    targetCpuUsage: 0.5,
+    targetMemoryUsage: 0.5,
+  });
+  const error = await t.throwsAsync(() =>
+    createWorker({
+      tuner: {
+        activityTaskSlotSupplier: {
+          type: 'resource-based',
+          controller: firstController,
+        },
+        workflowTaskSlotSupplier: {
+          type: 'resource-based',
+          controller: secondController,
+        },
+        localActivityTaskSlotSupplier: {
+          type: 'fixed-size',
+          numSlots: 10,
+        },
+        nexusTaskSlotSupplier: {
+          type: 'fixed-size',
+          numSlots: 10,
+        },
+      },
+    })
+  );
+  t.is(error?.message, 'Cannot construct worker tuner with multiple different resource-based tuner configurations');
 });
 
 class MySS<SI extends SlotInfo> implements CustomSlotSupplier<SI> {

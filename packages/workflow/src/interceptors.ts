@@ -5,17 +5,21 @@
  */
 
 import type {
-  ActivityOptions,
   Duration,
-  LocalActivityOptions,
   MetricTags,
+  PayloadTypeInfo,
+  SignalTypeInfo,
   Timestamp,
+  TypeInfo,
   WorkflowExecution,
 } from '@temporalio/common';
 import { Headers, Next } from '@temporalio/common';
 import type { coresdk } from '@temporalio/proto';
+import type { ActivityOptions, LocalActivityOptions } from './activities';
+import type { EventGroup } from './event-groups';
 import type { ChildWorkflowOptionsWithDefaults, ContinueAsNewOptions } from './interfaces';
 import type { NexusOperationCancellationType } from './nexus';
+import type { SystemNexusWorkflowOutboundCallsInterceptor } from './nexus/system/generated/interceptors';
 
 export { Next, Headers };
 
@@ -128,7 +132,7 @@ export interface QueryInput {
  * Implement any of these methods to intercept Workflow code calls to the Temporal APIs, like scheduling an activity
  * and starting a timer.
  */
-export interface WorkflowOutboundCallsInterceptor {
+export interface WorkflowOutboundCallsInterceptor extends SystemNexusWorkflowOutboundCallsInterceptor {
   /**
    * Called when Workflow starts a timer.
    */
@@ -157,11 +161,16 @@ export interface WorkflowOutboundCallsInterceptor {
   /**
    * Called when Workflow starts a Nexus Operation.
    *
-   * @experimental Nexus support in Temporal SDK is experimental.
    */
   startNexusOperation?: (
     input: StartNexusOperationInput,
     next: Next<WorkflowOutboundCallsInterceptor, 'startNexusOperation'>
+  ) => Promise<StartNexusOperationOutput>;
+
+  /** Called when Workflow starts a Temporal System Nexus operation. */
+  startSystemNexusOperation?: (
+    input: StartNexusOperationInput,
+    next: Next<WorkflowOutboundCallsInterceptor, 'startSystemNexusOperation'>
   ) => Promise<StartNexusOperationOutput>;
 
   /**
@@ -230,10 +239,17 @@ export interface TimerInput {
 export interface TimerOptions {
   /**
    * A fixed, single line summary of the command's purpose
-   *
-   * @experimental User metadata is a new API and susceptible to change.
    */
   readonly summary?: string;
+
+  /**
+   * Event Groups to attach to the timer command. They will be reflected on the corresponding
+   * workflow history events, and may be used by tooling (UI/CLI) to group related events
+   * together. See {@link EventGroup} and {@link createEventGroup}.
+   *
+   * @experimental Event Groups is an experimental API and may change without notice.
+   */
+  readonly eventGroups?: EventGroup[];
 }
 
 /**
@@ -245,6 +261,8 @@ export interface ActivityInput {
   readonly options: ActivityOptions;
   readonly headers: Headers;
   readonly seq: number;
+  /** TypeInfo selected for this invocation. Interceptors may replace it before calling `next`. */
+  readonly typeInfo?: PayloadTypeInfo;
 }
 
 /**
@@ -258,15 +276,20 @@ export interface LocalActivityInput {
   readonly seq: number;
   readonly originalScheduleTime?: Timestamp;
   readonly attempt: number;
+  /** TypeInfo selected for this invocation. Interceptors may replace it before calling `next`. */
+  readonly typeInfo?: PayloadTypeInfo;
 }
 
 /**
  * Input for {@link WorkflowOutboundCallsInterceptor.startNexusOperation}.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface StartNexusOperationInput {
   readonly input: unknown;
+  /** Type information used to encode the operation's single input value. */
+  readonly inputType?: TypeInfo;
+  /** Type information retained to decode the operation result. */
+  readonly outputType?: TypeInfo;
   readonly endpoint: string;
   readonly service: string;
   readonly options: StartNexusOperationOptions;
@@ -278,7 +301,6 @@ export interface StartNexusOperationInput {
 /**
  * Options for starting a Nexus Operation.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface StartNexusOperationOptions {
   /**
@@ -323,16 +345,22 @@ export interface StartNexusOperationOptions {
   /**
    * A fixed, single-line summary for this Nexus Operation that may appear in the UI/CLI.
    * This can be in single-line Temporal markdown format.
-   *
-   * @experimental User metadata is a new API and susceptible to change.
    */
   readonly summary?: string;
+
+  /**
+   * Event Groups to attach to the schedule-Nexus-operation command. They will be reflected on
+   * the corresponding workflow history events, and may be used by tooling (UI/CLI) to group
+   * related events together. See {@link EventGroup} and {@link createEventGroup}.
+   *
+   * @experimental Event Groups is an experimental API and may change without notice.
+   */
+  readonly eventGroups?: EventGroup[];
 }
 
 /**
  * Output for {@link WorkflowOutboundCallsInterceptor.startNexusOperation}.
  *
- * @experimental Nexus support in Temporal SDK is experimental.
  */
 export interface StartNexusOperationOutput {
   /**
@@ -367,6 +395,14 @@ export interface SignalWorkflowInput {
   readonly seq: number;
   readonly signalName: string;
   readonly args: unknown[];
+  readonly typeInfo?: SignalTypeInfo;
+  /**
+   * Event Groups to attach to the signal-external-workflow command, in addition to those active
+   * in the current scope. See {@link EventGroup} and {@link createEventGroup}.
+   *
+   * @experimental Event Groups is an experimental API and may change without notice.
+   */
+  readonly eventGroups?: EventGroup[];
   readonly headers: Headers;
   readonly target:
     | {

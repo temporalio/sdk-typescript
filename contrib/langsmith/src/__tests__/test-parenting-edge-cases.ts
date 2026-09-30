@@ -8,7 +8,7 @@
 import test from 'ava';
 
 import * as activities from './activities/langsmith';
-import { InMemoryRunCollector, SIMPLE_TREE, dumpTraces, withTracingWorker } from './helpers';
+import { InMemoryRunCollector, SIMPLE_TREE, dumpTraces, withTracingWorker, useSharedEnv } from './helpers';
 import * as workflows from './workflows/langsmith';
 
 process.env.LANGSMITH_TRACING = 'true';
@@ -19,6 +19,8 @@ const ALL_ACTIVITIES = {
 
 /** Root workflow-body `traceable`, no propagated parent — just the user run, no placeholder root. */
 const WORKFLOW_BODY_ROOT_TREE = ['workflow_inner_call'].join('\n');
+
+useSharedEnv(test);
 
 test('emits the basic SimpleWorkflow tree with no ambient (two roots)', async (t) => {
   const collector = new InMemoryRunCollector();

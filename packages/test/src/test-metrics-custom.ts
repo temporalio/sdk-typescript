@@ -6,7 +6,7 @@ import type { MetricTags } from '@temporalio/common';
 import { Context as ActivityContext, metricMeter as activityMetricMeter } from '@temporalio/activity';
 import type { Context as BaseContext } from './helpers-integration';
 import { helpers, makeTestFunction } from './helpers-integration';
-import { getRandomPort } from './helpers';
+import { getRandomPort, assertEventually } from './helpers';
 
 interface Context extends BaseContext {
   port: number;
@@ -38,12 +38,16 @@ const test = makeTestFunction<Context>({
 });
 
 async function assertMetricReported(t: ExecutionContext<Context>, regexp: RegExp) {
-  const resp = await fetch(`http://127.0.0.1:${t.context.port}/metrics`);
-  const text = await resp.text();
-  const matched = t.regex(text, regexp);
-  if (!matched) {
-    t.log(text);
-  }
+  // Metrics recorded by Core (in particular from workflows and activities) are pushed to the
+  // Prometheus exporter asynchronously, so the expected value may not be visible in the scrape
+  // immediately. Retry until it appears, otherwise these tests flake on slower runners.
+  await assertEventually(t, async (tt) => {
+    const text = await (await fetch(`http://127.0.0.1:${tt.context.port}/metrics`)).text();
+    const matched = tt.regex(text, regexp);
+    if (!matched) {
+      tt.log(text);
+    }
+  });
 }
 
 /**
@@ -265,7 +269,8 @@ export async function MetricTagsWorkflow(): Promise<void> {
 
 test('Metric tags in Workflow works', async (t) => {
   const { createWorker, executeWorkflow, taskQueue } = helpers(t);
-  const tags = `labelA="value-a",labelB="value-b2",labelC="value-c",labelD="value-d",labelX="value-x",labelY="value-y",namespace="default",taskQueue="${taskQueue}",workflowType="MetricTagsWorkflow"`;
+  const namespace = t.context.env.client.options.namespace;
+  const tags = `labelA="value-a",labelB="value-b2",labelC="value-c",labelD="value-d",labelX="value-x",labelY="value-y",namespace="${namespace}",taskQueue="${taskQueue}",workflowType="MetricTagsWorkflow"`;
 
   const worker = await createWorker();
   await worker.runUntil(executeWorkflow(MetricTagsWorkflow));

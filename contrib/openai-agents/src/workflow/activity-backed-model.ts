@@ -14,8 +14,10 @@ import {
   proxyLocalActivities,
   type ActivityInterfaceFor,
   type LocalActivityInterfaceFor,
+  type ActivityOptions,
+  type LocalActivityOptions,
 } from '@temporalio/workflow';
-import { ApplicationFailure, type ActivityOptions, type LocalActivityOptions } from '@temporalio/common';
+import { ApplicationFailure } from '@temporalio/common';
 import {
   STREAMING_TOPIC_NOT_CONFIGURED,
   type ModelActivityOptions,

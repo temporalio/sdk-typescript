@@ -6,45 +6,31 @@
  *
  * @module
  */
-import { randomUUID } from 'crypto';
-import test from 'ava';
-import { WorkflowClient } from '@temporalio/client';
 import type { InjectedSinks } from '@temporalio/worker';
-import { DefaultLogger, Runtime } from '@temporalio/worker';
-import { defaultOptions } from './mock-native-worker';
-import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { helpers, makeTestFunction } from './helpers-integration';
 import * as workflows from './workflows';
 
-if (RUN_INTEGRATION_TESTS) {
-  test.before(async () => {
-    Runtime.install({ logger: new DefaultLogger('DEBUG') });
-  });
+const test = makeTestFunction({ workflowsPath: require.resolve('./workflows') });
 
-  test('Signals are always delivered', async (t) => {
-    const taskQueue = 'test-signal-delivery';
-    const conn = new WorkflowClient();
-    const wf = await conn.start(workflows.signalsAreAlwaysProcessed, { taskQueue, workflowId: randomUUID() });
+test('Signals are always delivered', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const wf = await startWorkflow(workflows.signalsAreAlwaysProcessed);
 
-    const sinks: InjectedSinks<workflows.SignalProcessTestSinks> = {
-      controller: {
-        sendSignal: {
-          async fn() {
-            // Send a signal to the Workflow which will cause the WFT to fail
-            await wf.signal(workflows.incrementSignal);
-          },
+  const sinks: InjectedSinks<workflows.SignalProcessTestSinks> = {
+    controller: {
+      sendSignal: {
+        async fn() {
+          // Send a signal to the Workflow which will cause the WFT to fail
+          await wf.signal(workflows.incrementSignal);
         },
       },
-    };
+    },
+  };
 
-    const worker = await Worker.create({
-      ...defaultOptions,
-      taskQueue,
-      sinks,
-    });
+  const worker = await createWorker({ sinks });
 
-    await worker.runUntil(wf.result());
+  await worker.runUntil(wf.result());
 
-    // Workflow completes if it got the signal
-    t.pass();
-  });
-}
+  // Workflow completes if it got the signal
+  t.pass();
+});

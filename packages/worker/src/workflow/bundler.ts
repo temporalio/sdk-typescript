@@ -5,10 +5,12 @@ import util from 'node:util';
 import * as unionfs from 'unionfs';
 import * as memfs from 'memfs';
 import type { Configuration } from 'webpack';
-import { webpack, NormalModuleReplacementPlugin } from 'webpack';
+import { webpack, BannerPlugin, Compilation, NormalModuleReplacementPlugin } from 'webpack';
 import type { Logger } from '../logger';
 import { DefaultLogger, hasColorSupport } from '../logger';
+import pkg from '../pkg';
 import { toMB } from '../utils';
+import { makeWorkflowBundleVersionAnnotation } from './bundle-metadata';
 import {
   InjectWorkflowModuleCacheGlobalPlugin,
   assertWorkflowModuleCacheGlobalApplied,
@@ -240,6 +242,14 @@ exports.importInterceptors = function importInterceptors() {
         },
       },
       plugins: [
+        new BannerPlugin({
+          banner: makeWorkflowBundleVersionAnnotation(pkg.version),
+          raw: true,
+          entryOnly: true,
+          // Add the annotation after minimizers have run so it cannot be stripped, but before
+          // the inline source map is generated so its line offsets remain correct.
+          stage: Compilation.PROCESS_ASSETS_STAGE_DEV_TOOLING - 1,
+        }),
         // Redirect webpack's module cache to a runtime-injected global so that a single V8
         // context can be reused across Workflow executions while keeping module state isolated.
         new InjectWorkflowModuleCacheGlobalPlugin(),
@@ -252,22 +262,18 @@ exports.importInterceptors = function importInterceptors() {
           /[\\/](?:@temporalio|contrib)[\\/]interceptors-opentelemetry(?:-v2)?[\\/](?:src|lib)[\\/]workflow[\\/]workflow-imports\.[jt]s$/,
           './workflow-imports-impl.js'
         ),
-        // protobufjs 7.6.x resolves optional filesystem support through two package-local shim imports:
-        // `protobufjs/src/util.js -> ./util/fs` and `@protobufjs/fetch/index.js -> ./util/fs`.
-        // Resolve those shims to `null` to avoid failing due to the probe without requiring users to blanket allow `fs` usage
-        new NormalModuleReplacementPlugin(
-          /^\.\/util\/fs$/,
-          (resolveData: { context: string; request: string }): void => {
-            const protobufjsOptionalFsModuleParent =
-              /[\\/]node_modules[\\/](?:protobufjs[\\/]src|@protobufjs[\\/]fetch)$/;
-            if (protobufjsOptionalFsModuleParent.test(resolveData.context)) {
-              resolveData.request = path.resolve(__dirname, 'module-overrides', 'protobufjs-fs.js');
-            }
-          }
-        ),
       ],
       externals: captureProblematicModules,
       module: {
+        parser: {
+          javascript: {
+            // protobufjs probes for optional filesystem support with
+            // `require(/* webpackIgnore: true */ 'fs')`. Webpack only honours that hint on
+            // CommonJS requires when `commonjsMagicComments` is enabled; without it the probe
+            // looks like a real `fs` dependency and trips the disallowed modules check.
+            commonjsMagicComments: true,
+          },
+        },
         rules: [
           {
             test: /\.js$/,

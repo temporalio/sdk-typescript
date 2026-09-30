@@ -10,10 +10,12 @@ import test from 'ava';
 import { Worker } from '@temporalio/worker';
 
 import { LangSmithPlugin } from '../index';
-import { InMemoryRunCollector, WORKFLOWS_PATH, withTracingWorker } from './helpers';
+import { InMemoryRunCollector, WORKFLOWS_PATH, withTracingWorker, useSharedEnv } from './helpers';
 import * as workflows from './workflows/langsmith';
 
 process.env.LANGSMITH_TRACING = 'true';
+
+useSharedEnv(test);
 
 test('read-only handlers do not perturb the main random sequence', async (t) => {
   const collector = new InMemoryRunCollector();

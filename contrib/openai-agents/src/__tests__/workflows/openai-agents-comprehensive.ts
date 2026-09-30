@@ -5,7 +5,8 @@
  * appears direct and user-span-wrapped, handlers cover signal/query/update
  * paths, and the crash boundary is the resume execution's `condition()`.
  */
-import { Agent, RunState, tool, withCustomSpan, createCustomSpan } from '@openai/agents-core';
+import { Agent, RunState, tool, withCustomSpan, createCustomSpan, type Tool } from '@openai/agents-core';
+import { Capability, SandboxAgent, type SandboxSessionLike } from '@openai/agents-core/sandbox';
 import * as nexus from 'nexus-rpc';
 import {
   condition,
@@ -27,6 +28,7 @@ import {
   WorkflowSafeMemorySession,
   statelessMcpServer,
   statefulMcpServer,
+  temporalSandboxClient,
 } from '../../workflow';
 import type * as activities from '../activities/openai-agents-comprehensive';
 
@@ -92,6 +94,77 @@ export interface ComprehensiveInput {
   resumeFromRunState?: string;
   /** Nexus endpoint name to route `compNexusService` operations to. Required for the initial + resume executions. */
   nexusEndpoint?: string;
+}
+
+class ComprehensiveSandboxCapability extends Capability {
+  readonly type = 'comprehensive_sandbox';
+
+  private session(): SandboxSessionLike {
+    if (!this._session) throw new Error('comprehensive_sandbox capability is not bound to a session');
+    return this._session;
+  }
+
+  override tools(): Tool<any>[] {
+    return [
+      tool({
+        name: 'run_command',
+        description: 'run_command',
+        parameters: {
+          type: 'object' as const,
+          properties: { cmd: { type: 'string' } },
+          required: ['cmd'] as const,
+          additionalProperties: false as const,
+        },
+        execute: async (args, _ctx) => {
+          const { cmd } = args as { cmd: string };
+          return this.session().execCommand!({ cmd });
+        },
+      }),
+      tool({
+        name: 'read_file',
+        description: 'read_file',
+        parameters: {
+          type: 'object' as const,
+          properties: { path: { type: 'string' } },
+          required: ['path'] as const,
+          additionalProperties: false as const,
+        },
+        execute: async (args, _ctx) => {
+          const { path } = args as { path: string };
+          const data = await this.session().readFile!({ path });
+          return typeof data === 'string' ? data : new TextDecoder().decode(data);
+        },
+      }),
+      tool({
+        name: 'write_file',
+        description: 'write_file',
+        parameters: {
+          type: 'object' as const,
+          properties: { path: { type: 'string' }, diff: { type: 'string' } },
+          required: ['path', 'diff'] as const,
+          additionalProperties: false as const,
+        },
+        execute: async (args, _ctx) => {
+          const { path, diff } = args as { path: string; diff: string };
+          const editor = this.session().createEditor!();
+          const result = await editor.createFile({ type: 'create_file', path, diff });
+          return result?.output ?? 'ok';
+        },
+      }),
+    ];
+  }
+}
+
+async function runSandboxAgent(): Promise<void> {
+  const agent = new SandboxAgent({
+    name: 'SandboxAgent',
+    model: 'gpt-4o-mini',
+    capabilities: [new ComprehensiveSandboxCapability()],
+  });
+  const runner = new TemporalOpenAIRunner();
+  await runner.run(agent, 'exercise the sandbox', {
+    runConfig: { sandbox: { client: temporalSandboxClient('fake') } },
+  });
 }
 
 export async function comprehensiveAgentWorkflow(input: ComprehensiveInput = {}): Promise<string> {
@@ -234,6 +307,8 @@ export async function comprehensiveAgentWorkflow(input: ComprehensiveInput = {})
       const session = new WorkflowSafeMemorySession({ sessionId: `${workflowInfo().workflowId}-memory` });
       await sessionRunner.run(memAgent, 'My favorite color is teal.', { session });
       await sessionRunner.run(memAgent, 'What did I just tell you?', { session });
+
+      await runSandboxAgent();
 
       const bigRunner = new TemporalOpenAIRunner();
       const result = await bigRunner.run(setup.agentA, 'Triage me', { maxTurns: 12 });
