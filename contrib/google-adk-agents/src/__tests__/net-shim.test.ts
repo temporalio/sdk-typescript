@@ -14,64 +14,16 @@
 import net from 'node:net';
 
 import test from 'ava';
-import type { BundleOptions } from '@temporalio/worker';
 
-import { GoogleAdkPlugin } from '../index';
-
-interface ResolveData {
-  request?: string;
-}
-
-/**
- * Applies the sandbox-compat webpack plugin (obtained through the public
- * `configureBundler` surface) to a stub compiler and returns its
- * `beforeResolve` request mapper.
- */
-function beforeResolveMapper(): (request: string) => string {
-  const plugin = new GoogleAdkPlugin();
-  const { webpackConfigHook } = plugin.configureBundler({ workflowsPath: 'wf' } as BundleOptions);
-  const cfg = webpackConfigHook!({ plugins: [] } as never) as {
-    plugins?: Array<{ name?: string; apply?: (compiler: unknown) => void }>;
-  };
-  const compat = (cfg.plugins ?? []).find((p) => p.name === 'google-adk-sandbox-compat');
-  if (!compat?.apply) throw new Error('google-adk-sandbox-compat plugin not found in the webpack config');
-  let hook: ((data: ResolveData) => void) | undefined;
-  compat.apply({
-    webpack: {
-      ProvidePlugin: class {
-        apply(): void {}
-      },
-    },
-    hooks: {
-      normalModuleFactory: {
-        tap: (_name: string, fn: (nmf: unknown) => void) =>
-          fn({
-            hooks: {
-              beforeResolve: {
-                tap: (_tapName: string, f: (data: ResolveData) => void) => {
-                  hook = f;
-                },
-              },
-            },
-          }),
-      },
-    },
-  });
-  if (!hook) throw new Error('the sandbox-compat plugin did not tap beforeResolve');
-  return (request) => {
-    const data: ResolveData = { request };
-    hook!(data);
-    return data.request!;
-  };
-}
+import { sandboxCompatResolveHook } from './helpers';
 
 // The shim reimplements Node's own address grammar; what a Workflow computes
 // from the bundled shim must match what `node:net` reports on the worker.
 test('net shim classifies addresses exactly like node:net', async (t) => {
-  const mapper = beforeResolveMapper();
-  const shimUri = mapper('node:net');
+  const resolve = sandboxCompatResolveHook();
+  const shimUri = resolve({ request: 'node:net' });
   t.true(shimUri.startsWith('data:text/javascript;base64,'), `expected a data: URI, got ${shimUri}`);
-  t.is(mapper('net'), shimUri);
+  t.is(resolve({ request: 'net' }), shimUri);
 
   // Compiled test files are CommonJS; `import()` must survive as a real
   // dynamic import (tsc would rewrite it to `require`, which cannot load ESM).
