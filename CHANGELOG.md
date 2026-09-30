@@ -40,8 +40,6 @@ to docs, or any other relevant information.
 
 ### Changed
 
-- **Experimental**: `@temporalio/ai-sdk` now requires `ai` ^7.0.124, `@ai-sdk/mcp` ^2.0.64,
-  and `@ai-sdk/provider` ^4.0.21, aligning the AI SDK packages on `@ai-sdk/provider-utils` 5.0.53.
 - Updated the following dependencies: `unionfs` from 4.5.1 to 4.6.0, `@grpc/grpc-js` from 1.12.4 to 1.12.7, `smol-toml` from 1.6.1 to 1.7.1
   and `tar` from 7.5.11 to 7.5.21.
 - A Worker will now refuse to load and execute a Workflow bundle produced with a different version
