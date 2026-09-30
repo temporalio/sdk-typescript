@@ -48,6 +48,9 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- `@temporalio/strands-agents` tools built on Activities, `activityAsTool`, and MCP tools now give the
+  model the Activity's own error message when a tool call fails, instead of "Activity task failed",
+  and attach that error to the tool result for hooks.
 - `JsonPayloadConverter` no longer produces a payload with undefined data for values that have no JSON
   representation, such as functions, symbols, and objects whose `toJSON` returns `undefined`. The default
   payload converter now throws a `ValueError` for these values, including symbols, which previously caused a

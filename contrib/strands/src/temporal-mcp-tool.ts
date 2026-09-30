@@ -4,6 +4,7 @@ import * as workflow from '@temporalio/workflow';
 import type { ActivityOptions } from '@temporalio/workflow';
 import type { CallToolInput, McpToolInfo } from './temporal-mcp-client';
 import { callToolActivityName } from './temporal-mcp-client';
+import { activityErrorResult } from './temporal-activity-tool';
 import { toJsonSchema } from './json-schema';
 
 /**
@@ -69,11 +70,7 @@ export class TemporalMCPTool extends Tool {
         content,
       });
     } catch (err) {
-      return new ToolResultBlock({
-        toolUseId,
-        status: 'error',
-        content: [new TextBlock(String(err instanceof Error ? err.message : err))],
-      });
+      return activityErrorResult(toolUseId, err);
     }
   }
 }
