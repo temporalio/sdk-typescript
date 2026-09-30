@@ -65,7 +65,7 @@ export function toPayloadWithTypeInfo<T, D = T>(
  * @experimental
  */
 export function fromPayloadWithTypeInfo<T, D = T>(
-  converter: PayloadConverter,
+  converter: Pick<PayloadConverter, 'fromPayload'>,
   payload: Payload,
   context: SerializationContext | undefined,
   typeInfo: TypeInfo<T, D> | undefined

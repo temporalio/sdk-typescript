@@ -25,6 +25,8 @@ to docs, or any other relevant information.
   `signalWithStartWorkflow`.
 - **Experimental**: Workflow outbound interceptors can intercept Temporal System Nexus calls
   generically with `startSystemNexusOperation` or specifically with `signalWithStartWorkflow`.
+- **Experimental**: Nexus workers decode Temporal System Nexus inputs sent by the server with the
+  System Nexus converter.
 
 - **Experimental**: New External Storage concurrency controls.
 
