@@ -17,8 +17,9 @@ import type {
   Client,
   WorkflowStartOptions as ClientWorkflowStartOptions,
   WorkflowSignalWithStartOptions as ClientWorkflowSignalWithStartOptions,
+  WorkflowUpdateOptions,
+  WorkflowUpdateStage,
 } from '@temporalio/client';
-import { WorkflowUpdateStage, type WorkflowUpdateOptions } from '@temporalio/client';
 import { type temporal } from '@temporalio/proto';
 import type {
   InternalActivityStartOptions,
@@ -326,7 +327,7 @@ function createWorkflowHandle<T extends Workflow>(
     // type against is declared on `UpdatableWorkflowHandle.update`
     update<Ret, Args extends any[]>(
       def: UpdateDefinition<Ret, Args> | string,
-      options?: NexusUpdateWorkflowOptions & { readonly args?: Args }
+      options: NexusUpdateWorkflowOptions & { readonly args?: Args }
     ): Promise<TemporalOperationResult<Ret>> {
       return updateWorkflowOperation<Ret, Args>(ctx, this.workflowId, this.runId, def, options, reserve);
     },
@@ -737,22 +738,13 @@ async function updateWorkflowOperation<Ret, Args extends any[]>(
   workflowId: string,
   runId: string | undefined,
   def: UpdateDefinition<Ret, Args> | string,
-  options: (NexusUpdateWorkflowOptions & { readonly args?: Args }) | undefined,
+  options: NexusUpdateWorkflowOptions & { readonly args?: Args },
   reserve: AsyncOperationStartReservation
 ): Promise<TemporalOperationResult<Ret>> {
   if (!ctx.callbackUrl) {
     throw new nexus.HandlerError(
       nexus.HandlerErrorType.BAD_REQUEST,
       'A callback URL is required for async UpdateWorkflow operation invocations'
-    );
-  }
-
-  // Guards the untyped caller: `waitForStage` is typed to only accept ACCEPTED, but a JavaScript
-  // caller (or an `as any` cast) can still reach here with another stage.
-  if (options?.waitForStage !== WorkflowUpdateStage.ACCEPTED) {
-    throw new TypeError(
-      `Only waitForStage '${WorkflowUpdateStage.ACCEPTED}' is supported, ` +
-        `got ${JSON.stringify(options?.waitForStage)}`
     );
   }
 

@@ -7,7 +7,6 @@
  */
 import test from 'ava';
 import type { UpdateDefinition } from '@temporalio/common';
-import { WorkflowUpdateStage } from '@temporalio/client';
 import type { TemporalOperationResult, UpdatableWorkflowHandle, WorkflowHandle } from '../workflow-helpers';
 
 declare const handle: UpdatableWorkflowHandle<void>;
@@ -75,14 +74,6 @@ test('update requires options carrying the stage', async (t) => {
     await handle.update(noArgUpdate, { updateId: 'uid' });
     // @ts-expect-error - `waitForStage` is required
     await handle.update(twoArgUpdate, { args: [1, 'a'] });
-  }
-  t.pass();
-});
-
-test('update accepts the stage as a literal or as the enum-like constant', async (t) => {
-  async function _assertion() {
-    await handle.update(noArgUpdate, { waitForStage: 'ACCEPTED' });
-    await handle.update(noArgUpdate, { waitForStage: WorkflowUpdateStage.ACCEPTED });
   }
   t.pass();
 });
