@@ -191,6 +191,27 @@ export function extractNexusOperationAlreadyStartedRunId(err: GrpcServiceError):
   return undefined;
 }
 
+/**
+ * Try to extract the runId field from a gRPC ALREADY_EXISTS error's details containing
+ * WorkflowExecutionAlreadyStartedFailure. Returns undefined if the error details
+ * do not include this failure type or cannot be decoded.
+ */
+export function extractWorkflowExecutionAlreadyStartedRunId(err: GrpcServiceError): string | undefined {
+  try {
+    for (const entry of getGrpcStatusDetails(err) ?? []) {
+      if (!entry.type_url || !entry.value) continue;
+      const type = entry.type_url.replace(/^type.googleapis.com\//, '');
+      if (type !== 'temporal.api.errordetails.v1.WorkflowExecutionAlreadyStartedFailure') continue;
+
+      const details = temporal.api.errordetails.v1.WorkflowExecutionAlreadyStartedFailure.decode(entry.value);
+      return details.runId || undefined;
+    }
+  } catch {
+    // ignore
+  }
+  return undefined;
+}
+
 export function trimGrpcTypeUrl(type_url: string | null | undefined): string {
   return type_url?.replace(/^type.googleapis.com\//, '') || '';
 }

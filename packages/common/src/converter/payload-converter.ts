@@ -65,7 +65,7 @@ export function toPayloadWithTypeInfo<T, D = T>(
  * @experimental
  */
 export function fromPayloadWithTypeInfo<T, D = T>(
-  converter: PayloadConverter,
+  converter: Pick<PayloadConverter, 'fromPayload'>,
   payload: Payload,
   context: SerializationContext | undefined,
   typeInfo: TypeInfo<T, D> | undefined
@@ -313,7 +313,7 @@ export class CompositePayloadConverter implements PayloadConverter {
     if (hint !== undefined) {
       throw new ValueError(`No payload converter supports converter hint '${hint.converter}'`);
     }
-    throw new ValueError(`Unable to convert ${value} to payload`);
+    throw new ValueError(`Unable to convert ${String(value)} to payload`);
   }
 
   /**
@@ -405,6 +405,12 @@ export class JsonPayloadConverter implements PayloadConverterWithEncoding {
     try {
       json = JSON.stringify(value);
     } catch (_err) {
+      return undefined;
+    }
+
+    // JSON.stringify returns undefined, rather than throwing, for values that have no JSON
+    // representation, such as functions, symbols, or objects whose toJSON returns undefined.
+    if (json === undefined) {
       return undefined;
     }
 
