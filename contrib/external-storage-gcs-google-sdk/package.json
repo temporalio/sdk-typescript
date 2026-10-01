@@ -25,10 +25,10 @@
     "@temporalio/external-storage-gcs": "workspace:*"
   },
   "peerDependencies": {
-    "@google-cloud/storage": "^7.0.0"
+    "@google-cloud/storage": "^8.1.0"
   },
   "devDependencies": {
-    "@google-cloud/storage": "^7.0.0",
+    "@google-cloud/storage": "^8.1.0",
     "ava": "^5.3.1"
   },
   "engines": {

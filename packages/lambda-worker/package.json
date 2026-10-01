@@ -33,16 +33,16 @@
     "@temporalio/worker": "workspace:*"
   },
   "devDependencies": {
-    "@aws-lambda-powertools/logger": "^2.0.0",
-    "@types/aws-lambda": "^8.10.145"
+    "@aws-lambda-powertools/logger": "^2.35.0",
+    "@types/aws-lambda": "^8.10.163"
   },
   "peerDependencies": {
-    "@aws-lambda-powertools/logger": "^2.0.0",
+    "@aws-lambda-powertools/logger": "^2.35.0",
     "@temporalio/interceptors-opentelemetry": "workspace:*",
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.52.0",
     "@opentelemetry/resources": "^1.25.1",
     "@opentelemetry/sdk-trace-base": "^1.25.1",
-    "@types/aws-lambda": "^8.10.145"
+    "@types/aws-lambda": "^8.10.163"
   },
   "peerDependenciesMeta": {
     "@aws-lambda-powertools/logger": {

@@ -56,12 +56,12 @@
     "@temporalio/workflow": "workspace:*"
   },
   "peerDependencies": {
-    "langsmith": "^0.7.9"
+    "langsmith": "^0.10.4"
   },
   "devDependencies": {
     "@temporalio/testing": "workspace:*",
     "ava": "^5.3.1",
-    "langsmith": "^0.7.9",
+    "langsmith": "^0.10.4",
     "nexus-rpc": "^0.0.3"
   },
   "engines": {
