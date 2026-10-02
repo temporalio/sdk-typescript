@@ -54,6 +54,7 @@ test('nexus operation input is offloaded and retrieved for the handler invocatio
 
   const worker = await createWorker({
     dataConverter: { externalStorage },
+    payloadCache: false,
     nexusServices: [sizeServiceHandler()],
   });
 
@@ -77,6 +78,7 @@ test('nexus operation sync result is offloaded and retrieved for the caller', as
 
   const worker = await createWorker({
     dataConverter: { externalStorage },
+    payloadCache: false,
     nexusServices: [sizeServiceHandler()],
   });
 
@@ -101,6 +103,7 @@ test('a transient retrieve failure on the Nexus task fails it retryably and reco
 
   const worker = await createWorker({
     dataConverter: { externalStorage },
+    payloadCache: false,
     nexusServices: [sizeServiceHandler()],
   });
 
@@ -124,6 +127,7 @@ test('a transient store failure on the Nexus result fails it retryably and recov
 
   const worker = await createWorker({
     dataConverter: { externalStorage },
+    payloadCache: false,
     nexusServices: [sizeServiceHandler()],
   });
 
