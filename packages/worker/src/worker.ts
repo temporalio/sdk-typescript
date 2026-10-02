@@ -45,7 +45,6 @@ import {
   walkActivityHeartbeat,
   walkActivityTask,
   walkActivityTaskCompletion,
-  walkNexusTask,
   walkNexusTaskCompletion,
   walkWorkflowActivation,
   walkWorkflowActivationCompletion,
@@ -97,7 +96,7 @@ import type {
 } from './worker-options';
 import { compileWorkerOptions, isCodeBundleOption, isPathBundleOption, toNativeWorkerOptions } from './worker-options';
 import { WorkflowCodecRunner } from './workflow-codec-runner';
-import { isSystemNexusEnvelope, transformEncodedSystemNexusEnvelope } from './system-nexus-operations';
+import { isSystemNexusEnvelope, transformEncodedSystemNexusEnvelope, visitNexusTask } from './system-nexus-operations';
 import { defaultWorkflowInterceptorModules, WorkflowCodeBundler } from './workflow/bundler';
 import { assertWorkflowBundleSdkVersion } from './workflow/bundle-metadata';
 import { isBunPre1_4 } from './workflow/bun';
@@ -1355,9 +1354,8 @@ export class Worker {
                 throw new IllegalStateError(`Got empty task for task variant with token: ${base64TaskToken}`);
               }
               try {
-                await visit(
+                await visitNexusTask(
                   task,
-                  walkNexusTask,
                   extstoreInboundOptions(this.options.loadedDataConverter.externalStorage, { logger: this.logger })
                 );
               } catch (e) {

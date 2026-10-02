@@ -87,6 +87,42 @@ test('JsonPayloadConverter converts to object', (t) => {
   t.deepEqual(converter.fromPayload(converter.toPayload({ a: 1 })!), { a: 1 });
 });
 
+const valuesWithoutJsonRepresentation: [string, unknown][] = [
+  ['a function', () => 1],
+  ['a symbol', Symbol('x')],
+  [
+    'an object whose toJSON returns undefined',
+    {
+      toJSON() {
+        return undefined;
+      },
+    },
+  ],
+];
+
+for (const [name, value] of valuesWithoutJsonRepresentation) {
+  test(`JsonPayloadConverter does not produce a payload for ${name}`, (t) => {
+    t.is(new JsonPayloadConverter().toPayload(value), undefined);
+  });
+
+  test(`defaultPayloadConverter throws a ValueError for ${name}`, (t) => {
+    t.throws(() => defaultPayloadConverter.toPayload(value), { instanceOf: ValueError, message: /Unable to convert/ });
+  });
+}
+
+test('defaultPayloadConverter throws a ValueError, not a TypeError, for a symbol', (t) => {
+  const err = t.throws(() => defaultPayloadConverter.toPayload(Symbol('x')));
+  t.false(err instanceof TypeError);
+  t.true(err instanceof ValueError);
+  t.is(err?.message, 'Unable to convert Symbol(x) to payload');
+});
+
+test('JsonPayloadConverter still encodes values that serialize to JSON null', (t) => {
+  const converter = new JsonPayloadConverter();
+  t.deepEqual(converter.fromPayload(converter.toPayload(null)!), null);
+  t.deepEqual(converter.fromPayload(converter.toPayload(NaN)!), null);
+});
+
 test('ProtobufBinaryPayloadConverter converts from an instance', (t) => {
   const instance = root.ProtoActivityInput.create({ name: 'Proto', age: 1 });
   const converter = new ProtobufBinaryPayloadConverter(root);

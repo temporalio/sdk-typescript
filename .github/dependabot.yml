@@ -6,6 +6,50 @@ updates:
       interval: weekly
     cooldown:
       default-days: 14
+    exclude-paths:
+      # Managed by dedicated update blocks below.
+      - 'contrib/interceptors-opentelemetry/**'
+      - 'packages/docs/**'
+    groups:
+      development-dependencies:
+        dependency-type: development
+
+  - package-ecosystem: npm
+    directory: '/packages/docs'
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+    groups:
+      docs-dependencies:
+        patterns:
+          - '*'
+
+  - package-ecosystem: npm
+    directory: '/contrib/interceptors-opentelemetry'
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+    groups:
+      development-dependencies:
+        dependency-type: development
+    ignore:
+      - dependency-name: '@opentelemetry/core'
+        versions:
+          - '>=2.0.0'
+      - dependency-name: '@opentelemetry/resources'
+        versions:
+          - '>=2.0.0'
+      - dependency-name: '@opentelemetry/sdk-trace-base'
+        versions:
+          - '>=2.0.0'
+      - dependency-name: '@opentelemetry/exporter-trace-otlp-grpc'
+        versions:
+          - '>=0.200.0'
+      - dependency-name: '@opentelemetry/sdk-node'
+        versions:
+          - '>=0.200.0'
 
   - package-ecosystem: github-actions
     directory: '/'
