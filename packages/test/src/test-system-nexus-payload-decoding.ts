@@ -392,7 +392,7 @@ test('visitNexusTask resolves External Storage references nested in a System Nex
   ]);
   const task = nexusStartTask(systemNexusPayloadWith(inputReference!, signalReference!));
 
-  await visitNexusTask(task, externalStorageRetrieveVisitOptions({ externalStorage: externalStorage }));
+  await visitNexusTask(task, externalStorageRetrieveVisitOptions({ externalStorage }));
 
   const envelope = task.task!.request!.startOperation!.payload as Payload;
   t.deepEqual(envelope.metadata?.[SYSTEM_NEXUS_PAYLOAD_METADATA_KEY], SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE);
@@ -441,7 +441,7 @@ test('visitNexusTask retrieves nested references before codecs decode them', asy
   const [inputReference, signalReference] = await new ExternalStorageRunner(externalStorage).store(encoded);
   const task = nexusStartTask(systemNexusPayloadWith(inputReference!, signalReference!));
 
-  await visitNexusTask(task, externalStorageRetrieveVisitOptions({ externalStorage: externalStorage }));
+  await visitNexusTask(task, externalStorageRetrieveVisitOptions({ externalStorage }));
   const result = (await decodePayload(
     { ...defaultDataConverter, payloadCodecs: [shiftingCodec] },
     task.task!.request!.startOperation!.payload as Payload,

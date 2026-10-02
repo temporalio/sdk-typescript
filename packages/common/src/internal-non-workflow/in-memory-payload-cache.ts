@@ -1,8 +1,8 @@
 import { temporal } from '@temporalio/proto';
 
-import { ValueError } from './errors';
-import type { Payload } from './interfaces';
-import type { PayloadCache } from './payload-cache';
+import { ValueError } from '../errors';
+import type { Payload } from '../interfaces';
+import type { PayloadCache } from '../payload-cache';
 
 const PayloadProto = temporal.api.common.v1.Payload;
 
@@ -37,9 +37,10 @@ export class InMemoryPayloadCache implements PayloadCache {
   private readonly maxTotalBytes: number;
   private readonly maxEntries: number;
 
-  constructor(
-    { maxTotalBytes = DEFAULT_MAX_TOTAL_BYTES, maxEntries = DEFAULT_MAX_ENTRIES }: InMemoryPayloadCacheOptions = {}
-  ) {
+  constructor({
+    maxTotalBytes = DEFAULT_MAX_TOTAL_BYTES,
+    maxEntries = DEFAULT_MAX_ENTRIES,
+  }: InMemoryPayloadCacheOptions = {}) {
     assertNonNegativeInteger('maxTotalBytes', maxTotalBytes);
     assertNonNegativeInteger('maxEntries', maxEntries);
     this.maxTotalBytes = maxTotalBytes;
@@ -64,10 +65,7 @@ export class InMemoryPayloadCache implements PayloadCache {
       this.entries.delete(key);
     }
 
-    while (
-      this.entries.size >= this.maxEntries ||
-      this.currentBytes + encodedPayload.byteLength > this.maxTotalBytes
-    ) {
+    while (this.entries.size >= this.maxEntries || this.currentBytes + encodedPayload.byteLength > this.maxTotalBytes) {
       const oldest = this.entries.keys().next();
       if (oldest.done) break;
       this.currentBytes -= this.entries.get(oldest.value)?.encodedPayload.byteLength ?? 0;

@@ -2,7 +2,7 @@ import type { Payload } from './interfaces';
 
 /**
  * Generic interface for a payload cache
- * 
+ *
  * @experimental
  */
 export interface PayloadCache {

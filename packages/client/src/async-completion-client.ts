@@ -227,7 +227,7 @@ export class AsyncCompletionClient extends BaseClient {
             req,
             walkRespondActivityTaskCompletedRequest,
             externalStorageStoreVisitOptions({
-              externalStorage: externalStorage,
+              externalStorage,
               initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
               payloadCache: this.payloadCache,
             })
@@ -246,7 +246,7 @@ export class AsyncCompletionClient extends BaseClient {
             req,
             walkRespondActivityTaskCompletedByIdRequest,
             externalStorageStoreVisitOptions({
-              externalStorage: externalStorage,
+              externalStorage,
               initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
               payloadCache: this.payloadCache,
             })
@@ -292,7 +292,7 @@ export class AsyncCompletionClient extends BaseClient {
             req,
             walkRespondActivityTaskFailedRequest,
             externalStorageStoreVisitOptions({
-              externalStorage: externalStorage,
+              externalStorage,
               initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
               payloadCache: this.payloadCache,
             })
@@ -311,7 +311,7 @@ export class AsyncCompletionClient extends BaseClient {
             req,
             walkRespondActivityTaskFailedByIdRequest,
             externalStorageStoreVisitOptions({
-              externalStorage: externalStorage,
+              externalStorage,
               initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
               payloadCache: this.payloadCache,
             })
@@ -361,7 +361,7 @@ export class AsyncCompletionClient extends BaseClient {
             req,
             walkRespondActivityTaskCanceledRequest,
             externalStorageStoreVisitOptions({
-              externalStorage: externalStorage,
+              externalStorage,
               initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
               payloadCache: this.payloadCache,
             })
@@ -380,7 +380,7 @@ export class AsyncCompletionClient extends BaseClient {
             req,
             walkRespondActivityTaskCanceledByIdRequest,
             externalStorageStoreVisitOptions({
-              externalStorage: externalStorage,
+              externalStorage,
               initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
               payloadCache: this.payloadCache,
             })
@@ -429,7 +429,7 @@ export class AsyncCompletionClient extends BaseClient {
             req,
             walkRecordActivityTaskHeartbeatRequest,
             externalStorageStoreVisitOptions({
-              externalStorage: externalStorage,
+              externalStorage,
               initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
               payloadCache: this.payloadCache,
             })
@@ -451,7 +451,7 @@ export class AsyncCompletionClient extends BaseClient {
             req,
             walkRecordActivityTaskHeartbeatByIdRequest,
             externalStorageStoreVisitOptions({
-              externalStorage: externalStorage,
+              externalStorage,
               initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
               payloadCache: this.payloadCache,
             })

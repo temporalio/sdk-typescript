@@ -53,7 +53,7 @@ test('workflow store offloads a large payload and threads the target to the driv
   await visit(
     completion,
     walkWorkflowActivationCompletion,
-    externalStorageStoreVisitOptions({ externalStorage: externalStorage, initialTarget: WORKFLOW_TARGET })
+    externalStorageStoreVisitOptions({ externalStorage, initialTarget: WORKFLOW_TARGET })
   );
 
   const result = completion.successful!.commands![0]!.completeWorkflowExecution!.result!;
@@ -72,7 +72,7 @@ test('workflow store offloads only above-threshold payloads at a repeated site',
   await visit(
     completion,
     walkWorkflowActivationCompletion,
-    externalStorageStoreVisitOptions({ externalStorage: externalStorage, initialTarget: WORKFLOW_TARGET })
+    externalStorageStoreVisitOptions({ externalStorage, initialTarget: WORKFLOW_TARGET })
   );
 
   const args = completion.successful!.commands![0]!.scheduleActivity!.arguments!;
@@ -96,7 +96,7 @@ test('workflow store applies a per-command derived target', async (t) => {
     completion,
     walkWorkflowActivationCompletion,
     externalStorageStoreVisitOptions({
-      externalStorage: externalStorage,
+      externalStorage,
       initialTarget: WORKFLOW_TARGET,
       // Stand-in for the worker's command→target mapping: the child command retargets its payloads.
       deriveContext: (_message, typeName, context) =>
@@ -129,7 +129,7 @@ test('workflow store leaves search attributes inline while offloading siblings',
   await visit(
     completion,
     walkWorkflowActivationCompletion,
-    externalStorageStoreVisitOptions({ externalStorage: externalStorage, initialTarget: WORKFLOW_TARGET })
+    externalStorageStoreVisitOptions({ externalStorage, initialTarget: WORKFLOW_TARGET })
   );
 
   const command = completion.successful!.commands![0]!.startChildWorkflowExecution!;
@@ -147,7 +147,7 @@ test('workflow store then retrieve round-trips the original payload bytes', asyn
   await visit(
     completion,
     walkWorkflowActivationCompletion,
-    externalStorageStoreVisitOptions({ externalStorage: externalStorage, initialTarget: WORKFLOW_TARGET })
+    externalStorageStoreVisitOptions({ externalStorage, initialTarget: WORKFLOW_TARGET })
   );
   const reference = completion.successful!.commands![0]!.completeWorkflowExecution!.result!;
   t.true(isReferencePayload(reference));
@@ -155,11 +155,7 @@ test('workflow store then retrieve round-trips the original payload bytes', asyn
   const activation: coresdk.workflow_activation.IWorkflowActivation = {
     jobs: [{ resolveActivity: { result: { completed: { result: reference } } } }],
   };
-  await visit(
-    activation,
-    walkWorkflowActivation,
-    externalStorageRetrieveVisitOptions({ externalStorage: externalStorage })
-  );
+  await visit(activation, walkWorkflowActivation, externalStorageRetrieveVisitOptions({ externalStorage }));
 
   const retrieved = activation.jobs![0]!.resolveActivity!.result!.completed!.result!;
   t.false(isReferencePayload(retrieved));
@@ -173,11 +169,7 @@ test('activity task completion store offloads the result payload', async (t) => 
     result: { completed: { result: makePayload(256) } },
   };
 
-  await visit(
-    completion,
-    walkActivityTaskCompletion,
-    externalStorageStoreVisitOptions({ externalStorage: externalStorage })
-  );
+  await visit(completion, walkActivityTaskCompletion, externalStorageStoreVisitOptions({ externalStorage }));
 
   t.true(isReferencePayload(completion.result!.completed!.result!));
   t.is(driver.storeCalls.length, 1);
@@ -187,7 +179,7 @@ test('activity heartbeat store offloads the details payload', async (t) => {
   const { externalStorage } = externalStorageWith();
   const heartbeat: coresdk.IActivityHeartbeat = { taskToken: new Uint8Array([1]), details: [makePayload(256)] };
 
-  await visit(heartbeat, walkActivityHeartbeat, externalStorageStoreVisitOptions({ externalStorage: externalStorage }));
+  await visit(heartbeat, walkActivityHeartbeat, externalStorageStoreVisitOptions({ externalStorage }));
 
   t.true(isReferencePayload(heartbeat.details![0]!));
 });
@@ -199,7 +191,7 @@ test('activity task retrieve resolves the activity input', async (t) => {
     start: { input: [await toReference(externalStorage, input)] },
   };
 
-  await visit(task, walkActivityTask, externalStorageRetrieveVisitOptions({ externalStorage: externalStorage }));
+  await visit(task, walkActivityTask, externalStorageRetrieveVisitOptions({ externalStorage }));
 
   t.deepEqual(task.start!.input![0], input);
 });
@@ -210,11 +202,7 @@ test('nexus task completion store offloads the sync result payload', async (t) =
     completed: { startOperation: { syncSuccess: { payload: makePayload(256) } } },
   };
 
-  await visit(
-    completion,
-    walkNexusTaskCompletion,
-    externalStorageStoreVisitOptions({ externalStorage: externalStorage })
-  );
+  await visit(completion, walkNexusTaskCompletion, externalStorageStoreVisitOptions({ externalStorage }));
 
   t.true(isReferencePayload(completion.completed!.startOperation!.syncSuccess!.payload!));
 });
@@ -226,7 +214,7 @@ test('nexus task retrieve resolves the request payload', async (t) => {
     task: { request: { startOperation: { payload: await toReference(externalStorage, requestPayload) } } },
   };
 
-  await visit(task, walkNexusTask, externalStorageRetrieveVisitOptions({ externalStorage: externalStorage }));
+  await visit(task, walkNexusTask, externalStorageRetrieveVisitOptions({ externalStorage }));
 
   t.deepEqual(task.task!.request!.startOperation!.payload, requestPayload);
 });
@@ -241,7 +229,7 @@ test('client request store offloads the workflow input (via generic visit)', asy
   await visit(
     request,
     walkStartWorkflowExecutionRequest,
-    externalStorageStoreVisitOptions({ externalStorage: externalStorage, initialTarget: WORKFLOW_TARGET })
+    externalStorageStoreVisitOptions({ externalStorage, initialTarget: WORKFLOW_TARGET })
   );
 
   t.true(isReferencePayload(request.input!.payloads![0]!));
@@ -254,11 +242,7 @@ test('client response retrieve resolves the query result (via generic visit)', a
     queryResult: { payloads: [await toReference(externalStorage, queryResult)] },
   };
 
-  await visit(
-    response,
-    walkQueryWorkflowResponse,
-    externalStorageRetrieveVisitOptions({ externalStorage: externalStorage })
-  );
+  await visit(response, walkQueryWorkflowResponse, externalStorageRetrieveVisitOptions({ externalStorage }));
 
   t.deepEqual(response.queryResult!.payloads![0], queryResult);
 });
