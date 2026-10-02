@@ -1,6 +1,8 @@
 import { randomUUID } from 'crypto';
 import { status as grpcStatus } from '@grpc/grpc-js';
 import {
+  Client,
+  Connection,
   isGrpcServiceError,
   WorkflowUpdateStage,
   WorkflowUpdateRPCTimeoutOrCancelledError,
@@ -258,6 +260,9 @@ test('updateWithStart failure: update fails early due to limit on number of upda
   const workflowId = randomUUID();
   const { createWorker, taskQueue } = helpers(t);
   const worker = await createWorker();
+  const connection = await Connection.connect({ address: t.context.env.address, interceptors: [] });
+  t.teardown(() => connection.close());
+  const client = new Client({ connection });
   const makeStartOp = () =>
     new WithStartWorkflowOperation(workflowWithNeverReturningUpdate, {
       workflowId,
@@ -265,7 +270,7 @@ test('updateWithStart failure: update fails early due to limit on number of upda
       workflowIdConflictPolicy: 'USE_EXISTING',
     });
   const startUpdateWithStart = async (startOp: WithStartWorkflowOperation<typeof workflowWithNeverReturningUpdate>) => {
-    await t.context.env.client.workflow.startUpdateWithStart(neverReturningUpdate, {
+    await client.workflow.startUpdateWithStart(neverReturningUpdate, {
       waitForStage: 'ACCEPTED',
       startWorkflowOperation: startOp,
     });
@@ -279,13 +284,12 @@ test('updateWithStart failure: update fails early due to limit on number of upda
       await startOp.workflowHandle;
     }
     // The 11th call should fail with a gRPC error
-
-    // TODO: set gRPC retries to 1. This generates a RESOURCE_EXHAUSTED error,
-    // and by default these are retried 10 times.
     const startOp = makeStartOp();
     for (const promise of [startUpdateWithStart(startOp), startOp.workflowHandle()]) {
       const err = await t.throwsAsync(promise);
       t.true(isGrpcServiceError(err) && err.code === grpcStatus.RESOURCE_EXHAUSTED);
+      t.regex(err?.message ?? '', /limit on number of concurrent in-flight updates/i);
+      t.regex(err?.stack ?? '', /limit on number of concurrent in-flight updates/i);
     }
   });
 });
