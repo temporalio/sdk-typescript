@@ -1,6 +1,7 @@
 import asyncRetry from 'async-retry';
 import { tsToMs } from '@temporalio/common/lib/time';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
+import { proxyActivities, proxyLocalActivities } from '@temporalio/workflow';
 import {
   conditionTimeout0,
   issue1423Workflow,
@@ -99,6 +100,44 @@ test('GH 1744', async (t) => {
   const hist = await loadHistory('nested_promise_1_13_2.json');
   await t.notThrowsAsync(async () => {
     await runReplayHistory({ workflowBundle }, hist);
+  });
+});
+
+const { slowLocal, fastLocal } = proxyLocalActivities({ startToCloseTimeout: '10s' });
+const { afterSlow, afterFast } = proxyActivities({ startToCloseTimeout: '10s' });
+
+export async function localActivityCompletionOrderRepro(): Promise<void> {
+  await Promise.all([
+    (async () => {
+      await slowLocal();
+      await afterSlow();
+    })(),
+    (async () => {
+      await fastLocal();
+      await Promise.resolve();
+      await afterFast();
+    })(),
+  ]);
+}
+
+test('Github 2455 - Local activity completion order replay NDE', async (t) => {
+  const { createWorker, startWorkflow, runReplayHistory } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      async slowLocal(): Promise<void> {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      },
+      async fastLocal(): Promise<void> {},
+      async afterSlow(): Promise<void> {},
+      async afterFast(): Promise<void> {},
+    },
+  });
+  const handle = await startWorkflow(localActivityCompletionOrderRepro);
+  await worker.runUntil(() => handle.result());
+  const hist = await handle.fetchHistory();
+
+  await t.notThrowsAsync(async () => {
+    await runReplayHistory({ workflowBundle: t.context.workflowBundle }, hist);
   });
 });
 
