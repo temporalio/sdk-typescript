@@ -2,7 +2,7 @@
 import test, { type ExecutionContext } from 'ava';
 import Long from 'long';
 import type { MetricCounter, MetricMeter, MetricTags, Payload, PayloadCache } from '@temporalio/common';
-import { InMemoryPayloadCache, ValueError } from '@temporalio/common';
+import { ValueError } from '@temporalio/common';
 import { Client, WorkflowClient } from '@temporalio/client';
 import { ExternalStorage } from '@temporalio/common/lib/converter/extstore';
 import {
@@ -11,6 +11,7 @@ import {
   externalStorageRetrieveVisitOptions,
   externalStorageStoreVisitOptions,
   ExternalStorageRunner,
+  InMemoryPayloadCache,
   withPayloadCacheMetrics,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { encode } from '@temporalio/common/lib/encoding';
@@ -214,11 +215,11 @@ test('separate visits share a payload cache without sharing a runner', async (t)
   const original = makePayload(256, 7);
 
   const reference = await externalStorageStoreVisitOptions({
-    externalStorage: externalStorage,
+    externalStorage,
     payloadCache,
   }).transformPayload(original, undefined);
   const restored = await externalStorageRetrieveVisitOptions({
-    externalStorage: externalStorage,
+    externalStorage,
     payloadCache,
   }).transformPayload(reference, undefined);
 

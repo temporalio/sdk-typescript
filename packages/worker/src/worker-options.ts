@@ -11,10 +11,13 @@ import type {
   VersioningBehavior,
   WorkerDeploymentVersion,
 } from '@temporalio/common';
-import { InMemoryPayloadCache } from '@temporalio/common';
 import type { Duration } from '@temporalio/common/lib/time';
 import { msOptionalToNumber, msToNumber } from '@temporalio/common/lib/time';
-import { loadDataConverter, withPayloadCacheMetrics } from '@temporalio/common/lib/internal-non-workflow';
+import {
+  InMemoryPayloadCache,
+  loadDataConverter,
+  withPayloadCacheMetrics,
+} from '@temporalio/common/lib/internal-non-workflow';
 import type { LoggerSinks, WorkflowInfo } from '@temporalio/workflow';
 import type { Context } from '@temporalio/activity';
 import type { native } from '@temporalio/core-bridge';

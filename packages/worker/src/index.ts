@@ -43,8 +43,9 @@ export {
 } from './connection-options';
 export { startDebugReplayer } from './debug-replayer';
 export { IllegalStateError } from '@temporalio/common';
-export { InMemoryPayloadCache } from '@temporalio/common';
-export type { InMemoryPayloadCacheOptions, PayloadCache } from '@temporalio/common';
+export { InMemoryPayloadCache } from '@temporalio/common/lib/internal-non-workflow';
+export type { InMemoryPayloadCacheOptions } from '@temporalio/common/lib/internal-non-workflow';
+export type { PayloadCache } from '@temporalio/common';
 export {
   CombinedWorkerRunError,
   CombinedWorkerRunErrorCause,

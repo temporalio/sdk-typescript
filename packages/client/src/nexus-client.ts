@@ -421,7 +421,7 @@ export class NexusClient extends BaseClient {
         await visit(
           req,
           walkStartNexusOperationExecutionRequest,
-          externalStorageStoreVisitOptions({ externalStorage: externalStorage, payloadCache: this.payloadCache })
+          externalStorageStoreVisitOptions({ externalStorage, payloadCache: this.payloadCache })
         );
       }
       res = await this.connection.workflowService.startNexusOperationExecution(req);
