@@ -64,11 +64,11 @@
     "rxjs": "7.8.1"
   },
   "devDependencies": {
-    "@types/async-retry": "^1.4.8",
+    "@types/async-retry": "^1.4.9",
     "@types/fs-extra": "^11.0.4",
     "@types/istanbul-lib-coverage": "^2.0.6",
     "@types/pidusage": "^2.0.5",
-    "fs-extra": "^11.2.0"
+    "fs-extra": "^11.4.0"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
