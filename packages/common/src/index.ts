@@ -29,6 +29,8 @@ export * from './interfaces';
 export * from './logger';
 export * from './priority';
 export * from './metrics';
+export * from './payload-cache';
+export * from './in-memory-payload-cache';
 export * from './retry-policy';
 export type { Timestamp, Duration, StringValue } from './time';
 export type { ConverterHint, PayloadTypeInfo, TransferTypeConverter, TypeInfo } from './type-info';

@@ -225,13 +225,12 @@ test('store and retrieve report the same total size', async (t) => {
   const storage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 });
 
   const uploadMetrics = new ExternalStorageMetricsAccumulator();
-  const storedPayloads = await new ExternalStorageRunner(storage, uploadMetrics).store([
-    makePayload(64),
-    makePayload(128),
-  ]);
+  const storedPayloads = await new ExternalStorageRunner(storage).store([makePayload(64), makePayload(128)], {
+    metrics: uploadMetrics,
+  });
 
   const downloadMetrics = new ExternalStorageMetricsAccumulator();
-  await new ExternalStorageRunner(storage, downloadMetrics).retrieve(storedPayloads);
+  await new ExternalStorageRunner(storage).retrieve(storedPayloads, { metrics: downloadMetrics });
 
   const uploaded = uploadMetrics.toProto()!;
   const downloaded = downloadMetrics.toProto()!;
@@ -462,8 +461,7 @@ test('warns when a driver completes a store without taking a permit', async (t) 
   const { logger, warnings } = makeRecordingLogger();
   const runner = new ExternalStorageRunner(
     new ExternalStorage({ drivers: [makeFakeDriver({ name: 's3' })], payloadSizeThreshold: 0 }),
-    undefined,
-    logger
+    { logger }
   );
 
   await runner.store([makePayload(8)]);
@@ -480,7 +478,7 @@ test('warns when a driver completes a retrieve without taking a permit', async (
   });
   const references = await new ExternalStorageRunner(externalStorage).store([makePayload(8)]);
 
-  await new ExternalStorageRunner(externalStorage, undefined, logger).retrieve(references);
+  await new ExternalStorageRunner(externalStorage, { logger }).retrieve(references);
 
   t.is(warnings.length, 1);
   t.regex(warnings[0]!, /'s3' completed a retrieve without taking a permit/);
@@ -497,11 +495,9 @@ test('does not warn when a driver takes a permit', async (t) => {
         )
       ),
   });
-  const runner = new ExternalStorageRunner(
-    new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }),
-    undefined,
-    logger
-  );
+  const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }), {
+    logger,
+  });
 
   await runner.store([makePayload(8)]);
 
