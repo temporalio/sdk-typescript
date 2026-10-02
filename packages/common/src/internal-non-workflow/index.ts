@@ -9,6 +9,7 @@ export * from './data-converter-helpers';
 export * from './extstore-helpers';
 export * from './external-storage-metrics';
 export * from './external-storage-runner';
+export * from './in-memory-payload-cache';
 export * from './payload-cache-metrics';
 export * from './external-storage-visit-options';
 export * from './payload-visitor';
