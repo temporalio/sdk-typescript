@@ -62,7 +62,8 @@ test.serial('Worker fails validation against unknown namespace', async (t) => {
     }),
     {
       instanceOf: TransportError,
-      message: /Namespace oogabooga is not found/,
+      // Cloud credentials cannot describe namespaces outside their authorized scope.
+      message: /Namespace oogabooga (?:is not found|was not found or otherwise could not be described)/,
     }
   );
 });
