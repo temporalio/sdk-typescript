@@ -1,6 +1,6 @@
 import Long from 'long';
 import * as proto from '@temporalio/proto';
-import { decode } from '../encoding';
+import { decode, encode } from '../encoding';
 import { ValueError } from '../errors';
 import type { Payload } from '../interfaces';
 import { ProtobufJsonPayloadConverter } from '../converter/protobuf-payload-converters';
@@ -13,6 +13,7 @@ const storageReferenceConverter = new ProtobufJsonPayloadConverter(proto);
 
 const EXTSTORE_REFERENCE_MESSAGE_TYPE = 'temporal.api.sdk.v1.ExternalStorageReference';
 const EXTSTORE_REFERENCE_ENCODING = encodingTypes.METADATA_ENCODING_PROTOBUF_JSON;
+const EXTSTORE_CACHE_KEY_PREFIX = 'v0/temporal/extstore/';
 
 /**
  * True if the payload is an External Storage reference:
@@ -87,6 +88,36 @@ export function encodeReferencePayload({
     ...payload,
     externalPayloads: [PayloadProto.ExternalPayloadDetails.create({ sizeBytes: Long.fromNumber(sizeBytes) })],
   };
+}
+
+/**
+ * Deterministic cache key for an External Storage claim.
+ *
+ * @internal
+ * @experimental
+ */
+export function externalStorageClaimCacheKey(driverName: string, claimData: Record<string, string>): string {
+  const keys = Object.keys(claimData)
+    .map((key) => ({ key, bytes: encode(key) }))
+    .sort((left, right) => compareBytes(left.bytes, right.bytes));
+
+  let result = EXTSTORE_CACHE_KEY_PREFIX + lengthPrefixed(driverName);
+  for (const { key } of keys) {
+    result += lengthPrefixed(key) + lengthPrefixed(claimData[key] ?? '');
+  }
+  return result;
+}
+
+function lengthPrefixed(value: string): string {
+  return `${encode(value).byteLength}:${value}`;
+}
+
+function compareBytes(left: Uint8Array, right: Uint8Array): number {
+  const sharedLength = Math.min(left.length, right.length);
+  for (let index = 0; index < sharedLength; index++) {
+    if (left[index] !== right[index]) return left[index]! - right[index]!;
+  }
+  return left.length - right.length;
 }
 
 function readMetadataString(payload: Payload, key: string): string | undefined {
