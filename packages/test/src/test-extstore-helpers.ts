@@ -39,7 +39,11 @@ test('reference payload round-trips through canonical proto3 JSON', (t) => {
 
 test('isReferencePayload is true even without externalPayloads size detail', (t) => {
   const claim = new StorageDriverClaim({ id: 'mem-0' });
-  const payload = encodeReferencePayload({ driverName: 'mem', claim, sizeBytes: 0 });
+  const payload = encodeReferencePayload({
+    driverName: 'mem',
+    claim,
+    sizeBytes: 0,
+  });
   delete payload.externalPayloads;
   t.true(isReferencePayload(payload));
 });

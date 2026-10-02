@@ -86,12 +86,14 @@ export class Client extends BaseClient {
     super(options);
 
     const { interceptors, workflow, plugins, ...commonOptions } = options;
+    const subclientPayloadCache = this.payloadCache ?? false;
 
     this.workflow = new WorkflowClient({
       ...commonOptions,
       ...(workflow ?? {}),
       connection: this.connection,
       dataConverter: this.dataConverter,
+      payloadCache: subclientPayloadCache,
       interceptors: interceptors?.workflow,
       queryRejectCondition: workflow?.queryRejectCondition,
     });
@@ -100,6 +102,7 @@ export class Client extends BaseClient {
       ...commonOptions,
       connection: this.connection,
       dataConverter: this.dataConverter,
+      payloadCache: subclientPayloadCache,
       interceptors: interceptors?.activity,
     });
 
@@ -107,6 +110,7 @@ export class Client extends BaseClient {
       ...commonOptions,
       connection: this.connection,
       dataConverter: this.dataConverter,
+      payloadCache: subclientPayloadCache,
       interceptors: interceptors?.schedule,
     });
 
@@ -114,12 +118,14 @@ export class Client extends BaseClient {
       ...commonOptions,
       connection: this.connection,
       dataConverter: this.dataConverter,
+      payloadCache: subclientPayloadCache,
     });
 
     this.nexus = new NexusClient({
       ...commonOptions,
       connection: this.connection,
       dataConverter: this.dataConverter,
+      payloadCache: subclientPayloadCache,
       interceptors: interceptors?.nexus,
     });
 
@@ -127,6 +133,7 @@ export class Client extends BaseClient {
       ...defaultBaseClientOptions(),
       ...filterNullAndUndefined(commonOptions),
       loadedDataConverter: this.dataConverter,
+      payloadCache: this.payloadCache,
       interceptors: {
         workflow: this.workflow.options.interceptors,
         schedule: this.schedule.options.interceptors,

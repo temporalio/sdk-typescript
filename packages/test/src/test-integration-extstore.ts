@@ -38,7 +38,7 @@ test('large activity result is offloaded to external storage and retrieved once'
   const payloadSize = 4096;
   const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold });
 
-  const worker = await createWorker({ activities, dataConverter: { externalStorage } });
+  const worker = await createWorker({ activities, dataConverter: { externalStorage }, payloadCache: false });
 
   const handle = await startWorkflow(externalStorageOffload, { args: [payloadSize] });
   const len = await worker.runUntil(handle.result());
@@ -68,7 +68,7 @@ test('large activity input argument is offloaded and retrieved', async (t) => {
   const driver = makeFakeDriver();
   const payloadSize = 4096;
   const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
-  const worker = await createWorker({ activities, dataConverter: { externalStorage } });
+  const worker = await createWorker({ activities, dataConverter: { externalStorage }, payloadCache: false });
 
   const handle = await startWorkflow(externalStorageActivityInputOffload, { args: [payloadSize] });
   const len = await worker.runUntil(handle.result());
@@ -91,7 +91,7 @@ test('payloads at or below the threshold stay inline', async (t) => {
 
   const driver = makeFakeDriver();
   const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 4096 });
-  const worker = await createWorker({ activities, dataConverter: { externalStorage } });
+  const worker = await createWorker({ activities, dataConverter: { externalStorage }, payloadCache: false });
 
   const smallSize = 1024;
   const handle = await startWorkflow(externalStorageOffload, { args: [smallSize] });
@@ -127,7 +127,7 @@ test('driverSelector routes offloaded payloads to the chosen driver', async (t) 
     },
     payloadSizeThreshold: 1024,
   });
-  const worker = await createWorker({ activities, dataConverter: { externalStorage } });
+  const worker = await createWorker({ activities, dataConverter: { externalStorage }, payloadCache: false });
 
   const handle = await startWorkflow(externalStorageOffload, { args: [payloadSize] });
   const len = await worker.runUntil(handle.result());
@@ -154,7 +154,7 @@ test('offloaded payload round-trips byte-for-byte', async (t) => {
   const driver = makeFakeDriver();
   const payloadSize = 4096;
   const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
-  const worker = await createWorker({ activities, dataConverter: { externalStorage } });
+  const worker = await createWorker({ activities, dataConverter: { externalStorage }, payloadCache: false });
 
   const handle = await startWorkflow(externalStorageByteFidelity, { args: [payloadSize] });
   const bytesMatch = await worker.runUntil(handle.result());
@@ -170,7 +170,7 @@ test('large heartbeat details are offloaded and recovered on retry', async (t) =
   const driver = makeFakeDriver();
   const payloadSize = 4096;
   const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
-  const worker = await createWorker({ activities, dataConverter: { externalStorage } });
+  const worker = await createWorker({ activities, dataConverter: { externalStorage }, payloadCache: false });
 
   const handle = await startWorkflow(externalStorageHeartbeatDetailsOffload, { args: [payloadSize] });
   const len = await worker.runUntil(handle.result());
@@ -191,7 +191,7 @@ test('child workflow input and result are offloaded in both directions', async (
   const driver = makeFakeDriver();
   const payloadSize = 4096;
   const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
-  const worker = await createWorker({ activities, dataConverter: { externalStorage } });
+  const worker = await createWorker({ activities, dataConverter: { externalStorage }, payloadCache: false });
 
   const handle = await startWorkflow(externalStorageParentChildOffload, { args: [payloadSize] });
   const len = await worker.runUntil(handle.result());
@@ -220,11 +220,12 @@ test('continue-as-new offloads a large argument keyed under the target workflow 
   const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
   const sizeBytes = 4096;
 
-  const worker = await createWorker({ dataConverter: { externalStorage } });
+  const worker = await createWorker({ dataConverter: { externalStorage }, payloadCache: false });
   const client = new Client({
     connection: t.context.env.connection,
     namespace: t.context.env.client.options.namespace,
     dataConverter: { externalStorage },
+    payloadCache: false,
   });
 
   const workflowId = randomUUID();
@@ -253,7 +254,7 @@ test('a transient workflow-completion store failure retries the workflow task an
   // Activity input is offloaded on the workflow-task completion, so this covers the completion store.
   const driver = makeFakeDriver({ failFirstStore: true });
   const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
-  const worker = await createWorker({ activities, dataConverter: { externalStorage } });
+  const worker = await createWorker({ activities, dataConverter: { externalStorage }, payloadCache: false });
 
   const payloadSize = 4096;
   const handle = await startWorkflow(externalStorageActivityInputOffload, { args: [payloadSize] });
@@ -282,7 +283,7 @@ test('a transient workflow-activation retrieve failure retries the workflow task
   // Activity result is retrieved into the workflow activation, so this covers the activation retrieve.
   const driver = makeFakeDriver({ failFirstRetrieve: true });
   const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
-  const worker = await createWorker({ activities, dataConverter: { externalStorage } });
+  const worker = await createWorker({ activities, dataConverter: { externalStorage }, payloadCache: false });
 
   const payloadSize = 4096;
   const handle = await startWorkflow(externalStorageOffload, { args: [payloadSize] });
@@ -310,7 +311,7 @@ test('a transient activity result store failure retries the activity and recover
   // that path.
   const driver = makeFakeDriver({ failFirstStore: true });
   const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
-  const worker = await createWorker({ activities, dataConverter: { externalStorage } });
+  const worker = await createWorker({ activities, dataConverter: { externalStorage }, payloadCache: false });
 
   const payloadSize = 4096;
   const handle = await startWorkflow(externalStorageOffload, { args: [payloadSize] });
@@ -329,7 +330,7 @@ test('a transient activity input retrieve failure retries the activity and recov
   // failing the first retrieve covers that path.
   const driver = makeFakeDriver({ failFirstRetrieve: true });
   const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
-  const worker = await createWorker({ activities, dataConverter: { externalStorage } });
+  const worker = await createWorker({ activities, dataConverter: { externalStorage }, payloadCache: false });
 
   const payloadSize = 4096;
   const handle = await startWorkflow(externalStorageActivityInputOffload, { args: [payloadSize] });
@@ -346,11 +347,12 @@ test('client offloads a large start argument and retrieves a large result', asyn
   const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
   const data = new Uint8Array(4096).fill(3);
 
-  const worker = await createWorker({ dataConverter: { externalStorage } });
+  const worker = await createWorker({ dataConverter: { externalStorage }, payloadCache: false });
   const client = new Client({
     connection: t.context.env.connection,
     namespace: t.context.env.client.options.namespace,
     dataConverter: { externalStorage },
+    payloadCache: false,
   });
 
   const workflowId = randomUUID();
@@ -396,11 +398,12 @@ test('client retrieves an offloaded query result', async (t) => {
   const sizeBytes = 4096;
   const expected = new Uint8Array(sizeBytes).fill(7);
 
-  const worker = await createWorker({ dataConverter: { externalStorage } });
+  const worker = await createWorker({ dataConverter: { externalStorage }, payloadCache: false });
   const client = new Client({
     connection: t.context.env.connection,
     namespace: t.context.env.client.options.namespace,
     dataConverter: { externalStorage },
+    payloadCache: false,
   });
 
   const workflowId = randomUUID();
@@ -434,6 +437,7 @@ test('AsyncCompletionClient.complete offloads a large result', async (t) => {
     connection,
     namespace: t.context.env.client.options.namespace,
     dataConverter: { externalStorage },
+    payloadCache: false,
   });
 
   await client.activity.complete(new Uint8Array([1]), new Uint8Array(4096).fill(9));
@@ -463,6 +467,7 @@ test('AsyncCompletionClient.complete by ID targets the Workflow for a Workflow A
     connection,
     namespace: t.context.env.client.options.namespace,
     dataConverter: { externalStorage },
+    payloadCache: false,
   });
 
   await client.activity.complete(
@@ -491,6 +496,7 @@ test('AsyncCompletionClient.complete by ID targets the Activity for a Standalone
     connection,
     namespace: t.context.env.client.options.namespace,
     dataConverter: { externalStorage },
+    payloadCache: false,
   });
 
   await client.activity.complete({ runId: 'run-2', activityId: 'act-2' }, new Uint8Array(4096).fill(9));
@@ -524,6 +530,7 @@ test('signalWithStart offloads a large workflow argument and targets the workflo
     connection,
     namespace: t.context.env.client.options.namespace,
     dataConverter: { externalStorage },
+    payloadCache: false,
   });
 
   await client.workflow.signalWithStart('myWorkflow', {
@@ -561,6 +568,7 @@ test('activity-client start offloads a large input and targets the activity', as
     connection,
     namespace: t.context.env.client.options.namespace,
     dataConverter: { externalStorage },
+    payloadCache: false,
   });
 
   await client.activity.start('myActivity', {
@@ -588,11 +596,12 @@ test('client offloads a large workflow memo and retrieves it via describe', asyn
   const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 });
   const memoBlob = new Uint8Array(4096).fill(5);
 
-  const worker = await createWorker({ dataConverter: { externalStorage } });
+  const worker = await createWorker({ dataConverter: { externalStorage }, payloadCache: false });
   const client = new Client({
     connection: t.context.env.connection,
     namespace: t.context.env.client.options.namespace,
     dataConverter: { externalStorage },
+    payloadCache: false,
   });
 
   const workflowId = randomUUID();
@@ -638,6 +647,7 @@ test('schedule create offloads a large memo and describe retrieves it', async (t
     connection,
     namespace: t.context.env.client.options.namespace,
     dataConverter: { externalStorage },
+    payloadCache: false,
   });
 
   const handle = await client.schedule.create({
