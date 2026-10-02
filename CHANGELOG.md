@@ -52,6 +52,8 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- Corrected the Schedule `catchupWindow` documentation to state that omitted values use the Temporal
+  Server's configured default.
 - `@temporalio/strands-agents` tools built on Activities, `activityAsTool`, and MCP tools now give the
   model the Activity's own error message when a tool call fails, instead of "Activity task failed",
   and attach that error to the tool result for hooks.
