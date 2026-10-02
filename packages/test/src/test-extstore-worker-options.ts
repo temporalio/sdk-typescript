@@ -1,4 +1,5 @@
 import test from 'ava';
+import type { Payload, PayloadCache } from '@temporalio/common';
 import { Runtime } from '@temporalio/worker';
 import { compileWorkerOptions, toNativeWorkerOptions } from '@temporalio/worker/lib/worker-options';
 import { ExternalStorage, type StorageDriver } from '@temporalio/common/lib/converter/extstore';
@@ -20,6 +21,38 @@ function reportedDriverTypes(externalStorage?: ExternalStorage): string[] {
   });
   return native.storageDrivers;
 }
+
+function compilePayloadCache(payloadCache?: PayloadCache | false): PayloadCache | undefined {
+  const runtime = Runtime.instance();
+  return compileWorkerOptions({ ...defaultOptions, payloadCache }, runtime.logger, runtime.metricMeter).payloadCache;
+}
+
+test('creates a payload cache by default', (t) => {
+  t.truthy(compilePayloadCache());
+});
+
+test('disables the payload cache when configured with false', (t) => {
+  t.is(compilePayloadCache(false), undefined);
+});
+
+test('wraps a user-provided payload cache transparently', async (t) => {
+  const entries = new Map<string, Payload>();
+  const userCache: PayloadCache = {
+    async get(key) {
+      return entries.get(key);
+    },
+    async set(key, payload) {
+      entries.set(key, payload);
+      return true;
+    },
+  };
+  Object.freeze(userCache);
+  const cache = compilePayloadCache(userCache)!;
+  const payload = { data: new Uint8Array([1, 2, 3]) };
+
+  t.true(await cache.set('key', payload));
+  t.is(await cache.get('key'), payload);
+});
 
 test('reports no storage drivers when external storage is unset', (t) => {
   t.deepEqual(reportedDriverTypes(undefined), []);

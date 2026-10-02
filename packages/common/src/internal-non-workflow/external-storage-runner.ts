@@ -25,8 +25,14 @@ import {
 } from '../errors';
 import type { Logger } from '../logger';
 import type { Payload } from '../interfaces';
+import type { PayloadCache } from '../payload-cache';
 import type { ExternalStorageMetricsAccumulator } from './external-storage-metrics';
-import { decodeReferencePayload, encodeReferencePayload, isReferencePayload } from './extstore-helpers';
+import {
+  decodeReferencePayload,
+  encodeReferencePayload,
+  externalStorageClaimCacheKey,
+  isReferencePayload,
+} from './extstore-helpers';
 
 const PayloadProto = temporal.api.common.v1.Payload;
 
@@ -47,17 +53,39 @@ function driverOperationLimitFor(externalStorage: ExternalStorage): ConcurrencyL
 }
 
 /** @internal @experimental */
-export interface ExternalStoreOptions {
+export interface ExternalStorageStoreOptions {
   /** Identity of the workflow or activity that produced the payloads. */
   target?: StorageDriverTargetInfo;
   /** Aborts the in-flight store operation. */
   abortSignal?: AbortSignal;
+  /** Collects metrics for this store operation. */
+  metrics?: ExternalStorageMetricsAccumulator;
 }
 
 /** @internal @experimental */
-export interface ExternalRetrieveOptions {
+export interface ExternalStorageRetrieveOptions {
   /** Aborts the in-flight retrieve operation. */
   abortSignal?: AbortSignal;
+  /** Collects metrics for this retrieve operation. */
+  metrics?: ExternalStorageMetricsAccumulator;
+}
+
+interface RetrieveItem {
+  index: number;
+  driver: StorageDriver;
+  claim: StorageDriverClaim;
+  cacheKey: string;
+  size: number;
+}
+
+interface CachedRetrieveItem {
+  item: RetrieveItem;
+  payload: Payload;
+}
+
+export interface ExternalStorageRunnerOptions {
+  payloadCache?: PayloadCache;
+  logger?: Logger;
 }
 
 /**
@@ -69,14 +97,17 @@ export interface ExternalRetrieveOptions {
 export class ExternalStorageRunner {
   private readonly messageLimit: ConcurrencyLimit;
   private readonly driverOperationLimit: ConcurrencyLimit;
+  private readonly payloadCache?: PayloadCache;
+  private readonly logger?: Logger;
 
   constructor(
     private readonly externalStorage: ExternalStorage,
-    private readonly metrics?: ExternalStorageMetricsAccumulator,
-    private readonly logger?: Logger
+    { payloadCache, logger }: ExternalStorageRunnerOptions = {}
   ) {
     this.messageLimit = limit(externalStorage.concurrency.maxOperationsPerMessage);
     this.driverOperationLimit = driverOperationLimitFor(externalStorage);
+    this.payloadCache = payloadCache;
+    this.logger = logger;
   }
 
   /**
@@ -113,12 +144,49 @@ export class ExternalStorageRunner {
     );
   }
 
+  private async cacheGet(key: string): Promise<Payload | undefined> {
+    if (this.payloadCache === undefined) return undefined;
+    try {
+      return await this.payloadCache.get(key);
+    } catch {
+      return undefined;
+    }
+  }
+
+  private cacheSet(key: string, payload: Payload): void {
+    if (this.payloadCache === undefined) return;
+    try {
+      void this.payloadCache.set(key, payload).catch(() => {});
+    } catch {
+      // cache is best effort and shouldn't throw
+    }
+  }
+
+  private async retrieveFromCache(
+    items: RetrieveItem[]
+  ): Promise<{ retrieved: CachedRetrieveItem[]; missing: RetrieveItem[] }> {
+    const cachedPayloads = await Promise.all(items.map((item) => this.cacheGet(item.cacheKey)));
+    const retrieved: CachedRetrieveItem[] = [];
+    const missing: RetrieveItem[] = [];
+
+    for (const [index, item] of items.entries()) {
+      const cachedPayload = cachedPayloads[index];
+      if (cachedPayload === undefined) {
+        missing.push(item);
+      } else {
+        retrieved.push({ item, payload: cachedPayload });
+      }
+    }
+
+    return { retrieved, missing };
+  }
+
   /**
    * Replace each payload above the configured size threshold with a reference payload.
    * Payloads below the threshold (or that the selector keeps inline) pass through
    * unchanged. Order is preserved.
    */
-  async store(payloads: Payload[], options: ExternalStoreOptions = {}): Promise<Payload[]> {
+  async store(payloads: Payload[], options: ExternalStorageStoreOptions = {}): Promise<Payload[]> {
     if (payloads.length === 0) return payloads;
 
     const { driverSelector, payloadSizeThreshold } = this.externalStorage;
@@ -155,7 +223,7 @@ export class ExternalStorageRunner {
     if (driverGroups.size === 0) return payloads;
 
     const result = payloads.slice();
-    const { metrics } = this;
+    const { metrics } = options;
     await runWithAbortOnFirstError(batchController, [...driverGroups.values()], async (group) => {
       const startMs = metrics ? performance.now() : 0;
       const { limiter, used } = this.makeLimiter<Payload>(batchSignal);
@@ -179,11 +247,13 @@ export class ExternalStorageRunner {
       }
       for (const [j, claim] of claims.entries()) {
         const item = group.items[j]!;
-        result[item.index] = encodeReferencePayload({
+        const referencePayload = encodeReferencePayload({
           driverName: group.driver.name,
           claim,
           sizeBytes: item.size,
         });
+        result[item.index] = referencePayload;
+        this.cacheSet(externalStorageClaimCacheKey(group.driver.name, claim.claimData), item.payload);
       }
       if (metrics) {
         const sizeBytes = group.items.reduce((sum, it) => sum + it.size, 0);
@@ -198,18 +268,12 @@ export class ExternalStorageRunner {
    * Replace each reference payload in `payloads` with the payload bytes returned by the
    * named driver. Non-reference payloads are passed through unchanged. Order is preserved.
    */
-  async retrieve(payloads: Payload[], options: ExternalRetrieveOptions = {}): Promise<Payload[]> {
+  async retrieve(payloads: Payload[], options: ExternalStorageRetrieveOptions = {}): Promise<Payload[]> {
     if (payloads.length === 0) return payloads;
 
     const { batchSignal, batchController } = makeBatchSignal(options.abortSignal);
 
-    interface RetrieveItem {
-      index: number;
-      claim: StorageDriverClaim;
-      size: number;
-    }
-    const driverGroups = new Map<string, { driver: StorageDriver; items: RetrieveItem[] }>();
-
+    const payloadsToRetrieve: RetrieveItem[] = [];
     for (const [i, payload] of payloads.entries()) {
       if (!isReferencePayload(payload)) continue;
       let decoded: ReturnType<typeof decodeReferencePayload>;
@@ -222,18 +286,37 @@ export class ExternalStorageRunner {
       if (driver === null) {
         throw new ExternalStorageUnregisteredDriverError(`No driver registered with name '${decoded.driverName}'`);
       }
-      let group = driverGroups.get(decoded.driverName);
-      if (group === undefined) {
-        group = { driver, items: [] };
-        driverGroups.set(decoded.driverName, group);
-      }
-      group.items.push({ index: i, claim: new StorageDriverClaim(decoded.claimData), size: decoded.sizeBytes });
+      payloadsToRetrieve.push({
+        index: i,
+        driver,
+        claim: new StorageDriverClaim(decoded.claimData),
+        cacheKey: externalStorageClaimCacheKey(decoded.driverName, decoded.claimData),
+        size: decoded.sizeBytes,
+      });
     }
 
-    if (driverGroups.size === 0) return payloads;
+    if (payloadsToRetrieve.length === 0) return payloads;
 
     const result = payloads.slice();
-    const { metrics } = this;
+    const { retrieved, missing } = await this.retrieveFromCache(payloadsToRetrieve);
+    for (const { item, payload } of retrieved) {
+      result[item.index] = payload;
+    }
+
+    if (missing.length === 0) return result;
+
+    // get remaining payloads from the storage drivers
+    const driverGroups = new Map<string, { driver: StorageDriver; items: RetrieveItem[] }>();
+    for (const item of missing) {
+      let group = driverGroups.get(item.driver.name);
+      if (group === undefined) {
+        group = { driver: item.driver, items: [] };
+        driverGroups.set(item.driver.name, group);
+      }
+      group.items.push(item);
+    }
+
+    const { metrics } = options;
     await runWithAbortOnFirstError(batchController, [...driverGroups.values()], async (group) => {
       const startMs = metrics ? performance.now() : 0;
       const { limiter, used } = this.makeLimiter<StorageDriverClaim>(batchSignal);
@@ -255,9 +338,11 @@ export class ExternalStorageRunner {
           `Driver '${group.driver.name}' returned ${retrieved.length} payloads for ${group.items.length} claims`
         );
       }
+
       for (const [j, retrievedPayload] of retrieved.entries()) {
         const item = group.items[j]!;
         result[item.index] = retrievedPayload;
+        this.cacheSet(item.cacheKey, retrievedPayload);
       }
       if (metrics) {
         const sizeBytes = group.items.reduce((sum, it) => sum + it.size, 0);
