@@ -26,6 +26,7 @@ to docs, or any other relevant information.
   cannot be replayed by a Worker on this version: drain in-flight Workflows before upgrading, or
   run the versions on separate task queues. `@modelcontextprotocol/sdk` is now an optional peer
   dependency, needed only for `TemporalMCPToolset`.
+- **Experimental**: Nexus Workflow Updates now require `waitForStage` to be explicitly set to `ACCEPTED`.
 
 ### Added
 
@@ -36,6 +37,8 @@ to docs, or any other relevant information.
   `signalWithStartWorkflow`.
 - **Experimental**: Workflow outbound interceptors can intercept Temporal System Nexus calls
   generically with `startSystemNexusOperation` or specifically with `signalWithStartWorkflow`.
+- **Experimental**: Nexus workers decode Temporal System Nexus inputs sent by the server with the
+  System Nexus converter.
 
 - **Experimental**: New External Storage concurrency controls.
 
@@ -60,12 +63,22 @@ to docs, or any other relevant information.
 - `@temporalio/google-adk-agents` no longer turns a cancelled model or MCP Activity into a retryable
   `GoogleAdkModelError` / `GoogleAdkMCPError`. An error raised once the Activity's cancellation signal
   has fired is re-raised as the cancellation, so the attempt ends cancelled instead of being retried.
+- Corrected the Schedule `catchupWindow` documentation to state that omitted values use the Temporal
+  Server's configured default.
+- `@temporalio/strands-agents` tools built on Activities, `activityAsTool`, and MCP tools now give the
+  model the Activity's own error message when a tool call fails, instead of "Activity task failed",
+  and attach that error to the tool result for hooks.
+- `JsonPayloadConverter` no longer produces a payload with undefined data for values that have no JSON
+  representation, such as functions, symbols, and objects whose `toJSON` returns `undefined`. The default
+  payload converter now throws a `ValueError` for these values, including symbols, which previously caused a
+  `TypeError` while building the error message.
 - `@temporalio/ai-sdk` now preserves text provider metadata when replaying streamed model responses
   inside Workflows.
 - The Workflow sandbox now exposes `atob` and `btoa`, allowing integrations such as `@temporalio/ai-sdk` to
   process image and file tool results containing base64 data.
 - `@temporalio/create` now supports comments and trailing commas in `tsconfig.json` files when
   creating projects.
+- `WorkflowExecutionAlreadyStartedError` now exposes the `runId` of the already-running Workflow Execution when the server provides it in the error details (#1838).
 
 ### Changed
 

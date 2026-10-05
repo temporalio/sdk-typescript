@@ -2,6 +2,7 @@ import type { TestFn } from 'ava';
 import { McpClient, Message, Model, TextBlock } from '@strands-agents/sdk';
 import type { BaseModelConfig, JSONValue, ModelStreamEvent, StreamOptions, Tool } from '@strands-agents/sdk';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+import { ApplicationFailure } from '@temporalio/common';
 import type { BaseContext } from '@temporalio/test-helpers';
 import { test as anyTest, createBaseBundlerOptions, helpers, TestWorkflowEnvironment } from '@temporalio/test-helpers';
 import { bundleWorkflowCode, DefaultLogger, Worker } from '@temporalio/worker';
@@ -12,6 +13,8 @@ import {
   activityToolAgent,
   approveSignal,
   defaultModelAgent,
+  failingActivityToolAgent,
+  failingMcpToolAgent,
   helloAgent,
   hooksAgent,
   interruptAgent,
@@ -266,6 +269,33 @@ test('activityAsTool dispatches a registered activity from the agent loop', asyn
   );
 });
 
+test('activityAsTool gives the model the error the activity threw', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+
+  const worker = await createWorker({
+    plugins: [
+      new StrandsPlugin({
+        models: {
+          test: () =>
+            new StubModel([toolCallTurn('getWeather', 'call_1', { location: 'Atlantis' }), textTurn('no weather')]),
+        },
+      }),
+    ],
+    activities: {
+      async getWeather(input: { location: string }): Promise<never> {
+        throw ApplicationFailure.nonRetryable(`Unknown location: ${input.location}`);
+      },
+    },
+  });
+
+  await worker.runUntil(async () => {
+    // Not the ActivityFailure's own "Activity task failed".
+    t.deepEqual(await executeWorkflow(failingActivityToolAgent, { args: ['weather in Atlantis?'] }), [
+      { text: 'Unknown location: Atlantis', error: 'Unknown location: Atlantis' },
+    ]);
+  });
+});
+
 test('TemporalMCPClient lists and calls tools through per-server activities', async (t) => {
   const { createWorker, executeWorkflow } = helpers(t);
 
@@ -305,6 +335,37 @@ test('TemporalMCPClient lists and calls tools through per-server activities', as
   });
 
   t.deepEqual(callToolArgs, [{ name: 'listFiles', args: { path: '/' } }]);
+});
+
+test('an MCP tool gives the model the error its callTool activity failed with', async (t) => {
+  const { createWorker, executeWorkflow } = helpers(t);
+
+  class FailingMcpClient extends StubMcpClient {
+    override async callTool(): Promise<JSONValue> {
+      throw ApplicationFailure.nonRetryable('MCP server unavailable');
+    }
+  }
+  const factory = (): McpClient =>
+    new FailingMcpClient([{ name: 'listFiles', description: 'List files', inputSchema: { type: 'object' } }]);
+
+  const worker = await createWorker({
+    plugins: [
+      new StrandsPlugin({
+        models: {
+          test: () => new StubModel([toolCallTurn('listFiles', 'call_1', { path: '/' }), textTurn('no files')]),
+        },
+        // Distinct server name so the worker-process connection cache can't be
+        // shared with another test's server.
+        mcpClients: { failingServer: factory },
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    t.deepEqual(await executeWorkflow(failingMcpToolAgent, { args: ['list files', 'failingServer'] }), [
+      { text: 'MCP server unavailable', error: 'MCP server unavailable' },
+    ]);
+  });
 });
 
 test('successive MCP tool calls reuse one cached worker-side connection', async (t) => {

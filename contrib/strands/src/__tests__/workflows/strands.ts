@@ -9,7 +9,7 @@ import {
 } from '@strands-agents/sdk';
 import { defineSignal, setHandler, condition } from '@temporalio/workflow';
 import { WorkflowStream } from '@temporalio/workflow-streams/workflow';
-import { TemporalAgent, TemporalMCPClient, workflow as strandsWorkflow } from '../..';
+import { TemporalAgent, TemporalMCPClient, type TemporalAgentOptions, workflow as strandsWorkflow } from '../..';
 
 export async function helloAgent(prompt: string): Promise<string> {
   const agent = new TemporalAgent({ model: 'test', printer: false });
@@ -48,6 +48,45 @@ export async function activityToolAgent(prompt: string): Promise<string> {
   });
   const result = await agent.invoke(prompt);
   return result.toString();
+}
+
+/**
+ * Runs an agent with `tools` and returns, for each tool call that failed, the text the model gets
+ * and the message of the error attached to the result for hooks.
+ */
+async function failedToolCalls(
+  prompt: string,
+  tools: TemporalAgentOptions['tools']
+): Promise<Array<{ text: string; error?: string }>> {
+  const failed: Array<{ text: string; error?: string }> = [];
+  const agent = new TemporalAgent({ model: 'test', printer: false, tools });
+  agent.addHook(AfterToolCallEvent, (event) => {
+    if (event.result.status === 'error') {
+      const block = event.result.content[0];
+      failed.push({ text: block?.type === 'textBlock' ? block.text : '', error: event.result.error?.message });
+    }
+  });
+  await agent.invoke(prompt);
+  return failed;
+}
+
+export async function failingActivityToolAgent(prompt: string): Promise<Array<{ text: string; error?: string }>> {
+  return failedToolCalls(prompt, [
+    strandsWorkflow.activityAsTool('getWeather', {
+      description: 'Get the weather for a city',
+      inputSchema: { type: 'object', properties: { location: { type: 'string' } }, required: ['location'] },
+      activityOptions: { startToCloseTimeout: '10 seconds' },
+    }),
+  ]);
+}
+
+export async function failingMcpToolAgent(
+  prompt: string,
+  server: string
+): Promise<Array<{ text: string; error?: string }>> {
+  return failedToolCalls(prompt, [
+    new TemporalMCPClient({ server, activityOptions: { startToCloseTimeout: '10 seconds' } }),
+  ]);
 }
 
 export async function mcpAgent(prompt: string, server = 'testServer', cacheTools?: boolean): Promise<string> {
