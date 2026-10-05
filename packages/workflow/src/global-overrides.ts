@@ -43,6 +43,22 @@ export function overrideGlobals(): void {
 
   global.Date.prototype = OriginalDate.prototype;
 
+  // Temporal is only available in newer Node.js runtimes. Keep its current-time methods tied to
+  // the workflow task timestamp, just like Date.now(). Preserve the native default time zone.
+  const Temporal = global.Temporal;
+  if (Temporal !== undefined) {
+    const temporalNow = Temporal.Now;
+    const getNow = () => Temporal.Instant.fromEpochMilliseconds(getActivator().now);
+    const getZonedDateTime = (timeZoneLike?: unknown) =>
+      getNow().toZonedDateTimeISO(timeZoneLike === undefined ? temporalNow.timeZoneId() : timeZoneLike);
+
+    temporalNow.instant = getNow;
+    temporalNow.zonedDateTimeISO = getZonedDateTime;
+    temporalNow.plainDateTimeISO = (timeZoneLike?: unknown) => getZonedDateTime(timeZoneLike).toPlainDateTime();
+    temporalNow.plainDateISO = (timeZoneLike?: unknown) => getZonedDateTime(timeZoneLike).toPlainDate();
+    temporalNow.plainTimeISO = (timeZoneLike?: unknown) => getZonedDateTime(timeZoneLike).toPlainTime();
+  }
+
   const timeoutCancellationScopes = new Map<number, CancellationScope>();
 
   /**
