@@ -51,11 +51,15 @@ export function setUnhandledRejectionHandler(getWorkflowByRunId: (runId: string)
  */
 export function toDeadlockErrorIfVmTimeout(err: unknown, isolateExecutionTimeoutMs: number): unknown {
   if ((err as { code?: unknown } | null)?.code !== 'ERR_SCRIPT_EXECUTION_TIMEOUT') return err;
-  return new Error(
+  const timeoutError = err as Error;
+  const deadlockError = new Error(
     `[TMPRL1101] Potential deadlock detected: workflow didn't yield within ${isolateExecutionTimeoutMs}ms ` +
-      `(${(err as Error).message}). Workflow code must not block, busy-loop, or run long CPU-bound work ` +
+      `(${timeoutError.message}). Workflow code must not block, busy-loop, or run long CPU-bound work ` +
       `without awaiting. See https://github.com/temporalio/rules/blob/main/rules/TMPRL1101.md`
   );
+  // Reuse Node's stack so the failure recorded in history doesn't gain the worker's own frames.
+  deadlockError.stack = timeoutError.stack?.replace(timeoutError.message, () => deadlockError.message);
+  return deadlockError;
 }
 
 /**
