@@ -256,8 +256,10 @@ export interface UnsafeWorkflowInfo {
   /**
    * Current system time in milliseconds
    *
-   * The safe version of time is `new Date()` and `Date.now()`, which are set on the first invocation of a Workflow
-   * Task and stay constant for the duration of the Task and during replay.
+   * The safe versions of the current time are `new Date()`, `Date.now()`, `Temporal.Now.instant()`, and its date/time
+   * conversion methods. They use the timestamp from the first invocation of a Workflow Task and stay constant for
+   * the duration of the Task and during replay. Temporal methods without an explicit time zone use the isolate's
+   * system time zone; `Temporal.Now.timeZoneId()` also reports that system time zone.
    */
   readonly now: () => number;
 
