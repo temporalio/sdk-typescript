@@ -1841,21 +1841,15 @@ test('globalOverrides', async (t) => {
 test('logAndTimeout', async (t) => {
   const { workflowType, workflow } = t.context;
   const completion = await activate(t, makeStartWorkflow(workflowType));
-  const expectedStackTrace = 'Error: Script execution timed out after 400ms';
-  // Clean the stack trace for comparison
-  if (completion.failed?.failure?.stackTrace) {
-    completion.failed.failure.stackTrace = cleanStackTrace(completion.failed.failure.stackTrace);
-  }
-  compareCompletion(t, completion, {
-    failed: {
-      failure: {
-        message: 'Script execution timed out after 400ms',
-        source: 'TypeScriptSDK',
-        stackTrace: expectedStackTrace,
-        cause: undefined,
-      },
-    },
-  });
+  const expectedMessage =
+    "[TMPRL1101] Potential deadlock detected: workflow didn't yield within 400ms " +
+    '(Script execution timed out after 400ms). Workflow code must not block, busy-loop, or run long CPU-bound work ' +
+    'without awaiting. See https://github.com/temporalio/rules/blob/main/rules/TMPRL1101.md';
+  const failure = completion.failed?.failure;
+  t.is(failure?.message, expectedMessage);
+  t.is(failure?.source, 'TypeScriptSDK');
+  t.true(failure?.stackTrace?.startsWith(`Error: ${expectedMessage}`));
+  t.falsy(failure?.cause);
   const calls = await workflow.getAndResetSinkCalls();
   // Ignore LogTimestamp and workflowInfo for the purpose of this comparison
   calls.forEach((call) => {
