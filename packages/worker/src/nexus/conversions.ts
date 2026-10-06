@@ -8,8 +8,22 @@ import {
   fromPayloadWithTypeInfo,
   WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
-import { encodeErrorToFailure, decodeOptionalSingle } from '@temporalio/common/lib/internal-non-workflow';
+import {
+  decode,
+  encodeErrorToFailure,
+  decodeOptionalSingle,
+  visit,
+  walkPayloadsInMessage,
+} from '@temporalio/common/lib/internal-non-workflow';
 import type { temporal } from '@temporalio/proto';
+import {
+  decodeSystemNexusEnvelope,
+  encodeSystemNexusEnvelope,
+  fromSystemNexusPayload,
+  isKnownSystemNexusRequestType,
+  isSystemNexusEnvelope,
+  systemNexusRequestType,
+} from '../system-nexus-operations';
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Payloads
@@ -38,9 +52,12 @@ export async function decodePayload(
   payload: temporal.api.common.v1.IPayload | undefined,
   typeInfo?: TypeInfo
 ): Promise<unknown> {
+  const isSystemPayload = payload != null && isSystemNexusEnvelope(payload);
   let decoded: Payload | undefined | null;
   try {
-    decoded = await decodeOptionalSingle(dataConverter.payloadCodecs, payload);
+    decoded = isSystemPayload
+      ? await decodeSystemNexus(dataConverter, payload)
+      : await decodeOptionalSingle(dataConverter.payloadCodecs, payload);
   } catch (err) {
     if (isPayloadValidationFailure(err)) {
       throw new nexus.HandlerError('BAD_REQUEST', `Invalid operation input`, {
@@ -58,7 +75,9 @@ export async function decodePayload(
   }
 
   try {
-    return fromPayloadWithTypeInfo(dataConverter.payloadConverter, decoded, undefined, typeInfo);
+    return isSystemPayload
+      ? fromSystemNexusPayload(decoded, dataConverter.payloadConverter, typeInfo)
+      : fromPayloadWithTypeInfo(dataConverter.payloadConverter, decoded, undefined, typeInfo);
   } catch (err) {
     if (isPayloadValidationFailure(err)) {
       throw new nexus.HandlerError('BAD_REQUEST', `Invalid operation input`, {
@@ -72,6 +91,34 @@ export async function decodePayload(
       cause: err,
     });
   }
+}
+
+async function decodeSystemNexus(dataConverter: LoadedDataConverter, payload: Payload): Promise<Payload> {
+  const messageType = systemNexusRequestType(payload);
+  if (!isKnownSystemNexusRequestType(messageType)) {
+    // Retryable: a newer server may send a request type this SDK version does not know yet.
+    throw new nexus.HandlerError('INTERNAL', `Unrecognized System Nexus envelope message type: ${messageType}`, {
+      retryableOverride: true,
+    });
+  }
+
+  let message: Record<string, unknown>;
+  try {
+    message = decodeSystemNexusEnvelope(payload);
+  } catch (err) {
+    throw new nexus.HandlerError('BAD_REQUEST', 'Invalid System Nexus request', { cause: err });
+  }
+
+  if (dataConverter.payloadCodecs.length === 0) return payload;
+  await visit(message, walkPayloadsInMessage, {
+    transformPayload: async (nestedPayload, context) =>
+      (await decode(dataConverter.payloadCodecs, [nestedPayload], context))[0]!,
+    transformPayloads: (nestedPayloads, context) => decode(dataConverter.payloadCodecs, nestedPayloads, context),
+    initialContext: undefined,
+    skipHeaders: true,
+    skipSearchAttributes: true,
+  });
+  return encodeSystemNexusEnvelope(payload, message);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

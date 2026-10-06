@@ -6,9 +6,10 @@ import { toPayloads } from '@temporalio/common';
 import { coresdk } from '@temporalio/proto';
 import { ProtoActivityResult } from '../protos/root';
 import { protoActivity } from './activities';
-import { cleanOptionalStackTrace, RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import { cleanOptionalStackTrace } from './helpers';
 import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
 import { messageInstance, payloadConverter } from './payload-converters/proto-payload-converter';
+import { createTestWorkflowBundle, helpers, makeTestFunction } from './helpers-integration';
 import * as workflows from './workflows';
 import { protobufWorkflow } from './workflows/protobufs';
 
@@ -27,52 +28,56 @@ function compareCompletion(
   );
 }
 
-if (RUN_INTEGRATION_TESTS) {
-  test('Client and Worker work with provided dataConverter', async (t) => {
-    const dataConverter = { payloadConverterPath: require.resolve('./payload-converters/proto-payload-converter') };
-    const taskQueue = 'test-custom-payload-converter';
-    const worker = await Worker.create({
-      ...defaultOptions,
-      workflowsPath: require.resolve('./workflows/protobufs'),
+const integrationTest = makeTestFunction({ workflowsPath: require.resolve('./workflows') });
+
+integrationTest('Client and Worker work with provided dataConverter', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+  const dataConverter = { payloadConverterPath: require.resolve('./payload-converters/proto-payload-converter') };
+  const workflowBundle = await createTestWorkflowBundle({
+    workflowsPath: require.resolve('./workflows/protobufs'),
+    payloadConverterPath: dataConverter.payloadConverterPath,
+  });
+  const worker = await createWorker({ dataConverter, workflowBundle, activities: { protoActivity } });
+  const client = new WorkflowClient({
+    connection: t.context.env.client.connection,
+    namespace: t.context.env.client.options.namespace,
+    dataConverter,
+  });
+  await worker.runUntil(async () => {
+    const result = await client.execute(protobufWorkflow, {
+      args: [messageInstance],
+      workflowId: randomUUID(),
       taskQueue,
-      dataConverter,
     });
-    const client = new WorkflowClient({ dataConverter });
-    await worker.runUntil(async () => {
-      const result = await client.execute(protobufWorkflow, {
-        args: [messageInstance],
-        workflowId: randomUUID(),
+
+    t.deepEqual(result, ProtoActivityResult.create({ sentence: `Proto is 1 years old.` }));
+  });
+});
+
+integrationTest('fromPayload throws on Client when receiving result from client.execute()', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+  const worker = await createWorker();
+
+  const client = new WorkflowClient({
+    connection: t.context.env.client.connection,
+    namespace: t.context.env.client.options.namespace,
+    dataConverter: {
+      payloadConverterPath: require.resolve('./payload-converters/payload-converter-throws-from-payload'),
+    },
+  });
+  await worker.runUntil(
+    t.throwsAsync(
+      client.execute(workflows.successString, {
         taskQueue,
-      });
-
-      t.deepEqual(result, ProtoActivityResult.create({ sentence: `Proto is 1 years old.` }));
-    });
-  });
-
-  test('fromPayload throws on Client when receiving result from client.execute()', async (t) => {
-    const worker = await Worker.create({
-      ...defaultOptions,
-    });
-
-    const client = new WorkflowClient({
-      dataConverter: {
-        payloadConverterPath: require.resolve('./payload-converters/payload-converter-throws-from-payload'),
-      },
-    });
-    await worker.runUntil(
-      t.throwsAsync(
-        client.execute(workflows.successString, {
-          taskQueue: 'test',
-          workflowId: randomUUID(),
-        }),
-        {
-          instanceOf: Error,
-          message: 'test fromPayload',
-        }
-      )
-    );
-  });
-}
+        workflowId: randomUUID(),
+      }),
+      {
+        instanceOf: Error,
+        message: 'test fromPayload',
+      }
+    )
+  );
+});
 
 test('Worker throws on invalid payloadConverterPath', async (t) => {
   t.throws(
