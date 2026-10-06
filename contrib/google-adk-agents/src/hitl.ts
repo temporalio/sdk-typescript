@@ -77,7 +77,11 @@ export type HitlRequest = HitlInputRequest | HitlConfirmationRequest;
 
 /** The human's decision for a tool gated with `requireConfirmation`. */
 export interface HitlConfirmation {
-  /** Approve (`true`) or reject the call. ADK tests `=== true`, so nothing else approves. */
+  /**
+   * Approve (`true`) or reject (`false`) the call. Must be a boolean:
+   * {@link hitlConfirmationResponse} refuses anything else rather than guess,
+   * since ADK approves only on `=== true`.
+   */
   confirmed: boolean;
   /** Optional echo of the hint shown to the human. */
   hint?: string;
