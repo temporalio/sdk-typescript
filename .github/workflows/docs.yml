@@ -65,7 +65,7 @@ jobs:
             --prod
 
       - name: Publish preview docs
-        if: ${{ inputs.publish_target && inputs.publish_target != 'prod' }}
+        if: ${{ inputs.publish_target && inputs.publish_target != 'prod' && github.event.pull_request.user.login != 'dependabot[bot]' }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

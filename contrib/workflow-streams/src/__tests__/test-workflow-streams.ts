@@ -5,7 +5,7 @@
  */
 
 import { randomUUID } from 'crypto';
-import { ApplicationFailure, defaultPayloadConverter, type Payload } from '@temporalio/common';
+import { ApplicationFailure, defaultPayloadConverter, WorkflowNotFoundError, type Payload } from '@temporalio/common';
 import type { WorkflowHandle } from '@temporalio/client';
 import { WorkflowUpdateFailedError } from '@temporalio/client';
 import { isBun } from '@temporalio/test-helpers';
@@ -952,8 +952,6 @@ test('flush_retry_preserves_items_after_failures — behavioral retry coverage',
 
 // Retry running this test with Bun once https://github.com/oven-sh/bun/issues/36828 is resolved
 (isBun ? test.skip : test)('flush_raises_after_max_retry_duration — timeout surfaces, client resumes', async (t) => {
-  // When the retry window expires, stop() must rethrow FlushTimeoutError;
-  // the client stays usable and subsequent publishes succeed.
   const { env } = t.context;
   const bogus = env.client.workflow.getHandle(`no-such-workflow-${randomUUID()}`);
   const client = new WorkflowStreamClient(bogus, {
@@ -961,6 +959,8 @@ test('flush_retry_preserves_items_after_failures — behavioral retry coverage',
     maxRetryDuration: '200 milliseconds',
   });
   client.topic('events').publish(encoder.encode('will-be-lost'));
-  await new Promise((r) => setTimeout(r, 1500));
+  // Establish the pending retry state before waiting for it to expire.
+  await t.throwsAsync(client.flush(), { instanceOf: WorkflowNotFoundError });
+  await new Promise((r) => setTimeout(r, 500));
   await t.throwsAsync(client[Symbol.asyncDispose](), { instanceOf: FlushTimeoutError });
 });
