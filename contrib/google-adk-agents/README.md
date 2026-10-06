@@ -222,12 +222,16 @@ const runner = new InMemoryRunner({ agent: graph });
 - **Input and output.** By default the node's input is passed to the Activity as
   its single argument and the Activity's result is the node's output; `args`
   maps the input (and `NodeContext`, for state) to the Activity's argument list.
-  An Activity returning nothing completes the node with an `undefined` output.
+  An Activity returning nothing (`undefined` or `null`) completes the node with
+  a `null` output, so its successors receive `null`: ADK records a node as done
+  only when its events carry an output, and without one a completed Activity
+  would run again when a paused graph resumes.
 - **Node names.** The node is named after the Activity unless `nodeName` says
-  otherwise, and the name may not contain a `.`: ADK reserves it as its node-path
-  separator, and a dotted name breaks the resume that fast-forwards a completed
-  node. `activityNode` refuses one, so a dotted Activity type
-  (`payments.charge`) needs a `nodeName`.
+  otherwise, and the name may not contain `.`, `/` or `@`: ADK reads a node path
+  back by those characters (its segments, and the run-id suffix), and a name
+  containing one breaks the resume that fast-forwards a completed node.
+  `activityNode` refuses one, so an Activity type such as `payments.charge` or
+  `charge@customer` needs a `nodeName`.
 - **Routing.** A node returns `createEvent({ route: 'approve', output })` and the
   edge `[router, { approve: a, [DEFAULT_ROUTE]: b }]` picks the branch; only that
   branch's Activity runs.
@@ -417,6 +421,12 @@ The mapping is exported as `ADK_RUNTIME_FAILURE_TYPES`. Anything else ADK throws
 — a malformed human reply, `StreamingMode.BIDI`, a reserved function _call_ in a
 client message — keeps the SDK's convention; use
 `WorkerOptions.workflowFailureErrorTypes` to fail the execution on more.
+
+Cancellation is not a failure. When a cancelled Workflow cancels the model call
+an agent node is waiting on, ADK absorbs the cancelled call like any model error
+and reports the node as failed (`NodeReportedError`); the plugin ends the
+execution CANCELLED with the model Activity's own cancellation instead. A
+cancelled Activity node ends it CANCELLED the same way, inside a dynamic run too.
 
 ### Streaming
 
