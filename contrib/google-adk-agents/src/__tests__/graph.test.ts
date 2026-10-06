@@ -26,6 +26,7 @@ import {
   appRoot,
   compactedAgent,
   graphActivityFailure,
+  graphActivityThenPause,
   graphAgentNodeModelFailure,
   graphAgentTaskNode,
   graphDottedActivity,
@@ -112,9 +113,24 @@ test.serial('an Activity node returning nothing completes and its successor runs
     env.client.workflow.execute(graphVoidOutput, { taskQueue, workflowId })
   );
   // ADK's `waitForOutput` parks exactly this node forever, which is why
-  // `activityNode` does not expose it; fan in with a `JoinNode` instead.
-  t.is(result.output, 'after');
+  // `activityNode` does not expose it; fan in with a `JoinNode` instead. The
+  // successor receives `null`, the output that lets ADK record the completion.
+  t.deepEqual(result.output, { received: null });
   t.is(countScheduledActivities(await history(workflowId), 'voidActivity'), 1);
+});
+
+test.serial('an Activity node returning nothing is not run again when its graph resumes', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-graph-void-resume');
+  const workflowId = uid('wf-graph-void-resume');
+  const result = await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, () =>
+    env.client.workflow.execute(graphActivityThenPause, { taskQueue, workflowId, args: ['voidActivity'] })
+  );
+  // The second turn answered the pause, so the graph ran to the end...
+  t.is(result.output, 'yes');
+  // ...and the Activity that completed before the pause was fast-forwarded, not rerun.
+  t.is(countScheduledActivities(await history(workflowId), 'voidActivity'), 1);
+  t.deepEqual(activities.executionsFor(workflowId), ['voidActivity']);
 });
 
 test('activityNode refuses a node name carrying ADK path separator', (t) => {

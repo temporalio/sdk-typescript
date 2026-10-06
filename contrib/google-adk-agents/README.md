@@ -219,7 +219,10 @@ const runner = new InMemoryRunner({ agent: graph });
 - **Input and output.** By default the node's input is passed to the Activity as
   its single argument and the Activity's result is the node's output; `args`
   maps the input (and `NodeContext`, for state) to the Activity's argument list.
-  An Activity returning nothing completes the node with an `undefined` output.
+  An Activity returning nothing (`undefined` or `null`) completes the node with
+  a `null` output, so its successors receive `null`: ADK records a node as done
+  only when its events carry an output, and without one a completed Activity
+  would run again when a paused graph resumes.
 - **Node names.** The node is named after the Activity unless `nodeName` says
   otherwise, and the name may not contain a `.`: ADK reserves it as its node-path
   separator, and a dotted name breaks the resume that fast-forwards a completed

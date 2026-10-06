@@ -19,9 +19,11 @@
  */
 
 import {
+  createEvent,
   FunctionNode,
   NodeTimeoutError,
   type BaseNode,
+  type Event,
   type FunctionNodeConfig,
   type NodeContext,
   type RetryConfig,
@@ -122,8 +124,12 @@ export interface ActivityNodeOptions<TInput = unknown> {
  *
  * Inside a Workflow the node's input (or the arguments `args` derives from it)
  * is sent to the Activity and the Activity's result becomes the node's output,
- * which flows to the successors. An Activity returning nothing completes the
- * node with an `undefined` output. The node can only run inside a Workflow.
+ * which flows to the successors. An Activity returning nothing (`undefined` or
+ * `null`) completes the node with a `null` output, so its successors receive
+ * `null` (and an `outputSchema` has to accept it). That is the one completion
+ * ADK records: it drops a nullish node output, and on resume it fast-forwards
+ * only a node whose events carry an output, so an Activity that returned
+ * nothing would otherwise run again. The node can only run inside a Workflow.
  *
  * Two of ADK's node flags are deliberately not exposed. `waitForOutput` is not
  * a fan-in gate: it parks a node in `WAITING` when the node ended with neither
@@ -154,7 +160,7 @@ export function activityNode<TInput = unknown, TOutput = unknown>(
     );
   }
 
-  const handler = async (ctx: NodeContext, input: TInput): Promise<TOutput> => {
+  const handler = async (ctx: NodeContext, input: TInput): Promise<TOutput | Event> => {
     if (!inWorkflowContext()) {
       throw ApplicationFailure.nonRetryable(
         `activityNode('${name}') can only run inside a Temporal Workflow.`,
@@ -171,7 +177,14 @@ export function activityNode<TInput = unknown, TOutput = unknown>(
     // widens the static type to `| undefined`, hence the assertion.
     const run = activities[name]!;
     const activityArgs = args ? args(input, ctx) : [input];
-    return (await underNodeDeadline(ctx, graphName, options.timeout, () => run(...activityArgs))) as TOutput;
+    const result = await underNodeDeadline(ctx, graphName, options.timeout, () => run(...activityArgs));
+    // `FunctionNode` emits no event for a nullish result, and ADK fast-forwards a node on
+    // resume only when its recorded events carry an output or a route
+    // (`isFastForwardable`), so an Activity that returned nothing would leave no trace of
+    // having run and be scheduled again after a pause. An event with an explicit `null`
+    // output is the smallest completion ADK both persists and fast-forwards.
+    if (result === undefined || result === null) return createEvent({ output: null });
+    return result as TOutput;
   };
 
   const config: FunctionNodeConfig = {};
