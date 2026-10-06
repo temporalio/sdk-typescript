@@ -133,13 +133,41 @@ test.serial('an Activity node returning nothing is not run again when its graph 
   t.deepEqual(activities.executionsFor(workflowId), ['voidActivity']);
 });
 
-test('activityNode refuses a node name carrying ADK path separator', (t) => {
-  // ADK splits a node path on '.', so a dotted name is unrecognisable on resume.
-  const err = t.throws(() => activityNode({ name: 'payments.charge' }), { instanceOf: ApplicationFailure });
-  t.is(err?.type, 'GoogleAdkActivityNodeName');
-  t.is(err?.nonRetryable, true);
-  t.true(err?.message.includes('payments_charge'), err?.message);
-  t.notThrows(() => activityNode({ name: 'payments.charge', nodeName: 'payments_charge' }));
+test('activityNode refuses a node name carrying an ADK node-path delimiter', (t) => {
+  // ADK reads a node path back by '.' and '/' (segments) and '@' (the run-id suffix),
+  // so a name containing any of them is unrecognisable on resume.
+  for (const [activityName, delimiter, safe] of [
+    ['payments.charge', '.', 'payments_charge'],
+    ['payments/charge', '/', 'payments_charge'],
+    ['charge@customer', '@', 'charge_customer'],
+  ]) {
+    const err = t.throws(() => activityNode({ name: activityName! }), { instanceOf: ApplicationFailure });
+    t.is(err?.type, 'GoogleAdkActivityNodeName');
+    t.is(err?.nonRetryable, true);
+    t.true(err?.message.includes(`contains '${delimiter}'`), err?.message);
+    t.true(err?.message.includes(`'${safe}'`), err?.message);
+    t.notThrows(() => activityNode({ name: activityName!, nodeName: safe }));
+  }
+  // The guard reads the effective name, so a safe Activity type cannot hide an unsafe node name.
+  t.throws(() => activityNode({ name: 'charge', nodeName: 'charge@customer' }), { instanceOf: ApplicationFailure });
+});
+
+test.serial('an Activity type with an @ runs once across a pause under a path-safe node name', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-graph-at-resume');
+  const workflowId = uid('wf-graph-at-resume');
+  const withAt = { ...activities, 'charge@customer': activities.chargeCustomer };
+  const result = await withWorker(env, { taskQueue, plugins: [makePlugin()], activities: withAt }, () =>
+    env.client.workflow.execute(graphActivityThenPause, {
+      taskQueue,
+      workflowId,
+      args: ['charge@customer', 'charge_customer'],
+    })
+  );
+  t.is(result.output, 'yes');
+  // Fast-forwarded on resume under its safe name, so scheduled and executed once.
+  t.is(countScheduledActivities(await history(workflowId), 'charge@customer'), 1);
+  t.deepEqual(activities.executionsFor(workflowId), ['chargeCustomer']);
 });
 
 test.serial('a dotted Activity type runs under a path-safe node name', async (t) => {

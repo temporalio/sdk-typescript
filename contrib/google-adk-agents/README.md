@@ -224,10 +224,11 @@ const runner = new InMemoryRunner({ agent: graph });
   only when its events carry an output, and without one a completed Activity
   would run again when a paused graph resumes.
 - **Node names.** The node is named after the Activity unless `nodeName` says
-  otherwise, and the name may not contain a `.`: ADK reserves it as its node-path
-  separator, and a dotted name breaks the resume that fast-forwards a completed
-  node. `activityNode` refuses one, so a dotted Activity type
-  (`payments.charge`) needs a `nodeName`.
+  otherwise, and the name may not contain `.`, `/` or `@`: ADK reads a node path
+  back by those characters (its segments, and the run-id suffix), and a name
+  containing one breaks the resume that fast-forwards a completed node.
+  `activityNode` refuses one, so an Activity type such as `payments.charge` or
+  `charge@customer` needs a `nodeName`.
 - **Routing.** A node returns `createEvent({ route: 'approve', output })` and the
   edge `[router, { approve: a, [DEFAULT_ROUTE]: b }]` picks the branch; only that
   branch's Activity runs.
