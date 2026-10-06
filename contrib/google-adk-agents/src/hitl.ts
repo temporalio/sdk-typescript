@@ -21,11 +21,13 @@
  * for await (const event of runner.runAsync({ userId, sessionId, newMessage: { role: 'user', parts } })) { … }
  * ```
  *
- * Both builders refuse an answer with a non-retryable `ApplicationFailure` of type
- * {@link HITL_RESPONSE_FAILURE_TYPE}. Build in the handler, as above: the SDK
- * rejects an Update only for a `TemporalFailure`, so the caller hears the refusal;
- * building in the Workflow body instead fails the Workflow Task repeatedly with the
- * bad answer already committed.
+ * Both builders refuse an answer only by throwing a non-retryable
+ * `ApplicationFailure` of type {@link HITL_RESPONSE_FAILURE_TYPE}, never anything
+ * else, whatever they are handed: a malformed decision or an unusable value is
+ * checked before it is read. Build in the handler, as above: the SDK rejects an
+ * Update only for a `TemporalFailure`, so the caller hears the refusal; building
+ * in the Workflow body instead fails the Workflow Task repeatedly with the bad
+ * answer already committed.
  *
  * These helpers cover the wire format only. Credential requests
  * (`adk_request_credential`) are deliberately excluded: answering one means
@@ -118,9 +120,21 @@ export function pendingHitlRequests(events: readonly Event[]): HitlRequest[] {
  * that happen silently, this throws for any string that parses: declare a
  * string `responseSchema` on the `RequestInput`, or pass the parsed value
  * yourself.
+ *
+ * `value` must be a JSON value (`null` included). `undefined` is refused because
+ * ADK reads it as no answer at all: a waiting node resumes only once its answer
+ * is `!== undefined` (`workflow/workflow.ts`), so the node would ask again while
+ * {@link pendingHitlRequests} already counts the request as answered. A
+ * function, symbol or bigint is refused as not JSON, which is also why a Client
+ * could never send one over an Update.
+ *
+ * Every refusal is a non-retryable `ApplicationFailure` of type
+ * {@link HITL_RESPONSE_FAILURE_TYPE}, so calling this from a Signal or Update
+ * handler on an unchecked value is safe.
  */
 export function hitlInputResponse(request: HitlInputRequest, value: unknown): Part {
   assertKind(request, 'input', 'hitlInputResponse');
+  assertUsableAnswer(request, value);
   const response = isPlainObject(value) ? value : { result: value };
   assertNoJsonCoercion(request, response);
   return {
@@ -138,10 +152,18 @@ export function hitlInputResponse(request: HitlInputRequest, value: unknown): Pa
  * user-authored event only, so answer every pending confirmation in one
  * `newMessage`, and rebuild the agent for the resumed turn with the same tool
  * names — an approval naming a tool the agent no longer has is refused.
+ *
+ * `decision` is checked before it is read, since an Update handler hands it over
+ * unchecked: it must be an object whose `confirmed` is a boolean and whose `hint`,
+ * when present, is a string (`payload` may be anything). ADK approves only on
+ * `confirmed === true`, so a `'yes'` is refused rather than guessed as either
+ * answer. Every refusal is a non-retryable `ApplicationFailure` of type
+ * {@link HITL_RESPONSE_FAILURE_TYPE}.
  */
 export function hitlConfirmationResponse(request: HitlConfirmationRequest, decision: HitlConfirmation): Part {
   assertKind(request, 'confirmation', 'hitlConfirmationResponse');
-  const response: Record<string, unknown> = { confirmed: decision.confirmed === true };
+  assertDecision(request, decision);
+  const response: Record<string, unknown> = { confirmed: decision.confirmed };
   if (decision.hint !== undefined) response.hint = decision.hint;
   if (decision.payload !== undefined) response.payload = decision.payload;
   return {
@@ -160,15 +182,64 @@ export function hitlConfirmationResponse(request: HitlConfirmationRequest, decis
  * {@link UserInputRequest} here, credential variant included.
  */
 function assertKind(request: UserInputRequest, kind: UserInputKind, helper: string): void {
+  if (!isPlainObject(request)) {
+    throw refusal(
+      `${helper}: ${describeType(request)} is not a HITL request; pass one that pendingHitlRequests returned.`
+    );
+  }
   if (request.kind !== kind) {
-    throw ApplicationFailure.nonRetryable(
+    throw refusal(
       `${helper}: interrupt '${request.interruptId}' has kind '${request.kind}', not '${kind}'. ` +
         (request.kind === 'credential'
           ? 'Credential requests are not answerable from a Workflow; acquire credentials worker-side.'
-          : `Use ${kind === 'input' ? 'hitlConfirmationResponse' : 'hitlInputResponse'} for it.`),
-      HITL_RESPONSE_FAILURE_TYPE
+          : `Use ${kind === 'input' ? 'hitlConfirmationResponse' : 'hitlInputResponse'} for it.`)
     );
   }
+}
+
+/** Refuses an input answer ADK cannot use; see {@link hitlInputResponse}. */
+function assertUsableAnswer(request: HitlInputRequest, value: unknown): void {
+  const where = `hitlInputResponse: the answer to interrupt '${request.interruptId}'`;
+  if (value === undefined) {
+    throw refusal(
+      `${where} is undefined, which ADK reads as no answer at all: the waiting node would ask again ` +
+        'while pendingHitlRequests counts the request as answered. Pass a JSON value (null included).'
+    );
+  }
+  const type = typeof value;
+  if (type === 'function' || type === 'symbol' || type === 'bigint') {
+    throw refusal(`${where} is ${describeType(value)}, which is not a JSON value. Pass a JSON value (null included).`);
+  }
+}
+
+/** Refuses a confirmation decision that is not `{ confirmed: boolean, hint?: string, payload?: unknown }`. */
+function assertDecision(request: HitlConfirmationRequest, decision: unknown): asserts decision is HitlConfirmation {
+  const where = `hitlConfirmationResponse: the decision for interrupt '${request.interruptId}'`;
+  if (!isPlainObject(decision)) {
+    throw refusal(`${where} must be an object like { confirmed: true }, got ${describeType(decision)}.`);
+  }
+  if (typeof decision.confirmed !== 'boolean') {
+    throw refusal(
+      `${where} is malformed: 'confirmed' must be a boolean, got ${describeType(decision.confirmed)}. ` +
+        'ADK approves only on confirmed === true, so nothing else is guessed as an answer.'
+    );
+  }
+  if (decision.hint !== undefined && typeof decision.hint !== 'string') {
+    throw refusal(`${where} is malformed: 'hint' must be a string when present, got ${describeType(decision.hint)}.`);
+  }
+}
+
+/** The one failure the builders throw. */
+function refusal(message: string): ApplicationFailure {
+  return ApplicationFailure.nonRetryable(message, HITL_RESPONSE_FAILURE_TYPE);
+}
+
+/** Names a value's type for a refusal message: `null`, `an array`, `a string`, `an object`. */
+function describeType(value: unknown): string {
+  if (value === null || value === undefined) return String(value);
+  if (Array.isArray(value)) return 'an array';
+  const type = typeof value;
+  return `${/^[aeiou]/.test(type) ? 'an' : 'a'} ${type}`;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -209,12 +280,11 @@ function assertNoJsonCoercion(request: HitlInputRequest, response: Record<string
   if (typeof unwrapped !== 'string' || acceptsString(request.responseSchema)) return;
   const parsed = parseJsonIfPossible(unwrapped);
   if (parsed === NOT_JSON) return;
-  throw ApplicationFailure.nonRetryable(
+  throw refusal(
     `hitlInputResponse: the string ${JSON.stringify(unwrapped)} answering interrupt '${request.interruptId}' ` +
       `parses as JSON, so ADK would deliver ${describeDelivered(parsed)} to the node instead of the text. ` +
       'The request declared no responseSchema that accepts a string: declare one on the RequestInput, or ' +
-      'pass the parsed value instead of the string.',
-    HITL_RESPONSE_FAILURE_TYPE
+      'pass the parsed value instead of the string.'
   );
 }
 

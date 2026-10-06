@@ -22,6 +22,7 @@ import {
   hitlInputResponse,
   pendingHitlRequests,
   HITL_RESPONSE_FAILURE_TYPE,
+  type HitlConfirmation,
   type HitlConfirmationRequest,
   type HitlInputRequest,
   type HitlRequest,
@@ -157,6 +158,38 @@ test.serial('an answer the builder refuses rejects the Update and leaves the Wor
   });
   // A rejected Update must not have failed a Workflow Task: that would retry the
   // task forever with the bad answer already committed to history.
+  const { events } = await getEnv().client.workflow.getHandle(workflowId).fetchHistory();
+  t.deepEqual(
+    (events ?? []).filter((e) => e.workflowTaskFailedEventAttributes != null),
+    []
+  );
+});
+
+test.serial('a malformed confirmation decision rejects the Update and the corrected one runs the tool', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-hitl-bad-decision');
+  const workflowId = uid('wf-hitl-bad-decision');
+  await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, async () => {
+    const handle = await env.client.workflow.start(hitlConfirmActivityTool, { taskQueue, workflowId });
+    const [pending] = await waitForPending(handle, 1);
+    const interruptId = pending!.interruptId;
+
+    // `null` used to be dereferenced as a decision, throwing a TypeError that failed the
+    // Workflow Task instead of rejecting this Update.
+    const nullDecision = await t.throwsAsync(handle.executeUpdate(respondHitlUpdate, { args: [interruptId, null] }));
+    t.is(findInCauseChain(nullDecision, ApplicationFailure)?.type, 'GoogleAdkHitlResponseError');
+    // A decision whose `confirmed` is not a boolean is refused rather than read as a rejection.
+    const stringConfirmed = await t.throwsAsync(
+      handle.executeUpdate(respondHitlUpdate, { args: [interruptId, { confirmed: 'yes' }] })
+    );
+    t.is(findInCauseChain(stringConfirmed, ApplicationFailure)?.type, 'GoogleAdkHitlResponseError');
+    t.deepEqual(activities.executionsFor(workflowId), []);
+
+    // The gate is still open, so the corrected decision approves and the Activity runs once.
+    await handle.executeUpdate(respondHitlUpdate, { args: [interruptId, { confirmed: true }] });
+    t.is((await handle.result()).text, 'done:{"result":"danger-done:prod"}');
+  });
+  t.deepEqual(activities.executionsFor(workflowId), ['dangerActivity:prod']);
   const { events } = await getEnv().client.workflow.getHandle(workflowId).fetchHistory();
   t.deepEqual(
     (events ?? []).filter((e) => e.workflowTaskFailedEventAttributes != null),
@@ -402,6 +435,60 @@ test('hitlInputResponse wraps bare values, passes objects through, and refuses a
       ),
     { message: /Credential requests are not answerable from a Workflow/ }
   );
+});
+
+test('hitlInputResponse refuses only with the typed failure, including values ADK cannot use', (t) => {
+  const request: HitlInputRequest = { kind: 'input', interruptId: 'i1', functionCallName: 'adk_request_input' };
+  const assertTyped = (fn: () => unknown, message: RegExp) => {
+    const err = t.throws(fn, { instanceOf: ApplicationFailure, message });
+    t.is(err?.type, HITL_RESPONSE_FAILURE_TYPE);
+    t.is(err?.nonRetryable, true);
+  };
+  // ADK resumes a waiting node only on an answer `!== undefined`, so this would read as
+  // no answer while `pendingHitlRequests` already counted the request as answered.
+  assertTyped(() => hitlInputResponse(request, undefined), /is undefined, which ADK reads as no answer at all/);
+  // Not JSON, so not something a Client could have sent over an Update either.
+  assertTyped(() => hitlInputResponse(request, () => 1), /is a function, which is not a JSON value/);
+  assertTyped(() => hitlInputResponse(request, Symbol('x')), /is a symbol, which is not a JSON value/);
+  assertTyped(() => hitlInputResponse(request, 10n), /is a bigint, which is not a JSON value/);
+  // A request that crossed a Query boundary as something other than an object.
+  assertTyped(() => hitlInputResponse(null as unknown as HitlInputRequest, 'x'), /is not a HITL request/);
+  // `null` is a JSON value, delivered as such.
+  t.deepEqual(hitlInputResponse(request, null).functionResponse?.response, { result: null });
+});
+
+test('hitlConfirmationResponse refuses a malformed decision with the typed failure', (t) => {
+  const request: HitlConfirmationRequest = {
+    kind: 'confirmation',
+    interruptId: 'adk-1',
+    functionCallName: 'adk_request_confirmation',
+  };
+  const refuse = (decision: unknown, message: RegExp) => {
+    const err = t.throws(() => hitlConfirmationResponse(request, decision as HitlConfirmation), {
+      instanceOf: ApplicationFailure,
+      message,
+    });
+    t.is(err?.type, HITL_RESPONSE_FAILURE_TYPE);
+    t.is(err?.nonRetryable, true);
+  };
+  refuse(null, /decision for interrupt 'adk-1' must be an object .* got null/);
+  refuse(undefined, /must be an object .* got undefined/);
+  refuse('yes', /must be an object .* got a string/);
+  refuse([true], /must be an object .* got an array/);
+  // ADK approves only on `=== true`; anything else must not be guessed as either answer.
+  refuse({ confirmed: 'yes' }, /'confirmed' must be a boolean, got a string/);
+  refuse({}, /'confirmed' must be a boolean, got undefined/);
+  refuse({ confirmed: true, hint: 42 }, /'hint' must be a string when present, got a number/);
+  refuse(null, /^hitlConfirmationResponse: /);
+  t.throws(() => hitlConfirmationResponse(null as unknown as HitlConfirmationRequest, { confirmed: true }), {
+    instanceOf: ApplicationFailure,
+    message: /is not a HITL request/,
+  });
+  // A well-formed decision still goes through, payload untouched.
+  t.deepEqual(hitlConfirmationResponse(request, { confirmed: false, payload: null }).functionResponse?.response, {
+    confirmed: false,
+    payload: null,
+  });
 });
 
 test('hitlConfirmationResponse emits the ToolConfirmation shape ADK parses', (t) => {
