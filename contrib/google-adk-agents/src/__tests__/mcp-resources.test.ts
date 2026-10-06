@@ -8,8 +8,8 @@ import { readFileSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import test from 'ava';
-import { BaseToolset, type BaseTool, type MCPConnectionParams, type ReadonlyContext } from '@google/adk';
+import test, { type ExecutionContext } from 'ava';
+import { BaseToolset, MCPToolset, type BaseTool, type MCPConnectionParams, type ReadonlyContext } from '@google/adk';
 import { Context as ActivityContext } from '@temporalio/activity';
 import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
 import { MockActivityEnvironment } from '@temporalio/testing';
@@ -80,6 +80,35 @@ async function waitForHangingRead(count: number): Promise<void> {
   }
 }
 
+/**
+ * A resource toolset whose methods never settle and, unlike
+ * {@link HangingResourceToolset}, never look at any signal: the shape of a
+ * custom toolset the plugin can neither hand a signal to nor reach inside.
+ */
+class DeafResourceToolset extends BaseToolset {
+  calls = 0;
+
+  constructor() {
+    super([]);
+  }
+
+  override async getTools(_context?: ReadonlyContext): Promise<BaseTool[]> {
+    return [];
+  }
+
+  listResources(): Promise<string[]> {
+    this.calls++;
+    return new Promise<never>(() => undefined);
+  }
+
+  readResource(_name: string): Promise<never> {
+    this.calls++;
+    return new Promise<never>(() => undefined);
+  }
+
+  override async close(): Promise<void> {}
+}
+
 function makePlugin(): GoogleAdkPlugin {
   return new GoogleAdkPlugin({
     modelProvider: graphTestProvider(),
@@ -93,15 +122,55 @@ function makePlugin(): GoogleAdkPlugin {
   });
 }
 
-function stubServerConnectionParams(log: string): MCPConnectionParams {
-  return {
-    type: 'StdioConnectionParams',
-    serverParams: { command: process.execPath, args: [stubServerPath], env: { MCP_STUB_LOG: log } },
-  };
+/** `hang` names a request method the stub records and never answers (`MCP_STUB_HANG`). */
+function stubServerConnectionParams(log: string, hang?: 'resources/list' | 'resources/read'): MCPConnectionParams {
+  const env: Record<string, string> = { MCP_STUB_LOG: log };
+  if (hang) env.MCP_STUB_HANG = hang;
+  return { type: 'StdioConnectionParams', serverParams: { command: process.execPath, args: [stubServerPath], env } };
 }
 
 function stubServerRecords(log: string): string[] {
-  return readFileSync(log, 'utf8').split('\n').filter(Boolean);
+  try {
+    return readFileSync(log, 'utf8').split('\n').filter(Boolean);
+  } catch {
+    return []; // the stub has not opened the log yet
+  }
+}
+
+async function waitUntil(condition: () => boolean, what: string): Promise<void> {
+  const deadline = Date.now() + 10_000;
+  while (!condition()) {
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+}
+
+/**
+ * Resolves once the stub has recorded `entry`, so a cancel lands on a request
+ * the server genuinely holds rather than one the client never sent.
+ */
+function waitForStubRecord(log: string, entry: string): Promise<void> {
+  return waitUntil(() => stubServerRecords(log).includes(entry), `the stub server to record '${entry}'`);
+}
+
+/**
+ * What `running` rejects with, failing the test instead if it is still pending
+ * after `ms`. Well under the MCP SDK's 60-second request timeout, so a request
+ * the cancel did not reach shows up as a failure here, not a slow pass.
+ */
+async function rejectionWithin(running: Promise<unknown>, ms: number): Promise<unknown> {
+  let timer: NodeJS.Timeout | undefined;
+  const late = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error(`still pending ${ms}ms after the cancel`)), ms);
+  });
+  try {
+    await Promise.race([running, late]);
+  } catch (err) {
+    return err;
+  } finally {
+    clearTimeout(timer);
+  }
+  throw new Error('expected the Activity to reject');
 }
 
 /** The subset of history the retry-bound assertions read. */
@@ -323,6 +392,69 @@ test('listResources raises the cancellation rather than an MCP failure', async (
   t.true(err instanceof CancelledFailure, `expected a CancelledFailure, got ${err?.constructor.name}`);
   t.false(err instanceof ApplicationFailure);
 });
+
+type ResourceActivity = (args?: { name: string }) => Promise<unknown>;
+
+/**
+ * Runs `<name>-<method>` against ADK's own `MCPToolset` over the stub server,
+ * with the stub holding that request unanswered, cancels once the server has
+ * it, and returns what left the Activity. ADK's `listResources()` /
+ * `readResource(name)` take no signal, so only a request the plugin issues
+ * itself with the Activity's signal can be interrupted.
+ */
+async function cancelAdkToolsetResourceRequest(
+  t: ExecutionContext,
+  method: 'listResources' | 'readResource'
+): Promise<{ err: unknown; records: string[] }> {
+  const log = path.join(os.tmpdir(), `${uid(`adk-res-cancel-${method}`)}.log`);
+  t.teardown(() => rmSync(log, { force: true }));
+  const hang = method === 'listResources' ? 'resources/list' : 'resources/read';
+  const toolset = new MCPToolset(stubServerConnectionParams(log, hang));
+  // Ends a request that outlived a failed run, so it cannot hold the worker open.
+  t.teardown(() => toolset.close());
+  const activity = createMCPActivities({ adk: () => toolset })[`adk-${method}`] as unknown as ResourceActivity;
+  const mockEnv = new MockActivityEnvironment();
+  const running = mockEnv.run(activity, { name: 'readme' });
+  await waitForStubRecord(log, hang);
+  mockEnv.cancel();
+  const err = await rejectionWithin(running, 10_000);
+  // The session is closed before the Activity rejects, so the log is complete.
+  return { err, records: stubServerRecords(log) };
+}
+
+test('an ADK MCPToolset read is cancelled in flight and the server is told', async (t) => {
+  const { err, records } = await cancelAdkToolsetResourceRequest(t, 'readResource');
+  t.true(err instanceof CancelledFailure, `expected a CancelledFailure, got ${String(err)}`);
+  // One session, the read held by the server when the cancel came, and the
+  // cancel sent on the wire rather than the request abandoned. The MCP SDK
+  // leaves a request's abort listener attached after it settles
+  // (`Protocol.request`), so the already-answered name lookup is cancelled too;
+  // a server ignores a cancellation for a request it has answered.
+  t.deepEqual(records.slice(0, 3), ['open', 'resources/list', 'resources/read']);
+  t.true(records.includes('notifications/cancelled'), `no cancellation reached the server: ${records.join(', ')}`);
+  t.is(records.at(-1), 'close');
+});
+
+test('an ADK MCPToolset listing is cancelled in flight and the server is told', async (t) => {
+  const { err, records } = await cancelAdkToolsetResourceRequest(t, 'listResources');
+  t.true(err instanceof CancelledFailure, `expected a CancelledFailure, got ${String(err)}`);
+  t.deepEqual(records, ['open', 'resources/list', 'notifications/cancelled', 'close']);
+});
+
+for (const method of ['listResources', 'readResource'] as const) {
+  test(`${method} on a toolset the signal cannot reach still ends the Activity cancelled at once`, async (t) => {
+    const toolset = new DeafResourceToolset();
+    const activity = createMCPActivities({ deaf: () => toolset })[`deaf-${method}`] as unknown as ResourceActivity;
+    const mockEnv = new MockActivityEnvironment();
+    const running = mockEnv.run(activity, { name: 'readme' });
+    await waitUntil(() => toolset.calls > 0, `the toolset's ${method}`);
+    mockEnv.cancel();
+    const err = await rejectionWithin(running, 5_000);
+    t.true(err instanceof CancelledFailure, `expected a CancelledFailure, got ${String(err)}`);
+    // Raced, not retried: the toolset was entered once.
+    t.is(toolset.calls, 1);
+  });
+}
 
 test.serial('refreshResourceList re-lists the resources on every model call', async (t) => {
   const env = getEnv();

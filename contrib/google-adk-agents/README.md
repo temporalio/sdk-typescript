@@ -225,6 +225,15 @@ unreachable server would retry behind the model turn forever and never reach the
 skip path. Set `activity: { retry: { maximumAttempts: n } }` on the toolset to
 choose your own, or `0` for unlimited.
 
+A cancelled listing or read ends its Activity cancelled. ADK's own
+`MCPToolset.listResources()` / `readResource(name)` take no `AbortSignal`, so for
+connection params and for a factory that returns an unmodified `MCPToolset` the
+plugin issues those MCP requests itself, over the toolset's own session manager,
+with the Activity's signal: a cancel aborts the pending request and sends the
+server `notifications/cancelled`. Any other toolset with resource methods is
+raced against the signal instead, so the Activity still ends cancelled at once,
+but its request runs on until the toolset's own timeout.
+
 ### Activities as tools
 
 Use `activityAsTool` to expose an existing Temporal Activity to the agent:

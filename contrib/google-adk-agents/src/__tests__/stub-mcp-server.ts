@@ -1,9 +1,12 @@
 /**
  * A stdio MCP server exposing an `echo` tool, a `hang` tool that never answers, and one
- * `readme` resource, recording its session boundaries, tool and resource requests to the
- * file named by `MCP_STUB_LOG`. An unknown tool gets the reply a real `McpServer` sends: a
- * successful result carrying `isError: true`, never a JSON-RPC error frame. An unknown
- * resource gets the JSON-RPC error a real server sends for `resources/read`.
+ * `readme` resource, recording its session boundaries, tool and resource requests, and any
+ * `notifications/cancelled` a client sends, to the file named by `MCP_STUB_LOG`. An unknown
+ * tool gets the reply a real `McpServer` sends: a successful result carrying `isError: true`,
+ * never a JSON-RPC error frame. An unknown resource gets the JSON-RPC error a real server
+ * sends for `resources/read`. `MCP_STUB_HANG` names a request method (`resources/list`,
+ * `resources/read`) the server records and then never answers, so a client can only leave
+ * it by cancelling.
  */
 
 import { appendFileSync } from 'node:fs';
@@ -45,7 +48,17 @@ function replyError(id: number | string, code: number, message: string): void {
 }
 
 function handle(message: JsonRpcMessage): void {
+  // How a client gives up on a request (`Protocol.request` in the MCP SDK sends it when
+  // the request's signal aborts); a notification, so it has no id and needs no reply.
+  if (message.method === 'notifications/cancelled') {
+    record('notifications/cancelled');
+    return;
+  }
   if (message.id === undefined) return;
+  if (message.method === process.env.MCP_STUB_HANG) {
+    record(message.method);
+    return;
+  }
   switch (message.method) {
     case 'initialize':
       reply(message.id, {
