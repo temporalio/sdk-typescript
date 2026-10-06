@@ -139,7 +139,7 @@ test.serial('opensAndClosesOneSessionPerActivityAgainstConnectionParams', async 
   );
   t.deepEqual(
     declarations.map((d) => d.name),
-    ['echo']
+    ['echo', 'hang']
   );
 
   const result: { content: unknown } = await mockEnv.run(activities['testServer-callTool'] as CallToolActivity, {
