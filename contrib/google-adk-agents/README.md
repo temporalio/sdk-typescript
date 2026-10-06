@@ -287,6 +287,12 @@ The mapping is exported as `ADK_RUNTIME_FAILURE_TYPES`. Anything else ADK throws
 client message — keeps the SDK's convention; use
 `WorkerOptions.workflowFailureErrorTypes` to fail the execution on more.
 
+Cancellation is not a failure. When a cancelled Workflow cancels the model call
+an agent node is waiting on, ADK absorbs the cancelled call like any model error
+and reports the node as failed (`NodeReportedError`); the plugin ends the
+execution CANCELLED with the model Activity's own cancellation instead. A
+cancelled Activity node ends it CANCELLED the same way, inside a dynamic run too.
+
 ### Streaming
 
 Streaming requires `streamingTopic` on `TemporalModel`. Chunks are published via

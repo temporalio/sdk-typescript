@@ -5,18 +5,20 @@
  */
 
 import test from 'ava';
-import { ActivityFailure, ApplicationFailure, TimeoutFailure } from '@temporalio/common';
+import { ActivityFailure, ApplicationFailure, CancelledFailure, TimeoutFailure } from '@temporalio/common';
 import { Worker } from '@temporalio/worker';
 
 import { GoogleAdkPlugin } from '../index';
 import { activityNode } from '../workflow';
 import {
+  abortingLlmCallCount,
   countScheduledActivities,
   findInCauseChain,
   getScheduledActivitySummaries,
   REUSE_V8_CONTEXT,
   setupTestEnv,
   uid,
+  waitForAbortingLlm,
   withWorker,
   workflowsPath,
 } from './helpers';
@@ -29,6 +31,7 @@ import {
   graphActivityThenPause,
   graphAgentNodeModelFailure,
   graphAgentTaskNode,
+  graphCancellableAgentNode,
   graphDottedActivity,
   graphFanOutJoin,
   graphPluginNodeCallbacks,
@@ -285,6 +288,33 @@ test.serial('an agent node whose model call fails surfaces the recorded model fa
   // the recorded `ActivityFailure` instead, keeping the model failure's status.
   t.not(findInCauseChain(err, ActivityFailure), undefined);
   t.is(findInCauseChain(err, ApplicationFailure)?.type, 'GoogleAdkModelError.400');
+});
+
+test.serial('cancelling a Workflow during an agent node model call ends it CANCELLED', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-graph-agent-cancel');
+  const workflowId = uid('wf-graph-agent-cancel');
+  const before = abortingLlmCallCount();
+  await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, async () => {
+    const handle = await env.client.workflow.start(graphCancellableAgentNode, { taskQueue, workflowId });
+    // Cancel a model call that is genuinely in flight, so the Activity itself ends cancelled.
+    await waitForAbortingLlm(before + 1);
+    await handle.cancel();
+    const err = await t.throwsAsync(handle.result());
+    // ADK absorbed the cancelled model call and reported the node as failed; the
+    // cancellation the plugin recorded, not ADK's report, is how the execution ends.
+    t.not(findInCauseChain(err, CancelledFailure), undefined);
+    t.is((await handle.describe()).status.name, 'CANCELLED');
+    const { events } = await handle.fetchHistory();
+    t.true(
+      (events ?? []).some((e) => e.activityTaskCanceledEventAttributes != null),
+      'expected the model Activity to end cancelled'
+    );
+    t.false(
+      (events ?? []).some((e) => e.activityTaskFailedEventAttributes != null),
+      'expected no Activity failure: the cancel must not be classified as a model error'
+    );
+  });
 });
 
 test.serial('an agent node whose retry succeeds does not fail on the attempt ADK recovered', async (t) => {

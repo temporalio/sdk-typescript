@@ -281,6 +281,28 @@ export async function graphAgentNodeModelFailure(model: string, recover: boolean
 }
 
 /**
+ * An `LlmAgent` node whose model call only cancellation can end, with the Activity options
+ * `cancellableModelCall` uses, so the Workflow waits for the cancel to land and history
+ * shows how the model Activity ended. ADK absorbs the cancelled call like any other model
+ * error and then reports the node as failed (`NodeReportedError`).
+ */
+export async function graphCancellableAgentNode(): Promise<RunOutcome> {
+  const agent = new LlmAgent({
+    name: 'assistant',
+    model: new TemporalModel('abort-model', {
+      activity: {
+        startToCloseTimeout: '20 seconds',
+        heartbeatTimeout: '6 seconds',
+        retry: { maximumAttempts: 3, initialInterval: '1 second' },
+        cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
+      },
+    }),
+    instruction: 'Help.',
+  });
+  return runOnce(new Workflow({ name: 'cancellable_agent_graph', edges: [['START', agent]] }), 'hi');
+}
+
+/**
  * An `LlmAgent` node whose first model call fails and whose retry succeeds. ADK absorbed
  * the first failure into an event, so the run finishes normally and the plugin must not
  * raise the attempt ADK already recovered from.
