@@ -143,6 +143,24 @@ export async function cancellableModelCall(): Promise<string> {
   return text;
 }
 
+/**
+ * An MCP tool call, through the plugin's `<name>-callTool` Activity for the
+ * `stub` server, that only cancellation can end: the stub's `hang` tool never
+ * replies. Same Activity options as {@link cancellableModelCall}, so the Workflow
+ * waits for the cancel to land and history shows how the Activity ended.
+ */
+export async function cancellableMcpCall(): Promise<unknown> {
+  const { 'stub-callTool': callTool } = proxyActivities<{
+    'stub-callTool': (args: { toolName: string; args: Record<string, unknown> }) => Promise<unknown>;
+  }>({
+    startToCloseTimeout: '20 seconds',
+    heartbeatTimeout: '6 seconds',
+    retry: { maximumAttempts: 3, initialInterval: '1 second' },
+    cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
+  });
+  return await callTool({ toolName: 'hang', args: {} });
+}
+
 /** A model call whose backing model raises a non-retryable (4xx) error. */
 export async function modelCallError(): Promise<string> {
   const llm = new TemporalModel('boom', { activity: { retry: { maximumAttempts: 1 } } });
