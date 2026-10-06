@@ -54,9 +54,19 @@ const RETRYABLE_STATUS = new Set([408, 409, 429]);
  * `AbortError` (`Activity.run` in `@temporalio/worker`); everything else is a
  * failure and is retried under the Activity's retry policy. Every catch in this
  * module funnels through {@link toApplicationFailure}, so without this guard a
- * model or MCP client that rejects when its `AbortSignal` fires would turn a
- * cancel into a retryable `GoogleAdkModelError` / `GoogleAdkMCPError` and keep
- * the attempt chain going.
+ * client that rejects once its `AbortSignal` fires would turn a cancel into a
+ * retryable `GoogleAdkModelError` / `GoogleAdkMCPError` and keep the attempt
+ * chain going.
+ *
+ * Once the Activity's cancellation signal has fired, whatever rejection follows
+ * is the client reacting to it, in whichever shape it chose: an `AbortError`
+ * from a `fetch`-based model client, or the `McpError` the MCP client wraps the
+ * signal's reason in (`Protocol.request` in `@modelcontextprotocol/sdk` rejects
+ * with `new McpError(ErrorCode.RequestTimeout, String(reason))`, so neither
+ * `instanceof CancelledFailure` nor an `AbortError` name survives). What the
+ * Worker must see is the cancellation itself, so the signal's reason is raised:
+ * the `CancelledFailure` the Worker aborted with, which also lets a pause or a
+ * reset be reported as such rather than as a plain cancel.
  *
  * Call it first in every Activity catch, before classifying.
  */
@@ -64,11 +74,12 @@ function rethrowIfCancelled(err: unknown, signal: AbortSignal): void {
   if (!signal.aborted) return;
   // Already the shape the Worker wants; keep the original reason and stack.
   if (err instanceof CancelledFailure) throw err;
-  // An `AbortError` reports as cancelled too, but the signal's reason is the
-  // `CancelledFailure` the Worker aborted with. Preferring it carries the cancel
-  // reason through, and lets a pause or a reset be reported as such rather than
-  // as a plain cancel.
-  if (isAbortError(err)) throw signal.reason instanceof CancelledFailure ? signal.reason : err;
+  if (signal.reason instanceof CancelledFailure) throw signal.reason;
+  // A signal aborted without a `CancelledFailure` reason (a test harness, or an
+  // older Worker): an `AbortError` reports as cancelled on its own, anything
+  // else is wrapped so the cancel still wins over the client's framing.
+  if (isAbortError(err)) throw err;
+  throw new CancelledFailure('Activity cancelled', [], err instanceof Error ? err : undefined);
 }
 
 /** Kept local (not imported from `plugin.ts`) to avoid an import cycle. @internal */

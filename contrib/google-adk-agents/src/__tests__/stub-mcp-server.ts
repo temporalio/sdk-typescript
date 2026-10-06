@@ -1,9 +1,9 @@
 /**
- * A stdio MCP server exposing one `echo` tool and one `readme` resource, recording its
- * session boundaries, tool and resource requests to the file named by `MCP_STUB_LOG`. An
- * unknown tool gets the reply a real `McpServer` sends: a successful result carrying
- * `isError: true`, never a JSON-RPC error frame. An unknown resource gets the JSON-RPC
- * error a real server sends for `resources/read`.
+ * A stdio MCP server exposing an `echo` tool, a `hang` tool that never answers, and one
+ * `readme` resource, recording its session boundaries, tool and resource requests to the
+ * file named by `MCP_STUB_LOG`. An unknown tool gets the reply a real `McpServer` sends: a
+ * successful result carrying `isError: true`, never a JSON-RPC error frame. An unknown
+ * resource gets the JSON-RPC error a real server sends for `resources/read`.
  */
 
 import { appendFileSync } from 'node:fs';
@@ -19,6 +19,11 @@ const TOOLS = [
     name: 'echo',
     description: 'Echoes the input value.',
     inputSchema: { type: 'object', properties: { value: { type: 'string' } }, required: ['value'] },
+  },
+  {
+    name: 'hang',
+    description: 'Never replies, so a client can only leave by cancelling the request.',
+    inputSchema: { type: 'object', properties: {} },
   },
 ];
 
@@ -56,6 +61,8 @@ function handle(message: JsonRpcMessage): void {
     case 'tools/call': {
       record('tools/call');
       const params = (message.params ?? {}) as { name?: string; arguments?: { value?: unknown } };
+      // The client's only way out is `notifications/cancelled`, which needs no reply.
+      if (params.name === 'hang') return;
       if (params.name !== 'echo') {
         reply(message.id, {
           content: [{ type: 'text', text: `MCP error -32602: Tool ${params.name} not found` }],
