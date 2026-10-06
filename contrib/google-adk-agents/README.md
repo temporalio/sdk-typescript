@@ -282,12 +282,16 @@ const runner = new InMemoryRunner({ agent: graph });
 - **Input and output.** By default the node's input is passed to the Activity as
   its single argument and the Activity's result is the node's output; `args`
   maps the input (and `NodeContext`, for state) to the Activity's argument list.
-  An Activity returning nothing completes the node with an `undefined` output.
+  An Activity returning nothing (`undefined` or `null`) completes the node with
+  a `null` output, so its successors receive `null`: ADK records a node as done
+  only when its events carry an output, and without one a completed Activity
+  would run again when a paused graph resumes.
 - **Node names.** The node is named after the Activity unless `nodeName` says
-  otherwise, and the name may not contain a `.`: ADK reserves it as its node-path
-  separator, and a dotted name breaks the resume that fast-forwards a completed
-  node. `activityNode` refuses one, so a dotted Activity type
-  (`payments.charge`) needs a `nodeName`.
+  otherwise, and the name may not contain `.`, `/` or `@`: ADK reads a node path
+  back by those characters (its segments, and the run-id suffix), and a name
+  containing one breaks the resume that fast-forwards a completed node.
+  `activityNode` refuses one, so an Activity type such as `payments.charge` or
+  `charge@customer` needs a `nodeName`.
 - **Routing.** A node returns `createEvent({ route: 'approve', output })` and the
   edge `[router, { approve: a, [DEFAULT_ROUTE]: b }]` picks the branch; only that
   branch's Activity runs.
@@ -401,18 +405,25 @@ export async function reviewWorkflow(prompt: string): Promise<unknown> {
   `responseSchema` that accepts strings. A string that reads as JSON is therefore
   refused rather than silently retyped — declare a string schema on the
   `RequestInput`, or pass the parsed value. Any string that parses is refused, a
-  quoted one included: `'"foo"'` would reach the node as `foo`.
-- Both builders throw a non-retryable `ApplicationFailure` of type
-  `HITL_RESPONSE_FAILURE_TYPE` when they refuse an answer. Call them where the answer
-  arrives, in the Signal or Update handler, as above: the SDK rejects an Update only
-  for a `TemporalFailure`, so validating there tells the caller no, while letting a
-  bad answer through to the Workflow body would fail the Workflow Task over and over
-  with the answer already accepted.
-- `hitlConfirmationResponse(request, { confirmed, payload? })` answers a tool
-  gate. ADK reads approvals from the **latest** user message only, so answer every
-  pending confirmation in one message, and rebuild the agent for the resumed turn
-  with the same tool names — an approval naming a tool the agent no longer has is
-  refused with `IntentMismatchError`.
+  quoted one included: `'"foo"'` would reach the node as `foo`. `value` must be a
+  JSON value (`null` included): `undefined` is refused because ADK reads it as no
+  answer, so the node would ask again while `pendingHitlRequests` counts it as
+  answered, and a function, symbol or bigint because it is not JSON.
+- Both builders refuse an answer only by throwing a non-retryable `ApplicationFailure`
+  of type `HITL_RESPONSE_FAILURE_TYPE`, never any other error, whatever they are
+  handed: they check a decision or value before reading it. That is what makes it
+  safe to call them on the raw argument where the answer arrives, in the Signal or
+  Update handler, as above: the SDK rejects an Update only for a `TemporalFailure`,
+  so validating there tells the caller no, while letting a bad answer through to the
+  Workflow body would fail the Workflow Task over and over with the answer already
+  accepted.
+- `hitlConfirmationResponse(request, { confirmed, hint?, payload? })` answers a tool
+  gate. `confirmed` must be a boolean and `hint`, when present, a string; anything
+  else (`null`, `'yes'`) is refused rather than guessed, since ADK approves only on
+  `confirmed === true`. ADK reads approvals from the **latest** user message only,
+  so answer every pending confirmation in one message, and rebuild the agent for
+  the resumed turn with the same tool names — an approval naming a tool the agent
+  no longer has is refused with `IntentMismatchError`.
 - Gate an Activity or MCP tool with `requireConfirmation` (a flag, or a predicate
   over the arguments that must be a pure function of them): the Activity is not
   scheduled until the human approves, and a rejection returns ADK's rejection
@@ -470,6 +481,12 @@ The mapping is exported as `ADK_RUNTIME_FAILURE_TYPES`. Anything else ADK throws
 — a malformed human reply, `StreamingMode.BIDI`, a reserved function _call_ in a
 client message — keeps the SDK's convention; use
 `WorkerOptions.workflowFailureErrorTypes` to fail the execution on more.
+
+Cancellation is not a failure. When a cancelled Workflow cancels the model call
+an agent node is waiting on, ADK absorbs the cancelled call like any model error
+and reports the node as failed (`NodeReportedError`); the plugin ends the
+execution CANCELLED with the model Activity's own cancellation instead. A
+cancelled Activity node ends it CANCELLED the same way, inside a dynamic run too.
 
 ### Streaming
 

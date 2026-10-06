@@ -22,6 +22,7 @@ import {
   LLMRegistry,
   node,
   PolicyOutcome,
+  REQUEST_INPUT_FUNCTION_CALL_NAME,
   RequestInput,
   requestInputTool,
   RoutedLlm,
@@ -41,8 +42,7 @@ import {
   type RunnableRoot,
   type ToolCallPolicyContext,
 } from '@google/adk';
-import type { Content, FunctionDeclaration, Part } from '@google/genai';
-import { Type } from '@google/genai';
+import { Type, type Content, type FunctionDeclaration, type Part } from '@google/genai';
 import { z } from 'zod';
 import { ApplicationFailure } from '@temporalio/common';
 import { ActivityCancellationType, condition, defineQuery, defineUpdate, setHandler } from '@temporalio/workflow';
@@ -149,16 +149,42 @@ export async function graphFanOutJoin(): Promise<RunOutcome> {
 }
 
 /**
- * An Activity node whose Activity returns nothing. The node completes with an
- * `undefined` output and its successor still runs, which is what ADK's
- * `waitForOutput` would have parked forever.
+ * An Activity node whose Activity returns nothing, followed by a node reporting the input
+ * it received. The node completes with a `null` output and its successor still runs,
+ * which is what ADK's `waitForOutput` would have parked forever.
  */
 export async function graphVoidOutput(): Promise<RunOutcome> {
+  const after = node((_ctx: NodeContext, received: unknown) => ({ received }), { name: 'after' });
   const graph = new Workflow({
     name: 'void_output',
-    edges: [['START', activityNode({ name: 'voidActivity', args: () => [] }), node(() => 'after', { name: 'after' })]],
+    edges: [['START', activityNode({ name: 'voidActivity', args: () => [] }), after]],
   });
   return runOnce(graph, 'go');
+}
+
+/**
+ * START, an Activity node, then a node that pauses for input, run over two turns of one
+ * session: the second turn answers the interrupt with an `adk_request_input` function
+ * response, the way a client resumes a paused graph. The Activity node completed before
+ * the pause, so on resume ADK has to fast-forward it from the session's events rather
+ * than schedule the Activity again. Returns the second turn's outcome.
+ */
+export async function graphActivityThenPause(activityName: string, nodeName?: string): Promise<RunOutcome> {
+  const work = activityNode({ name: activityName, nodeName, args: () => [] });
+  const ask = node(() => new RequestInput({ interruptId: 'approve', message: 'Continue?' }), { name: 'ask' });
+  const runner = new InMemoryRunner({
+    agent: new Workflow({ name: 'pause_after_activity', edges: [['START', work, ask]] }),
+  });
+  const session = await runner.sessionService.createSession({ appName: runner.appName, userId: USER });
+  await collect(
+    runner.runAsync({ userId: USER, sessionId: session.id, newMessage: { role: 'user', parts: [{ text: 'go' }] } })
+  );
+  const answer: Part = {
+    functionResponse: { id: 'approve', name: REQUEST_INPUT_FUNCTION_CALL_NAME, response: { result: 'yes' } },
+  };
+  return collect(
+    runner.runAsync({ userId: USER, sessionId: session.id, newMessage: { role: 'user', parts: [answer] } })
+  );
 }
 
 /** A dotted Activity type reaches the graph under a path-safe `nodeName`. */
@@ -281,6 +307,28 @@ export async function graphAgentNodeModelFailure(model: string, recover: boolean
   });
   const graph = new Workflow({ name: 'agent_node_graph', edges: [['START', agent]] });
   return runOnce(graph, 'hi', recover ? [new RecoveringPlugin()] : undefined);
+}
+
+/**
+ * An `LlmAgent` node whose model call only cancellation can end, with the Activity options
+ * `cancellableModelCall` uses, so the Workflow waits for the cancel to land and history
+ * shows how the model Activity ended. ADK absorbs the cancelled call like any other model
+ * error and then reports the node as failed (`NodeReportedError`).
+ */
+export async function graphCancellableAgentNode(): Promise<RunOutcome> {
+  const agent = new LlmAgent({
+    name: 'assistant',
+    model: new TemporalModel('abort-model', {
+      activity: {
+        startToCloseTimeout: '20 seconds',
+        heartbeatTimeout: '6 seconds',
+        retry: { maximumAttempts: 3, initialInterval: '1 second' },
+        cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
+      },
+    }),
+    instruction: 'Help.',
+  });
+  return runOnce(new Workflow({ name: 'cancellable_agent_graph', edges: [['START', agent]] }), 'hi');
 }
 
 /**

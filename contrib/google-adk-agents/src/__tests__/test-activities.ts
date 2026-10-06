@@ -37,9 +37,15 @@ export async function summarize(text: string): Promise<string> {
   return `${text} summarized`;
 }
 
-/** Returns nothing, so the node it backs completes with an `undefined` output. */
+/** Returns nothing, so the node it backs completes with a `null` output. */
 export async function voidActivity(): Promise<void> {
   record('voidActivity');
+}
+
+/** Registered under the `charge@customer` Activity type too, a name no export can carry. */
+export async function chargeCustomer(): Promise<string> {
+  record('chargeCustomer');
+  return 'charged';
 }
 
 export async function enrichItem(item: string): Promise<string> {

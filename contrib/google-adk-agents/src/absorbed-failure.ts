@@ -199,13 +199,22 @@ function innermostNodeFailure(err: Error): Error {
  * one a static node would have produced: a Temporal failure the child raised is returned
  * as it is, an absorbed model call is re-raised from the frame's recording, and anything
  * else becomes a non-retryable `ApplicationFailure` typed per
- * {@link ADK_RUNTIME_FAILURE_TYPES} with the ADK error as its cause. Anything the map does
- * not name — a `TemporalFailure`, a user's own error — is returned unchanged.
+ * {@link ADK_RUNTIME_FAILURE_TYPES} with the ADK error as its cause. A cancellation the
+ * frame recorded outranks all of that once the execution itself is cancelled. Anything the
+ * map does not name — a `TemporalFailure`, a user's own error — is returned unchanged.
  */
 function toWorkflowFailure(err: unknown, frame: Frame): unknown {
   if (!(err instanceof Error)) return err;
   const type = ADK_RUNTIME_FAILURE_TYPES[err.name];
   if (type === undefined) return err;
+  // A model call that a cancel ended was recorded apart from the failures, and ADK then
+  // absorbed it like any model error and reported the node as failed (`NodeReportedError`,
+  // possibly inside a dynamic run's carrier). When the execution itself was cancelled,
+  // the recorded cancellation is the outcome, by the same rule `raiseAbsorbed` applies on
+  // a normal return; converting ADK's report would end a cancelled execution FAILED.
+  if (frame.cancellation !== undefined && CancellationScope.current().consideredCancelled) {
+    return frame.cancellation;
+  }
   const cause = innermostNodeFailure(err);
   // A Temporal failure the child raised is what must end the execution: a cancelled
   // Activity has to end it CANCELLED rather than FAILED, and a failed one keeps the

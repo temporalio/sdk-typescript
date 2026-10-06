@@ -19,9 +19,11 @@
  */
 
 import {
+  createEvent,
   FunctionNode,
   NodeTimeoutError,
   type BaseNode,
+  type Event,
   type FunctionNodeConfig,
   type NodeContext,
   type RetryConfig,
@@ -39,6 +41,14 @@ import {
 import { ACTIVITY_NODE_NAME_FAILURE_TYPE, ACTIVITY_NODE_OUTSIDE_WORKFLOW_FAILURE_TYPE } from './error-types';
 import { activityOptionsFrom } from './model';
 
+/**
+ * The characters ADK reads structure out of when it rehydrates a resumed run: `.` and `/`
+ * separate the segments of a node path (`BranchPath`, `nodeNameFromPath`), and `@` starts
+ * the run-id suffix of one (`directChildName`, `nodeNameFromPath`).
+ */
+const NODE_NAME_DELIMITERS = ['.', '/', '@'] as const;
+const NODE_NAME_DELIMITER_PATTERN = /[./@]/g;
+
 /** Options for {@link activityNode}. */
 export interface ActivityNodeOptions<TInput = unknown> {
   /**
@@ -49,11 +59,11 @@ export interface ActivityNodeOptions<TInput = unknown> {
   name: string;
   /**
    * The graph node's name, when it must differ from the Activity's (e.g. two
-   * nodes running one Activity, or an Activity type carrying a `.`). The
-   * effective name may not contain a `.`: ADK reserves it as the separator in a
-   * node's path, and a dotted name breaks the rehydration that fast-forwards a
-   * completed node on resume. `activityNode` refuses one rather than rename the
-   * node behind your back.
+   * nodes running one Activity, or an Activity type carrying a delimiter). The
+   * effective name may not contain `.`, `/` or `@`: ADK reads node paths back by
+   * those characters (segments, and the run-id suffix), and a name containing
+   * one breaks the rehydration that fast-forwards a completed node on resume.
+   * `activityNode` refuses one rather than rename the node behind your back.
    */
   nodeName?: string;
   /** The node's description, advertised when the node is used as a tool. */
@@ -122,8 +132,12 @@ export interface ActivityNodeOptions<TInput = unknown> {
  *
  * Inside a Workflow the node's input (or the arguments `args` derives from it)
  * is sent to the Activity and the Activity's result becomes the node's output,
- * which flows to the successors. An Activity returning nothing completes the
- * node with an `undefined` output. The node can only run inside a Workflow.
+ * which flows to the successors. An Activity returning nothing (`undefined` or
+ * `null`) completes the node with a `null` output, so its successors receive
+ * `null` (and an `outputSchema` has to accept it). That is the one completion
+ * ADK records: it drops a nullish node output, and on resume it fast-forwards
+ * only a node whose events carry an output, so an Activity that returned
+ * nothing would otherwise run again. The node can only run inside a Workflow.
  *
  * Two of ADK's node flags are deliberately not exposed. `waitForOutput` is not
  * a fan-in gate: it parks a node in `WAITING` when the node ended with neither
@@ -141,20 +155,21 @@ export function activityNode<TInput = unknown, TOutput = unknown>(
 ): BaseNode<TInput, TOutput> {
   const { name, nodeName, description, activity, args } = options;
   const graphName = nodeName ?? name;
-  // ADK joins a node's ancestry into a dotted path (`BranchPath.toString`) and
-  // splits it again to rehydrate a resumed run, so a dot inside a single name
-  // makes the node unrecognisable across turns and it runs a second time. An
-  // Activity type is often dotted (`payments.charge`), so say so rather than
-  // quietly rewriting the name the graph, the events and the traces all carry.
-  if (graphName.includes('.')) {
+  // ADK builds a node's path out of names and reads it back to rehydrate a resumed run,
+  // so a delimiter inside a single name makes the node unrecognisable across turns and it
+  // runs a second time. Activity types often carry one (`payments.charge`), so say so
+  // rather than quietly rewriting the name the graph, the events and the traces all carry.
+  const delimiter = NODE_NAME_DELIMITERS.find((character) => graphName.includes(character));
+  if (delimiter !== undefined) {
     throw ApplicationFailure.nonRetryable(
-      `activityNode('${name}'): a node name may not contain '.', which ADK reserves as its node-path ` +
-        `separator. Pass a path-safe 'nodeName' (for example '${graphName.split('.').join('_')}').`,
+      `activityNode('${name}'): node name '${graphName}' contains '${delimiter}', which ADK reads as a ` +
+        `node-path delimiter when it resumes a run. Pass a path-safe 'nodeName' ` +
+        `(for example '${graphName.replace(NODE_NAME_DELIMITER_PATTERN, '_')}').`,
       ACTIVITY_NODE_NAME_FAILURE_TYPE
     );
   }
 
-  const handler = async (ctx: NodeContext, input: TInput): Promise<TOutput> => {
+  const handler = async (ctx: NodeContext, input: TInput): Promise<TOutput | Event> => {
     if (!inWorkflowContext()) {
       throw ApplicationFailure.nonRetryable(
         `activityNode('${name}') can only run inside a Temporal Workflow.`,
@@ -171,7 +186,14 @@ export function activityNode<TInput = unknown, TOutput = unknown>(
     // widens the static type to `| undefined`, hence the assertion.
     const run = activities[name]!;
     const activityArgs = args ? args(input, ctx) : [input];
-    return (await underNodeDeadline(ctx, graphName, options.timeout, () => run(...activityArgs))) as TOutput;
+    const result = await underNodeDeadline(ctx, graphName, options.timeout, () => run(...activityArgs));
+    // `FunctionNode` emits no event for a nullish result, and ADK fast-forwards a node on
+    // resume only when its recorded events carry an output or a route
+    // (`isFastForwardable`), so an Activity that returned nothing would leave no trace of
+    // having run and be scheduled again after a pause. An event with an explicit `null`
+    // output is the smallest completion ADK both persists and fast-forwards.
+    if (result === undefined || result === null) return createEvent({ output: null });
+    return result as TOutput;
   };
 
   const config: FunctionNodeConfig = {};

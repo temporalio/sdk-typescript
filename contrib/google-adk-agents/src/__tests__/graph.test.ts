@@ -5,18 +5,20 @@
  */
 
 import test from 'ava';
-import { ActivityFailure, ApplicationFailure, TimeoutFailure } from '@temporalio/common';
+import { ActivityFailure, ApplicationFailure, CancelledFailure, TimeoutFailure } from '@temporalio/common';
 import { Worker } from '@temporalio/worker';
 
 import { GoogleAdkPlugin } from '../index';
 import { activityNode } from '../workflow';
 import {
+  abortingLlmCallCount,
   countScheduledActivities,
   findInCauseChain,
   getScheduledActivitySummaries,
   REUSE_V8_CONTEXT,
   setupTestEnv,
   uid,
+  waitForAbortingLlm,
   withWorker,
   workflowsPath,
 } from './helpers';
@@ -26,8 +28,10 @@ import {
   appRoot,
   compactedAgent,
   graphActivityFailure,
+  graphActivityThenPause,
   graphAgentNodeModelFailure,
   graphAgentTaskNode,
+  graphCancellableAgentNode,
   graphDottedActivity,
   graphFanOutJoin,
   graphPluginNodeCallbacks,
@@ -112,18 +116,61 @@ test.serial('an Activity node returning nothing completes and its successor runs
     env.client.workflow.execute(graphVoidOutput, { taskQueue, workflowId })
   );
   // ADK's `waitForOutput` parks exactly this node forever, which is why
-  // `activityNode` does not expose it; fan in with a `JoinNode` instead.
-  t.is(result.output, 'after');
+  // `activityNode` does not expose it; fan in with a `JoinNode` instead. The
+  // successor receives `null`, the output that lets ADK record the completion.
+  t.deepEqual(result.output, { received: null });
   t.is(countScheduledActivities(await history(workflowId), 'voidActivity'), 1);
 });
 
-test('activityNode refuses a node name carrying ADK path separator', (t) => {
-  // ADK splits a node path on '.', so a dotted name is unrecognisable on resume.
-  const err = t.throws(() => activityNode({ name: 'payments.charge' }), { instanceOf: ApplicationFailure });
-  t.is(err?.type, 'GoogleAdkActivityNodeName');
-  t.is(err?.nonRetryable, true);
-  t.true(err?.message.includes('payments_charge'), err?.message);
-  t.notThrows(() => activityNode({ name: 'payments.charge', nodeName: 'payments_charge' }));
+test.serial('an Activity node returning nothing is not run again when its graph resumes', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-graph-void-resume');
+  const workflowId = uid('wf-graph-void-resume');
+  const result = await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, () =>
+    env.client.workflow.execute(graphActivityThenPause, { taskQueue, workflowId, args: ['voidActivity'] })
+  );
+  // The second turn answered the pause, so the graph ran to the end...
+  t.is(result.output, 'yes');
+  // ...and the Activity that completed before the pause was fast-forwarded, not rerun.
+  t.is(countScheduledActivities(await history(workflowId), 'voidActivity'), 1);
+  t.deepEqual(activities.executionsFor(workflowId), ['voidActivity']);
+});
+
+test('activityNode refuses a node name carrying an ADK node-path delimiter', (t) => {
+  // ADK reads a node path back by '.' and '/' (segments) and '@' (the run-id suffix),
+  // so a name containing any of them is unrecognisable on resume.
+  for (const [activityName, delimiter, safe] of [
+    ['payments.charge', '.', 'payments_charge'],
+    ['payments/charge', '/', 'payments_charge'],
+    ['charge@customer', '@', 'charge_customer'],
+  ]) {
+    const err = t.throws(() => activityNode({ name: activityName! }), { instanceOf: ApplicationFailure });
+    t.is(err?.type, 'GoogleAdkActivityNodeName');
+    t.is(err?.nonRetryable, true);
+    t.true(err?.message.includes(`contains '${delimiter}'`), err?.message);
+    t.true(err?.message.includes(`'${safe}'`), err?.message);
+    t.notThrows(() => activityNode({ name: activityName!, nodeName: safe }));
+  }
+  // The guard reads the effective name, so a safe Activity type cannot hide an unsafe node name.
+  t.throws(() => activityNode({ name: 'charge', nodeName: 'charge@customer' }), { instanceOf: ApplicationFailure });
+});
+
+test.serial('an Activity type with an @ runs once across a pause under a path-safe node name', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-graph-at-resume');
+  const workflowId = uid('wf-graph-at-resume');
+  const withAt = { ...activities, 'charge@customer': activities.chargeCustomer };
+  const result = await withWorker(env, { taskQueue, plugins: [makePlugin()], activities: withAt }, () =>
+    env.client.workflow.execute(graphActivityThenPause, {
+      taskQueue,
+      workflowId,
+      args: ['charge@customer', 'charge_customer'],
+    })
+  );
+  t.is(result.output, 'yes');
+  // Fast-forwarded on resume under its safe name, so scheduled and executed once.
+  t.is(countScheduledActivities(await history(workflowId), 'charge@customer'), 1);
+  t.deepEqual(activities.executionsFor(workflowId), ['chargeCustomer']);
 });
 
 test.serial('a dotted Activity type runs under a path-safe node name', async (t) => {
@@ -241,6 +288,33 @@ test.serial('an agent node whose model call fails surfaces the recorded model fa
   // the recorded `ActivityFailure` instead, keeping the model failure's status.
   t.not(findInCauseChain(err, ActivityFailure), undefined);
   t.is(findInCauseChain(err, ApplicationFailure)?.type, 'GoogleAdkModelError.400');
+});
+
+test.serial('cancelling a Workflow during an agent node model call ends it CANCELLED', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-graph-agent-cancel');
+  const workflowId = uid('wf-graph-agent-cancel');
+  const before = abortingLlmCallCount();
+  await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, async () => {
+    const handle = await env.client.workflow.start(graphCancellableAgentNode, { taskQueue, workflowId });
+    // Cancel a model call that is genuinely in flight, so the Activity itself ends cancelled.
+    await waitForAbortingLlm(before + 1);
+    await handle.cancel();
+    const err = await t.throwsAsync(handle.result());
+    // ADK absorbed the cancelled model call and reported the node as failed; the
+    // cancellation the plugin recorded, not ADK's report, is how the execution ends.
+    t.not(findInCauseChain(err, CancelledFailure), undefined);
+    t.is((await handle.describe()).status.name, 'CANCELLED');
+    const { events } = await handle.fetchHistory();
+    t.true(
+      (events ?? []).some((e) => e.activityTaskCanceledEventAttributes != null),
+      'expected the model Activity to end cancelled'
+    );
+    t.false(
+      (events ?? []).some((e) => e.activityTaskFailedEventAttributes != null),
+      'expected no Activity failure: the cancel must not be classified as a model error'
+    );
+  });
 });
 
 test.serial('an agent node whose retry succeeds does not fail on the attempt ADK recovered', async (t) => {
