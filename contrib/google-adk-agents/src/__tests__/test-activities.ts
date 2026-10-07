@@ -41,6 +41,15 @@ export async function voidActivity(): Promise<void> {
   record('voidActivity');
 }
 
+/**
+ * Returns business data that happens to carry a `parts` array, the shape ADK's
+ * `FunctionNode` takes for genai `Content`.
+ */
+export async function partsPayload(): Promise<{ parts: { text: string }[]; value: number }> {
+  record('partsPayload');
+  return { parts: [{ text: 'business payload' }], value: 7 };
+}
+
 /** Registered under the `charge@customer` Activity type too, a name no export can carry. */
 export async function chargeCustomer(): Promise<string> {
   record('chargeCustomer');

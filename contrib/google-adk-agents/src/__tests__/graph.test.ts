@@ -34,6 +34,7 @@ import {
   graphCancellableAgentNode,
   graphDottedActivity,
   graphFanOutJoin,
+  graphPartsPayloadThenPause,
   graphPluginNodeCallbacks,
   graphRetriedAgentNode,
   graphRetry,
@@ -134,6 +135,21 @@ test.serial('an Activity node returning nothing is not run again when its graph 
   // ...and the Activity that completed before the pause was fast-forwarded, not rerun.
   t.is(countScheduledActivities(await history(workflowId), 'voidActivity'), 1);
   t.deepEqual(activities.executionsFor(workflowId), ['voidActivity']);
+});
+
+test.serial('an Activity result with a parts array stays the node output across a resume', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-graph-parts-resume');
+  const workflowId = uid('wf-graph-parts-resume');
+  const result = await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, () =>
+    env.client.workflow.execute(graphPartsPayloadThenPause, { taskQueue, workflowId })
+  );
+  // The result has the shape ADK's `FunctionNode` takes for genai `Content`, yet it is
+  // still the node's output: the successor got it exactly as the Activity returned it...
+  t.deepEqual(result.output, { received: { parts: [{ text: 'business payload' }], value: 7 }, answer: 'yes' });
+  // ...and the Activity that completed before the pause was fast-forwarded, not rerun.
+  t.is(countScheduledActivities(await history(workflowId), 'partsPayload'), 1);
+  t.deepEqual(activities.executionsFor(workflowId), ['partsPayload']);
 });
 
 test('activityNode refuses a node name carrying an ADK node-path delimiter', (t) => {

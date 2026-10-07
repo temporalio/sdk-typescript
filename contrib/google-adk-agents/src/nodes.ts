@@ -131,13 +131,15 @@ export interface ActivityNodeOptions<TInput = unknown> {
  * wraps a node in a `NodeTool`; that needs an `inputSchema`).
  *
  * Inside a Workflow the node's input (or the arguments `args` derives from it)
- * is sent to the Activity and the Activity's result becomes the node's output,
- * which flows to the successors. An Activity returning nothing (`undefined` or
- * `null`) completes the node with a `null` output, so its successors receive
- * `null` (and an `outputSchema` has to accept it). That is the one completion
- * ADK records: it drops a nullish node output, and on resume it fast-forwards
- * only a node whose events carry an output, so an Activity that returned
- * nothing would otherwise run again. The node can only run inside a Workflow.
+ * is sent to the Activity, and the Activity's result, whatever its shape, is the
+ * node's output: it flows to the successors, and it is what ADK records to
+ * fast-forward the node rather than run it again when a paused graph resumes.
+ * The node's event carries the result as `output` only, the way ADK's
+ * `JoinNode` does, because ADK's `FunctionNode` would take an object with a
+ * `parts` array for genai `Content` and record no output for it. An Activity
+ * returning nothing (`undefined` or `null`) completes the node with a `null`
+ * output, so its successors receive `null` (and an `outputSchema` has to accept
+ * it). The node can only run inside a Workflow.
  *
  * Two of ADK's node flags are deliberately not exposed. `waitForOutput` is not
  * a fan-in gate: it parks a node in `WAITING` when the node ended with neither
@@ -169,7 +171,7 @@ export function activityNode<TInput = unknown, TOutput = unknown>(
     );
   }
 
-  const handler = async (ctx: NodeContext, input: TInput): Promise<TOutput | Event> => {
+  const handler = async (ctx: NodeContext, input: TInput): Promise<Event> => {
     if (!inWorkflowContext()) {
       throw ApplicationFailure.nonRetryable(
         `activityNode('${name}') can only run inside a Temporal Workflow.`,
@@ -187,13 +189,15 @@ export function activityNode<TInput = unknown, TOutput = unknown>(
     const run = activities[name]!;
     const activityArgs = args ? args(input, ctx) : [input];
     const result = await underNodeDeadline(ctx, graphName, options.timeout, () => run(...activityArgs));
-    // `FunctionNode` emits no event for a nullish result, and ADK fast-forwards a node on
-    // resume only when its recorded events carry an output or a route
-    // (`isFastForwardable`), so an Activity that returned nothing would leave no trace of
-    // having run and be scheduled again after a pause. An event with an explicit `null`
-    // output is the smallest completion ADK both persists and fast-forwards.
-    if (result === undefined || result === null) return createEvent({ output: null });
-    return result as TOutput;
+    // Every result goes back inside an explicit output event, which `FunctionNode` only
+    // validates and emits. Left to classify the raw value, it drops a nullish result and
+    // emits an object with a `parts` array as genai `Content` with no output. Either way the
+    // node would record no output: its successors would receive nothing, and since ADK
+    // fast-forwards a node on resume only when its events carry an output
+    // (`isFastForwardable`), the Activity would be scheduled again after a pause. An
+    // Activity's result is data the payload converter decoded, never a genai object, so it
+    // is not read as one; returning nothing is `null`.
+    return createEvent({ output: result ?? null });
   };
 
   const config: FunctionNodeConfig = {};
