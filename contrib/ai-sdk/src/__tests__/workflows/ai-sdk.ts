@@ -6,7 +6,7 @@ import { embedMany, generateText, isStepCount, Output, tool, wrapLanguageModel }
 import type { LanguageModelMiddleware } from 'ai';
 import type { LanguageModelV4StreamPart } from '@ai-sdk/provider';
 import { OpenTelemetry } from '@ai-sdk/otel';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { proxyActivities } from '@temporalio/workflow';
 import { WorkflowStream } from '@temporalio/workflow-streams/workflow';
 import { TemporalLanguageModel, TemporalMCPClient, temporalProvider } from '../../workflow';
