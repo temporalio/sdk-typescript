@@ -14,8 +14,6 @@ import pkg from './pkg';
 import type { CallContext, Metadata } from './types';
 import { HealthService, OperatorService, TestService, WorkflowService } from './types';
 
-export { type InternalConnectionOptions, InternalConnectionOptionsSymbol };
-
 /**
  * The default Temporal Server's TCP port for public gRPC connections.
  */
