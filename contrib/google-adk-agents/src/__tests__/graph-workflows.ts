@@ -723,6 +723,27 @@ export async function hitlInputNode(): Promise<RunOutcome & { turns: number }> {
   return runWithHitl(new Workflow({ name: 'hitl_input', edges: [['START', ask, answer]] }), 'go');
 }
 
+/**
+ * A `RequestInput` declaring a structured `responseSchema`. ADK checks the answer
+ * against it when the graph resumes and throws a plain `Error` on a mismatch, so
+ * the answer has to be checked where it arrives instead.
+ */
+export async function hitlStructuredInput(): Promise<RunOutcome & { turns: number }> {
+  const ask = node(
+    () =>
+      new RequestInput({
+        interruptId: 'structured',
+        message: 'Your name?',
+        responseSchema: z.object({ name: z.string() }),
+      }),
+    { name: 'ask' }
+  );
+  const answer = node((_ctx: NodeContext, input: unknown) => `hello:${(input as { name: string }).name}`, {
+    name: 'answer',
+  });
+  return runWithHitl(new Workflow({ name: 'hitl_structured', edges: [['START', ask, answer]] }), 'go');
+}
+
 /** A `RequestInput` with no explicit id: ADK mints one, which must replay identically. */
 export async function hitlDefaultInterruptId(): Promise<RunOutcome & { turns: number }> {
   const ask = node(() => new RequestInput({ message: 'Name?' }), { name: 'ask' });

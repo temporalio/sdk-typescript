@@ -348,15 +348,21 @@ export async function reviewWorkflow(prompt: string): Promise<unknown> {
   quoted one included: `'"foo"'` would reach the node as `foo`. `value` must be a
   JSON value (`null` included): `undefined` is refused because ADK reads it as no
   answer, so the node would ask again while `pendingHitlRequests` counts it as
-  answered, and a function, symbol or bigint because it is not JSON.
+  answered, and a function, symbol or bigint because it is not JSON. A structured
+  answer (an object or array) is also checked against the request's
+  `responseSchema` exactly as ADK checks it when the graph resumes, zod's
+  `fromJSONSchema` over the JSON Schema recorded on the interrupt, and refused with
+  ADK's own message if it does not match; a bare scalar is exempt, as it is in ADK.
+  An answer the builder accepts is one ADK will accept.
 - Both builders refuse an answer only by throwing a non-retryable `ApplicationFailure`
   of type `HITL_RESPONSE_FAILURE_TYPE`, never any other error, whatever they are
-  handed: they check a decision or value before reading it. That is what makes it
-  safe to call them on the raw argument where the answer arrives, in the Signal or
-  Update handler, as above: the SDK rejects an Update only for a `TemporalFailure`,
-  so validating there tells the caller no, while letting a bad answer through to the
-  Workflow body would fail the Workflow Task over and over with the answer already
-  accepted.
+  handed: they check a decision or value before reading it, schema included. That is
+  what makes it safe to call them on the raw argument where the answer arrives, in
+  the Signal or Update handler, as above: the SDK rejects an Update only for a
+  `TemporalFailure`, so validating there tells the caller no, while letting a bad
+  answer through to the Workflow body would fail the Workflow Task over and over with
+  the answer already accepted (ADK refuses a schema mismatch on resume with a plain
+  `Error`).
 - `hitlConfirmationResponse(request, { confirmed, hint?, payload? })` answers a tool
   gate. `confirmed` must be a boolean and `hint`, when present, a string; anything
   else (`null`, `'yes'`) is refused rather than guessed, since ADK approves only on
