@@ -1083,6 +1083,9 @@ importers:
       fs-extra:
         specifier: ^11.2.0
         version: 11.2.0
+      typescript:
+        specifier: ^5.6.3
+        version: 5.6.3
 
   packages/test-helpers:
     dependencies:

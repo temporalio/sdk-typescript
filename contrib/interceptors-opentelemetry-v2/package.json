@@ -4,6 +4,56 @@
   "description": "Temporal.io SDK interceptors bundle for tracing with opentelemetry v2",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./workflow": {
+      "types": "./lib/workflow/index.d.ts",
+      "default": "./lib/workflow/index.js"
+    },
+    "./package.json": "./package.json",
+    "./lib/client": {
+      "types": "./lib/client/index.d.ts",
+      "default": "./lib/client/index.js"
+    },
+    "./lib/worker": {
+      "types": "./lib/worker/index.d.ts",
+      "default": "./lib/worker/index.js"
+    },
+    "./lib/workflow": {
+      "types": "./lib/workflow/index.d.ts",
+      "default": "./lib/workflow/index.js"
+    },
+    "./lib/*.js": {
+      "types": "./lib/*.d.ts",
+      "default": "./lib/*.js"
+    },
+    "./lib/*": {
+      "types": "./lib/*.d.ts",
+      "default": "./lib/*.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "workflow": [
+        "lib/workflow/index.d.ts"
+      ],
+      "lib/client": [
+        "lib/client/index.d.ts"
+      ],
+      "lib/worker": [
+        "lib/worker/index.d.ts"
+      ],
+      "lib/workflow": [
+        "lib/workflow/index.d.ts"
+      ],
+      "lib/*": [
+        "lib/*"
+      ]
+    }
+  },
   "scripts": {
     "build": "tsc --build",
     "test": "tsx ../../scripts/ava-ci.ts ./lib/__tests__/test-*.js"
