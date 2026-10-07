@@ -30,7 +30,7 @@ import {
 } from '@google/adk';
 import { Type, type Part } from '@google/genai';
 import { z } from 'zod';
-import { ActivityCancellationType } from '@temporalio/workflow';
+import { ActivityCancellationType, sleep } from '@temporalio/workflow';
 
 import { activityNode, markModelFailureHandled, TemporalModel, type TemporalModelOptions } from '../workflow';
 
@@ -306,13 +306,12 @@ export async function graphAgentNodeModelFailure(model: string, recover: boolean
 }
 
 /**
- * An `LlmAgent` node whose model call only cancellation can end, with the Activity options
+ * An `LlmAgent` whose model call only cancellation can end, with the Activity options
  * `cancellableModelCall` uses, so the Workflow waits for the cancel to land and history
- * shows how the model Activity ended. ADK absorbs the cancelled call like any other model
- * error and then reports the node as failed (`NodeReportedError`).
+ * shows how the model Activity ended.
  */
-export async function graphCancellableAgentNode(): Promise<RunOutcome> {
-  const agent = new LlmAgent({
+function cancellableAgent(): LlmAgent {
+  return new LlmAgent({
     name: 'assistant',
     model: new TemporalModel('abort-model', {
       activity: {
@@ -324,7 +323,46 @@ export async function graphCancellableAgentNode(): Promise<RunOutcome> {
     }),
     instruction: 'Help.',
   });
-  return runOnce(new Workflow({ name: 'cancellable_agent_graph', edges: [['START', agent]] }), 'hi');
+}
+
+/**
+ * A {@link cancellableAgent} as a graph node. ADK absorbs the cancelled call like any
+ * other model error and then reports the node as failed (`NodeReportedError`).
+ */
+export async function graphCancellableAgentNode(): Promise<RunOutcome> {
+  return runOnce(new Workflow({ name: 'cancellable_agent_graph', edges: [['START', cancellableAgent()]] }), 'hi');
+}
+
+/**
+ * A {@link cancellableAgent} node beside a branch that fails once the model call is under
+ * way: a one-second durable timer, then an Activity that fails for good. ADK aborts the
+ * run's signal when that Activity node fails and waits for the agent node to unwind before
+ * failing the run, which the agent node can only do once its model Activity has ended.
+ */
+export async function graphAgentNodeWithFailingSibling(): Promise<RunOutcome> {
+  // The timer only orders the failure after the model call has started.
+  const wait = node(
+    async () => {
+      await sleep('1 second');
+      return 'waited';
+    },
+    { name: 'wait' }
+  );
+  const failing = activityNode({
+    name: 'failingActivity',
+    args: () => [],
+    activity: { retry: { maximumAttempts: 1 } },
+  });
+  return runOnce(
+    new Workflow({
+      name: 'agent_beside_failing_sibling',
+      edges: [
+        ['START', cancellableAgent()],
+        ['START', wait, failing],
+      ],
+    }),
+    'hi'
+  );
 }
 
 /**

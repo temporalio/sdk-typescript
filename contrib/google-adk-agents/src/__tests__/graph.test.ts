@@ -30,6 +30,7 @@ import {
   graphActivityFailure,
   graphActivityThenPause,
   graphAgentNodeModelFailure,
+  graphAgentNodeWithFailingSibling,
   graphAgentTaskNode,
   graphCancellableAgentNode,
   graphDottedActivity,
@@ -331,6 +332,32 @@ test.serial('cancelling a Workflow during an agent node model call ends it CANCE
       'expected no Activity failure: the cancel must not be classified as a model error'
     );
   });
+});
+
+test.serial('a failing sibling node cancels an agent node model call and fails the Workflow', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-graph-agent-sibling');
+  const workflowId = uid('wf-graph-agent-sibling');
+  const started = Date.now();
+  const err = await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, () =>
+    t.throwsAsync(env.client.workflow.execute(graphAgentNodeWithFailingSibling, { taskQueue, workflowId }))
+  );
+  // The sibling's failure ends the execution: cancelling the model call on ADK's abort is
+  // how the agent node unwinds, not a cancellation of the execution.
+  t.is(findInCauseChain(err, ApplicationFailure)?.type, 'TestPermanentFailure');
+  t.is((await env.client.workflow.getHandle(workflowId).describe()).status.name, 'FAILED');
+  const events = await history(workflowId);
+  t.is(countScheduledActivities(events, 'adk-invokeModel'), 1);
+  t.true(
+    events.some((e) => e.activityTaskCanceledEventAttributes != null),
+    'expected the abort to cancel the model Activity'
+  );
+  t.true(
+    events.every((e) => (e.activityTaskStartedEventAttributes?.attempt ?? 1) === 1),
+    'expected the model Activity to end on its first attempt'
+  );
+  // Without the cancel, ADK's cleanup waits out every attempt's 20s start-to-close timeout.
+  t.true(Date.now() - started < 15_000, `took ${Date.now() - started}ms`);
 });
 
 test.serial('an agent node whose retry succeeds does not fail on the attempt ADK recovered', async (t) => {
