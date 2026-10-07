@@ -58,6 +58,8 @@ to docs, or any other relevant information.
     forever;
   - ADK's UUIDs are generated from a named workflow random stream inside the sandbox, so interrupt
     and function-call ids are replay-stable. The Workflow bundle now uses ADK's web build.
+- `@temporalio/interceptors-opentelemetry` and `@temporalio/interceptors-opentelemetry-v2` now expose
+  Workflow-only `/workflow` entrypoints. Existing root exports and `lib/*` imports remain available.
 - `SearchAttributeKey` is now exported from the `@temporalio/common` package root.
 - **Experimental**: Workflows can signal another Workflow and start it when absent with
   `signalWithStartWorkflow`.
