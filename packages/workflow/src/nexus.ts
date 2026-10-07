@@ -6,15 +6,15 @@ import {
   toPayloadWithTypeInfo,
 } from '@temporalio/common';
 import { msOptionalToTs } from '@temporalio/common/lib/time';
-import { userMetadataToPayload } from '@temporalio/common/lib/user-metadata';
 import {
-  makeProtoEnumConverters,
   encodeSystemNexusEnvelopeBytes,
+  makeProtoEnumConverters,
   SYSTEM_NEXUS_CONTEXT_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE,
   TEMPORAL_SYSTEM_NEXUS_ENDPOINT,
-} from '@temporalio/common/lib/internal-workflow';
+  userMetadataToPayload,
+} from '@temporalio/common/internal/internal-workflow';
 import type { coresdk } from '@temporalio/proto';
 import { eventGroupMarkersToProto } from './event-groups';
 import { systemNexusOperationDefinition } from './nexus/system/payload-converter';

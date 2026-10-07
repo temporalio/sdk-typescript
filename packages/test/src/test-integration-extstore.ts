@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import type { ConnectionLike } from '@temporalio/client';
 import { Client } from '@temporalio/client';
 import { ExternalStorage, type StorageDriverTargetInfo } from '@temporalio/common';
-import { decodeReferencePayload, isReferencePayload } from '@temporalio/common/lib/internal-non-workflow';
+import { decodeReferencePayload, isReferencePayload } from '@temporalio/common/internal/internal-non-workflow';
 import type { temporal } from '@temporalio/proto';
 import * as activities from './activities';
 import { makeFakeDriver } from './extstore-fake-driver';

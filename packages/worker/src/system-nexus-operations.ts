@@ -1,22 +1,21 @@
 import type { Service as ProtobufService, Type as ProtobufType } from 'protobufjs';
 import type { Payload, PayloadConverter, SerializationContext, TypeInfo } from '@temporalio/common';
-import { defaultPayloadConverter, fromPayloadWithTypeInfo } from '@temporalio/common';
-import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
-import { isSerializationContext } from '@temporalio/common/lib/converter/serialization-context';
-import { METADATA_MESSAGE_TYPE_KEY } from '@temporalio/common/lib/converter/types';
-import { decode } from '@temporalio/common/lib/encoding';
+import { defaultPayloadConverter, fromPayloadWithTypeInfo, METADATA_MESSAGE_TYPE_KEY } from '@temporalio/common';
+import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/protobufs';
 import {
+  decode,
   decodeSystemNexusEnvelopeBytes,
   SYSTEM_NEXUS_CONTEXT_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE,
-} from '@temporalio/common/lib/internal-workflow';
+} from '@temporalio/common/internal/internal-workflow';
 import {
+  isSerializationContext,
   type VisitOptions,
   visit,
   walkNexusTask,
   walkPayloadsInMessage,
-} from '@temporalio/common/lib/internal-non-workflow';
+} from '@temporalio/common/internal/internal-non-workflow';
 import * as protoRoot from '@temporalio/proto';
 import type { coresdk } from '@temporalio/proto';
 import { operationRegistry } from '@temporalio/workflow/lib/nexus/system/generated/registry';

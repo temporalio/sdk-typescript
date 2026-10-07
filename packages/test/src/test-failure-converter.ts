@@ -3,7 +3,7 @@ import type { DataConverter, DefaultEncodedFailureAttributes } from '@temporalio
 import { DefaultFailureConverter, ApplicationFailure, TemporalFailure } from '@temporalio/common';
 import { proxyActivities } from '@temporalio/workflow';
 import type { WorkflowFailedError } from '@temporalio/client';
-import { decodeFromPayloadsAtIndex } from '@temporalio/common/lib/internal-non-workflow';
+import { decodeFromPayloadsAtIndex } from '@temporalio/common/internal/internal-non-workflow';
 import { test, bundlerOptions, ByteSkewerPayloadCodec, Worker, TestWorkflowEnvironment } from './helpers';
 
 export const failureConverter = new DefaultFailureConverter({ encodeCommonAttributes: true });

@@ -1,5 +1,5 @@
 import Long from 'long';
-import type { LoadedDataConverter, WorkflowSerializationContext } from '@temporalio/common';
+import type { Headers, LoadedDataConverter, WorkflowSerializationContext } from '@temporalio/common';
 import {
   compilePriority,
   compileRetryPolicy,
@@ -7,19 +7,19 @@ import {
   decompileRetryPolicy,
   extractWorkflowType,
 } from '@temporalio/common';
-import { encodeUserMetadata, decodeUserMetadata } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
 import {
   encodeUnifiedSearchAttributes,
   decodeSearchAttributes,
   decodeTypedSearchAttributes,
-} from '@temporalio/common/lib/converter/payload-search-attributes';
-import type { Headers } from '@temporalio/common/lib/interceptors';
+} from '@temporalio/common/internal/internal-workflow';
 import {
   decodeArrayFromPayloads,
   decodeMapFromPayloads,
+  decodeUserMetadata,
   encodeMapToPayloads,
   encodeToPayloadsWithContext,
-} from '@temporalio/common/lib/internal-non-workflow';
+  encodeUserMetadata,
+} from '@temporalio/common/internal/internal-non-workflow';
 import { temporal } from '@temporalio/proto';
 import {
   msOptionalToTs,

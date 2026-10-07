@@ -1,14 +1,14 @@
 import { createHash } from 'node:crypto';
 import * as proto from '@temporalio/proto';
-import { ValueError } from '@temporalio/common';
-import type { Payload } from '@temporalio/common';
 import {
   StorageDriverClaim,
+  ValueError,
+  type Payload,
   type StorageDriver,
   type StorageDriverStoreContext,
   type StorageDriverRetrieveContext,
   type StorageDriverTargetInfo,
-} from '@temporalio/common/lib/converter/extstore';
+} from '@temporalio/common';
 import type { GcsStorageDriverClient } from './client';
 
 const PayloadProto = proto.temporal.api.common.v1.Payload;

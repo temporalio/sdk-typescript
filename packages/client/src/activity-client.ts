@@ -22,12 +22,13 @@ import {
 } from '@temporalio/common';
 import type { Duration } from '@temporalio/common/lib/time';
 import { msOptionalToTs, msToNumber, optionalTsToDate, optionalTsToMs } from '@temporalio/common/lib/time';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import {
+  composeInterceptors,
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
   searchAttributePayloadConverter,
-} from '@temporalio/common/lib/converter/payload-search-attributes';
+  type Replace,
+} from '@temporalio/common/internal/internal-workflow';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
@@ -41,9 +42,8 @@ import {
   walkListActivityExecutionsResponse,
   walkPollActivityExecutionResponse,
   walkStartActivityExecutionRequest,
-} from '@temporalio/common/lib/internal-non-workflow';
+} from '@temporalio/common/internal/internal-non-workflow';
 import { temporal } from '@temporalio/proto';
-import type { Replace } from '@temporalio/common/lib/type-helpers';
 import type {
   ActivityCancelInput,
   ActivityClientInterceptor,

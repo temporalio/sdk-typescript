@@ -35,17 +35,17 @@ import {
   toPayloadsWithContext,
   TypedSearchAttributes,
 } from '@temporalio/common';
-import { userMetadataToPayload } from '@temporalio/common/lib/user-metadata';
 import {
+  deepMerge,
   encodeUnifiedSearchAttributes,
   searchAttributePayloadConverter,
-} from '@temporalio/common/lib/converter/payload-search-attributes';
-import { versioningIntentToProto } from '@temporalio/common/lib/versioning-intent-enum';
+  throwIfReservedName,
+  userMetadataToPayload,
+  versioningIntentToProto,
+} from '@temporalio/common/internal/internal-workflow';
 import type { Duration } from '@temporalio/common/lib/time';
 import { msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/common/lib/time';
 import type { temporal } from '@temporalio/proto';
-import { deepMerge } from '@temporalio/common/lib/internal-workflow';
-import { throwIfReservedName } from '@temporalio/common/lib/reserved';
 import { eventGroupMarkersToProto, type EventGroup, type EventGroupsOptions } from './event-groups';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
 import { composeInterceptors } from './interceptor-composition';

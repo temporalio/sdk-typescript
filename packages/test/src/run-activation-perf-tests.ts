@@ -26,7 +26,7 @@ export const bundlerOptions = {
   // This is a bit ugly but it does the trick, when a test that includes workflow
   // code tries to import a forbidden workflow module, add it to this list:
   ignoreModules: [
-    '@temporalio/common/lib/internal-non-workflow',
+    '@temporalio/common/internal/internal-non-workflow',
     '@temporalio/activity',
     '@temporalio/client',
     '@temporalio/testing',

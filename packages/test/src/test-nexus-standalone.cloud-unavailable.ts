@@ -33,12 +33,12 @@ import {
   type Payload,
   type PayloadCodec,
 } from '@temporalio/common';
-import { ExternalStorageRunner } from '@temporalio/common/lib/internal-non-workflow';
-import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
+import { ExternalStorageRunner } from '@temporalio/common/internal/internal-non-workflow';
+import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/protobufs';
 import {
   SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE,
-} from '@temporalio/common/lib/internal-workflow';
+} from '@temporalio/common/internal/internal-workflow';
 import { generateWorkflowRunOperationToken } from '@temporalio/nexus/lib/token';
 import type { Context } from './helpers-integration';
 import { helpers, makeTestFunction } from './helpers-integration';

@@ -1,7 +1,6 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import test from 'ava';
-import type { LoadedDataConverter } from '@temporalio/common';
-import { StorageDriverClaim } from '@temporalio/common/lib/converter/extstore';
+import { StorageDriverClaim, type LoadedDataConverter } from '@temporalio/common';
 import {
   decodeReferencePayload,
   encodeReferencePayload,
@@ -9,7 +8,7 @@ import {
   isLoadedDataConverter,
   isReferencePayload,
   loadDataConverter,
-} from '@temporalio/common/lib/internal-non-workflow';
+} from '@temporalio/common/internal/internal-non-workflow';
 
 function makeConverter(): LoadedDataConverter {
   const loaded = loadDataConverter();

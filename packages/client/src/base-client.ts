@@ -1,7 +1,7 @@
 import os from 'node:os';
 import type * as _grpc from '@grpc/grpc-js'; // For JSDoc only
 import type { DataConverter, LoadedDataConverter } from '@temporalio/common';
-import { isLoadedDataConverter, loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
+import { isLoadedDataConverter, loadDataConverter } from '@temporalio/common/internal/internal-non-workflow';
 import { Connection } from './connection';
 import type { ConnectionLike, Metadata } from './types';
 

@@ -7,8 +7,9 @@ import {
   defaultPayloadConverter,
   noopMetricMeter,
   ActivityCancellationDetails,
+  LoggerWithComposedMetadata,
 } from '@temporalio/common';
-import { LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
+
 import type { Client } from '@temporalio/client';
 import type { ActivityInterceptorsFactory } from '@temporalio/worker';
 import { DefaultLogger } from '@temporalio/worker';
