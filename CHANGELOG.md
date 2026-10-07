@@ -31,6 +31,14 @@ to docs, or any other relevant information.
   generically with `startSystemNexusOperation` or specifically with `signalWithStartWorkflow`.
 - **Experimental**: Nexus workers decode Temporal System Nexus inputs sent by the server with the
   System Nexus converter.
+- **Experimental**: `NexusSerializationContext` is now passed to payload converters, payload codecs,
+  and failure converters for Nexus operation payloads, identifying the operation's endpoint, service,
+  and operation name. Callers use it for inputs, summaries, results, and failures; handlers use it
+  for inputs, synchronous results, and failures. A standalone handle obtained from
+  `NexusClient.getHandle` has none of that information and therefore decodes without Nexus context,
+  so contextual encodings must be self-describing and decoders must keep accepting payloads encoded
+  without context. `GetNexusOperationResultInput` now carries the operation's `endpoint`, `service`,
+  and `operation` when known.
 
 - **Experimental**: New External Storage concurrency controls.
 

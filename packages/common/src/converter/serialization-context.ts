@@ -45,6 +45,36 @@ export interface ActivitySerializationContext {
 }
 
 /**
+ * Context provided to data converters for payloads of a Nexus operation.
+ *
+ * Callers receive this context when encoding inputs and decoding results or failures. Handlers
+ * receive it when decoding inputs, encoding synchronous results, and encoding failures raised
+ * while handling a Nexus task. It is not propagated to a handler that completes an operation
+ * asynchronously.
+ *
+ * A standalone operation handle uses the context of its start request, including when the start
+ * request returns an already-running operation; a handle obtained by operation ID without starting
+ * an operation has no endpoint, service, or operation information to build a context from and
+ * therefore serializes without one.
+ *
+ * A failure encoded by a handler is later decoded by a caller, and some operation paths lack this
+ * context entirely. Contextual encodings must therefore be self-describing, and decoders must keep
+ * accepting payloads encoded without context.
+ *
+ * @experimental Serialization context is an experimental feature and may change.
+ */
+export interface NexusSerializationContext {
+  /** Always `'nexus'` for Nexus operation payloads. */
+  type: 'nexus';
+  /** Nexus endpoint name. */
+  endpoint: string;
+  /** Nexus service name. */
+  service: string;
+  /** Nexus operation name. */
+  operation: string;
+}
+
+/**
  * Context passed to payload and failure converters.
  *
  * The context describes the workflow or activity whose payload is being converted.
@@ -55,7 +85,10 @@ export interface ActivitySerializationContext {
  *
  * @experimental Serialization context is an experimental feature and may change.
  */
-export type SerializationContext = WorkflowSerializationContext | ActivitySerializationContext;
+export type SerializationContext =
+  | WorkflowSerializationContext
+  | ActivitySerializationContext
+  | NexusSerializationContext;
 
 /** @internal */
 // Consumed by the worker through common/lib/converter/serialization-context.
@@ -63,6 +96,13 @@ export type SerializationContext = WorkflowSerializationContext | ActivitySerial
 export function isSerializationContext(value: unknown): value is SerializationContext {
   if (value == null || typeof value !== 'object') return false;
   const context = value as Record<string, unknown>;
+  if (context.type === 'nexus') {
+    return (
+      typeof context.endpoint === 'string' &&
+      typeof context.service === 'string' &&
+      typeof context.operation === 'string'
+    );
+  }
   if (typeof context.namespace !== 'string') return false;
   if (context.type === 'workflow') return typeof context.workflowId === 'string';
   return (

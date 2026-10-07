@@ -17,6 +17,7 @@ export * from './converter/payload-codec';
 export * from './converter/payload-converter';
 export type {
   ActivitySerializationContext,
+  NexusSerializationContext,
   SerializationContext,
   WorkflowSerializationContext,
 } from './converter/serialization-context';

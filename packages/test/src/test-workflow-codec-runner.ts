@@ -4,7 +4,7 @@ import { ApplicationFailure, defaultFailureConverter, defaultPayloadConverter } 
 import { walkPayloadsInMessage } from '@temporalio/common/lib/internal-non-workflow';
 import { coresdk } from '@temporalio/proto';
 import { WorkflowCodecRunner } from '@temporalio/worker/lib/workflow-codec-runner';
-import { FreePayloadCodec, makeContextTrace } from './payload-converters/serialization-context-converter';
+import { FreePayloadCodec, makeContextTrace, nexusCtx } from './payload-converters/serialization-context-converter';
 
 function payload(label: string): Payload {
   return defaultPayloadConverter.toPayload(makeContextTrace(label));
@@ -383,62 +383,67 @@ test('signal and cancel external workflow paths use target workflow context', as
   );
 });
 
-test('nexus operation paths use workflow context', async (t) => {
-  const runner = new WorkflowCodecRunner([new FreePayloadCodec()], {
+function nexusRunner(): WorkflowCodecRunner {
+  return new WorkflowCodecRunner([new FreePayloadCodec()], {
     type: 'workflow',
     namespace: 'default',
     workflowId: 'wf-1',
   });
+}
 
-  const encoded = decodeCompletion(
-    await runner.encodeCompletion({
-      successful: {
-        commands: [
-          {
-            scheduleNexusOperation: {
-              seq: 6,
-              input: payload('nexus-input'),
-            },
+function scheduleNexusOperation(seq: number) {
+  return {
+    successful: {
+      commands: [
+        {
+          scheduleNexusOperation: {
+            seq,
+            endpoint: 'my-endpoint',
+            service: 'my-service',
+            operation: 'my-operation',
+            input: payload('nexus-input'),
           },
-        ],
-      },
-    })
-  );
+          userMetadata: { summary: payload('nexus-summary') },
+        },
+      ],
+    },
+  };
+}
 
+const nexusOperationCtx = nexusCtx('my-endpoint', 'my-service', 'my-operation');
+
+test('nexus operation paths use the operation context', async (t) => {
+  const runner = nexusRunner();
+
+  const encoded = decodeCompletion(await runner.encodeCompletion(scheduleNexusOperation(6)));
   t.deepEqual(traceFromPayload(encoded.successful?.commands?.[0]?.scheduleNexusOperation?.input as Payload), [
-    'codec.encode.bound|nexus-input|workflow.default.wf-1',
+    `codec.encode.bound|nexus-input|${nexusOperationCtx}`,
   ]);
+  t.deepEqual(traceFromPayload(encoded.successful?.commands?.[0]?.userMetadata?.summary as Payload), [
+    `codec.encode.bound|nexus-summary|${nexusOperationCtx}`,
+  ]);
+
+  // An asynchronous start is not terminal, so it must leave the context for the resolution below.
+  await runner.decodeActivation({
+    runId: 'run-1',
+    jobs: [{ resolveNexusOperationStart: { seq: 6, operationToken: 'token-1' } }],
+  });
 
   const decodedCompleted = await runner.decodeActivation({
     runId: 'run-1',
-    jobs: [
-      {
-        resolveNexusOperation: {
-          seq: 6,
-          result: {
-            completed: payload('nexus-output'),
-          },
-        },
-      },
-    ],
+    jobs: [{ resolveNexusOperation: { seq: 6, result: { completed: payload('nexus-output') } } }],
   });
-
   t.deepEqual(traceFromPayload(decodedCompleted.jobs?.[0]?.resolveNexusOperation?.result?.completed as Payload), [
-    'codec.decode.bound|nexus-output|workflow.default.wf-1',
+    `codec.decode.bound|nexus-output|${nexusOperationCtx}`,
   ]);
+});
+
+test('a resolution with no scheduled nexus operation falls back to workflow context', async (t) => {
+  const runner = nexusRunner();
 
   const decodedFailed = await runner.decodeActivation({
     runId: 'run-1',
-    jobs: [
-      {
-        resolveNexusOperation: {
-          seq: 7,
-          result: {
-            failed: failureWithDetail('nexus-failure'),
-          },
-        },
-      },
-    ],
+    jobs: [{ resolveNexusOperation: { seq: 7, result: { failed: failureWithDetail('nexus-failure') } } }],
   });
 
   t.deepEqual(
@@ -448,6 +453,34 @@ test('nexus operation paths use workflow context', async (t) => {
     ),
     ['codec.decode.bound|nexus-failure|workflow.default.wf-1']
   );
+});
+
+test('a failed nexus start uses the operation context and then releases it', async (t) => {
+  const runner = nexusRunner();
+  await runner.encodeCompletion(scheduleNexusOperation(8));
+
+  const decodedStartFailure = await runner.decodeActivation({
+    runId: 'run-1',
+    jobs: [{ resolveNexusOperationStart: { seq: 8, failed: failureWithDetail('nexus-start-failure') } }],
+  });
+  t.deepEqual(
+    traceFromPayload(
+      decodedStartFailure.jobs?.[0]?.resolveNexusOperationStart?.failed?.applicationFailureInfo?.details
+        ?.payloads?.[0] as Payload
+    ),
+    [`codec.decode.bound|nexus-start-failure|${nexusOperationCtx}`]
+  );
+
+  // White-box probe of the pending-context map, not a realistic history: Core never sends a
+  // ResolveNexusOperation after a failed start. Falling back to workflow context here is how an
+  // outside observer can tell the terminal start released its entry instead of retaining it.
+  const probe = await runner.decodeActivation({
+    runId: 'run-1',
+    jobs: [{ resolveNexusOperation: { seq: 8, result: { completed: payload('nexus-output') } } }],
+  });
+  t.deepEqual(traceFromPayload(probe.jobs?.[0]?.resolveNexusOperation?.result?.completed as Payload), [
+    'codec.decode.bound|nexus-output|workflow.default.wf-1',
+  ]);
 });
 
 test('runner remains compatible with codecs that ignore context', async (t) => {
@@ -525,5 +558,11 @@ test('ordinary Nexus calls with a System Nexus service name are not rewritten', 
   );
   const envelope = encoded.successful?.commands?.[0]?.scheduleNexusOperation?.input;
   t.not(envelope?.metadata?.encoding?.[0], 98);
-  t.deepEqual(traceFromPayload(envelope), ['codec.encode.bound|ordinary-nexus-input|workflow.caller-ns.caller-id']);
+  t.deepEqual(traceFromPayload(envelope), [
+    `codec.encode.bound|ordinary-nexus-input|${nexusCtx(
+      'ordinary-endpoint',
+      'temporal.api.workflowservice.v1.WorkflowService',
+      'SignalWithStartWorkflowExecution'
+    )}`,
+  ]);
 });

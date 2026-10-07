@@ -1,6 +1,7 @@
 import type * as nexus from 'nexus-rpc';
 import {
   defaultPayloadConverter,
+  type NexusSerializationContext,
   type PayloadConverter,
   type SerializationContext,
   toPayloadWithTypeInfo,
@@ -282,15 +283,11 @@ function startNexusOperationNextHandler({
   outputType,
 }: StartNexusOperationInput): Promise<StartNexusOperationOutput> {
   const activator = getActivator();
-  const workflowContext = {
-    type: 'workflow' as const,
-    namespace: activator.info.namespace,
-    workflowId: activator.info.workflowId,
-  };
+  const nexusContext: NexusSerializationContext = { type: 'nexus', endpoint, service, operation };
   const serialization = serializeNexusOperation(
     { input, endpoint, service, options, operation, inputType, outputType },
     activator.payloadConverter,
-    workflowContext
+    nexusContext
   );
 
   return new Promise<StartNexusOperationOutput>((resolve, reject) => {
@@ -342,11 +339,16 @@ function startNexusOperationNextHandler({
         context: serialization.systemNexus.context,
         outputType,
       });
-      activator.completions.nexusOperationStart.set(seq, { resolve, reject });
+      activator.completions.nexusOperationStart.set(seq, {
+        resolve,
+        reject,
+        context: serialization.systemNexus.context,
+      });
     } else {
       activator.completions.nexusOperationStart.set(seq, {
         resolve,
         reject,
+        context: nexusContext,
         outputTypeInfo: outputType,
       });
     }
@@ -367,12 +369,12 @@ interface SerializedNexusOperation {
 function serializeNexusOperation(
   { input, endpoint, service, options, operation, inputType }: Omit<StartNexusOperationInput, 'seq' | 'headers'>,
   payloadConverter: PayloadConverter,
-  workflowContext: SerializationContext
+  nexusContext: NexusSerializationContext
 ): SerializedNexusOperation {
   if (endpoint !== TEMPORAL_SYSTEM_NEXUS_ENDPOINT) {
     return {
-      input: toPayloadWithTypeInfo(payloadConverter, input, workflowContext, inputType),
-      userMetadata: userMetadataToPayload(payloadConverter, options?.summary, undefined, workflowContext),
+      input: toPayloadWithTypeInfo(payloadConverter, input, nexusContext, inputType),
+      userMetadata: userMetadataToPayload(payloadConverter, options?.summary, undefined, nexusContext),
       systemNexus: undefined,
     };
   }

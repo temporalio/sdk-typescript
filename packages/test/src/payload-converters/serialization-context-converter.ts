@@ -43,6 +43,10 @@ export function standaloneActivityCtx(activityId: string): string {
   return `activity.default.${activityId}.${false}`;
 }
 
+export function nexusCtx(endpoint: string, service: string, operation: string): string {
+  return `nexus.${endpoint}.${service}.${operation}`;
+}
+
 export function enc(label: string, ctx: string): string {
   return `payload.encode.bound|${label}|${ctx}`;
 }
@@ -66,7 +70,11 @@ function isContextTrace(maybeTrace: unknown): maybeTrace is ContextTrace<unknown
 }
 
 export function contextToTraceString(context: SerializationContext): string {
-  const parts = [context.type, context.namespace];
+  if (context.type === 'nexus') {
+    return nexusCtx(context.endpoint, context.service, context.operation);
+  }
+
+  const parts: string[] = [context.type, context.namespace];
 
   if (context.workflowId) parts.push(context.workflowId);
 
