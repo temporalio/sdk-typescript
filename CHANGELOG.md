@@ -25,6 +25,10 @@ to docs, or any other relevant information.
 
 ### Added
 
+- **Experimental**: `ChildWorkflowOptions.versioningOverride` can pin, auto-upgrade, or one-time route
+  a Child Workflow independently of its parent. One-time routing is also available for client-started
+  Workflows through `{ oneTimeTo: WorkerDeploymentVersion }`. Both require Temporal Server 1.32.0 or
+  later. Invalid child overrides reject with `InvalidVersioningOverrideError`.
 - **Experimental**: Workflows can signal another Workflow and start it when absent with
   `signalWithStartWorkflow`.
 - **Experimental**: Workflow outbound interceptors can intercept Temporal System Nexus calls

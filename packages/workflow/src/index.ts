@@ -91,6 +91,7 @@ export {
   ChildWorkflowFailure,
   defaultPayloadConverter,
   PayloadConverter,
+  InvalidVersioningOverrideError,
   RetryPolicy,
   rootCause,
   SearchAttributes,
@@ -99,6 +100,13 @@ export {
   TemporalFailure,
   TerminatedFailure,
   TimeoutFailure,
+} from '@temporalio/common';
+export type {
+  AutoUpgradeVersioningOverride,
+  OneTimeVersioningOverride,
+  PinnedVersioningOverride,
+  VersioningOverride,
+  WorkerDeploymentVersion,
 } from '@temporalio/common';
 export * from '@temporalio/common/lib/errors';
 export {

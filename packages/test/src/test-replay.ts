@@ -1,6 +1,7 @@
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
-import type { temporal } from '@temporalio/proto';
+import { defaultPayloadConverter, toPayloads } from '@temporalio/common';
+import { temporal } from '@temporalio/proto';
 import type { WorkflowBundle } from '@temporalio/worker';
 import { bundleWorkflowCode, ReplayError } from '@temporalio/worker';
 import { DeterminismViolationError } from '@temporalio/workflow';
@@ -59,6 +60,86 @@ test('cancel-fake-progress-replay from JSON', async (t) => {
   );
   t.pass();
 });
+
+for (const useStartChild of [false, true]) {
+  test(`replay invalid child versioning override with ${useStartChild ? 'startChild' : 'executeChild'}`, async (t) => {
+    const override = { pinnedTo: { deploymentName: 'deployment', buildId: 'build' } };
+    const history = temporal.api.history.v1.History.fromObject({
+      events: [
+        {
+          eventType: 'EVENT_TYPE_WORKFLOW_EXECUTION_STARTED',
+          workflowExecutionStartedEventAttributes: {
+            workflowType: { name: 'childWorkflowVersioningOverride' },
+            taskQueue: { name: 'test' },
+            input: { payloads: toPayloads(defaultPayloadConverter, override, useStartChild) },
+            originalExecutionRunId: '11111111-1111-4111-8111-111111111111',
+            workflowTaskTimeout: { seconds: 10 },
+          },
+        },
+        {
+          eventType: 'EVENT_TYPE_WORKFLOW_TASK_SCHEDULED',
+          workflowTaskScheduledEventAttributes: { taskQueue: { name: 'test' }, attempt: 1 },
+        },
+        {
+          eventType: 'EVENT_TYPE_WORKFLOW_TASK_STARTED',
+          workflowTaskStartedEventAttributes: { scheduledEventId: 2 },
+        },
+        {
+          eventType: 'EVENT_TYPE_WORKFLOW_TASK_COMPLETED',
+          workflowTaskCompletedEventAttributes: { scheduledEventId: 2, startedEventId: 3 },
+        },
+        {
+          eventType: 'EVENT_TYPE_START_CHILD_WORKFLOW_EXECUTION_INITIATED',
+          startChildWorkflowExecutionInitiatedEventAttributes: {
+            namespace: 'default',
+            workflowId: 'child-workflow',
+            workflowType: { name: 'successString' },
+            taskQueue: { name: 'test' },
+            workflowTaskCompletedEventId: 4,
+            versioningOverride: { pinned: { version: override.pinnedTo, behavior: 1 } },
+          },
+        },
+        {
+          eventType: 'EVENT_TYPE_START_CHILD_WORKFLOW_EXECUTION_FAILED',
+          startChildWorkflowExecutionFailedEventAttributes: {
+            namespace: 'default',
+            workflowId: 'child-workflow',
+            workflowType: { name: 'successString' },
+            cause: 'START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_INVALID_VERSIONING_OVERRIDE',
+            initiatedEventId: 5,
+            workflowTaskCompletedEventId: 4,
+          },
+        },
+        {
+          eventType: 'EVENT_TYPE_WORKFLOW_TASK_SCHEDULED',
+          workflowTaskScheduledEventAttributes: { taskQueue: { name: 'test' }, attempt: 1 },
+        },
+        {
+          eventType: 'EVENT_TYPE_WORKFLOW_TASK_STARTED',
+          workflowTaskStartedEventAttributes: { scheduledEventId: 7 },
+        },
+        {
+          eventType: 'EVENT_TYPE_WORKFLOW_TASK_COMPLETED',
+          workflowTaskCompletedEventAttributes: { scheduledEventId: 7, startedEventId: 8 },
+        },
+        {
+          eventType: 'EVENT_TYPE_WORKFLOW_EXECUTION_COMPLETED',
+          workflowExecutionCompletedEventAttributes: {
+            workflowTaskCompletedEventId: 9,
+            result: { payloads: toPayloads(defaultPayloadConverter, 'invalid versioning override') },
+          },
+        },
+      ].map((event, index) => ({
+        ...event,
+        eventId: index + 1,
+        eventTime: { seconds: 1_700_000_000 + index },
+      })),
+    });
+
+    await Worker.runReplayHistory({ workflowBundle: t.context.bundle }, history);
+    t.pass();
+  });
+}
 
 test('runReplayHistory closes replay iterator after first result', async (t) => {
   const hist = { events: [{ eventId: 1 }] };

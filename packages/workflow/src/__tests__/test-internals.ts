@@ -1,5 +1,10 @@
 import test from 'ava';
-import { CancelledFailure, WorkflowExecutionAlreadyStartedError } from '@temporalio/common';
+import {
+  CancelledFailure,
+  InvalidVersioningOverrideError,
+  NamespaceNotFoundError,
+  WorkflowExecutionAlreadyStartedError,
+} from '@temporalio/common';
 import { Activator } from '../internals';
 import type { WorkflowCreateOptionsInternal, WorkflowInfo } from '../interfaces';
 
@@ -81,6 +86,34 @@ test('failed child Workflow start removes its completion', (t) => {
   t.false(activator.completions.childWorkflowComplete.has(targetSeq));
   t.true(activator.completions.childWorkflowComplete.has(unrelatedSeq));
 });
+
+for (const { cause, errorClass } of [
+  { cause: 2, errorClass: NamespaceNotFoundError },
+  { cause: 3, errorClass: InvalidVersioningOverrideError },
+]) {
+  test(`failed child Workflow start rejects with ${errorClass.name} and removes its completion`, (t) => {
+    const activator = makeActivator();
+    const observed = seedChildWorkflowCompletions(activator);
+
+    activator.resolveChildWorkflowExecutionStart({
+      seq: targetSeq,
+      failed: {
+        cause,
+        workflowId: 'child-workflow',
+        workflowType: 'childWorkflow',
+      },
+    });
+
+    t.true(observed.rejected instanceof errorClass);
+    if (observed.rejected instanceof NamespaceNotFoundError) {
+      t.is(observed.rejected.namespace, 'default');
+    }
+    t.is(observed.resolved, undefined);
+    t.false(activator.completions.childWorkflowStart.has(targetSeq));
+    t.false(activator.completions.childWorkflowComplete.has(targetSeq));
+    t.true(activator.completions.childWorkflowComplete.has(unrelatedSeq));
+  });
+}
 
 test('cancelled child Workflow start removes its completion', (t) => {
   const activator = makeActivator();
