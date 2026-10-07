@@ -1,5 +1,11 @@
 import { lastValueFrom } from 'rxjs';
-import { SdkComponent, defaultPayloadConverter, fromPayloadsAtIndex } from '@temporalio/common';
+import {
+  LoggerWithComposedMetadata,
+  MetricMeterWithComposedTags,
+  SdkComponent,
+  defaultPayloadConverter,
+  fromPayloadsAtIndex,
+} from '@temporalio/common';
 import { msToTs } from '@temporalio/common/lib/time';
 import { coresdk } from '@temporalio/proto';
 import { DefaultLogger, Runtime, ShutdownError } from '@temporalio/worker';
@@ -7,8 +13,7 @@ import { byteArrayToBuffer } from '@temporalio/worker/lib/utils';
 import type { native } from '@temporalio/core-bridge';
 import type { NativeReplayHandle, NativeWorkerLike } from '@temporalio/worker/lib/worker';
 import { Worker as RealWorker } from '@temporalio/worker/lib/worker';
-import { LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
-import { MetricMeterWithComposedTags } from '@temporalio/common/lib/metrics';
+
 import type { CompiledWorkerOptions, WorkerOptions } from '@temporalio/worker/lib/worker-options';
 import { compileWorkerOptions } from '@temporalio/worker/lib/worker-options';
 import type { WorkflowCreator } from '@temporalio/worker/lib/workflow/interface';

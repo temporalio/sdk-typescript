@@ -5,6 +5,7 @@ import type {
   ActivityFunction,
   ActivitySerializationContext,
   LoadedDataConverter,
+  Logger,
   MetricMeter,
   MetricTags,
   TypeInfo,
@@ -16,17 +17,14 @@ import {
   ensureApplicationFailure,
   FAILURE_SOURCE,
   IllegalStateError,
+  LoggerWithComposedMetadata,
+  MetricMeterWithComposedTags,
   SdkComponent,
 } from '@temporalio/common';
-import { encodeErrorToFailure, encodeToPayload } from '@temporalio/common/lib/internal-non-workflow';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
-import { isAbortError } from '@temporalio/common/lib/type-helpers';
-import type { Logger } from '@temporalio/common/lib/logger';
-import { LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
-import { MetricMeterWithComposedTags } from '@temporalio/common/lib/metrics';
+import { encodeErrorToFailure, encodeToPayload } from '@temporalio/common/internal/internal-non-workflow';
+import { composeInterceptors, isAbortError } from '@temporalio/common/internal/internal-workflow';
 import type { Client } from '@temporalio/client';
 import type { coresdk } from '@temporalio/proto';
-import type { ActivityCancellationDetailsHolder } from '@temporalio/common/lib/activity-cancellation-details';
 import type {
   ActivityExecuteInput,
   ActivityInboundCallsInterceptor,
@@ -43,7 +41,7 @@ export type CancelReason =
 
 export class Activity {
   protected cancelReason?: CancelReason;
-  protected cancellationDetails: ActivityCancellationDetailsHolder;
+  protected cancellationDetails: { details?: ActivityCancellationDetails };
   public readonly context: Context;
   public cancel: (reason: CancelReason, details: ActivityCancellationDetails) => void = () => undefined;
   public readonly abortController: AbortController = new AbortController();

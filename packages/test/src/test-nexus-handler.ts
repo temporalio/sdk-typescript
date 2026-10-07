@@ -9,7 +9,7 @@ import * as root from '@temporalio/proto';
 import * as testing from '@temporalio/testing';
 import type { LogEntry } from '@temporalio/worker';
 import { DefaultLogger, Runtime, Worker } from '@temporalio/worker';
-import type { LoadedDataConverter, Payload, ProtoFailure } from '@temporalio/common';
+import type { LoadedDataConverter, Payload, PayloadCodec, ProtoFailure } from '@temporalio/common';
 import {
   ApplicationFailure,
   CancelledFailure,
@@ -19,7 +19,7 @@ import {
   defaultDataConverter,
   WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
-import type { PayloadCodec } from '@temporalio/common/lib/converter/payload-codec';
+
 import { ActivityExecutionAlreadyStartedError, ServiceError } from '@temporalio/client';
 import {
   PAYLOAD_VALIDATION_ERROR_TYPE,

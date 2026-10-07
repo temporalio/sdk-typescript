@@ -6,20 +6,20 @@ import {
   defaultDataConverter,
   defaultPayloadConverter,
   ExternalStorageNotConfiguredError,
+  ExternalStorage,
   RawValue,
   rawValueTypeInfo,
 } from '@temporalio/common';
-import { ExternalStorage } from '@temporalio/common/lib/converter/extstore';
 import {
   ExternalStorageRunner,
   extstoreInboundOptions,
   isReferencePayload,
-} from '@temporalio/common/lib/internal-non-workflow';
-import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
+} from '@temporalio/common/internal/internal-non-workflow';
+import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/protobufs';
 import {
   SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE,
-} from '@temporalio/common/lib/internal-workflow';
+} from '@temporalio/common/internal/internal-workflow';
 import * as protoRoot from '@temporalio/proto';
 import type { coresdk, temporal } from '@temporalio/proto';
 import type { SignalWithStartWorkflowRequest } from '@temporalio/workflow';

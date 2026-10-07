@@ -1,10 +1,11 @@
+import type {
+  ActivityOptions as ActivityOptionsCommon,
+  LocalActivityOptions as LocalActivityOptionsCommon,
+} from '@temporalio/common';
 import {
   ActivityCancellationType,
   encodeActivityCancellationType,
-  decodeActivityCancellationType,
-  type ActivityOptions as ActivityOptionsCommon,
-  type LocalActivityOptions as LocalActivityOptionsCommon,
-} from '@temporalio/common/lib/activity-options';
+} from '@temporalio/common/internal/internal-workflow';
 import type { EventGroup } from './event-groups';
 
 /**
@@ -12,6 +13,7 @@ import type { EventGroup } from './event-groups';
  *
  * @interface
  */
+// eslint-disable-next-line @typescript-eslint/no-deprecated
 export type ActivityOptions = ActivityOptionsCommon & {
   /**
    * Event Groups to attach to this activity. They will be reflected on the corresponding
@@ -28,6 +30,7 @@ export type ActivityOptions = ActivityOptionsCommon & {
  *
  * @interface
  */
+// eslint-disable-next-line @typescript-eslint/no-deprecated
 export type LocalActivityOptions = LocalActivityOptionsCommon & {
   /**
    * Event Groups to attach to this local activity. They will be reflected on the corresponding
@@ -39,4 +42,4 @@ export type LocalActivityOptions = LocalActivityOptionsCommon & {
   eventGroups?: EventGroup[];
 };
 
-export { ActivityCancellationType, encodeActivityCancellationType, decodeActivityCancellationType };
+export { ActivityCancellationType, encodeActivityCancellationType };

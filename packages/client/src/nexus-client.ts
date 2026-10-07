@@ -1,13 +1,15 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
 import type * as nexus from 'nexus-rpc';
 import { v4 as uuid4 } from 'uuid';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
-import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import {
+  composeInterceptors,
+  decode,
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
+  filterNullAndUndefined,
+  SymbolBasedInstanceOfError,
   typedSearchAttributePayloadConverter,
-} from '@temporalio/common/lib/converter/payload-search-attributes';
+} from '@temporalio/common/internal/internal-workflow';
 import {
   decodeFromPayloadsAtIndex,
   decodeOptionalFailureToOptionalError,
@@ -20,14 +22,11 @@ import {
   walkListNexusOperationExecutionsResponse,
   walkPollNexusOperationExecutionResponse,
   walkStartNexusOperationExecutionRequest,
-} from '@temporalio/common/lib/internal-non-workflow';
-import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
+} from '@temporalio/common/internal/internal-non-workflow';
 import { msOptionalToTs, optionalTsToDate, optionalTsToMs } from '@temporalio/common/lib/time';
 import { temporal } from '@temporalio/proto';
 import type { LoadedDataConverter, TypeInfo } from '@temporalio/common';
 import { ExternalStorageError } from '@temporalio/common';
-import type { SearchAttributeType, TypedSearchAttributeValue } from '@temporalio/common/lib/search-attributes';
-import { decode } from '@temporalio/common/lib/encoding';
 import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base-client';
 import { BaseClient, defaultBaseClientOptions } from './base-client';
 import { isGrpcServiceError, ServiceError } from './errors';
@@ -55,6 +54,7 @@ import type {
   ListNexusOperationsOptions,
   NexusOperationExecutionCancellationInfo,
   NexusOperationExecutionCount,
+  NexusOperationExecutionCountGroupValue,
   NexusOperationExecutionDescription,
   NexusOperationExecution,
   RawNexusOperationExecutionCancellationInfo,
@@ -736,10 +736,10 @@ function nexusCountFromProto(
   };
 }
 
-function decodeCountGroupValue(value: temporal.api.common.v1.IPayload): TypedSearchAttributeValue<SearchAttributeType> {
-  const decoded = typedSearchAttributePayloadConverter.fromPayload<
-    TypedSearchAttributeValue<SearchAttributeType> | undefined
-  >(value);
+function decodeCountGroupValue(value: temporal.api.common.v1.IPayload): NexusOperationExecutionCountGroupValue {
+  const decoded = typedSearchAttributePayloadConverter.fromPayload<NexusOperationExecutionCountGroupValue | undefined>(
+    value
+  );
   if (decoded === undefined) {
     throw new ServiceError(
       'Received invalid Nexus operation count group value from server: ' +

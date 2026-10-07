@@ -14,8 +14,8 @@ import {
   walkRespondActivityTaskCompletedRequest,
   walkRespondActivityTaskFailedByIdRequest,
   walkRespondActivityTaskFailedRequest,
-} from '@temporalio/common/lib/internal-non-workflow';
-import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
+} from '@temporalio/common/internal/internal-non-workflow';
+import { filterNullAndUndefined } from '@temporalio/common/internal/internal-workflow';
 import type { temporal } from '@temporalio/proto';
 import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base-client';
 import { BaseClient, defaultBaseClientOptions } from './base-client';
