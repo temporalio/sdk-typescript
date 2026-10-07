@@ -17,7 +17,7 @@ import {
   isRetryableError,
   makeGrpcRetryInterceptor,
 } from '@temporalio/client';
-import pkg from '@temporalio/client/lib/pkg';
+import pkg from '@temporalio/client/internal/pkg';
 import type { temporal } from '@temporalio/proto';
 import { grpc as grpcProto } from '@temporalio/proto';
 

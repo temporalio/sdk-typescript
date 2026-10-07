@@ -9,9 +9,12 @@ import { msOptionalToNumber } from '@temporalio/common/lib/time';
 import { type temporal } from '@temporalio/proto';
 import { isGrpcServiceError, ServiceError } from './errors';
 import { defaultGrpcRetryOptions, makeGrpcRetryInterceptor } from './grpc-retry';
+import { type InternalConnectionOptions, InternalConnectionOptionsSymbol } from './internal';
 import pkg from './pkg';
 import type { CallContext, Metadata } from './types';
 import { HealthService, OperatorService, TestService, WorkflowService } from './types';
+
+export { type InternalConnectionOptions, InternalConnectionOptionsSymbol };
 
 /**
  * The default Temporal Server's TCP port for public gRPC connections.
@@ -145,23 +148,6 @@ export type ConnectionOptionsWithDefaults = Required<
   Omit<ConnectionOptions, 'tls' | 'connectTimeout' | 'callCredentials' | 'apiKey'>
 > & {
   connectTimeoutMs: number;
-};
-
-/**
- * A symbol used to attach extra, SDK-internal connection options.
- *
- * @internal
- * @hidden
- */
-export const InternalConnectionOptionsSymbol = Symbol('__temporal_internal_connection_options');
-export type InternalConnectionOptions = ConnectionOptions & {
-  [InternalConnectionOptionsSymbol]?: {
-    /**
-     * Indicate whether the `TestService` should be enabled on this connection. This is set to true
-     * on connections created internally by `TestWorkflowEnvironment.createTimeSkipping()`.
-     */
-    supportsTestService?: boolean;
-  };
 };
 
 export const LOCAL_TARGET = 'localhost:7233';
