@@ -107,7 +107,7 @@ if ('promiseHooks' in v8 && !isBun) {
           {
             file_path: '/packages/test/src/workflows/stack-tracer.ts',
             function_name: 'enhancedStackTracer',
-            line: 32,
+            line: 31,
             column: 35,
             internal_code: false,
           },
@@ -118,7 +118,7 @@ if ('promiseHooks' in v8 && !isBun) {
           {
             file_path: '/packages/test/src/workflows/stack-tracer.ts',
             function_name: 'enhancedStackTracer',
-            line: 32,
+            line: 31,
             column: 35,
             internal_code: false,
           },
