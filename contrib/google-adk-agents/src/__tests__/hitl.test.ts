@@ -50,6 +50,7 @@ import {
   hitlDynamicGateTool,
   hitlInputNode,
   hitlSecurityPlugin,
+  hitlStructuredInput,
   hitlTwoPending,
   pendingHitlQuery,
   plainTextTurnUpdate,
@@ -196,6 +197,37 @@ test.serial('a malformed confirmation decision rejects the Update and the correc
     []
   );
 });
+
+test.serial(
+  'a structured answer that fails its responseSchema rejects the Update and the corrected one runs',
+  async (t) => {
+    const env = getEnv();
+    const taskQueue = uid('adk-hitl-structured');
+    const workflowId = uid('wf-hitl-structured');
+    await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, async () => {
+      const handle = await env.client.workflow.start(hitlStructuredInput, { taskQueue, workflowId });
+      await waitForPending(handle, 1, ['structured']);
+
+      // ADK would refuse this on resume with a plain Error, failing the Workflow Task
+      // forever; the builder applies ADK's check first, so the Update is rejected instead.
+      const rejected = await t.throwsAsync(
+        handle.executeUpdate(respondHitlUpdate, { args: ['structured', { name: 123 }] })
+      );
+      const failure = findInCauseChain(rejected, ApplicationFailure);
+      t.is(failure?.type, 'GoogleAdkHitlResponseError');
+      t.regex(failure?.message ?? '', /does not match the responseSchema it declared: .* at 'name'/);
+
+      // The interrupt is still open, so a schema-valid answer completes the run.
+      await handle.executeUpdate(respondHitlUpdate, { args: ['structured', { name: 'ok' }] });
+      t.is((await handle.result()).output, 'hello:ok');
+    });
+    const { events } = await getEnv().client.workflow.getHandle(workflowId).fetchHistory();
+    t.deepEqual(
+      (events ?? []).filter((e) => e.workflowTaskFailedEventAttributes != null),
+      []
+    );
+  }
+);
 
 test.serial('a default interrupt id is a UUID and regenerates identically under replay', async (t) => {
   const env = getEnv();
@@ -455,6 +487,45 @@ test('hitlInputResponse refuses only with the typed failure, including values AD
   assertTyped(() => hitlInputResponse(null as unknown as HitlInputRequest, 'x'), /is not a HITL request/);
   // `null` is a JSON value, delivered as such.
   t.deepEqual(hitlInputResponse(request, null).functionResponse?.response, { result: null });
+});
+
+test('hitlInputResponse refuses a structured answer its responseSchema rejects, as ADK would', (t) => {
+  // The JSON Schema ADK records for `RequestInput({ responseSchema: z.object({ name: z.string() }) })`.
+  const request: HitlInputRequest = {
+    kind: 'input',
+    interruptId: 'structured',
+    functionCallName: 'adk_request_input',
+    responseSchema: {
+      type: 'object',
+      properties: { name: { type: 'string' } },
+      required: ['name'],
+      additionalProperties: false,
+    },
+  };
+  const refuse = (value: unknown, message: RegExp) => {
+    const err = t.throws(() => hitlInputResponse(request, value), { instanceOf: ApplicationFailure, message });
+    t.is(err?.type, HITL_RESPONSE_FAILURE_TYPE);
+    t.is(err?.nonRetryable, true);
+  };
+  // ADK's own message, issues and all, behind the helper's name.
+  refuse(
+    { name: 123 },
+    /^hitlInputResponse: The reply to interrupt 'structured' does not match the responseSchema it declared: Invalid input: expected string, received number at 'name'\./
+  );
+  // ADK unwraps the envelope first, so a wrapped object is checked too.
+  refuse({ result: { name: 123 } }, /does not match the responseSchema it declared/);
+  // Arrays are objects to ADK's check, so they are held to the schema as well.
+  refuse([{ name: 'ok' }], /expected object, received array/);
+  refuse({ name: 'ok', extra: 1 }, /Unrecognized key: "extra"/);
+
+  t.deepEqual(hitlInputResponse(request, { name: 'ok' }).functionResponse?.response, { name: 'ok' });
+  // ADK exempts a bare scalar (the chat-box reply), so the builder does too.
+  t.deepEqual(hitlInputResponse(request, 5).functionResponse?.response, { result: 5 });
+  // A schema zod cannot compile is "no contract to check" for ADK, and here.
+  t.deepEqual(
+    hitlInputResponse({ ...request, responseSchema: { type: 'nonsense' } }, { name: 123 }).functionResponse?.response,
+    { name: 123 }
+  );
 });
 
 test('hitlConfirmationResponse refuses a malformed decision with the typed failure', (t) => {

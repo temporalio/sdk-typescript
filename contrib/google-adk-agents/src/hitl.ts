@@ -49,6 +49,7 @@ import {
   type UserInputKind,
   type UserInputRequest,
 } from '@google/adk';
+import { z } from 'zod/v4';
 import { ApplicationFailure } from '@temporalio/common';
 
 import { HITL_RESPONSE_FAILURE_TYPE } from './error-types';
@@ -125,6 +126,11 @@ export function pendingHitlRequests(events: readonly Event[]): HitlRequest[] {
  * string `responseSchema` on the `RequestInput`, or pass the parsed value
  * yourself.
  *
+ * A structured answer is also held to the request's `responseSchema`, with the
+ * same check ADK runs when the graph resumes: an object or array that the schema
+ * rejects is refused here, with ADK's own message, instead of failing the Workflow
+ * Task later (a bare scalar is exempt, as it is in ADK).
+ *
  * `value` must be a JSON value (`null` included). `undefined` is refused because
  * ADK reads it as no answer at all: a waiting node resumes only once its answer
  * is `!== undefined` (`workflow/workflow.ts`), so the node would ask again while
@@ -141,6 +147,7 @@ export function hitlInputResponse(request: HitlInputRequest, value: unknown): Pa
   assertUsableAnswer(request, value);
   const response = isPlainObject(value) ? value : { result: value };
   assertNoJsonCoercion(request, response);
+  assertMatchesResponseSchema(request, response);
   return {
     functionResponse: {
       id: request.interruptId,
@@ -279,7 +286,7 @@ function acceptsString(schema: unknown): boolean {
  * quotes gone. Only text that is not JSON at all survives verbatim.
  */
 function assertNoJsonCoercion(request: HitlInputRequest, response: Record<string, unknown>): void {
-  if (Object.keys(response).length !== 1 || !(RESULT_KEY in response)) return;
+  if (!isResultEnvelope(response)) return;
   const unwrapped = response[RESULT_KEY];
   if (typeof unwrapped !== 'string' || acceptsString(request.responseSchema)) return;
   const parsed = parseJsonIfPossible(unwrapped);
@@ -297,6 +304,55 @@ function describeDelivered(parsed: unknown): string {
   return typeof parsed === 'string'
     ? `the string ${JSON.stringify(parsed)}`
     : `${JSON.stringify(parsed)} (${typeof parsed})`;
+}
+
+/**
+ * Refuses a structured answer its `responseSchema` rejects, with the check ADK runs
+ * on resume (`resolvedInterruptResponses`, then `interruptResponseMismatch` in
+ * `workflow/utils/hitl_utils.ts`). ADK throws a plain `Error` for a mismatch there,
+ * outside any Update handler, so the Workflow Task would retry forever against the
+ * committed answer.
+ *
+ * ADK exports neither that function nor the `compileJsonSchema` it calls, so both
+ * are reproduced for parity: check the value ADK's `unwrapResponse` delivers; only
+ * an object or an array, since ADK exempts a bare scalar (the reply a chat box
+ * sends); compile the JSON Schema recorded on the interrupt with zod v4's
+ * `fromJSONSchema`, as ADK does, and treat one zod cannot compile as no contract;
+ * report the issues in ADK's format and ADK's words. A string that would have been
+ * parsed into an object never gets here: {@link assertNoJsonCoercion} refused it.
+ */
+function assertMatchesResponseSchema(request: HitlInputRequest, response: Record<string, unknown>): void {
+  const delivered = isResultEnvelope(response) ? response[RESULT_KEY] : response;
+  if (typeof delivered !== 'object' || delivered === null) return;
+  const validator = compileJsonSchema(request.responseSchema);
+  if (!validator) return;
+  const result = validator.safeParse(delivered);
+  if (result.success) return;
+  const issues = result.error.issues
+    .map((issue) => `${issue.message}${issue.path.length ? ` at '${issue.path.join('.')}'` : ''}`)
+    .join('; ');
+  throw refusal(
+    `hitlInputResponse: The reply to interrupt '${request.interruptId}' does not match the ` +
+      `responseSchema it declared: ${issues}. A structured reply must either ` +
+      'match that schema, or wrap a bare value as {result: <value>}; a ' +
+      'plain-text reply is accepted as-is and is not checked. The interrupt is ' +
+      'still waiting, so you can answer it again.'
+  );
+}
+
+/** ADK's `compileJsonSchema` (`utils/schema.ts`), which it does not export. */
+function compileJsonSchema(jsonSchema: unknown): z.ZodType | undefined {
+  if (jsonSchema === null || typeof jsonSchema !== 'object') return undefined;
+  try {
+    return z.fromJSONSchema(jsonSchema as Parameters<typeof z.fromJSONSchema>[0]);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Whether ADK's `unwrapResponse` would unwrap `response`: its only key is `result`. */
+function isResultEnvelope(response: Record<string, unknown>): boolean {
+  return Object.keys(response).length === 1 && RESULT_KEY in response;
 }
 
 const RESULT_KEY = 'result';

@@ -281,12 +281,15 @@ const runner = new InMemoryRunner({ agent: graph });
 ```
 
 - **Input and output.** By default the node's input is passed to the Activity as
-  its single argument and the Activity's result is the node's output; `args`
-  maps the input (and `NodeContext`, for state) to the Activity's argument list.
-  An Activity returning nothing (`undefined` or `null`) completes the node with
-  a `null` output, so its successors receive `null`: ADK records a node as done
-  only when its events carry an output, and without one a completed Activity
-  would run again when a paused graph resumes.
+  its single argument and the Activity's result, whatever its shape, is the
+  node's output; `args` maps the input (and `NodeContext`, for state) to the
+  Activity's argument list. The node's event carries the result as `output`
+  only, with no `content`, so a result with a `parts` array is not taken for
+  genai `Content` the way ADK's `FunctionNode` would take it. An Activity
+  returning nothing (`undefined` or `null`) completes the node with a `null`
+  output, so its successors receive `null`. ADK records a node as done only
+  when its events carry an output, and without one a completed Activity would
+  run again when a paused graph resumes.
 - **Node names.** The node is named after the Activity unless `nodeName` says
   otherwise, and the name may not contain `.`, `/` or `@`: ADK reads a node path
   back by those characters (its segments, and the run-id suffix), and a name
@@ -409,15 +412,21 @@ export async function reviewWorkflow(prompt: string): Promise<unknown> {
   quoted one included: `'"foo"'` would reach the node as `foo`. `value` must be a
   JSON value (`null` included): `undefined` is refused because ADK reads it as no
   answer, so the node would ask again while `pendingHitlRequests` counts it as
-  answered, and a function, symbol or bigint because it is not JSON.
+  answered, and a function, symbol or bigint because it is not JSON. A structured
+  answer (an object or array) is also checked against the request's
+  `responseSchema` exactly as ADK checks it when the graph resumes, zod's
+  `fromJSONSchema` over the JSON Schema recorded on the interrupt, and refused with
+  ADK's own message if it does not match; a bare scalar is exempt, as it is in ADK.
+  An answer the builder accepts is one ADK will accept.
 - Both builders refuse an answer only by throwing a non-retryable `ApplicationFailure`
   of type `HITL_RESPONSE_FAILURE_TYPE`, never any other error, whatever they are
-  handed: they check a decision or value before reading it. That is what makes it
-  safe to call them on the raw argument where the answer arrives, in the Signal or
-  Update handler, as above: the SDK rejects an Update only for a `TemporalFailure`,
-  so validating there tells the caller no, while letting a bad answer through to the
-  Workflow body would fail the Workflow Task over and over with the answer already
-  accepted.
+  handed: they check a decision or value before reading it, schema included. That is
+  what makes it safe to call them on the raw argument where the answer arrives, in
+  the Signal or Update handler, as above: the SDK rejects an Update only for a
+  `TemporalFailure`, so validating there tells the caller no, while letting a bad
+  answer through to the Workflow body would fail the Workflow Task over and over with
+  the answer already accepted (ADK refuses a schema mismatch on resume with a plain
+  `Error`).
 - `hitlConfirmationResponse(request, { confirmed, hint?, payload? })` answers a tool
   gate. `confirmed` must be a boolean and `hint`, when present, a string; anything
   else (`null`, `'yes'`) is refused rather than guessed, since ADK approves only on
@@ -488,6 +497,13 @@ an agent node is waiting on, ADK absorbs the cancelled call like any model error
 and reports the node as failed (`NodeReportedError`); the plugin ends the
 execution CANCELLED with the model Activity's own cancellation instead. A
 cancelled Activity node ends it CANCELLED the same way, inside a dynamic run too.
+
+A failing sibling does not cancel the execution either. When a graph node fails,
+ADK aborts the run and waits for the nodes still running before failing it. The
+plugin turns that abort into a cancellation of the Activity each of those nodes is
+waiting on, an Activity node's Activity or an agent node's model call, and the
+execution then fails with the failed node's failure. The Activity's
+`cancellationType` sets how long that wait lasts, as it does for a node `timeout`.
 
 ### Streaming
 
