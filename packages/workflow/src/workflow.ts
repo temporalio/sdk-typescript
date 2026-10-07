@@ -34,6 +34,7 @@ import {
   encodeInitialVersioningBehavior,
   toPayloadsWithContext,
   TypedSearchAttributes,
+  versioningOverrideToProto,
 } from '@temporalio/common';
 import {
   deepMerge,
@@ -493,6 +494,7 @@ function startChildWorkflowExecutionNextHandler({
             : undefined,
         memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo, context),
         versioningIntent: versioningIntentToProto(options.versioningIntent),
+        versioningOverride: versioningOverrideToProto(options.versioningOverride),
         priority: options.priority ? compilePriority(options.priority) : undefined,
       },
       userMetadata: userMetadataToPayload(

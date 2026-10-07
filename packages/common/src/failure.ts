@@ -440,6 +440,14 @@ export class WorkflowExecutionAlreadyStartedError extends TemporalFailure {
 }
 
 /**
+ * Thrown when a Child Workflow cannot start because its versioning override is invalid.
+ *
+ * @experimental
+ */
+@SymbolBasedInstanceOfError('InvalidVersioningOverrideError')
+export class InvalidVersioningOverrideError extends TemporalFailure {}
+
+/**
  * If `error` is already an `ApplicationFailure`, returns `error`.
  *
  * Otherwise, converts `error` into an `ApplicationFailure` with:
