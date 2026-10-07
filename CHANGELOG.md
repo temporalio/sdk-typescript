@@ -63,6 +63,9 @@ to docs, or any other relevant information.
 - **Experimental**: External storage failures now surface as dedicated error types exported from
   `@temporalio/common`: `ExternalStorageDriverError`, `ExternalStorageUnregisteredDriverError`, and
   `ExternalStorageReferenceError`, all extending the new `ExternalStorageError` base type.
+- The Workflow sandbox now exposes `URLPattern`, both as a global and from the `url` module, when
+  the Worker runs on Node.js 23.8 or later. On older Node.js versions, `URLPattern` remains undefined
+  inside Workflows.
 
 ### Changed
 
