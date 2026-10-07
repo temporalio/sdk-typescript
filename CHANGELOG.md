@@ -21,10 +21,13 @@ to docs, or any other relevant information.
 
 ### Breaking Changes
 
+- Undocumented package subpaths that are not covered by a package's explicit export map no longer
+  resolve.
 - **Experimental**: Nexus Workflow Updates now require `waitForStage` to be explicitly set to `ACCEPTED`.
 
 ### Added
 
+- `SearchAttributeKey` is now exported from the `@temporalio/common` package root.
 - **Experimental**: Workflows can signal another Workflow and start it when absent with
   `signalWithStartWorkflow`.
 - **Experimental**: Workflow outbound interceptors can intercept Temporal System Nexus calls
@@ -52,6 +55,13 @@ to docs, or any other relevant information.
 - A Worker will now refuse to load and execute a Workflow bundle produced with a different version
   of the SDK. This practice has never been supported, but was never formally prevented, resulting
   in various subtle, hard to diagnose issues. This change could potentially result in
+
+### Deprecated
+
+- Undocumented imports through `@temporalio/*/lib/*` are deprecated. Where present, the wildcard remains
+  temporarily as a compatibility fallback. `@temporalio/common` will keep the following entrypoints
+  for compatibility: `@temporalio/common/lib/encoding`, `@temporalio/common/lib/protobufs`,
+  `@temporalio/common/lib/proto-utils`, and `@temporalio/common/lib/time`.
 
 ### Fixed
 
