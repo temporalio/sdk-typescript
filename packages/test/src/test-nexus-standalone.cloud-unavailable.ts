@@ -39,7 +39,7 @@ import {
   SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE,
 } from '@temporalio/common/internal/internal-workflow';
-import { generateWorkflowRunOperationToken } from '@temporalio/nexus/lib/token';
+import { generateWorkflowRunOperationToken } from '@temporalio/nexus/internal';
 import type { Context } from './helpers-integration';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { waitUntil } from './helpers';
