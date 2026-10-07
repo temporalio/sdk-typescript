@@ -25,9 +25,8 @@ import type { PatchActivationCallback, PatchActivationInput } from '@temporalio/
 import type { VMWorkflow } from '@temporalio/worker/lib/workflow/vm';
 import { VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
 import type { WorkflowCreator } from '@temporalio/worker/lib/workflow/interface';
-import type { SdkFlag } from '@temporalio/workflow/lib/flags';
-import { SdkFlags } from '@temporalio/workflow/lib/flags';
-import { createUnsafeRandomSource } from '@temporalio/workflow/lib/random-helpers';
+import { createUnsafeRandomSource, type SdkFlag, SdkFlags } from '@temporalio/workflow/internal';
+
 import type { ReusableVMWorkflow } from '@temporalio/worker/lib/workflow/reusable-vm';
 import { ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
 import { parseWorkflowCode } from '@temporalio/worker/lib/worker';

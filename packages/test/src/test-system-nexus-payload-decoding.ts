@@ -23,7 +23,7 @@ import {
 import * as protoRoot from '@temporalio/proto';
 import type { coresdk, temporal } from '@temporalio/proto';
 import type { SignalWithStartWorkflowRequest } from '@temporalio/workflow';
-import { workflowService } from '@temporalio/workflow/lib/nexus/system/generated/services';
+import { workflowService } from '@temporalio/workflow/internal';
 import { decodePayload, PAYLOAD_VALIDATION_ERROR_TYPE } from '@temporalio/worker/lib/nexus/conversions';
 import { visitNexusTask } from '@temporalio/worker/lib/system-nexus-operations';
 import { makeFakeDriver } from './extstore-fake-driver';

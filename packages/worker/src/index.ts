@@ -167,7 +167,7 @@ export {
    * @deprecated This function is meant for internal usage. Don't use it.
    */
   workflowLogAttributes,
-} from '@temporalio/workflow/lib/logs';
+} from '@temporalio/workflow/internal/logs';
 
 export {
   /**
