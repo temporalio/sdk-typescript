@@ -947,6 +947,31 @@ export async function mcpLoadResourceAgentFailing(): Promise<string> {
 }
 
 /**
+ * The same flow with the documented way to lift the resource Activities'
+ * default bound of three attempts, against a server that only starts answering
+ * after more failures than that. Attempts are unlimited, so
+ * `scheduleToCloseTimeout` is what keeps the test bounded if the server never
+ * came up.
+ */
+export async function mcpLoadResourceAgentUnlimitedRetry(): Promise<string> {
+  const toolset = new TemporalMCPToolset({
+    name: 'lateServer',
+    activity: {
+      scheduleToCloseTimeout: '30 seconds',
+      retry: { maximumAttempts: Number.POSITIVE_INFINITY, initialInterval: '1 millisecond' },
+    },
+  });
+  const agent = new LlmAgent({
+    name: 'assistant',
+    model: new TemporalModel('resource-model'),
+    instruction: 'Answer from resources.',
+    tools: [loadMcpResourceTool(toolset)],
+  });
+  const { text } = await runOnce(agent, 'go');
+  return text;
+}
+
+/**
  * The same flow against a server whose read hangs until its Activity is
  * cancelled. Cancelling the Workflow must end that Activity cancelled on its
  * first attempt, and the tool must re-raise the cancellation rather than log and

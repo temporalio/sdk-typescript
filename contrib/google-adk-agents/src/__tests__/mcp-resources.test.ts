@@ -24,6 +24,7 @@ import {
   mcpLoadResourceAgent,
   mcpLoadResourceAgentCancelled,
   mcpLoadResourceAgentFailing,
+  mcpLoadResourceAgentUnlimitedRetry,
   mcpReadResource,
 } from './graph-workflows';
 
@@ -109,7 +110,12 @@ class DeafResourceToolset extends BaseToolset {
   override async close(): Promise<void> {}
 }
 
+/** How many attempts `lateServer` fails before it serves `readme`: past the default bound of 3. */
+const LATE_SERVER_FAILURES = 4;
+
 function makePlugin(): GoogleAdkPlugin {
+  const serveReadme = mockMCPToolset([], { resources: [readmeResource] });
+  let lateServerCalls = 0;
   return new GoogleAdkPlugin({
     modelProvider: graphTestProvider(),
     mcpToolsets: {
@@ -118,6 +124,10 @@ function makePlugin(): GoogleAdkPlugin {
         throw new Error('MCP server unavailable.');
       },
       hangingServer: () => new HangingResourceToolset(),
+      lateServer: () => {
+        if (++lateServerCalls <= LATE_SERVER_FAILURES) throw new Error('MCP server still starting.');
+        return serveReadme();
+      },
     },
   });
 }
@@ -455,6 +465,27 @@ for (const method of ['listResources', 'readResource'] as const) {
     t.is(toolset.calls, 1);
   });
 }
+
+test.serial(
+  'maximumAttempts: Infinity lifts the default bound, so a server that comes up late is still read',
+  async (t) => {
+    const env = getEnv();
+    const taskQueue = uid('adk-res-unlimited');
+    const workflowId = uid('wf-res-unlimited');
+    // The documented way to restore unlimited retries. `0` is rejected by the
+    // SDK's `compileRetryPolicy`, and inside the tool that rejection would be
+    // logged and skipped: the turn would answer `resource=missing; listed=none`.
+    const text = await withWorker(env, { taskQueue, plugins: [makePlugin()] }, () =>
+      env.client.workflow.execute(mcpLoadResourceAgentUnlimitedRetry, { taskQueue, workflowId })
+    );
+    t.is(text, `resource=${README_TEXT}; listed=["readme"]`);
+    const { events } = await env.client.workflow.getHandle(workflowId).fetchHistory();
+    // The listing failed past the default bound of three and was still retried
+    // until the server answered; the read then went through first time.
+    t.deepEqual(finalAttempts(events ?? [], 'lateServer-listResources'), [LATE_SERVER_FAILURES + 1]);
+    t.deepEqual(finalAttempts(events ?? [], 'lateServer-readResource'), [1]);
+  }
+);
 
 test.serial('refreshResourceList re-lists the resources on every model call', async (t) => {
   const env = getEnv();

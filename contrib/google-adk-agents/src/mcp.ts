@@ -110,7 +110,9 @@ export interface TemporalMCPToolsetOptions {
    * take it as given; {@link TemporalMCPToolset.listResources} and
    * {@link TemporalMCPToolset.readResource} default `retry.maximumAttempts` to
    * 3 first, because a resource failure is skipped rather than raised. Set
-   * `retry.maximumAttempts` yourself to override that, `0` for unlimited.
+   * `retry.maximumAttempts` yourself to override that, or
+   * `Number.POSITIVE_INFINITY` for unlimited (the SDK's `compileRetryPolicy`
+   * rejects `0`).
    */
   activity?: ActivityOptions;
   /**
@@ -303,7 +305,9 @@ export class TemporalMCPToolset extends BaseToolset {
    * retryable, and Temporal's own default is unlimited attempts — an
    * unreachable server would then retry behind the model turn forever and the
    * skip path would never be reached. The caller's own `activity.retry` wins
-   * field by field, so `retry: { maximumAttempts: 0 }` restores unlimited.
+   * field by field, so `retry: { maximumAttempts: Number.POSITIVE_INFINITY }`
+   * restores unlimited: `compileRetryPolicy` treats `Infinity` as its default
+   * and throws a `ValueError` for `0`.
    */
   private resourceActivities(defaultSummary: string): MCPActivities {
     const activity = this.options.activity;

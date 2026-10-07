@@ -223,7 +223,8 @@ bounded: `listResources` and `readResource` default `activity.retry.maximumAttem
 to 3, where a tool call keeps Temporal's unlimited default. Without that bound an
 unreachable server would retry behind the model turn forever and never reach the
 skip path. Set `activity: { retry: { maximumAttempts: n } }` on the toolset to
-choose your own, or `0` for unlimited.
+choose your own, or `maximumAttempts: Number.POSITIVE_INFINITY` for unlimited.
+`0` is not a way to say unlimited here: the SDK rejects it with a `ValueError`.
 
 A cancelled listing or read ends its Activity cancelled. ADK's own
 `MCPToolset.listResources()` / `readResource(name)` take no `AbortSignal`, so for
