@@ -39,6 +39,7 @@ export * from './workflow-options';
 export * from './versioning-intent';
 export {
   SearchAttributes,
+  type SearchAttributeKey,
   SearchAttributeValue,
   SearchAttributeType,
   SearchAttributePair,
