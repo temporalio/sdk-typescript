@@ -4,8 +4,7 @@ import * as nexus from 'nexus-rpc';
 import type { Client } from '@temporalio/client';
 import { type InternalActivityStartOptions, InternalActivityStartOptionsSymbol } from '@temporalio/client/internal';
 import * as temporalnexus from '@temporalio/nexus';
-import { asyncLocalStorage } from '@temporalio/nexus/lib/context';
-import { base64URLEncodeNoPadding, OperationTokenType } from '@temporalio/nexus/lib/token';
+import { asyncLocalStorage, OperationTokenType } from '@temporalio/nexus/internal';
 
 async function echoWorkflow(input: string): Promise<string> {
   return input;
@@ -160,7 +159,7 @@ test('TemporalOperationHandler.cancel rejects invalid operation token type befor
       throw new Error('cancelWorkflowRun should not be called');
     },
   });
-  const token = base64URLEncodeNoPadding(JSON.stringify({ t: 99, ns: 'test-namespace' }));
+  const token = Buffer.from(JSON.stringify({ t: 99, ns: 'test-namespace' })).toString('base64url');
 
   const err = await asyncLocalStorage.run(
     {
@@ -201,7 +200,9 @@ test('TemporalOperationHandler.cancel rejects malformed activity token before in
       throw new Error('cancelActivity should not be called');
     },
   });
-  const token = base64URLEncodeNoPadding(JSON.stringify({ t: OperationTokenType.ACTIVITY, ns: 'test-namespace' }));
+  const token = Buffer.from(JSON.stringify({ t: OperationTokenType.ACTIVITY, ns: 'test-namespace' })).toString(
+    'base64url'
+  );
 
   const err = await asyncLocalStorage.run(
     {
