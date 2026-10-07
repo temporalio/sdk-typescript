@@ -5,6 +5,26 @@ import type { ActivityOptions } from './activity-client';
 import type { WorkflowHandle, WorkflowUpdateHandle } from './workflow-client';
 import type { WorkflowUpdateStage } from './workflow-update-stage';
 import type { WorkflowQueryInput, WorkflowSignalInput } from './interceptors';
+import type { ConnectionOptions } from './connection';
+
+export { mapAsyncIterable } from './iterators-utils';
+
+/**
+ * A symbol used to attach extra, SDK-internal connection options.
+ *
+ * @internal
+ * @hidden
+ */
+export const InternalConnectionOptionsSymbol = Symbol('__temporal_internal_connection_options');
+export type InternalConnectionOptions = ConnectionOptions & {
+  [InternalConnectionOptionsSymbol]?: {
+    /**
+     * Indicate whether the `TestService` should be enabled on this connection. This is set to true
+     * on connections created internally by `TestWorkflowEnvironment.createTimeSkipping()`.
+     */
+    supportsTestService?: boolean;
+  };
+};
 
 /**
  * A symbol used to attach extra, SDK-internal options to the `WorkflowClient.start()` call.

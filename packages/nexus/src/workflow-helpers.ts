@@ -21,21 +21,19 @@ import type {
   WorkflowUpdateStage,
 } from '@temporalio/client';
 import { type temporal } from '@temporalio/proto';
-import type {
-  InternalActivityStartOptions,
-  InternalWorkflowHandle,
-  InternalWorkflowQueryOptions,
-  InternalWorkflowSignalOptions,
-  InternalWorkflowStartOptions,
-  InternalWorkflowUpdateOptions,
-} from '@temporalio/client/lib/internal';
 import {
+  type InternalActivityStartOptions,
+  type InternalWorkflowHandle,
+  type InternalWorkflowQueryOptions,
+  type InternalWorkflowSignalOptions,
+  type InternalWorkflowStartOptions,
+  type InternalWorkflowUpdateOptions,
   InternalActivityStartOptionsSymbol,
   InternalWorkflowQueryOptionsSymbol,
   InternalWorkflowSignalOptionsSymbol,
   InternalWorkflowStartOptionsSymbol,
   InternalWorkflowUpdateOptionsSymbol,
-} from '@temporalio/client/lib/internal';
+} from '@temporalio/client/internal';
 import { convertNexusLinkToTemporalLink, convertTemporalLinkToNexusLink } from './link-converter';
 import {
   assertActivityOperationToken,
