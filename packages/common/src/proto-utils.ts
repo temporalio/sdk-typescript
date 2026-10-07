@@ -1,6 +1,6 @@
 import { fromJson, toJson } from 'protobufjs/ext/protojson';
 import * as proto from '@temporalio/proto';
-import { patchProtobufRoot } from '@temporalio/proto/lib/patch-protobuf-root';
+import { patchProtobufRoot } from '@temporalio/proto/internal/patch-protobuf-root';
 
 export type History = proto.temporal.api.history.v1.IHistory;
 export type Payload = proto.temporal.api.common.v1.IPayload;
