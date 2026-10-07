@@ -3,6 +3,7 @@ import vm from 'node:vm';
 import { AsyncLocalStorage as AsyncLocalStorageOriginal } from 'node:async_hooks';
 import assert from 'node:assert';
 import { atob, btoa } from 'node:buffer';
+import * as nodeUrl from 'node:url';
 import { URL, URLSearchParams } from 'node:url';
 import { TextDecoder, TextEncoder } from 'node:util';
 import { SourceMapConsumer } from 'source-map';
@@ -96,7 +97,7 @@ function formatCallsiteName(callsite: NodeJS.CallSite): string | null {
 export function injectGlobals(context: vm.Context): void {
   const sandboxGlobalThis = context as typeof globalThis;
 
-  const globals = {
+  const globals: Record<string, unknown> = {
     URL,
     URLSearchParams,
     assert,
@@ -106,6 +107,11 @@ export function injectGlobals(context: vm.Context): void {
     atob,
     btoa,
   };
+  // URLPattern is only available on Node 23.8+; leave it undefined in the sandbox on older versions.
+  const URLPattern = (nodeUrl as { URLPattern?: unknown }).URLPattern;
+  if (URLPattern !== undefined) {
+    globals.URLPattern = URLPattern;
+  }
   for (const [k, v] of Object.entries(globals)) {
     Object.defineProperty(sandboxGlobalThis, k, { value: v, writable: false, enumerable: true, configurable: false });
   }
