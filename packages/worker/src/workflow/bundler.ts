@@ -179,10 +179,10 @@ export class WorkflowCodeBundler {
       .join('\n');
 
     const code = `
-const api = require('@temporalio/workflow/lib/worker-interface.js');
+const api = require('@temporalio/workflow/internal/worker-interface');
 exports.api = api;
 
-const { overrideGlobals } = require('@temporalio/workflow/lib/global-overrides.js');
+const { overrideGlobals } = require('@temporalio/workflow/internal/global-overrides');
 overrideGlobals();
 
 exports.preloadModules = function preloadModules() {

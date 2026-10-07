@@ -1,6 +1,5 @@
-import { type LoggerSinksInternal } from '@temporalio/workflow/lib/logs';
+import { type LoggerSinksInternal } from '@temporalio/workflow/internal/logs';
 import { LoggerWithComposedMetadata, SdkComponent } from '@temporalio/common';
-
 import { type InjectedSinks } from '../sinks';
 import { type Logger } from '../logger';
 

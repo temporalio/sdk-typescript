@@ -1,5 +1,5 @@
 import vm from 'node:vm';
-import type * as internals from '@temporalio/workflow/lib/worker-interface';
+import type * as internals from '@temporalio/workflow/internal/worker-interface';
 import { IllegalStateError } from '@temporalio/common';
 import { native } from '@temporalio/core-bridge';
 import type { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';

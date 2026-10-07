@@ -8,7 +8,7 @@ import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import type { VMWorkflow } from '@temporalio/worker/lib/workflow/vm';
 import { VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
 import * as wf from '@temporalio/workflow';
-import { createUnsafeRandomSource } from '@temporalio/workflow/lib/random-helpers';
+import { createUnsafeRandomSource } from '@temporalio/workflow/internal';
 import { TypedSearchAttributes } from '@temporalio/common';
 
 // WARNING: This file is a quick and dirty utility to run Workflow Activation performance testing
