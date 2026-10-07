@@ -12,4 +12,4 @@
 
 // Don't export from index, so we save space in Workflow bundles of users who don't use Protobufs
 export * from './converter/protobuf-payload-converters';
-export { patchProtobufRoot } from '@temporalio/proto/lib/patch-protobuf-root';
+export { patchProtobufRoot } from '@temporalio/proto/internal/patch-protobuf-root';
