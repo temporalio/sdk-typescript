@@ -16,7 +16,7 @@ import {
 import { msToTs } from '@temporalio/common/lib/time';
 import { coresdk, temporal } from '@temporalio/proto';
 import { sleep as workflowSleep, type WorkflowInfo } from '@temporalio/workflow';
-import { DefaultLogger, LogTimestamp, type LogEntry } from '@temporalio/worker';
+import { bundleWorkflowCode, DefaultLogger, LogTimestamp, type LogEntry } from '@temporalio/worker';
 import {
   invokePatchActivationCallback,
   parseWorkflowCode,
@@ -26,7 +26,6 @@ import {
   type VMWorkflow,
   VMWorkflowCreator,
   type WorkflowBundleWithSourceMapAndFilename,
-  WorkflowCodeBundler,
   type WorkflowCreator,
 } from '@temporalio/worker/internal';
 import type { PatchActivationCallback, PatchActivationInput } from '@temporalio/worker';
@@ -76,8 +75,7 @@ class TestReusableVMWorkflowCreator extends ReusableVMWorkflowCreator {
 
 test.before(async (t) => {
   const workflowsPath = path.join(__dirname, 'workflows');
-  const bundler = new WorkflowCodeBundler({ workflowsPath });
-  const workflowBundle = parseWorkflowCode((await bundler.createBundle()).code);
+  const workflowBundle = parseWorkflowCode((await bundleWorkflowCode({ workflowsPath })).code);
   t.context.workflowBundle = workflowBundle;
   // FIXME: isolateExecutionTimeoutMs used to be 200 ms, but that's causing
   //        lot of flakes on CI. Revert this after investigation / resolution.
