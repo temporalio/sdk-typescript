@@ -1,8 +1,7 @@
 import test from 'ava';
 import type { WorkerOptions, NativeConnectionOptions } from '@temporalio/worker';
 import type { LambdaWorkerConfig } from '@temporalio/lambda-worker';
-import { type WorkerDeps, _runWorkerInternal } from '@temporalio/lambda-worker/lib/lambda-worker';
-import { LAMBDA_WORKER_DEFAULTS } from '@temporalio/lambda-worker/lib/defaults';
+import { type WorkerDeps, _runWorkerInternal } from '@temporalio/lambda-worker/internal';
 
 const TEST_VERSION = { buildId: 'test-build', deploymentName: 'test-deployment' };
 
@@ -114,15 +113,15 @@ test('Lambda defaults applied to workerOptions', (t) => {
   );
 
   const opts = captured!.workerOptions;
-  t.is(opts.maxConcurrentActivityTaskExecutions, LAMBDA_WORKER_DEFAULTS.maxConcurrentActivityTaskExecutions);
-  t.is(opts.maxConcurrentWorkflowTaskExecutions, LAMBDA_WORKER_DEFAULTS.maxConcurrentWorkflowTaskExecutions);
-  t.is(opts.maxConcurrentLocalActivityExecutions, LAMBDA_WORKER_DEFAULTS.maxConcurrentLocalActivityExecutions);
-  t.is(opts.maxConcurrentNexusTaskExecutions, LAMBDA_WORKER_DEFAULTS.maxConcurrentNexusTaskExecutions);
-  t.is(opts.shutdownGraceTime, LAMBDA_WORKER_DEFAULTS.shutdownGraceTime);
-  t.is(opts.maxCachedWorkflows, LAMBDA_WORKER_DEFAULTS.maxCachedWorkflows);
-  t.deepEqual(opts.workflowTaskPollerBehavior, LAMBDA_WORKER_DEFAULTS.workflowTaskPollerBehavior);
-  t.deepEqual(opts.activityTaskPollerBehavior, LAMBDA_WORKER_DEFAULTS.activityTaskPollerBehavior);
-  t.deepEqual(opts.nexusTaskPollerBehavior, LAMBDA_WORKER_DEFAULTS.nexusTaskPollerBehavior);
+  t.is(opts.maxConcurrentActivityTaskExecutions, 2);
+  t.is(opts.maxConcurrentWorkflowTaskExecutions, 10);
+  t.is(opts.maxConcurrentLocalActivityExecutions, 2);
+  t.is(opts.maxConcurrentNexusTaskExecutions, 5);
+  t.is(opts.shutdownGraceTime, '5s');
+  t.is(opts.maxCachedWorkflows, 30);
+  t.deepEqual(opts.workflowTaskPollerBehavior, { type: 'simple-maximum', maximum: 2 });
+  t.deepEqual(opts.activityTaskPollerBehavior, { type: 'simple-maximum', maximum: 1 });
+  t.deepEqual(opts.nexusTaskPollerBehavior, { type: 'simple-maximum', maximum: 1 });
 });
 
 test('user overrides take precedence over Lambda defaults', async (t) => {
