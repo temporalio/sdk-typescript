@@ -12,7 +12,7 @@ import {
   setDefaultUpdateHandler,
   setHandler,
 } from '@temporalio/workflow';
-import { SdkFlags } from '@temporalio/workflow/lib/flags';
+import { SdkFlags } from '@temporalio/workflow/internal';
 import type { ActivityCancellationDetails, PayloadTypeInfo } from '@temporalio/common';
 import { ApplicationFailure, RawValue, rawValueTypeInfo } from '@temporalio/common';
 import {

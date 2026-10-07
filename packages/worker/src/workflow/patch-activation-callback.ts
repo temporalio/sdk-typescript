@@ -1,6 +1,6 @@
 import { IllegalStateError, TypedSearchAttributes, type SearchAttributePair } from '@temporalio/common';
 import type { WorkflowInfo } from '@temporalio/workflow';
-import { createUnsafeRandomSource } from '@temporalio/workflow/lib/random-helpers';
+import { createUnsafeRandomSource } from '@temporalio/workflow/internal';
 import type { PatchActivationCallback, PatchActivationInput } from '../worker-options';
 
 // ts-prune-ignore-next (used by the workflow Worker thread entry point)

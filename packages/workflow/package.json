@@ -20,6 +20,56 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "internal": [
+        "lib/internal.d.ts"
+      ],
+      "internal/global-overrides": [
+        "lib/global-overrides.d.ts"
+      ],
+      "internal/logs": [
+        "lib/logs.d.ts"
+      ],
+      "internal/nexus/system/generated/registry": [
+        "lib/nexus/system/generated/registry.d.ts"
+      ],
+      "internal/worker-interface": [
+        "lib/worker-interface.d.ts"
+      ]
+    }
+  },
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json",
+    "./internal": {
+      "types": "./lib/internal.d.ts",
+      "default": "./lib/internal.js"
+    },
+    "./internal/global-overrides": {
+      "types": "./lib/global-overrides.d.ts",
+      "default": "./lib/global-overrides.js"
+    },
+    "./internal/logs": {
+      "types": "./lib/logs.d.ts",
+      "default": "./lib/logs.js"
+    },
+    "./internal/nexus/system/generated/registry": {
+      "types": "./lib/nexus/system/generated/registry.d.ts",
+      "default": "./lib/nexus/system/generated/registry.js"
+    },
+    "./internal/worker-interface": {
+      "types": "./lib/worker-interface.d.ts",
+      "default": "./lib/worker-interface.js"
+    },
+    "./lib/*": {
+      "types": "./lib/*.d.ts",
+      "default": "./lib/*.js"
+    }
+  },
   "scripts": {
     "build": "tsc --build",
     "gen:system-nexus": "tsx ./scripts/gen-system-nexus.ts",

@@ -5,9 +5,8 @@ import { Client } from '@temporalio/client';
 import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/protobufs';
 import { isReferencePayload } from '@temporalio/common/internal/internal-non-workflow';
 import * as protoRoot from '@temporalio/proto';
-import { defineSignal, setHandler } from '@temporalio/workflow';
+import { defineSignal, setHandler, signalWithStartWorkflow } from '@temporalio/workflow';
 import type { WorkflowInterceptors } from '@temporalio/workflow';
-import { signalWithStartWorkflow } from '@temporalio/workflow/lib/nexus/system/generated/operations/signal-with-start-workflow';
 import { makeFakeDriver } from './extstore-fake-driver';
 import { helpers, makeTestFunction } from './helpers-integration';
 

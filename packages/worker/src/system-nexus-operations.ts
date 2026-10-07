@@ -18,8 +18,8 @@ import {
 } from '@temporalio/common/internal/internal-non-workflow';
 import * as protoRoot from '@temporalio/proto';
 import type { coresdk } from '@temporalio/proto';
-import { operationRegistry } from '@temporalio/workflow/lib/nexus/system/generated/registry';
-import { withSystemNexusPayloadConversion } from '@temporalio/workflow/lib/nexus/system/user-payload-converter';
+import { operationRegistry } from '@temporalio/workflow/internal/nexus/system/generated/registry';
+import { withSystemNexusPayloadConversion } from '@temporalio/workflow/internal';
 
 const protobufPayloadConverter = new ProtobufBinaryPayloadConverter(protoRoot);
 const protoRootWithLookup = protoRoot as typeof protoRoot & {
