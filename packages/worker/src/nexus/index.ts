@@ -1,6 +1,12 @@
 import * as nexus from 'nexus-rpc';
 
-import type { LoadedDataConverter, Payload, MetricMeter, MetricTags } from '@temporalio/common';
+import type {
+  LoadedDataConverter,
+  NexusSerializationContext,
+  Payload,
+  MetricMeter,
+  MetricTags,
+} from '@temporalio/common';
 import {
   CancelledFailure,
   IllegalStateError,
@@ -107,11 +113,12 @@ export class NexusHandler {
 
   protected async startOperation(
     ctx: nexus.StartOperationContext,
-    payload: Payload | undefined
+    payload: Payload | undefined,
+    context: NexusSerializationContext
   ): Promise<coresdk.nexus.INexusTaskCompletion> {
     try {
       const handler = this.getOperationHandler(ctx);
-      const input = await decodePayload(this.dataConverter, payload, handler.inputType);
+      const input = await decodePayload(this.dataConverter, payload, handler.inputType, context);
 
       const executeNextHandler = async (interceptorInput: NexusStartOperationInput) => {
         const result = await this.invokeUserCode(
@@ -147,7 +154,7 @@ export class NexusHandler {
           completed: {
             startOperation: {
               syncSuccess: {
-                payload: await encodeToPayload(this.dataConverter, result.value, undefined, handler.outputType),
+                payload: await encodeToPayload(this.dataConverter, result.value, context, handler.outputType),
                 links: ctx.outboundLinks.map(nexusLinkToProtoLink),
               },
             },
@@ -160,21 +167,22 @@ export class NexusHandler {
           taskToken: this.taskToken,
           completed: {
             startOperation: {
-              failure: await operationErrorToProto(this.dataConverter, err),
+              failure: await operationErrorToProto(this.dataConverter, err, context),
             },
           },
         };
       }
       return {
         taskToken: this.taskToken,
-        failure: await handlerErrorToProto(this.dataConverter, coerceToHandlerError(err)),
+        failure: await handlerErrorToProto(this.dataConverter, coerceToHandlerError(err), context),
       };
     }
   }
 
   protected async cancelOperation(
     ctx: nexus.CancelOperationContext,
-    token: string
+    token: string,
+    context: NexusSerializationContext
   ): Promise<coresdk.nexus.INexusTaskCompletion> {
     try {
       const handler = this.getOperationHandler(ctx);
@@ -199,7 +207,7 @@ export class NexusHandler {
     } catch (err) {
       return {
         taskToken: this.taskToken,
-        failure: await handlerErrorToProto(this.dataConverter, coerceToHandlerError(err)),
+        failure: await handlerErrorToProto(this.dataConverter, coerceToHandlerError(err), context),
       };
     }
   }
@@ -235,6 +243,12 @@ export class NexusHandler {
   protected async execute(
     task: temporal.api.workflowservice.v1.IPollNexusTaskQueueResponse
   ): Promise<coresdk.nexus.INexusTaskCompletion> {
+    const serializationContext: NexusSerializationContext = {
+      type: 'nexus',
+      endpoint: task.request?.endpoint ?? '',
+      service: this.context.service,
+      operation: this.context.operation,
+    };
     if (task.request?.startOperation != null) {
       const variant = task.request?.startOperation;
       if (!variant.requestId) {
@@ -249,7 +263,8 @@ export class NexusHandler {
           callbackHeaders: variant.callbackHeader ?? undefined,
           outboundLinks: [],
         },
-        variant.payload ?? undefined
+        variant.payload ?? undefined,
+        serializationContext
       );
     } else if (task.request?.cancelOperation != null) {
       const variant = task.request?.cancelOperation;
@@ -260,7 +275,8 @@ export class NexusHandler {
         {
           ...this.context,
         },
-        variant.operationToken
+        variant.operationToken,
+        serializationContext
       );
     } else {
       throw new nexus.HandlerError('NOT_IMPLEMENTED', 'Request method not implemented');

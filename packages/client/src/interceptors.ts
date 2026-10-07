@@ -329,6 +329,9 @@ export interface StartNexusOperationInput {
 export interface GetNexusOperationResultInput {
   readonly operationId: string;
   readonly runId?: string;
+  readonly endpoint?: string;
+  readonly service?: string;
+  readonly operation?: string;
   readonly outputType?: TypeInfo;
 }
 
