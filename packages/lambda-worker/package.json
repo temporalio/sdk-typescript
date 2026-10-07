@@ -9,9 +9,14 @@
       "types": "./lib/index.d.ts",
       "default": "./lib/index.js"
     },
+    "./package.json": "./package.json",
     "./otel": {
       "types": "./lib/otel.d.ts",
       "default": "./lib/otel.js"
+    },
+    "./internal": {
+      "types": "./lib/internal.d.ts",
+      "default": "./lib/internal.js"
     },
     "./lib/*": {
       "types": "./lib/*.d.ts",
@@ -82,5 +87,15 @@
   "files": [
     "src",
     "lib"
-  ]
+  ],
+  "typesVersions": {
+    "*": {
+      "otel": [
+        "lib/otel.d.ts"
+      ],
+      "internal": [
+        "lib/internal.d.ts"
+      ]
+    }
+  }
 }
