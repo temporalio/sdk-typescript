@@ -31,7 +31,8 @@ to docs, or any other relevant information.
   run the versions on separate task queues. `@modelcontextprotocol/sdk` is now an optional peer
   dependency, needed only for `TemporalMCPToolset`.
 - Undocumented package subpaths that are not covered by a package's explicit export map no longer
-  resolve.
+  resolve. `@temporalio/testing` now exports only its package root and `package.json`;
+  its `lib/*` compatibility fallback has been removed.
 - **Experimental**: Nexus Workflow Updates now require `waitForStage` to be explicitly set to `ACCEPTED`.
 
 ### Added
