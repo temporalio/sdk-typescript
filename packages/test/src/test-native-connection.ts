@@ -6,8 +6,8 @@ import test from 'ava';
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 import { Client, NamespaceNotFoundError, WorkflowNotFoundError } from '@temporalio/client';
-import type { InternalConnectionOptions } from '@temporalio/client/lib/connection';
-import { InternalConnectionOptionsSymbol } from '@temporalio/client/lib/connection';
+import { type InternalConnectionOptions, InternalConnectionOptionsSymbol } from '@temporalio/client/internal';
+
 import type { NativeConnectionOptions } from '@temporalio/worker';
 import { NativeConnection, TransportError } from '@temporalio/worker';
 import { toNativeClientOptions } from '@temporalio/worker/lib/connection-options';
