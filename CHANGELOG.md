@@ -25,6 +25,7 @@ to docs, or any other relevant information.
 
 ### Added
 
+- **Experimental**: Added payload caching. Clients and Workers now use a configurable in-memory payload cache by default. External Storage is its first consumer. Users can provide a custom cache or disable caching.
 - **Experimental**: Workflows can signal another Workflow and start it when absent with
   `signalWithStartWorkflow`.
 - **Experimental**: Workflow outbound interceptors can intercept Temporal System Nexus calls

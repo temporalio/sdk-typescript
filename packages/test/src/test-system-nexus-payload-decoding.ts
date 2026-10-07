@@ -12,7 +12,7 @@ import {
 import { ExternalStorage } from '@temporalio/common/lib/converter/extstore';
 import {
   ExternalStorageRunner,
-  extstoreInboundOptions,
+  externalStorageRetrieveVisitOptions,
   isReferencePayload,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
@@ -392,7 +392,7 @@ test('visitNexusTask resolves External Storage references nested in a System Nex
   ]);
   const task = nexusStartTask(systemNexusPayloadWith(inputReference!, signalReference!));
 
-  await visitNexusTask(task, extstoreInboundOptions(externalStorage));
+  await visitNexusTask(task, externalStorageRetrieveVisitOptions({ externalStorage }));
 
   const envelope = task.task!.request!.startOperation!.payload as Payload;
   t.deepEqual(envelope.metadata?.[SYSTEM_NEXUS_PAYLOAD_METADATA_KEY], SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE);
@@ -414,7 +414,7 @@ test('visitNexusTask rejects a nested reference when External Storage is not con
   ]);
   const task = nexusStartTask(systemNexusPayloadWith(reference!));
 
-  await t.throwsAsync(() => visitNexusTask(task, extstoreInboundOptions(undefined)), {
+  await t.throwsAsync(() => visitNexusTask(task, externalStorageRetrieveVisitOptions({ externalStorage: undefined })), {
     instanceOf: ExternalStorageNotConfiguredError,
   });
 });
@@ -426,7 +426,7 @@ test('visitNexusTask leaves an unrecognized or corrupt marked input for decodePa
   ] as const) {
     const task = nexusStartTask(payload);
 
-    await visitNexusTask(task, extstoreInboundOptions(undefined));
+    await visitNexusTask(task, externalStorageRetrieveVisitOptions({ externalStorage: undefined }));
 
     t.is(task.task!.request!.startOperation!.payload, payload, name);
   }
@@ -441,7 +441,7 @@ test('visitNexusTask retrieves nested references before codecs decode them', asy
   const [inputReference, signalReference] = await new ExternalStorageRunner(externalStorage).store(encoded);
   const task = nexusStartTask(systemNexusPayloadWith(inputReference!, signalReference!));
 
-  await visitNexusTask(task, extstoreInboundOptions(externalStorage));
+  await visitNexusTask(task, externalStorageRetrieveVisitOptions({ externalStorage }));
   const result = (await decodePayload(
     { ...defaultDataConverter, payloadCodecs: [shiftingCodec] },
     task.task!.request!.startOperation!.payload as Payload,

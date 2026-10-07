@@ -1,13 +1,16 @@
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
+import * as nexus from 'nexus-rpc';
 import type {
   Next,
   TerminateWorkflowExecutionResponse,
   WorkflowClientInterceptor,
   WorkflowTerminateInput,
 } from '@temporalio/client';
-import { ApplicationFailure, Client, NamespaceNotFoundError, ValueError } from '@temporalio/client';
+import { ApplicationFailure, Client, NamespaceNotFoundError, ServiceError, ValueError } from '@temporalio/client';
+import { ExternalStorage } from '@temporalio/common';
 import { TestWorkflowEnvironment } from './helpers';
+import { makeFakeDriver } from './extstore-fake-driver';
 
 interface Context {
   testEnv: TestWorkflowEnvironment;
@@ -170,6 +173,32 @@ test('AsyncCompletionClient - namespace not found', async (t) => {
     instanceOf: NamespaceNotFoundError,
     message: "Namespace not found: 'non-existent'",
   });
+});
+
+test('NexusClient - external storage failure', async (t) => {
+  const driver = makeFakeDriver({
+    onStore: () => {
+      throw new Error('store failed');
+    },
+  });
+  const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 });
+  const client = new Client({
+    connection: t.context.testEnv.connection,
+    dataConverter: { externalStorage },
+  });
+  const service = nexus.service('test', { operation: nexus.operation<string, string>() });
+  const serviceClient = client.nexus.createServiceClient({ endpoint: 'test', service });
+
+  await t.throwsAsync(
+    serviceClient.startOperation(service.operations.operation, 'input', {
+      id: 'test',
+      scheduleToCloseTimeout: '1 minute',
+    }),
+    {
+      instanceOf: ServiceError,
+      message: 'External storage failed',
+    }
+  );
 });
 
 test('AsyncCompletionClient - complete - invalid payload', async (t) => {
