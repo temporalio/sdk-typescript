@@ -9,10 +9,9 @@ import {
   MetricMeterWithComposedTags,
 } from '@temporalio/common';
 import type { temporal, coresdk } from '@temporalio/proto';
-import { asyncLocalStorage } from '@temporalio/nexus/lib/context';
+import { asyncLocalStorage } from '@temporalio/nexus/internal';
 import { encodeToPayload } from '@temporalio/common/internal/internal-non-workflow';
 import { composeInterceptors, isAbortError } from '@temporalio/common/internal/internal-workflow';
-
 import type { Client } from '@temporalio/client';
 import type { Logger } from '../logger';
 import type {
