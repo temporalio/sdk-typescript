@@ -5,11 +5,15 @@ import Long from 'long';
 import { TypedSearchAttributes } from '@temporalio/common';
 import { msToTs } from '@temporalio/common/lib/time';
 import { coresdk } from '@temporalio/proto';
-import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
-import { type ReusableVMWorkflow, ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
-import { type VMWorkflow, VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
-import type { WorkflowBundleWithSourceMapAndFilename } from '@temporalio/worker/lib/workflow/workflow-worker-thread/input';
-import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
+import {
+  parseWorkflowCode,
+  type ReusableVMWorkflow,
+  ReusableVMWorkflowCreator,
+  type VMWorkflow,
+  VMWorkflowCreator,
+  type WorkflowBundleWithSourceMapAndFilename,
+  WorkflowCodeBundler,
+} from '@temporalio/worker/internal';
 import { createUnsafeRandomSource } from '@temporalio/workflow/internal';
 import { REUSE_V8_CONTEXT } from './helpers';
 

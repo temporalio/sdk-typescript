@@ -8,7 +8,7 @@ import type { Observable, OperatorFunction } from 'rxjs';
 import { interval, range, ReplaySubject, pipe, lastValueFrom } from 'rxjs';
 import { bufferTime, map, mergeMap, tap, takeUntil } from 'rxjs/operators';
 import { Connection, ServiceError, WorkflowClient, isGrpcServiceError } from '@temporalio/client';
-import { toMB } from '@temporalio/worker/lib/utils';
+import { toMB } from '@temporalio/worker/internal';
 import type { StarterArgSpec } from './args';
 import { starterArgSpec, getRequired } from './args';
 
