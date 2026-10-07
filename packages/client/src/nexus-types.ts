@@ -5,10 +5,8 @@ import type {
   SearchAttributeType,
   TypedSearchAttributes,
 } from '@temporalio/common';
-import type { TypedSearchAttributeValue } from '@temporalio/common/lib/search-attributes';
-import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
+import { makeProtoEnumConverters, type Replace } from '@temporalio/common/internal/internal-workflow';
 import type { temporal } from '@temporalio/proto';
-import type { Replace } from '@temporalio/common/lib/type-helpers';
 
 /**
  * Defines whether to allow re-using an operation ID from a previously *completed* Nexus operation.
@@ -371,11 +369,19 @@ export interface NexusOperationExecutionCount {
 }
 
 /**
+ * A typed search attribute value within a Nexus operation count group.
+ */
+export interface NexusOperationExecutionCountGroupValue {
+  readonly type: SearchAttributeType;
+  readonly value: string | number | boolean | Date | string[];
+}
+
+/**
  * A group within a count aggregation.
  */
 export interface NexusOperationExecutionCountGroup {
   readonly count: number;
-  readonly groupValues: readonly TypedSearchAttributeValue<SearchAttributeType>[];
+  readonly groupValues: readonly NexusOperationExecutionCountGroupValue[];
 }
 
 /**

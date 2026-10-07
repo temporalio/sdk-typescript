@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import type { ExecutionContext } from 'ava';
 import { WorkflowClient } from '@temporalio/client';
 import type { DataConverter, Payload, PayloadCodec } from '@temporalio/common';
-import { decode } from '@temporalio/common/lib/encoding';
+import { decode } from '@temporalio/common/internal/internal-workflow';
 import type { InjectedSinks } from '@temporalio/worker';
 import { createConcatActivity } from './activities/create-concat-activity';
 import { u8 } from './helpers';

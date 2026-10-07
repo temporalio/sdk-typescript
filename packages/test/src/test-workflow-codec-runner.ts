@@ -1,7 +1,7 @@
 import test from 'ava';
 import type { Payload, PayloadCodec } from '@temporalio/common';
 import { ApplicationFailure, defaultFailureConverter, defaultPayloadConverter } from '@temporalio/common';
-import { walkPayloadsInMessage } from '@temporalio/common/lib/internal-non-workflow';
+import { walkPayloadsInMessage } from '@temporalio/common/internal/internal-non-workflow';
 import { coresdk } from '@temporalio/proto';
 import { WorkflowCodecRunner } from '@temporalio/worker/lib/workflow-codec-runner';
 import { FreePayloadCodec, makeContextTrace } from './payload-converters/serialization-context-converter';

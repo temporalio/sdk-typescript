@@ -7,7 +7,7 @@ import type { Info } from '@temporalio/activity';
 import { Client, WorkflowFailedError } from '@temporalio/client';
 import { workflowInterceptorModules } from '@temporalio/testing';
 import { bundleWorkflowCode } from '@temporalio/worker';
-import { decodeOptionalSinglePayload } from '@temporalio/common/lib/internal-non-workflow';
+import { decodeOptionalSinglePayload } from '@temporalio/common/internal/internal-non-workflow';
 import type { TestWorkflowEnvironment } from './helpers';
 import { bundlerOptions } from './helpers';
 import type { Context } from './helpers-integration';

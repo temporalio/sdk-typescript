@@ -25,7 +25,7 @@ export const disallowedModules = [
   '@temporalio/activity',
   '@temporalio/client',
   '@temporalio/worker',
-  '@temporalio/common/lib/internal-non-workflow',
+  '@temporalio/common/internal/internal-non-workflow',
   '@temporalio/interceptors-opentelemetry/lib/client',
   '@temporalio/interceptors-opentelemetry/lib/worker',
   '@temporalio/interceptors-opentelemetry-v2/lib/client',
