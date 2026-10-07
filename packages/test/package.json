@@ -68,7 +68,8 @@
     "@types/fs-extra": "^11.0.4",
     "@types/istanbul-lib-coverage": "^2.0.6",
     "@types/pidusage": "^2.0.5",
-    "fs-extra": "^11.2.0"
+    "fs-extra": "^11.2.0",
+    "typescript": "^5.6.3"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
