@@ -6,12 +6,11 @@ export {
   decodePayload,
   operationErrorToProto,
 } from './nexus/conversions';
-export { byteArrayToBuffer, toMB } from './utils';
 export { visitNexusTask } from './system-nexus-operations';
 export { type NativeReplayHandle, type NativeWorkerLike, parseWorkflowCode } from './worker';
 export { compileWorkerOptions, toNativeWorkerOptions } from './worker-options';
 export { WorkflowCodecRunner } from './workflow-codec-runner';
-export { moduleMatches, WorkflowCodeBundler } from './workflow/bundler';
+export { moduleMatches } from './workflow/bundler';
 export type { WorkflowCreator } from './workflow/interface';
 export { invokePatchActivationCallback } from './workflow/patch-activation-callback';
 export { type ReusableVMWorkflow, ReusableVMWorkflowCreator } from './workflow/reusable-vm';

@@ -2,12 +2,12 @@ import { randomUUID } from 'crypto';
 import Long from 'long';
 import { msToTs } from '@temporalio/common/lib/time';
 import { coresdk } from '@temporalio/proto';
+import { bundleWorkflowCode } from '@temporalio/worker';
 import {
   parseWorkflowCode,
   ReusableVMWorkflowCreator,
   type VMWorkflow,
   VMWorkflowCreator,
-  WorkflowCodeBundler,
 } from '@temporalio/worker/internal';
 import * as wf from '@temporalio/workflow';
 import { createUnsafeRandomSource } from '@temporalio/workflow/internal';
@@ -59,12 +59,12 @@ export interface Context {
 
 if (!wf.inWorkflowContext()) {
   async function runPerfTest() {
-    const bundler = new WorkflowCodeBundler({
+    const bundle = await bundleWorkflowCode({
       workflowsPath: __filename,
       ignoreModules: [...bundlerOptions.ignoreModules],
     });
 
-    const workflowBundle = parseWorkflowCode((await bundler.createBundle()).code);
+    const workflowBundle = parseWorkflowCode(bundle.code);
 
     const workflowCreator = REUSE_V8_CONTEXT
       ? await ReusableVMWorkflowCreator.create(workflowBundle, 400, new Set())
