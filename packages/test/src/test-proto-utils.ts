@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import path from 'node:path';
 import test from 'ava';
 import Long from 'long';
-import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
+import { historyFromJSON, historyToJSON, JSONToPayload, payloadToJSON } from '@temporalio/common/lib/proto-utils';
 import proto from '@temporalio/proto'; // eslint-disable-line import/default
 
 const EventType = proto.temporal.api.enums.v1.EventType;
@@ -50,4 +50,26 @@ test('null payload data doesnt crash', async (t) => {
     ).toString(),
     'binary/null'
   );
+});
+
+test('history JSON helpers round-trip through the supported entrypoint', (t) => {
+  const history = proto.temporal.api.history.v1.History.fromObject({
+    events: [
+      {
+        eventId: '16',
+        eventType: EventType.EVENT_TYPE_WORKFLOW_EXECUTION_COMPLETED,
+        workflowExecutionCompletedEventAttributes: {},
+      },
+    ],
+  });
+  const json = historyToJSON(history);
+  t.is(historyToJSON(historyFromJSON(JSON.parse(json))), json);
+});
+
+test('payload JSON helpers round-trip through the supported entrypoint', (t) => {
+  const json = {
+    metadata: { encoding: Buffer.from('binary/plain').toString('base64') },
+    data: Buffer.from([0, 1, 255]).toString('base64'),
+  };
+  t.deepEqual(payloadToJSON(JSONToPayload(json)), json);
 });

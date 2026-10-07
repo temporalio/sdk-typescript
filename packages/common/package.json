@@ -50,5 +50,35 @@
     "lib",
     "!src/__tests__",
     "!lib/__tests__"
-  ]
+  ],
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json",
+    "./lib/proto-utils": {
+      "types": "./lib/proto-utils.d.ts",
+      "default": "./lib/proto-utils.js"
+    },
+    "./lib/internal-non-workflow": {
+      "types": "./lib/internal-non-workflow/index.d.ts",
+      "default": "./lib/internal-non-workflow/index.js"
+    },
+    "./lib/internal-workflow": {
+      "types": "./lib/internal-workflow/index.d.ts",
+      "default": "./lib/internal-workflow/index.js"
+    },
+    "./lib/*": {
+      "types": "./lib/*.d.ts",
+      "default": "./lib/*.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "lib/proto-utils": [
+        "lib/proto-utils.d.ts"
+      ]
+    }
+  }
 }
