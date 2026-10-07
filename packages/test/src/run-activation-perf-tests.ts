@@ -2,11 +2,13 @@ import { randomUUID } from 'crypto';
 import Long from 'long';
 import { msToTs } from '@temporalio/common/lib/time';
 import { coresdk } from '@temporalio/proto';
-import { ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
-import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
-import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
-import type { VMWorkflow } from '@temporalio/worker/lib/workflow/vm';
-import { VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
+import {
+  parseWorkflowCode,
+  ReusableVMWorkflowCreator,
+  type VMWorkflow,
+  VMWorkflowCreator,
+  WorkflowCodeBundler,
+} from '@temporalio/worker/internal';
 import * as wf from '@temporalio/workflow';
 import { createUnsafeRandomSource } from '@temporalio/workflow/internal';
 import { TypedSearchAttributes } from '@temporalio/common';
@@ -46,7 +48,7 @@ export const bundlerOptions = {
     'uuid',
     'net',
     'fs/promises',
-    '@temporalio/worker/lib/workflow/bundler',
+    '@temporalio/worker/internal',
     require.resolve('./activities'),
   ],
 };

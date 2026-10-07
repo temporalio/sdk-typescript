@@ -58,5 +58,34 @@
   ],
   "engines": {
     "node": ">= 20.3.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json",
+    "./internal": {
+      "types": "./lib/internal.d.ts",
+      "default": "./lib/internal.js"
+    },
+    "./internal/pkg": {
+      "types": "./lib/pkg.d.ts",
+      "default": "./lib/pkg.js"
+    },
+    "./lib/*": {
+      "types": "./lib/*.d.ts",
+      "default": "./lib/*.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "internal": [
+        "lib/internal.d.ts"
+      ],
+      "internal/pkg": [
+        "lib/pkg.d.ts"
+      ]
+    }
   }
 }

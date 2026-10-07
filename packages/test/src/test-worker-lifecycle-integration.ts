@@ -1,8 +1,7 @@
 /** Worker lifecycle integration tests. */
 import { randomUUID } from 'crypto';
 import { setTimeout } from 'timers/promises';
-import { PromiseCompletionTimeoutError, Runtime } from '@temporalio/worker';
-import { TransportError, UnexpectedError } from '@temporalio/worker/lib/errors';
+import { PromiseCompletionTimeoutError, Runtime, TransportError, UnexpectedError } from '@temporalio/worker';
 import { isBun } from './helpers';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { fillMemory } from './workflows';
