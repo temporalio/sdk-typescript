@@ -42,7 +42,14 @@ import {
 import { Type, type Content, type FunctionDeclaration, type Part } from '@google/genai';
 import { z } from 'zod';
 import { ApplicationFailure } from '@temporalio/common';
-import { ActivityCancellationType, condition, defineQuery, defineUpdate, setHandler } from '@temporalio/workflow';
+import {
+  ActivityCancellationType,
+  condition,
+  defineQuery,
+  defineUpdate,
+  setHandler,
+  sleep,
+} from '@temporalio/workflow';
 
 import {
   activityAsTool,
@@ -159,18 +166,12 @@ export async function graphVoidOutput(): Promise<RunOutcome> {
 }
 
 /**
- * START, an Activity node, then a node that pauses for input, run over two turns of one
- * session: the second turn answers the interrupt with an `adk_request_input` function
- * response, the way a client resumes a paused graph. The Activity node completed before
- * the pause, so on resume ADK has to fast-forward it from the session's events rather
- * than schedule the Activity again. Returns the second turn's outcome.
+ * Runs `graph` over two turns of one session: the first pauses at the `approve` interrupt,
+ * and the second answers it with an `adk_request_input` function response, the way a
+ * client resumes a paused graph. Returns the second turn's outcome.
  */
-export async function graphActivityThenPause(activityName: string, nodeName?: string): Promise<RunOutcome> {
-  const work = activityNode({ name: activityName, nodeName, args: () => [] });
-  const ask = node(() => new RequestInput({ interruptId: 'approve', message: 'Continue?' }), { name: 'ask' });
-  const runner = new InMemoryRunner({
-    agent: new Workflow({ name: 'pause_after_activity', edges: [['START', work, ask]] }),
-  });
+async function approveAfterPause(graph: Workflow): Promise<RunOutcome> {
+  const runner = new InMemoryRunner({ agent: graph });
   const session = await runner.sessionService.createSession({ appName: runner.appName, userId: USER });
   await collect(
     runner.runAsync({ userId: USER, sessionId: session.id, newMessage: { role: 'user', parts: [{ text: 'go' }] } })
@@ -181,6 +182,37 @@ export async function graphActivityThenPause(activityName: string, nodeName?: st
   return collect(
     runner.runAsync({ userId: USER, sessionId: session.id, newMessage: { role: 'user', parts: [answer] } })
   );
+}
+
+/**
+ * START, an Activity node, then a node that pauses for input, run over the two turns of
+ * {@link approveAfterPause}. The Activity node completed before the pause, so on resume
+ * ADK has to fast-forward it from the session's events rather than schedule the Activity
+ * again. Returns the second turn's outcome.
+ */
+export async function graphActivityThenPause(activityName: string, nodeName?: string): Promise<RunOutcome> {
+  const work = activityNode({ name: activityName, nodeName, args: () => [] });
+  const ask = node(() => new RequestInput({ interruptId: 'approve', message: 'Continue?' }), { name: 'ask' });
+  return approveAfterPause(new Workflow({ name: 'pause_after_activity', edges: [['START', work, ask]] }));
+}
+
+/**
+ * The same two turns after an Activity whose result carries a `parts` array, the shape
+ * ADK's `FunctionNode` takes for genai `Content`. The pausing node reruns once answered
+ * and then outputs `{ received, answer }`: `received` is the input the Activity node
+ * handed it, so the second turn's output shows what reached the successor.
+ */
+export async function graphPartsPayloadThenPause(): Promise<RunOutcome> {
+  const work = activityNode({ name: 'partsPayload', args: () => [] });
+  const ask = node(
+    (ctx: NodeContext, received: unknown) => {
+      const answer = ctx.resumeInputs['approve'];
+      if (answer === undefined) return new RequestInput({ interruptId: 'approve', message: 'Continue?' });
+      return { received, answer };
+    },
+    { name: 'ask', rerunOnResume: true }
+  );
+  return approveAfterPause(new Workflow({ name: 'pause_after_parts_payload', edges: [['START', work, ask]] }));
 }
 
 /** A dotted Activity type reaches the graph under a path-safe `nodeName`. */
@@ -306,13 +338,12 @@ export async function graphAgentNodeModelFailure(model: string, recover: boolean
 }
 
 /**
- * An `LlmAgent` node whose model call only cancellation can end, with the Activity options
+ * An `LlmAgent` whose model call only cancellation can end, with the Activity options
  * `cancellableModelCall` uses, so the Workflow waits for the cancel to land and history
- * shows how the model Activity ended. ADK absorbs the cancelled call like any other model
- * error and then reports the node as failed (`NodeReportedError`).
+ * shows how the model Activity ended.
  */
-export async function graphCancellableAgentNode(): Promise<RunOutcome> {
-  const agent = new LlmAgent({
+function cancellableAgent(): LlmAgent {
+  return new LlmAgent({
     name: 'assistant',
     model: new TemporalModel('abort-model', {
       activity: {
@@ -324,7 +355,46 @@ export async function graphCancellableAgentNode(): Promise<RunOutcome> {
     }),
     instruction: 'Help.',
   });
-  return runOnce(new Workflow({ name: 'cancellable_agent_graph', edges: [['START', agent]] }), 'hi');
+}
+
+/**
+ * A {@link cancellableAgent} as a graph node. ADK absorbs the cancelled call like any
+ * other model error and then reports the node as failed (`NodeReportedError`).
+ */
+export async function graphCancellableAgentNode(): Promise<RunOutcome> {
+  return runOnce(new Workflow({ name: 'cancellable_agent_graph', edges: [['START', cancellableAgent()]] }), 'hi');
+}
+
+/**
+ * A {@link cancellableAgent} node beside a branch that fails once the model call is under
+ * way: a one-second durable timer, then an Activity that fails for good. ADK aborts the
+ * run's signal when that Activity node fails and waits for the agent node to unwind before
+ * failing the run, which the agent node can only do once its model Activity has ended.
+ */
+export async function graphAgentNodeWithFailingSibling(): Promise<RunOutcome> {
+  // The timer only orders the failure after the model call has started.
+  const wait = node(
+    async () => {
+      await sleep('1 second');
+      return 'waited';
+    },
+    { name: 'wait' }
+  );
+  const failing = activityNode({
+    name: 'failingActivity',
+    args: () => [],
+    activity: { retry: { maximumAttempts: 1 } },
+  });
+  return runOnce(
+    new Workflow({
+      name: 'agent_beside_failing_sibling',
+      edges: [
+        ['START', cancellableAgent()],
+        ['START', wait, failing],
+      ],
+    }),
+    'hi'
+  );
 }
 
 /**
