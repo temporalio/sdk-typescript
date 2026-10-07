@@ -16,20 +16,20 @@ import {
 import { msToTs } from '@temporalio/common/lib/time';
 import { coresdk, temporal } from '@temporalio/proto';
 import { sleep as workflowSleep, type WorkflowInfo } from '@temporalio/workflow';
-import { DefaultLogger, LogTimestamp, type LogEntry } from '@temporalio/worker';
-import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
-import { invokePatchActivationCallback } from '@temporalio/worker/lib/workflow/patch-activation-callback';
-import { ThreadedVMWorkflowCreator } from '@temporalio/worker/lib/workflow/threaded-vm';
-import type { WorkflowBundleWithSourceMapAndFilename } from '@temporalio/worker/lib/workflow/workflow-worker-thread/input';
+import { bundleWorkflowCode, DefaultLogger, LogTimestamp, type LogEntry } from '@temporalio/worker';
+import {
+  invokePatchActivationCallback,
+  parseWorkflowCode,
+  type ReusableVMWorkflow,
+  ReusableVMWorkflowCreator,
+  ThreadedVMWorkflowCreator,
+  type VMWorkflow,
+  VMWorkflowCreator,
+  type WorkflowBundleWithSourceMapAndFilename,
+  type WorkflowCreator,
+} from '@temporalio/worker/internal';
 import type { PatchActivationCallback, PatchActivationInput } from '@temporalio/worker';
-import type { VMWorkflow } from '@temporalio/worker/lib/workflow/vm';
-import { VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
-import type { WorkflowCreator } from '@temporalio/worker/lib/workflow/interface';
 import { createUnsafeRandomSource, type SdkFlag, SdkFlags } from '@temporalio/workflow/internal';
-
-import type { ReusableVMWorkflow } from '@temporalio/worker/lib/workflow/reusable-vm';
-import { ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
-import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
 import * as activityFunctions from './activities';
 import { isBun, cleanStackTrace, compareStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
 import type { ProcessedSignal } from './workflows';
@@ -75,8 +75,7 @@ class TestReusableVMWorkflowCreator extends ReusableVMWorkflowCreator {
 
 test.before(async (t) => {
   const workflowsPath = path.join(__dirname, 'workflows');
-  const bundler = new WorkflowCodeBundler({ workflowsPath });
-  const workflowBundle = parseWorkflowCode((await bundler.createBundle()).code);
+  const workflowBundle = parseWorkflowCode((await bundleWorkflowCode({ workflowsPath })).code);
   t.context.workflowBundle = workflowBundle;
   // FIXME: isolateExecutionTimeoutMs used to be 200 ms, but that's causing
   //        lot of flakes on CI. Revert this after investigation / resolution.

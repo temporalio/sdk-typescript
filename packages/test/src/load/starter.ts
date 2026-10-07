@@ -8,11 +8,14 @@ import type { Observable, OperatorFunction } from 'rxjs';
 import { interval, range, ReplaySubject, pipe, lastValueFrom } from 'rxjs';
 import { bufferTime, map, mergeMap, tap, takeUntil } from 'rxjs/operators';
 import { Connection, ServiceError, WorkflowClient, isGrpcServiceError } from '@temporalio/client';
-import { toMB } from '@temporalio/worker/lib/utils';
 import type { StarterArgSpec } from './args';
 import { starterArgSpec, getRequired } from './args';
 
 const ACCEPTABLE_QUERY_ERROR_CODES = [grpc.status.NOT_FOUND, grpc.status.DEADLINE_EXCEEDED];
+
+function toMB(bytes: number, fractionDigits = 2): string {
+  return (bytes / 1024 / 1024).toFixed(fractionDigits);
+}
 
 async function runWorkflow({ client, workflowName, taskQueue, queryingOptions }: RunWorkflowOptions) {
   const handle = await client.start(workflowName, { args: [], taskQueue, workflowId: randomUUID() });
