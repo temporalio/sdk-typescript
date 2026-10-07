@@ -1,7 +1,7 @@
 import path from 'node:path';
 import v8 from 'node:v8';
 import { readFileSync } from 'node:fs';
-import pkg from '@temporalio/worker/lib/pkg';
+import pkg from '@temporalio/worker/internal/pkg';
 import { bundleWorkflowCode } from '@temporalio/worker';
 import { temporal } from '@temporalio/proto';
 import { QueryNotRegisteredError } from '@temporalio/client';

@@ -9,12 +9,10 @@ import {
   ActivityCancellationDetails,
   LoggerWithComposedMetadata,
 } from '@temporalio/common';
-
 import type { Client } from '@temporalio/client';
 import type { ActivityInterceptorsFactory } from '@temporalio/worker';
 import { DefaultLogger } from '@temporalio/worker';
-import type { CancelReason } from '@temporalio/worker/lib/activity';
-import { Activity } from '@temporalio/worker/lib/activity';
+import { Activity, type CancelReason } from '@temporalio/worker/internal';
 
 export interface MockActivityEnvironmentOptions {
   interceptors?: ActivityInterceptorsFactory[];
