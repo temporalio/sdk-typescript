@@ -40,14 +40,21 @@ export interface BaseHelpers {
   ): Promise<WorkflowHandleWithFirstExecutionRunId<T>>;
 }
 
+// Test titles are only unique within a file, while test files may share a server or namespace (e.g. on Cloud, or
+// when AVA runs files concurrently). Each test file runs in its own process, so a per-process suffix keeps task
+// queues apart across files. Computed lazily so that importing this module from Workflow code stays side-effect free.
+let processTaskQueueSuffix: string | undefined;
+
 /**
- * Default task queue transform function that converts test title to a valid task queue name.
+ * Default task queue transform function that converts test title to a valid task queue name, unique to this process.
  */
 export function defaultTaskQueueTransform(title: string): string {
-  return title
+  processTaskQueueSuffix ??= randomUUID().slice(0, 8);
+  const base = title
     .toLowerCase()
     .replaceAll(/[ _()'-]+/g, '-')
     .replace(/^[-]?(.+?)[-]?$/, '$1');
+  return `${base}-${processTaskQueueSuffix}`;
 }
 
 /**
