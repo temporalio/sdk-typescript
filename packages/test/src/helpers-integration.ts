@@ -91,7 +91,9 @@ export function makeConfigurableEnvironmentTestFn<T>(opts: {
   runtimeOpts?: Partial<RuntimeOptions> | (() => Promise<[Partial<RuntimeOptions>, Partial<T>]>) | undefined;
 }): TestFn<T> {
   const test = anyTest as TestFn<T>;
-  test.before(async (t) => {
+  // Serial, so that `before` hooks a test file registers afterwards (which may read `t.context.env`) only start
+  // once the environment is ready. AVA starts concurrent hooks together, waiting only for earlier serial hooks.
+  test.serial.before(async (t) => {
     const [runtimeOpts, extraContext] =
       typeof opts.runtimeOpts === 'function' ? await opts.runtimeOpts() : [opts.runtimeOpts, {}];
     setupRuntime(opts.recordedLogs, runtimeOpts);
