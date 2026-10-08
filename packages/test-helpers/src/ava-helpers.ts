@@ -6,7 +6,12 @@ function noopTest(): void {
   // eslint: this function body is empty and it's okay.
 }
 
-noopTest.serial = () => undefined;
+function noopSerial(): void {
+  // eslint: this function body is empty and it's okay.
+}
+noopSerial.before = () => undefined;
+
+noopTest.serial = noopSerial;
 noopTest.macro = () => undefined;
 noopTest.before = () => undefined;
 noopTest.after = () => undefined;
