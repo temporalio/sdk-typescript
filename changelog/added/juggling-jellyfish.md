@@ -1,0 +1,1 @@
+**Experimental**: `ExternalStorage` now accepts cooperative concurrency limits: `maxDriverOperations` caps operations across its registered drivers, and `maxOperationsPerMessage` caps operations per top-level input or output. Drivers must acquire permits through `context.limiter`; the bundled S3 and GCS drivers use it.

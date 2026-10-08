@@ -1,6 +1,2 @@
 **Experimental**: Workflows can signal another Workflow and start it when absent with `signalWithStartWorkflow`.
 **Experimental**: Workflow outbound interceptors can intercept Temporal System Nexus calls generically with `startSystemNexusOperation` or specifically with `signalWithStartWorkflow`.
-**Experimental**: Nexus workers decode Temporal System Nexus inputs sent by the server with the System Nexus converter.
-**Experimental**: `ExternalStorage` now accepts cooperative concurrency limits: `maxDriverOperations` caps operations across its registered drivers, and `maxOperationsPerMessage` caps operations per top-level input or output. Drivers must acquire permits through `context.limiter`; the bundled S3 and GCS drivers use it.
-**Experimental**: External storage failures now surface as dedicated error types exported from `@temporalio/common`: `ExternalStorageDriverError`, `ExternalStorageUnregisteredDriverError`, and `ExternalStorageReferenceError`, all extending the new `ExternalStorageError` base type.
-The Workflow sandbox now exposes `URLPattern`, both as a global and from the `url` module, when the Worker runs on Node.js 23.8 or later. On older Node.js versions, `URLPattern` remains undefined inside Workflows.
