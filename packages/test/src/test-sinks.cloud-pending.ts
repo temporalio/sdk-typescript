@@ -26,7 +26,7 @@ if (RUN_INTEGRATION_TESTS) {
   let nativeConnection: NativeConnection;
 
   test.before(async (_) => {
-    await registerDefaultCustomSearchAttributes(await Connection.connect({}));
+    await registerDefaultCustomSearchAttributes(await Connection.connect({}), 'default');
     Runtime.install({
       logger: new DefaultLogger('DEBUG', (entry: LogEntry) => {
         const workflowId = (entry.meta as any)?.workflowInfo?.workflowId;
