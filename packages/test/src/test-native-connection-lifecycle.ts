@@ -15,11 +15,10 @@ test('NativeConnection.close() throws when called a second time', async (t) => {
 });
 
 test('NativeConnection.close() throws if being used by a Worker and succeeds if it has been shutdown', async (t) => {
-  const { createNativeConnection, createWorker } = helpers(t);
+  const { createNativeConnection, createWorkflowlessWorker } = helpers(t);
   const connection = await createNativeConnection();
-  const worker = await createWorker({
+  const worker = await createWorkflowlessWorker({
     connection,
-    workflowBundle: undefined,
     activities: {
       async noop() {
         // Empty placeholder.

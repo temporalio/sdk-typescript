@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import type { ExecutionContext } from 'ava';
 import type { WorkflowHandleWithFirstExecutionRunId, WorkflowStartOptions } from '@temporalio/client';
 import type { TestWorkflowEnvironment as RealTestWorkflowEnvironment } from '@temporalio/testing';
-import type { WorkerOptions, WorkflowBundle } from '@temporalio/worker';
+import type { WorkerInterceptors, WorkerOptions, WorkflowBundle, WorkflowBundleOption } from '@temporalio/worker';
 import type * as workflow from '@temporalio/workflow';
 import type { TestWorkflowEnvironment } from './wrappers';
 import { Worker } from './wrappers';
@@ -10,6 +10,48 @@ import { Worker } from './wrappers';
 export const isBun = typeof (globalThis as any).Bun !== 'undefined';
 /** Union type for all supported test environment types */
 export type AnyTestWorkflowEnvironment = TestWorkflowEnvironment | RealTestWorkflowEnvironment;
+
+// Worker options that choose the Worker's Workflow code. The Worker uses only one source: a prebuilt bundle wins, and
+// `workflowsPath`, `bundlerOptions` and `interceptors.workflowModules` are then ignored. The types below make each
+// source exclusive, so a test can't pass options that would silently be dropped.
+type WorkerOptionsWithoutWorkflowCode = Omit<
+  Partial<WorkerOptions>,
+  'workflowBundle' | 'workflowsPath' | 'bundlerOptions' | 'interceptors'
+>;
+type InterceptorsWithoutWorkflowModules = Omit<WorkerInterceptors, 'workflowModules'> & { workflowModules?: never };
+
+/**
+ * Options for a test Worker.
+ *
+ * The Worker runs the suite's Workflow bundle unless the test provides its own Workflow code, either as a prebuilt
+ * `workflowBundle` or as a `workflowsPath` for the Worker to bundle (optionally with bundle-time options).
+ */
+export type TestWorkerOptions =
+  | (WorkerOptionsWithoutWorkflowCode & {
+      workflowBundle?: never;
+      workflowsPath?: never;
+      bundlerOptions?: never;
+      interceptors?: InterceptorsWithoutWorkflowModules;
+    })
+  | (WorkerOptionsWithoutWorkflowCode & {
+      workflowBundle: WorkflowBundleOption;
+      workflowsPath?: never;
+      bundlerOptions?: never;
+      interceptors?: InterceptorsWithoutWorkflowModules;
+    })
+  | (WorkerOptionsWithoutWorkflowCode & {
+      workflowBundle?: never;
+      workflowsPath: string;
+      bundlerOptions?: WorkerOptions['bundlerOptions'];
+      interceptors?: WorkerInterceptors;
+    });
+
+/**
+ * Options for a test Worker that runs no Workflows.
+ */
+export type WorkflowlessWorkerOptions = WorkerOptionsWithoutWorkflowCode & {
+  interceptors?: InterceptorsWithoutWorkflowModules;
+};
 
 /**
  * Base context interface for test environments.
@@ -27,7 +69,8 @@ export interface BaseContext<TEnv extends AnyTestWorkflowEnvironment = TestWorkf
  */
 export interface BaseHelpers {
   readonly taskQueue: string;
-  createWorker(opts?: Partial<WorkerOptions>): Promise<Worker>;
+  createWorker(opts?: TestWorkerOptions): Promise<Worker>;
+  createWorkflowlessWorker(opts?: WorkflowlessWorkerOptions): Promise<Worker>;
   executeWorkflow<T extends () => Promise<any>>(workflowType: T): Promise<workflow.WorkflowResultType<T>>;
   executeWorkflow<T extends workflow.Workflow>(
     fn: T,
@@ -70,13 +113,22 @@ export function helpers<TEnv extends AnyTestWorkflowEnvironment = TestWorkflowEn
 
   return {
     taskQueue,
-    async createWorker(workerOpts?: Partial<WorkerOptions>): Promise<Worker> {
+    async createWorker(workerOpts: TestWorkerOptions = {}): Promise<Worker> {
+      const usesSuiteBundle = workerOpts.workflowBundle === undefined && workerOpts.workflowsPath === undefined;
       return await Worker.create({
         connection: env.nativeConnection,
         namespace: env.namespace,
-        workflowBundle,
         taskQueue,
         showStackTraceSources: true,
+        ...workerOpts,
+        ...(usesSuiteBundle ? { workflowBundle } : {}),
+      });
+    },
+    async createWorkflowlessWorker(workerOpts: WorkflowlessWorkerOptions = {}): Promise<Worker> {
+      return await Worker.create({
+        connection: env.nativeConnection,
+        namespace: env.namespace,
+        taskQueue,
         ...workerOpts,
       });
     },
