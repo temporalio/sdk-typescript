@@ -145,7 +145,8 @@ pnpm install --frozen-lockfile
 If `pnpm install` fails in `@temporalio/core-bridge` on the command `pnpm tsx ./scripts/build.ts`, you may
 need to do `rustup update`.
 
-To update to the latest version of the Core SDK, run `git submodule update` followed by `pnpm build` to recompile.
+To update to the latest version of the Core SDK and import its changelog entries, run `pnpm update-core`
+followed by `pnpm build` to recompile. See [Updating SDK Core](CONTRIBUTING.md#updating-sdk-core).
 
 ### Development commands
 
