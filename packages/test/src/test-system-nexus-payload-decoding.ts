@@ -114,6 +114,19 @@ test('decodePayload uses the System Nexus converter for a marked input', async (
   t.is(result.namespace, 'target-namespace');
 });
 
+test('decodePayload preserves a one-time versioning override in a System Nexus input', async (t) => {
+  const version = { deploymentName: 'deployment', buildId: 'build' };
+  const result = (await decodePayload(
+    defaultDataConverter,
+    systemNexusPayloadWith(defaultPayloadConverter.toPayload('input'), undefined, {
+      versioningOverride: { oneTime: { targetDeploymentVersion: version } },
+    }),
+    signalWithStartInputType
+  )) as SignalWithStartWorkflowRequest;
+
+  t.deepEqual(result.versioningOverride, { oneTimeTo: version });
+});
+
 interface TestSystemRequest {
   value: string;
 }

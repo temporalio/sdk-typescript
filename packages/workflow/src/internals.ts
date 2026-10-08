@@ -28,6 +28,8 @@ import {
   IllegalStateError,
   TemporalFailure,
   WorkflowExecutionAlreadyStartedError,
+  NamespaceNotFoundError,
+  InvalidVersioningOverrideError,
   ApplicationFailure,
   mapFromPayloads,
   fromPayloadWithTypeInfo,
@@ -90,6 +92,8 @@ import { deserializeSystemNexusOutput } from './nexus/system/payload-converter';
 
 const StartChildWorkflowExecutionFailedCause = {
   WORKFLOW_ALREADY_EXISTS: 'WORKFLOW_ALREADY_EXISTS',
+  NAMESPACE_NOT_FOUND: 'NAMESPACE_NOT_FOUND',
+  INVALID_VERSIONING_OVERRIDE: 'INVALID_VERSIONING_OVERRIDE',
 } as const;
 type StartChildWorkflowExecutionFailedCause =
   (typeof StartChildWorkflowExecutionFailedCause)[keyof typeof StartChildWorkflowExecutionFailedCause];
@@ -104,6 +108,8 @@ const [_encodeStartChildWorkflowExecutionFailedCause, decodeStartChildWorkflowEx
   >(
     {
       [StartChildWorkflowExecutionFailedCause.WORKFLOW_ALREADY_EXISTS]: 1,
+      [StartChildWorkflowExecutionFailedCause.NAMESPACE_NOT_FOUND]: 2,
+      [StartChildWorkflowExecutionFailedCause.INVALID_VERSIONING_OVERRIDE]: 3,
       UNSPECIFIED: 0,
     } as const,
     'START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_'
@@ -748,19 +754,28 @@ export class Activator implements ActivationHandler {
       }
       resolve(activation.succeeded.runId);
     } else if (activation.failed) {
-      if (decodeStartChildWorkflowExecutionFailedCause(activation.failed.cause) !== 'WORKFLOW_ALREADY_EXISTS') {
-        throw new IllegalStateError('Got unknown StartChildWorkflowExecutionFailedCause');
-      }
       if (!(activation.seq && activation.failed.workflowId && activation.failed.workflowType)) {
         throw new TypeError('Missing attributes in activation job');
       }
-      reject(
-        new WorkflowExecutionAlreadyStartedError(
-          'Workflow execution already started',
-          activation.failed.workflowId,
-          activation.failed.workflowType
-        )
-      );
+      switch (decodeStartChildWorkflowExecutionFailedCause(activation.failed.cause)) {
+        case 'WORKFLOW_ALREADY_EXISTS':
+          reject(
+            new WorkflowExecutionAlreadyStartedError(
+              'Workflow execution already started',
+              activation.failed.workflowId,
+              activation.failed.workflowType
+            )
+          );
+          break;
+        case 'NAMESPACE_NOT_FOUND':
+          reject(new NamespaceNotFoundError(this.info.namespace));
+          break;
+        case 'INVALID_VERSIONING_OVERRIDE':
+          reject(new InvalidVersioningOverrideError('Invalid versioning override'));
+          break;
+        default:
+          throw new IllegalStateError('Got unknown StartChildWorkflowExecutionFailedCause');
+      }
       this.completions.childWorkflowComplete.delete(seq);
     } else if (activation.cancelled) {
       if (!activation.cancelled.failure) {

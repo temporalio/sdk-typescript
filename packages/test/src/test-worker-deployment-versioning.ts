@@ -7,7 +7,7 @@ import { randomUUID } from 'crypto';
 import asyncRetry from 'async-retry';
 import type { ExecutionContext } from 'ava';
 import type { Client, WorkflowHandleWithFirstExecutionRunId } from '@temporalio/client';
-import type { WorkerDeploymentVersion } from '@temporalio/common';
+import type { VersioningOverride, WorkerDeploymentVersion } from '@temporalio/common';
 import { toCanonicalString } from '@temporalio/common';
 import { temporal } from '@temporalio/proto';
 import type { WorkerOptions } from '@temporalio/worker';
@@ -15,10 +15,21 @@ import { Worker } from './helpers';
 import type { Context } from './helpers-integration';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { unblockSignal, versionQuery } from './workflows';
+import type { ChildVersioningOptions } from './deployment-versioning-child';
 
 type WorkerDeploymentOptions = NonNullable<WorkerOptions['workerDeploymentOptions']>;
 
-const test = makeTestFunction({ workflowsPath: __filename });
+const test = makeTestFunction({
+  workflowsPath: __filename,
+  workflowEnvironmentOpts: {
+    server: {
+      // Child versioning overrides, including one-time routing, require server >= 1.32.
+      executable: process.env.TEMPORAL_TEST_SERVER_PATH
+        ? { type: 'existing-path', path: process.env.TEMPORAL_TEST_SERVER_PATH }
+        : { type: 'cached-download', version: 'v1.8.3-server-1.32.0-162.0' },
+    },
+  },
+});
 
 test('Worker deployment based versioning', async (t) => {
   const taskQueue = 'worker-deployment-based-versioning-' + randomUUID();
@@ -448,6 +459,130 @@ test('Workflow versioningOverride overrides default versioning behavior', async 
 
   worker1.shutdown();
   await worker1Promise;
+});
+
+test('Child workflow versioning overrides route independently of a pinned parent', async (t) => {
+  const taskQueue = 'child-versioning-' + randomUUID();
+  const deploymentName = 'child-versioning-' + randomUUID();
+  const { client, nativeConnection } = t.context.env;
+  const { createNativeConnection } = helpers(t);
+  const parentVersion = { buildId: '1.0', deploymentName };
+  const targetVersion = { buildId: '2.0', deploymentName };
+  const currentVersion = { buildId: '3.0', deploymentName };
+
+  for (const version of [parentVersion, targetVersion, currentVersion]) {
+    const connection = version === parentVersion ? nativeConnection : await createNativeConnection();
+    if (connection !== nativeConnection) t.teardown(() => connection.close());
+    const worker = await Worker.create({
+      workflowsPath: require.resolve('./deployment-versioning-child'),
+      taskQueue,
+      namespace: client.options.namespace,
+      connection,
+      workerDeploymentOptions: {
+        useWorkerVersioning: true,
+        version,
+        defaultVersioningBehavior: 'PINNED',
+      },
+    });
+    const run = worker.run();
+    t.teardown(async () => {
+      if (worker.getState() === 'RUNNING') worker.shutdown();
+      await run;
+    });
+    // Handle rejection immediately; teardown still awaits the original promise.
+    run.catch((err) => t.fail(`Worker ${version.buildId} run error: ${err}`));
+    await waitUntilWorkerDeploymentVisible(client, version);
+  }
+
+  const deployment = await waitUntilWorkerDeploymentVisible(client, currentVersion);
+  await setCurrentDeploymentVersion(client, deployment.conflictToken, currentVersion);
+  await waitForRoutingConfigPropagation(client, deploymentName, currentVersion.buildId);
+
+  const cases: {
+    name: string;
+    override?: VersioningOverride;
+    behavior: ChildVersioningOptions['childBehavior'];
+    initialVersion: string;
+    finalVersion: string;
+  }[] = [
+    {
+      name: 'inherit pinned parent',
+      behavior: 'PINNED',
+      initialVersion: parentVersion.buildId,
+      finalVersion: parentVersion.buildId,
+    },
+    {
+      name: 'pinned overrides auto-upgrade annotation',
+      override: { pinnedTo: targetVersion },
+      behavior: 'AUTO_UPGRADE',
+      initialVersion: targetVersion.buildId,
+      finalVersion: targetVersion.buildId,
+    },
+    {
+      name: 'auto-upgrade overrides pinned annotation',
+      override: 'AUTO_UPGRADE',
+      behavior: 'PINNED',
+      initialVersion: currentVersion.buildId,
+      finalVersion: parentVersion.buildId,
+    },
+    {
+      name: 'one-time routing honors pinned annotation',
+      override: { oneTimeTo: targetVersion },
+      behavior: 'PINNED',
+      initialVersion: targetVersion.buildId,
+      finalVersion: targetVersion.buildId,
+    },
+    {
+      name: 'one-time routing honors auto-upgrade annotation',
+      override: { oneTimeTo: targetVersion },
+      behavior: 'AUTO_UPGRADE',
+      initialVersion: targetVersion.buildId,
+      finalVersion: parentVersion.buildId,
+    },
+  ];
+
+  const executions = [];
+  for (const api of ['startChild', 'executeChild'] as const) {
+    for (const scenario of cases) {
+      const childWorkflowId = 'child-' + randomUUID();
+      const parent = await client.workflow.start('childVersioningParent', {
+        workflowId: 'parent-' + randomUUID(),
+        taskQueue,
+        versioningOverride: { pinnedTo: parentVersion },
+        args: [
+          {
+            childWorkflowId,
+            childBehavior: scenario.behavior,
+            versioningOverride: scenario.override,
+            api,
+          } satisfies ChildVersioningOptions,
+        ],
+      });
+      const child = client.workflow.getHandle(childWorkflowId);
+      t.is(await parent.query(versionQuery), parentVersion.buildId, `${api}: ${scenario.name}: parent`);
+      // The child may not yet have started when the parent's first task completes.
+      await asyncRetry(
+        async () => {
+          const version = await child.query(versionQuery);
+          if (version !== scenario.initialVersion) {
+            throw new Error(`${api}: ${scenario.name}: child on ${version}, expected ${scenario.initialVersion}`);
+          }
+        },
+        { maxTimeout: 1000, retries: 10 }
+      );
+      executions.push({ parent, child, scenario, api });
+    }
+  }
+
+  // Move current away from both the initial current and the override target. Pinned children
+  // stay put; auto-upgrading children (including one-time routed ones) must follow current.
+  const beforeUpdate = await waitUntilWorkerDeploymentVisible(client, parentVersion);
+  await setCurrentDeploymentVersion(client, beforeUpdate.conflictToken, parentVersion);
+  await waitForRoutingConfigPropagation(client, deploymentName, parentVersion.buildId);
+  for (const { parent, child, scenario, api } of executions) {
+    await child.signal(unblockSignal);
+    t.is(await parent.result(), scenario.finalVersion, `${api}: ${scenario.name}: final child version`);
+  }
 });
 
 async function setRampingVersion(

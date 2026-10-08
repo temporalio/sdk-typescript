@@ -19,6 +19,7 @@ export * from './cancellation-scopes-with-callbacks';
 export * from './child-and-noncancellable';
 export * from './child-workflow-cancel';
 export * from './child-workflow-signals';
+export { childWorkflowVersioningOverride } from './child-workflow-versioning-override';
 export * from './condition';
 export * from './condition-completion-race';
 export * from './condition-timeout-0';

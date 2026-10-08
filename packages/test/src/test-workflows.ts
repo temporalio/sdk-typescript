@@ -4,7 +4,7 @@ import type { ExecutionContext, TestFn } from 'ava';
 import anyTest from 'ava';
 import dedent from 'dedent';
 import Long from 'long';
-import type { Logger, Payload } from '@temporalio/common';
+import type { Logger, Payload, VersioningOverride } from '@temporalio/common';
 import {
   ApplicationFailure,
   defaultFailureConverter,
@@ -1528,6 +1528,77 @@ test('childAndNonCancellable', async (t) => {
     compareCompletion(t, req, makeSuccess());
   }
 });
+
+const childDeploymentVersion = { deploymentName: 'deployment', buildId: 'build' };
+const childVersioningOverrides: {
+  name: string;
+  override: VersioningOverride | undefined;
+  proto: temporal.api.workflow.v1.IVersioningOverride | undefined;
+}[] = [
+  { name: 'none', override: undefined, proto: undefined },
+  {
+    name: 'pinned',
+    override: { pinnedTo: childDeploymentVersion },
+    proto: { pinned: { version: childDeploymentVersion, behavior: 1 } },
+  },
+  { name: 'auto-upgrade', override: 'AUTO_UPGRADE', proto: { autoUpgrade: true } },
+  {
+    name: 'one-time',
+    override: { oneTimeTo: childDeploymentVersion },
+    proto: { oneTime: { targetDeploymentVersion: childDeploymentVersion } },
+  },
+];
+
+for (const useStartChild of [false, true]) {
+  const api = useStartChild ? 'startChild' : 'executeChild';
+  for (const { name, override, proto } of childVersioningOverrides) {
+    test(`${api} encodes ${name} childWorkflowVersioningOverride`, async (t) => {
+      const completion = await activate(
+        t,
+        makeStartWorkflow(t.context.workflowType, toPayloads(defaultPayloadConverter, override, useStartChild))
+      );
+      t.is(completion.successful?.commands?.length, 1);
+      const command = completion.successful!.commands![0].startChildWorkflowExecution!;
+      t.is(command.workflowId, 'child-workflow');
+      t.is(command.workflowType, 'successString');
+      const encoded = command.versioningOverride
+        ? temporal.api.workflow.v1.VersioningOverride.create(command.versioningOverride).toJSON()
+        : undefined;
+      const expected = proto ? temporal.api.workflow.v1.VersioningOverride.create(proto).toJSON() : undefined;
+      t.deepEqual(encoded, expected);
+    });
+  }
+
+  test(`${api} rejects invalid override with a typed error childWorkflowVersioningOverride`, async (t) => {
+    await activate(
+      t,
+      makeStartWorkflow(
+        t.context.workflowType,
+        toPayloads(defaultPayloadConverter, { pinnedTo: childDeploymentVersion }, useStartChild)
+      )
+    );
+    const completion = await activate(
+      t,
+      makeActivation(Date.now(), {
+        resolveChildWorkflowExecutionStart: {
+          seq: 1,
+          failed: {
+            cause:
+              coresdk.child_workflow.StartChildWorkflowExecutionFailedCause
+                .START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_INVALID_VERSIONING_OVERRIDE,
+            workflowId: 'child-workflow',
+            workflowType: 'successString',
+          },
+        },
+      })
+    );
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload('invalid versioning override'))])
+    );
+  });
+}
 
 test('partialNonCancellable', async (t) => {
   const { workflowType, logs } = t.context;
