@@ -274,7 +274,10 @@ export function helpers(t: ExecutionContext<Context>, env?: TestWorkflowEnvironm
 export function configurableHelpers<T>(
   t: ExecutionContext<T>,
   workflowBundle: WorkflowBundle,
-  testEnv: TestWorkflowEnvironment
+  testEnv: TestWorkflowEnvironment,
+  taskQueueSuffix?: string
 ): BaseHelpers {
-  return baseHelpers({ title: t.title, context: { env: testEnv, workflowBundle } } as ExecutionContext<Context>);
+  // A suffix keeps environments that share a namespace from deriving the same task queue for one test.
+  const title = taskQueueSuffix === undefined ? t.title : `${t.title} ${taskQueueSuffix}`;
+  return baseHelpers({ title, context: { env: testEnv, workflowBundle } } as ExecutionContext<Context>);
 }
