@@ -19,6 +19,11 @@ debug = false
 lto = true
 incremental = false
 
+[features]
+default = ["tls-ring"]
+tls-ring = ["temporalio-sdk-core/tls-ring"]
+fips = ["temporalio-sdk-core/tls-aws-lc", "dep:rustls"]
+
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1.83"
@@ -33,12 +38,16 @@ os_pipe = "1.2.1"
 parking_lot = "0.12"
 prost = "0.14"
 prost-types = "0.14"
+# Not used directly: turns on rustls' FIPS mode for the TLS in sdk-core.
+rustls = { version = "0.23", default-features = false, features = ["fips"], optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-temporalio-sdk-core = { version = "*", path = "./sdk-core/crates/sdk-core", features = [
+temporalio-sdk-core = { version = "*", path = "./sdk-core/crates/sdk-core", default-features = false, features = [
+  "envconfig",
   "ephemeral-server",
+  "prometheus",
 ] }
-temporalio-client = { version = "*", path = "./sdk-core/crates/client", features = [
+temporalio-client = { version = "*", path = "./sdk-core/crates/client", default-features = false, features = [
   "experimental",
 ] }
 temporalio-common = { version = "*", path = "./sdk-core/crates/common", features = [
