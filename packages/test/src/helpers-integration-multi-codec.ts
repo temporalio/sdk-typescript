@@ -2,9 +2,10 @@
 import type { ExecutionContext, TestFn } from 'ava';
 import type { LoadedDataConverter } from '@temporalio/common';
 import { defaultFailureConverter, defaultPayloadConverter } from '@temporalio/common';
-import type { WorkerOptions, WorkflowBundle } from '@temporalio/worker';
+import type { WorkflowBundle } from '@temporalio/worker';
 
 import type { TestWorkflowEnvironment } from '@temporalio/testing';
+import type { BaseHelpers, TestWorkerOptions } from '@temporalio/test-helpers';
 import {
   configurableHelpers,
   createTestWorkflowEnvironment,
@@ -19,7 +20,9 @@ export * from './workflows';
 interface TestConfig {
   loadedDataConverter: LoadedDataConverter;
   env: TestWorkflowEnvironment;
-  createWorkerWithDefaults: (t: ExecutionContext<TestContext>, opts?: Partial<WorkerOptions>) => Promise<Worker>;
+  /** Helpers bound to this variant's environment and task queue. */
+  helpers: (t: ExecutionContext<TestContext>) => BaseHelpers;
+  createWorkerWithDefaults: (t: ExecutionContext<TestContext>, opts?: TestWorkerOptions) => Promise<Worker>;
 }
 interface TestContext {
   workflowBundle: WorkflowBundle;
@@ -44,12 +47,17 @@ export function makeTestFn(makeBundle: () => Promise<WorkflowBundle>): TestFn<Te
           const env = await createTestWorkflowEnvironment({
             client: { dataConverter },
           });
+          // Variants run concurrently and may share a namespace (e.g. on Cloud), so each needs its own task queue.
+          const taskQueueSuffix = codec ? 'byte-skewer' : undefined;
+          const helpers = (t: ExecutionContext<TestContext>) =>
+            configurableHelpers(t, t.context.workflowBundle, env, taskQueueSuffix);
 
           configs.push({
             loadedDataConverter,
             env,
-            createWorkerWithDefaults(t: ExecutionContext<TestContext>, opts?: Partial<WorkerOptions>): Promise<Worker> {
-              return configurableHelpers(t, t.context.workflowBundle, env).createWorker({
+            helpers,
+            createWorkerWithDefaults(t: ExecutionContext<TestContext>, opts?: TestWorkerOptions): Promise<Worker> {
+              return helpers(t).createWorker({
                 dataConverter,
                 ...opts,
               });
