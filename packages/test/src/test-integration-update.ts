@@ -905,7 +905,7 @@ export { signalsActivitiesTimersPromiseOrdering };
 // A broader check covering issue #1474, but also other subtle ordering issues caused by the fact
 // that signals used to be processed in a distinct phase from other types of jobs.
 test('Signals/Updates/Activities/Timers have coherent promise completion ordering', async (t) => {
-  const { createWorker, startWorkflow, taskQueue, updateHasBeenAdmitted } = helpers(t);
+  const { createWorker, createWorkflowlessWorker, startWorkflow, taskQueue, updateHasBeenAdmitted } = helpers(t);
 
   // We need signal+update+timer completion+activity completion to all happen in the same workflow task.
   // To get there, as soon as the activity gets scheduled, we shutdown the workflow worker, then send
@@ -924,11 +924,9 @@ test('Signals/Updates/Activities/Timers have coherent promise completion orderin
   };
 
   try {
-    const activityWorker = await createWorker({
+    const activityWorker = await createWorkflowlessWorker({
       taskQueue: `${taskQueue}-activity`,
       activities: { myActivity: killWorker1 },
-      workflowBundle: undefined,
-      workflowsPath: undefined,
     });
     await activityWorker.runUntil(async () => {
       const handle = await startWorkflow(signalsActivitiesTimersPromiseOrdering);
