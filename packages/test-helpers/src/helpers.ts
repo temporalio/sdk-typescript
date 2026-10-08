@@ -51,6 +51,37 @@ export function defaultTaskQueueTransform(title: string): string {
 }
 
 /**
+ * Reject Worker options that the Worker would silently ignore.
+ *
+ * When `workflowBundle` is set, the Worker logs a warning and ignores `workflowsPath`, `bundlerOptions` and
+ * `interceptors.workflowModules`, so a test passing them would run different Workflow code than it intends.
+ */
+function assertWorkflowSourceOptionsApply(workerOpts: Partial<WorkerOptions>): void {
+  const hasWorkflowsPath = workerOpts.workflowsPath !== undefined;
+  const hasBundleTimeOptions =
+    workerOpts.bundlerOptions !== undefined || workerOpts.interceptors?.workflowModules !== undefined;
+  if (workerOpts.workflowBundle !== undefined && (hasWorkflowsPath || hasBundleTimeOptions)) {
+    throw new TypeError(
+      'createWorker() was given workflowBundle together with workflowsPath, bundlerOptions or ' +
+        'interceptors.workflowModules; the Worker ignores the latter when a prebuilt bundle is used'
+    );
+  }
+  if (!hasWorkflowsPath && workerOpts.workflowBundle === undefined && hasBundleTimeOptions) {
+    throw new TypeError(
+      'createWorker() was given bundlerOptions or interceptors.workflowModules without workflowsPath; ' +
+        'these options are ignored when the suite workflow bundle is used'
+    );
+  }
+}
+
+/**
+ * Whether Worker options select their own Workflow code, in which case the suite bundle must not be injected.
+ */
+function definesWorkflowSource(workerOpts: Partial<WorkerOptions>): boolean {
+  return 'workflowBundle' in workerOpts || 'workflowsPath' in workerOpts;
+}
+
+/**
  * Create helpers for a test.
  *
  * When called with just `t`, extracts env and workflowBundle from `t.context`.
@@ -70,11 +101,12 @@ export function helpers<TEnv extends AnyTestWorkflowEnvironment = TestWorkflowEn
 
   return {
     taskQueue,
-    async createWorker(workerOpts?: Partial<WorkerOptions>): Promise<Worker> {
+    async createWorker(workerOpts: Partial<WorkerOptions> = {}): Promise<Worker> {
+      assertWorkflowSourceOptionsApply(workerOpts);
       return await Worker.create({
         connection: env.nativeConnection,
         namespace: env.namespace,
-        workflowBundle,
+        ...(definesWorkflowSource(workerOpts) ? {} : { workflowBundle }),
         taskQueue,
         showStackTraceSources: true,
         ...workerOpts,
