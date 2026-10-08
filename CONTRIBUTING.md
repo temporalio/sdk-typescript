@@ -68,6 +68,56 @@ Good pull requests are focused and easy to review:
 Run the relevant local checks when practical. CI must pass before a pull request can
 be merged.
 
+## Development workflow
+
+### Changelog fragments
+
+For user-facing changes, add a concise fragment under `changelog/<category>/`
+instead of editing `CHANGELOG.md`. Use fun, whimsical lowercase kebab-case names,
+such as `tap-dancing-teapot.md`. Each nonempty line becomes a bullet; omit the
+leading `-`. See [the fragment convention](changelog/README.md). Run
+`pnpm changelog:check` to validate pending fragments.
+
+### Updating SDK Core
+
+Run `pnpm update-core` to update to Core's latest main commit, import its changelog
+entries with a `Core: ` prefix, and refresh the bridge `Cargo.lock`. Pass
+`--revision <ref>` to select another locally available commit. Review and commit
+the pin, imported fragments, and lockfile together. Rebuild with `pnpm build`,
+regenerate changed protobuf definitions with `pnpm gen:protos`, and check bridge
+API compatibility as needed. If Cargo resolution fails, the pin and fragments
+remain for inspection. Updating Core no longer waits until release preparation
+to record its user-facing changes.
+
+### Preparing and publishing a release
+
+From a release preparation branch, run:
+
+```bash
+pnpm release:prepare 1.25.0 --date 2026-10-08
+```
+
+The TypeScript adapter updates versioned package manifests under `packages/`,
+`contrib/`, and `scripts/`, refreshes `pnpm-lock.yaml`, then invokes Core's shared
+`prepare` command to write the dated changelog and consume fragments. The date
+defaults to today in UTC. Review and commit the versions, lockfile, changelog, and
+fragment deletions together. If preparation fails, inspect the version and
+lockfile changes before retrying. To assemble notes after updating versions and
+the lockfile manually, use `pnpm changelog:prepare --version 1.25.0 --date 2026-10-08`.
+
+Generate publishing notes with:
+
+```bash
+pnpm release:notes --version 1.25.0 --output release-notes.md
+```
+
+This reads the completed changelog and appends Core commit links; it does not
+import entries at publish time. The shared tool selects the greatest numeric
+release tag below the requested version, including `v`-prefixed tags; pass
+`--from <previous-tag>` to override it. Publishing remains a maintainer operation;
+use this output as the GitHub Release body. The release workflow also generates a
+`release-notes` artifact on release branches.
+
 ## Things to Avoid
 
 Avoid changes that make review harder without improving the contribution:

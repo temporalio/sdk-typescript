@@ -10,6 +10,7 @@ contrib/*/CHANGELOG.md
 packages/docs/docs/api
 typedoc-sidebar.js
 pnpm-lock.yaml
+changelog/**/*.md
 packages/proto/protos/root.d.ts
 packages/proto/protos/json-module.js
 packages/test/protos/root.d.ts
