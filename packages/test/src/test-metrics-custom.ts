@@ -355,7 +355,6 @@ test('Workflow and Activity Context metrics interceptors add tags', async (t) =>
 
   const worker = await createWorker({
     taskQueue,
-    workflowsPath: __filename,
     activities: {
       metricActivity,
     },
