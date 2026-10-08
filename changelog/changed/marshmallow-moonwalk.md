@@ -1,3 +1,1 @@
 Updated `unionfs` from 4.5.1 to 4.6.0, `@grpc/grpc-js` from 1.12.4 to 1.12.7, `smol-toml` from 1.6.1 to 1.7.1, and `tar` from 7.5.11 to 7.5.21.
-Workers now refuse to load and execute Workflow bundles produced with a different SDK version. This unsupported practice previously resulted in subtle, hard-to-diagnose issues.
-**Experimental**: `createEventGroup(...)` now takes the Event Group's ID as its first and only required argument; user-provided IDs are used verbatim and should not contain sensitive information. The optional label is a codec-encoded Payload on the second argument, the type is now `EventGroup` (previously `EventGroupMarker`), and direct Event Group attachment is supported on more APIs.
