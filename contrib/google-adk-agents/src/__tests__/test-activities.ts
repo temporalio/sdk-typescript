@@ -138,6 +138,21 @@ export async function dangerActivity(args: { target: string }): Promise<string> 
   return `danger-done:${args.target}`;
 }
 
+/**
+ * The tool behind `activityAsTool` in the sibling-failure test: heartbeats until it is
+ * cancelled (heartbeats are how a cancel request reaches a running Activity), recording
+ * each attempt, so history shows whether the cancel landed or the call ran its course.
+ */
+export async function hangingTool(_args: Record<string, unknown>): Promise<never> {
+  const ctx = Context.current();
+  record(`hangingTool:${ctx.info.attempt}`);
+  for (;;) {
+    ctx.heartbeat();
+    // Rejects with the CancelledFailure once the cancel lands.
+    await ctx.sleep(200);
+  }
+}
+
 /** Echoes `id` back, recording the value the Workflow actually sent. */
 export async function echoId(id: string): Promise<string> {
   record(`echoId:${id}`);

@@ -3,6 +3,7 @@ import { BaseTool, type Context, type RunAsyncToolRequest } from '@google/adk';
 import { ApplicationFailure } from '@temporalio/common';
 import { type ActivityOptions, inWorkflowContext, proxyActivities } from '@temporalio/workflow';
 
+import { underAbortSignal } from './abort';
 import { evaluateRequireConfirmation, gateOnConfirmation, type RequireConfirmation } from './confirmation';
 import { ACTIVITY_TOOL_OUTSIDE_WORKFLOW_FAILURE_TYPE } from './error-types';
 import { activityOptionsFrom } from './model';
@@ -102,7 +103,10 @@ class ActivityTool extends BaseTool {
     // so the indexed access is always defined; `noUncheckedIndexedAccess`
     // widens the static type to `| undefined`, hence the assertion.
     const activity = activities[this.name]!;
-    return activity(request.args);
+    // Only the Activity call is cancellable, after the gate decided: a pending
+    // confirmation never schedules anything, so an abort has nothing to reach there.
+    // In a graph, a failing sibling aborts this signal and ADK then waits for this node.
+    return underAbortSignal(request.toolContext?.abortSignal, () => activity(request.args));
   }
 }
 

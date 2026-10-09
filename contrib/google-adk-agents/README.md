@@ -440,9 +440,11 @@ cancelled Activity node ends it CANCELLED the same way, inside a dynamic run too
 A failing sibling does not cancel the execution either. When a graph node fails,
 ADK aborts the run and waits for the nodes still running before failing it. The
 plugin turns that abort into a cancellation of the Activity each of those nodes is
-waiting on, an Activity node's Activity or an agent node's model call, and the
-execution then fails with the failed node's failure. The Activity's
-`cancellationType` sets how long that wait lasts, as it does for a node `timeout`.
+waiting on, an Activity node's Activity or an agent node's model call or tool call
+(`activityAsTool`, a `TemporalMCPToolset` tool), and the execution then fails with
+the failed node's failure. The Activity's `cancellationType` sets how long that wait
+lasts, as it does for a node `timeout`. A tool gated with `requireConfirmation` is
+cancellable only once it is approved: a pending confirmation schedules nothing.
 
 ### Streaming
 
