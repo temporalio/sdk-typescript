@@ -1,7 +1,11 @@
 import { setTimeout } from 'node:timers/promises';
 import ms from 'ms';
+import type { ExecutionContext } from 'ava';
 import test from 'ava';
 import { native, errors } from '@temporalio/core-bridge';
+import { toNativeClientOptions } from '@temporalio/worker/lib/connection-options';
+import type { Context as IntegrationContext } from './helpers-integration';
+import { helpers, makeTestFunction } from './helpers-integration';
 
 // TESTING NOTES
 //
@@ -9,6 +13,23 @@ import { native, errors } from '@temporalio/core-bridge';
 //   server support provided by Core SDK would affect the behavior that we're testing here.
 // - Tests in this file can't be run in parallel, since the bridge is mostly a singleton.
 // - Some of these tests explicitly use the native bridge, without going through the lang side Runtime/Worker.
+
+const integrationTest = makeTestFunction({ workflowsPath: require.resolve('./workflows') });
+
+function nativeClientOptions(t: ExecutionContext<IntegrationContext>): native.ClientOptions {
+  return toNativeClientOptions({
+    ...t.context.env.connectionOptions,
+    address: t.context.env.address,
+  });
+}
+
+function nativeWorkerOptions(t: ExecutionContext<IntegrationContext>): native.WorkerOptions {
+  return {
+    ...GenericConfigs.worker.basic,
+    namespace: t.context.env.client.options.namespace,
+    taskQueue: helpers(t).taskQueue,
+  };
+}
 
 test('Can instantiate and shutdown the native runtime', async (t) => {
   const runtime = native.newRuntime(GenericConfigs.runtime.basic);
@@ -29,25 +50,26 @@ test('Can instantiate and shutdown the native runtime', async (t) => {
   });
 });
 
-test('Can run multiple runtime concurrently', async (t) => {
+integrationTest.serial('Can run multiple runtime concurrently', async (t) => {
   const runtime1 = native.newRuntime(GenericConfigs.runtime.basic);
   const runtime2 = native.newRuntime(GenericConfigs.runtime.basic);
   const runtime3 = native.newRuntime(GenericConfigs.runtime.basic);
 
   // Order is intentionally random - distinct runtimes are expected to be independent
-  const _client2 = await native.newClient(runtime3, GenericConfigs.client.basic);
-  const _client1 = await native.newClient(runtime1, GenericConfigs.client.basic);
-  const _client3 = await native.newClient(runtime2, GenericConfigs.client.basic);
+  const clientOptions = nativeClientOptions(t);
+  const _client2 = await native.newClient(runtime3, clientOptions);
+  const _client1 = await native.newClient(runtime1, clientOptions);
+  const _client3 = await native.newClient(runtime2, clientOptions);
 
   native.runtimeShutdown(runtime1);
   native.runtimeShutdown(runtime3);
 
-  await t.throwsAsync(async () => await native.newClient(runtime1, GenericConfigs.client.basic), {
+  await t.throwsAsync(async () => await native.newClient(runtime1, clientOptions), {
     instanceOf: errors.IllegalStateError,
     message: 'Runtime already closed',
   });
 
-  const _client5 = await native.newClient(runtime2, GenericConfigs.client.basic);
+  const _client5 = await native.newClient(runtime2, clientOptions);
 
   native.runtimeShutdown(runtime2);
 
@@ -157,16 +179,16 @@ test("Creating Runtime without shutting it down doesn't hang process", (t) => {
   t.pass();
 });
 
-test("Dropping Client without closing doesn't hang process", (t) => {
+integrationTest("Dropping Client without closing doesn't hang process", (t) => {
   const runtime = native.newRuntime(GenericConfigs.runtime.basic);
-  const _client = native.newClient(runtime, GenericConfigs.client.basic);
+  const _client = native.newClient(runtime, nativeClientOptions(t));
   t.pass();
 });
 
-test("Dropping Worker without shutting it down doesn't hang process", async (t) => {
+integrationTest("Dropping Worker without shutting it down doesn't hang process", async (t) => {
   const runtime = native.newRuntime(GenericConfigs.runtime.basic);
-  const client = await native.newClient(runtime, GenericConfigs.client.basic);
-  const worker = native.newWorker(client, GenericConfigs.worker.basic);
+  const client = await native.newClient(runtime, nativeClientOptions(t));
+  const worker = native.newWorker(client, nativeWorkerOptions(t));
   t.true(Buffer.isBuffer(await native.workerValidate(worker)));
   t.pass();
 });
@@ -178,7 +200,7 @@ test("Dropping EphemeralServer without shutting it down doesn't hang process", a
   t.pass();
 });
 
-test("Stopping Worker after creating another runtime doesn't fail", async (t) => {
+integrationTest.serial("Stopping Worker after creating another runtime doesn't fail", async (t) => {
   async function expectShutdownError(taskPromise: () => Promise<Buffer>) {
     await t.throwsAsync(taskPromise, {
       instanceOf: errors.ShutdownError,
@@ -189,13 +211,15 @@ test("Stopping Worker after creating another runtime doesn't fail", async (t) =>
   const runtime1 = native.newRuntime(GenericConfigs.runtime.basic);
 
   // Starts Worker 0
-  const client0 = await native.newClient(runtime0, GenericConfigs.client.basic);
-  const worker0 = native.newWorker(client0, GenericConfigs.worker.basic);
+  const clientOptions = nativeClientOptions(t);
+  const workerOptions = nativeWorkerOptions(t);
+  const client0 = await native.newClient(runtime0, clientOptions);
+  const worker0 = native.newWorker(client0, workerOptions);
   await native.workerValidate(worker0);
 
   // Start Worker 1
-  const client1 = await native.newClient(runtime1, GenericConfigs.client.basic);
-  const worker1 = native.newWorker(client1, GenericConfigs.worker.basic);
+  const client1 = await native.newClient(runtime1, clientOptions);
+  const worker1 = native.newWorker(client1, workerOptions);
   await native.workerValidate(worker1);
 
   // Start polling on Worker 1 (note reverse order of Worker 0)
@@ -215,8 +239,8 @@ test("Stopping Worker after creating another runtime doesn't fail", async (t) =>
 
   // Create Runtime 2 and Worker 2, but don't immediately use them
   const runtime2 = native.newRuntime(GenericConfigs.runtime.basic);
-  const client2 = await native.newClient(runtime2, GenericConfigs.client.basic);
-  const worker2 = native.newWorker(client2, GenericConfigs.worker.basic);
+  const client2 = await native.newClient(runtime2, clientOptions);
+  const worker2 = native.newWorker(client2, workerOptions);
 
   // Cleanly shutdown Worker 0
   native.workerInitiateShutdown(worker0);
