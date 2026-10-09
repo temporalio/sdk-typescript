@@ -1,4 +1,4 @@
-import { fromJson, toJson } from 'protobufjs/ext/protojson';
+import { fromJson, toJson } from '@temporalio/proto/lib/protojson';
 import * as proto from '@temporalio/proto';
 import { patchProtobufRoot } from '@temporalio/proto/lib/patch-protobuf-root';
 
