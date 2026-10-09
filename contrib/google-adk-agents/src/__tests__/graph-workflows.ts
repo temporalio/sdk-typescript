@@ -32,6 +32,7 @@ import {
   Workflow,
   type BaseNode,
   type BasePolicyEngine,
+  type BaseToolset,
   type Event,
   type LlmResponse,
   type NodeContext,
@@ -47,6 +48,7 @@ import { z } from 'zod';
 import { ApplicationFailure } from '@temporalio/common';
 import {
   ActivityCancellationType,
+  type ActivityOptions,
   condition,
   defineQuery,
   defineUpdate,
@@ -217,6 +219,21 @@ export async function graphPartsPayloadThenPause(): Promise<RunOutcome> {
     { name: 'ask', rerunOnResume: true }
   );
   return approveAfterPause(new Workflow({ name: 'pause_after_parts_payload', edges: [['START', work, ask]] }));
+}
+
+/**
+ * The same Activity under a Zod `outputSchema`, followed by a node reporting the input it
+ * received. `schema` picks one the payload breaks (`value` has to be a string) or one it
+ * satisfies.
+ */
+export async function graphPartsPayloadOutputSchema(schema: 'mismatch' | 'match'): Promise<RunOutcome> {
+  const outputSchema =
+    schema === 'mismatch'
+      ? z.object({ value: z.string() })
+      : z.object({ parts: z.array(z.object({ text: z.string() })), value: z.number() });
+  const work = activityNode({ name: 'partsPayload', args: () => [], outputSchema });
+  const after = node((_ctx: NodeContext, received: unknown) => ({ received }), { name: 'after' });
+  return runOnce(new Workflow({ name: 'parts_payload_output_schema', edges: [['START', work, after]] }), 'go');
 }
 
 /** A dotted Activity type reaches the graph under a path-safe `nodeName`. */
@@ -398,6 +415,77 @@ export async function graphAgentNodeWithFailingSibling(): Promise<RunOutcome> {
       ],
     }),
     'hi'
+  );
+}
+
+/** Activity options under which only a cancellation can end a hanging tool call before 20s. */
+const HANGING_TOOL_ACTIVITY: ActivityOptions = {
+  startToCloseTimeout: '20 seconds',
+  heartbeatTimeout: '6 seconds',
+  retry: { maximumAttempts: 3, initialInterval: '1 second' },
+  cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
+};
+
+/**
+ * An `LlmAgent` node calling `tool` beside a sibling that fails once that call is under
+ * way. ADK aborts the run's signal when the sibling fails and then waits for the agent
+ * node (`Workflow.cleanupPending`), so the node unwinds only if the abort cancels the
+ * tool's Activity: the tool phase of a turn, as opposed to its model call.
+ */
+function toolCallBesideFailingSibling(name: string, model: string, tool: BaseTool | BaseToolset): Promise<RunOutcome> {
+  let toolCalled = false;
+  const agent = new LlmAgent({
+    name: 'assistant',
+    model: new TemporalModel(model),
+    instruction: 'Use the tool.',
+    tools: [tool],
+    // Orders the sibling's failure after the tool call however slow the runner is.
+    beforeToolCallback: () => {
+      toolCalled = true;
+      return undefined;
+    },
+  });
+  const wait = node(
+    async () => {
+      await condition(() => toolCalled);
+      // Lets the tool's Activity get scheduled and start heartbeating first.
+      await sleep('1 second');
+      return 'waited';
+    },
+    { name: 'wait' }
+  );
+  const failing = activityNode({
+    name: 'failingActivity',
+    args: () => [],
+    activity: { retry: { maximumAttempts: 1 } },
+  });
+  return runOnce(
+    new Workflow({
+      name,
+      edges: [
+        ['START', agent],
+        ['START', wait, failing],
+      ],
+    }),
+    'hi'
+  );
+}
+
+/** {@link toolCallBesideFailingSibling} with an `activityAsTool` that never answers. */
+export async function graphActivityToolWithFailingSibling(): Promise<RunOutcome> {
+  return toolCallBesideFailingSibling(
+    'activity_tool_beside_failing_sibling',
+    'call-hanging-tool-model',
+    activityAsTool({ name: 'hangingTool', description: 'Never answers.', activity: HANGING_TOOL_ACTIVITY })
+  );
+}
+
+/** {@link toolCallBesideFailingSibling} with a `TemporalMCPToolset` tool that never answers. */
+export async function graphMcpToolWithFailingSibling(): Promise<RunOutcome> {
+  return toolCallBesideFailingSibling(
+    'mcp_tool_beside_failing_sibling',
+    'call-hanging-mcp-model',
+    new TemporalMCPToolset({ name: 'hangServer', activity: HANGING_TOOL_ACTIVITY })
   );
 }
 

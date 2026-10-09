@@ -42,6 +42,7 @@ import {
 import { ApplicationFailure } from '@temporalio/common';
 import { type ActivityOptions, inWorkflowContext, isCancellation, log, proxyActivities } from '@temporalio/workflow';
 
+import { underAbortSignal } from './abort';
 import { gateOnConfirmation } from './confirmation';
 import { MCP_TOOLSET_OUTSIDE_WORKFLOW_FAILURE_TYPE } from './error-types';
 import { activityOptionsFrom } from './model';
@@ -380,7 +381,10 @@ class TemporalMCPTool extends BaseTool {
       activityOptionsFrom(this.toolsetOptions.activity, `adk.mcp ${this.toolsetOptions.name}.${this.originalName}`)
     );
     const callTool = activities[`${this.toolsetOptions.name}-callTool`] as (args: MCPCallToolArgs) => Promise<unknown>;
-    return callTool({ toolName: this.originalName, args: request.args });
+    // Cancellable once the gate has let the call through, as for `activityAsTool`.
+    return underAbortSignal(request.toolContext?.abortSignal, () =>
+      callTool({ toolName: this.originalName, args: request.args })
+    );
   }
 }
 

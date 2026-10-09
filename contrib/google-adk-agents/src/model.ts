@@ -18,8 +18,9 @@
 
 import { BaseLlm, LLMRegistry, type BaseLlmConnection, type LlmRequest, type LlmResponse } from '@google/adk';
 import { ApplicationFailure, type Duration } from '@temporalio/common';
-import { type ActivityOptions, CancellationScope, inWorkflowContext, proxyActivities } from '@temporalio/workflow';
+import { type ActivityOptions, inWorkflowContext, proxyActivities } from '@temporalio/workflow';
 
+import { underAbortSignal } from './abort';
 import { recordAbsorbedFailure, recordModelSuccess } from './absorbed-failure';
 import { STREAMING_TOPIC_REQUIRED_FAILURE_TYPE, UNSUPPORTED_FAILURE_TYPE } from './error-types';
 
@@ -171,6 +172,10 @@ export class TemporalModel extends BaseLlm {
         );
       }
     } catch (err) {
+      // A call cancelled by ADK's abort (`underAbortSignal`) lands here like any model
+      // error, and ADK absorbs it. The run then fails with the sibling's failure that
+      // caused the abort: the execution itself was not cancelled, so the recorded
+      // cancellation does not decide its outcome (`absorbed-failure.ts`).
       if (agentName !== undefined) recordAbsorbedFailure(err, agentName, abortSignal);
       throw err;
     }
@@ -219,46 +224,6 @@ export class TemporalModel extends BaseLlm {
       return agentName;
     }
     return `adk.invokeModel ${this.model}`;
-  }
-}
-
-/**
- * Runs a model Activity in a cancellable `CancellationScope` that ADK's abort signal
- * cancels, so an ADK abort reaches the Activity as an ordinary, replay-safe cancellation.
- *
- * Inside a `Workflow` graph the signal is the run's own, shared by every node
- * (`InvocationContext.abortSignal`). ADK aborts it when a sibling node fails, then waits for
- * every outstanding node before failing the run (`Workflow.cleanupPending`), and an agent
- * node cannot unwind while its model call is still waiting on the Activity: without the
- * cancel, the call would hold the run until the Activity ended on its own, retries included.
- * Cancelled, the call fails as any cancelled Activity call does (an `ActivityFailure` whose
- * cause is the `CancelledFailure`, or the scope's `CancelledFailure` when the signal had
- * already aborted, in which case nothing is scheduled). ADK absorbs that like any model
- * error, and the run fails with the sibling's failure: the execution itself was not
- * cancelled, so the recorded cancellation does not decide its outcome
- * (`absorbed-failure.ts`). When the cancel counts as settled is the Activity's
- * `cancellationType`.
- *
- * The listener is removed once the call settles, because the signal outlives it, and it
- * never throws: it runs inside a host `EventTarget` dispatch, outside the Workflow's own
- * error handling. Without a signal (a plain agent turn) the call runs as it is.
- */
-async function underAbortSignal<T>(signal: AbortSignal | undefined, call: () => Promise<T>): Promise<T> {
-  if (signal === undefined) return call();
-  const scope = new CancellationScope({ cancellable: true });
-  const cancel = (): void => {
-    try {
-      scope.cancel();
-    } catch {
-      /* nothing to surface from inside the signal's dispatch */
-    }
-  };
-  if (signal.aborted) cancel();
-  else signal.addEventListener('abort', cancel, { once: true });
-  try {
-    return await scope.run(call);
-  } finally {
-    signal.removeEventListener('abort', cancel);
   }
 }
 

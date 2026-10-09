@@ -218,6 +218,10 @@ export function graphTestProvider(): (model: string) => BaseLlm {
         return new ToolCallingLlm({ model, toolName: 'enrich_flow', toolArgs: { value: 7 } });
       case 'enrich-flow-genai-model':
         return new ToolCallingLlm({ model, toolName: 'enrich_flow', toolArgs: { request: '7' } });
+      case 'call-hanging-tool-model':
+        return new ToolCallingLlm({ model, toolName: 'hangingTool', toolArgs: {} });
+      case 'call-hanging-mcp-model':
+        return new ToolCallingLlm({ model, toolName: 'hang', toolArgs: {} });
       case 'contents-counting-model':
         return new ContentsCountingLlm({ model });
       case 'request-input-model':

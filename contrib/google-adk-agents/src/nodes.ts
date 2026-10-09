@@ -21,6 +21,7 @@
 import {
   createEvent,
   FunctionNode,
+  NodeSchemaValidationError,
   NodeTimeoutError,
   type BaseNode,
   type Event,
@@ -119,6 +120,12 @@ export interface ActivityNodeOptions<TInput = unknown> {
    */
   timeout?: number;
   inputSchema?: SchemaLike;
+  /**
+   * The schema every Activity result has to satisfy (an Activity returning nothing yields
+   * `null`). A Zod schema also checks a result carrying a `parts` array, which ADK's own
+   * check would let through as genai `Content`; a genai `Schema` is checked by ADK, which
+   * still does.
+   */
   outputSchema?: SchemaLike;
   stateSchema?: SchemaLike;
   isolationScope?: string | true;
@@ -208,7 +215,47 @@ export function activityNode<TInput = unknown, TOutput = unknown>(
   if (options.stateSchema !== undefined) config.stateSchema = options.stateSchema;
   if (options.isolationScope !== undefined) config.isolationScope = options.isolationScope;
 
-  return new FunctionNode<TInput, TOutput>(graphName, handler, config);
+  return new ActivityNode<TInput, TOutput>(graphName, handler, config);
+}
+
+/**
+ * The node {@link activityNode} builds: a `FunctionNode` whose output check does not exempt
+ * values shaped like genai `Content`.
+ *
+ * `BaseNode.validateOutput` returns any value with a `parts` array as it is, taking it for
+ * `Content`, which a node emits for the conversation rather than as data. An Activity's
+ * result is data the payload converter decoded, so a `parts` field on it is business data
+ * like any other and has to satisfy the node's `outputSchema`.
+ *
+ * A Zod schema is therefore run here the way ADK's `parseWithSchema` runs one: recognised by
+ * its `parse` and `safeParse` methods, checked with its own `parse`, a failure reported as
+ * ADK's `NodeSchemaValidationError`, and the parsed value kept as the output. A genai
+ * `Schema` stays with ADK, which checks one by compiling it with an internal validator the
+ * package does not export, and which keeps the exemption: a genai `outputSchema` does not
+ * check a result carrying a `parts` array, so give such an Activity a Zod one.
+ *
+ * The input check is ADK's, exemption included. A node's input comes from outside it (the
+ * run's opening message reaches a first node as genai `Content` when it has no text part),
+ * and ADK leaves `Content` input for the node to make sense of, which an Activity node does
+ * through `args`.
+ */
+class ActivityNode<TInput, TOutput> extends FunctionNode<TInput, TOutput> {
+  protected override validateOutput(output: unknown): unknown {
+    const schema = this.outputSchema;
+    if (!isZodSchema(schema)) return super.validateOutput(output);
+    try {
+      return schema.parse(output);
+    } catch (cause) {
+      throw new NodeSchemaValidationError({ nodeName: this.name, direction: 'output', cause });
+    }
+  }
+}
+
+/** ADK's own test for a Zod schema (`isZodSchema`), which Zod 3 and Zod 4 both pass. */
+function isZodSchema(schema: unknown): schema is { parse(value: unknown): unknown } {
+  if (typeof schema !== 'object' || schema === null) return false;
+  const { parse, safeParse } = schema as { parse?: unknown; safeParse?: unknown };
+  return typeof parse === 'function' && typeof safeParse === 'function';
 }
 
 /**

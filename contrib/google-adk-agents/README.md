@@ -290,6 +290,13 @@ const runner = new InMemoryRunner({ agent: graph });
   output, so its successors receive `null`. ADK records a node as done only
   when its events carry an output, and without one a completed Activity would
   run again when a paused graph resumes.
+- **Schemas.** A Zod `outputSchema` checks every result, one with a `parts`
+  array included, which ADK's own check lets through as genai `Content`. A genai
+  `Schema` is checked by ADK's validator, which the plugin cannot reach and which
+  still lets such a result through, so give an Activity whose result can carry
+  `parts` a Zod `outputSchema`. The `inputSchema` check is ADK's as it is: an
+  input that is genai `Content` (the run's opening message, when it has no text
+  part) is left for `args` to handle.
 - **Node names.** The node is named after the Activity unless `nodeName` says
   otherwise, and the name may not contain `.`, `/` or `@`: ADK reads a node path
   back by those characters (its segments, and the run-id suffix), and a name
@@ -501,9 +508,11 @@ cancelled Activity node ends it CANCELLED the same way, inside a dynamic run too
 A failing sibling does not cancel the execution either. When a graph node fails,
 ADK aborts the run and waits for the nodes still running before failing it. The
 plugin turns that abort into a cancellation of the Activity each of those nodes is
-waiting on, an Activity node's Activity or an agent node's model call, and the
-execution then fails with the failed node's failure. The Activity's
-`cancellationType` sets how long that wait lasts, as it does for a node `timeout`.
+waiting on, an Activity node's Activity or an agent node's model call or tool call
+(`activityAsTool`, a `TemporalMCPToolset` tool), and the execution then fails with
+the failed node's failure. The Activity's `cancellationType` sets how long that wait
+lasts, as it does for a node `timeout`. A tool gated with `requireConfirmation` is
+cancellable only once it is approved: a pending confirmation schedules nothing.
 
 ### Streaming
 
