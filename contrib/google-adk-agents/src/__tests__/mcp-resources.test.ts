@@ -18,6 +18,7 @@ import { createMCPActivities } from '../activities';
 import { GoogleAdkPlugin } from '../index';
 import { mockMCPToolset, type MockMCPResourceDefinition } from '../testing';
 import { countScheduledActivities, echoDef, findInCauseChain, setupTestEnv, uid, withWorker } from './helpers';
+import * as activities from './test-activities';
 import { graphTestProvider } from './test-models';
 import {
   mcpListResources,
@@ -26,6 +27,7 @@ import {
   mcpLoadResourceAgentFailing,
   mcpLoadResourceAgentUnlimitedRetry,
   mcpReadResource,
+  mcpResourceListingBesideFailingSibling,
 } from './graph-workflows';
 
 const stubServerPath = path.resolve(__dirname, 'stub-mcp-server.js');
@@ -486,6 +488,58 @@ test.serial(
     t.deepEqual(finalAttempts(events ?? [], 'lateServer-readResource'), [1]);
   }
 );
+
+test.serial('a failing sibling node cancels a held resource listing and fails the Workflow', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-res-sibling');
+  const workflowId = uid('wf-res-sibling');
+  const log = path.join(os.tmpdir(), `${uid('adk-res-sibling')}.log`);
+  t.teardown(() => rmSync(log, { force: true }));
+  const plugin = new GoogleAdkPlugin({
+    modelProvider: graphTestProvider(),
+    mcpToolsets: { stuckServer: () => stubServerConnectionParams(log, 'resources/list') },
+  });
+  let elapsedMs = 0;
+  const err = await withWorker(env, { taskQueue, plugins: [plugin], activities }, async () => {
+    // Timed around the run only, so the bound does not count Worker start-up.
+    const started = Date.now();
+    try {
+      return await t.throwsAsync(
+        env.client.workflow.execute(mcpResourceListingBesideFailingSibling, { taskQueue, workflowId })
+      );
+    } finally {
+      elapsedMs = Date.now() - started;
+    }
+  });
+  // The run fails with the sibling's failure, not with the listing's cancellation.
+  t.is(findInCauseChain(err, ApplicationFailure)?.type, 'TestPermanentFailure');
+  const handle = env.client.workflow.getHandle(workflowId);
+  t.is((await handle.describe()).status.name, 'FAILED');
+  const events = (await handle.fetchHistory()).events ?? [];
+  t.is(countScheduledActivities(events, 'stuckServer-listResources'), 1);
+  const scheduled = events.find(
+    (e) => e.activityTaskScheduledEventAttributes?.activityType?.name === 'stuckServer-listResources'
+  );
+  t.true(
+    events.some(
+      (e) =>
+        e.activityTaskCanceledEventAttributes != null &&
+        String(e.activityTaskCanceledEventAttributes.scheduledEventId) === String(scheduled?.eventId)
+    ),
+    'expected the abort to cancel the listing Activity'
+  );
+  t.true(
+    events.every((e) => (e.activityTaskStartedEventAttributes?.attempt ?? 1) === 1),
+    'expected every Activity to end on its first attempt'
+  );
+  // The cancel reached the server rather than abandoning the request.
+  t.true(stubServerRecords(log).includes('notifications/cancelled'), stubServerRecords(log).join(', '));
+  // Without the cancel, ADK's cleanup waits out three 20s start-to-close timeouts. The
+  // events above already show the cancel ended the first attempt, so the bound only has
+  // to tell a cancelled run from that on a slow runner, where the listing Activity's
+  // heartbeat cadence (how a cancel reaches it) dominates.
+  t.true(elapsedMs < 30_000, `took ${elapsedMs}ms`);
+});
 
 test.serial('refreshResourceList re-lists the resources on every model call', async (t) => {
   const env = getEnv();

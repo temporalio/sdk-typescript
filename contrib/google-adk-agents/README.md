@@ -226,6 +226,13 @@ skip path. Set `activity: { retry: { maximumAttempts: n } }` on the toolset to
 choose your own, or `maximumAttempts: Number.POSITIVE_INFINITY` for unlimited.
 `0` is not a way to say unlimited here: the SDK rejects it with a `ValueError`.
 
+`loadMcpResourceTool` lists and reads in `processLlmRequest`, under ADK's abort
+signal, so an aborted run cancels those Activities just as it cancels a model or
+tool call: when a sibling node in a `Workflow` graph fails, ADK aborts the run and
+waits for every outstanding node, and the agent node unwinds at once instead of
+waiting out the listing's timeouts. A cancelled listing is not memoized, and a
+cancellation is raised rather than logged and skipped.
+
 A cancelled listing or read ends its Activity cancelled. ADK's own
 `MCPToolset.listResources()` / `readResource(name)` take no `AbortSignal`, so for
 connection params and for a factory that returns an unmodified `MCPToolset` the

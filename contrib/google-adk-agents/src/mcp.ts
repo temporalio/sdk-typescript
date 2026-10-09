@@ -448,7 +448,9 @@ const LOAD_MCP_RESOURCE_TOOL_NAME = 'load_mcp_resource';
  * them. Like ADK, a failed list or read is logged and skipped rather than
  * failing the turn — which is why those Activities give up after
  * {@link TemporalMCPToolsetOptions.activity}'s bounded default instead of
- * retrying behind the turn forever.
+ * retrying behind the turn forever. Both run under ADK's abort signal, so an
+ * aborted run (a failing sibling node in a `Workflow` graph) cancels them; a
+ * cancellation is raised, never logged and skipped.
  */
 class TemporalLoadMcpResourceTool extends BaseTool {
   private readonly toolset: TemporalMCPToolset;
@@ -492,14 +494,16 @@ class TemporalLoadMcpResourceTool extends BaseTool {
 
   override async processLlmRequest(request: ToolProcessLlmRequest): Promise<void> {
     await super.processLlmRequest(request);
-    await this.appendResourcesToLlmRequest(request.llmRequest);
+    await this.appendResourcesToLlmRequest(request.llmRequest, request.toolContext?.abortSignal);
   }
 
-  private listResources(): Promise<string[]> {
-    if (this.options.refreshResourceList) return this.toolset.listResources();
+  private listResources(signal: AbortSignal | undefined): Promise<string[]> {
+    const list = (): Promise<string[]> => underAdkAbortSignal(signal, () => this.toolset.listResources());
+    if (this.options.refreshResourceList) return list();
     if (this.resourceNames === undefined) {
-      this.resourceNames = this.toolset.listResources().catch((err: unknown) => {
-        // Don't pin a failure: the next turn lists again.
+      this.resourceNames = list().catch((err: unknown) => {
+        // Don't pin a failure, nor a listing an aborted turn cancelled: the
+        // next turn lists again.
         this.resourceNames = undefined;
         throw err;
       });
@@ -507,9 +511,9 @@ class TemporalLoadMcpResourceTool extends BaseTool {
     return this.resourceNames;
   }
 
-  private async appendResourcesToLlmRequest(llmRequest: LlmRequest): Promise<void> {
+  private async appendResourcesToLlmRequest(llmRequest: LlmRequest, signal: AbortSignal | undefined): Promise<void> {
     try {
-      const availableResourceNames = await this.listResources();
+      const availableResourceNames = await this.listResources(signal);
       if (availableResourceNames.length > 0) {
         appendSystemInstruction(
           llmRequest,
@@ -535,7 +539,7 @@ class TemporalLoadMcpResourceTool extends BaseTool {
 
     for (const resourceName of requestedResourceNames) {
       try {
-        const resourceContents = await this.toolset.readResource(resourceName);
+        const resourceContents = await underAdkAbortSignal(signal, () => this.toolset.readResource(resourceName));
         for (const content of resourceContents) {
           llmRequest.contents.push({
             role: 'user',
@@ -548,6 +552,18 @@ class TemporalLoadMcpResourceTool extends BaseTool {
       }
     }
   }
+}
+
+/**
+ * Runs a resource call ADK waits on under ADK's abort signal ({@link underAbortSignal}).
+ * The listing and reads run in `processLlmRequest`, ahead of the model call, and the
+ * `toolContext` ADK passes there carries the run's signal: a sibling node's failure aborts
+ * it and then waits for every outstanding node (`Workflow.cleanupPending`), so the
+ * Activity has to be cancelled for this node to unwind. Outside a Workflow the toolset
+ * calls ADK's `MCPToolset` directly and there is no Activity, or scope, to cancel.
+ */
+function underAdkAbortSignal<T>(signal: AbortSignal | undefined, call: () => Promise<T>): Promise<T> {
+  return inWorkflowContext() ? underAbortSignal(signal, call) : call();
 }
 
 /**

@@ -1183,6 +1183,56 @@ export async function mcpLoadResourceAgentUnlimitedRetry(): Promise<string> {
 }
 
 /**
+ * An agent with `loadMcpResourceTool` beside a branch that fails: a one-second
+ * durable timer, then an Activity that fails for good. The server holds the
+ * resource listing unanswered, and the listing is the first thing the agent
+ * does (it runs in `processLlmRequest`, ahead of the model call), so the timer
+ * orders the failure after it. ADK aborts the run's signal when the sibling
+ * fails and waits for the agent node before failing the run, which the node can
+ * only do once its listing Activity has ended. `maximumAttempts` is left at the
+ * resource default of 3, so without the cancel ADK's cleanup would wait out
+ * three 20-second start-to-close timeouts.
+ */
+export async function mcpResourceListingBesideFailingSibling(): Promise<RunOutcome> {
+  const toolset = new TemporalMCPToolset({
+    name: 'stuckServer',
+    activity: {
+      startToCloseTimeout: '20 seconds',
+      heartbeatTimeout: '6 seconds',
+      cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
+    },
+  });
+  const reader = new LlmAgent({
+    name: 'reader',
+    model: new TemporalModel('resource-model'),
+    instruction: 'Answer from resources.',
+    tools: [loadMcpResourceTool(toolset)],
+  });
+  const wait = node(
+    async () => {
+      await sleep('1 second');
+      return 'waited';
+    },
+    { name: 'wait' }
+  );
+  const failing = activityNode({
+    name: 'failingActivity',
+    args: () => [],
+    activity: { retry: { maximumAttempts: 1 } },
+  });
+  return runOnce(
+    new Workflow({
+      name: 'resource_listing_beside_failing_sibling',
+      edges: [
+        ['START', reader],
+        ['START', wait, failing],
+      ],
+    }),
+    'go'
+  );
+}
+
+/**
  * The same flow against a server whose read hangs until its Activity is
  * cancelled. Cancelling the Workflow must end that Activity cancelled on its
  * first attempt, and the tool must re-raise the cancellation rather than log and
