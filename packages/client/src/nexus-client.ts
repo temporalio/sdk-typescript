@@ -24,7 +24,7 @@ import {
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import { msOptionalToTs, optionalTsToDate, optionalTsToMs } from '@temporalio/common/lib/time';
 import { temporal } from '@temporalio/proto';
-import type { LoadedDataConverter, TypeInfo } from '@temporalio/common';
+import type { LoadedDataConverter, NexusSerializationContext, TypeInfo } from '@temporalio/common';
 import { ExternalStorageError } from '@temporalio/common';
 import type { SearchAttributeType, TypedSearchAttributeValue } from '@temporalio/common/lib/search-attributes';
 import { decode } from '@temporalio/common/lib/encoding';
@@ -383,7 +383,13 @@ export class NexusClient extends BaseClient {
   }
 
   protected async startNexusOperationHandler(input: StartNexusOperationInput): Promise<NexusOperationHandle> {
-    const inputPayload = await encodeToPayload(this.dataConverter, input.arg, undefined, input.inputType);
+    const context: NexusSerializationContext = {
+      type: 'nexus',
+      endpoint: input.endpoint,
+      service: input.service,
+      operation: input.operation,
+    };
+    const inputPayload = await encodeToPayload(this.dataConverter, input.arg, context, input.inputType);
     const searchAttributes =
       input.searchAttributes != null
         ? { indexedFields: encodeUnifiedSearchAttributes(undefined, input.searchAttributes) }
@@ -391,7 +397,7 @@ export class NexusClient extends BaseClient {
     const userMetadata =
       input.summary != null
         ? {
-            summary: await encodeToPayload(this.dataConverter, input.summary),
+            summary: await encodeToPayload(this.dataConverter, input.summary, context),
           }
         : undefined;
     const req: temporal.api.workflowservice.v1.IStartNexusOperationExecutionRequest = {
@@ -427,6 +433,9 @@ export class NexusClient extends BaseClient {
       operationId: input.id,
       runId: res.runId ?? undefined,
       outputType: input.outputType,
+      endpoint: input.endpoint,
+      service: input.service,
+      operation: input.operation,
     });
   }
 
@@ -434,6 +443,9 @@ export class NexusClient extends BaseClient {
     operationId: string;
     runId?: string;
     outputType?: TypeInfo;
+    endpoint?: string;
+    service?: string;
+    operation?: string;
   }): NexusOperationHandle<O> {
     let cachedResult:
       | { state: 'not-requested' }
@@ -449,6 +461,9 @@ export class NexusClient extends BaseClient {
             const result = (await this.client.getNexusOperationResult({
               operationId: this.operationId,
               runId: this.runId,
+              endpoint: opts.endpoint,
+              service: opts.service,
+              operation: opts.operation,
               outputType: opts.outputType,
             })) as O;
             cachedResult = { state: 'success', value: result };
@@ -489,6 +504,12 @@ export class NexusClient extends BaseClient {
   }
 
   protected async getResultHandler(input: GetNexusOperationResultInput): Promise<unknown> {
+    // These three are set together or not at all: a handle that started the operation has all of
+    // them, while a handle obtained by operation ID alone has none and decodes without context.
+    const context: NexusSerializationContext | undefined =
+      input.endpoint && input.service && input.operation
+        ? { type: 'nexus', endpoint: input.endpoint, service: input.service, operation: input.operation }
+        : undefined;
     const req: temporal.api.workflowservice.v1.IPollNexusOperationExecutionRequest = {
       namespace: this.options.namespace,
       operationId: input.operationId,
@@ -507,10 +528,10 @@ export class NexusClient extends BaseClient {
 
       // The operation is closed if we have a result or failure
       if (res.result) {
-        return await decodeFromPayloadsAtIndex(this.dataConverter, 0, [res.result], undefined, input.outputType);
+        return await decodeFromPayloadsAtIndex(this.dataConverter, 0, [res.result], context, input.outputType);
       }
       if (res.failure) {
-        const cause = await decodeOptionalFailureToOptionalError(this.dataConverter, res.failure);
+        const cause = await decodeOptionalFailureToOptionalError(this.dataConverter, res.failure, context);
         throw new NexusOperationFailureError(
           `Nexus operation failed: ${res.failure.message ?? 'unknown failure'}`,
           cause ?? new Error(res.failure.message ?? 'unknown failure')
@@ -631,7 +652,8 @@ export class NexusClient extends BaseClient {
 
 async function cancellationInfoFromProto(
   raw: RawNexusOperationExecutionCancellationInfo,
-  dataConverter: LoadedDataConverter
+  dataConverter: LoadedDataConverter,
+  context: NexusSerializationContext
 ): Promise<NexusOperationExecutionCancellationInfo> {
   return {
     requestedTime: optionalTsToDate(raw.requestedTime),
@@ -639,7 +661,7 @@ async function cancellationInfoFromProto(
     attempt: raw.attempt ?? 0,
     lastAttemptCompleteTime: optionalTsToDate(raw.lastAttemptCompleteTime),
     nextAttemptScheduleTime: optionalTsToDate(raw.nextAttemptScheduleTime),
-    lastAttemptFailure: await decodeOptionalFailureToOptionalError(dataConverter, raw.lastAttemptFailure),
+    lastAttemptFailure: await decodeOptionalFailureToOptionalError(dataConverter, raw.lastAttemptFailure, context),
     blockedReason: raw.blockedReason ?? undefined,
     reason: raw.reason ?? '',
     raw,
@@ -650,6 +672,12 @@ async function nexusOperationExecutionDescriptionFromProto(
   raw: RawNexusOperationExecutionInfo,
   dataConverter: LoadedDataConverter
 ): Promise<NexusOperationExecutionDescription> {
+  const context: NexusSerializationContext = {
+    type: 'nexus',
+    endpoint: raw.endpoint ?? '',
+    service: raw.service ?? '',
+    operation: raw.operation ?? '',
+  };
   let decodedMetadata:
     | { state: 'pending' }
     | { state: 'requested'; value: Promise<{ summary: string | undefined; details: string | undefined }> } = {
@@ -658,8 +686,8 @@ async function nexusOperationExecutionDescriptionFromProto(
   const decodeMetadata = async () => {
     if (decodedMetadata.state === 'pending') {
       const metadataPromise = Promise.all([
-        decodeOptionalSinglePayload<string>(dataConverter, raw.userMetadata?.summary),
-        decodeOptionalSinglePayload<string>(dataConverter, raw.userMetadata?.details),
+        decodeOptionalSinglePayload<string>(dataConverter, raw.userMetadata?.summary, context),
+        decodeOptionalSinglePayload<string>(dataConverter, raw.userMetadata?.details, context),
       ]).then(([summary, details]) => {
         return {
           summary: summary ?? undefined,
@@ -689,11 +717,11 @@ async function nexusOperationExecutionDescriptionFromProto(
     expirationTime: optionalTsToDate(raw.expirationTime),
     closeTime: optionalTsToDate(raw.closeTime),
     lastAttemptCompleteTime: optionalTsToDate(raw.lastAttemptCompleteTime),
-    lastAttemptFailure: await decodeOptionalFailureToOptionalError(dataConverter, raw.lastAttemptFailure),
+    lastAttemptFailure: await decodeOptionalFailureToOptionalError(dataConverter, raw.lastAttemptFailure, context),
     nextAttemptScheduleTime: optionalTsToDate(raw.nextAttemptScheduleTime),
     executionDuration: optionalTsToMs(raw.executionDuration),
     cancellationInfo: raw.cancellationInfo
-      ? await cancellationInfoFromProto(raw.cancellationInfo, dataConverter)
+      ? await cancellationInfoFromProto(raw.cancellationInfo, dataConverter, context)
       : undefined,
     blockedReason: raw.blockedReason ?? undefined,
     requestId: raw.requestId ?? '',

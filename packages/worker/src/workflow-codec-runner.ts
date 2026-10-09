@@ -1,5 +1,6 @@
 import type {
   ActivitySerializationContext,
+  NexusSerializationContext,
   PayloadCodec,
   SerializationContext,
   WorkflowSerializationContext,
@@ -22,6 +23,14 @@ import { decodeSystemNexusOutput, encodeSystemNexusInput, isSystemNexusEnvelope 
 const MAX_CONCURRENT_CODEC_OPERATIONS = 20;
 
 /**
+ * The context for a scheduled Nexus operation, kept on the runner from the ScheduleNexusOperation
+ * command that creates it until the activation job that resolves it consumes it.
+ */
+type PendingNexusContext =
+  | { kind: 'nexus'; context: NexusSerializationContext }
+  | { kind: 'system-nexus'; service: string; operation: string; context: SerializationContext };
+
+/**
  * Helper class for decoding Workflow activations and encoding Workflow completions.
  */
 export class WorkflowCodecRunner {
@@ -33,7 +42,7 @@ export class WorkflowCodecRunner {
     childWorkflowComplete: new Map<number, WorkflowSerializationContext>(),
     signalWorkflow: new Map<number, WorkflowSerializationContext>(),
     cancelWorkflow: new Map<number, WorkflowSerializationContext>(),
-    nexusOperation: new Map<number, { service: string; operation: string; context: SerializationContext }>(),
+    nexusOperation: new Map<number, PendingNexusContext>(),
   };
 
   constructor(
@@ -42,8 +51,12 @@ export class WorkflowCodecRunner {
   ) {}
 
   /** Returns the serialization context selected for a pending System Nexus operation. */
-  public systemNexusOperationContext(seq: number | null | undefined): SerializationContext | undefined {
-    return seq == null ? undefined : this.pendingCompletionContexts.nexusOperation.get(seq)?.context;
+  public systemNexusOperationContext(
+    seq: number | null | undefined
+  ): WorkflowSerializationContext | ActivitySerializationContext | undefined {
+    const entry = seq == null ? undefined : this.pendingCompletionContexts.nexusOperation.get(seq);
+    if (entry?.kind !== 'system-nexus') return undefined;
+    return entry.context.type === 'nexus' ? undefined : entry.context;
   }
 
   private consumeContext<TContext>(map: Map<number, TContext>, seq: number | null | undefined): TContext | undefined {
@@ -65,6 +78,24 @@ export class WorkflowCodecRunner {
       workflowId: this.workflowContext.workflowId,
       activityId: command.activityId || undefined,
       isLocal,
+    };
+  }
+
+  /**
+   * Ordinary (non-System) Nexus operations convert their payloads with the operation's own context.
+   * System Nexus operations carry a context of their own, derived from the request they transport,
+   * so `isSystemNexus` (decided once by the envelope marker, see `encodeCompletion`) excludes them.
+   */
+  private nexusOperationContext(
+    command: coresdk.workflow_commands.IScheduleNexusOperation,
+    isSystemNexus: boolean
+  ): NexusSerializationContext | undefined {
+    if (isSystemNexus) return undefined;
+    return {
+      type: 'nexus',
+      endpoint: command.endpoint ?? '',
+      service: command.service ?? '',
+      operation: command.operation ?? '',
     };
   }
 
@@ -104,14 +135,19 @@ export class WorkflowCodecRunner {
     const systemOutputs: Array<{
       result: coresdk.nexus.INexusOperationResult;
       payload: import('@temporalio/common').Payload;
-      info: { service: string; operation: string; context: SerializationContext };
+      info: Extract<PendingNexusContext, { kind: 'system-nexus' }>;
     }> = [];
     const systemResultContexts = new Map<number, SerializationContext>();
     for (const job of decodedActivation.jobs ?? []) {
       const resolve = job.resolveNexusOperation;
       const seq = resolve?.seq;
-      const info = seq == null ? undefined : this.consumeContext(this.pendingCompletionContexts.nexusOperation, seq);
-      if (seq != null && resolve?.result != null && info != null) systemResultContexts.set(seq, info.context);
+      const pending = seq == null ? undefined : this.pendingCompletionContexts.nexusOperation.get(seq);
+      // Ordinary Nexus entries are left for the walk to consume; only System ones are taken here.
+      const info = pending?.kind === 'system-nexus' ? pending : undefined;
+      if (info != null && seq != null) {
+        this.pendingCompletionContexts.nexusOperation.delete(seq);
+        systemResultContexts.set(seq, info.context);
+      }
       const payload = resolve?.result?.completed;
       if (resolve?.result != null && payload != null && info != null) {
         systemOutputs.push({ result: resolve.result, payload, info });
@@ -151,10 +187,28 @@ export class WorkflowCodecRunner {
               this.pendingCompletionContexts.cancelWorkflow,
               (message as coresdk.workflow_activation.IResolveRequestCancelExternalWorkflow).seq
             );
-          case 'coresdk.workflow_activation.ResolveNexusOperation':
+          case 'coresdk.workflow_activation.ResolveNexusOperationStart': {
+            const start = message as coresdk.workflow_activation.IResolveNexusOperationStart;
+            const seq = start.seq;
+            if (seq == null) return context;
+            const pending = this.pendingCompletionContexts.nexusOperation.get(seq);
+            if (start.failed != null) {
+              // A failed start is terminal: Core never sends a ResolveNexusOperation for it, so
+              // release the pending context here rather than leaving it to a resolution that will
+              // never arrive. Any other status only starts the operation, so the context is left
+              // in place for its eventual resolution to consume.
+              this.pendingCompletionContexts.nexusOperation.delete(seq);
+            }
+            return pending?.context ?? context;
+          }
+          case 'coresdk.workflow_activation.ResolveNexusOperation': {
+            const seq = (message as coresdk.workflow_activation.IResolveNexusOperation).seq;
             return (
-              systemResultContexts.get((message as coresdk.workflow_activation.IResolveNexusOperation).seq!) ?? context
+              (seq != null ? systemResultContexts.get(seq) : undefined) ??
+              this.consumeContext(this.pendingCompletionContexts.nexusOperation, seq)?.context ??
+              context
             );
+          }
           default:
             return context;
         }
@@ -195,6 +249,8 @@ export class WorkflowCodecRunner {
         schedule.input = undefined;
       }
     }
+    const isSystemNexus = (command: coresdk.workflow_commands.IScheduleNexusOperation): boolean =>
+      systemInputs.some((input) => input.command === command);
     const visitorOptions: Omit<VisitOptions<SerializationContext>, 'initialContext'> = {
       transformPayload: async (payload, context) => (await encode(this.codecs, [payload], context))[0]!,
       transformPayloads: (payloads, context) => encode(this.codecs, payloads, context),
@@ -213,6 +269,10 @@ export class WorkflowCodecRunner {
             return (
               this.childWorkflowContext(message as coresdk.workflow_commands.IStartChildWorkflowExecution) ?? context
             );
+          }
+          if (typeName === 'coresdk.workflow_commands.ScheduleNexusOperation') {
+            const schedule = message as coresdk.workflow_commands.IScheduleNexusOperation;
+            return this.nexusOperationContext(schedule, isSystemNexus(schedule)) ?? context;
           }
           if (typeName === 'coresdk.workflow_commands.SignalExternalWorkflowExecution') {
             return (
@@ -243,6 +303,17 @@ export class WorkflowCodecRunner {
           this.pendingCompletionContexts.childWorkflowStart.set(startChild.seq, childContext);
           this.pendingCompletionContexts.childWorkflowComplete.set(startChild.seq, childContext);
           userMetadataContext = childContext;
+        }
+        const scheduleNexus = command.scheduleNexusOperation;
+        const nexusContext = scheduleNexus
+          ? this.nexusOperationContext(scheduleNexus, isSystemNexus(scheduleNexus))
+          : undefined;
+        if (scheduleNexus?.seq != null && nexusContext) {
+          this.pendingCompletionContexts.nexusOperation.set(scheduleNexus.seq, {
+            kind: 'nexus',
+            context: nexusContext,
+          });
+          userMetadataContext = nexusContext;
         }
         const signal = command.signalExternalWorkflowExecution;
         const signalContext = signal ? this.externalWorkflowContext(signal) : undefined;
@@ -277,6 +348,7 @@ export class WorkflowCodecRunner {
       input.command.input = encoded.payload;
       if (input.command.seq != null) {
         this.pendingCompletionContexts.nexusOperation.set(input.command.seq, {
+          kind: 'system-nexus',
           service: input.command.service!,
           operation: input.command.operation!,
           context: encoded.context ?? this.workflowContext,

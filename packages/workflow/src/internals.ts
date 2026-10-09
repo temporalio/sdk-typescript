@@ -191,8 +191,8 @@ export class Activator implements ActivationHandler {
   readonly completions = {
     timer: new Map<number, Completion<void>>(),
     activity: new Map<number, Completion<unknown, ActivitySerializationContext>>(),
-    nexusOperationStart: new Map<number, Completion<StartNexusOperationOutput>>(),
-    nexusOperationComplete: new Map<number, Completion<unknown>>(),
+    nexusOperationStart: new Map<number, Completion<StartNexusOperationOutput, SerializationContext>>(),
+    nexusOperationComplete: new Map<number, Completion<unknown, SerializationContext>>(),
     childWorkflowStart: new Map<number, Completion<string, WorkflowSerializationContext>>(),
     childWorkflowComplete: new Map<number, Completion<unknown, WorkflowSerializationContext>>(),
     signalWorkflow: new Map<number, Completion<void, WorkflowSerializationContext>>(),
@@ -804,13 +804,14 @@ export class Activator implements ActivationHandler {
 
   public resolveNexusOperationStart(activation: coresdk.workflow_activation.IResolveNexusOperationStart): void {
     const seq = getSeq(activation);
-    const { resolve, reject, outputTypeInfo } = this.consumeCompletion('nexusOperationStart', seq);
+    const { resolve, reject, context, outputTypeInfo } = this.consumeCompletion('nexusOperationStart', seq);
 
     if (!activation.failed) {
       const completePromise = new Promise((resolve, reject) => {
         this.completions.nexusOperationComplete.set(seq, {
           resolve,
           reject,
+          context,
           outputTypeInfo,
         });
       });
@@ -819,13 +820,12 @@ export class Activator implements ActivationHandler {
 
       resolve({ token: activation.operationToken!, result: completePromise });
     } else {
-      reject(this.failureToError(activation.failed));
+      reject(this.failureToError(activation.failed, context));
     }
   }
 
   public resolveNexusOperation(activation: coresdk.workflow_activation.IResolveNexusOperation): void {
     const seq = getSeq(activation);
-    const context = this.workflowSerializationContext();
     const systemNexus = this.systemNexusOperationContexts.get(seq);
     this.systemNexusOperationContexts.delete(seq);
 
@@ -834,13 +834,16 @@ export class Activator implements ActivationHandler {
       // e.g. because the handler completed the Operation synchronously.
       const startCompletion = this.maybeConsumeCompletion('nexusOperationStart', seq);
       let outputTypeInfo: TypeInfo | undefined;
+      let context: SerializationContext | undefined;
       let resolveResult: (result: unknown) => void;
       if (startCompletion) {
         outputTypeInfo = startCompletion.outputTypeInfo;
+        context = startCompletion.context;
         resolveResult = (result) => startCompletion.resolve({ result: Promise.resolve(result) });
       } else {
         const completion = this.consumeCompletion('nexusOperationComplete', seq);
         outputTypeInfo = completion.outputTypeInfo;
+        context = completion.context;
         resolveResult = completion.resolve;
       }
       const result =
@@ -854,18 +857,19 @@ export class Activator implements ActivationHandler {
         ) ?? fromPayloadWithTypeInfo(this.payloadConverter, activation.result.completed, context, outputTypeInfo);
       resolveResult(result);
     } else {
-      let err: Error;
-      if (activation.result?.failed) {
-        err = this.failureToError(activation.result.failed, systemNexus?.context);
-      } else if (activation.result?.cancelled) {
-        err = this.failureToError(activation.result.cancelled, systemNexus?.context);
-      } else if (activation.result?.timedOut) {
-        err = this.failureToError(activation.result.timedOut, systemNexus?.context);
-      }
-
       const completion =
         this.maybeConsumeCompletion('nexusOperationStart', seq) ??
         this.consumeCompletion('nexusOperationComplete', seq);
+      const { context } = completion;
+      let err: Error;
+      if (activation.result?.failed) {
+        err = this.failureToError(activation.result.failed, context);
+      } else if (activation.result?.cancelled) {
+        err = this.failureToError(activation.result.cancelled, context);
+      } else if (activation.result?.timedOut) {
+        err = this.failureToError(activation.result.timedOut, context);
+      }
+
       completion.reject(err!);
     }
   }
