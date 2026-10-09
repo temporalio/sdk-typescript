@@ -4,7 +4,13 @@ import { native } from '@temporalio/core-bridge';
 import type { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import type { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
 import type { WorkflowModule } from './vm-shared';
-import { BaseVMWorkflow, globalHandlers, injectGlobals, setUnhandledRejectionHandler } from './vm-shared';
+import {
+  BaseVMWorkflow,
+  globalHandlers,
+  injectGlobals,
+  setUnhandledRejectionHandler,
+  toDeadlockErrorIfVmTimeout,
+} from './vm-shared';
 import { isBunPre1_4 } from './bun';
 import type { WorkflowPatchActivationCallback } from './patch-activation-callback';
 
@@ -46,10 +52,14 @@ export class VMWorkflowCreator implements WorkflowCreator {
           return (...args: any[]) => {
             // By the time we get out of this call, all microtasks will have been executed
             context.__temporal_args = args;
-            return vm.runInContext(`__TEMPORAL__.api.${fn}(...__temporal_args)`, context, {
-              timeout: isolateExecutionTimeoutMs,
-              displayErrors: true,
-            });
+            try {
+              return vm.runInContext(`__TEMPORAL__.api.${fn}(...__temporal_args)`, context, {
+                timeout: isolateExecutionTimeoutMs,
+                displayErrors: true,
+              });
+            } catch (err) {
+              throw toDeadlockErrorIfVmTimeout(err, isolateExecutionTimeoutMs);
+            }
           };
         },
       }
