@@ -55,6 +55,8 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- Clarified that `RuntimeOptions.shutdownSignals` initiates graceful Worker shutdown for both
+  `SIGINT` and `SIGTERM` by default, and that `[]` disables automatic signal handling.
 - Corrected the Schedule `catchupWindow` documentation to state that omitted values use the Temporal
   Server's configured default.
 - `@temporalio/strands-agents` tools built on Activities, `activityAsTool`, and MCP tools now give the

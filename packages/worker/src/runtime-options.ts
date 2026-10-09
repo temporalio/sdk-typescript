@@ -43,7 +43,11 @@ export interface RuntimeOptions {
   workerHeartbeatInterval?: Duration;
 
   /**
-   * Automatically shutdown workers on any of these signals.
+   * Initiate graceful Worker shutdown on any of these signals, using the same
+   * shutdown path as {@link Worker.shutdown}. By default, both `SIGINT` and
+   * `SIGTERM` follow the Worker's configured grace and force timeouts.
+   *
+   * Set to `[]` to disable automatic signal handling and manage shutdown yourself.
    *
    * @default
    * ```ts
