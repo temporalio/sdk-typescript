@@ -75,6 +75,9 @@ to docs, or any other relevant information.
   representation, such as functions, symbols, and objects whose `toJSON` returns `undefined`. The default
   payload converter now throws a `ValueError` for these values, including symbols, which previously caused a
   `TypeError` while building the error message.
+- Loading a Workflow bundle no longer makes `source-map-support` retain the bundle's source map in the main
+  thread's heap, which raised memory use and slowed `Worker.create()` when `source-map-support/register` was loaded
+  ([#2458](https://github.com/temporalio/sdk-typescript/issues/2458)).
 - `@temporalio/ai-sdk` now preserves text provider metadata when replaying streamed model responses
   inside Workflows.
 - The Workflow sandbox now exposes `atob` and `btoa`, allowing integrations such as `@temporalio/ai-sdk` to
