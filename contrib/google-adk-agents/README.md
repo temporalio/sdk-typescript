@@ -193,8 +193,9 @@ const lookupTool = activityAsTool({
 
 ADK 2.0's workflow runtime — `Workflow`, `node()`, `JoinNode`, routing,
 `dynamicEntry`, `RequestInput` — is plain async code driven by session events,
-so it runs inside a Temporal Workflow unchanged. Use `activityNode` to make a
-registered Activity a node:
+so it runs inside a Temporal Workflow unchanged, with one gap: a `timeout` on an
+`LlmAgent` node does not cancel the agent's model call (see **Agent node
+timeouts** below). Use `activityNode` to make a registered Activity a node:
 
 ```typescript
 import { InMemoryRunner, JoinNode, Workflow } from '@google/adk';
@@ -263,6 +264,18 @@ const runner = new InMemoryRunner({ agent: graph });
   `WAIT_CANCELLATION_COMPLETED` the node waits for the Activity to acknowledge,
   which it only does at its next heartbeat. The plugin runs this deadline
   itself, because ADK's own races the node and then abandons the unwind.
+- **Agent node timeouts.** A `timeout` on an `LlmAgent` node is ADK's own
+  deadline, and it never reaches the agent's model call: ADK runs the agent with
+  the run's abort signal rather than the node's. When the node times out, its
+  model Activity keeps running, and a `retryConfig` that retries
+  `NodeTimeoutError` starts the next attempt beside it; the calls left open are
+  only cancelled when the run itself fails or is cancelled. Once the retry has
+  answered, a failure from one of them no longer counts, whenever it arrives: the
+  plugin numbers model calls as they start, and ignores the failure of a call
+  that started before the same agent's latest answer in that run. Bound an
+  agent's model call with the model Activity's own `startToCloseTimeout` or
+  `scheduleToCloseTimeout` (`TemporalModel`'s `activity` options) instead, and
+  put a deadline on Activity work with `activityNode`.
 - **Fan-in.** Use a `JoinNode`: it is the node type that waits for every
   predecessor, and its input is the map from predecessor name to that node's
   output. ADK's `waitForOutput` flag is not a fan-in gate (it parks a node that
@@ -463,6 +476,11 @@ waiting on, an Activity node's Activity or an agent node's model call or tool ca
 the failed node's failure. The Activity's `cancellationType` sets how long that wait
 lasts, as it does for a node `timeout`. A tool gated with `requireConfirmation` is
 cancellable only once it is approved: a pending confirmation schedules nothing.
+
+An agent node's own `timeout` is the exception: ADK fails the node with
+`NodeTimeoutError` without cancelling the model call it was waiting on (see
+**Agent node timeouts**), so that model Activity runs on until it ends, or until
+the run fails or is cancelled.
 
 ### Streaming
 

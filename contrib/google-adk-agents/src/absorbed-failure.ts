@@ -39,20 +39,34 @@ import { ADK_RUNTIME_FAILURE_TYPES } from './error-types';
 // `TemporalModel`), and both have to reach the same recordings.
 const ABSORBED = '__temporal_googleAdkAbsorbedFailures';
 
-/** A model call that failed and that ADK absorbed into an event instead of rethrowing. */
-interface Recording {
-  /** The failure the `TemporalModel` call threw. */
-  error: unknown;
-  /** The `adk_agent_name` label of the request that failed. */
+/**
+ * One `TemporalModel` call made by an ADK agent inside a Workflow.
+ *
+ * @internal
+ */
+export interface ModelCall {
+  /** The `adk_agent_name` label of the request. */
   agent: string;
   /**
-   * The ADK invocation the failed call belonged to, identified by the `AbortSignal` ADK
-   * hands the model (`InvocationContext.abortSignal`). A `Workflow` run makes one signal
-   * and gives every node the same object, so a node retry and a re-activation of the same
-   * node share it while a later turn does not. `undefined` for a plain agent turn, where
-   * the runner sets no signal and one turn cannot be told from the next.
+   * The ADK invocation the call belongs to, identified by the `AbortSignal` ADK hands the
+   * model (`InvocationContext.abortSignal`). A `Workflow` run makes one signal and gives
+   * every node the same object, so a node retry and a re-activation of the same node share
+   * it while a later turn does not. `undefined` for a plain agent turn, where the runner
+   * sets no signal and one turn cannot be told from the next.
    */
   invocation: AbortSignal | undefined;
+  /**
+   * The call's number among the model calls this execution has started, taken when the
+   * call starts rather than when it settles. Workflow code starts its calls in the same
+   * order on every replay, so the number is deterministic.
+   */
+  seq: number;
+}
+
+/** A model call that failed and that ADK absorbed into an event instead of rethrowing. */
+interface Recording extends ModelCall {
+  /** The failure the `TemporalModel` call threw. */
+  error: unknown;
 }
 
 /** What one inbound frame — the main function, a Signal handler, an Update handler — absorbed. */
@@ -74,13 +88,20 @@ interface AbsorbedFailures {
   frames: ALS<Frame>;
   /** The main function's frame, which owns whatever is absorbed outside a handler frame. */
   main?: Frame;
+  /** How many model calls the execution has started: the latest call's `seq`. */
+  calls: number;
+  /**
+   * The `seq` of each agent's latest answered call, per ADK invocation. Held apart from the
+   * frames, because a call can settle after the frame that started it has returned.
+   */
+  answered: WeakMap<AbortSignal, Map<string, number>>;
 }
 
 function recorded(): AbsorbedFailures {
   const global = globalThis as Record<string, unknown>;
   let state = global[ABSORBED] as AbsorbedFailures | undefined;
   if (state === undefined) {
-    state = { frames: new AsyncLocalStorage<Frame>() };
+    state = { frames: new AsyncLocalStorage<Frame>(), calls: 0, answered: new WeakMap() };
     global[ABSORBED] = state;
   }
   return state;
@@ -94,35 +115,84 @@ function openFrame(): Frame | undefined {
   return main?.surfaced === false ? main : undefined;
 }
 
-/** @internal */
-export function recordAbsorbedFailure(err: unknown, agent: string, invocation: AbortSignal | undefined): void {
+/**
+ * Numbers a `TemporalModel` call as it starts, so that how it ends can be ordered against
+ * the same agent's other calls (see {@link recordModelSuccess}).
+ *
+ * @internal
+ */
+export function startModelCall(agent: string, invocation: AbortSignal | undefined): ModelCall {
+  const state = recorded();
+  state.calls += 1;
+  return { agent, invocation, seq: state.calls };
+}
+
+/**
+ * Whether the same agent has answered in the same invocation through a call that started
+ * after `call`. Then `call` belongs to an attempt ADK has already moved past: a call is
+ * left running that way by ADK's own node `timeout`, which abandons the timed-out attempt
+ * without cancelling its model call (`node_runner.ts`) while a retry answers.
+ *
+ * The key is the one {@link recordModelSuccess} spends by, so one agent run side by side
+ * over several items (a `ParallelWorker`) is one agent here: an item that answered hides
+ * the failure of an item whose call started earlier, and the run then fails on ADK's own
+ * report of that item (`NodeReportedError`) rather than on the model failure.
+ */
+function superseded(call: ModelCall): boolean {
+  if (call.invocation === undefined) return false;
+  const answered = recorded().answered.get(call.invocation)?.get(call.agent);
+  return answered !== undefined && answered > call.seq;
+}
+
+/**
+ * Records how a failed `TemporalModel` call ended, unless the failure is one ADK has
+ * already moved past ({@link superseded}): a call left running by a timed-out attempt
+ * whose retry answered first says nothing about the run, however it ends later.
+ *
+ * @internal
+ */
+export function recordAbsorbedFailure(err: unknown, call: ModelCall): void {
+  if (superseded(call)) return;
   const frame = openFrame();
   if (frame === undefined) return;
   if (isCancellation(err)) {
     frame.cancellation ??= err;
   } else {
-    frame.pending.push({ error: err, agent, invocation });
+    frame.pending.push({ ...call, error: err });
   }
 }
 
 /**
  * Declares that a `TemporalModel` call succeeded, which spends whatever the same agent
- * absorbed earlier in the same ADK invocation: that is ADK having retried the node (or
- * activated it again) and got its answer, and a run finishing normally must not fail on
- * the attempt it recovered from.
+ * absorbed in the same ADK invocation through a call that started before this one: that is
+ * ADK having retried the node (or activated it again) and got its answer, and a run
+ * finishing normally must not fail on the attempt it recovered from. Ordering by when the
+ * calls started, not by when they ended, also covers an earlier call still running when
+ * the answer comes: its failure is not recorded at all, whenever it arrives.
  *
  * Both halves of the key matter. A sibling agent answering says nothing about this one's
  * failure, and a later *turn* by the same agent is a new question, not a second go at the
  * one that failed — which is why a call with no invocation to compare (a plain agent turn
- * outside a graph, where ADK sets no signal) never clears anything.
+ * outside a graph, where ADK sets no signal) never clears anything. Nor does an answer
+ * spend the failure of a call that started after it.
  *
  * @internal
  */
-export function recordModelSuccess(agent: string, invocation: AbortSignal | undefined): void {
+export function recordModelSuccess(call: ModelCall): void {
+  const { agent, invocation, seq } = call;
   if (invocation === undefined) return;
+  const { answered } = recorded();
+  let latest = answered.get(invocation);
+  if (latest === undefined) {
+    latest = new Map();
+    answered.set(invocation, latest);
+  }
+  latest.set(agent, Math.max(latest.get(agent) ?? 0, seq));
   const frame = openFrame();
   if (frame === undefined) return;
-  frame.pending = frame.pending.filter((recording) => recording.agent !== agent || recording.invocation !== invocation);
+  frame.pending = frame.pending.filter(
+    (recording) => recording.agent !== agent || recording.invocation !== invocation || recording.seq > seq
+  );
 }
 
 /**

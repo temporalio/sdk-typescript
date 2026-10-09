@@ -35,9 +35,11 @@ to docs, or any other relevant information.
     target, and ADK's UUIDs are generated from a named workflow random stream inside the sandbox,
     so its ids are replay-stable;
   - the workflow (graph) runtime — `Workflow`, `node()`, `JoinNode`, routing, dynamic nodes,
-    node-as-tool, node retries and timeouts — runs unchanged; `activityNode` makes a registered
-    Activity a graph node, and its deadline (or a sibling's failure) cancels the in-flight
-    Activity and waits for that cancellation to settle before failing the node;
+    node-as-tool, node retries and timeouts — runs unchanged, except that ADK's `timeout` on an
+    `LlmAgent` node does not cancel the agent's in-flight model Activity, so a node retry can
+    overlap it; `activityNode` makes a registered Activity a graph node, and its deadline (or a
+    sibling's failure) cancels the in-flight Activity and waits for that cancellation to settle
+    before failing the node;
   - durable human-in-the-loop: `pendingHitlRequests`, `hitlInputResponse` and
     `hitlConfirmationResponse` supply ADK's wire format (refusing an answer with a
     `GoogleAdkHitlResponseError` `ApplicationFailure`, so building the response in a Signal or
