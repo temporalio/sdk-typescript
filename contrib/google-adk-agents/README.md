@@ -226,6 +226,13 @@ const runner = new InMemoryRunner({ agent: graph });
   output, so its successors receive `null`. ADK records a node as done only
   when its events carry an output, and without one a completed Activity would
   run again when a paused graph resumes.
+- **Schemas.** A Zod `outputSchema` checks every result, one with a `parts`
+  array included, which ADK's own check lets through as genai `Content`. A genai
+  `Schema` is checked by ADK's validator, which the plugin cannot reach and which
+  still lets such a result through, so give an Activity whose result can carry
+  `parts` a Zod `outputSchema`. The `inputSchema` check is ADK's as it is: an
+  input that is genai `Content` (the run's opening message, when it has no text
+  part) is left for `args` to handle.
 - **Node names.** The node is named after the Activity unless `nodeName` says
   otherwise, and the name may not contain `.`, `/` or `@`: ADK reads a node path
   back by those characters (its segments, and the run-id suffix), and a name

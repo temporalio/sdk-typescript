@@ -183,6 +183,21 @@ export async function graphPartsPayloadThenPause(): Promise<RunOutcome> {
   return approveAfterPause(new Workflow({ name: 'pause_after_parts_payload', edges: [['START', work, ask]] }));
 }
 
+/**
+ * The same Activity under a Zod `outputSchema`, followed by a node reporting the input it
+ * received. `schema` picks one the payload breaks (`value` has to be a string) or one it
+ * satisfies.
+ */
+export async function graphPartsPayloadOutputSchema(schema: 'mismatch' | 'match'): Promise<RunOutcome> {
+  const outputSchema =
+    schema === 'mismatch'
+      ? z.object({ value: z.string() })
+      : z.object({ parts: z.array(z.object({ text: z.string() })), value: z.number() });
+  const work = activityNode({ name: 'partsPayload', args: () => [], outputSchema });
+  const after = node((_ctx: NodeContext, received: unknown) => ({ received }), { name: 'after' });
+  return runOnce(new Workflow({ name: 'parts_payload_output_schema', edges: [['START', work, after]] }), 'go');
+}
+
 /** A dotted Activity type reaches the graph under a path-safe `nodeName`. */
 export async function graphDottedActivity(): Promise<RunOutcome> {
   const graph = new Workflow({
