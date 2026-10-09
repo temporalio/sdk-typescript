@@ -191,7 +191,7 @@ const lookupTool = activityAsTool({
 ADK 2.0's workflow runtime — `Workflow`, `node()`, `JoinNode`, routing,
 `dynamicEntry`, `RequestInput` — is plain async code driven by session events,
 so it runs inside a Temporal Workflow unchanged, with one gap: a `timeout` on an
-`LlmAgent` node does not cancel the agent's model call (see **Retries and
+`LlmAgent` node does not cancel the agent's model call (see **Agent node
 timeouts** below). Use `activityNode` to make a registered Activity a node:
 
 ```typescript
