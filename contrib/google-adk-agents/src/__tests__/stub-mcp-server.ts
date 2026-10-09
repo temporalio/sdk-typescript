@@ -1,8 +1,12 @@
 /**
- * A stdio MCP server exposing an `echo` tool and a `hang` tool that never answers,
- * recording its session boundaries and tool requests to the file named by
- * `MCP_STUB_LOG`. An unknown tool gets the reply a real `McpServer` sends: a
- * successful result carrying `isError: true`, never a JSON-RPC error frame.
+ * A stdio MCP server exposing an `echo` tool, a `hang` tool that never answers, and one
+ * `readme` resource, recording its session boundaries, tool and resource requests, and any
+ * `notifications/cancelled` a client sends, to the file named by `MCP_STUB_LOG`. An unknown
+ * tool gets the reply a real `McpServer` sends: a successful result carrying `isError: true`,
+ * never a JSON-RPC error frame. An unknown resource gets the JSON-RPC error a real server
+ * sends for `resources/read`. `MCP_STUB_HANG` names a request method (`resources/list`,
+ * `resources/read`) the server records and then never answers, so a client can only leave
+ * it by cancelling.
  */
 
 import { appendFileSync } from 'node:fs';
@@ -26,6 +30,10 @@ const TOOLS = [
   },
 ];
 
+const RESOURCES = [
+  { uri: 'file:///readme.md', name: 'readme', description: 'The stub README.', mimeType: 'text/markdown' },
+];
+
 function record(entry: string): void {
   const log = process.env.MCP_STUB_LOG;
   if (log) appendFileSync(log, `${entry}\n`);
@@ -40,12 +48,22 @@ function replyError(id: number | string, code: number, message: string): void {
 }
 
 function handle(message: JsonRpcMessage): void {
+  // How a client gives up on a request (`Protocol.request` in the MCP SDK sends it when
+  // the request's signal aborts); a notification, so it has no id and needs no reply.
+  if (message.method === 'notifications/cancelled') {
+    record('notifications/cancelled');
+    return;
+  }
   if (message.id === undefined) return;
+  if (message.method === process.env.MCP_STUB_HANG) {
+    record(message.method);
+    return;
+  }
   switch (message.method) {
     case 'initialize':
       reply(message.id, {
         protocolVersion: message.params?.protocolVersion,
-        capabilities: { tools: {} },
+        capabilities: { tools: {}, resources: {} },
         serverInfo: { name: 'stub-mcp-server', version: '0.0.0' },
       });
       return;
@@ -66,6 +84,23 @@ function handle(message: JsonRpcMessage): void {
         return;
       }
       reply(message.id, { content: [{ type: 'text', text: JSON.stringify({ echoed: params.arguments?.value }) }] });
+      return;
+    }
+    case 'resources/list':
+      record('resources/list');
+      reply(message.id, { resources: RESOURCES });
+      return;
+    case 'resources/read': {
+      record('resources/read');
+      const params = (message.params ?? {}) as { uri?: string };
+      const resource = RESOURCES.find((candidate) => candidate.uri === params.uri);
+      if (!resource) {
+        replyError(message.id, -32002, `Resource not found: ${params.uri}`);
+        return;
+      }
+      reply(message.id, {
+        contents: [{ uri: resource.uri, mimeType: resource.mimeType, text: '# Stub\n\nHello from the stub resource.' }],
+      });
       return;
     }
     default:
