@@ -21,6 +21,9 @@ test('cjsRequireExposesPublicExports', (t) => {
   t.is(typeof workflow.TemporalMCPToolset, 'function');
   t.is(typeof workflow.activityAsTool, 'function');
   t.is(typeof workflow.activityNode, 'function');
+  t.is(typeof workflow.pendingHitlRequests, 'function');
+  t.is(typeof workflow.hitlInputResponse, 'function');
+  t.is(typeof workflow.hitlConfirmationResponse, 'function');
   t.is(typeof workflow.markModelFailureHandled, 'function');
   t.is(workflow.MODEL_ERROR_FAILURE_TYPE, 'GoogleAdkModelError');
   t.is(workflow.MCP_TOOL_NOT_FOUND_FAILURE_TYPE, 'GoogleAdkMCPToolNotFound');
@@ -29,6 +32,7 @@ test('cjsRequireExposesPublicExports', (t) => {
   t.is(workflow.UNSUPPORTED_FAILURE_TYPE, 'GoogleAdkUnsupported');
   t.is(workflow.NODE_TIMEOUT_FAILURE_TYPE, 'GoogleAdkNodeTimeoutError');
   t.is(workflow.INTENT_MISMATCH_FAILURE_TYPE, 'GoogleAdkIntentMismatchError');
+  t.is(workflow.HITL_RESPONSE_FAILURE_TYPE, 'GoogleAdkHitlResponseError');
   t.is(workflow.ADK_RUNTIME_FAILURE_TYPES.NodeTimeoutError, 'GoogleAdkNodeTimeoutError');
   t.false('MCP_TOOLSET_OUTSIDE_WORKFLOW_FAILURE_TYPE' in workflow);
   t.false('ACTIVITY_TOOL_OUTSIDE_WORKFLOW_FAILURE_TYPE' in workflow);

@@ -6,7 +6,16 @@
 import path from 'node:path';
 
 import type { TestFn } from 'ava';
-import { BaseLlm, type BaseLlmConnection, type LlmRequest, type LlmResponse } from '@google/adk';
+import {
+  BaseLlm,
+  BaseTool,
+  BaseToolset,
+  type BaseLlmConnection,
+  type LlmRequest,
+  type LlmResponse,
+  type RunAsyncToolRequest,
+} from '@google/adk';
+import type { FunctionDeclaration } from '@google/genai';
 import { Type } from '@google/genai';
 import { defaultPayloadConverter } from '@temporalio/common';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
@@ -212,6 +221,43 @@ export class AbortingLlm extends BaseLlm {
  * runner fed back, and the tool declarations the request advertised. That makes
  * the Workflow's return value a witness for both.
  */
+/**
+ * An MCP toolset double whose one tool, `hang`, never answers: its call waits for the
+ * `toolContext.abortSignal` the `<name>-callTool` Activity supplies, which fires when that
+ * Activity is cancelled, and rejects with its reason. Register it as an `mcpToolsets`
+ * factory to see whether a cancel reaches a call in flight.
+ */
+export class HangingMCPToolset extends BaseToolset {
+  constructor() {
+    super([]);
+  }
+
+  override async getTools(): Promise<BaseTool[]> {
+    return [new HangingMCPTool()];
+  }
+
+  override async close(): Promise<void> {}
+}
+
+class HangingMCPTool extends BaseTool {
+  constructor() {
+    super({ name: 'hang', description: 'Never answers.' });
+  }
+
+  override _getDeclaration(): FunctionDeclaration {
+    return { name: this.name, description: this.description, parameters: { type: Type.OBJECT, properties: {} } };
+  }
+
+  override async runAsync({ toolContext }: RunAsyncToolRequest): Promise<unknown> {
+    const signal = toolContext.abortSignal;
+    return new Promise((_resolve, reject) => {
+      if (signal === undefined) return;
+      if (signal.aborted) return reject(signal.reason);
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+    });
+  }
+}
+
 export class ToolCallingLlm extends BaseLlm {
   private readonly toolName: string;
   private readonly toolArgs: Record<string, unknown>;
