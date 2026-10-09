@@ -309,7 +309,12 @@ export async function reviewWorkflow(prompt: string): Promise<unknown> {
   setHandler(pendingQuery, () => pending);
   // Build the response inside the handler, so a bad answer rejects the Update
   // rather than failing a Workflow Task once it is already in history.
-  setHandler(respondUpdate, (interruptId, value) => {
+  setHandler(respondUpdate, async (interruptId, value) => {
+    // Handlers run before the body resumes, so the answer can arrive before the body
+    // has published its request: wait briefly (only when it is not pending yet, since
+    // a timeout starts a timer), and refuse only an id that never shows up.
+    const isPending = () => pending.some((r) => r.interruptId === interruptId);
+    if (!isPending()) await condition(isPending, '5 seconds');
     const request = pending.find((r) => r.interruptId === interruptId);
     if (!request) {
       throw ApplicationFailure.nonRetryable(`nothing is waiting on '${interruptId}'`, HITL_RESPONSE_FAILURE_TYPE);
@@ -364,6 +369,12 @@ export async function reviewWorkflow(prompt: string): Promise<unknown> {
   `fromJSONSchema` over the JSON Schema recorded on the interrupt, and refused with
   ADK's own message if it does not match; a bare scalar is exempt, as it is in ADK.
   An answer the builder accepts is one ADK will accept.
+- An answer can reach the handler before the request it answers is pending. Within one
+  Workflow Task the SDK runs signal and update handlers before it resumes the Workflow
+  body, so an Update that lands in the task carrying the turn's last Activity result
+  runs while `pending` still holds the previous turn's list. A handler that depends on
+  state the body sets has to `condition()` on it, as the one above does, or it will
+  refuse a valid answer; the bound only decides how long an unknown id takes to refuse.
 - Both builders refuse an answer only by throwing a non-retryable `ApplicationFailure`
   of type `HITL_RESPONSE_FAILURE_TYPE`, never any other error, whatever they are
   handed: they check a decision or value before reading it, schema included. That is

@@ -43,6 +43,8 @@ import { graphTestProvider } from './test-models';
 import {
   answerAsTextUpdate,
   dynamicResume,
+  HITL_LOOKUP_TIMEOUT_MS,
+  hitlAnswerBeforeRequest,
   hitlAgentRequestInput,
   hitlConfirmActivityTool,
   hitlConfirmMcpTool,
@@ -228,6 +230,36 @@ test.serial(
     );
   }
 );
+
+test.serial('an answer sent before its request is published waits for it instead of being refused', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-hitl-answer-first');
+  const workflowId = uid('wf-hitl-answer-first');
+  await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, async () => {
+    const handle = await env.client.workflow.start(hitlAnswerBeforeRequest, { taskQueue, workflowId });
+    // Sent at once, while the body sits in its first node's timer: no Query could show the
+    // request yet. Handlers run before the body resumes, so this is the same position an
+    // answer is in when it lands in the task that carries the turn's last Activity result.
+    await handle.executeUpdate(respondHitlUpdate, { args: ['late', 'go'] });
+    const result = await handle.result();
+    t.is(result.output, 'answered:go');
+    t.is(result.turns, 2);
+  });
+  const { events } = await getEnv().client.workflow.getHandle(workflowId).fetchHistory();
+  // The handler's lookup timer shows it took the waiting path, not the fast one.
+  t.true(
+    (events ?? []).some(
+      (e) =>
+        String(e.timerStartedEventAttributes?.startToFireTimeout?.seconds ?? '') ===
+        String(HITL_LOOKUP_TIMEOUT_MS / 1000)
+    ),
+    'expected the Update handler to wait for the request'
+  );
+  t.deepEqual(
+    (events ?? []).filter((e) => e.workflowTaskFailedEventAttributes != null),
+    []
+  );
+});
 
 test.serial('a default interrupt id is a UUID and regenerates identically under replay', async (t) => {
   const env = getEnv();
