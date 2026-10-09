@@ -1,16 +1,74 @@
 /** Worker lifecycle integration tests. */
 import { randomUUID } from 'crypto';
 import { setTimeout } from 'timers/promises';
+import { fork } from 'node:child_process';
+import { once } from 'node:events';
 import { PromiseCompletionTimeoutError, Runtime } from '@temporalio/worker';
 import { TransportError, UnexpectedError } from '@temporalio/worker/lib/errors';
 import { isBun } from './helpers';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { fillMemory } from './workflows';
+import type { SignalWorkerOptions } from './worker-signal-fixture';
 
 const test = makeTestFunction({ workflowsPath: require.resolve('./workflows') });
 
 // The shared TestWorkflowEnvironment keeps its native connections alive until the suite teardown,
 // so these tests verify Worker shutdown without expecting Runtime._instance to clear per test.
+
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  // Windows terminates a child unconditionally when sending these signals.
+  (process.platform === 'win32' ? test.skip : test.serial)(
+    `Worker drains an in-flight Activity after OS ${signal}`,
+    async (t) => {
+      const { env } = t.context;
+      const { taskQueue } = helpers(t);
+      const child = fork(require.resolve('./worker-signal-fixture'), [], {
+        execArgv: [],
+        serialization: 'advanced',
+      });
+      const messages: unknown[] = [];
+      child.on('message', (message) => messages.push(message));
+      const exited = once(child, 'exit');
+      t.teardown(async () => {
+        if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+        await exited;
+      });
+      const nextMessage = () =>
+        Promise.race([
+          once(child, 'message').then(([message]) => message),
+          exited.then(([code, exitSignal]) => {
+            throw new Error(`Worker exited early: code=${code}, signal=${exitSignal}`);
+          }),
+        ]);
+      const running = nextMessage();
+      const options: SignalWorkerOptions = {
+        connectionOptions: { ...env.connectionOptions, address: env.address },
+        namespace: env.namespace,
+        taskQueue,
+      };
+      child.send(options);
+      t.is(await running, 'running');
+
+      const started = nextMessage();
+      const activity = await env.client.activity.start('waitForRelease', {
+        taskQueue,
+        id: randomUUID(),
+        scheduleToCloseTimeout: '1 minute',
+        retry: { maximumAttempts: 1 },
+      });
+      t.is(await started, 'activity-started');
+      const stopping = nextMessage();
+      t.true(child.kill(signal));
+      t.is(await stopping, 'stopping');
+      t.is(child.exitCode, null);
+      t.false(messages.includes('stopped'));
+      child.send('release');
+      t.is(await activity.result(), 'completed');
+      t.deepEqual(await exited, [0, null]);
+      t.deepEqual(messages, ['running', 'activity-started', 'stopping', 'activity-cleaned-up', 'stopped']);
+    }
+  );
+}
 
 test.serial('Worker shuts down gracefully', async (t) => {
   const { createWorker } = helpers(t);
