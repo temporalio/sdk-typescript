@@ -38,6 +38,7 @@ import {
   graphDottedActivity,
   graphFanOutJoin,
   graphMcpToolWithFailingSibling,
+  graphPartsPayloadOutputSchema,
   graphPartsPayloadThenPause,
   graphPluginNodeCallbacks,
   graphRetriedAgentNode,
@@ -155,6 +156,41 @@ test.serial('an Activity result with a parts array stays the node output across 
   t.is(countScheduledActivities(await history(workflowId), 'partsPayload'), 1);
   t.deepEqual(activities.executionsFor(workflowId), ['partsPayload']);
 });
+
+test.serial('an Activity result with a parts array is still checked against its outputSchema', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-graph-parts-schema-bad');
+  const err = await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, () =>
+    t.throwsAsync(
+      env.client.workflow.execute(graphPartsPayloadOutputSchema, {
+        taskQueue,
+        workflowId: uid('wf-graph-parts-schema-bad'),
+        args: ['mismatch'],
+      })
+    )
+  );
+  // ADK's own output check lets anything with a `parts` array through as genai `Content`;
+  // the Activity's numeric `value` breaks `z.string()` all the same.
+  const failure = findInCauseChain(err, ApplicationFailure);
+  t.is(failure?.type, 'GoogleAdkNodeSchemaValidationError');
+  t.true(failure?.message.startsWith("Node 'partsPayload' output does not match its outputSchema"), failure?.message);
+});
+
+test.serial(
+  'an Activity result with a parts array that satisfies its outputSchema reaches the successor',
+  async (t) => {
+    const env = getEnv();
+    const taskQueue = uid('adk-graph-parts-schema-ok');
+    const result = await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, () =>
+      env.client.workflow.execute(graphPartsPayloadOutputSchema, {
+        taskQueue,
+        workflowId: uid('wf-graph-parts-schema-ok'),
+        args: ['match'],
+      })
+    );
+    t.deepEqual(result.output, { received: { parts: [{ text: 'business payload' }], value: 7 } });
+  }
+);
 
 test('activityNode refuses a node name carrying an ADK node-path delimiter', (t) => {
   // ADK reads a node path back by '.' and '/' (segments) and '@' (the run-id suffix),
