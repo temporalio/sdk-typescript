@@ -118,8 +118,15 @@ export class VMWorkflowCreator implements WorkflowCreator {
     patchActivationCallback?: WorkflowPatchActivationCallback
   ): Promise<InstanceType<T>> {
     globalHandlers.install();
-    await globalHandlers.addWorkflowBundle(workflowBundle);
-    const script = new vm.Script(workflowBundle.code, { filename: workflowBundle.filename });
+    let script: vm.Script;
+    try {
+      await globalHandlers.addWorkflowBundle(workflowBundle);
+      script = new vm.Script(workflowBundle.code, { filename: workflowBundle.filename });
+    } catch (err) {
+      globalHandlers.removeWorkflowBundle(workflowBundle);
+      globalHandlers.release();
+      throw err;
+    }
     return new this(
       script,
       workflowBundle,
@@ -134,6 +141,7 @@ export class VMWorkflowCreator implements WorkflowCreator {
    */
   public async destroy(): Promise<void> {
     globalHandlers.removeWorkflowBundle(this.workflowBundle);
+    globalHandlers.release();
     delete this.script;
   }
 }

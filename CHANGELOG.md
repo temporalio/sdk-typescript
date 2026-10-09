@@ -55,6 +55,12 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- Workers in debug mode, including `Worker.runReplayHistory`, no longer leave their promise hook and
+  `Error.prepareStackTrace` override installed in the host process. The hooks are removed when the last
+  workflow creator is destroyed. The promise hook also no longer throws on a promise from outside any
+  Workflow whose `constructor` is not a function. Node.js 26.11 creates such promises internally in
+  WebCrypto, so RSA key generation after a replay crashed the process.
+
 - Corrected the Schedule `catchupWindow` documentation to state that omitted values use the Temporal
   Server's configured default.
 - `@temporalio/strands-agents` tools built on Activities, `activityAsTool`, and MCP tools now give the

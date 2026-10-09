@@ -85,11 +85,33 @@ function cutoffStructuredStackTrace(stackTrace: StackTraceFileLocation[]): void 
   }
 }
 
+/**
+ * Return the `Function` constructor of the realm (vm.Context) that created `promise`, or `undefined` if it can't be
+ * determined.
+ *
+ * The promise hooks and the unhandled rejection handler see every promise in the isolate, not only workflow promises.
+ * Code outside a workflow can give a promise any `constructor`: user code can assign one, and Node's own WebCrypto
+ * (since v26.11) sets `constructor` to `undefined` on its internal job promises. Reading the constructor from the
+ * prototype ignores such own properties, and the `typeof` checks reject anything that isn't a constructor.
+ */
+function getPromiseRealmFunction(promise: Promise<unknown>): FunctionConstructor | undefined {
+  const promiseCtor = Object.getPrototypeOf(promise)?.constructor;
+  if (typeof promiseCtor !== 'function') return undefined;
+  const fnCtor = promiseCtor.constructor;
+  return typeof fnCtor === 'function' ? fnCtor : undefined;
+}
+
 function getActivator(promise: Promise<any>): Activator | undefined {
   // Access the global scope associated with the promise (unique per workflow - vm.context)
   // See for reference https://github.com/patriksimek/vm2/issues/32
-  const ctor = promise.constructor.constructor;
-  return ctor('return globalThis.__TEMPORAL_ACTIVATOR__')();
+  const ctor = getPromiseRealmFunction(promise);
+  if (ctor === undefined) return undefined;
+  try {
+    return ctor('return globalThis.__TEMPORAL_ACTIVATOR__')();
+  } catch {
+    // A promise from outside any workflow; never let the hook throw on it.
+    return undefined;
+  }
 }
 
 /**
@@ -201,6 +223,9 @@ export class GlobalHandlers {
   bundleFilenameToSourceMapConsumer = new Map<string, SourceMapConsumer>();
   origPrepareStackTrace = Error.prepareStackTrace;
   private stopPromiseHook = () => {};
+  private installedPrepareStackTrace: typeof Error.prepareStackTrace = undefined;
+  /** How many install() calls have not been matched by a release() yet. */
+  private users = 0;
   promiseHookInstalled = false;
   installed = false;
 
@@ -214,9 +239,12 @@ export class GlobalHandlers {
   }
 
   /**
-   * Set the global hooks, this method is idempotent
+   * Set the global hooks if they aren't set yet, and register one more user of them.
+   *
+   * Each call must be matched by one call to {@link release} once that user is done with the hooks.
    */
   install(): void {
+    this.users++;
     if (!this.installed) {
       this.overridePrepareStackTrace();
       this.setPromiseHook();
@@ -225,14 +253,31 @@ export class GlobalHandlers {
   }
 
   /**
-   * Unset all installed global hooks
+   * Unregister one user of the global hooks, and unset the hooks when no user remains.
    *
-   * This method is not called anywhere since we typically install the hooks in a separate thread which is cleaned up
-   * after worker shutdown. Is debug mode we don't clean these up but that should be insignificant.
+   * The hooks are global to the isolate. In a workflow worker thread that hardly matters, because the thread ends with
+   * the Worker. In debug mode, which includes `Worker.runReplayHistory`, the hooks run on the main thread, so leaving
+   * them in place would make them run on every promise the host application creates afterwards.
+   */
+  release(): void {
+    if (this.users === 0) return;
+    this.users--;
+    if (this.users === 0) this.uninstall();
+  }
+
+  /**
+   * Unset all installed global hooks, whatever the number of users.
    */
   uninstall(): void {
     this.stopPromiseHook();
-    Error.prepareStackTrace = this.origPrepareStackTrace;
+    this.stopPromiseHook = () => {};
+    this.promiseHookInstalled = false;
+    // Don't clobber a prepareStackTrace that someone else set after ours.
+    if (Error.prepareStackTrace === this.installedPrepareStackTrace) {
+      Error.prepareStackTrace = this.origPrepareStackTrace;
+    }
+    this.installedPrepareStackTrace = undefined;
+    this.users = 0;
     this.installed = false;
   }
 
@@ -244,7 +289,7 @@ export class GlobalHandlers {
     // This should be a non-issue in most cases since we typically construct a single instance of
     // this class per Worker thread.
     // See: https://v8.dev/docs/stack-trace-api#customizing-stack-traces
-    Error.prepareStackTrace = (err, stackTraces) => {
+    this.installedPrepareStackTrace = Error.prepareStackTrace = (err, stackTraces) => {
       const inWorkflowContext = OuterError !== err.constructor;
       if (this.origPrepareStackTrace && !inWorkflowContext) {
         return this.origPrepareStackTrace(err, stackTraces);
@@ -304,7 +349,8 @@ export class GlobalHandlers {
           (promise as any).runId = activator.info.runId;
           // Reset currentStackTrace just in case (it will be set in `prepareStackTrace` above)
           this.currentStackTrace = undefined;
-          const fn = promise.constructor.constructor;
+          // getActivator() returned an activator, so this realm lookup succeeded a moment ago.
+          const fn = getPromiseRealmFunction(promise)!;
           const ErrorCtor = fn('return globalThis.Error')();
 
           // To see the full stack replace with commented line
