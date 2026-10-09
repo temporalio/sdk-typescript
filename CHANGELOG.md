@@ -98,6 +98,7 @@ to docs, or any other relevant information.
 - `@temporalio/create` now supports comments and trailing commas in `tsconfig.json` files when
   creating projects.
 - `WorkflowExecutionAlreadyStartedError` now exposes the `runId` of the already-running Workflow Execution when the server provides it in the error details (#1838).
+- Workflow code that blocks the sandbox past its time limit now fails with the `[TMPRL1101]` deadlock diagnostic (#2426).
 
 ### Changed
 

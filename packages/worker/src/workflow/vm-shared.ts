@@ -47,6 +47,23 @@ export function setUnhandledRejectionHandler(getWorkflowByRunId: (runId: string)
 }
 
 /**
+ * Replace Node's generic VM timeout error with the TMPRL1101 deadlock diagnostic shared by all Temporal SDKs,
+ * so that users can find and act on it. Other errors are returned unchanged.
+ */
+export function toDeadlockErrorIfVmTimeout(err: unknown, isolateExecutionTimeoutMs: number): unknown {
+  if ((err as { code?: unknown } | null)?.code !== 'ERR_SCRIPT_EXECUTION_TIMEOUT') return err;
+  const timeoutError = err as Error;
+  const deadlockError = new Error(
+    `[TMPRL1101] Potential deadlock detected: workflow didn't yield within ${isolateExecutionTimeoutMs}ms ` +
+      `(${timeoutError.message}). Workflow code must not block, busy-loop, or run long CPU-bound work ` +
+      `without awaiting. See https://github.com/temporalio/rules/blob/main/rules/TMPRL1101.md`
+  );
+  // Reuse Node's stack so the failure recorded in history doesn't gain the worker's own frames.
+  deadlockError.stack = timeoutError.stack?.replace(timeoutError.message, () => deadlockError.message);
+  return deadlockError;
+}
+
+/**
  * Variant of {@link cutoffStackTrace} that works with FileLocation, keep this in sync with the original implementation
  */
 function cutoffStructuredStackTrace(stackTrace: StackTraceFileLocation[]): void {
