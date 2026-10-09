@@ -43,6 +43,7 @@ import {
   graphRouting,
   graphSequential,
   graphTimeout,
+  graphTimedOutAgentNodeRetry,
   graphTimeoutRetry,
   graphVoidOutput,
   twoAgentsOneFailureSwallowed,
@@ -394,6 +395,42 @@ test.serial('a failing sibling node cancels an agent node model call and fails t
   );
   // Without the cancel, ADK's cleanup waits out every attempt's 20s start-to-close timeout.
   t.true(Date.now() - started < 15_000, `took ${Date.now() - started}ms`);
+});
+
+test.serial('an ADK timeout on an agent node leaves its model call running into the retry', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-graph-agent-timeout');
+  const workflowId = uid('wf-graph-agent-timeout');
+  const err = await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, () =>
+    t.throwsAsync(env.client.workflow.execute(graphTimedOutAgentNodeRetry, { taskQueue, workflowId }))
+  );
+  t.is(findInCauseChain(err, ApplicationFailure)?.type, 'GoogleAdkNodeTimeoutError');
+  // Pins a documented ADK 2.0 limitation, so a change upstream shows up here: an agent
+  // node's deadline never reaches its model call (`runLlmAgentAsNode` runs the agent with
+  // the run's abort signal, not the node's), so when ADK retries the timed-out node, the
+  // first attempt's model Activity is still open: neither settled nor asked to cancel.
+  const events = await history(workflowId);
+  const modelCalls = events.filter(
+    (e) => e.activityTaskScheduledEventAttributes?.activityType?.name === 'adk-invokeModel'
+  );
+  t.is(modelCalls.length, 2, 'ADK retried the timed-out agent node once');
+  const first = String(modelCalls[0]!.eventId);
+  const beforeRetry = events.slice(0, events.indexOf(modelCalls[1]!));
+  const touchesFirst = beforeRetry.filter((e) =>
+    [
+      e.activityTaskCancelRequestedEventAttributes,
+      e.activityTaskCompletedEventAttributes,
+      e.activityTaskFailedEventAttributes,
+      e.activityTaskTimedOutEventAttributes,
+      e.activityTaskCanceledEventAttributes,
+    ].some((attributes) => attributes != null && String(attributes.scheduledEventId) === first)
+  );
+  t.deepEqual(touchesFirst, [], 'the first model call was still open when the retry scheduled the second');
+  // The last attempt's failure does abort the run, and that cancels every model call left open.
+  const cancelRequested = events
+    .filter((e) => e.activityTaskCancelRequestedEventAttributes != null)
+    .map((e) => String(e.activityTaskCancelRequestedEventAttributes!.scheduledEventId));
+  t.deepEqual(cancelRequested, [first, String(modelCalls[1]!.eventId)]);
 });
 
 test.serial('an agent node whose retry succeeds does not fail on the attempt ADK recovered', async (t) => {

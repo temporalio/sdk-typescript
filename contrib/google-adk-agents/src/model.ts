@@ -34,6 +34,12 @@ export interface TemporalModelOptions {
    * `WAIT_CANCELLATION_COMPLETED` waits for the Activity to acknowledge, which it
    * does at its next heartbeat; the model Activities heartbeat at half the
    * `heartbeatTimeout`, and not at all without one.
+   *
+   * A `timeout` on the agent's graph node is not such an abort. ADK runs the agent
+   * with the run's signal, not the node's deadline (`runLlmAgentAsNode`), so a
+   * node that times out leaves its model call running, and an ADK retry starts the
+   * next call beside it. Bound the call with this Activity's own
+   * `startToCloseTimeout` or `scheduleToCloseTimeout` instead.
    */
   activity?: ActivityOptions;
   /**

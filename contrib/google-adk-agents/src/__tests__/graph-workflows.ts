@@ -381,6 +381,20 @@ export async function graphAgentNodeWithFailingSibling(): Promise<RunOutcome> {
 }
 
 /**
+ * A {@link cancellableAgent} node under ADK's own one-second `timeout`, retried once on
+ * `NodeTimeoutError`. ADK keeps the node's deadline from the agent, which runs with the
+ * run's abort signal, so each attempt leaves its model call running, and only the last
+ * attempt's failure (which aborts the run) cancels them.
+ */
+export async function graphTimedOutAgentNodeRetry(): Promise<RunOutcome> {
+  const timed = node(cancellableAgent(), {
+    timeout: 1,
+    retryConfig: { maxAttempts: 2, initialDelay: 0.01, jitter: 0, exceptions: ['NodeTimeoutError'] },
+  });
+  return runOnce(new Workflow({ name: 'timed_out_agent_node', edges: [['START', timed]] }), 'hi');
+}
+
+/**
  * An `LlmAgent` node whose first model call fails and whose retry succeeds. ADK absorbed
  * the first failure into an event, so the run finishes normally and the plugin must not
  * raise the attempt ADK already recovered from.
