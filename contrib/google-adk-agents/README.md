@@ -3,12 +3,14 @@
 Run [Google Agent Development Kit](https://github.com/google/adk-js) (`@google/adk`)
 agents as durable [Temporal](https://temporal.io) Workflows.
 
-Your ADK agent graph runs inside the Workflow and replays deterministically. The
-plugin routes non-deterministic boundaries out to Activities:
+Your ADK agent graph — agents, tools, plugins, and ADK 2.0's workflow (graph)
+runtime — runs inside the Workflow and replays deterministically. The plugin
+routes non-deterministic boundaries out to Activities:
 
 - every **model call** (`generateContentAsync`) becomes a retryable, observable
-  Activity, and
-- every **MCP tool call** (list-tools / call-tool) becomes an Activity.
+  Activity,
+- every **MCP tool call** (list-tools / call-tool) becomes an Activity,
+- an **Activity** can be a graph node (`activityNode`) or a tool (`activityAsTool`).
 
 Regular ADK `FunctionTool`s still run in the Workflow. If a tool performs I/O,
 wrap an existing Temporal Activity with `activityAsTool`.
@@ -130,6 +132,15 @@ policy. To opt out, handle the error in an ADK `onModelErrorCallback`, pass
 that same error to `markModelFailureHandled`, and return a substitute event
 built with ADK's `createEvent`.
 
+ADK turns a model error into an event rather than rethrowing it, so a run can
+finish normally on a failure nobody saw; the plugin raises such a failure as the
+Workflow (or the Update handler that ran the turn) returns. What counts as the
+recovery is the same agent answering later in the same ADK invocation: a node
+`retryConfig` that re-runs the agent, or a graph that activates the node again,
+leaves nothing to raise. Another agent answering does not clear it, and neither
+does a later turn, which is a new question rather than a second go at the one
+that failed.
+
 ### MCP tools
 
 Use `TemporalMCPToolset` in Workflow code and register the matching MCP factory
@@ -174,6 +185,148 @@ const lookupTool = activityAsTool({
   parameters: { type: Type.OBJECT, properties: { orderId: { type: Type.STRING } } },
 });
 ```
+
+### Graph workflows
+
+ADK 2.0's workflow runtime — `Workflow`, `node()`, `JoinNode`, routing,
+`dynamicEntry`, `RequestInput` — is plain async code driven by session events,
+so it runs inside a Temporal Workflow unchanged, with one gap: a `timeout` on an
+`LlmAgent` node does not cancel the agent's model call (see **Agent node
+timeouts** below). Use `activityNode` to make a registered Activity a node:
+
+```typescript
+import { InMemoryRunner, JoinNode, Workflow } from '@google/adk';
+import { activityNode } from '@temporalio/google-adk-agents/workflow';
+
+const fetchA = activityNode({ name: 'fetchData', nodeName: 'fetch_a', args: () => ['a'] });
+const fetchB = activityNode({ name: 'fetchData', nodeName: 'fetch_b', args: () => ['b'] });
+const join = new JoinNode({ name: 'join' });
+const summarize = activityNode({
+  name: 'summarize',
+  activity: { startToCloseTimeout: '2 minutes', retry: { maximumAttempts: 3 } },
+});
+
+const graph = new Workflow({
+  name: 'report',
+  edges: [
+    ['START', fetchA, join],
+    ['START', fetchB, join],
+    [join, summarize],
+  ],
+});
+const runner = new InMemoryRunner({ agent: graph });
+```
+
+- **Input and output.** By default the node's input is passed to the Activity as
+  its single argument and the Activity's result, whatever its shape, is the
+  node's output; `args` maps the input (and `NodeContext`, for state) to the
+  Activity's argument list. The node's event carries the result as `output`
+  only, with no `content`, so a result with a `parts` array is not taken for
+  genai `Content` the way ADK's `FunctionNode` would take it. An Activity
+  returning nothing (`undefined` or `null`) completes the node with a `null`
+  output, so its successors receive `null`. ADK records a node as done only
+  when its events carry an output, and without one a completed Activity would
+  run again when a paused graph resumes.
+- **Schemas.** A Zod `outputSchema` checks every result, one with a `parts`
+  array included, which ADK's own check lets through as genai `Content`. A genai
+  `Schema` is checked by ADK's validator, which the plugin cannot reach and which
+  still lets such a result through, so give an Activity whose result can carry
+  `parts` a Zod `outputSchema`. The `inputSchema` check is ADK's as it is: an
+  input that is genai `Content` (the run's opening message, when it has no text
+  part) is left for `args` to handle.
+- **Node names.** The node is named after the Activity unless `nodeName` says
+  otherwise, and the name may not contain `.`, `/` or `@`: ADK reads a node path
+  back by those characters (its segments, and the run-id suffix), and a name
+  containing one breaks the resume that fast-forwards a completed node.
+  `activityNode` refuses one, so an Activity type such as `payments.charge` or
+  `charge@customer` needs a `nodeName`.
+- **Routing.** A node returns `createEvent({ route: 'approve', output })` and the
+  edge `[router, { approve: a, [DEFAULT_ROUTE]: b }]` picks the branch; only that
+  branch's Activity runs.
+- **Dynamic nodes.** Inside a `node(async (ctx, input) => …)` body,
+  `await ctx.runNode(activityNode(…), input)` runs the Activity as a child and
+  returns its result — in loops, in `Promise.all`, behind conditions.
+- **Node as tool.** A `Workflow` (or any node) in an `LlmAgent`'s `tools` becomes a
+  tool. Give it a Zod object `inputSchema` for real parameters; a genai `Schema`
+  advertises a single `request` string, which only a string-typed schema accepts.
+- **Retries and timeouts.** Prefer Temporal's `activity.retry` and timeouts. ADK's
+  `retryConfig` re-runs the whole node on top of them (match an Activity failure
+  with `exceptions: ['ActivityFailure']`; ADK matches error names), its backoff is
+  a durable timer, and its jitter is drawn from the Workflow's `Math.random()`.
+  A node `timeout` (seconds) is a durable timer that cancels the in-flight
+  Activity and fails the node with ADK's `NodeTimeoutError` once that
+  cancellation has settled, so a retry never overlaps the Activity it replaces.
+  What "settled" means is the Activity's `cancellationType`: unset
+  (`TRY_CANCEL`) it settles at once and the Activity winds down on its own; with
+  `WAIT_CANCELLATION_COMPLETED` the node waits for the Activity to acknowledge,
+  which it only does at its next heartbeat. The plugin runs this deadline
+  itself, because ADK's own races the node and then abandons the unwind.
+- **Agent node timeouts.** A `timeout` on an `LlmAgent` node is ADK's own
+  deadline, and it never reaches the agent's model call: ADK runs the agent with
+  the run's abort signal rather than the node's. When the node times out, its
+  model Activity keeps running, and a `retryConfig` that retries
+  `NodeTimeoutError` starts the next attempt beside it; the calls left open are
+  only cancelled when the run itself fails or is cancelled. Once the retry has
+  answered, a failure from one of them no longer counts, whenever it arrives: the
+  plugin numbers model calls as they start, and ignores the failure of a call
+  that started before the same agent's latest answer in that run. Bound an
+  agent's model call with the model Activity's own `startToCloseTimeout` or
+  `scheduleToCloseTimeout` (`TemporalModel`'s `activity` options) instead, and
+  put a deadline on Activity work with `activityNode`.
+- **Fan-in.** Use a `JoinNode`: it is the node type that waits for every
+  predecessor, and its input is the map from predecessor name to that node's
+  output. ADK's `waitForOutput` flag is not a fan-in gate (it parks a node that
+  ended with no output and no route), so `activityNode` does not expose it.
+- **Resume.** ADK resumes a paused graph from the session's events: a node that
+  already produced output is always fast-forwarded rather than re-run, so an
+  `activityNode`'s Activity is not scheduled again. (ADK's `rerunOnResume`
+  concerns a node that paused for input last turn, which an Activity node never
+  does, so `activityNode` does not expose it either.) Resume is at-least-once
+  for a dynamic node's body — put side effects in `activityNode` /
+  `activityAsTool` children, or make them idempotent.
+- `LongRunningFunctionTool`s (including a node-as-tool) cannot be used as a
+  `ToolNode`; ADK rejects that.
+
+### Failures
+
+A model or Activity failure ends the Workflow through its `ActivityFailure` as
+usual. ADK's own runtime errors are plain `Error`s, and the Temporal SDK treats an
+unexpected error as a Workflow _Task_ failure that retries forever; the plugin
+therefore converts the ones a graph produces as outcomes into non-retryable
+`ApplicationFailure`s (the ADK error is the `cause`):
+
+| ADK error                   | `ApplicationFailure.type`                                                                                                     |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `NodeTimeoutError`          | `GoogleAdkNodeTimeoutError`                                                                                                   |
+| `NodeReportedError`         | `GoogleAdkNodeReportedError` (or the recorded model `ActivityFailure` when a `TemporalModel` call was what the node absorbed) |
+| `NodeSchemaValidationError` | `GoogleAdkNodeSchemaValidationError`                                                                                          |
+| `IntentMismatchError`       | `GoogleAdkIntentMismatchError`                                                                                                |
+| `StateSchemaError`          | `GoogleAdkStateSchemaError`                                                                                                   |
+| `InvocationAbortedError`    | `GoogleAdkInvocationAbortedError`                                                                                             |
+| `DynamicNodeFailError`      | `GoogleAdkDynamicNodeFailError` (or the Temporal failure the dynamic child raised, which the wrapper carries outside `cause`) |
+
+The mapping is exported as `ADK_RUNTIME_FAILURE_TYPES`. Anything else ADK throws
+— a malformed human reply, `StreamingMode.BIDI`, a reserved function _call_ in a
+client message — keeps the SDK's convention; use
+`WorkerOptions.workflowFailureErrorTypes` to fail the execution on more.
+
+Cancellation is not a failure. When a cancelled Workflow cancels the model call
+an agent node is waiting on, ADK absorbs the cancelled call like any model error
+and reports the node as failed (`NodeReportedError`); the plugin ends the
+execution CANCELLED with the model Activity's own cancellation instead. A
+cancelled Activity node ends it CANCELLED the same way, inside a dynamic run too.
+
+A failing sibling does not cancel the execution either. When a graph node fails,
+ADK aborts the run and waits for the nodes still running before failing it. The
+plugin turns that abort into a cancellation of the Activity each of those nodes is
+waiting on, an Activity node's Activity or an agent node's model call, and the
+execution then fails with the failed node's failure. The Activity's
+`cancellationType` sets how long that wait lasts, as it does for a node `timeout`.
+
+An agent node's own `timeout` is the exception: ADK fails the node with
+`NodeTimeoutError` without cancelling the model call it was waiting on (see
+**Agent node timeouts**), so that model Activity runs on until it ends, or until
+the run fails or is cancelled.
 
 ### Streaming
 
@@ -236,9 +389,11 @@ const worker = await Worker.create({
 });
 ```
 
-You then get ADK's agent-loop spans nested under the same trace as the
-interceptor's own `RunWorkflow` / `StartActivity` spans. Export is replay-gated,
-so replaying a Workflow's history does not re-emit them.
+You then get ADK's spans — `invocation`, `invoke_agent <name>`, `call_llm`, and
+for the workflow runtime `invoke_workflow <name>`, `execute_node <name>`,
+`execute_node_attempt <name>` — nested under the same trace as the interceptor's
+own `RunWorkflow` / `StartActivity` spans. Export is replay-gated, so replaying a
+Workflow's history does not re-emit them.
 
 Cautions:
 
@@ -249,6 +404,9 @@ Cautions:
   task **retry** (a task that failed or timed out and re-executes) is not a
   replay, so its spans are re-emitted. Retries are rare in normal operation, but
   don't build alerting that assumes exact span counts.
+- ADK attaches its `adk.workflow.*` / `adk.node.*` attributes to the _active_
+  span, and no OpenTelemetry context manager runs inside the sandbox, so those
+  attributes are absent; span names and counts are reliable.
 - The agent-loop spans carry prompt content as span attributes, and ADK's
   `ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS=false` does not suppress it inside the
   sandbox. Point the span processor somewhere approved for prompt content, or
@@ -267,6 +425,10 @@ Cautions:
   and independent of the Workflow's own `Math.random()` sequence. Those ids are
   **not cryptographically random** inside a Workflow; nor is ADK's OAuth2 `state`,
   which is one reason credential flows are unsupported there.
+- ADK's node retry backoff and timeouts are durable timers; the retry jitter is
+  drawn from the Workflow's `Math.random()`.
+- ADK resumes a paused run from the session events: completed nodes are
+  fast-forwarded, a dynamic node's body re-runs.
 
 ## Not supported in Workflows
 
