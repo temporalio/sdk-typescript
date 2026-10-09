@@ -72,6 +72,9 @@ to docs, or any other relevant information.
   creating projects.
 - `WorkflowExecutionAlreadyStartedError` now exposes the `runId` of the already-running Workflow Execution when the server provides it in the error details (#1838).
 - Workflow code that blocks the sandbox past its time limit now fails with the `[TMPRL1101]` deadlock diagnostic (#2426).
+- Source file paths in Workflow stack traces are no longer percent-encoded when they contain spaces or
+  non-ASCII characters, which happened with `source-map` 0.7.6. The Worker now maps stack traces with
+  `@jridgewell/trace-mapping`, and no longer reads `source-map`'s `mappings.wasm` from disk.
 
 ### Changed
 

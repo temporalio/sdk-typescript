@@ -6,7 +6,7 @@ import { atob, btoa } from 'node:buffer';
 import * as nodeUrl from 'node:url';
 import { URL, URLSearchParams } from 'node:url';
 import { TextDecoder, TextEncoder } from 'node:util';
-import { SourceMapConsumer } from 'source-map';
+import { TraceMap, originalPositionFor, type EncodedSourceMap } from '@jridgewell/trace-mapping';
 import { cutoffStackTrace, IllegalStateError, convertDeploymentVersion } from '@temporalio/common';
 import { suggestContinueAsNewReasonsFromProto } from '@temporalio/common/lib/continue-as-new';
 import { tsToMs } from '@temporalio/common/lib/time';
@@ -198,14 +198,14 @@ export function injectGlobals(context: vm.Context): void {
  */
 export class GlobalHandlers {
   currentStackTrace: StackTraceFileLocation[] | undefined = undefined;
-  bundleFilenameToSourceMapConsumer = new Map<string, SourceMapConsumer>();
+  bundleFilenameToSourceMapConsumer = new Map<string, TraceMap>();
   origPrepareStackTrace = Error.prepareStackTrace;
   private stopPromiseHook = () => {};
   promiseHookInstalled = false;
   installed = false;
 
   async addWorkflowBundle(workflowBundle: WorkflowBundleWithSourceMapAndFilename): Promise<void> {
-    const sourceMapConsumer = await new SourceMapConsumer(workflowBundle.sourceMap);
+    const sourceMapConsumer = new TraceMap(workflowBundle.sourceMap as EncodedSourceMap);
     this.bundleFilenameToSourceMapConsumer.set(workflowBundle.filename, sourceMapConsumer);
   }
 
@@ -257,7 +257,7 @@ export class GlobalHandlers {
         const filename = callsite.getFileName();
         const sourceMapConsumer = filename && this.bundleFilenameToSourceMapConsumer.get(filename);
         if (sourceMapConsumer && line && column) {
-          const pos = sourceMapConsumer.originalPositionFor({ line, column });
+          const pos = originalPositionFor(sourceMapConsumer, { line, column });
 
           const name = pos.name || formatCallsiteName(callsite);
           this.currentStackTrace?.push({
