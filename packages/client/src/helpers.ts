@@ -155,6 +155,7 @@ export function rethrowKnownErrorTypes(err: GrpcServiceError): void {
           err.message = status.message ?? err.message;
           err.code = status.code || err.code;
           err.details = detail?.value?.toString() || err.details;
+          err.stack = err.stack?.replace(/^.*$/m, `${err.name}: ${err.code} ${grpcStatus[err.code]}: ${err.message}`);
           throw err;
         }
       }
