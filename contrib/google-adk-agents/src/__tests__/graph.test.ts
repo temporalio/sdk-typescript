@@ -409,7 +409,7 @@ async function assertToolCallCancelledBySibling(
   workflowId: string,
   err: Error | undefined,
   toolActivity: string,
-  started: number
+  elapsedMs: number
 ): Promise<void> {
   t.is(findInCauseChain(err, ApplicationFailure)?.type, 'TestPermanentFailure');
   t.is((await getEnv().client.workflow.getHandle(workflowId).describe()).status.name, 'FAILED');
@@ -428,19 +428,30 @@ async function assertToolCallCancelledBySibling(
     events.every((e) => (e.activityTaskStartedEventAttributes?.attempt ?? 1) === 1),
     'expected every Activity to end on its first attempt'
   );
-  // Without the cancel, ADK's cleanup waits out three 20s start-to-close timeouts.
-  t.true(Date.now() - started < 15_000, `took ${Date.now() - started}ms`);
+  // Without the cancel, ADK's cleanup waits out three 20s start-to-close timeouts, 60s and
+  // more. The events above already show the cancel ended the first attempt, so the bound
+  // only has to tell a cancelled run from that on a slow runner, where the tool Activity's
+  // heartbeat cadence (how a cancel reaches it) dominates.
+  t.true(elapsedMs < 30_000, `took ${elapsedMs}ms`);
+}
+
+/** Runs `fn` and reports how long it took, so a bound covers the run and not Worker start-up. */
+async function timed<T>(fn: () => Promise<T>): Promise<{ value: T; elapsedMs: number }> {
+  const started = Date.now();
+  const value = await fn();
+  return { value, elapsedMs: Date.now() - started };
 }
 
 test.serial('a failing sibling node cancels an agent node activityAsTool call and fails the Workflow', async (t) => {
   const env = getEnv();
   const taskQueue = uid('adk-graph-tool-sibling');
   const workflowId = uid('wf-graph-tool-sibling');
-  const started = Date.now();
-  const err = await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, () =>
-    t.throwsAsync(env.client.workflow.execute(graphActivityToolWithFailingSibling, { taskQueue, workflowId }))
+  const { value: err, elapsedMs } = await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, () =>
+    timed(() =>
+      t.throwsAsync(env.client.workflow.execute(graphActivityToolWithFailingSibling, { taskQueue, workflowId }))
+    )
   );
-  await assertToolCallCancelledBySibling(t, workflowId, err, 'hangingTool', started);
+  await assertToolCallCancelledBySibling(t, workflowId, err, 'hangingTool', elapsedMs);
   t.deepEqual(
     activities.executionsFor(workflowId).filter((e) => e.startsWith('hangingTool')),
     ['hangingTool:1']
@@ -457,11 +468,10 @@ test.serial(
       modelProvider: graphTestProvider(),
       mcpToolsets: { hangServer: () => new HangingMCPToolset() },
     });
-    const started = Date.now();
-    const err = await withWorker(env, { taskQueue, plugins: [plugin], activities }, () =>
-      t.throwsAsync(env.client.workflow.execute(graphMcpToolWithFailingSibling, { taskQueue, workflowId }))
+    const { value: err, elapsedMs } = await withWorker(env, { taskQueue, plugins: [plugin], activities }, () =>
+      timed(() => t.throwsAsync(env.client.workflow.execute(graphMcpToolWithFailingSibling, { taskQueue, workflowId })))
     );
-    await assertToolCallCancelledBySibling(t, workflowId, err, 'hangServer-callTool', started);
+    await assertToolCallCancelledBySibling(t, workflowId, err, 'hangServer-callTool', elapsedMs);
   }
 );
 
