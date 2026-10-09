@@ -105,6 +105,65 @@ jobs:
           # Actual file will be named ${{ matrix.target }}/index.node
           path: ./packages/core-bridge/releases/*/index.node
 
+  # Compile the opt-in FIPS build of the bridge and check that it links AWS-LC's FIPS module and not `ring`.
+  compile-native-binaries-fips:
+    timeout-minutes: 30
+    name: Compile Native Binaries (linux-x64, FIPS)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: 'Checkout code'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
+        with:
+          # TODO: Upgrade proto once https://github.com/arduino/setup-protoc/issues/99 is fixed
+          version: '23.x'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upgrade Rust to latest stable
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+
+      # AWS-LC's FIPS module is built with Go, which is not on the runner's PATH.
+      - name: Install Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 'stable'
+          cache: false
+
+      - name: Rust Cargo and Build cache
+        uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
+        with:
+          cache-bin: false
+          workspaces: packages/core-bridge -> target
+          prefix-key: corebridge-buildcache-fips
+          shared-key: linux-x64
+          env-vars: ''
+          save-if: ${{ env.IS_MAIN_OR_RELEASE == 'true' }}
+
+      - name: Check the FIPS dependency tree
+        working-directory: ./packages/core-bridge
+        run: |
+          fips_tree() { cargo tree -q -e normal --no-default-features --features fips -i "$1"; }
+          if [ -z "$(fips_tree aws-lc-fips-sys)" ]; then
+            echo "aws-lc-fips-sys is missing from the FIPS build" >&2
+            exit 1
+          fi
+          if [ -n "$(fips_tree ring)" ]; then
+            echo "ring is linked into the FIPS build:" >&2
+            fips_tree ring >&2
+            exit 1
+          fi
+
+      - name: Compile rust code
+        working-directory: ./packages/core-bridge
+        run: cargo build --no-default-features --features fips
+
   # Run integration tests.
   # Uses the native binaries built in compile-native-binaries, but build `@temporalio/*` packages locally.
   integration-tests:
@@ -469,6 +528,7 @@ jobs:
     if: always()
     needs:
       - compile-native-binaries-debug
+      - compile-native-binaries-fips
       - integration-tests
       - cloud-integration-tests
       - conventions

@@ -13,6 +13,7 @@ const args = arg({
   '--version': Boolean,
   '-v': '--version',
   '--release': Boolean,
+  '--fips': Boolean,
   '--target': [String],
   '--force': Boolean,
   '-f': '--force',
@@ -28,6 +29,7 @@ Options:
 -v, --version  Show program's version number and exit
 -f, --force    Forces a build instead of using a prebuilt binary
 --release      Build in release mode (or set BUILD_CORE_RELEASE env var)
+--fips         Build with FIPS-approved TLS cryptography (or set TEMPORALIO_FIPS=1)
 --target       Compilation targets, choose any of:
   ${targets.concat('all').join('\n  ')}
 
@@ -52,6 +54,7 @@ if (unsupportedTargets.length) {
 }
 const forceBuild = args['--force'];
 const buildRelease = args['--release'] || process.env.BUILD_CORE_RELEASE !== undefined;
+const buildFips = args['--fips'] || process.env.TEMPORALIO_FIPS === '1';
 
 function compile(requestedTarget?: string) {
   if (!fs.existsSync('sdk-core/Cargo.toml')) {
@@ -80,6 +83,7 @@ function compile(requestedTarget?: string) {
     'build',
     '--message-format=json-render-diagnostics',
     ...(buildRelease ? ['--release'] : []),
+    ...(buildFips ? ['--no-default-features', '--features', 'fips'] : []),
     ...(target ? ['--target', target] : []),
   ];
 
