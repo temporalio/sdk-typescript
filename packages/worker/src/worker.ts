@@ -97,7 +97,6 @@ import type {
 import { compileWorkerOptions, isCodeBundleOption, isPathBundleOption, toNativeWorkerOptions } from './worker-options';
 import { WorkflowCodecRunner } from './workflow-codec-runner';
 import { isSystemNexusEnvelope, transformEncodedSystemNexusEnvelope, visitNexusTask } from './system-nexus-operations';
-import { defaultWorkflowInterceptorModules, WorkflowCodeBundler } from './workflow/bundler';
 import { assertWorkflowBundleSdkVersion } from './workflow/bundle-metadata';
 import { isBunPre1_4 } from './workflow/bun';
 import type { Workflow, WorkflowCreator } from './workflow/interface';
@@ -799,15 +798,17 @@ export class Worker {
       }
       const modules = new Set(compiledOptions.interceptors.workflowModules);
       // Warn if user tries to customize the default set of workflow interceptor modules
-
-      if (
-        modules &&
-        new Set([...modules, ...defaultWorkflowInterceptorModules]).size !== defaultWorkflowInterceptorModules.length
-      ) {
-        logger.warn(
-          'Ignoring WorkerOptions.interceptors.workflowModules because WorkerOptions.workflowBundle is set.\n' +
-            'To use workflow interceptors with a workflowBundle, pass them in the call to bundleWorkflowCode.'
-        );
+      if (modules.size > 0) {
+        // The bundler is loaded on demand: it pulls in webpack, which a Worker running a pre-built bundle never needs.
+        const { defaultWorkflowInterceptorModules } = await import('./workflow/bundler');
+        if (
+          new Set([...modules, ...defaultWorkflowInterceptorModules]).size !== defaultWorkflowInterceptorModules.length
+        ) {
+          logger.warn(
+            'Ignoring WorkerOptions.interceptors.workflowModules because WorkerOptions.workflowBundle is set.\n' +
+              'To use workflow interceptors with a workflowBundle, pass them in the call to bundleWorkflowCode.'
+          );
+        }
       }
 
       if (isCodeBundleOption(compiledOptions.workflowBundle)) {
@@ -819,6 +820,7 @@ export class Worker {
         throw new TypeError('Invalid WorkflowOptions.workflowBundle');
       }
     } else if (compiledOptions.workflowsPath) {
+      const { WorkflowCodeBundler } = await import('./workflow/bundler');
       const bundler = new WorkflowCodeBundler({
         logger,
         workflowsPath: compiledOptions.workflowsPath,

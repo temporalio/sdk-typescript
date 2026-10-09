@@ -80,7 +80,8 @@ export {
   WorkflowBundlePath,
 } from './worker-options';
 export { ReplayError, ReplayHistoriesIterable, ReplayResult } from './replay';
-export { BundleOptions, bundleWorkflowCode, WorkflowBundleWithSourceMap, BundlerPlugin } from './workflow/bundler';
+export type { BundleOptions, WorkflowBundleWithSourceMap, BundlerPlugin } from './workflow/bundler';
+export { bundleWorkflowCode } from './workflow/bundle-workflow-code';
 export {
   WorkerTuner,
   TunerHolder,
