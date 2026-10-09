@@ -1,0 +1,1 @@
+`JsonPayloadConverter` no longer produces a payload with undefined data for values with no JSON representation, such as functions, symbols, and objects whose `toJSON` returns `undefined`. The default payload converter now throws a `ValueError` for these values, including symbols, which previously caused a `TypeError` while building the error message.

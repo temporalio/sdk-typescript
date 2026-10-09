@@ -72,4 +72,6 @@ jobs:
           fi
 
       - run: pnpm run lint:check
+      - name: Test release preparation
+        run: pnpm release:test
       - run: pnpm run lint:prune

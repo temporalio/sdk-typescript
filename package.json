@@ -21,6 +21,12 @@
   },
   "files": [],
   "scripts": {
+    "update-core": "tsx scripts/update-core.ts",
+    "changelog:check": "tsx scripts/changelog.ts check",
+    "changelog:prepare": "tsx scripts/changelog.ts prepare",
+    "release:notes": "tsx scripts/changelog.ts release-notes --submodule packages/core-bridge/sdk-core",
+    "release:prepare": "tsx scripts/prepare-release.ts",
+    "release:test": "node --import tsx --test scripts/prepare-release.test.ts",
     "rebuild": "pnpm run clean && pnpm run build",
     "build": "pnpm --recursive --stream run build",
     "build:watch": "pnpm run gen && tsc --build --watch packages/*/tsconfig.json",

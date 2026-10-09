@@ -1,0 +1,1 @@
+`@temporalio/google-adk-agents` runs on Google ADK 2.0: the Workflow bundle now uses ADK's web build, pinned regardless of the consumer's webpack target, and ADK's UUIDs are generated from a named workflow random stream inside the sandbox, so its IDs are replay-stable.
