@@ -278,8 +278,14 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
     patchActivationCallback?: WorkflowPatchActivationCallback
   ): Promise<InstanceType<T>> {
     const script = new vm.Script(workflowBundle.code, { filename: workflowBundle.filename });
-    globalHandlers.install(); // Call is idempotent
-    await globalHandlers.addWorkflowBundle(workflowBundle);
+    globalHandlers.install(); // Matched by release() in destroy()
+    try {
+      await globalHandlers.addWorkflowBundle(workflowBundle);
+    } catch (err) {
+      globalHandlers.removeWorkflowBundle(workflowBundle);
+      globalHandlers.release();
+      throw err;
+    }
     return new this(
       script,
       workflowBundle,
@@ -297,6 +303,7 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
       vm.runInContext(`__TEMPORAL__.api.destroy()`, this.context);
     } finally {
       globalHandlers.removeWorkflowBundle(this.workflowBundle);
+      globalHandlers.release();
       delete this._context;
     }
   }
