@@ -759,6 +759,12 @@ export const answerAsTextUpdate = defineUpdate<void, [string, string]>('answerAs
 /** How long a fixture waits for the test to answer before failing (see `runWithHitl`). */
 const HITL_ANSWER_TIMEOUT = '60 seconds';
 
+/**
+ * How long `respondHitlUpdate` waits for the request it answers to be published before
+ * refusing the id as unknown (see `installHitlHandlers`).
+ */
+export const HITL_LOOKUP_TIMEOUT_MS = 5_000;
+
 interface HitlState {
   pending: HitlRequest[];
   /** Response `Part`s the Update already validated, keyed by interrupt id. */
@@ -772,7 +778,15 @@ interface HitlState {
 function installHitlHandlers(): HitlState {
   const state: HitlState = { pending: [], parts: new Map(), textAnswers: new Map(), answered: new Set() };
   setHandler(pendingHitlQuery, () => state.pending);
-  setHandler(respondHitlUpdate, (interruptId, value) => {
+  setHandler(respondHitlUpdate, async (interruptId, value) => {
+    // Within one Workflow Task the SDK runs signal and update handlers before it resumes
+    // the body: Core orders those jobs ahead of activity resolutions. An answer can land
+    // in the very task that carries the turn's last Activity result, before the body has
+    // published the request it answers, so wait for that briefly; only an id that never
+    // shows up is refused. Skipping the wait when the request is already pending keeps
+    // the usual answer timer-free: `condition` with a timeout always starts a timer.
+    const isPending = (): boolean => state.pending.some((r) => r.interruptId === interruptId);
+    if (!isPending()) await condition(isPending, HITL_LOOKUP_TIMEOUT_MS);
     const request = state.pending.find((r) => r.interruptId === interruptId);
     if (!request) {
       throw ApplicationFailure.nonRetryable(
@@ -904,6 +918,24 @@ export async function hitlStructuredInput(): Promise<RunOutcome & { turns: numbe
     name: 'answer',
   });
   return runWithHitl(new Workflow({ name: 'hitl_structured', edges: [['START', ask, answer]] }), 'go');
+}
+
+/**
+ * A pause published only after a one-second durable timer, so a test can answer it
+ * before any Query could show it: the Update handler has to wait for the request rather
+ * than refuse a valid answer.
+ */
+export async function hitlAnswerBeforeRequest(): Promise<RunOutcome & { turns: number }> {
+  const warmUp = node(
+    async () => {
+      await sleep('1 second');
+      return 'ready';
+    },
+    { name: 'warm_up' }
+  );
+  const ask = node(() => new RequestInput({ interruptId: 'late', message: 'Proceed?' }), { name: 'ask' });
+  const answer = node((_ctx: NodeContext, input: unknown) => `answered:${String(input)}`, { name: 'answer' });
+  return runWithHitl(new Workflow({ name: 'hitl_answer_first', edges: [['START', warmUp, ask, answer]] }), 'go');
 }
 
 /** A `RequestInput` with no explicit id: ADK mints one, which must replay identically. */
