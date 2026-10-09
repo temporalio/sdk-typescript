@@ -72,6 +72,9 @@ to docs, or any other relevant information.
   creating projects.
 - `WorkflowExecutionAlreadyStartedError` now exposes the `runId` of the already-running Workflow Execution when the server provides it in the error details (#1838).
 - Workflow code that blocks the sandbox past its time limit now fails with the `[TMPRL1101]` deadlock diagnostic (#2426).
+- `historyFromJSON` and `historyToJSON` no longer fail with `type must be a Type` when npm installs a
+  separate protobufjs copy for `@temporalio/common`, for example next to a dependency that holds
+  protobufjs 7 (#2514).
 
 ### Changed
 
