@@ -21,7 +21,7 @@ import { ApplicationFailure, type Duration } from '@temporalio/common';
 import { type ActivityOptions, inWorkflowContext, proxyActivities } from '@temporalio/workflow';
 
 import { underAbortSignal } from './abort';
-import { recordAbsorbedFailure, recordModelSuccess } from './absorbed-failure';
+import { recordAbsorbedFailure, recordModelSuccess, startModelCall } from './absorbed-failure';
 import { STREAMING_TOPIC_REQUIRED_FAILURE_TYPE, UNSUPPORTED_FAILURE_TYPE } from './error-types';
 
 export interface TemporalModelOptions {
@@ -35,6 +35,12 @@ export interface TemporalModelOptions {
    * `WAIT_CANCELLATION_COMPLETED` waits for the Activity to acknowledge, which it
    * does at its next heartbeat; the model Activities heartbeat at half the
    * `heartbeatTimeout`, and not at all without one.
+   *
+   * A `timeout` on the agent's graph node is not such an abort. ADK runs the agent
+   * with the run's signal, not the node's deadline (`runLlmAgentAsNode`), so a
+   * node that times out leaves its model call running, and an ADK retry starts the
+   * next call beside it. Bound the call with this Activity's own
+   * `startToCloseTimeout` or `scheduleToCloseTimeout` instead.
    */
   activity?: ActivityOptions;
   /**
@@ -141,6 +147,9 @@ export class TemporalModel extends BaseLlm {
     // model, and a request built by hand for a direct call carries none. Only that
     // flow absorbs a throw, so only it needs the failure recorded.
     const agentName = llmRequest.config?.labels?.[ADK_AGENT_NAME_LABEL];
+    // Numbered before anything is scheduled, so that a failure arriving after a later call
+    // by the same agent answered can be recognised as one ADK has moved past.
+    const call = agentName === undefined ? undefined : startModelCall(agentName, abortSignal);
 
     let responses: LlmResponse[];
     try {
@@ -176,14 +185,15 @@ export class TemporalModel extends BaseLlm {
       // error, and ADK absorbs it. The run then fails with the sibling's failure that
       // caused the abort: the execution itself was not cancelled, so the recorded
       // cancellation does not decide its outcome (`absorbed-failure.ts`).
-      if (agentName !== undefined) recordAbsorbedFailure(err, agentName, abortSignal);
+      if (call !== undefined) recordAbsorbedFailure(err, call);
       throw err;
     }
-    // This agent got an answer, so an earlier failure of its own in the same invocation
-    // (a node retry, a re-activated graph node) has been recovered from and must not fail
-    // the Workflow the run is about to finish normally. `abortSignal` is ADK's
-    // `InvocationContext.abortSignal`, which identifies that invocation.
-    if (agentName !== undefined) recordModelSuccess(agentName, abortSignal);
+    // This agent got an answer, so a failure of its own from a call that started earlier in
+    // the same invocation (a node retry, a re-activated graph node, or the call a timed-out
+    // attempt left running) has been recovered from and must not fail the Workflow the run
+    // is about to finish normally. `abortSignal` is ADK's `InvocationContext.abortSignal`,
+    // which identifies that invocation.
+    if (call !== undefined) recordModelSuccess(call);
 
     for (const response of responses) {
       yield response;

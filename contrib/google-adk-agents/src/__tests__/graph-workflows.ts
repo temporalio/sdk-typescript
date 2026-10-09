@@ -490,6 +490,47 @@ export async function graphMcpToolWithFailingSibling(): Promise<RunOutcome> {
 }
 
 /**
+ * A {@link cancellableAgent} node under ADK's own one-second `timeout`, retried once on
+ * `NodeTimeoutError`. ADK keeps the node's deadline from the agent, which runs with the
+ * run's abort signal, so each attempt leaves its model call running, and only the last
+ * attempt's failure (which aborts the run) cancels them.
+ */
+export async function graphTimedOutAgentNodeRetry(): Promise<RunOutcome> {
+  const timed = node(cancellableAgent(), {
+    timeout: 1,
+    retryConfig: { maxAttempts: 2, initialDelay: 0.01, jitter: 0, exceptions: ['NodeTimeoutError'] },
+  });
+  return runOnce(new Workflow({ name: 'timed_out_agent_node', edges: [['START', timed]] }), 'hi');
+}
+
+/**
+ * The same timeout and retry around an agent whose first model call hangs until its
+ * Activity's `startToCloseTimeout` ends it, and whose retry answers at once. `orphan` sets
+ * when that first call fails. With `'after-retry'` it times out after five seconds, once
+ * the retry has answered, and a closing six-second durable sleep keeps the Workflow open
+ * past that (the dev server rounds the retry's 10ms backoff up to about a second, and a
+ * slow worker adds to it). With `'before-retry'` it times out after three seconds, inside
+ * the retry's four-second backoff, so it fails first.
+ */
+export async function graphOrphanedAgentModelCall(orphan: 'after-retry' | 'before-retry'): Promise<RunOutcome> {
+  const late = orphan === 'after-retry';
+  const agent = new LlmAgent({
+    name: 'assistant',
+    model: new TemporalModel('hang-first-model', {
+      activity: { startToCloseTimeout: late ? '5 seconds' : '3 seconds', retry: { maximumAttempts: 1 } },
+    }),
+    instruction: 'Help.',
+  });
+  const timed = node(agent, {
+    timeout: 1,
+    retryConfig: { maxAttempts: 2, initialDelay: late ? 0.01 : 4, jitter: 0, exceptions: ['NodeTimeoutError'] },
+  });
+  const outcome = await runOnce(new Workflow({ name: 'orphaned_agent_model_call', edges: [['START', timed]] }), 'hi');
+  if (late) await sleep('6 seconds');
+  return outcome;
+}
+
+/**
  * An `LlmAgent` node whose first model call fails and whose retry succeeds. ADK absorbed
  * the first failure into an event, so the run finishes normally and the plugin must not
  * raise the attempt ADK already recovered from.
