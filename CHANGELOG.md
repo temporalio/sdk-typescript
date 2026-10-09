@@ -52,6 +52,9 @@ to docs, or any other relevant information.
 - A Worker will now refuse to load and execute a Workflow bundle produced with a different version
   of the SDK. This practice has never been supported, but was never formally prevented, resulting
   in various subtle, hard to diagnose issues. This change could potentially result in
+- `@temporalio/worker` no longer loads the Workflow bundler, and with it webpack, on import. It is
+  loaded the first time Workflow code is bundled, so a Worker that runs a prebuilt `workflowBundle`
+  never loads it (#1718).
 
 ### Fixed
 
