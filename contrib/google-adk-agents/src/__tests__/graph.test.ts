@@ -35,6 +35,7 @@ import {
   graphCancellableAgentNode,
   graphDottedActivity,
   graphFanOutJoin,
+  graphOrphanedAgentModelCall,
   graphPartsPayloadOutputSchema,
   graphPartsPayloadThenPause,
   graphPluginNodeCallbacks,
@@ -432,6 +433,58 @@ test.serial('an ADK timeout on an agent node leaves its model call running into 
     .map((e) => String(e.activityTaskCancelRequestedEventAttributes!.scheduledEventId));
   t.deepEqual(cancelRequested, [first, String(modelCalls[1]!.eventId)]);
 });
+
+/** Where in `events` the first event matching `match` is, or -1. */
+function indexOf(events: Awaited<ReturnType<typeof history>>, match: (e: (typeof events)[number]) => boolean) {
+  return events.findIndex(match);
+}
+
+test.serial(
+  'a model call left running by an agent node timeout does not fail the Workflow after the retry answered',
+  async (t) => {
+    const env = getEnv();
+    const taskQueue = uid('adk-graph-orphan-late');
+    const workflowId = uid('wf-graph-orphan-late');
+    const result = await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, () =>
+      env.client.workflow.execute(graphOrphanedAgentModelCall, { taskQueue, workflowId, args: ['after-retry'] })
+    );
+    // The retry's answer is the run's, and the first attempt's call, which started before it
+    // and failed after it, is one ADK had already moved past.
+    t.is(result.text, 'answered-on-call-2');
+    const events = await history(workflowId);
+    const answered = indexOf(events, (e) => e.activityTaskCompletedEventAttributes != null);
+    const orphanFailed = indexOf(events, (e) => e.activityTaskTimedOutEventAttributes != null);
+    t.true(
+      answered !== -1 && orphanFailed > answered,
+      `the orphan (${orphanFailed}) failed after the answer (${answered})`
+    );
+    t.true(orphanFailed < indexOf(events, (e) => e.workflowExecutionCompletedEventAttributes != null));
+    t.false(events.some((e) => e.workflowTaskFailedEventAttributes != null));
+  }
+);
+
+test.serial(
+  'a model call left running by an agent node timeout that fails before the retry answers does not fail the Workflow',
+  async (t) => {
+    const env = getEnv();
+    const taskQueue = uid('adk-graph-orphan-early');
+    const workflowId = uid('wf-graph-orphan-early');
+    const result = await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, () =>
+      env.client.workflow.execute(graphOrphanedAgentModelCall, { taskQueue, workflowId, args: ['before-retry'] })
+    );
+    t.is(result.text, 'answered-on-call-2');
+    const events = await history(workflowId);
+    const orphanFailed = indexOf(events, (e) => e.activityTaskTimedOutEventAttributes != null);
+    const retried = events.filter(
+      (e) => e.activityTaskScheduledEventAttributes?.activityType?.name === 'adk-invokeModel'
+    )[1];
+    t.true(
+      orphanFailed !== -1 && orphanFailed < events.indexOf(retried!),
+      'the orphan failed before the retry started'
+    );
+    t.false(events.some((e) => e.workflowTaskFailedEventAttributes != null));
+  }
+);
 
 test.serial('an agent node whose retry succeeds does not fail on the attempt ADK recovered', async (t) => {
   const env = getEnv();

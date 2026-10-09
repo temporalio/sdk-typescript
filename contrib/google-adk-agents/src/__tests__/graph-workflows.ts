@@ -395,6 +395,32 @@ export async function graphTimedOutAgentNodeRetry(): Promise<RunOutcome> {
 }
 
 /**
+ * The same timeout and retry around an agent whose first model call hangs until its
+ * Activity's `startToCloseTimeout` ends it, and whose retry answers at once. `orphan` sets
+ * when that first call fails. With `'after-retry'` it times out after four seconds, once
+ * the retry has answered, and a closing durable sleep keeps the Workflow open past that
+ * (the dev server fires timers up to a second late). With `'before-retry'` it times out
+ * after three seconds, inside the retry's four-second backoff, so it fails first.
+ */
+export async function graphOrphanedAgentModelCall(orphan: 'after-retry' | 'before-retry'): Promise<RunOutcome> {
+  const late = orphan === 'after-retry';
+  const agent = new LlmAgent({
+    name: 'assistant',
+    model: new TemporalModel('hang-first-model', {
+      activity: { startToCloseTimeout: late ? '4 seconds' : '3 seconds', retry: { maximumAttempts: 1 } },
+    }),
+    instruction: 'Help.',
+  });
+  const timed = node(agent, {
+    timeout: 1,
+    retryConfig: { maxAttempts: 2, initialDelay: late ? 0.01 : 4, jitter: 0, exceptions: ['NodeTimeoutError'] },
+  });
+  const outcome = await runOnce(new Workflow({ name: 'orphaned_agent_model_call', edges: [['START', timed]] }), 'hi');
+  if (late) await sleep('5 seconds');
+  return outcome;
+}
+
+/**
  * An `LlmAgent` node whose first model call fails and whose retry succeeds. ADK absorbed
  * the first failure into an event, so the run finishes normally and the plugin must not
  * raise the attempt ADK already recovered from.

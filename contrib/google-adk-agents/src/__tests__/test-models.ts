@@ -7,7 +7,7 @@
 
 import { BaseLlm, type BaseLlmConnection, type LlmRequest, type LlmResponse } from '@google/adk';
 
-import { defaultTestProvider, ToolCallingLlm } from './helpers';
+import { abortError, defaultTestProvider, ToolCallingLlm } from './helpers';
 
 /**
  * A model that answers with the number of `contents` its request carried, so a test can
@@ -65,16 +65,58 @@ class FailFirstLlm extends BaseLlm {
 }
 
 /**
+ * Hangs on its first call until that call's Activity is cancelled or times out, and answers
+ * every later call at once. The counter lives in the provider closure, as
+ * {@link FailFirstLlm}'s does.
+ */
+class HangFirstLlm extends BaseLlm {
+  private readonly calls: { count: number };
+
+  constructor(options: { model: string; calls: { count: number } }) {
+    super({ model: options.model });
+    this.calls = options.calls;
+  }
+
+  override async *generateContentAsync(
+    _llmRequest: LlmRequest,
+    _stream?: boolean,
+    abortSignal?: AbortSignal
+  ): AsyncGenerator<LlmResponse, void> {
+    this.calls.count += 1;
+    if (this.calls.count === 1) {
+      await new Promise<never>((_resolve, reject) => {
+        if (abortSignal?.aborted) {
+          reject(abortError());
+          return;
+        }
+        abortSignal?.addEventListener('abort', () => reject(abortError()), { once: true });
+      });
+    }
+    yield {
+      content: { role: 'model', parts: [{ text: `answered-on-call-${this.calls.count}` }] },
+      turnComplete: true,
+    };
+  }
+
+  override async connect(_llmRequest: LlmRequest): Promise<BaseLlmConnection> {
+    throw new Error('HangFirstLlm does not connect.');
+  }
+}
+
+/**
  * The `modelProvider` for the graph / dynamic suites. Names encode the
  * scenario; everything else falls through to {@link defaultTestProvider}.
  */
 export function graphTestProvider(): (model: string) => BaseLlm {
   const fallback = defaultTestProvider();
   const failFirstCalls = { count: 0 };
+  const hangFirstCalls = { count: 0 };
   return (model: string): BaseLlm => {
     switch (model) {
       case 'fail-first-model':
         return new FailFirstLlm({ model, calls: failFirstCalls });
+      case 'hang-first-model':
+        return new HangFirstLlm({ model, calls: hangFirstCalls });
       case 'finish-task-model':
         return new ToolCallingLlm({ model, toolName: 'finish_task', toolArgs: { result: 'task-done' } });
       case 'enrich-flow-model':

@@ -266,13 +266,13 @@ const runner = new InMemoryRunner({ agent: graph });
   the run's abort signal rather than the node's. When the node times out, its
   model Activity keeps running, and a `retryConfig` that retries
   `NodeTimeoutError` starts the next attempt beside it; the calls left open are
-  only cancelled when the run itself fails or is cancelled. Should one of them
-  fail after the retry has answered, while the Workflow is still running, its
-  failure is recorded like any model failure ADK absorbed, and the Workflow
-  fails on it when it returns. Bound an agent's model call with the model
-  Activity's own `startToCloseTimeout` or `scheduleToCloseTimeout`
-  (`TemporalModel`'s `activity` options) instead, and put a deadline on Activity
-  work with `activityNode`.
+  only cancelled when the run itself fails or is cancelled. Once the retry has
+  answered, a failure from one of them no longer counts, whenever it arrives: the
+  plugin numbers model calls as they start, and ignores the failure of a call
+  that started before the same agent's latest answer in that run. Bound an
+  agent's model call with the model Activity's own `startToCloseTimeout` or
+  `scheduleToCloseTimeout` (`TemporalModel`'s `activity` options) instead, and
+  put a deadline on Activity work with `activityNode`.
 - **Fan-in.** Use a `JoinNode`: it is the node type that waits for every
   predecessor, and its input is the map from predecessor name to that node's
   output. ADK's `waitForOutput` flag is not a fan-in gate (it parks a node that
