@@ -1826,16 +1826,39 @@ test('resolve activity with failure - http', async (t) => {
 
 test('globalOverrides', async (t) => {
   const { workflowType, logs } = t.context;
+  const now = 12345;
   {
-    const completion = await activate(t, makeStartWorkflow(workflowType));
+    const completion = await activate(t, makeStartWorkflow(workflowType, undefined, now));
     compareCompletion(t, completion, makeSuccess());
   }
-  t.deepEqual(
-    logs,
-    ['WeakRef' /* First error happens on startup */, 'FinalizationRegistry', 'WeakRef'].map((type) => [
-      `DeterminismViolationError: ${type} cannot be used in Workflows because v8 GC is non-deterministic`,
-    ])
-  );
+  const expectedLogs: unknown[][] = [
+    'WeakRef' /* First error happens on startup */,
+    'FinalizationRegistry',
+    'WeakRef',
+  ].map((type) => [
+    `DeterminismViolationError: ${type} cannot be used in Workflows because v8 GC is non-deterministic`,
+  ]);
+  const Temporal = (globalThis as any).Temporal;
+  if (Temporal !== undefined) {
+    const temporalNow = Temporal.Now;
+    t.deepEqual(
+      Reflect.ownKeys(temporalNow)
+        .filter((key) => typeof temporalNow[key] === 'function')
+        .sort(),
+      ['instant', 'timeZoneId', 'plainDateTimeISO', 'zonedDateTimeISO', 'plainDateISO', 'plainTimeISO'].sort()
+    );
+    const zonedDateTime = Temporal.Instant.fromEpochMilliseconds(now).toZonedDateTimeISO('UTC');
+    expectedLogs.push(
+      [now],
+      [now],
+      [zonedDateTime.toPlainDateTime().toString()],
+      [zonedDateTime.toPlainDate().toString()],
+      [zonedDateTime.toPlainTime().toString()],
+      [Temporal.Now.timeZoneId()],
+      [Temporal.Now.timeZoneId()]
+    );
+  }
+  t.deepEqual(logs, expectedLogs);
 });
 
 test('logAndTimeout', async (t) => {
