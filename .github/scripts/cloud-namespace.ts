@@ -97,11 +97,49 @@ async function deleteNamespace(namespace: string): Promise<void> {
   });
 }
 
+// TEMP(nexus-probe): checks whether the CI API key may manage Nexus endpoints. Not for merge.
+async function probeNexusEndpoint(namespace: string): Promise<void> {
+  await withCloudClient(async (client) => {
+    const name = `sdk-typescript-ci-probe-${requiredEnv('GITHUB_RUN_ID')}-${requiredEnv('GITHUB_RUN_ATTEMPT')}`;
+    let created: temporal.api.cloud.cloudservice.v1.CreateNexusEndpointResponse;
+    try {
+      created = await client.cloudService.createNexusEndpoint({
+        asyncOperationId: randomUUID(),
+        spec: {
+          name,
+          targetSpec: { workerTargetSpec: { namespaceId: namespace, taskQueue: 'nexus-probe' } },
+          policySpecs: [{ allowedCloudNamespacePolicySpec: { namespaceId: namespace } }],
+        },
+      });
+    } catch (error) {
+      console.log(`NEXUS PROBE: createNexusEndpoint FAILED: ${(error as Error).message}`);
+      throw error;
+    }
+    console.log(`NEXUS PROBE: createNexusEndpoint accepted (endpoint ${created.endpointId})`);
+    if (!created.asyncOperation) throw new Error('Create endpoint response did not include an operation');
+    await waitForOperation(client, created.asyncOperation);
+    console.log('NEXUS PROBE: endpoint creation fulfilled');
+
+    const existing = await client.cloudService.getNexusEndpoint({ endpointId: created.endpointId });
+    const resourceVersion = existing.endpoint?.resourceVersion;
+    if (!resourceVersion) throw new Error(`Nexus endpoint ${created.endpointId} did not include a resource version`);
+    const deleted = await client.cloudService.deleteNexusEndpoint({
+      endpointId: created.endpointId,
+      resourceVersion,
+      asyncOperationId: randomUUID(),
+    });
+    if (!deleted.asyncOperation) throw new Error('Delete endpoint response did not include an operation');
+    await waitForOperation(client, deleted.asyncOperation);
+    console.log('NEXUS PROBE: endpoint deleted');
+  });
+}
+
 async function main(): Promise<void> {
   const [command, namespace] = process.argv.slice(2);
   if (command === 'create' && namespace === undefined) return await create();
   if (command === 'delete' && namespace !== undefined) return await deleteNamespace(namespace);
-  throw new Error('Usage: cloud-namespace.ts create | delete <namespace>');
+  if (command === 'nexus-probe' && namespace !== undefined) return await probeNexusEndpoint(namespace);
+  throw new Error('Usage: cloud-namespace.ts create | delete <namespace> | nexus-probe <namespace>');
 }
 
 main().catch((error) => {

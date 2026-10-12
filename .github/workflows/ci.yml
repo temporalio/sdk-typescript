@@ -393,6 +393,14 @@ jobs:
           TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
           TEMPORAL_CLIENT_CLOUD_API_VERSION: v0.19.1
 
+      # TEMP(nexus-probe): does the CI API key allow managing Nexus endpoints? Not for merge.
+      - name: Probe Cloud Nexus endpoint permissions
+        continue-on-error: true
+        run: pnpm exec tsx .github/scripts/cloud-namespace.ts nexus-probe "${{ steps.create-cloud-namespace.outputs.namespace }}"
+        env:
+          TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
+          TEMPORAL_CLIENT_CLOUD_API_VERSION: v0.19.1
+
       - name: Run tests against Temporal Cloud
         # Fail a hung suite while leaving job-level time for namespace cleanup and log upload.
         timeout-minutes: 20
