@@ -19,8 +19,20 @@ to docs, or any other relevant information.
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- `@temporalio/google-adk-agents` now requires `@google/adk` `>=2.0.0 <2.1.0` (was `>=1.5.0 <1.6.0`).
+  ADK 2.0 changed its internals and its id generation, so a Workflow started under the 1.5 plugin
+  cannot be replayed by a Worker on this version: drain in-flight Workflows before upgrading, or
+  run the versions on separate task queues. `@modelcontextprotocol/sdk` is now an optional peer
+  dependency, needed only for `TemporalMCPToolset`.
+- **Experimental**: Nexus Workflow Updates now require `waitForStage` to be explicitly set to `ACCEPTED`.
+
 ### Added
 
+- `@temporalio/google-adk-agents` runs on Google ADK 2.0: the Workflow bundle now uses ADK's web
+  build, pinned regardless of the consumer's webpack target, and ADK's UUIDs are generated from a
+  named workflow random stream inside the sandbox, so its ids are replay-stable.
 - **Experimental**: Workflows can signal another Workflow and start it when absent with
   `signalWithStartWorkflow`.
 - **Experimental**: Workflow outbound interceptors can intercept Temporal System Nexus calls
@@ -37,6 +49,9 @@ to docs, or any other relevant information.
 - **Experimental**: External storage failures now surface as dedicated error types exported from
   `@temporalio/common`: `ExternalStorageDriverError`, `ExternalStorageUnregisteredDriverError`, and
   `ExternalStorageReferenceError`, all extending the new `ExternalStorageError` base type.
+- The Workflow sandbox now exposes `URLPattern`, both as a global and from the `url` module, when
+  the Worker runs on Node.js 23.8 or later. On older Node.js versions, `URLPattern` remains undefined
+  inside Workflows.
 
 ### Changed
 
@@ -48,6 +63,11 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- `@temporalio/google-adk-agents` no longer turns a cancelled model or MCP Activity into a retryable
+  `GoogleAdkModelError` / `GoogleAdkMCPError`. An error raised once the Activity's cancellation signal
+  has fired is re-raised as the cancellation, so the attempt ends cancelled instead of being retried.
+- Corrected the Schedule `catchupWindow` documentation to state that omitted values use the Temporal
+  Server's configured default.
 - `@temporalio/strands-agents` tools built on Activities, `activityAsTool`, and MCP tools now give the
   model the Activity's own error message when a tool call fails, instead of "Activity task failed",
   and attach that error to the tool result for hooks.
@@ -62,6 +82,7 @@ to docs, or any other relevant information.
 - `@temporalio/create` now supports comments and trailing commas in `tsconfig.json` files when
   creating projects.
 - `WorkflowExecutionAlreadyStartedError` now exposes the `runId` of the already-running Workflow Execution when the server provides it in the error details (#1838).
+- Workflow code that blocks the sandbox past its time limit now fails with the `[TMPRL1101]` deadlock diagnostic (#2426).
 
 ### Changed
 

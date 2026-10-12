@@ -3,6 +3,7 @@ import vm from 'node:vm';
 import { AsyncLocalStorage as AsyncLocalStorageOriginal } from 'node:async_hooks';
 import assert from 'node:assert';
 import { atob, btoa } from 'node:buffer';
+import * as nodeUrl from 'node:url';
 import { URL, URLSearchParams } from 'node:url';
 import { TextDecoder, TextEncoder } from 'node:util';
 import { SourceMapConsumer } from 'source-map';
@@ -43,6 +44,23 @@ export function setUnhandledRejectionHandler(getWorkflowByRunId: (runId: string)
       err
     );
   });
+}
+
+/**
+ * Replace Node's generic VM timeout error with the TMPRL1101 deadlock diagnostic shared by all Temporal SDKs,
+ * so that users can find and act on it. Other errors are returned unchanged.
+ */
+export function toDeadlockErrorIfVmTimeout(err: unknown, isolateExecutionTimeoutMs: number): unknown {
+  if ((err as { code?: unknown } | null)?.code !== 'ERR_SCRIPT_EXECUTION_TIMEOUT') return err;
+  const timeoutError = err as Error;
+  const deadlockError = new Error(
+    `[TMPRL1101] Potential deadlock detected: workflow didn't yield within ${isolateExecutionTimeoutMs}ms ` +
+      `(${timeoutError.message}). Workflow code must not block, busy-loop, or run long CPU-bound work ` +
+      `without awaiting. See https://github.com/temporalio/rules/blob/main/rules/TMPRL1101.md`
+  );
+  // Reuse Node's stack so the failure recorded in history doesn't gain the worker's own frames.
+  deadlockError.stack = timeoutError.stack?.replace(timeoutError.message, () => deadlockError.message);
+  return deadlockError;
 }
 
 /**
@@ -96,7 +114,7 @@ function formatCallsiteName(callsite: NodeJS.CallSite): string | null {
 export function injectGlobals(context: vm.Context): void {
   const sandboxGlobalThis = context as typeof globalThis;
 
-  const globals = {
+  const globals: Record<string, unknown> = {
     URL,
     URLSearchParams,
     assert,
@@ -106,6 +124,11 @@ export function injectGlobals(context: vm.Context): void {
     atob,
     btoa,
   };
+  // URLPattern is only available on Node 23.8+; leave it undefined in the sandbox on older versions.
+  const URLPattern = (nodeUrl as { URLPattern?: unknown }).URLPattern;
+  if (URLPattern !== undefined) {
+    globals.URLPattern = URLPattern;
+  }
   for (const [k, v] of Object.entries(globals)) {
     Object.defineProperty(sandboxGlobalThis, k, { value: v, writable: false, enumerable: true, configurable: false });
   }

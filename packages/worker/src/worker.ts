@@ -1429,7 +1429,7 @@ export class Worker {
   private async handleNexusRunTask(
     task: temporal.api.workflowservice.v1.IPollNexusTaskQueueResponse,
     base64TaskToken: string,
-    protobufEncodedTask: ArrayBuffer,
+    protobufEncodedTask: Uint8Array,
     requestDeadline: Date | undefined
   ) {
     const { taskToken } = task;
@@ -2058,7 +2058,7 @@ export class Worker {
       mergeMap(this.handleWorkflowActivations.bind(this)),
       mergeMap(async (completion) => {
         try {
-          await this.nativeWorker.completeWorkflowActivation(Buffer.from(completion, completion.byteOffset));
+          await this.nativeWorker.completeWorkflowActivation(Buffer.from(completion));
         } catch (error) {
           this.logger.error('Core reported failure in completeWorkflowActivation(). Initiating Worker shutdown.', {
             error,
@@ -2120,7 +2120,7 @@ export class Worker {
     return this.activityPoll$().pipe(
       this.activityOperator(),
       mergeMap(async (completion) => {
-        await this.nativeWorker.completeActivityTask(Buffer.from(completion, completion.byteOffset));
+        await this.nativeWorker.completeActivityTask(Buffer.from(completion));
       }),
       tap({ complete: () => this.logger.debug('Activity Worker terminated') })
     );

@@ -79,7 +79,7 @@ test('the handle returned by signalWithStartWorkflow rejects update with a handl
   // the earlier callback-URL guard passes and the reservation is what rejects.
   await withSignalWithStartHandle(
     async (handle) => {
-      const err = await t.throwsAsync(() => (handle as any).update('someUpdate'));
+      const err = await t.throwsAsync(() => (handle as any).update('someUpdate', { waitForStage: 'ACCEPTED' }));
       t.true(err instanceof nexus.HandlerError);
       t.is((err as nexus.HandlerError).type, 'BAD_REQUEST');
       t.regex(err?.message ?? '', /already backs it/);

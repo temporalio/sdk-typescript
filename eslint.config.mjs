@@ -1,6 +1,7 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import importPlugin from 'eslint-plugin-import';
+import { defaultConditionNames } from 'eslint-import-resolver-typescript';
 import prettierConfig from 'eslint-config-prettier';
 
 export default tseslint.config(
@@ -148,6 +149,18 @@ export default tseslint.config(
       'import/newline-after-import': 'error',
       'import/no-unassigned-import': 'error',
       'import/no-named-default': 'error',
+    },
+  },
+  {
+    files: ['contrib/ai-sdk/src/__tests__/**/*.ts'],
+    settings: {
+      'import/resolver': {
+        typescript: {
+          // MCP's wildcard types export maps `.js` imports to nonexistent `.js.d.ts` files.
+          // Resolve runtime exports instead; extension aliases still find their declarations.
+          conditionNames: defaultConditionNames.filter((condition) => condition !== 'types'),
+        },
+      },
     },
   },
   {

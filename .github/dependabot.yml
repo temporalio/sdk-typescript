@@ -13,6 +13,10 @@ updates:
     groups:
       development-dependencies:
         dependency-type: development
+    ignore:
+      - dependency-name: '*'
+        update-types:
+          - 'version-update:semver-major'
 
   - package-ecosystem: npm
     directory: '/packages/docs'
@@ -24,6 +28,10 @@ updates:
       docs-dependencies:
         patterns:
           - '*'
+    ignore:
+      - dependency-name: '*'
+        update-types:
+          - 'version-update:semver-major'
 
   - package-ecosystem: npm
     directory: '/contrib/interceptors-opentelemetry'
@@ -35,6 +43,9 @@ updates:
       development-dependencies:
         dependency-type: development
     ignore:
+      - dependency-name: '*'
+        update-types:
+          - 'version-update:semver-major'
       - dependency-name: '@opentelemetry/core'
         versions:
           - '>=2.0.0'
