@@ -63,7 +63,7 @@ type AuthMethod = 'mtls' | 'api-key';
 async function create(authMethod: AuthMethod): Promise<void> {
   await withCloudClient(async (client) => {
     // Cloud namespace names are limited to 39 characters.
-    const suffix = authMethod === 'api-key' ? '-apikey' : '';
+    const suffix = authMethod === 'api-key' ? '-apikey' : '-mtls';
     const namespaceName = `sdk-typescript-ci-${requiredEnv('GITHUB_RUN_ID')}-${requiredEnv(
       'GITHUB_RUN_ATTEMPT'
     )}${suffix}`;
