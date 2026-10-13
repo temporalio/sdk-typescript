@@ -1,7 +1,6 @@
 import { setTimeout } from 'node:timers/promises';
 import ms from 'ms';
 import type { ExecutionContext } from 'ava';
-import test from 'ava';
 import { native, errors } from '@temporalio/core-bridge';
 import { toNativeClientOptions } from '@temporalio/worker/lib/connection-options';
 import type { Context as IntegrationContext } from './helpers-integration';
@@ -14,7 +13,7 @@ import { helpers, makeTestFunction } from './helpers-integration';
 // - Tests in this file can't be run in parallel, since the bridge is mostly a singleton.
 // - Some of these tests explicitly use the native bridge, without going through the lang side Runtime/Worker.
 
-const integrationTest = makeTestFunction({ workflowsPath: require.resolve('./workflows') });
+const test = makeTestFunction({ workflowsPath: require.resolve('./workflows') });
 
 function nativeClientOptions(t: ExecutionContext<IntegrationContext>): native.ClientOptions {
   return toNativeClientOptions({
@@ -50,7 +49,7 @@ test('Can instantiate and shutdown the native runtime', async (t) => {
   });
 });
 
-integrationTest.serial('Can run multiple runtime concurrently', async (t) => {
+test('Can run multiple runtime concurrently', async (t) => {
   const runtime1 = native.newRuntime(GenericConfigs.runtime.basic);
   const runtime2 = native.newRuntime(GenericConfigs.runtime.basic);
   const runtime3 = native.newRuntime(GenericConfigs.runtime.basic);
@@ -179,13 +178,13 @@ test("Creating Runtime without shutting it down doesn't hang process", (t) => {
   t.pass();
 });
 
-integrationTest("Dropping Client without closing doesn't hang process", (t) => {
+test("Dropping Client without closing doesn't hang process", (t) => {
   const runtime = native.newRuntime(GenericConfigs.runtime.basic);
   const _client = native.newClient(runtime, nativeClientOptions(t));
   t.pass();
 });
 
-integrationTest("Dropping Worker without shutting it down doesn't hang process", async (t) => {
+test("Dropping Worker without shutting it down doesn't hang process", async (t) => {
   const runtime = native.newRuntime(GenericConfigs.runtime.basic);
   const client = await native.newClient(runtime, nativeClientOptions(t));
   const worker = native.newWorker(client, nativeWorkerOptions(t));
@@ -200,7 +199,7 @@ test("Dropping EphemeralServer without shutting it down doesn't hang process", a
   t.pass();
 });
 
-integrationTest.serial("Stopping Worker after creating another runtime doesn't fail", async (t) => {
+test("Stopping Worker after creating another runtime doesn't fail", async (t) => {
   async function expectShutdownError(taskPromise: () => Promise<Buffer>) {
     await t.throwsAsync(taskPromise, {
       instanceOf: errors.ShutdownError,
