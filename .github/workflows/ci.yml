@@ -232,23 +232,6 @@ jobs:
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
 
-          # For Temporal Cloud + mTLS tests
-          TEMPORAL_CLOUD_MTLS_TEST_TARGET_HOST: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud:7233
-          TEMPORAL_CLOUD_MTLS_TEST_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
-          TEMPORAL_CLOUD_MTLS_TEST_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
-          TEMPORAL_CLOUD_MTLS_TEST_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
-
-          # For Temporal Cloud + API key tests
-          TEMPORAL_CLOUD_API_KEY_TEST_TARGET_HOST: ca-central-1.aws.api.temporal.io:7233
-          TEMPORAL_CLOUD_API_KEY_TEST_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
-          TEMPORAL_CLOUD_API_KEY_TEST_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
-
-          # For Temporal Cloud + Cloud Ops tests
-          TEMPORAL_CLOUD_OPS_TEST_TARGET_HOST: saas-api.tmprl.cloud:443
-          TEMPORAL_CLOUD_OPS_TEST_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
-          TEMPORAL_CLOUD_OPS_TEST_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
-          TEMPORAL_CLOUD_OPS_TEST_API_VERSION: 2024-05-13-00
-
       - name: Run Tests (Bun)
         if: matrix.node == 'bun'
         run: |
@@ -388,7 +371,14 @@ jobs:
 
       - name: Create Cloud namespace
         id: create-cloud-namespace
-        run: pnpm exec tsx .github/scripts/cloud-namespace.ts create
+        run: pnpm exec tsx .github/scripts/cloud-namespace.ts create mtls
+        env:
+          TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
+          TEMPORAL_CLIENT_CLOUD_API_VERSION: v0.19.1
+
+      - name: Create Cloud API key namespace
+        id: create-cloud-api-key-namespace
+        run: pnpm exec tsx .github/scripts/cloud-namespace.ts create api-key
         env:
           TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
           TEMPORAL_CLIENT_CLOUD_API_VERSION: v0.19.1
@@ -396,7 +386,12 @@ jobs:
       - name: Run tests against Temporal Cloud
         # Fail a hung suite while leaving job-level time for namespace cleanup and log upload.
         timeout-minutes: 20
-        run: pnpm --silent test:cloud | tee cloud-integration.tap
+        run: |
+          # test-temporal-cloud.ts reads the client certificate and key contents, not their paths.
+          TEMPORAL_CLOUD_MTLS_TEST_CLIENT_CERT="$(cat "$TEMPORAL_TLS_CLIENT_CERT_PATH")"
+          TEMPORAL_CLOUD_MTLS_TEST_CLIENT_KEY="$(cat "$TEMPORAL_TLS_CLIENT_KEY_PATH")"
+          export TEMPORAL_CLOUD_MTLS_TEST_CLIENT_CERT TEMPORAL_CLOUD_MTLS_TEST_CLIENT_KEY
+          pnpm --silent test:cloud | tee cloud-integration.tap
         env:
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: true
@@ -404,9 +399,27 @@ jobs:
           TEMPORAL_ADDRESS: ${{ steps.create-cloud-namespace.outputs.namespace }}.tmprl.cloud:7233
           TEMPORAL_NAMESPACE: ${{ steps.create-cloud-namespace.outputs.namespace }}
 
+          # For test-temporal-cloud.ts, against this run's namespaces
+          TEMPORAL_CLOUD_MTLS_TEST_TARGET_HOST: ${{ steps.create-cloud-namespace.outputs.namespace }}.tmprl.cloud:7233
+          TEMPORAL_CLOUD_MTLS_TEST_NAMESPACE: ${{ steps.create-cloud-namespace.outputs.namespace }}
+          TEMPORAL_CLOUD_API_KEY_TEST_TARGET_HOST: ca-central-1.aws.api.temporal.io:7233
+          TEMPORAL_CLOUD_API_KEY_TEST_NAMESPACE: ${{ steps.create-cloud-api-key-namespace.outputs.namespace }}
+          TEMPORAL_CLOUD_API_KEY_TEST_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
+          TEMPORAL_CLOUD_OPS_TEST_TARGET_HOST: saas-api.tmprl.cloud:443
+          TEMPORAL_CLOUD_OPS_TEST_NAMESPACE: ${{ steps.create-cloud-api-key-namespace.outputs.namespace }}
+          TEMPORAL_CLOUD_OPS_TEST_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
+          TEMPORAL_CLOUD_OPS_TEST_API_VERSION: 2024-05-13-00
+
       - name: Delete Cloud namespace
         if: ${{ always() && steps.create-cloud-namespace.outputs.namespace != '' }}
         run: pnpm exec tsx .github/scripts/cloud-namespace.ts delete "${{ steps.create-cloud-namespace.outputs.namespace }}"
+        env:
+          TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
+          TEMPORAL_CLIENT_CLOUD_API_VERSION: v0.19.1
+
+      - name: Delete Cloud API key namespace
+        if: ${{ always() && steps.create-cloud-api-key-namespace.outputs.namespace != '' }}
+        run: pnpm exec tsx .github/scripts/cloud-namespace.ts delete "${{ steps.create-cloud-api-key-namespace.outputs.namespace }}"
         env:
           TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
           TEMPORAL_CLIENT_CLOUD_API_VERSION: v0.19.1
