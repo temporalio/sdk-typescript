@@ -297,9 +297,8 @@ export class Runtime {
       this.teardownShutdownHook();
       // FIXME(JWH): I think we no longer need this, but will have to thoroughly validate.
       native.runtimeShutdown(this.native);
-      if (isFlushableLogger(this.logger)) {
-        this.logger.close?.();
-      }
+      this.options.logCollector?.close();
+      this.flushLogs();
     } finally {
       delete (this as any).native;
     }
