@@ -8,33 +8,28 @@ import { randomUUID } from 'crypto';
 import { setTimeout } from 'timers/promises';
 import test from 'ava';
 import { Client, Connection } from '@temporalio/client';
-import { loadClientConnectConfig } from '@temporalio/envconfig';
 import type { WorkerOptions } from '@temporalio/worker';
 import { PromiseCompletionTimeoutError, Runtime } from '@temporalio/worker';
-import { InternalNativeConnection } from '@temporalio/worker/lib/connection';
 import { TransportError, UnexpectedError } from '@temporalio/worker/lib/errors';
-import { isBun, RUN_INTEGRATION_TESTS, Worker } from './helpers';
+import {
+  createWorkerWithOwnConnection,
+  isBun,
+  ownedConnectionConfig,
+  RUN_INTEGRATION_TESTS,
+  uniqueTaskQueue,
+} from './helpers';
 import { defaultOptions } from './mock-native-worker';
 import { fillMemory } from './workflows';
 
-const { namespace, connectionOptions } = loadClientConnectConfig();
+const { namespace, connectionOptions } = ownedConnectionConfig();
 
-/**
- * Create a Worker on a configured connection that the Worker owns and closes when it shuts down.
- */
-async function createWorker(options: Partial<WorkerOptions> & Pick<WorkerOptions, 'taskQueue'>) {
-  const connection = await InternalNativeConnection.connect(connectionOptions);
-  try {
-    return await Worker.create({ ...defaultOptions, connection, namespace, ...options });
-  } catch (err) {
-    await connection.close();
-    throw err;
-  }
+function createWorker(options: Partial<WorkerOptions> & Pick<WorkerOptions, 'taskQueue'>) {
+  return createWorkerWithOwnConnection({ ...defaultOptions, ...options });
 }
 
 if (RUN_INTEGRATION_TESTS) {
   test.serial('Worker shuts down gracefully', async (t) => {
-    const worker = await createWorker({ taskQueue: t.title.replace(/ /g, '_') });
+    const worker = await createWorker({ taskQueue: uniqueTaskQueue(t.title) });
     t.is(worker.getState(), 'INITIALIZED');
     t.not(Runtime._instance, undefined);
     const workerRun = worker.run();
@@ -49,7 +44,7 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test.serial("Worker.runUntil doesn't hang if provided promise survives to Worker's shutdown", async (t) => {
-    const worker = await createWorker({ taskQueue: t.title.replace(/ /g, '_') });
+    const worker = await createWorker({ taskQueue: uniqueTaskQueue(t.title) });
     t.not(Runtime._instance, undefined);
     const p = worker.runUntil(
       new Promise(() => {
@@ -65,7 +60,7 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test.serial('Worker shuts down gracefully if interrupted before running', async (t) => {
-    const worker = await createWorker({ taskQueue: t.title.replace(/ /g, '_') });
+    const worker = await createWorker({ taskQueue: uniqueTaskQueue(t.title) });
     t.is(worker.getState(), 'INITIALIZED');
     process.emit('SIGINT', 'SIGINT');
     const workerRun = worker.run();
@@ -77,7 +72,7 @@ if (RUN_INTEGRATION_TESTS) {
   test.serial('Worker fails validation against unknown namespace', async (t) => {
     await t.throwsAsync(
       createWorker({
-        taskQueue: t.title.replace(/ /g, '_'),
+        taskQueue: uniqueTaskQueue(t.title),
         namespace: 'oogabooga',
       }),
       {
@@ -90,7 +85,7 @@ if (RUN_INTEGRATION_TESTS) {
 
   (isBun ? test.skip : test.serial)('Threaded VM gracely stops and fails on ERR_WORKER_OUT_OF_MEMORY', async (t) => {
     t.timeout(30_000);
-    const taskQueue = t.title.replace(/ /g, '_');
+    const taskQueue = uniqueTaskQueue(t.title);
     const connection = await Connection.connect(connectionOptions);
     const client = new Client({ connection, namespace });
     const worker = await createWorker({ taskQueue });

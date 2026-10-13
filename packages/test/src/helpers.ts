@@ -4,9 +4,14 @@ import * as grpc from '@grpc/grpc-js';
 import asyncRetry from 'async-retry';
 import type { Connection } from '@temporalio/client';
 import { Client } from '@temporalio/client';
+import { loadClientConnectConfig } from '@temporalio/envconfig';
+import type { NativeConnectionOptions, WorkerOptions } from '@temporalio/worker';
+import { InternalNativeConnection } from '@temporalio/worker/lib/connection';
 import * as iface from '@temporalio/proto';
 import {
   createBaseBundlerOptions,
+  isSet,
+  Worker,
   loadHistory as loadHistoryBase,
   saveHistory as saveHistoryBase,
   RUN_TIME_SKIPPING_TESTS,
@@ -46,6 +51,46 @@ export const bundlerOptions = createBaseBundlerOptions([
   require.resolve('./activities'),
   require.resolve('./mock-native-worker'),
 ]);
+
+/**
+ * Server connection settings for tests that must own their connections instead of using a shared test environment.
+ *
+ * Chosen like `createTestWorkflowEnvironment()`, but never starts a server: envconfig when
+ * `TEMPORAL_TEST_ENV_CONFIG_SERVER` is set (e.g. on Cloud), otherwise `TEMPORAL_SERVICE_ADDRESS` or the default
+ * local address, in the `default` namespace.
+ */
+export function ownedConnectionConfig(): { namespace: string; connectionOptions: NativeConnectionOptions } {
+  if (isSet(process.env.TEMPORAL_TEST_ENV_CONFIG_SERVER, false)) {
+    const { namespace, connectionOptions } = loadClientConnectConfig();
+    return { namespace: namespace ?? 'default', connectionOptions };
+  }
+  return { namespace: 'default', connectionOptions: { address: process.env.TEMPORAL_SERVICE_ADDRESS } };
+}
+
+/**
+ * Create a Worker on a connection that the Worker owns and closes when it shuts down.
+ *
+ * Once the last such Worker stops, the Runtime shuts down too; a shared test environment would keep it alive.
+ */
+export async function createWorkerWithOwnConnection(
+  options: Omit<WorkerOptions, 'connection' | 'namespace'> & Partial<Pick<WorkerOptions, 'namespace'>>
+): ReturnType<typeof Worker.create> {
+  const { namespace, connectionOptions } = ownedConnectionConfig();
+  const connection = await InternalNativeConnection.connect(connectionOptions);
+  try {
+    return await Worker.create({ connection, namespace, ...options });
+  } catch (err) {
+    await connection.close();
+    throw err;
+  }
+}
+
+/**
+ * A task queue name unique to this test run, so tests sharing a server or namespace never poll each other's tasks.
+ */
+export function uniqueTaskQueue(title: string): string {
+  return `${title.replace(/[^a-zA-Z0-9]+/g, '-')}-${randomUUID()}`;
+}
 
 // Some of our tests expect "default custom search attributes" to exists, which used to be the case
 // in all deployment with support for advanced visibility. However, this might no longer be true in
