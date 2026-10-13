@@ -396,19 +396,20 @@ jobs:
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: true
           TEMPORAL_TEST_ENV_CONFIG_SERVER: true
-          TEMPORAL_ADDRESS: ${{ steps.create-cloud-namespace.outputs.namespace }}.tmprl.cloud:7233
+          TEMPORAL_ADDRESS: ${{ steps.create-cloud-namespace.outputs.address }}
           TEMPORAL_NAMESPACE: ${{ steps.create-cloud-namespace.outputs.namespace }}
 
           # For test-temporal-cloud.ts, against this run's namespaces
-          TEMPORAL_CLOUD_MTLS_TEST_TARGET_HOST: ${{ steps.create-cloud-namespace.outputs.namespace }}.tmprl.cloud:7233
+          TEMPORAL_CLOUD_MTLS_TEST_TARGET_HOST: ${{ steps.create-cloud-namespace.outputs.address }}
           TEMPORAL_CLOUD_MTLS_TEST_NAMESPACE: ${{ steps.create-cloud-namespace.outputs.namespace }}
-          TEMPORAL_CLOUD_API_KEY_TEST_TARGET_HOST: ca-central-1.aws.api.temporal.io:7233
+          TEMPORAL_CLOUD_API_KEY_TEST_TARGET_HOST: ${{ steps.create-cloud-api-key-namespace.outputs.address }}
           TEMPORAL_CLOUD_API_KEY_TEST_NAMESPACE: ${{ steps.create-cloud-api-key-namespace.outputs.namespace }}
           TEMPORAL_CLOUD_API_KEY_TEST_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
+          # The Cloud Operations API has a single global endpoint.
           TEMPORAL_CLOUD_OPS_TEST_TARGET_HOST: saas-api.tmprl.cloud:443
           TEMPORAL_CLOUD_OPS_TEST_NAMESPACE: ${{ steps.create-cloud-api-key-namespace.outputs.namespace }}
           TEMPORAL_CLOUD_OPS_TEST_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
-          TEMPORAL_CLOUD_OPS_TEST_API_VERSION: 2024-05-13-00
+          TEMPORAL_CLOUD_OPS_TEST_API_VERSION: v0.19.1
 
       - name: Delete Cloud namespace
         if: ${{ always() && steps.create-cloud-namespace.outputs.namespace != '' }}

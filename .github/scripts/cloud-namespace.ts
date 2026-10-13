@@ -89,6 +89,13 @@ async function create(authMethod: AuthMethod): Promise<void> {
     await appendFile(requiredEnv('GITHUB_OUTPUT'), `namespace=${result.namespace}\n`);
     if (!result.asyncOperation) throw new Error('Create namespace response did not include an operation');
     await waitForOperation(client, result.asyncOperation);
+
+    // Publish the gRPC address Cloud assigned for this auth method, rather than deriving it from the region.
+    const { endpoints } = (await client.cloudService.getNamespace({ namespace: result.namespace })).namespace ?? {};
+    const address = authMethod === 'mtls' ? endpoints?.mtlsGrpcAddress : endpoints?.grpcAddress;
+    if (!address) throw new Error(`Cloud namespace ${result.namespace} did not report a ${authMethod} gRPC address`);
+    console.log(`Namespace ${result.namespace} ${authMethod} gRPC address: ${address}`);
+    await appendFile(requiredEnv('GITHUB_OUTPUT'), `address=${address}\n`);
   });
 }
 
