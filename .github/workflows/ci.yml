@@ -393,6 +393,15 @@ jobs:
           TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
           TEMPORAL_CLIENT_CLOUD_API_VERSION: v0.19.1
 
+      # Cloud only manages Nexus endpoints through the Cloud Ops API, and they take minutes to become callable, so
+      # create every endpoint the tests need up front (see packages/test/src/nexus-endpoints.ts).
+      - name: Create Cloud Nexus endpoints
+        id: create-cloud-nexus-endpoints
+        run: pnpm exec tsx .github/scripts/cloud-namespace.ts nexus-endpoints "${{ steps.create-cloud-namespace.outputs.namespace }}"
+        env:
+          TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
+          TEMPORAL_CLIENT_CLOUD_API_VERSION: v0.19.1
+
       - name: Run tests against Temporal Cloud
         # Fail a hung suite while leaving job-level time for namespace cleanup and log upload.
         timeout-minutes: 20
@@ -403,8 +412,9 @@ jobs:
           TEMPORAL_TEST_ENV_CONFIG_SERVER: true
           TEMPORAL_ADDRESS: ${{ steps.create-cloud-namespace.outputs.namespace }}.tmprl.cloud:7233
           TEMPORAL_NAMESPACE: ${{ steps.create-cloud-namespace.outputs.namespace }}
+          TEMPORAL_TEST_NEXUS_ENDPOINT_PREFIX: ${{ steps.create-cloud-nexus-endpoints.outputs.prefix }}
 
-      - name: Delete Cloud namespace
+      - name: Delete Cloud namespace and Nexus endpoints
         if: ${{ always() && steps.create-cloud-namespace.outputs.namespace != '' }}
         run: pnpm exec tsx .github/scripts/cloud-namespace.ts delete "${{ steps.create-cloud-namespace.outputs.namespace }}"
         env:

@@ -821,315 +821,295 @@ test('WorkflowRunOperationHandler attaches links and callbacks - caller workflow
 
 test('Nexus sync and async Operations from a Workflow', async (t) => {
   const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
-  const { endpointName, endpointIdentifier } = await registerNexusEndpoint();
-  try {
-    const worker = await createWorker({
-      nexusServices: [
-        nexus.serviceHandler(multiOpService, {
-          async syncOp(_ctx, action) {
-            if (action === 'pass') {
-              return action;
-            }
-            if (action === 'throwHandlerError') {
-              throw new nexus.HandlerError('INTERNAL', 'test asked to fail', { retryableOverride: false });
-            }
-            throw new nexus.HandlerError('BAD_REQUEST', 'invalid action');
-          },
-          asyncOp: new temporalnexus.WorkflowRunOperationHandler<string, string>(async (ctx, action) => {
-            if (action === 'throwOperationError') {
-              throw new nexus.OperationError('failed', 'some message');
-            }
-            if (action === 'throwApplicationFailure') {
-              throw ApplicationFailure.create({
-                nonRetryable: true,
-                message: 'test asked to fail',
-                type: 'IntentionalError',
-                details: ['a detail'],
-              });
-            }
-            return await temporalnexus.startWorkflow(ctx, multiOpHandler, {
-              workflowId: randomUUID(),
-              args: [action],
+  const { endpointName } = await registerNexusEndpoint();
+  const worker = await createWorker({
+    nexusServices: [
+      nexus.serviceHandler(multiOpService, {
+        async syncOp(_ctx, action) {
+          if (action === 'pass') {
+            return action;
+          }
+          if (action === 'throwHandlerError') {
+            throw new nexus.HandlerError('INTERNAL', 'test asked to fail', { retryableOverride: false });
+          }
+          throw new nexus.HandlerError('BAD_REQUEST', 'invalid action');
+        },
+        asyncOp: new temporalnexus.WorkflowRunOperationHandler<string, string>(async (ctx, action) => {
+          if (action === 'throwOperationError') {
+            throw new nexus.OperationError('failed', 'some message');
+          }
+          if (action === 'throwApplicationFailure') {
+            throw ApplicationFailure.create({
+              nonRetryable: true,
+              message: 'test asked to fail',
+              type: 'IntentionalError',
+              details: ['a detail'],
             });
-          }),
+          }
+          return await temporalnexus.startWorkflow(ctx, multiOpHandler, {
+            workflowId: randomUUID(),
+            args: [action],
+          });
         }),
-      ],
+      }),
+    ],
+  });
+  await worker.runUntil(async () => {
+    let res = await executeWorkflow(multiOpCaller, {
+      args: [endpointName, 'syncOp', 'pass'],
     });
-    await worker.runUntil(async () => {
-      let res = await executeWorkflow(multiOpCaller, {
-        args: [endpointName, 'syncOp', 'pass'],
-      });
-      t.is(res, 'pass');
-      let err = await t.throwsAsync(
-        () =>
-          executeWorkflow(multiOpCaller, {
-            args: [endpointName, 'syncOp', 'throwHandlerError'],
-          }),
-        {
-          instanceOf: WorkflowFailedError,
-        }
-      );
-      t.true(
-        err instanceof WorkflowFailedError &&
-          err.cause instanceof NexusOperationFailure &&
-          err.cause.cause instanceof nexus.HandlerError &&
-          err.cause.cause.type === 'INTERNAL'
-      );
+    t.is(res, 'pass');
+    let err = await t.throwsAsync(
+      () =>
+        executeWorkflow(multiOpCaller, {
+          args: [endpointName, 'syncOp', 'throwHandlerError'],
+        }),
+      {
+        instanceOf: WorkflowFailedError,
+      }
+    );
+    t.true(
+      err instanceof WorkflowFailedError &&
+        err.cause instanceof NexusOperationFailure &&
+        err.cause.cause instanceof nexus.HandlerError &&
+        err.cause.cause.type === 'INTERNAL'
+    );
 
-      res = await executeWorkflow(multiOpCaller, {
-        args: [endpointName, 'asyncOp', 'pass'],
-      });
-      t.is(res, 'pass');
-      err = await t.throwsAsync(
-        () =>
-          executeWorkflow(multiOpCaller, {
-            args: [endpointName, 'asyncOp', 'waitForCancel'],
-          }),
-        {
-          instanceOf: WorkflowFailedError,
-        }
-      );
-      t.true(
-        err instanceof WorkflowFailedError &&
-          err.cause instanceof NexusOperationFailure &&
-          err.cause.cause instanceof CancelledFailure
-      );
-
-      err = await t.throwsAsync(
-        () =>
-          executeWorkflow(multiOpCaller, {
-            args: [endpointName, 'asyncOp', 'throwOperationError'],
-          }),
-        {
-          instanceOf: WorkflowFailedError,
-        }
-      );
-      t.true(
-        err instanceof WorkflowFailedError &&
-          err.cause instanceof NexusOperationFailure &&
-          err.cause.cause instanceof ApplicationFailure
-      );
-
-      err = await t.throwsAsync(
-        () =>
-          executeWorkflow(multiOpCaller, {
-            args: [endpointName, 'asyncOp', 'throwApplicationFailure'],
-          }),
-        {
-          instanceOf: WorkflowFailedError,
-        }
-      );
-      assert(err instanceof WorkflowFailedError);
-      assert(err.cause instanceof NexusOperationFailure);
-      assert(err.cause.cause instanceof nexus.HandlerError);
-      t.is(err.cause.cause.type, 'INTERNAL');
-      const appFailure = unwrapHandlerErrorCause(err.cause.cause);
-      assert(appFailure instanceof ApplicationFailure);
-      t.is(appFailure.message, 'test asked to fail');
-      t.deepEqual(appFailure.details, ['a detail']);
-
-      err = await t.throwsAsync(
-        () =>
-          executeWorkflow(multiOpCaller, {
-            args: [endpointName, 'asyncOp', 'failWorkflow'],
-          }),
-        {
-          instanceOf: WorkflowFailedError,
-        }
-      );
-      t.true(
-        err instanceof WorkflowFailedError &&
-          err.cause instanceof NexusOperationFailure &&
-          err.cause.cause instanceof ApplicationFailure &&
-          err.cause.cause.message === 'test asked to fail' &&
-          err.cause.cause.details?.length === 1 &&
-          err.cause.cause.details[0] === 'a detail'
-      );
+    res = await executeWorkflow(multiOpCaller, {
+      args: [endpointName, 'asyncOp', 'pass'],
     });
-  } finally {
-    await t.context.env.deleteNexusEndpoint(endpointIdentifier);
-  }
+    t.is(res, 'pass');
+    err = await t.throwsAsync(
+      () =>
+        executeWorkflow(multiOpCaller, {
+          args: [endpointName, 'asyncOp', 'waitForCancel'],
+        }),
+      {
+        instanceOf: WorkflowFailedError,
+      }
+    );
+    t.true(
+      err instanceof WorkflowFailedError &&
+        err.cause instanceof NexusOperationFailure &&
+        err.cause.cause instanceof CancelledFailure
+    );
+
+    err = await t.throwsAsync(
+      () =>
+        executeWorkflow(multiOpCaller, {
+          args: [endpointName, 'asyncOp', 'throwOperationError'],
+        }),
+      {
+        instanceOf: WorkflowFailedError,
+      }
+    );
+    t.true(
+      err instanceof WorkflowFailedError &&
+        err.cause instanceof NexusOperationFailure &&
+        err.cause.cause instanceof ApplicationFailure
+    );
+
+    err = await t.throwsAsync(
+      () =>
+        executeWorkflow(multiOpCaller, {
+          args: [endpointName, 'asyncOp', 'throwApplicationFailure'],
+        }),
+      {
+        instanceOf: WorkflowFailedError,
+      }
+    );
+    assert(err instanceof WorkflowFailedError);
+    assert(err.cause instanceof NexusOperationFailure);
+    assert(err.cause.cause instanceof nexus.HandlerError);
+    t.is(err.cause.cause.type, 'INTERNAL');
+    const appFailure = unwrapHandlerErrorCause(err.cause.cause);
+    assert(appFailure instanceof ApplicationFailure);
+    t.is(appFailure.message, 'test asked to fail');
+    t.deepEqual(appFailure.details, ['a detail']);
+
+    err = await t.throwsAsync(
+      () =>
+        executeWorkflow(multiOpCaller, {
+          args: [endpointName, 'asyncOp', 'failWorkflow'],
+        }),
+      {
+        instanceOf: WorkflowFailedError,
+      }
+    );
+    t.true(
+      err instanceof WorkflowFailedError &&
+        err.cause instanceof NexusOperationFailure &&
+        err.cause.cause instanceof ApplicationFailure &&
+        err.cause.cause.message === 'test asked to fail' &&
+        err.cause.cause.details?.length === 1 &&
+        err.cause.cause.details[0] === 'a detail'
+    );
+  });
 });
 
 test('calling a nonexistent service returns NOT_FOUND', async (t) => {
   const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
-  const { endpointName, endpointIdentifier } = await registerNexusEndpoint();
-  try {
-    const worker = await createWorker({
-      nexusServices: [
-        nexus.serviceHandler(multiOpService, {
-          async syncOp(_ctx, input) {
-            return input;
+  const { endpointName } = await registerNexusEndpoint();
+  const worker = await createWorker({
+    nexusServices: [
+      nexus.serviceHandler(multiOpService, {
+        async syncOp(_ctx, input) {
+          return input;
+        },
+        asyncOp: {
+          async start() {
+            throw new Error('not implemented');
           },
-          asyncOp: {
-            async start() {
-              throw new Error('not implemented');
-            },
-            async cancel() {},
-          },
+          async cancel() {},
+        },
+      }),
+    ],
+  });
+  await worker.runUntil(async () => {
+    const err = await t.throwsAsync(
+      () =>
+        executeWorkflow(callNonExistentService, {
+          args: [endpointName],
         }),
-      ],
-    });
-    await worker.runUntil(async () => {
-      const err = await t.throwsAsync(
-        () =>
-          executeWorkflow(callNonExistentService, {
-            args: [endpointName],
-          }),
-        {
-          instanceOf: WorkflowFailedError,
-        }
-      );
-      t.true(
-        err instanceof WorkflowFailedError &&
-          err.cause instanceof NexusOperationFailure &&
-          err.cause.cause instanceof nexus.HandlerError &&
-          err.cause.cause.type === 'NOT_FOUND'
-      );
-    });
-  } finally {
-    await t.context.env.deleteNexusEndpoint(endpointIdentifier);
-  }
+      {
+        instanceOf: WorkflowFailedError,
+      }
+    );
+    t.true(
+      err instanceof WorkflowFailedError &&
+        err.cause instanceof NexusOperationFailure &&
+        err.cause.cause instanceof nexus.HandlerError &&
+        err.cause.cause.type === 'NOT_FOUND'
+    );
+  });
 });
 
 test('inbound startOperation interceptor can modify input and result', async (t) => {
   const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
-  const { endpointName, endpointIdentifier } = await registerNexusEndpoint();
-  try {
-    const observedResults: nexus.HandlerStartOperationResult<unknown>[] = [];
-    const worker = await createWorker({
-      nexusServices: [
-        nexus.serviceHandler(multiOpService, {
-          async syncOp(_ctx, input) {
-            return input;
+  const { endpointName } = await registerNexusEndpoint();
+  const observedResults: nexus.HandlerStartOperationResult<unknown>[] = [];
+  const worker = await createWorker({
+    nexusServices: [
+      nexus.serviceHandler(multiOpService, {
+        async syncOp(_ctx, input) {
+          return input;
+        },
+        asyncOp: new temporalnexus.WorkflowRunOperationHandler<string, string>(async (ctx, input) => {
+          return await temporalnexus.startWorkflow(ctx, multiOpHandler, { workflowId: randomUUID(), args: [input] });
+        }),
+      }),
+    ],
+    interceptors: {
+      nexus: [
+        () => ({
+          inbound: {
+            async startOperation(input, next) {
+              const output = await next({ ...input, input: input.input + ' modified' });
+              const { result } = output;
+              observedResults.push(result);
+              if (!result.isAsync) {
+                return { result: nexus.HandlerStartOperationResult.sync(result.value + ' intercepted') };
+              }
+              return output;
+            },
           },
-          asyncOp: new temporalnexus.WorkflowRunOperationHandler<string, string>(async (ctx, input) => {
-            return await temporalnexus.startWorkflow(ctx, multiOpHandler, { workflowId: randomUUID(), args: [input] });
-          }),
         }),
       ],
-      interceptors: {
-        nexus: [
-          () => ({
-            inbound: {
-              async startOperation(input, next) {
-                const output = await next({ ...input, input: input.input + ' modified' });
-                const { result } = output;
-                observedResults.push(result);
-                if (!result.isAsync) {
-                  return { result: nexus.HandlerStartOperationResult.sync(result.value + ' intercepted') };
-                }
-                return output;
-              },
-            },
-          }),
-        ],
-      },
+    },
+  });
+  await worker.runUntil(async () => {
+    const res = await executeWorkflow(multiOpCaller, {
+      args: [endpointName, 'syncOp', 'hello'],
     });
-    await worker.runUntil(async () => {
-      const res = await executeWorkflow(multiOpCaller, {
-        args: [endpointName, 'syncOp', 'hello'],
-      });
-      t.is(res, 'hello modified intercepted');
-    });
-    t.is(observedResults.length, 1);
-    const result = observedResults[0];
-    t.false(result.isAsync);
-    if (!result.isAsync) {
-      t.is(result.value, 'hello modified');
-    }
-  } finally {
-    await t.context.env.deleteNexusEndpoint(endpointIdentifier);
+    t.is(res, 'hello modified intercepted');
+  });
+  t.is(observedResults.length, 1);
+  const result = observedResults[0];
+  t.false(result.isAsync);
+  if (!result.isAsync) {
+    t.is(result.value, 'hello modified');
   }
 });
 
 test('inbound cancelOperation interceptor can modify input', async (t) => {
   const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
-  const { endpointName, endpointIdentifier } = await registerNexusEndpoint();
-  try {
-    const receivedTokens: string[] = [];
-    const worker = await createWorker({
-      nexusServices: [
-        nexus.serviceHandler(multiOpService, {
-          async syncOp(_ctx, input) {
-            return input;
+  const { endpointName } = await registerNexusEndpoint();
+  const receivedTokens: string[] = [];
+  const worker = await createWorker({
+    nexusServices: [
+      nexus.serviceHandler(multiOpService, {
+        async syncOp(_ctx, input) {
+          return input;
+        },
+        asyncOp: {
+          async start(_ctx, _input) {
+            return nexus.HandlerStartOperationResult.async('original-token');
           },
-          asyncOp: {
-            async start(_ctx, _input) {
-              return nexus.HandlerStartOperationResult.async('original-token');
-            },
-            async cancel(_ctx, token) {
-              receivedTokens.push(token);
+          async cancel(_ctx, token) {
+            receivedTokens.push(token);
+          },
+        },
+      }),
+    ],
+    interceptors: {
+      nexus: [
+        () => ({
+          inbound: {
+            async cancelOperation(input, next) {
+              return await next({ ...input, token: input.token + '-modified' });
             },
           },
         }),
       ],
-      interceptors: {
-        nexus: [
-          () => ({
-            inbound: {
-              async cancelOperation(input, next) {
-                return await next({ ...input, token: input.token + '-modified' });
-              },
-            },
-          }),
-        ],
-      },
-    });
-    await worker.runUntil(async () => {
-      const err = await t.throwsAsync(
-        () =>
-          executeWorkflow(multiOpCaller, {
-            args: [endpointName, 'asyncOp', 'waitForCancel', 'WAIT_CANCELLATION_REQUESTED'],
-          }),
-        {
-          instanceOf: WorkflowFailedError,
-        }
-      );
-      t.true(
-        err instanceof WorkflowFailedError &&
-          err.cause instanceof NexusOperationFailure &&
-          err.cause.cause instanceof CancelledFailure
-      );
-    });
-    t.is(receivedTokens.length, 1);
-    t.is(receivedTokens[0], 'original-token-modified');
-  } finally {
-    await t.context.env.deleteNexusEndpoint(endpointIdentifier);
-  }
+    },
+  });
+  await worker.runUntil(async () => {
+    const err = await t.throwsAsync(
+      () =>
+        executeWorkflow(multiOpCaller, {
+          args: [endpointName, 'asyncOp', 'waitForCancel', 'WAIT_CANCELLATION_REQUESTED'],
+        }),
+      {
+        instanceOf: WorkflowFailedError,
+      }
+    );
+    t.true(
+      err instanceof WorkflowFailedError &&
+        err.cause instanceof NexusOperationFailure &&
+        err.cause.cause instanceof CancelledFailure
+    );
+  });
+  t.is(receivedTokens.length, 1);
+  t.is(receivedTokens[0], 'original-token-modified');
 });
 
 test('NexusServiceClient is type-safe in regard to Operation Definitions', async (t) => {
   const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
-  const { endpointName, endpointIdentifier } = await registerNexusEndpoint();
-  try {
-    // We intentionally use different property names here, to assert that the client side sent the
-    // correct op name to the server (i.e. the operation's name, not the operation property name).
-    const typeSafetyHandlerService = nexus.service('typeSafetyService', {
-      implicitImpl: nexus.operation<InputA, InputA>({ name: 'implicit' }),
-      explicitImpl: nexus.operation<InputB, InputB>({ name: 'my-custom-operation-name' }),
-    });
+  const { endpointName } = await registerNexusEndpoint();
+  // We intentionally use different property names here, to assert that the client side sent the
+  // correct op name to the server (i.e. the operation's name, not the operation property name).
+  const typeSafetyHandlerService = nexus.service('typeSafetyService', {
+    implicitImpl: nexus.operation<InputA, InputA>({ name: 'implicit' }),
+    explicitImpl: nexus.operation<InputB, InputB>({ name: 'my-custom-operation-name' }),
+  });
 
-    const worker = await createWorker({
-      nexusServices: [
-        nexus.serviceHandler(typeSafetyHandlerService, {
-          implicitImpl: async (_ctx, input) => input,
-          explicitImpl: async (_ctx, input) => input,
-        }),
-      ],
+  const worker = await createWorker({
+    nexusServices: [
+      nexus.serviceHandler(typeSafetyHandlerService, {
+        implicitImpl: async (_ctx, input) => input,
+        explicitImpl: async (_ctx, input) => input,
+      }),
+    ],
+  });
+  await worker.runUntil(async () => {
+    await executeWorkflow(clientOperationTypeSafetyCheckerWorkflow, {
+      args: [endpointName],
     });
-    await worker.runUntil(async () => {
-      await executeWorkflow(clientOperationTypeSafetyCheckerWorkflow, {
-        args: [endpointName],
-      });
-    });
+  });
 
-    // Most of the checks here would be exposed as compile-time errors,
-    // and `executeWorkflow` will have thrown if any runtime error.
-    t.pass();
-  } finally {
-    await t.context.env.deleteNexusEndpoint(endpointIdentifier);
-  }
+  // Most of the checks here would be exposed as compile-time errors,
+  // and `executeWorkflow` will have thrown if any runtime error.
+  t.pass();
 });
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

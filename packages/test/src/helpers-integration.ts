@@ -2,7 +2,7 @@ import { status as grpcStatus } from '@grpc/grpc-js';
 import type { ErrorConstructor, ExecutionContext, TestFn } from 'ava';
 import type { WorkflowHandle } from '@temporalio/client';
 import { isGrpcServiceError, WorkflowFailedError, WorkflowUpdateFailedError } from '@temporalio/client';
-import type { LocalTestWorkflowEnvironmentOptions, NexusEndpointIdentifier } from '@temporalio/testing';
+import type { LocalTestWorkflowEnvironmentOptions } from '@temporalio/testing';
 import type {
   BundlerPlugin,
   LogEntry,
@@ -33,6 +33,12 @@ import {
   test as anyTest,
   Worker,
 } from '@temporalio/test-helpers';
+
+import {
+  assertNexusEndpointInManifest,
+  NEXUS_ENDPOINT_PREFIX_ENV,
+  preCreatedNexusEndpointName,
+} from './nexus-endpoints';
 
 export { defaultSAKeys, createLocalTestEnvironment };
 
@@ -155,9 +161,11 @@ export interface Helpers extends BaseHelpers {
   assertWorkflowUpdateFailed(p: Promise<any>, causeConstructor: ErrorConstructor, message?: string): Promise<void>;
   assertWorkflowFailedError(p: Promise<any>, causeConstructor: ErrorConstructor, message?: string): Promise<void>;
   updateHasBeenAdmitted(handle: WorkflowHandle<workflow.Workflow>, updateId: string): Promise<boolean>;
-  registerNexusEndpoint(
-    suffix?: string
-  ): Promise<{ endpointName: string; endpointIdentifier: NexusEndpointIdentifier }>;
+  /**
+   * Get a Nexus endpoint that routes to this test's task queue. Creates the endpoint unless it was created before
+   * the run (see `nexus-endpoints.ts`); either way, the task queue must be listed in the endpoint manifest.
+   */
+  registerNexusEndpoint(): Promise<{ endpointName: string }>;
 }
 
 /**
@@ -243,10 +251,12 @@ export function helpers(t: ExecutionContext<Context>, env?: TestWorkflowEnvironm
         throw err;
       }
     },
-    async registerNexusEndpoint(
-      suffix?: string
-    ): Promise<{ endpointName: string; endpointIdentifier: NexusEndpointIdentifier }> {
-      const endpointName = (suffix ? `${taskQueue}-${suffix}` : taskQueue).replaceAll('_', '-');
+    async registerNexusEndpoint(): Promise<{ endpointName: string }> {
+      assertNexusEndpointInManifest(anyTest.meta.file, taskQueue);
+      const preCreatedPrefix = process.env[NEXUS_ENDPOINT_PREFIX_ENV];
+      if (preCreatedPrefix) return { endpointName: preCreatedNexusEndpointName(preCreatedPrefix, taskQueue) };
+
+      const endpointName = taskQueue.replaceAll('_', '-');
       try {
         const endpointIdentifier = await testEnv.createNexusEndpoint(endpointName, taskQueue);
         t.teardown(() =>
@@ -254,7 +264,7 @@ export function helpers(t: ExecutionContext<Context>, env?: TestWorkflowEnvironm
             /* ignore cleanup errors */
           })
         );
-        return { endpointName, endpointIdentifier };
+        return { endpointName };
       } catch (err) {
         if (err instanceof Error) {
           err.message = `Failed to register Nexus endpoint '${endpointName}': ${err.message}`;
