@@ -1,14 +1,34 @@
 import { setTimeout } from 'node:timers/promises';
-import ms from 'ms';
-import test from 'ava';
-import { native, errors } from '@temporalio/core-bridge';
+import type { ExecutionContext, TestFn } from 'ava';
+import anyTest from 'ava';
+import type * as bridge from '..';
+import type { StubWorkflowService } from './stub-workflow-service';
+import { startStubWorkflowService } from './stub-workflow-service';
+
+// Load through the package entry point (index.js), which binds the native library; `..` only declares its API.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { native, errors }: typeof bridge = require('../..');
 
 // TESTING NOTES
 //
-// - Tests in this file requires an external Temporal server to be running, because using the ephemeral
-//   server support provided by Core SDK would affect the behavior that we're testing here.
+// - Tests that need a server use a stub WorkflowService rather than a real Temporal server: they check the bridge's
+//   own behavior, and starting a server through Core's ephemeral server support would affect what they test.
 // - Tests in this file can't be run in parallel, since the bridge is mostly a singleton.
 // - Some of these tests explicitly use the native bridge, without going through the lang side Runtime/Worker.
+
+const test = anyTest as TestFn<{ stub: StubWorkflowService }>;
+
+test.before(async (t) => {
+  t.context.stub = await startStubWorkflowService();
+});
+
+test.after.always((t) => {
+  t.context.stub.close();
+});
+
+function clientOptions(t: ExecutionContext<{ stub: StubWorkflowService }>): bridge.native.ClientOptions {
+  return { ...GenericConfigs.client.basic, targetUrl: t.context.stub.targetUrl };
+}
 
 test('Can instantiate and shutdown the native runtime', async (t) => {
   const runtime = native.newRuntime(GenericConfigs.runtime.basic);
@@ -17,7 +37,7 @@ test('Can instantiate and shutdown the native runtime', async (t) => {
 
   // Pass this point, any operation on the runtime should throw
 
-  t.throws(() => native.newClient(runtime, GenericConfigs.client.basic), {
+  t.throws(() => native.newClient(runtime, clientOptions(t)), {
     instanceOf: errors.IllegalStateError,
     message: 'Runtime already closed',
   });
@@ -35,19 +55,19 @@ test('Can run multiple runtime concurrently', async (t) => {
   const runtime3 = native.newRuntime(GenericConfigs.runtime.basic);
 
   // Order is intentionally random - distinct runtimes are expected to be independent
-  const _client2 = await native.newClient(runtime3, GenericConfigs.client.basic);
-  const _client1 = await native.newClient(runtime1, GenericConfigs.client.basic);
-  const _client3 = await native.newClient(runtime2, GenericConfigs.client.basic);
+  const _client2 = await native.newClient(runtime3, clientOptions(t));
+  const _client1 = await native.newClient(runtime1, clientOptions(t));
+  const _client3 = await native.newClient(runtime2, clientOptions(t));
 
   native.runtimeShutdown(runtime1);
   native.runtimeShutdown(runtime3);
 
-  await t.throwsAsync(async () => await native.newClient(runtime1, GenericConfigs.client.basic), {
+  await t.throwsAsync(async () => await native.newClient(runtime1, clientOptions(t)), {
     instanceOf: errors.IllegalStateError,
     message: 'Runtime already closed',
   });
 
-  const _client5 = await native.newClient(runtime2, GenericConfigs.client.basic);
+  const _client5 = await native.newClient(runtime2, clientOptions(t));
 
   native.runtimeShutdown(runtime2);
 
@@ -159,13 +179,13 @@ test("Creating Runtime without shutting it down doesn't hang process", (t) => {
 
 test("Dropping Client without closing doesn't hang process", (t) => {
   const runtime = native.newRuntime(GenericConfigs.runtime.basic);
-  const _client = native.newClient(runtime, GenericConfigs.client.basic);
+  const _client = native.newClient(runtime, clientOptions(t));
   t.pass();
 });
 
 test("Dropping Worker without shutting it down doesn't hang process", async (t) => {
   const runtime = native.newRuntime(GenericConfigs.runtime.basic);
-  const client = await native.newClient(runtime, GenericConfigs.client.basic);
+  const client = await native.newClient(runtime, clientOptions(t));
   const worker = native.newWorker(client, GenericConfigs.worker.basic);
   t.true(Buffer.isBuffer(await native.workerValidate(worker)));
   t.pass();
@@ -189,12 +209,12 @@ test("Stopping Worker after creating another runtime doesn't fail", async (t) =>
   const runtime1 = native.newRuntime(GenericConfigs.runtime.basic);
 
   // Starts Worker 0
-  const client0 = await native.newClient(runtime0, GenericConfigs.client.basic);
+  const client0 = await native.newClient(runtime0, clientOptions(t));
   const worker0 = native.newWorker(client0, GenericConfigs.worker.basic);
   await native.workerValidate(worker0);
 
   // Start Worker 1
-  const client1 = await native.newClient(runtime1, GenericConfigs.client.basic);
+  const client1 = await native.newClient(runtime1, clientOptions(t));
   const worker1 = native.newWorker(client1, GenericConfigs.worker.basic);
   await native.workerValidate(worker1);
 
@@ -215,7 +235,7 @@ test("Stopping Worker after creating another runtime doesn't fail", async (t) =>
 
   // Create Runtime 2 and Worker 2, but don't immediately use them
   const runtime2 = native.newRuntime(GenericConfigs.runtime.basic);
-  const client2 = await native.newClient(runtime2, GenericConfigs.client.basic);
+  const client2 = await native.newClient(runtime2, clientOptions(t));
   const worker2 = native.newWorker(client2, GenericConfigs.worker.basic);
 
   // Cleanly shutdown Worker 0
@@ -259,7 +279,7 @@ const GenericConfigs = {
       },
       metricsExporter: null,
       workerHeartbeatIntervalMillis: null,
-    } satisfies native.RuntimeOptions,
+    } satisfies bridge.native.RuntimeOptions,
   },
   client: {
     basic: {
@@ -275,7 +295,7 @@ const GenericConfigs = {
       disableErrorCodeMetricTags: false,
       payloadsWarnSize: 512 * 1024,
       memoWarnSize: 2 * 1024,
-    } satisfies native.ClientOptions,
+    } satisfies bridge.native.ClientOptions,
   },
   worker: {
     basic: {
@@ -340,7 +360,7 @@ const GenericConfigs = {
       workflowFailureErrors: [],
       workflowTypesToFailureErrors: {},
       disablePayloadErrorLimit: false,
-    } satisfies native.WorkerOptions,
+    } satisfies bridge.native.WorkerOptions,
   },
   ephemeralServer: {
     basic: {
@@ -349,7 +369,7 @@ const GenericConfigs = {
         type: 'cached-download',
         downloadDir: null,
         version: 'default',
-        ttl: ms('1y'),
+        ttl: 365.25 * 24 * 60 * 60 * 1000, // 1 year
         sdkName: 'sdk-typescript',
         sdkVersion: '1.0.0',
       },
@@ -361,6 +381,6 @@ const GenericConfigs = {
       dbFilename: null,
       log: { format: 'text', level: 'warn' },
       extraArgs: [],
-    } satisfies native.EphemeralServerConfig,
+    } satisfies bridge.native.EphemeralServerConfig,
   },
 } as const;
