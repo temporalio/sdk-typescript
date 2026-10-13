@@ -21,6 +21,10 @@ to docs, or any other relevant information.
 
 ### Breaking Changes
 
+- SDK and contrib packages now declare `protobufjs` (`^8.7.1`) and `long` (`^5.3.2`) as peer
+  dependencies rather than relying on separately installed copies. Package managers that do not
+  automatically install peers require applications to add these dependencies explicitly.
+  `@temporalio/proto` retains its regular runtime dependencies.
 - `@temporalio/google-adk-agents` now requires `@google/adk` `>=2.0.0 <2.1.0` (was `>=1.5.0 <1.6.0`).
   ADK 2.0 changed its internals and its id generation, so a Workflow started under the 1.5 plugin
   cannot be replayed by a Worker on this version: drain in-flight Workflows before upgrading, or
@@ -63,6 +67,9 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- Corrected the protobufjs dependency declarations to prevent `historyFromJSON` failing with
+  `type must be a Type` when npm installs separate protobufjs copies alongside a dependency on an
+  older protobufjs major (#2514).
 - `@temporalio/google-adk-agents` no longer turns a cancelled model or MCP Activity into a retryable
   `GoogleAdkModelError` / `GoogleAdkMCPError`. An error raised once the Activity's cancellation signal
   has fired is re-raised as the cancellation, so the attempt ends cancelled instead of being retried.

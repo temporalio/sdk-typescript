@@ -56,13 +56,17 @@
     "@temporalio/workflow": "workspace:*"
   },
   "peerDependencies": {
-    "langsmith": "^0.7.9"
+    "langsmith": "^0.7.9",
+    "long": "^5.3.2",
+    "protobufjs": "^8.7.1"
   },
   "devDependencies": {
     "@temporalio/testing": "workspace:*",
     "ava": "^5.3.1",
     "langsmith": "^0.7.9",
-    "nexus-rpc": "^0.0.3"
+    "long": "^5.3.2",
+    "nexus-rpc": "^0.0.3",
+    "protobufjs": "^8.7.1"
   },
   "engines": {
     "node": ">= 20.3.0"

@@ -74,7 +74,9 @@
   "peerDependencies": {
     "@google/adk": ">=2.0.0 <2.1.0",
     "@google/genai": "^2.9.0",
-    "@modelcontextprotocol/sdk": "^1.26.0"
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "long": "^5.3.2",
+    "protobufjs": "^8.7.1"
   },
   "devDependencies": {
     "@google/adk": ">=2.0.0 <2.1.0",
@@ -87,7 +89,9 @@
     "@temporalio/testing": "workspace:*",
     "@temporalio/worker": "workspace:*",
     "@types/node": "^20.0.0",
-    "ava": "^5.3.1"
+    "ava": "^5.3.1",
+    "long": "^5.3.2",
+    "protobufjs": "^8.7.1"
   },
   "engines": {
     "node": ">= 20.3.0"
