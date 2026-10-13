@@ -35,6 +35,8 @@ type Trace = ContextTrace<string>;
 const converterPath = require.resolve('./payload-converters/serialization-context-converter');
 const dataConverter = { payloadConverterPath: converterPath, failureConverterPath: converterPath };
 
+const MARKER_KEY = 'nexus-context-marker';
+
 const test = makeConfigurableEnvironmentTestFn<Context>({
   createTestContext: async () => {
     const env = await createTestWorkflowEnvironment({
@@ -86,6 +88,48 @@ const testServiceHandler = nexus.serviceHandler(testService, {
   },
 });
 
+function errorChainMessages(err: unknown): string[] {
+  const messages: string[] = [];
+  for (let cur: unknown = err; cur instanceof Error; cur = cur.cause) {
+    messages.push(cur.message);
+  }
+  return messages;
+}
+
+/**
+ * Stamps a per-context marker into payload metadata on encode, and requires the same marker on
+ * decode. A payload decoded under a different Nexus context, or none, throws rather than silently
+ * round-tripping, so a test passes only if each payload is decoded with the exact context it was
+ * encoded with.
+ */
+function nexusContextMarkerCodec(markers: Record<string, string>): PayloadCodec {
+  const markerFor = (context?: SerializationContext): string | undefined =>
+    context == null ? undefined : markers[contextToTraceString(context)];
+  return {
+    async encode(payloads: Payload[], context?: SerializationContext): Promise<Payload[]> {
+      const marker = markerFor(context);
+      if (marker == null) return payloads;
+      return payloads.map((payload) => ({
+        ...payload,
+        metadata: { ...payload.metadata, [MARKER_KEY]: new TextEncoder().encode(marker) },
+      }));
+    },
+    async decode(payloads: Payload[], context?: SerializationContext): Promise<Payload[]> {
+      return payloads.map((payload) => {
+        const stamped = payload.metadata?.[MARKER_KEY];
+        if (stamped == null) return payload;
+        const found = new TextDecoder().decode(stamped);
+        const expected = markerFor(context);
+        if (found !== expected) {
+          throw new Error(`payload marked '${found}' was decoded as '${expected ?? 'no context'}'`);
+        }
+        const { [MARKER_KEY]: _marker, ...metadata } = payload.metadata ?? {};
+        return { ...payload, metadata };
+      });
+    },
+  };
+}
+
 export async function echoOpCaller(endpoint: string, inputTrace: Trace): Promise<Trace> {
   const client = wf.createNexusServiceClient({ endpoint, service: testService });
   const fromOperation = await client.executeOperation('echo', withLabel(inputTrace, 'nexus-input'), {
@@ -94,16 +138,21 @@ export async function echoOpCaller(endpoint: string, inputTrace: Trace): Promise
   return withLabel(fromOperation, 'wf-output');
 }
 
+export async function twoEndpointCaller(redEndpoint: string, blueEndpoint: string): Promise<[Trace, Trace]> {
+  const red = wf.createNexusServiceClient({ endpoint: redEndpoint, service: testService });
+  const blue = wf.createNexusServiceClient({ endpoint: blueEndpoint, service: testService });
+  return await Promise.all([
+    red.executeOperation('echo', makeContextTrace('red-input')),
+    blue.executeOperation('echo', makeContextTrace('blue-input')),
+  ]);
+}
+
 export async function failedOpCaller(endpoint: string): Promise<string[]> {
   const client = wf.createNexusServiceClient({ endpoint, service: testService });
   try {
     await client.executeOperation('fail', 'nexus-boom');
   } catch (err) {
-    const messages: string[] = [];
-    for (let cur: unknown = err; cur instanceof Error; cur = cur.cause) {
-      messages.push(cur.message);
-    }
-    return messages;
+    return errorChainMessages(err);
   }
   throw ApplicationFailure.nonRetryable('expected the Nexus operation to fail');
 }
@@ -171,8 +220,8 @@ test('standalone Nexus operation payloads carry Nexus context', async (t) => {
   const opCtx = nexusCtx(endpointName, 'testService', 'echo');
 
   await worker.runUntil(async () => {
-    const service = client.nexus.createServiceClient({ endpoint: endpointName, service: testService });
-    const result = await service.executeOperation('echo', makeContextTrace('nexus-input'), {
+    const serviceClient = client.nexus.createServiceClient({ endpoint: endpointName, service: testService });
+    const result = await serviceClient.executeOperation('echo', makeContextTrace('nexus-input'), {
       id: `op-${randomUUID()}`,
       scheduleToCloseTimeout: '10s',
     });
@@ -191,22 +240,28 @@ test('standalone Nexus failures carry Nexus context', async (t) => {
   const opCtx = nexusCtx(endpointName, 'testService', 'fail');
 
   await worker.runUntil(async () => {
-    const service = client.nexus.createServiceClient({ endpoint: endpointName, service: testService });
-    const err = await t.throwsAsync(
-      service.executeOperation('fail', 'nexus-boom', {
-        id: `op-${randomUUID()}`,
-        scheduleToCloseTimeout: '10s',
-      })
-    );
-    const messages: string[] = [];
-    for (let cur: unknown = err; cur instanceof Error; cur = cur.cause) {
-      messages.push(cur.message);
-    }
+    const serviceClient = client.nexus.createServiceClient({ endpoint: endpointName, service: testService });
+    const handle = await serviceClient.startOperation('fail', 'nexus-boom', {
+      id: `op-${randomUUID()}`,
+      scheduleToCloseTimeout: '10s',
+    });
+    const err = await t.throwsAsync(handle.result());
+    const messages = errorChainMessages(err);
     // The failure travels back through the result poll, which must decode it with the operation
     // context rather than context-free.
     t.true(
       messages.some((message) => message.startsWith(`failure.decode.bound|${opCtx}|`)),
       `expected a client-side decode marker in ${JSON.stringify(messages)}`
+    );
+
+    // Describe reads the same failure back over a different route: the failure converter is reached
+    // through the execution info rather than the result poll, and has to be given the context the
+    // description builds from that info.
+    const { lastAttemptFailure } = await handle.describe();
+    t.truthy(lastAttemptFailure, 'expected the description to report the failed attempt');
+    t.true(
+      lastAttemptFailure?.message.startsWith(`failure.decode.bound|${opCtx}|`) ?? false,
+      `expected a describe-side decode marker in ${JSON.stringify(lastAttemptFailure?.message)}`
     );
   });
 });
@@ -220,8 +275,8 @@ test('standalone Nexus handle obtained by id has no Nexus context', async (t) =>
   const operationId = `op-${randomUUID()}`;
 
   await worker.runUntil(async () => {
-    const service = client.nexus.createServiceClient({ endpoint: endpointName, service: testService });
-    const started = await service.startOperation('echo', makeContextTrace('nexus-input'), {
+    const serviceClient = client.nexus.createServiceClient({ endpoint: endpointName, service: testService });
+    const started = await serviceClient.startOperation('echo', makeContextTrace('nexus-input'), {
       id: operationId,
       scheduleToCloseTimeout: '10s',
     });
@@ -240,30 +295,10 @@ test('standalone Nexus handle obtained by id has no Nexus context', async (t) =>
   });
 });
 
-/**
- * Flips bytes only for one exact endpoint/service/operation, on both encode and decode, so a
- * payload comes back mangled whenever the encoding and decoding sides disagree about which Nexus
- * operation it belongs to.
- */
-function nexusOnlyCodec(expected: string): PayloadCodec {
-  const flip = (payloads: Payload[], context?: SerializationContext): Payload[] => {
-    if (context?.type !== 'nexus' || contextToTraceString(context) !== expected) return payloads;
-    return payloads.map((payload) => ({ ...payload, data: payload.data?.map((byte) => byte ^ 0xff) }));
-  };
-  return {
-    async encode(payloads: Payload[], context?: SerializationContext): Promise<Payload[]> {
-      return flip(payloads, context);
-    },
-    async decode(payloads: Payload[], context?: SerializationContext): Promise<Payload[]> {
-      return flip(payloads, context);
-    },
-  };
-}
-
 test('standalone Nexus describe reads user metadata with Nexus context', async (t) => {
   const h = helpers(t);
   const { endpointName } = await h.registerNexusEndpoint();
-  const codec = nexusOnlyCodec(nexusCtx(endpointName, 'testService', 'echo'));
+  const codec = nexusContextMarkerCodec({ [nexusCtx(endpointName, 'testService', 'echo')]: 'describe' });
   const client = makeClient(t.context.env, { payloadCodecs: [codec] });
   const worker = await h.createWorker({
     dataConverter: { ...dataConverter, payloadCodecs: [codec] },
@@ -271,8 +306,8 @@ test('standalone Nexus describe reads user metadata with Nexus context', async (
   });
 
   await worker.runUntil(async () => {
-    const service = client.nexus.createServiceClient({ endpoint: endpointName, service: testService });
-    const handle = await service.startOperation('echo', makeContextTrace('nexus-input'), {
+    const serviceClient = client.nexus.createServiceClient({ endpoint: endpointName, service: testService });
+    const handle = await serviceClient.startOperation('echo', makeContextTrace('nexus-input'), {
       id: `op-${randomUUID()}`,
       scheduleToCloseTimeout: '10s',
       summary: 'nexus-summary',
@@ -282,5 +317,66 @@ test('standalone Nexus describe reads user metadata with Nexus context', async (
     // only read it back if it rebuilds the same three from the execution info.
     const description = await handle.describe();
     t.is(await description.staticSummary(), 'nexus-summary');
+  });
+});
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Two endpoints at once
+
+async function registerRedAndBlue(h: ReturnType<typeof helpers>) {
+  const [{ endpointName: red }, { endpointName: blue }] = [
+    await h.registerNexusEndpoint('red'),
+    await h.registerNexusEndpoint('blue'),
+  ];
+  const redCtx = nexusCtx(red, 'testService', 'echo');
+  const blueCtx = nexusCtx(blue, 'testService', 'echo');
+  return { red, blue, redCtx, blueCtx, codec: nexusContextMarkerCodec({ [redCtx]: 'red', [blueCtx]: 'blue' }) };
+}
+
+test('workflow Nexus operations keep separate contexts per endpoint', async (t) => {
+  const h = helpers(t);
+  const { red, blue, redCtx, blueCtx, codec } = await registerRedAndBlue(h);
+  const client = makeClient(t.context.env, { payloadCodecs: [codec] });
+  const worker = await h.createWorker({
+    dataConverter: { ...dataConverter, payloadCodecs: [codec] },
+    nexusServices: [testServiceHandler],
+  });
+  const workflowId = `wf-id-${randomUUID()}`;
+
+  await worker.runUntil(async () => {
+    const [redTrace, blueTrace] = await client.workflow.execute(twoEndpointCaller, {
+      args: [red, blue],
+      workflowId,
+      taskQueue: h.taskQueue,
+    });
+    t.deepEqual(redTrace.trace, [...encdec('red-input', redCtx), ...encdec('nexus-output', redCtx)]);
+    t.deepEqual(blueTrace.trace, [...encdec('blue-input', blueCtx), ...encdec('nexus-output', blueCtx)]);
+  });
+});
+
+test('standalone Nexus operations keep separate contexts per endpoint', async (t) => {
+  const h = helpers(t);
+  const { red, blue, redCtx, blueCtx, codec } = await registerRedAndBlue(h);
+  const client = makeClient(t.context.env, { payloadCodecs: [codec] });
+  const worker = await h.createWorker({
+    dataConverter: { ...dataConverter, payloadCodecs: [codec] },
+    nexusServices: [testServiceHandler],
+  });
+
+  await worker.runUntil(async () => {
+    const redClient = client.nexus.createServiceClient({ endpoint: red, service: testService });
+    const blueClient = client.nexus.createServiceClient({ endpoint: blue, service: testService });
+    const [redResult, blueResult] = await Promise.all([
+      redClient.executeOperation('echo', makeContextTrace('red-input'), {
+        id: `op-${randomUUID()}`,
+        scheduleToCloseTimeout: '10s',
+      }),
+      blueClient.executeOperation('echo', makeContextTrace('blue-input'), {
+        id: `op-${randomUUID()}`,
+        scheduleToCloseTimeout: '10s',
+      }),
+    ]);
+    t.deepEqual(redResult.trace, [...encdec('red-input', redCtx), ...encdec('nexus-output', redCtx)]);
+    t.deepEqual(blueResult.trace, [...encdec('blue-input', blueCtx), ...encdec('nexus-output', blueCtx)]);
   });
 });
