@@ -5,6 +5,7 @@ import type {
   ActivitySerializationContext,
   LoadedDataConverter,
   Next,
+  OutputTypeInfo,
   PayloadTypeInfo,
   Priority,
   RetryPolicy,
@@ -74,7 +75,7 @@ import {
   encodeActivityIdConflictPolicy,
   encodeActivityIdReusePolicy,
 } from './types';
-import type { ErrorDetailsName, OutputTypeInfo } from './helpers';
+import type { ErrorDetailsName } from './helpers';
 import { rethrowKnownErrorTypes, trimGrpcTypeUrl, getGrpcStatusDetails } from './helpers';
 import {
   isGrpcServiceError,

@@ -1,8 +1,13 @@
 import type * as nexus from 'nexus-rpc';
-import type { Duration, SearchAttributePair, SearchAttributeType, TypedSearchAttributes } from '@temporalio/common';
+import type {
+  Duration,
+  OutputTypeInfo,
+  SearchAttributePair,
+  SearchAttributeType,
+  TypedSearchAttributes,
+} from '@temporalio/common';
 import { makeProtoEnumConverters, type Replace } from '@temporalio/common/internal/internal-workflow';
 import type { temporal } from '@temporalio/proto';
-import type { OutputTypeInfo } from './helpers';
 
 /**
  * Defines whether to allow re-using an operation ID from a previously *completed* Nexus operation.
