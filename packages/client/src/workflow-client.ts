@@ -14,6 +14,7 @@ import type {
   WorkflowSerializationContext,
   WorkflowTypeOptions,
   PayloadTypeInfo,
+  OutputTypeInfo,
   TypeInfo,
   WorkflowQueryOptions,
   WorkflowSignalOptions,
@@ -113,7 +114,6 @@ import type {
 } from './workflow-options';
 import { compileWorkflowOptions } from './workflow-options';
 import {
-  type OutputTypeInfo,
   decodeCountWorkflowExecutionsResponse,
   executionInfoFromRaw,
   extractWorkflowExecutionAlreadyStartedRunId,
