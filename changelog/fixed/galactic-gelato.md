@@ -1,0 +1,1 @@
+`@temporalio/google-adk-agents` no longer turns a cancelled model or MCP Activity into a retryable `GoogleAdkModelError` / `GoogleAdkMCPError`. An error raised once the Activity's cancellation signal has fired is re-raised as the cancellation, so the attempt ends cancelled instead of being retried.

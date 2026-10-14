@@ -1,0 +1,1 @@
+`@temporalio/strands-agents` tools built on Activities, `activityAsTool`, and MCP tools now give the model the Activity's own error message when a tool call fails, instead of "Activity task failed", and attach that error to the tool result for hooks.
