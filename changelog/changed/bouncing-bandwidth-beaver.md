@@ -1,0 +1,1 @@
+**Experimental**: `ExternalStorage.concurrency.maxDriverOperations` now applies to each client and each worker separately, instead of being shared by every client and worker that uses the same `ExternalStorage` instance.

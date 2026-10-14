@@ -1,7 +1,12 @@
 import os from 'node:os';
 import type * as _grpc from '@grpc/grpc-js'; // For JSDoc only
 import type { DataConverter, LoadedDataConverter, PayloadCache } from '@temporalio/common';
-import { isLoadedDataConverter, loadDataConverter } from '@temporalio/common/internal/internal-non-workflow';
+import {
+  isLoadedDataConverter,
+  loadDataConverter,
+  newDriverOperationLimit,
+  type ConcurrencyLimit,
+} from '@temporalio/common/internal/internal-non-workflow';
 import { Connection } from './connection';
 import type { ConnectionLike, Metadata } from './types';
 
@@ -73,11 +78,16 @@ export class BaseClient {
   private readonly loadedDataConverter: LoadedDataConverter;
   protected readonly payloadCache: PayloadCache | false;
 
+  /** Limits the external storage operations this client's drivers run at once. */
+  protected readonly driverOperationLimit: ConcurrencyLimit | undefined;
+
   protected constructor(options?: BaseClientOptions) {
     this.connection = options?.connection ?? Connection.lazy();
     const dataConverter = options?.dataConverter ?? {};
     this.loadedDataConverter = isLoadedDataConverter(dataConverter) ? dataConverter : loadDataConverter(dataConverter);
     this.payloadCache = options?.payloadCache ?? false;
+    const externalStorage = this.loadedDataConverter.externalStorage;
+    this.driverOperationLimit = externalStorage ? newDriverOperationLimit(externalStorage) : undefined;
   }
 
   /**

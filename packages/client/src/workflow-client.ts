@@ -1162,6 +1162,7 @@ export class WorkflowClient extends BaseClient {
           externalStorageStoreVisitOptions({
             externalStorage,
             namespace: this.options.namespace,
+            driverOperationLimit: this.driverOperationLimit,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
@@ -1281,6 +1282,7 @@ export class WorkflowClient extends BaseClient {
           externalStorageStoreVisitOptions({
             externalStorage,
             namespace: this.options.namespace,
+            driverOperationLimit: this.driverOperationLimit,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
@@ -1384,6 +1386,7 @@ export class WorkflowClient extends BaseClient {
           externalStorageStoreVisitOptions({
             externalStorage,
             namespace: this.options.namespace,
+            driverOperationLimit: this.driverOperationLimit,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
@@ -1567,6 +1570,7 @@ export class WorkflowClient extends BaseClient {
           externalStorageStoreVisitOptions({
             externalStorage,
             namespace: this.options.namespace,
+            driverOperationLimit: this.driverOperationLimit,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
@@ -1645,6 +1649,7 @@ export class WorkflowClient extends BaseClient {
           externalStorageStoreVisitOptions({
             externalStorage,
             namespace: this.options.namespace,
+            driverOperationLimit: this.driverOperationLimit,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
@@ -1693,6 +1698,7 @@ export class WorkflowClient extends BaseClient {
           externalStorageStoreVisitOptions({
             externalStorage,
             namespace: this.options.namespace,
+            driverOperationLimit: this.driverOperationLimit,
             initialTarget: {
               kind: 'workflow',
               namespace: req.namespace ?? this.options.namespace,
@@ -1805,6 +1811,7 @@ export class WorkflowClient extends BaseClient {
           externalStorageStoreVisitOptions({
             externalStorage,
             namespace: this.options.namespace,
+            driverOperationLimit: this.driverOperationLimit,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,

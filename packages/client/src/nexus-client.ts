@@ -439,6 +439,7 @@ export class NexusClient extends BaseClient {
             externalStorage,
             namespace: this.options.namespace,
             payloadCache: this.payloadCache,
+            driverOperationLimit: this.driverOperationLimit,
           })
         );
       }

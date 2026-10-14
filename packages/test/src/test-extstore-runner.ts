@@ -15,6 +15,7 @@ import {
   ExternalStorageMetricsAccumulator,
   ExternalStorageRunner,
   isReferencePayload,
+  newDriverOperationLimit,
 } from '@temporalio/common/internal/internal-non-workflow';
 import { encode } from '@temporalio/common/encoding';
 import { makeFakeDriver, type FakeDriver } from './extstore-fake-driver';
@@ -468,7 +469,7 @@ function makeRecordingLogger(): { logger: Logger; warnings: string[] } {
   };
 }
 
-test('maxDriverOperations is shared by every message using the same ExternalStorage', async (t) => {
+test('maxDriverOperations is shared by every message run by one owner', async (t) => {
   const gate = makeGate();
   const driver = makeFakeDriver({
     name: 's3',
@@ -485,8 +486,15 @@ test('maxDriverOperations is shared by every message using the same ExternalStor
     concurrency: { maxDriverOperations: 3, maxOperationsPerMessage: 10 },
   });
 
-  const firstMessage = new ExternalStorageRunner(externalStorage, { payloadCache: false });
-  const secondMessage = new ExternalStorageRunner(externalStorage, { payloadCache: false });
+  const ownerLimit = newDriverOperationLimit(externalStorage);
+  const firstMessage = new ExternalStorageRunner(externalStorage, {
+    payloadCache: false,
+    driverOperationLimit: ownerLimit,
+  });
+  const secondMessage = new ExternalStorageRunner(externalStorage, {
+    payloadCache: false,
+    driverOperationLimit: ownerLimit,
+  });
   const stores = [
     firstMessage.store([makePayload(8), makePayload(8), makePayload(8)], { namespace: 'ns' }),
     secondMessage.store([makePayload(8), makePayload(8), makePayload(8)], { namespace: 'ns' }),
@@ -637,4 +645,31 @@ test('each message gets its own maxOperationsPerMessage budget', async (t) => {
   gate.release();
   await Promise.all(stores);
   t.is(gate.peak(), 4);
+});
+
+test('separate owners do not share maxDriverOperations', async (t) => {
+  const gate = makeGate();
+  const externalStorage = new ExternalStorage({
+    drivers: [makePermittingDriver('s3', gate)],
+    payloadSizeThreshold: 0,
+    concurrency: { maxDriverOperations: 2, maxOperationsPerMessage: 10 },
+  });
+
+  const clientRunner = new ExternalStorageRunner(externalStorage, {
+    payloadCache: false,
+    driverOperationLimit: newDriverOperationLimit(externalStorage),
+  });
+  const workerRunner = new ExternalStorageRunner(externalStorage, {
+    payloadCache: false,
+    driverOperationLimit: newDriverOperationLimit(externalStorage),
+  });
+  const stores = [
+    clientRunner.store([makePayload(8), makePayload(8), makePayload(8)]),
+    workerRunner.store([makePayload(8), makePayload(8), makePayload(8)]),
+  ];
+  await flush();
+  t.is(gate.peak(), 4, 'each owner allows 2, so two owners allow 4');
+
+  gate.release();
+  await Promise.all(stores);
 });

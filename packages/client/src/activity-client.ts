@@ -350,6 +350,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
           externalStorageStoreVisitOptions({
             externalStorage,
             namespace: this.options.namespace,
+            driverOperationLimit: this.driverOperationLimit,
             initialTarget: {
               kind: 'activity',
               namespace: this.options.namespace,
