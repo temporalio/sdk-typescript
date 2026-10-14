@@ -1,35 +1,62 @@
 /**
- * Runtime integration tests that still construct implicit localhost clients and Workers.
- * Tests run serially because Runtime is a singleton.
+ * Runtime integration tests. Tests run serially because Runtime is a singleton.
+ *
+ * These tests deliberately avoid a shared test environment, whose connections would keep the Runtime
+ * alive: each Worker owns its connection, so the Runtime shuts down once the last Worker stops.
  */
 import { randomUUID } from 'crypto';
 import asyncRetry from 'async-retry';
-import { Client, WorkflowClient } from '@temporalio/client';
-import type { LogEntry } from '@temporalio/worker';
+import type { ExecutionContext } from 'ava';
+import { Client, Connection, WorkflowClient } from '@temporalio/client';
+import type { LogEntry, WorkerOptions } from '@temporalio/worker';
 import { DefaultLogger, makeTelemetryFilterString, NativeConnection, Runtime } from '@temporalio/worker';
-import { RUN_INTEGRATION_TESTS, test, Worker } from './helpers';
+import {
+  createWorkerWithOwnConnection,
+  ownedConnectionConfig,
+  RUN_INTEGRATION_TESTS,
+  test,
+  uniqueTaskQueue,
+  Worker,
+} from './helpers';
 import { createTestWorkflowBundle } from './helpers-integration';
 import { defaultOptions } from './mock-native-worker';
 import * as workflows from './workflows';
 import { log5Times } from './workflows/runtime';
 
+const { namespace, connectionOptions } = ownedConnectionConfig();
+
+function createWorker(options: Partial<WorkerOptions> & Pick<WorkerOptions, 'taskQueue'>) {
+  return createWorkerWithOwnConnection({ ...defaultOptions, ...options });
+}
+
+/**
+ * Connect a client that is not tracked by the Runtime, closed when the test ends.
+ */
+async function connectClient(t: ExecutionContext): Promise<Connection> {
+  const connection = await Connection.connect(connectionOptions);
+  t.teardown(() => connection.close());
+  return connection;
+}
+
 if (RUN_INTEGRATION_TESTS) {
   test.serial('Runtime tracks registered workers, shuts down and restarts as expected', async (t) => {
-    const worker1 = await Worker.create({ ...defaultOptions, taskQueue: 'q1' });
-    const worker2 = await Worker.create({ ...defaultOptions, taskQueue: 'q2' });
+    const taskQueue1 = uniqueTaskQueue(`${t.title} 1`);
+    const taskQueue2 = uniqueTaskQueue(`${t.title} 2`);
+    const worker1 = await createWorker({ taskQueue: taskQueue1 });
+    const worker2 = await createWorker({ taskQueue: taskQueue2 });
     const worker1Drained = worker1.run();
     const worker2Drained = worker2.run();
     worker1.shutdown();
     await worker1Drained;
 
-    const client = new WorkflowClient();
-    await client.execute(workflows.sleeper, { taskQueue: 'q2', workflowId: randomUUID(), args: [1] });
+    const client = new WorkflowClient({ connection: await connectClient(t), namespace });
+    await client.execute(workflows.sleeper, { taskQueue: taskQueue2, workflowId: randomUUID(), args: [1] });
     worker2.shutdown();
     await worker2Drained;
 
-    const worker3 = await Worker.create({ ...defaultOptions, taskQueue: 'q1' });
+    const worker3 = await createWorker({ taskQueue: taskQueue1 });
     const worker3Drained = worker3.run();
-    await client.execute('sleeper', { taskQueue: 'q1', workflowId: randomUUID(), args: [1] });
+    await client.execute('sleeper', { taskQueue: taskQueue1, workflowId: randomUUID(), args: [1] });
     worker3.shutdown();
     await worker3Drained;
     t.pass();
@@ -43,7 +70,7 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(runtime.options.logger, logger);
     }
 
-    const worker = await Worker.create({ ...defaultOptions, taskQueue: 'q1' });
+    const worker = await createWorker({ taskQueue: uniqueTaskQueue(t.title) });
     const workerDrained = worker.run();
     worker.shutdown();
     await workerDrained;
@@ -63,8 +90,10 @@ if (RUN_INTEGRATION_TESTS) {
       telemetryOptions: { logging: { forward: {}, filter: makeTelemetryFilterString({ core: 'DEBUG' }) } },
     });
     try {
-      await new Client().workflow.start('not-existant', { taskQueue: 'q1', workflowId: randomUUID() });
-      const worker = await Worker.create({ ...defaultOptions, taskQueue: 'q1' });
+      const taskQueue = uniqueTaskQueue(t.title);
+      const client = new Client({ connection: await connectClient(t), namespace });
+      await client.workflow.start('not-existant', { taskQueue, workflowId: randomUUID() });
+      const worker = await createWorker({ taskQueue });
       await worker.runUntil(() =>
         asyncRetry(
           () => {
@@ -77,11 +106,11 @@ if (RUN_INTEGRATION_TESTS) {
 
       const initWorkerEntry = logEntries.filter((x) => x.message === 'Initializing worker')?.[0];
       t.true(initWorkerEntry !== undefined);
-      t.is(initWorkerEntry.meta?.['taskQueue'], 'q1');
+      t.is(initWorkerEntry.meta?.['taskQueue'], taskQueue);
 
       const failingWftEntry = logEntries.filter((x) => x.message === 'Failing workflow task')?.[0];
       t.true(failingWftEntry !== undefined);
-      t.is(failingWftEntry.meta?.['taskQueue'], 'q1');
+      t.is(failingWftEntry.meta?.['taskQueue'], taskQueue);
       t.is(typeof failingWftEntry.meta?.['completion'], 'string');
       t.is(typeof failingWftEntry.meta?.['failure'], 'string');
       t.is(typeof failingWftEntry.meta?.['runId'], 'string');
@@ -101,19 +130,21 @@ if (RUN_INTEGRATION_TESTS) {
       },
     });
     const bufferedLogger = runtime.logger;
-    const connection = await NativeConnection.connect();
+    const connection = await NativeConnection.connect(connectionOptions);
 
     try {
       const taskQueue = `runtime-native-log-collector-preriodically-flushed-${randomUUID()}`;
       const worker = await Worker.create({
         ...defaultOptions,
         connection,
+        namespace,
         taskQueue,
         workflowBundle: await createTestWorkflowBundle({ workflowsPath: require.resolve('./workflows/runtime') }),
       });
 
+      const client = new Client({ connection: await connectClient(t), namespace });
       await worker.runUntil(async () => {
-        await new Client().workflow.execute(log5Times, { taskQueue, workflowId: randomUUID() });
+        await client.workflow.execute(log5Times, { taskQueue, workflowId: randomUUID() });
       });
       t.true(logEntries.some((x) => x.message.startsWith('workflow log ')));
 
