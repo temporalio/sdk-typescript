@@ -227,8 +227,7 @@ test('separate visits share a payload cache without sharing a runner', async (t)
   t.is(driver.retrieveCalls.length, 0);
 });
 
-/** `payloadCache` is required rather than defaulted so that passing `undefined` really means no cache. */
-function runnerWith(payloadCache: PayloadCache | undefined) {
+function runnerWith(payloadCache: PayloadCache | false) {
   const driver = makeFakeDriver({ name: 's3' });
   const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 96 });
   return { driver, externalStorage, runner: new ExternalStorageRunner(externalStorage, { payloadCache }) };
@@ -260,8 +259,8 @@ test('a cold-cache retrieve falls back to the driver, then warms the cache', asy
 });
 
 test('a mixed-cache retrieve only sends misses to the driver', async (t) => {
-  const { driver, externalStorage } = runnerWith(undefined);
-  const writer = new ExternalStorageRunner(externalStorage);
+  const { driver, externalStorage } = runnerWith(false);
+  const writer = new ExternalStorageRunner(externalStorage, { payloadCache: false });
   const originalPayloads = [makePayload(256, 3), makePayload(256, 7)];
   const references = await writer.store(originalPayloads);
 
@@ -283,7 +282,7 @@ test('a mixed-cache retrieve only sends misses to the driver', async (t) => {
 });
 
 test('with no cache, every retrieve queries the driver', async (t) => {
-  const { driver, runner } = runnerWith(undefined);
+  const { driver, runner } = runnerWith(false);
   const [reference] = await runner.store([makePayload(256)]);
 
   await runner.retrieve([reference]);
@@ -390,16 +389,24 @@ test('Client shares a custom payload cache across subclients', (t) => {
 
 test('standalone clients create a default payload cache and allow disabling it', (t) => {
   t.truthy(new WorkflowClient().options.payloadCache);
-  t.is(new WorkflowClient({ payloadCache: false }).options.payloadCache, undefined);
+  t.is(new WorkflowClient({ payloadCache: false }).options.payloadCache, false);
+});
+
+test("a client rebuilt from another client's options keeps its payload cache setting", (t) => {
+  const disabled = new WorkflowClient({ payloadCache: false });
+  t.is(new WorkflowClient(disabled.options).options.payloadCache, false);
+
+  const enabled = new WorkflowClient();
+  t.is(new WorkflowClient(enabled.options).options.payloadCache, enabled.options.payloadCache);
 });
 
 test('Client disables the payload cache across subclients', (t) => {
   const client = new Client({ payloadCache: false });
 
-  t.is(client.options.payloadCache, undefined);
-  t.is(client.workflow.options.payloadCache, undefined);
-  t.is(client.activity.options.payloadCache, undefined);
-  t.is(client.schedule.options.payloadCache, undefined);
-  t.is(client.taskQueue.options.payloadCache, undefined);
-  t.is(client.nexus.options.payloadCache, undefined);
+  t.is(client.options.payloadCache, false);
+  t.is(client.workflow.options.payloadCache, false);
+  t.is(client.activity.options.payloadCache, false);
+  t.is(client.schedule.options.payloadCache, false);
+  t.is(client.taskQueue.options.payloadCache, false);
+  t.is(client.nexus.options.payloadCache, false);
 });

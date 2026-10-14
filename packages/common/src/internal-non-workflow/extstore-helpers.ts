@@ -93,6 +93,9 @@ export function encodeReferencePayload({
 /**
  * Deterministic cache key for an External Storage claim.
  *
+ * Claim entries are ordered by the UTF-8 bytes of their keys, so the result does not depend on the
+ * property order of `claimData`.
+ *
  * @internal
  * @experimental
  */

@@ -22,7 +22,7 @@ function reportedDriverTypes(externalStorage?: ExternalStorage): string[] {
   return native.storageDrivers;
 }
 
-function compilePayloadCache(payloadCache?: PayloadCache | false): PayloadCache | undefined {
+function compilePayloadCache(payloadCache?: PayloadCache | false): PayloadCache | false {
   const runtime = Runtime.instance();
   return compileWorkerOptions({ ...defaultOptions, payloadCache }, runtime.logger, runtime.metricMeter).payloadCache;
 }
@@ -32,7 +32,7 @@ test('creates a payload cache by default', (t) => {
 });
 
 test('disables the payload cache when configured with false', (t) => {
-  t.is(compilePayloadCache(false), undefined);
+  t.is(compilePayloadCache(false), false);
 });
 
 test('wraps a user-provided payload cache transparently', async (t) => {
@@ -47,7 +47,7 @@ test('wraps a user-provided payload cache transparently', async (t) => {
     },
   };
   Object.freeze(userCache);
-  const cache = compilePayloadCache(userCache)!;
+  const cache = compilePayloadCache(userCache) as PayloadCache;
   const payload = { data: new Uint8Array([1, 2, 3]) };
 
   t.true(await cache.set('key', payload));

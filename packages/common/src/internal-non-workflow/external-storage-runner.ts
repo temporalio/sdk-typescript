@@ -84,7 +84,7 @@ interface CachedRetrieveItem {
 }
 
 export interface ExternalStorageRunnerOptions {
-  payloadCache?: PayloadCache;
+  payloadCache: PayloadCache | false;
   logger?: Logger;
 }
 
@@ -97,12 +97,12 @@ export interface ExternalStorageRunnerOptions {
 export class ExternalStorageRunner {
   private readonly messageLimit: ConcurrencyLimit;
   private readonly driverOperationLimit: ConcurrencyLimit;
-  private readonly payloadCache?: PayloadCache;
+  private readonly payloadCache: PayloadCache | false;
   private readonly logger?: Logger;
 
   constructor(
     private readonly externalStorage: ExternalStorage,
-    { payloadCache, logger }: ExternalStorageRunnerOptions = {}
+    { payloadCache, logger }: ExternalStorageRunnerOptions
   ) {
     this.messageLimit = limit(externalStorage.concurrency.maxOperationsPerMessage);
     this.driverOperationLimit = driverOperationLimitFor(externalStorage);
@@ -145,7 +145,7 @@ export class ExternalStorageRunner {
   }
 
   private async cacheGet(key: string): Promise<Payload | undefined> {
-    if (this.payloadCache === undefined) return undefined;
+    if (this.payloadCache === false) return undefined;
     try {
       return await this.payloadCache.get(key);
     } catch {
@@ -154,7 +154,7 @@ export class ExternalStorageRunner {
   }
 
   private cacheSet(key: string, payload: Payload): void {
-    if (this.payloadCache === undefined) return;
+    if (this.payloadCache === false) return;
     try {
       void this.payloadCache.set(key, payload).catch(() => {});
     } catch {

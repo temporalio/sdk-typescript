@@ -48,14 +48,13 @@ export interface BaseClientOptions {
 }
 
 export type WithDefaults<Options extends BaseClientOptions> = //
-  Required<Omit<Options, 'connection' | 'payloadCache'>> &
-    Pick<Options, 'connection'> & {
-      payloadCache?: PayloadCache;
-    };
+  Required<Omit<Options, 'connection' | 'payloadCache'>> & Pick<Options, 'connection'>;
 
 export type LoadedWithDefaults<Options extends BaseClientOptions> = //
   WithDefaults<Options> & {
     loadedDataConverter: LoadedDataConverter;
+    /** Payload cache used by this client, or `false` when payload caching is disabled. */
+    payloadCache: PayloadCache | false;
   };
 
 export function defaultBaseClientOptions(): WithDefaults<BaseClientOptions> {
@@ -76,14 +75,13 @@ export class BaseClient {
   public readonly connection: ConnectionLike;
 
   private readonly loadedDataConverter: LoadedDataConverter;
-  protected readonly payloadCache?: PayloadCache;
+  protected readonly payloadCache: PayloadCache | false;
 
   protected constructor(options?: BaseClientOptions) {
     this.connection = options?.connection ?? Connection.lazy();
     const dataConverter = options?.dataConverter ?? {};
     this.loadedDataConverter = isLoadedDataConverter(dataConverter) ? dataConverter : loadDataConverter(dataConverter);
-    this.payloadCache =
-      options?.payloadCache === false ? undefined : options?.payloadCache ?? new InMemoryPayloadCache();
+    this.payloadCache = options?.payloadCache ?? new InMemoryPayloadCache();
   }
 
   /**
