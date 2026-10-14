@@ -34,8 +34,8 @@ import {
   decodeOptionalFailureToOptionalError,
   encodeToPayloadsWithContext,
   encodeUserMetadata,
-  extstoreInboundOptions,
-  extstoreStoreOptions,
+  externalStorageRetrieveVisitOptions,
+  externalStorageStoreVisitOptions,
   visit,
   walkDescribeActivityExecutionResponse,
   walkListActivityExecutionsResponse,
@@ -331,13 +331,15 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
         await visit(
           req,
           walkStartActivityExecutionRequest,
-          extstoreStoreOptions(externalStorage, {
+          externalStorageStoreVisitOptions({
+            externalStorage,
             initialTarget: {
               kind: 'activity',
               namespace: this.options.namespace,
               id: input.options.id,
               type: input.activityType,
             },
+            payloadCache: this.payloadCache,
           })
         );
       }
@@ -441,8 +443,14 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
 
       try {
         const resp = await this.workflowService.pollActivityExecution(req);
-        const externalStorage = this.dataConverter.externalStorage;
-        await visit(resp, walkPollActivityExecutionResponse, extstoreInboundOptions(externalStorage));
+        await visit(
+          resp,
+          walkPollActivityExecutionResponse,
+          externalStorageRetrieveVisitOptions({
+            externalStorage: this.dataConverter.externalStorage,
+            payloadCache: this.payloadCache,
+          })
+        );
         if (resp.outcome?.result) {
           return await decodeFromPayloadsAtIndex(
             this.dataConverter,
@@ -494,8 +502,14 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       if (!hasInfo(resp)) {
         throw new ServiceError('Missing info in describeActivityExecution response');
       }
-      const externalStorage = this.dataConverter.externalStorage;
-      await visit(resp, walkDescribeActivityExecutionResponse, extstoreInboundOptions(externalStorage));
+      await visit(
+        resp,
+        walkDescribeActivityExecutionResponse,
+        externalStorageRetrieveVisitOptions({
+          externalStorage: this.dataConverter.externalStorage,
+          payloadCache: this.payloadCache,
+        })
+      );
       const context: ActivitySerializationContext = {
         type: 'activity',
         namespace,
@@ -557,8 +571,14 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
             nextPageToken,
           });
 
-        const externalStorage = this.dataConverter.externalStorage;
-        await visit(resp, walkListActivityExecutionsResponse, extstoreInboundOptions(externalStorage));
+        await visit(
+          resp,
+          walkListActivityExecutionsResponse,
+          externalStorageRetrieveVisitOptions({
+            externalStorage: this.dataConverter.externalStorage,
+            payloadCache: this.payloadCache,
+          })
+        );
 
         for (const info of resp.executions ?? []) {
           yield buildActivityExecutionInfo(info);

@@ -28,7 +28,9 @@ function makePayload(bodyBytes: number): Payload {
 
 test('store leaves payloads inline when below the threshold', async (t) => {
   const driver = makeFakeDriver({ name: 's3' });
-  const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 }));
+  const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 }), {
+    payloadCache: false,
+  });
   const smallPayload = makePayload(8);
 
   const result = await runner.store([smallPayload]);
@@ -39,7 +41,9 @@ test('store leaves payloads inline when below the threshold', async (t) => {
 
 test('store offloads payloads above the threshold', async (t) => {
   const driver = makeFakeDriver({ name: 's3' });
-  const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 32 }));
+  const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 32 }), {
+    payloadCache: false,
+  });
   const bigPayload = makePayload(128);
 
   const result = await runner.store([bigPayload]);
@@ -51,7 +55,9 @@ test('store offloads payloads above the threshold', async (t) => {
 
 test('store with payloadSizeThreshold=0 stores every payload', async (t) => {
   const driver = makeFakeDriver({ name: 's3' });
-  const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }));
+  const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }), {
+    payloadCache: false,
+  });
   const tinyPayload = makePayload(0);
 
   const result = await runner.store([tinyPayload, tinyPayload]);
@@ -65,7 +71,9 @@ test('store with payloadSizeThreshold=0 stores every payload', async (t) => {
 // make sure store doesn't do unexpected batching or delayed delivery of payloads
 test('store batches all payloads in a single store request', async (t) => {
   const driver = makeFakeDriver({ name: 's3' });
-  const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }));
+  const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }), {
+    payloadCache: false,
+  });
   const payloadA = makePayload(2);
   const payloadB = makePayload(3);
 
@@ -84,7 +92,8 @@ test('store selector routes to the chosen driver and groups by name', async (t) 
       drivers: [driverA, driverB],
       payloadSizeThreshold: 0,
       driverSelector: (_, p) => (p.data!.length % 2 === 0 ? driverA : driverB),
-    })
+    }),
+    { payloadCache: false }
   );
   const evenPayloadA = makePayload(2);
   const oddPayload = makePayload(3);
@@ -103,7 +112,8 @@ test('store selector returning null leaves the payload inline', async (t) => {
       drivers: [driver],
       payloadSizeThreshold: 0,
       driverSelector: () => null,
-    })
+    }),
+    { payloadCache: false }
   );
 
   const originalPayload = makePayload(64);
@@ -121,7 +131,8 @@ test('store throws ExternalStorageUnregisteredDriverError when selector returns 
       drivers: [registeredDriver],
       payloadSizeThreshold: 0,
       driverSelector: () => strangerDriver,
-    })
+    }),
+    { payloadCache: false }
   );
 
   await t.throwsAsync(() => runner.store([makePayload(1)]), {
@@ -132,7 +143,9 @@ test('store throws ExternalStorageUnregisteredDriverError when selector returns 
 test('store wraps driver errors in ExternalStorageDriverError', async (t) => {
   const boom = new Error('disk full');
   const driver = makeFakeDriver({ name: 's3', onStore: () => Promise.reject(boom) });
-  const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }));
+  const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }), {
+    payloadCache: false,
+  });
 
   const err = await t.throwsAsync(() => runner.store([makePayload(1)]), {
     instanceOf: ExternalStorageDriverError,
@@ -142,7 +155,9 @@ test('store wraps driver errors in ExternalStorageDriverError', async (t) => {
 
 test('store raises ExternalStorageReferenceError on claim arity mismatch', async (t) => {
   const driver = makeFakeDriver({ name: 's3', onStore: () => [] });
-  const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }));
+  const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }), {
+    payloadCache: false,
+  });
 
   await t.throwsAsync(() => runner.store([makePayload(1)]), {
     instanceOf: ExternalStorageReferenceError,
@@ -171,7 +186,8 @@ test('store aborts sibling drivers on first failure', async (t) => {
       drivers: [driverA, driverB],
       payloadSizeThreshold: 0,
       driverSelector: (_ctx, p) => (p.data!.length === 1 ? driverA : driverB),
-    })
+    }),
+    { payloadCache: false }
   );
 
   await t.throwsAsync(() => runner.store([makePayload(1), makePayload(2)]));
@@ -190,7 +206,8 @@ test('selector receives a select context carrying the store target', async (t) =
         seen.push(ctx);
         return driver;
       },
-    })
+    }),
+    { payloadCache: false }
   );
 
   await runner.store([makePayload(8)], { target });
@@ -209,7 +226,8 @@ test('store/retrieve round-trip preserves order across drivers', async (t) => {
       drivers: [driverA, driverB],
       payloadSizeThreshold: 0,
       driverSelector: (_, p) => (p.data!.length % 2 === 0 ? driverA : driverB),
-    })
+    }),
+    { payloadCache: false }
   );
 
   const inputPayloads = [makePayload(2), makePayload(3), makePayload(4), makePayload(5)];
@@ -225,13 +243,17 @@ test('store and retrieve report the same total size', async (t) => {
   const storage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 });
 
   const uploadMetrics = new ExternalStorageMetricsAccumulator();
-  const storedPayloads = await new ExternalStorageRunner(storage, uploadMetrics).store([
-    makePayload(64),
-    makePayload(128),
-  ]);
+  const storedPayloads = await new ExternalStorageRunner(storage, { payloadCache: false }).store(
+    [makePayload(64), makePayload(128)],
+    {
+      metrics: uploadMetrics,
+    }
+  );
 
   const downloadMetrics = new ExternalStorageMetricsAccumulator();
-  await new ExternalStorageRunner(storage, downloadMetrics).retrieve(storedPayloads);
+  await new ExternalStorageRunner(storage, { payloadCache: false }).retrieve(storedPayloads, {
+    metrics: downloadMetrics,
+  });
 
   const uploaded = uploadMetrics.toProto()!;
   const downloaded = downloadMetrics.toProto()!;
@@ -244,12 +266,15 @@ test('store and retrieve report the same total size', async (t) => {
 test('retrieve raises ExternalStorageUnregisteredDriverError when the driver name is unknown', async (t) => {
   const writerDriver = makeFakeDriver({ name: 'writer' });
   const writerRunner = new ExternalStorageRunner(
-    new ExternalStorage({ drivers: [writerDriver], payloadSizeThreshold: 0 })
+    new ExternalStorage({ drivers: [writerDriver], payloadSizeThreshold: 0 }),
+    { payloadCache: false }
   );
   const storedPayloads = await writerRunner.store([makePayload(1)]);
 
   const readerDriver = makeFakeDriver({ name: 'different-name' });
-  const readerRunner = new ExternalStorageRunner(new ExternalStorage({ drivers: [readerDriver] }));
+  const readerRunner = new ExternalStorageRunner(new ExternalStorage({ drivers: [readerDriver] }), {
+    payloadCache: false,
+  });
 
   await t.throwsAsync(() => readerRunner.retrieve(storedPayloads), {
     instanceOf: ExternalStorageUnregisteredDriverError,
@@ -262,13 +287,15 @@ test('retrieve raises ExternalStorageReferenceError on payload arity mismatch', 
 
   const writerDriver = makeFakeDriver({ name: 's3' });
   const writerRunner = new ExternalStorageRunner(
-    new ExternalStorage({ drivers: [writerDriver], payloadSizeThreshold: 0 })
+    new ExternalStorage({ drivers: [writerDriver], payloadSizeThreshold: 0 }),
+    { payloadCache: false }
   );
   const storedPayloads = await writerRunner.store(payloadsToStore);
 
   const readerDriver = makeFakeDriver({ name: 's3', onRetrieve: () => payloadsToRetrieve });
   const readerRunner = new ExternalStorageRunner(
-    new ExternalStorage({ drivers: [readerDriver], payloadSizeThreshold: 0 })
+    new ExternalStorage({ drivers: [readerDriver], payloadSizeThreshold: 0 }),
+    { payloadCache: false }
   );
 
   await t.throwsAsync(() => readerRunner.retrieve(storedPayloads), {
@@ -280,13 +307,15 @@ test('retrieve wraps driver errors in ExternalStorageDriverError', async (t) => 
   const boom = new Error('object gone');
   const writerDriver = makeFakeDriver({ name: 's3' });
   const writerRunner = new ExternalStorageRunner(
-    new ExternalStorage({ drivers: [writerDriver], payloadSizeThreshold: 0 })
+    new ExternalStorage({ drivers: [writerDriver], payloadSizeThreshold: 0 }),
+    { payloadCache: false }
   );
   const storedPayloads = await writerRunner.store([makePayload(1)]);
 
   const readerDriver = makeFakeDriver({ name: 's3', onRetrieve: () => Promise.reject(boom) });
   const readerRunner = new ExternalStorageRunner(
-    new ExternalStorage({ drivers: [readerDriver], payloadSizeThreshold: 0 })
+    new ExternalStorage({ drivers: [readerDriver], payloadSizeThreshold: 0 }),
+    { payloadCache: false }
   );
 
   const err = await t.throwsAsync(() => readerRunner.retrieve(storedPayloads), {
@@ -297,7 +326,9 @@ test('retrieve wraps driver errors in ExternalStorageDriverError', async (t) => 
 
 test('retrieve only resolves reference payloads, passing others through', async (t) => {
   const driver = makeFakeDriver({ name: 's3' });
-  const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 256 }));
+  const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 256 }), {
+    payloadCache: false,
+  });
   const inlineBefore = makePayload(8);
   const offloaded = makePayload(1024);
   const inlineAfter = makePayload(8);
@@ -315,7 +346,9 @@ test('retrieve only resolves reference payloads, passing others through', async 
 
 test('retrieve returns payloads unchanged when none are references', async (t) => {
   const driver = makeFakeDriver({ name: 's3' });
-  const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }));
+  const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }), {
+    payloadCache: false,
+  });
   const inlinePayloads = [makePayload(8), makePayload(16)];
 
   const result = await runner.retrieve(inlinePayloads);
@@ -326,7 +359,9 @@ test('retrieve returns payloads unchanged when none are references', async (t) =
 
 test('retrieve batches multiple references to the same driver into one call', async (t) => {
   const driver = makeFakeDriver({ name: 's3' });
-  const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }));
+  const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }), {
+    payloadCache: false,
+  });
 
   const storedPayloads = await runner.store([makePayload(1), makePayload(2), makePayload(3)]);
   t.true(storedPayloads.every(isReferencePayload));
@@ -347,7 +382,8 @@ test('retrieve aborts sibling drivers on first failure', async (t) => {
       drivers: [writerA, writerB],
       payloadSizeThreshold: 0,
       driverSelector: (_ctx, p) => (p.data!.length % 2 === 0 ? writerA : writerB),
-    })
+    }),
+    { payloadCache: false }
   );
   const storedPayloads = await writerRunner.store([makePayload(2), makePayload(3)]);
 
@@ -372,7 +408,8 @@ test('retrieve aborts sibling drivers on first failure', async (t) => {
       drivers: [readerA, readerB],
       payloadSizeThreshold: 0,
       driverSelector: () => readerA,
-    })
+    }),
+    { payloadCache: false }
   );
 
   await t.throwsAsync(() => readerRunner.retrieve(storedPayloads));
@@ -444,8 +481,8 @@ test('maxDriverOperations is shared by every message using the same ExternalStor
     concurrency: { maxDriverOperations: 3, maxOperationsPerMessage: 10 },
   });
 
-  const firstMessage = new ExternalStorageRunner(externalStorage);
-  const secondMessage = new ExternalStorageRunner(externalStorage);
+  const firstMessage = new ExternalStorageRunner(externalStorage, { payloadCache: false });
+  const secondMessage = new ExternalStorageRunner(externalStorage, { payloadCache: false });
   const stores = [
     firstMessage.store([makePayload(8), makePayload(8), makePayload(8)]),
     secondMessage.store([makePayload(8), makePayload(8), makePayload(8)]),
@@ -462,8 +499,7 @@ test('warns when a driver completes a store without taking a permit', async (t) 
   const { logger, warnings } = makeRecordingLogger();
   const runner = new ExternalStorageRunner(
     new ExternalStorage({ drivers: [makeFakeDriver({ name: 's3' })], payloadSizeThreshold: 0 }),
-    undefined,
-    logger
+    { payloadCache: false, logger }
   );
 
   await runner.store([makePayload(8)]);
@@ -478,9 +514,9 @@ test('warns when a driver completes a retrieve without taking a permit', async (
     drivers: [makeFakeDriver({ name: 's3' })],
     payloadSizeThreshold: 0,
   });
-  const references = await new ExternalStorageRunner(externalStorage).store([makePayload(8)]);
+  const references = await new ExternalStorageRunner(externalStorage, { payloadCache: false }).store([makePayload(8)]);
 
-  await new ExternalStorageRunner(externalStorage, undefined, logger).retrieve(references);
+  await new ExternalStorageRunner(externalStorage, { payloadCache: false, logger }).retrieve(references);
 
   t.is(warnings.length, 1);
   t.regex(warnings[0]!, /'s3' completed a retrieve without taking a permit/);
@@ -497,11 +533,10 @@ test('does not warn when a driver takes a permit', async (t) => {
         )
       ),
   });
-  const runner = new ExternalStorageRunner(
-    new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }),
-    undefined,
-    logger
-  );
+  const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }), {
+    payloadCache: false,
+    logger,
+  });
 
   await runner.store([makePayload(8)]);
 
@@ -530,7 +565,8 @@ test('maxOperationsPerMessage bounds concurrent operations within one message', 
       drivers: [makePermittingDriver('s3', gate)],
       payloadSizeThreshold: 0,
       concurrency: { maxDriverOperations: 100, maxOperationsPerMessage: 3 },
-    })
+    }),
+    { payloadCache: false }
   );
 
   const payloadSites = Array.from({ length: 4 }, () => runner.store([makePayload(8), makePayload(8), makePayload(8)]));
@@ -550,7 +586,7 @@ test('maxOperationsPerMessage bounds concurrent operations on the retrieve path'
     concurrency: { maxDriverOperations: 100, maxOperationsPerMessage: 3 },
   });
   gate.release();
-  const references = await new ExternalStorageRunner(externalStorage).store(
+  const references = await new ExternalStorageRunner(externalStorage, { payloadCache: false }).store(
     Array.from({ length: 6 }, () => makePayload(8))
   );
 
@@ -560,7 +596,8 @@ test('maxOperationsPerMessage bounds concurrent operations on the retrieve path'
       drivers: [makePermittingDriver('s3', slowGate)],
       payloadSizeThreshold: 0,
       concurrency: { maxDriverOperations: 100, maxOperationsPerMessage: 3 },
-    })
+    }),
+    { payloadCache: false }
   );
   const payloadSites = references.map((reference) => retrieving.retrieve([reference]));
   await flush();
@@ -579,8 +616,8 @@ test('each message gets its own maxOperationsPerMessage budget', async (t) => {
     concurrency: { maxDriverOperations: 100, maxOperationsPerMessage: 2 },
   });
 
-  const firstMessage = new ExternalStorageRunner(externalStorage);
-  const secondMessage = new ExternalStorageRunner(externalStorage);
+  const firstMessage = new ExternalStorageRunner(externalStorage, { payloadCache: false });
+  const secondMessage = new ExternalStorageRunner(externalStorage, { payloadCache: false });
   const stores = [
     firstMessage.store([makePayload(8), makePayload(8), makePayload(8)]),
     secondMessage.store([makePayload(8), makePayload(8), makePayload(8)]),

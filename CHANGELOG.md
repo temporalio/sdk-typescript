@@ -49,6 +49,7 @@ to docs, or any other relevant information.
   - ADK's runtime errors (`NodeTimeoutError`, `IntentMismatchError`, …) fail the Workflow with typed
     `ApplicationFailure`s (`ADK_RUNTIME_FAILURE_TYPES`) instead of retrying the Workflow Task
     forever.
+- **Experimental**: Added payload caching for External Storage. Clients and Workers cache External Storage payloads in memory by default. Users can provide a custom cache or disable caching with `payloadCache: false`.
 - **Experimental**: Workflows can signal another Workflow and start it when absent with
   `signalWithStartWorkflow`.
 - **Experimental**: Workflow outbound interceptors can intercept Temporal System Nexus calls
