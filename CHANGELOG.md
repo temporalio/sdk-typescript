@@ -34,6 +34,9 @@ to docs, or any other relevant information.
 
 ### Added
 
+- **Experimental**: `WorkflowClient.getHandle`, `ActivityClient.getHandleWithOptions`, and `NexusClient.getHandle` can
+  infer detached handle result types and read output `TypeInfo` from supplied Workflow, Activity, and Nexus Operation
+  definitions. Explicit output `TypeInfo` is checked against the declared handle result type.
 - `@temporalio/google-adk-agents` supports Google ADK 2.0's TypeScript feature set inside Workflows:
   - the workflow (graph) runtime — `Workflow`, `node()`, `JoinNode`, routing, dynamic nodes,
     `RequestInput`, node-as-tool, node retries and timeouts — runs unchanged, except that ADK's
