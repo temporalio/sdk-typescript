@@ -42,7 +42,7 @@ const calendarSpecDescriptionDefaults: CalendarSpecDescription = {
 if (RUN_INTEGRATION_TESTS) {
   test.before(async (t) => {
     const connection = await Connection.connect();
-    await registerDefaultCustomSearchAttributes(connection);
+    await registerDefaultCustomSearchAttributes(connection, 'default');
     t.context = {
       client: new Client({ connection }),
     };

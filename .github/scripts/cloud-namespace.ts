@@ -2,9 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { appendFile, readFile } from 'node:fs/promises';
 import { CloudOperationsClient, CloudOperationsConnection } from '../../packages/cloud';
 import { temporal } from '../../packages/proto';
+import { defaultSAKeys } from '../../packages/test-helpers/lib/search-attributes';
 
 const OPERATION_TIMEOUT_MS = 10 * 60 * 1_000;
 const OperationState = temporal.api.cloud.operation.v1.AsyncOperation.State;
+const NamespaceSearchAttributeType = temporal.api.cloud.namespace.v1.NamespaceSpec.SearchAttributeType;
 
 function requiredEnv(name: string): string {
   const value = process.env[name];
@@ -82,6 +84,13 @@ async function create(authMethod: AuthMethod): Promise<void> {
               },
             }
           : { apiKeyAuth: { enabled: true } }),
+        // Tests expect these to exist, and Cloud rejects registering them through the OperatorService.
+        searchAttributes: Object.fromEntries(
+          Object.values(defaultSAKeys).map(({ name, type }) => [
+            name,
+            NamespaceSearchAttributeType[`SEARCH_ATTRIBUTE_TYPE_${type}`],
+          ])
+        ),
       },
     });
     // Make cleanup possible even if provisioning fails after Cloud accepts the request.
