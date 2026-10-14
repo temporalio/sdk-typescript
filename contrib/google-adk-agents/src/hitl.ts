@@ -1,0 +1,368 @@
+/**
+ * Wire-format helpers for durable human-in-the-loop (HITL) with ADK 2.0.
+ *
+ * ADK pauses a run by emitting a long-running function call named
+ * `adk_request_input` (a `RequestInput` node, `requestInputTool`,
+ * `getUserChoiceTool`) or `adk_request_confirmation` (a tool gated with
+ * `requireConfirmation`), and resumes when a later **user** message carries a
+ * `functionResponse` with the same `id` and `name`. Because the ADK runner
+ * runs inside the Workflow, the wait itself is ordinary Workflow code:
+ *
+ * ```ts
+ * // 1. expose what is pending
+ * setHandler(pendingQuery, () => pending);
+ * // 2. build the answer where it arrives, so a refused one rejects the Update
+ * setHandler(respondUpdate, (interruptId, value) => {
+ *   answers.set(interruptId, hitlInputResponse(findPending(interruptId), value));
+ * });
+ * // 3. wait durably, then run the next turn with the answers
+ * await condition(() => pending.every((r) => answers.has(r.interruptId)));
+ * const parts = pending.map((r) => answers.get(r.interruptId)!);
+ * for await (const event of runner.runAsync({ userId, sessionId, newMessage: { role: 'user', parts } })) { … }
+ * ```
+ *
+ * Both builders refuse an answer only by throwing a non-retryable
+ * `ApplicationFailure` of type {@link HITL_RESPONSE_FAILURE_TYPE}, never anything
+ * else, whatever they are handed: a malformed decision or an unusable value is
+ * checked before it is read. Build in the handler, as above: the SDK rejects an
+ * Update only for a `TemporalFailure`, so the caller hears the refusal; building
+ * in the Workflow body instead fails the Workflow Task repeatedly with the bad
+ * answer already committed.
+ *
+ * These helpers cover the wire format only. Credential requests
+ * (`adk_request_credential`) are deliberately excluded: answering one means
+ * sending a secret through a Signal/Update payload that is persisted in
+ * Workflow history, and the plugin's deterministic id generation makes ADK's
+ * OAuth2 `state` parameter predictable inside a Workflow. Acquire credentials
+ * worker-side (an Activity, an MCP toolset factory) instead.
+ *
+ * Pure functions: usable in Workflow code and in the Client that drives the
+ * Signal/Update.
+ */
+
+import type { Part } from '@google/genai';
+import {
+  getPendingUserInputRequests,
+  REQUEST_CONFIRMATION_FUNCTION_CALL_NAME,
+  REQUEST_INPUT_FUNCTION_CALL_NAME,
+  type Event,
+  type UserInputKind,
+  type UserInputRequest,
+} from '@google/adk';
+import { z } from 'zod/v4';
+import { ApplicationFailure } from '@temporalio/common';
+
+import { HITL_RESPONSE_FAILURE_TYPE } from './error-types';
+
+/**
+ * A pause awaiting free-form or structured data: ADK's own
+ * {@link UserInputRequest} narrowed to `kind: 'input'`. Answer it with
+ * {@link hitlInputResponse}.
+ */
+export type HitlInputRequest = Omit<UserInputRequest, 'kind'> & { kind: 'input' };
+
+/**
+ * A pause awaiting approval of a tool call gated with `requireConfirmation`:
+ * ADK's own {@link UserInputRequest} narrowed to `kind: 'confirmation'`.
+ * Answer it with {@link hitlConfirmationResponse}.
+ */
+export type HitlConfirmationRequest = Omit<UserInputRequest, 'kind'> & { kind: 'confirmation' };
+
+/**
+ * A pause awaiting a human answer, plain JSON so a Workflow Query can return it
+ * as-is. A discriminated union on `kind`, so narrowing on it picks the builder:
+ * ADK's third kind, `'credential'`, is absent because {@link pendingHitlRequests}
+ * never reports one and neither builder accepts one (see the module doc).
+ */
+export type HitlRequest = HitlInputRequest | HitlConfirmationRequest;
+
+/** The human's decision for a tool gated with `requireConfirmation`. */
+export interface HitlConfirmation {
+  /**
+   * Approve (`true`) or reject (`false`) the call. Must be a boolean:
+   * {@link hitlConfirmationResponse} refuses anything else rather than guess,
+   * since ADK approves only on `=== true`.
+   */
+  confirmed: boolean;
+  /** Optional echo of the hint shown to the human. */
+  hint?: string;
+  /** Optional data the tool reads from `toolContext.toolConfirmation.payload`. */
+  payload?: unknown;
+}
+
+/**
+ * The pauses in `events` that still await an answer, excluding credential
+ * requests (see the module doc). Pass the session's events, collected from the
+ * `runAsync` iteration or read from `runner.sessionService.getSession(...)`.
+ *
+ * This wraps ADK's `getPendingUserInputRequests`, whose bookkeeping is coarser
+ * than it looks: a request counts as answered as soon as *any* `functionResponse`
+ * anywhere in `events` carries its id, whoever authored it and whether or not
+ * ADK went on to accept it (a reply its `responseSchema` refuses leaves the run
+ * paused but drops it from this list). The converse also holds: an answer that
+ * is not a function response never clears it, so a plain-text gate approval
+ * (`runConfig.plainTextToolConfirmation`) and a text reply to an agent's own
+ * `requestInputTool` both keep being listed. A driver loop that uses those has
+ * to remember what it already answered.
+ */
+export function pendingHitlRequests(events: readonly Event[]): HitlRequest[] {
+  return getPendingUserInputRequests(events).filter((request): request is HitlRequest => request.kind !== 'credential');
+}
+
+/**
+ * Builds the `Part` answering an input request (`adk_request_input`). Put it
+ * in the next turn's `newMessage` as `{ role: 'user', parts: [part] }`.
+ *
+ * A plain object `value` is sent as-is, so it can satisfy the request's
+ * `responseSchema`; anything else is wrapped in the `{ result: value }`
+ * envelope ADK unwraps. The unwrap is by shape, not by who wrote it: ADK
+ * delivers the bare value of any response whose single key is `result`, so a
+ * `value` of `{ result: x }` reaches the node as `x`.
+ *
+ * ADK also parses a **string** it unwraps as JSON, unless the request declared
+ * a schema that accepts strings (`type: 'string'`), so `'42'` reaches the node
+ * as a number and `'"foo"'` as `foo` with the quotes gone. Rather than let
+ * that happen silently, this throws for any string that parses: declare a
+ * string `responseSchema` on the `RequestInput`, or pass the parsed value
+ * yourself.
+ *
+ * A structured answer is also held to the request's `responseSchema`, with the
+ * same check ADK runs when the graph resumes: an object or array that the schema
+ * rejects is refused here, with ADK's own message, instead of failing the Workflow
+ * Task later (a bare scalar is exempt, as it is in ADK).
+ *
+ * `value` must be a JSON value (`null` included). `undefined` is refused because
+ * ADK reads it as no answer at all: a waiting node resumes only once its answer
+ * is `!== undefined` (`workflow/workflow.ts`), so the node would ask again while
+ * {@link pendingHitlRequests} already counts the request as answered. A
+ * function, symbol or bigint is refused as not JSON, which is also why a Client
+ * could never send one over an Update.
+ *
+ * Every refusal is a non-retryable `ApplicationFailure` of type
+ * {@link HITL_RESPONSE_FAILURE_TYPE}, so calling this from a Signal or Update
+ * handler on an unchecked value is safe.
+ */
+export function hitlInputResponse(request: HitlInputRequest, value: unknown): Part {
+  assertKind(request, 'input', 'hitlInputResponse');
+  assertUsableAnswer(request, value);
+  const response = isPlainObject(value) ? value : { result: value };
+  assertNoJsonCoercion(request, response);
+  assertMatchesResponseSchema(request, response);
+  return {
+    functionResponse: {
+      id: request.interruptId,
+      name: request.functionCallName || REQUEST_INPUT_FUNCTION_CALL_NAME,
+      response,
+    },
+  };
+}
+
+/**
+ * Builds the `Part` answering a tool-confirmation request
+ * (`adk_request_confirmation`). ADK reads approvals from the **latest**
+ * user-authored event only, so answer every pending confirmation in one
+ * `newMessage`, and rebuild the agent for the resumed turn with the same tool
+ * names — an approval naming a tool the agent no longer has is refused.
+ *
+ * `decision` is checked before it is read, since an Update handler hands it over
+ * unchecked: it must be an object whose `confirmed` is a boolean and whose `hint`,
+ * when present, is a string (`payload` may be anything). ADK approves only on
+ * `confirmed === true`, so a `'yes'` is refused rather than guessed as either
+ * answer. Every refusal is a non-retryable `ApplicationFailure` of type
+ * {@link HITL_RESPONSE_FAILURE_TYPE}.
+ */
+export function hitlConfirmationResponse(request: HitlConfirmationRequest, decision: HitlConfirmation): Part {
+  assertKind(request, 'confirmation', 'hitlConfirmationResponse');
+  assertDecision(request, decision);
+  const response: Record<string, unknown> = { confirmed: decision.confirmed };
+  if (decision.hint !== undefined) response.hint = decision.hint;
+  if (decision.payload !== undefined) response.payload = decision.payload;
+  return {
+    functionResponse: {
+      id: request.interruptId,
+      name: request.functionCallName || REQUEST_CONFIRMATION_FUNCTION_CALL_NAME,
+      response,
+    },
+  };
+}
+
+/**
+ * Guards the `kind` the signature already demands. The types make a wrong kind a
+ * compile error, but a request that crossed a Query or Update boundary arrives
+ * as plain JSON, so the check has to exist at run time too — hence ADK's wide
+ * {@link UserInputRequest} here, credential variant included.
+ */
+function assertKind(request: UserInputRequest, kind: UserInputKind, helper: string): void {
+  if (!isPlainObject(request)) {
+    throw refusal(
+      `${helper}: ${describeType(request)} is not a HITL request; pass one that pendingHitlRequests returned.`
+    );
+  }
+  if (request.kind !== kind) {
+    throw refusal(
+      `${helper}: interrupt '${request.interruptId}' has kind '${request.kind}', not '${kind}'. ` +
+        (request.kind === 'credential'
+          ? 'Credential requests are not answerable from a Workflow; acquire credentials worker-side.'
+          : `Use ${kind === 'input' ? 'hitlConfirmationResponse' : 'hitlInputResponse'} for it.`)
+    );
+  }
+}
+
+/** Refuses an input answer ADK cannot use; see {@link hitlInputResponse}. */
+function assertUsableAnswer(request: HitlInputRequest, value: unknown): void {
+  const where = `hitlInputResponse: the answer to interrupt '${request.interruptId}'`;
+  if (value === undefined) {
+    throw refusal(
+      `${where} is undefined, which ADK reads as no answer at all: the waiting node would ask again ` +
+        'while pendingHitlRequests counts the request as answered. Pass a JSON value (null included).'
+    );
+  }
+  const type = typeof value;
+  if (type === 'function' || type === 'symbol' || type === 'bigint') {
+    throw refusal(`${where} is ${describeType(value)}, which is not a JSON value. Pass a JSON value (null included).`);
+  }
+}
+
+/** Refuses a confirmation decision that is not `{ confirmed: boolean, hint?: string, payload?: unknown }`. */
+function assertDecision(request: HitlConfirmationRequest, decision: unknown): asserts decision is HitlConfirmation {
+  const where = `hitlConfirmationResponse: the decision for interrupt '${request.interruptId}'`;
+  if (!isPlainObject(decision)) {
+    throw refusal(`${where} must be an object like { confirmed: true }, got ${describeType(decision)}.`);
+  }
+  if (typeof decision.confirmed !== 'boolean') {
+    throw refusal(
+      `${where} is malformed: 'confirmed' must be a boolean, got ${describeType(decision.confirmed)}. ` +
+        'ADK approves only on confirmed === true, so nothing else is guessed as an answer.'
+    );
+  }
+  if (decision.hint !== undefined && typeof decision.hint !== 'string') {
+    throw refusal(`${where} is malformed: 'hint' must be a string when present, got ${describeType(decision.hint)}.`);
+  }
+}
+
+/** The one failure the builders throw. */
+function refusal(message: string): ApplicationFailure {
+  return ApplicationFailure.nonRetryable(message, HITL_RESPONSE_FAILURE_TYPE);
+}
+
+/** Names a value's type for a refusal message: `null`, `an array`, `a string`, `an object`. */
+function describeType(value: unknown): string {
+  if (value === null || value === undefined) return String(value);
+  if (Array.isArray(value)) return 'an array';
+  const type = typeof value;
+  return `${/^[aeiou]/.test(type) ? 'an' : 'a'} ${type}`;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Whether a JSON schema accepts a plain string — the same rule as ADK's
+ * `acceptsString` (`workflow/utils/rehydration_utils.ts`): a `string` type, a
+ * type list containing it, or an `anyOf`/`oneOf` branch that does. An absent
+ * or unreadable schema accepts nothing, so ADK parses.
+ */
+function acceptsString(schema: unknown): boolean {
+  if (!isPlainObject(schema)) return false;
+  const type = schema['type'];
+  if (type === 'string') return true;
+  if (Array.isArray(type) && type.includes('string')) return true;
+  for (const key of ['anyOf', 'oneOf']) {
+    const branches = schema[key];
+    if (Array.isArray(branches) && branches.some(acceptsString)) return true;
+  }
+  return false;
+}
+
+/**
+ * Refuses a response whose text ADK would retype on the way in. Applies the
+ * same two steps as ADK's `unwrapResponse`
+ * (`workflow/utils/rehydration_utils.ts`): unwrap a response whose only key is
+ * `result`, then JSON-parse a string the declared schema does not accept.
+ *
+ * Text that parses is refused whatever it parses to, a string included: ADK
+ * returns the parsed value, so `'"foo"'` reaches the node as `foo` with the
+ * quotes gone. Only text that is not JSON at all survives verbatim.
+ */
+function assertNoJsonCoercion(request: HitlInputRequest, response: Record<string, unknown>): void {
+  if (!isResultEnvelope(response)) return;
+  const unwrapped = response[RESULT_KEY];
+  if (typeof unwrapped !== 'string' || acceptsString(request.responseSchema)) return;
+  const parsed = parseJsonIfPossible(unwrapped);
+  if (parsed === NOT_JSON) return;
+  throw refusal(
+    `hitlInputResponse: the string ${JSON.stringify(unwrapped)} answering interrupt '${request.interruptId}' ` +
+      `parses as JSON, so ADK would deliver ${describeDelivered(parsed)} to the node instead of the text. ` +
+      'The request declared no responseSchema that accepts a string: declare one on the RequestInput, or ' +
+      'pass the parsed value instead of the string.'
+  );
+}
+
+/** Renders what ADK would hand the node, so a quote-stripped string is not mistaken for the text. */
+function describeDelivered(parsed: unknown): string {
+  return typeof parsed === 'string'
+    ? `the string ${JSON.stringify(parsed)}`
+    : `${JSON.stringify(parsed)} (${typeof parsed})`;
+}
+
+/**
+ * Refuses a structured answer its `responseSchema` rejects, with the check ADK runs
+ * on resume (`resolvedInterruptResponses`, then `interruptResponseMismatch` in
+ * `workflow/utils/hitl_utils.ts`). ADK throws a plain `Error` for a mismatch there,
+ * outside any Update handler, so the Workflow Task would retry forever against the
+ * committed answer.
+ *
+ * ADK exports neither that function nor the `compileJsonSchema` it calls, so both
+ * are reproduced for parity: check the value ADK's `unwrapResponse` delivers; only
+ * an object or an array, since ADK exempts a bare scalar (the reply a chat box
+ * sends); compile the JSON Schema recorded on the interrupt with zod v4's
+ * `fromJSONSchema`, as ADK does, and treat one zod cannot compile as no contract;
+ * report the issues in ADK's format and ADK's words. A string that would have been
+ * parsed into an object never gets here: {@link assertNoJsonCoercion} refused it.
+ */
+function assertMatchesResponseSchema(request: HitlInputRequest, response: Record<string, unknown>): void {
+  const delivered = isResultEnvelope(response) ? response[RESULT_KEY] : response;
+  if (typeof delivered !== 'object' || delivered === null) return;
+  const validator = compileJsonSchema(request.responseSchema);
+  if (!validator) return;
+  const result = validator.safeParse(delivered);
+  if (result.success) return;
+  const issues = result.error.issues
+    .map((issue) => `${issue.message}${issue.path.length ? ` at '${issue.path.join('.')}'` : ''}`)
+    .join('; ');
+  throw refusal(
+    `hitlInputResponse: The reply to interrupt '${request.interruptId}' does not match the ` +
+      `responseSchema it declared: ${issues}. A structured reply must either ` +
+      'match that schema, or wrap a bare value as {result: <value>}; a ' +
+      'plain-text reply is accepted as-is and is not checked. The interrupt is ' +
+      'still waiting, so you can answer it again.'
+  );
+}
+
+/** ADK's `compileJsonSchema` (`utils/schema.ts`), which it does not export. */
+function compileJsonSchema(jsonSchema: unknown): z.ZodType | undefined {
+  if (jsonSchema === null || typeof jsonSchema !== 'object') return undefined;
+  try {
+    return z.fromJSONSchema(jsonSchema as Parameters<typeof z.fromJSONSchema>[0]);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Whether ADK's `unwrapResponse` would unwrap `response`: its only key is `result`. */
+function isResultEnvelope(response: Record<string, unknown>): boolean {
+  return Object.keys(response).length === 1 && RESULT_KEY in response;
+}
+
+const RESULT_KEY = 'result';
+
+const NOT_JSON = Symbol('not-json');
+
+function parseJsonIfPossible(value: string): unknown {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return NOT_JSON;
+  }
+}

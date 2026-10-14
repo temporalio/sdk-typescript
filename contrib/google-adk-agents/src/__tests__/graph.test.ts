@@ -4,7 +4,7 @@
  * failure propagation, node-callback plugins, `App` roots and compactors.
  */
 
-import test from 'ava';
+import test, { type ExecutionContext } from 'ava';
 import { ActivityFailure, ApplicationFailure, CancelledFailure, TimeoutFailure } from '@temporalio/common';
 import { Worker } from '@temporalio/worker';
 
@@ -15,6 +15,7 @@ import {
   countScheduledActivities,
   findInCauseChain,
   getScheduledActivitySummaries,
+  HangingMCPToolset,
   REUSE_V8_CONTEXT,
   setupTestEnv,
   uid,
@@ -29,12 +30,14 @@ import {
   compactedAgent,
   graphActivityFailure,
   graphActivityThenPause,
+  graphActivityToolWithFailingSibling,
   graphAgentNodeModelFailure,
   graphAgentNodeWithFailingSibling,
   graphAgentTaskNode,
   graphCancellableAgentNode,
   graphDottedActivity,
   graphFanOutJoin,
+  graphMcpToolWithFailingSibling,
   graphOrphanedAgentModelCall,
   graphPartsPayloadOutputSchema,
   graphPartsPayloadThenPause,
@@ -397,6 +400,82 @@ test.serial('a failing sibling node cancels an agent node model call and fails t
   // Without the cancel, ADK's cleanup waits out every attempt's 20s start-to-close timeout.
   t.true(Date.now() - started < 15_000, `took ${Date.now() - started}ms`);
 });
+
+/**
+ * Asserts the sibling-failure outcome for an agent node stuck in its tool phase: the run
+ * fails with the sibling's failure, and the tool's Activity was scheduled once, started
+ * once and ended cancelled, rather than holding ADK's cleanup through every retry.
+ */
+async function assertToolCallCancelledBySibling(
+  t: ExecutionContext,
+  workflowId: string,
+  err: Error | undefined,
+  toolActivity: string,
+  elapsedMs: number
+): Promise<void> {
+  t.is(findInCauseChain(err, ApplicationFailure)?.type, 'TestPermanentFailure');
+  t.is((await getEnv().client.workflow.getHandle(workflowId).describe()).status.name, 'FAILED');
+  const events = await history(workflowId);
+  t.is(countScheduledActivities(events, toolActivity), 1);
+  const scheduled = events.find((e) => e.activityTaskScheduledEventAttributes?.activityType?.name === toolActivity);
+  t.true(
+    events.some(
+      (e) =>
+        e.activityTaskCanceledEventAttributes != null &&
+        String(e.activityTaskCanceledEventAttributes.scheduledEventId) === String(scheduled?.eventId)
+    ),
+    `expected the abort to cancel the ${toolActivity} Activity`
+  );
+  t.true(
+    events.every((e) => (e.activityTaskStartedEventAttributes?.attempt ?? 1) === 1),
+    'expected every Activity to end on its first attempt'
+  );
+  // Without the cancel, ADK's cleanup waits out three 20s start-to-close timeouts, 60s and
+  // more. The events above already show the cancel ended the first attempt, so the bound
+  // only has to tell a cancelled run from that on a slow runner, where the tool Activity's
+  // heartbeat cadence (how a cancel reaches it) dominates.
+  t.true(elapsedMs < 30_000, `took ${elapsedMs}ms`);
+}
+
+/** Runs `fn` and reports how long it took, so a bound covers the run and not Worker start-up. */
+async function timed<T>(fn: () => Promise<T>): Promise<{ value: T; elapsedMs: number }> {
+  const started = Date.now();
+  const value = await fn();
+  return { value, elapsedMs: Date.now() - started };
+}
+
+test.serial('a failing sibling node cancels an agent node activityAsTool call and fails the Workflow', async (t) => {
+  const env = getEnv();
+  const taskQueue = uid('adk-graph-tool-sibling');
+  const workflowId = uid('wf-graph-tool-sibling');
+  const { value: err, elapsedMs } = await withWorker(env, { taskQueue, plugins: [makePlugin()], activities }, () =>
+    timed(() =>
+      t.throwsAsync(env.client.workflow.execute(graphActivityToolWithFailingSibling, { taskQueue, workflowId }))
+    )
+  );
+  await assertToolCallCancelledBySibling(t, workflowId, err, 'hangingTool', elapsedMs);
+  t.deepEqual(
+    activities.executionsFor(workflowId).filter((e) => e.startsWith('hangingTool')),
+    ['hangingTool:1']
+  );
+});
+
+test.serial(
+  'a failing sibling node cancels an agent node TemporalMCPToolset call and fails the Workflow',
+  async (t) => {
+    const env = getEnv();
+    const taskQueue = uid('adk-graph-mcp-sibling');
+    const workflowId = uid('wf-graph-mcp-sibling');
+    const plugin = new GoogleAdkPlugin({
+      modelProvider: graphTestProvider(),
+      mcpToolsets: { hangServer: () => new HangingMCPToolset() },
+    });
+    const { value: err, elapsedMs } = await withWorker(env, { taskQueue, plugins: [plugin], activities }, () =>
+      timed(() => t.throwsAsync(env.client.workflow.execute(graphMcpToolWithFailingSibling, { taskQueue, workflowId })))
+    );
+    await assertToolCallCancelledBySibling(t, workflowId, err, 'hangServer-callTool', elapsedMs);
+  }
+);
 
 test.serial('an ADK timeout on an agent node leaves its model call running into the retry', async (t) => {
   const env = getEnv();
