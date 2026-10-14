@@ -158,6 +158,12 @@ importers:
       ava:
         specifier: ^5.3.1
         version: 5.3.1
+      long:
+        specifier: ^5.3.2
+        version: 5.3.2
+      protobufjs:
+        specifier: ^8.7.1
+        version: 8.7.1
       zod:
         specifier: ^3.25.76
         version: 3.25.76
@@ -174,6 +180,12 @@ importers:
       ava:
         specifier: ^5.3.1
         version: 5.3.1
+      long:
+        specifier: ^5.3.2
+        version: 5.3.2
+      protobufjs:
+        specifier: ^8.7.1
+        version: 8.7.1
 
   contrib/external-storage-gcs-google-sdk:
     dependencies:
@@ -187,6 +199,12 @@ importers:
       ava:
         specifier: ^5.3.1
         version: 5.3.1
+      long:
+        specifier: ^5.3.2
+        version: 5.3.2
+      protobufjs:
+        specifier: ^8.7.1
+        version: 8.7.1
 
   contrib/external-storage-s3:
     dependencies:
@@ -200,6 +218,12 @@ importers:
       ava:
         specifier: ^5.3.1
         version: 5.3.1
+      long:
+        specifier: ^5.3.2
+        version: 5.3.2
+      protobufjs:
+        specifier: ^8.7.1
+        version: 8.7.1
 
   contrib/external-storage-s3-aws-sdk:
     dependencies:
@@ -213,6 +237,12 @@ importers:
       ava:
         specifier: ^5.3.1
         version: 5.3.1
+      long:
+        specifier: ^5.3.2
+        version: 5.3.2
+      protobufjs:
+        specifier: ^8.7.1
+        version: 8.7.1
 
   contrib/google-adk-agents:
     dependencies:
@@ -277,6 +307,12 @@ importers:
       ava:
         specifier: ^5.3.1
         version: 5.3.1
+      long:
+        specifier: ^5.3.2
+        version: 5.3.2
+      protobufjs:
+        specifier: ^8.7.1
+        version: 8.7.1
 
   contrib/interceptors-opentelemetry:
     dependencies:
@@ -433,9 +469,15 @@ importers:
       langsmith:
         specifier: ^0.7.9
         version: 0.7.10(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.217.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.4.6)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1)
+      long:
+        specifier: ^5.3.2
+        version: 5.3.2
       nexus-rpc:
         specifier: ^0.0.3
         version: 0.0.3
+      protobufjs:
+        specifier: ^8.7.1
+        version: 8.7.1
 
   contrib/openai-agents:
     dependencies:
@@ -503,12 +545,18 @@ importers:
       ava:
         specifier: ^5.3.1
         version: 5.3.1
+      long:
+        specifier: ^5.3.2
+        version: 5.3.2
       nexus-rpc:
         specifier: ^0.0.3
         version: 0.0.3
       openai:
         specifier: ^6.46.0
         version: 6.49.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.4.6)(ws@8.21.1)(zod@4.4.3)
+      protobufjs:
+        specifier: ^8.7.1
+        version: 8.7.1
 
   contrib/strands:
     dependencies:
@@ -561,6 +609,12 @@ importers:
       ava:
         specifier: ^5.3.1
         version: 5.3.1
+      long:
+        specifier: ^5.3.2
+        version: 5.3.2
+      protobufjs:
+        specifier: ^8.7.1
+        version: 8.7.1
       zod:
         specifier: ^4.1.12
         version: 4.4.3
@@ -595,6 +649,12 @@ importers:
       ava:
         specifier: ^5.3.1
         version: 5.3.1
+      long:
+        specifier: ^5.3.2
+        version: 5.3.2
+      protobufjs:
+        specifier: ^8.7.1
+        version: 8.7.1
 
   packages/activity:
     dependencies:
@@ -604,6 +664,13 @@ importers:
       '@temporalio/common':
         specifier: workspace:*
         version: link:../common
+    devDependencies:
+      long:
+        specifier: ^5.3.2
+        version: 5.3.2
+      protobufjs:
+        specifier: ^8.7.1
+        version: 8.7.1
 
   packages/client:
     dependencies:
@@ -619,9 +686,6 @@ importers:
       abort-controller:
         specifier: ^3.0.0
         version: 3.0.0
-      long:
-        specifier: ^5.3.2
-        version: 5.3.2
       nexus-rpc:
         specifier: ^0.0.3
         version: 0.0.3
@@ -629,6 +693,9 @@ importers:
         specifier: ^11.1.0
         version: 11.1.0
     devDependencies:
+      long:
+        specifier: ^5.3.2
+        version: 5.3.2
       protobufjs:
         specifier: ^8.7.1
         version: 8.7.1
@@ -648,6 +715,9 @@ importers:
         specifier: workspace:*
         version: link:../proto
     devDependencies:
+      long:
+        specifier: ^5.3.2
+        version: 5.3.2
       protobufjs:
         specifier: ^8.7.1
         version: 8.7.1
@@ -657,22 +727,22 @@ importers:
       '@temporalio/proto':
         specifier: workspace:*
         version: link:../proto
-      long:
-        specifier: ^5.3.2
-        version: 5.3.2
       ms:
         specifier: 3.0.0-canary.1
         version: 3.0.0-canary.1
       nexus-rpc:
         specifier: ^0.0.3
         version: 0.0.3
-      protobufjs:
-        specifier: ^8.7.1
-        version: 8.7.1
     devDependencies:
       ava:
         specifier: ^5.3.1
         version: 5.3.1
+      long:
+        specifier: ^5.3.2
+        version: 5.3.2
+      protobufjs:
+        specifier: ^8.7.1
+        version: 8.7.1
 
   packages/core-bridge:
     dependencies:
@@ -689,6 +759,12 @@ importers:
       cargo-cp-artifact:
         specifier: ^0.1.9
         version: 0.1.9
+      long:
+        specifier: ^5.3.2
+        version: 5.3.2
+      protobufjs:
+        specifier: ^8.7.1
+        version: 8.7.1
       tsx:
         specifier: ^4.20.6
         version: 4.20.6
@@ -772,6 +848,12 @@ importers:
       dedent:
         specifier: ^1.5.1
         version: 1.5.3
+      long:
+        specifier: ^5.3.2
+        version: 5.3.2
+      protobufjs:
+        specifier: ^8.7.1
+        version: 8.7.1
 
   packages/lambda-worker:
     dependencies:
@@ -803,6 +885,12 @@ importers:
       '@types/aws-lambda':
         specifier: ^8.10.145
         version: 8.10.161
+      long:
+        specifier: ^5.3.2
+        version: 5.3.2
+      protobufjs:
+        specifier: ^8.7.1
+        version: 8.7.1
 
   packages/meta:
     dependencies:
@@ -875,9 +963,6 @@ importers:
       '@temporalio/proto':
         specifier: workspace:*
         version: link:../proto
-      long:
-        specifier: ^5.3.2
-        version: 5.3.2
       nexus-rpc:
         specifier: ^0.0.3
         version: 0.0.3
@@ -885,6 +970,12 @@ importers:
       ava:
         specifier: ^5.3.1
         version: 5.3.1
+      long:
+        specifier: ^5.3.2
+        version: 5.3.2
+      protobufjs:
+        specifier: ^8.7.1
+        version: 8.7.1
 
   packages/nyc-test-coverage:
     dependencies:
@@ -1151,6 +1242,12 @@ importers:
       ava:
         specifier: ^5.3.1
         version: 5.3.1
+      long:
+        specifier: ^5.3.2
+        version: 5.3.2
+      protobufjs:
+        specifier: ^8.7.1
+        version: 8.7.1
 
   packages/worker:
     dependencies:
@@ -1190,9 +1287,6 @@ importers:
       nexus-rpc:
         specifier: ^0.0.3
         version: 0.0.3
-      protobufjs:
-        specifier: ^8.7.1
-        version: 8.7.1
       rxjs:
         specifier: ^7.8.1
         version: 7.8.1
@@ -1218,6 +1312,12 @@ importers:
       '@types/supports-color':
         specifier: ^8.1.3
         version: 8.1.3
+      long:
+        specifier: ^5.3.2
+        version: 5.3.2
+      protobufjs:
+        specifier: ^8.7.1
+        version: 8.7.1
 
   packages/workflow:
     dependencies:
@@ -1237,6 +1337,9 @@ importers:
       long:
         specifier: ^5.3.2
         version: 5.3.2
+      protobufjs:
+        specifier: ^8.7.1
+        version: 8.7.1
       source-map:
         specifier: ^0.7.4
         version: 0.7.4
