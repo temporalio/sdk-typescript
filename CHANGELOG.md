@@ -78,6 +78,8 @@ to docs, or any other relevant information.
 
 ### Changed
 
+- Reduced Workflow execution and replay overhead by deferring source-map lookup and Promise stack
+  formatting until stack diagnostics are requested (#2542).
 - Updated the following dependencies: `unionfs` from 4.5.1 to 4.6.0, `@grpc/grpc-js` from 1.12.4 to 1.12.7, `smol-toml` from 1.6.1 to 1.7.1
   and `tar` from 7.5.11 to 7.5.21.
 - A Worker will now refuse to load and execute a Workflow bundle produced with a different version
