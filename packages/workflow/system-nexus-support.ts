@@ -172,6 +172,15 @@ export function versioningOverrideFromProto(
   if (proto.autoUpgrade || proto.behavior === VERSIONING_BEHAVIOR_AUTO_UPGRADE) {
     return 'AUTO_UPGRADE';
   }
+  const oneTimeVersion = proto.oneTime?.targetDeploymentVersion;
+  if (oneTimeVersion?.deploymentName != null && oneTimeVersion.buildId != null) {
+    return {
+      oneTimeTo: {
+        deploymentName: oneTimeVersion.deploymentName,
+        buildId: oneTimeVersion.buildId,
+      },
+    };
+  }
   const pinnedVersion = proto.pinned?.version;
   if (pinnedVersion?.deploymentName != null && pinnedVersion.buildId != null) {
     return {

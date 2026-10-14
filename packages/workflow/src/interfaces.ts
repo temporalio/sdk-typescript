@@ -15,6 +15,7 @@ import type {
   WorkerDeploymentVersion,
   VersioningBehavior,
   InitialVersioningBehavior,
+  VersioningOverride,
   SuggestContinueAsNewReason,
   PayloadTypeInfo,
 } from '@temporalio/common';
@@ -652,6 +653,19 @@ export interface ChildWorkflowOptions extends Omit<CommonWorkflowOptions, 'workf
    * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
    */
   versioningIntent?: VersioningIntent;
+
+  /**
+   * Explicit versioning configuration for the Child Workflow. Takes precedence over versioning
+   * inherited from the Parent Workflow. By default, no override is set.
+   *
+   * Supports pinning to a deployment version, auto-upgrading, or routing the first Workflow Task
+   * to a version once before adopting the versioning behavior defined in the Child Workflow's code.
+   *
+   * Requires Temporal Server 1.32.0 or later.
+   *
+   * @experimental
+   */
+  versioningOverride?: VersioningOverride;
 
   /**
    * Event Groups to attach to the child workflow start command. They will be reflected on the

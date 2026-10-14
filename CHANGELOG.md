@@ -30,6 +30,10 @@ to docs, or any other relevant information.
 
 ### Added
 
+- **Experimental**: `ChildWorkflowOptions.versioningOverride` can pin, auto-upgrade, or one-time route
+  a Child Workflow independently of its parent. One-time routing is also available for client-started
+  Workflows through `{ oneTimeTo: WorkerDeploymentVersion }`. Both require Temporal Server 1.32.0 or
+  later. Invalid child overrides reject with `InvalidVersioningOverrideError`.
 - `@temporalio/google-adk-agents` runs on Google ADK 2.0: the Workflow bundle now uses ADK's web
   build, pinned regardless of the consumer's webpack target, and ADK's UUIDs are generated from a
   named workflow random stream inside the sandbox, so its ids are replay-stable.
