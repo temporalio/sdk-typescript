@@ -70,7 +70,7 @@ test('Can connect to Temporal Cloud using API Keys', async (t) => {
   const apiKey = process.env.TEMPORAL_CLOUD_API_KEY_TEST_API_KEY;
 
   if (!address || !namespace || !apiKey) {
-    t.pass('Skipping: No Temporal Cloud API Key connection details provided');
+    t.fail('Skipping: No Temporal Cloud API Key connection details provided');
     return;
   }
 
