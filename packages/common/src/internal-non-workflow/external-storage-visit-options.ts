@@ -29,8 +29,8 @@ export interface ExternalStorageStoreVisitOptions {
   abortSignal?: AbortSignal;
   /** Collects metrics for store operations performed during the walk. */
   metrics?: ExternalStorageMetricsAccumulator;
-  /** Cache shared across visits. */
-  payloadCache?: PayloadCache;
+  /** Cache shared across visits, or `false` to disable caching. */
+  payloadCache: PayloadCache | false;
   logger?: Logger;
 }
 
@@ -71,8 +71,8 @@ export interface ExternalStorageRetrieveVisitOptions {
   abortSignal?: AbortSignal;
   /** Collects metrics for retrieve operations performed during the walk. */
   metrics?: ExternalStorageMetricsAccumulator;
-  /** Cache shared across visits. */
-  payloadCache?: PayloadCache;
+  /** Cache shared across visits, or `false` to disable caching. */
+  payloadCache: PayloadCache | false;
   logger?: Logger;
 }
 

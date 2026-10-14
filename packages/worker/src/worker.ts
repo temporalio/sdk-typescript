@@ -918,6 +918,7 @@ export class Worker {
         connection: this._connection,
         identity: this.options.identity,
         dataConverter: this.options.dataConverter,
+        payloadCache: this.options.payloadCache,
         interceptors: this.options.interceptors.client,
       });
     }

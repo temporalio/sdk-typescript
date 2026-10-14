@@ -954,8 +954,8 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
  */
 export interface CompiledWorkerOptions
   extends Omit<WorkerOptionsWithDefaults, 'interceptors' | 'activities' | 'nexusServices' | 'tuner' | 'payloadCache'> {
-  /** Shared payload cache for this Worker, or `undefined` when payload caching is disabled. */
-  payloadCache?: PayloadCache;
+  /** Shared payload cache for this Worker, or `false` when payload caching is disabled. */
+  payloadCache: PayloadCache | false;
   interceptors: CompiledWorkerInterceptors;
   shutdownGraceTimeMs: number;
   shutdownForceTimeMs?: number;
@@ -1159,9 +1159,10 @@ export function compileWorkerOptions(
 
   const tuner = asNativeTuner(opts.tuner, logger);
 
-  const configuredPayloadCache =
-    opts.payloadCache === false ? undefined : opts.payloadCache ?? new InMemoryPayloadCache();
-  const payloadCache = configuredPayloadCache && withPayloadCacheMetrics(configuredPayloadCache, metricMeter);
+  const payloadCache =
+    opts.payloadCache === false
+      ? false
+      : withPayloadCacheMetrics(opts.payloadCache ?? new InMemoryPayloadCache(), metricMeter);
   const loadedDataConverter = loadDataConverter(opts.dataConverter);
 
   return {

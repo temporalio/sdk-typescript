@@ -280,7 +280,9 @@ test('standalone Nexus worker retrieves External Storage references nested in a 
   // Store the small nested payloads through a zero-threshold storage sharing the worker's driver, so the
   // worker itself does not offload its (empty) operation result.
   const offloadEverything = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 });
-  const [inputReference, signalReference] = await new ExternalStorageRunner(offloadEverything).store([
+  const [inputReference, signalReference] = await new ExternalStorageRunner(offloadEverything, {
+    payloadCache: false,
+  }).store([
     stringManglingPayloadConverter.toPayload('workflow-input'),
     stringManglingPayloadConverter.toPayload('signal-input'),
   ]);
