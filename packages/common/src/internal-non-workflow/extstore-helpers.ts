@@ -102,7 +102,7 @@ export function encodeReferencePayload({
 export function externalStorageClaimCacheKey(driverName: string, claimData: Record<string, string>): string {
   const keys = Object.keys(claimData)
     .map((key) => ({ key, bytes: encode(key) }))
-    .sort((left, right) => compareBytes(left.bytes, right.bytes));
+    .sort((left, right) => compareBytesLexicographically(left.bytes, right.bytes));
 
   let result = EXTSTORE_CACHE_KEY_PREFIX + lengthPrefixed(driverName);
   for (const { key } of keys) {
@@ -115,7 +115,7 @@ function lengthPrefixed(value: string): string {
   return `${encode(value).byteLength}:${value}`;
 }
 
-function compareBytes(left: Uint8Array, right: Uint8Array): number {
+function compareBytesLexicographically(left: Uint8Array, right: Uint8Array): number {
   const sharedLength = Math.min(left.length, right.length);
   for (let index = 0; index < sharedLength; index++) {
     if (left[index] !== right[index]) return left[index]! - right[index]!;

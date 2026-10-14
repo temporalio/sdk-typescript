@@ -12,9 +12,12 @@ Common library for code that's used across the Client, Worker, and/or Workflow:
 
 ## Payload Caching
 
-The Temporal SDKs can cache payloads to avoid unnecessary network traffic. The TypeScript SDK exposes a generic `PayloadCache` interface and provides an in-memory cache implementation that is used by default. Creating a custom cache or sharing a cache between clients and workers can be done by explicitly passing a payload cache in to clients and workers:
+**Experimental.** Clients and Workers cache External Storage payloads in memory by default, so a payload already in the cache is not retrieved from its storage driver again. The SDK exposes a generic `PayloadCache` interface and an in-memory implementation, `InMemoryPayloadCache`, exported from `@temporalio/client` and `@temporalio/worker`. Pass a payload cache to clients and workers to configure it or share it between them, or pass `payloadCache: false` to disable caching:
 
 ```ts
+import { Client, InMemoryPayloadCache } from '@temporalio/client';
+import { Worker } from '@temporalio/worker';
+
 const payloadCache = new InMemoryPayloadCache({
   maxTotalBytes: 128 * 1024 * 1024,
   maxEntries: 20_000,
@@ -22,10 +25,11 @@ const payloadCache = new InMemoryPayloadCache({
 
 const client = new Client({ payloadCache });
 const worker = await Worker.create({ taskQueue, workflowsPath, payloadCache });
+
+const uncachedClient = new Client({ payloadCache: false });
 ```
 
 n.b. The cache is a best-effort optimization.
-n.b. External Storage is currently the only SDK feature that uses the payload cache.
 
 ### External Storage
 
