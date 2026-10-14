@@ -201,6 +201,8 @@ export class GlobalHandlers {
   bundleFilenameToSourceMapConsumer = new Map<string, SourceMapConsumer>();
   origPrepareStackTrace = Error.prepareStackTrace;
   private stopPromiseHook = () => {};
+  private readonly promiseStackCaptures = new WeakSet<Error>();
+  private readonly outerError = Error;
   promiseHookInstalled = false;
   installed = false;
 
@@ -237,55 +239,51 @@ export class GlobalHandlers {
   }
 
   private overridePrepareStackTrace(): void {
-    const OuterError = Error;
-    // Augment the vm-global Error stack trace prepare function
-    // NOTE: this means that multiple instances of this class in the same VM
-    // will override each other.
-    // This should be a non-issue in most cases since we typically construct a single instance of
-    // this class per Worker thread.
-    // See: https://v8.dev/docs/stack-trace-api#customizing-stack-traces
-    Error.prepareStackTrace = (err, stackTraces) => {
-      const inWorkflowContext = OuterError !== err.constructor;
-      if (this.origPrepareStackTrace && !inWorkflowContext) {
-        return this.origPrepareStackTrace(err, stackTraces);
+    Error.prepareStackTrace = (err, stackTraces) =>
+      this.promiseStackCaptures.has(err) ? (stackTraces as unknown as string) : this.formatStackTrace(err, stackTraces);
+  }
+
+  private formatStackTrace(err: Error, stackTraces: NodeJS.CallSite[]): string {
+    const inWorkflowContext = this.outerError !== err.constructor;
+    if (this.origPrepareStackTrace && !inWorkflowContext) {
+      return this.origPrepareStackTrace(err, stackTraces);
+    }
+    // Collect structured locations alongside the formatted stack for promise diagnostics.
+    this.currentStackTrace = [];
+    const converted = stackTraces.map((callsite) => {
+      const line = callsite.getLineNumber();
+      const column = callsite.getColumnNumber();
+      const filename = callsite.getFileName();
+      const sourceMapConsumer = filename && this.bundleFilenameToSourceMapConsumer.get(filename);
+      if (sourceMapConsumer && line && column) {
+        const pos = sourceMapConsumer.originalPositionFor({ line, column });
+
+        const name = pos.name || formatCallsiteName(callsite);
+        this.currentStackTrace?.push({
+          file_path: pos.source ?? undefined,
+          function_name: name ?? undefined,
+          line: pos.line ?? undefined,
+          column: pos.column ?? undefined,
+          internal_code: false,
+        });
+
+        return name
+          ? `    at ${name} (${pos.source}:${pos.line}:${pos.column})`
+          : `    at ${pos.source}:${pos.line}:${pos.column}`;
+      } else {
+        const name = formatCallsiteName(callsite);
+
+        this.currentStackTrace?.push({
+          file_path: filename ?? undefined,
+          function_name: name ?? undefined,
+          line: line ?? undefined,
+          column: column ?? undefined,
+          internal_code: false,
+        });
+        return `    at ${callsite}`;
       }
-      // Set the currentStackTrace so it can be used in the promise `init` hook below
-      this.currentStackTrace = [];
-      const converted = stackTraces.map((callsite) => {
-        const line = callsite.getLineNumber();
-        const column = callsite.getColumnNumber();
-        const filename = callsite.getFileName();
-        const sourceMapConsumer = filename && this.bundleFilenameToSourceMapConsumer.get(filename);
-        if (sourceMapConsumer && line && column) {
-          const pos = sourceMapConsumer.originalPositionFor({ line, column });
-
-          const name = pos.name || formatCallsiteName(callsite);
-          this.currentStackTrace?.push({
-            file_path: pos.source ?? undefined,
-            function_name: name ?? undefined,
-            line: pos.line ?? undefined,
-            column: pos.column ?? undefined,
-            internal_code: false,
-          });
-
-          return name
-            ? `    at ${name} (${pos.source}:${pos.line}:${pos.column})`
-            : `    at ${pos.source}:${pos.line}:${pos.column}`;
-        } else {
-          const name = formatCallsiteName(callsite);
-
-          this.currentStackTrace?.push({
-            file_path: filename ?? undefined,
-            function_name: name ?? undefined,
-            line: line ?? undefined,
-            column: column ?? undefined,
-            internal_code: false,
-          });
-          return `    at ${callsite}`;
-        }
-      });
-      return `${err}\n${converted.join('\n')}`;
-    };
+    });
+    return `${err}\n${converted.join('\n')}`;
   }
 
   private setPromiseHook(): void {
@@ -302,37 +300,62 @@ export class GlobalHandlers {
           const store = activator.promiseStackStore;
           // TODO: hide this somehow: defineProperty + symbol
           (promise as any).runId = activator.info.runId;
-          // Reset currentStackTrace just in case (it will be set in `prepareStackTrace` above)
-          this.currentStackTrace = undefined;
           const fn = promise.constructor.constructor;
-          const ErrorCtor = fn('return globalThis.Error')();
-
-          // To see the full stack replace with commented line
-          // const formatted = new ErrorCtor().stack?.replace(/^Error\n\s*at [^\n]+\n(\s*at initAll \(node:internal\/promise_hooks:\d+:\d+\)\n)?/, '')!;
-          const formatted = cutoffStackTrace(
-            new ErrorCtor().stack?.replace(
-              /^Error\n\s*at [^\n]+\n(\s*at initAll \(node:internal\/promise_hooks:\d+:\d+\)\n)?/,
-              ''
-            )
-          );
-          if (this.currentStackTrace === undefined) {
-            return;
+          const errorLookup = fn('return globalThis.Error') as () => ErrorConstructor;
+          const captured = new (errorLookup())();
+          let raw: NodeJS.CallSite[];
+          // Mark this error only: a VM timeout can interrupt the hook without running finally.
+          this.promiseStackCaptures.add(captured);
+          try {
+            raw = captured.stack as unknown as NodeJS.CallSite[];
+          } finally {
+            this.promiseStackCaptures.delete(captured);
           }
-          const structured = this.currentStackTrace as StackTraceFileLocation[];
-          cutoffStructuredStackTrace(structured);
-          let stackTrace = { formatted, structured };
-
+          if (!Array.isArray(raw)) return;
+          let resolved: { formatted: string; structured: StackTraceFileLocation[] } | undefined;
+          const resolve = () => {
+            if (!resolved) {
+              const formatted = cutoffStackTrace(
+                this.formatStackTrace(captured, raw).replace(
+                  /^Error\n\s*at [^\n]+\n(\s*at initAll \(node:internal\/promise_hooks:\d+:\d+\)\n)?/,
+                  ''
+                )
+              );
+              const structured = this.currentStackTrace ?? [];
+              cutoffStructuredStackTrace(structured);
+              resolved = { formatted, structured };
+            }
+            return resolved;
+          };
+          let stackTrace = {
+            get formatted() {
+              return resolve().formatted;
+            },
+            get structured() {
+              return resolve().structured;
+            },
+          };
+          let frameIndex = 1;
+          if (
+            raw[frameIndex]?.getFunctionName() === 'initAll' &&
+            raw[frameIndex]?.getFileName() === 'node:internal/promise_hooks'
+          )
+            frameIndex++;
+          const first = raw[frameIndex];
+          const second = raw[frameIndex + 1];
+          const isAggregation = (callsite: NodeJS.CallSite | undefined) =>
+            callsite?.getFileName() === null &&
+            /^(Function|Promise)\.(race|all|allSettled|any)$/.test(formatCallsiteName(callsite) ?? '');
           if (
             currentAggregation &&
-            /^\s+at\sPromise\.then \(<anonymous>\)\n\s+at (Function|Promise)\.(race|all|allSettled|any) \(<anonymous>\)\n/.test(
-              formatted
-            )
+            first?.getFileName() === null &&
+            formatCallsiteName(first) === 'Promise.then' &&
+            isAggregation(second)
           ) {
             // Skip internal promises created by the aggregator and link directly.
             promise = currentAggregation;
-
-            stackTrace = store.promiseToStack.get(currentAggregation)!; // Must exist
-          } else if (/^\s+at (Function|Promise)\.(race|all|allSettled|any) \(<anonymous>\)\n/.test(formatted)) {
+            stackTrace = store.promiseToStack.get(currentAggregation) ?? stackTrace;
+          } else if (isAggregation(first)) {
             currentAggregation = promise;
           } else {
             currentAggregation = undefined;

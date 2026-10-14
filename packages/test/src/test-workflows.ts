@@ -15,7 +15,13 @@ import {
 } from '@temporalio/common';
 import { msToTs } from '@temporalio/common/lib/time';
 import { coresdk, temporal } from '@temporalio/proto';
-import { sleep as workflowSleep, type WorkflowInfo } from '@temporalio/workflow';
+import {
+  enhancedStackTraceQuery,
+  sleep as workflowSleep,
+  stackTraceQuery,
+  type EnhancedStackTrace,
+  type WorkflowInfo,
+} from '@temporalio/workflow';
 import { DefaultLogger, LogTimestamp, type LogEntry } from '@temporalio/worker';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
 import { invokePatchActivationCallback } from '@temporalio/worker/lib/workflow/patch-activation-callback';
@@ -2490,6 +2496,34 @@ test('scopeCancelledWhileWaitingOnExternalWorkflowCancellation', async (t) => {
     );
   }
 });
+
+for (const firstQuery of [stackTraceQuery.name, enhancedStackTraceQuery.name]) {
+  (isBun ? test.skip : test)(`stack diagnostics starting with ${firstQuery} stackTracer`, async (t) => {
+    await activate(t, makeStartWorkflow(t.context.workflowType));
+    const results = new Map<string, string | EnhancedStackTrace>();
+    for (const query of [firstQuery, stackTraceQuery.name, enhancedStackTraceQuery.name]) {
+      const completion = await activate(t, makeQueryWorkflow('qid', query, []));
+      const response = completion.successful?.commands?.[0]?.respondToQuery;
+      t.falsy(response?.failed);
+      results.set(
+        query,
+        defaultPayloadConverter.fromPayload(response!.succeeded!.response!) as string | EnhancedStackTrace
+      );
+    }
+
+    const formatted = results.get(stackTraceQuery.name) as string;
+    const enhanced = results.get(enhancedStackTraceQuery.name) as EnhancedStackTrace;
+    t.regex(formatted, /at (Function|Promise)\.all \(<anonymous>\)/);
+    t.regex(formatted, /at stackTracer \(.*stack-tracer\.ts:17:32\)/);
+    t.false(formatted.includes('node:internal/promise_hooks'));
+    t.is(enhanced.sdk.name, 'typescript');
+    t.is(enhanced.stacks.length, formatted.split('\n\n').length);
+    const location = enhanced.stacks.flatMap((stack) => stack.locations).find((l) => l.function_name === 'stackTracer');
+    t.like(location, { line: 17, column: 32, internal_code: false });
+    t.true(location!.file_path!.endsWith('/test/src/workflows/stack-tracer.ts'));
+    t.true(enhanced.sources[location!.file_path!][0].content.includes('export async function stackTracer'));
+  });
+}
 
 test('query not found - successString', async (t) => {
   const { workflowType } = t.context;
