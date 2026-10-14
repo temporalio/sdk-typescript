@@ -33,6 +33,14 @@ export interface MockActivityEnvironmentOptions {
  */
 export class MockActivityEnvironment extends events.EventEmitter {
   public cancel: (reason?: CancelReason, details?: ActivityCancellationDetails) => void = () => undefined;
+
+  /**
+   * Simulate initiation of Worker shutdown, resolving {@link activity.Context.workerShuttingDown} and aborting
+   * {@link activity.Context.workerShuttingDownSignal}. This doesn't cancel the Activity.
+   *
+   * @experimental Worker shutdown notification is experimental and may be subject to change.
+   */
+  public notifyWorkerShuttingDown: () => void = () => undefined;
   public readonly context: activity.Context;
   private readonly activity: Activity;
 
@@ -64,6 +72,7 @@ export class MockActivityEnvironment extends events.EventEmitter {
       opts?.interceptors ?? []
     );
     this.context = this.activity.context;
+    this.notifyWorkerShuttingDown = () => this.activity.notifyWorkerShuttingDown();
     this.cancel = (reason?: CancelReason, details?: ActivityCancellationDetails) => {
       // Default to CANCELLED if nothing provided.
       const r = reason ?? 'CANCELLED';
