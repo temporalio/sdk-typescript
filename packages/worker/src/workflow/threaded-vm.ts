@@ -77,8 +77,16 @@ export class WorkerThreadClient {
     protected patchActivationCallback?: PatchActivationCallback
   ) {
     workerThread.on('message', (message: WorkerThreadResponse | PatchActivationCallbackRequest) => {
+      // Handle messages without requestId (patch activation callbacks, Node.js watch mode messages, etc.)
       if (!('requestId' in message)) {
-        this.handlePatchActivationCallback(message);
+        // Check if it's a patch activation callback request
+        if ('type' in message && message.type === 'patch-activation-callback') {
+          this.handlePatchActivationCallback(message);
+          return;
+        }
+        // Ignore unknown message types (e.g., Node.js WATCH_REPORT_DEPENDENCIES from `node --watch`)
+        // These are informational messages from Node.js and don't require a response
+        this.logger.trace('Received unknown message type from worker thread, ignoring', { message });
         return;
       }
       const { requestId, result } = message;
