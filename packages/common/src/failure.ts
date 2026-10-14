@@ -445,7 +445,15 @@ export class WorkflowExecutionAlreadyStartedError extends TemporalFailure {
  * @experimental
  */
 @SymbolBasedInstanceOfError('InvalidVersioningOverrideError')
-export class InvalidVersioningOverrideError extends TemporalFailure {}
+export class InvalidVersioningOverrideError extends TemporalFailure {
+  constructor(
+    message: string,
+    public readonly workflowId: string,
+    public readonly workflowType: string
+  ) {
+    super(message);
+  }
+}
 
 /**
  * If `error` is already an `ApplicationFailure`, returns `error`.

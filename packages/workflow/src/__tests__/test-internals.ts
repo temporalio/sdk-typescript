@@ -108,6 +108,14 @@ for (const { cause, errorClass } of [
     if (observed.rejected instanceof NamespaceNotFoundError) {
       t.is(observed.rejected.namespace, 'default');
     }
+    if (observed.rejected instanceof InvalidVersioningOverrideError) {
+      t.is(
+        observed.rejected.message,
+        "Invalid versioning override for Child Workflow 'child-workflow' of type 'childWorkflow'"
+      );
+      t.is(observed.rejected.workflowId, 'child-workflow');
+      t.is(observed.rejected.workflowType, 'childWorkflow');
+    }
     t.is(observed.resolved, undefined);
     t.false(activator.completions.childWorkflowStart.has(targetSeq));
     t.false(activator.completions.childWorkflowComplete.has(targetSeq));

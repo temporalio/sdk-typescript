@@ -769,7 +769,13 @@ export class Activator implements ActivationHandler {
           reject(new NamespaceNotFoundError(this.info.namespace));
           break;
         case 'INVALID_VERSIONING_OVERRIDE':
-          reject(new InvalidVersioningOverrideError('Invalid versioning override'));
+          reject(
+            new InvalidVersioningOverrideError(
+              `Invalid versioning override for Child Workflow '${activation.failed.workflowId}' of type '${activation.failed.workflowType}'`,
+              activation.failed.workflowId,
+              activation.failed.workflowType
+            )
+          );
           break;
         default:
           throw new IllegalStateError('Got unknown StartChildWorkflowExecutionFailedCause');
