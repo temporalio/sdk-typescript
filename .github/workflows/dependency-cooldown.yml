@@ -1,0 +1,89 @@
+name: Dependency cooldown
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request to recheck, for example after approving a base-branch exception
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: dependency-cooldown-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Audit dependency cooldown
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Store the dedicated App key only here, with deployment branches restricted
+    # to main. A PR workflow must not be able to mint tokens for the check producer.
+    environment: dependency-cooldown
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TRUSTED_BASE_REF: ${{ github.event.repository.default_branch }}
+    steps:
+      - name: Determine the trusted base branch
+        id: base
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || exit 1
+          base_ref=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.base.ref')
+          [[ "$base_ref" == "$TRUSTED_BASE_REF" ]] || {
+            echo "::error::Only default-branch PRs are supported by this trusted workflow"
+            exit 1
+          }
+          printf 'ref=%s\n' "$base_ref" >> "$GITHUB_OUTPUT"
+
+      # Never check out the PR head or execute code/dependencies from it. In particular,
+      # a PR cannot grant itself a cooldown exception by changing the policy file.
+      - name: Checkout trusted base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.base.outputs.ref }}
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+        with:
+          version: '10.27.0'
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Install only trusted base dependencies without lifecycle scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Create dedicated reporting token
+        id: app-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
+        with:
+          app-id: ${{ vars.DEPENDENCY_COOLDOWN_APP_ID }}
+          private-key: ${{ secrets.DEPENDENCY_COOLDOWN_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: read
+          permission-pull-requests: write
+          permission-checks: write
+
+      - name: Audit new package versions and publish the report
+        env:
+          BASE_REF: ${{ steps.base.outputs.ref }}
+          COOLDOWN_APP_ID: ${{ vars.DEPENDENCY_COOLDOWN_APP_ID }}
+          COOLDOWN_APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          COOLDOWN_APP_BOT_LOGIN: ${{ steps.app-token.outputs.app-slug }}[bot]
+        run: node .github/scripts/dependency-cooldown.mjs
