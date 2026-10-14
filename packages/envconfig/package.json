@@ -25,12 +25,18 @@
     "@temporalio/common": "workspace:*",
     "smol-toml": "^1.7.1"
   },
+  "peerDependencies": {
+    "long": "^5.3.2",
+    "protobufjs": "^8.7.1"
+  },
   "devDependencies": {
     "@temporalio/client": "workspace:*",
     "@temporalio/testing": "workspace:*",
     "@temporalio/worker": "workspace:*",
     "ava": "^5.3.1",
-    "dedent": "^1.5.1"
+    "dedent": "^1.5.1",
+    "long": "^5.3.2",
+    "protobufjs": "^8.7.1"
   },
   "engines": {
     "node": ">= 20.3.0"

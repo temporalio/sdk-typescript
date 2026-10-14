@@ -1,0 +1,345 @@
+/**
+ * A Temporal Activity as a node in an ADK 2.0 workflow graph.
+ *
+ * ADK 2.0's workflow runtime (`Workflow`, `node()`, `JoinNode`, `dynamicEntry`,
+ * …) is plain async code driven by session events, so it runs inside the
+ * Workflow sandbox as-is. {@link activityNode} is the one piece it lacks: a node
+ * whose body is a registered Temporal Activity, the same way `activityAsTool`
+ * exposes an Activity to the model.
+ *
+ * Failure semantics: a node that throws fails the whole `Runner.runAsync` (ADK
+ * rethrows node errors; only an agent's model call is absorbed), so a failed
+ * Activity fails the Workflow through the usual `ActivityFailure` and needs no
+ * absorbed-failure recording. ADK's own graph errors (a `NodeTimeoutError`, …)
+ * are plain `Error`s that the plugin converts as they leave the Workflow — see
+ * `absorbed-failure.ts`.
+ *
+ * IMPORTANT: this module is part of the Workflow-sandbox import graph. It must
+ * not import any worker-only module.
+ */
+
+import {
+  createEvent,
+  FunctionNode,
+  NodeSchemaValidationError,
+  NodeTimeoutError,
+  type BaseNode,
+  type Event,
+  type FunctionNodeConfig,
+  type NodeContext,
+  type RetryConfig,
+  type SchemaLike,
+} from '@google/adk';
+import { ApplicationFailure } from '@temporalio/common';
+import {
+  CancellationScope,
+  inWorkflowContext,
+  proxyActivities,
+  sleep,
+  type ActivityOptions,
+} from '@temporalio/workflow';
+
+import { ACTIVITY_NODE_NAME_FAILURE_TYPE, ACTIVITY_NODE_OUTSIDE_WORKFLOW_FAILURE_TYPE } from './error-types';
+import { activityOptionsFrom } from './model';
+
+/**
+ * The characters ADK reads structure out of when it rehydrates a resumed run: `.` and `/`
+ * separate the segments of a node path (`BranchPath`, `nodeNameFromPath`), and `@` starts
+ * the run-id suffix of one (`directChildName`, `nodeNameFromPath`).
+ */
+const NODE_NAME_DELIMITERS = ['.', '/', '@'] as const;
+const NODE_NAME_DELIMITER_PATTERN = /[./@]/g;
+
+/** Options for {@link activityNode}. */
+export interface ActivityNodeOptions<TInput = unknown> {
+  /**
+   * The registered Activity type to run — an `@activity`-style function
+   * registered on the worker (e.g. via the worker's `activities`). Also the
+   * node's name unless `nodeName` is set.
+   */
+  name: string;
+  /**
+   * The graph node's name, when it must differ from the Activity's (e.g. two
+   * nodes running one Activity, or an Activity type carrying a delimiter). The
+   * effective name may not contain `.`, `/` or `@`: ADK reads node paths back by
+   * those characters (segments, and the run-id suffix), and a name containing
+   * one breaks the rehydration that fast-forwards a completed node on resume.
+   * `activityNode` refuses one rather than rename the node behind your back.
+   */
+  nodeName?: string;
+  /** The node's description, advertised when the node is used as a tool. */
+  description?: string;
+  /**
+   * Per-call Temporal Activity configuration (timeouts, retry, task queue,
+   * summary). Prefer `retry` here over ADK's `retryConfig`: an ADK retry
+   * re-runs the whole node on top of Temporal's own Activity retries.
+   *
+   * An abort (the node's `timeout`, or a sibling node failing) *requests* the
+   * Activity's cancellation on Temporal's usual terms, and `cancellationType`
+   * decides what the node then waits for. Unset means `TRY_CANCEL`: the node
+   * hears about the cancellation at once and the Activity is left to wind down
+   * on its own. `WAIT_CANCELLATION_COMPLETED` makes the node wait for the
+   * Activity to acknowledge, which it does at its next heartbeat, so pair it
+   * with a `heartbeatTimeout` and an Activity that heartbeats.
+   */
+  activity?: ActivityOptions;
+  /**
+   * Maps the node's input to the Activity's argument list. Defaults to passing
+   * the input as the single argument. TypeScript has no runtime signature
+   * introspection, so — unlike Python's `activity_node` — there is no
+   * named-parameter binding; use the `NodeContext` for state-bound values:
+   * `(input, ctx) => [ctx.state.get('customerId'), input]`.
+   */
+  args?: (input: TInput, ctx: NodeContext) => unknown[];
+
+  // --- ADK node configuration, passed through to the node ---
+  /**
+   * ADK graph-level retry. Its backoff becomes a durable Workflow timer; its
+   * jitter is drawn from the Workflow's `Math.random()`. Match a Temporal
+   * Activity failure with `exceptions: ['ActivityFailure']` (ADK matches error
+   * names).
+   */
+  retryConfig?: RetryConfig;
+  /**
+   * The node's deadline, in **seconds** (ADK semantics). A durable Workflow
+   * timer: when it fires the in-flight Activity is cancelled, and the node
+   * fails with ADK's `NodeTimeoutError` once that cancellation has settled, so
+   * a `retryConfig` attempt never overlaps the Activity it replaces.
+   *
+   * How long the settling takes is the Activity's own
+   * {@link ActivityOptions.cancellationType}. Unset (`TRY_CANCEL`) it settles
+   * at once, and the Activity winds down on its own time. Under
+   * `WAIT_CANCELLATION_COMPLETED` the node waits for the Activity to
+   * acknowledge, which it does at its next heartbeat, so an Activity that never
+   * heartbeats holds the node until its `startToCloseTimeout`.
+   *
+   * The plugin runs this deadline itself rather than handing it to ADK, whose
+   * own implementation races the node's generator and then abandons the unwind
+   * (`node_runner.ts`), which would let a retry start on top of an Activity
+   * that is still running.
+   */
+  timeout?: number;
+  inputSchema?: SchemaLike;
+  /**
+   * The schema every Activity result has to satisfy (an Activity returning nothing yields
+   * `null`). A Zod schema also checks a result carrying a `parts` array, which ADK's own
+   * check would let through as genai `Content`; a genai `Schema` is checked by ADK, which
+   * still does.
+   */
+  outputSchema?: SchemaLike;
+  stateSchema?: SchemaLike;
+  isolationScope?: string | true;
+}
+
+/**
+ * Wraps a registered Temporal Activity as an ADK workflow graph node. Put the
+ * returned node on a `Workflow`'s `edges`, run it from a `dynamicEntry` with
+ * `ctx.runNode(node, input)`, or give it to an `LlmAgent`'s `tools` (ADK 2.0
+ * wraps a node in a `NodeTool`; that needs an `inputSchema`).
+ *
+ * Inside a Workflow the node's input (or the arguments `args` derives from it)
+ * is sent to the Activity, and the Activity's result, whatever its shape, is the
+ * node's output: it flows to the successors, and it is what ADK records to
+ * fast-forward the node rather than run it again when a paused graph resumes.
+ * The node's event carries the result as `output` only, the way ADK's
+ * `JoinNode` does, because ADK's `FunctionNode` would take an object with a
+ * `parts` array for genai `Content` and record no output for it. An Activity
+ * returning nothing (`undefined` or `null`) completes the node with a `null`
+ * output, so its successors receive `null` (and an `outputSchema` has to accept
+ * it). The node can only run inside a Workflow.
+ *
+ * Two of ADK's node flags are deliberately not exposed. `waitForOutput` is not
+ * a fan-in gate: it parks a node in `WAITING` when the node ended with neither
+ * an output nor a route (`Workflow.handleCompletion`), which for an Activity
+ * node is a no-op when the Activity returns a value and a hang when it returns
+ * `undefined`. Fan in with a `JoinNode`, the node type that does wait for every
+ * predecessor (`BaseNode.requiresAllPredecessors`), and whose input is the map
+ * from predecessor name to output. `rerunOnResume` only decides what happens to
+ * a node that paused for input last turn (`Workflow.scheduleNode`); a node that
+ * completed is always fast-forwarded, and an Activity node never raises an
+ * interrupt, so neither value could change anything.
+ */
+export function activityNode<TInput = unknown, TOutput = unknown>(
+  options: ActivityNodeOptions<TInput>
+): BaseNode<TInput, TOutput> {
+  const { name, nodeName, description, activity, args } = options;
+  const graphName = nodeName ?? name;
+  // ADK builds a node's path out of names and reads it back to rehydrate a resumed run,
+  // so a delimiter inside a single name makes the node unrecognisable across turns and it
+  // runs a second time. Activity types often carry one (`payments.charge`), so say so
+  // rather than quietly rewriting the name the graph, the events and the traces all carry.
+  const delimiter = NODE_NAME_DELIMITERS.find((character) => graphName.includes(character));
+  if (delimiter !== undefined) {
+    throw ApplicationFailure.nonRetryable(
+      `activityNode('${name}'): node name '${graphName}' contains '${delimiter}', which ADK reads as a ` +
+        `node-path delimiter when it resumes a run. Pass a path-safe 'nodeName' ` +
+        `(for example '${graphName.replace(NODE_NAME_DELIMITER_PATTERN, '_')}').`,
+      ACTIVITY_NODE_NAME_FAILURE_TYPE
+    );
+  }
+
+  const handler = async (ctx: NodeContext, input: TInput): Promise<Event> => {
+    if (!inWorkflowContext()) {
+      throw ApplicationFailure.nonRetryable(
+        `activityNode('${name}') can only run inside a Temporal Workflow.`,
+        ACTIVITY_NODE_OUTSIDE_WORKFLOW_FAILURE_TYPE
+      );
+    }
+    // The default summary names the *node*: the Activity type is already its own
+    // history column, so two nodes running one Activity would otherwise read alike.
+    const activities = proxyActivities<Record<string, (...activityArgs: unknown[]) => Promise<unknown>>>(
+      activityOptionsFrom(activity, `adk.node ${graphName}`)
+    );
+    // `proxyActivities` returns a Proxy that materializes a stub for any name,
+    // so the indexed access is always defined; `noUncheckedIndexedAccess`
+    // widens the static type to `| undefined`, hence the assertion.
+    const run = activities[name]!;
+    const activityArgs = args ? args(input, ctx) : [input];
+    const result = await underNodeDeadline(ctx, graphName, options.timeout, () => run(...activityArgs));
+    // Every result goes back inside an explicit output event, which `FunctionNode` only
+    // validates and emits. Left to classify the raw value, it drops a nullish result and
+    // emits an object with a `parts` array as genai `Content` with no output. Either way the
+    // node would record no output: its successors would receive nothing, and since ADK
+    // fast-forwards a node on resume only when its events carry an output
+    // (`isFastForwardable`), the Activity would be scheduled again after a pause. An
+    // Activity's result is data the payload converter decoded, never a genai object, so it
+    // is not read as one; returning nothing is `null`.
+    return createEvent({ output: result ?? null });
+  };
+
+  const config: FunctionNodeConfig = {};
+  if (description !== undefined) config.description = description;
+  if (options.retryConfig !== undefined) config.retryConfig = options.retryConfig;
+  if (options.inputSchema !== undefined) config.inputSchema = options.inputSchema;
+  if (options.outputSchema !== undefined) config.outputSchema = options.outputSchema;
+  if (options.stateSchema !== undefined) config.stateSchema = options.stateSchema;
+  if (options.isolationScope !== undefined) config.isolationScope = options.isolationScope;
+
+  return new ActivityNode<TInput, TOutput>(graphName, handler, config);
+}
+
+/**
+ * The node {@link activityNode} builds: a `FunctionNode` whose output check does not exempt
+ * values shaped like genai `Content`.
+ *
+ * `BaseNode.validateOutput` returns any value with a `parts` array as it is, taking it for
+ * `Content`, which a node emits for the conversation rather than as data. An Activity's
+ * result is data the payload converter decoded, so a `parts` field on it is business data
+ * like any other and has to satisfy the node's `outputSchema`.
+ *
+ * A Zod schema is therefore run here the way ADK's `parseWithSchema` runs one: recognised by
+ * its `parse` and `safeParse` methods, checked with its own `parse`, a failure reported as
+ * ADK's `NodeSchemaValidationError`, and the parsed value kept as the output. A genai
+ * `Schema` stays with ADK, which checks one by compiling it with an internal validator the
+ * package does not export, and which keeps the exemption: a genai `outputSchema` does not
+ * check a result carrying a `parts` array, so give such an Activity a Zod one.
+ *
+ * The input check is ADK's, exemption included. A node's input comes from outside it (the
+ * run's opening message reaches a first node as genai `Content` when it has no text part),
+ * and ADK leaves `Content` input for the node to make sense of, which an Activity node does
+ * through `args`.
+ */
+class ActivityNode<TInput, TOutput> extends FunctionNode<TInput, TOutput> {
+  protected override validateOutput(output: unknown): unknown {
+    const schema = this.outputSchema;
+    if (!isZodSchema(schema)) return super.validateOutput(output);
+    try {
+      return schema.parse(output);
+    } catch (cause) {
+      throw new NodeSchemaValidationError({ nodeName: this.name, direction: 'output', cause });
+    }
+  }
+}
+
+/** ADK's own test for a Zod schema (`isZodSchema`), which Zod 3 and Zod 4 both pass. */
+function isZodSchema(schema: unknown): schema is { parse(value: unknown): unknown } {
+  if (typeof schema !== 'object' || schema === null) return false;
+  const { parse, safeParse } = schema as { parse?: unknown; safeParse?: unknown };
+  return typeof parse === 'function' && typeof safeParse === 'function';
+}
+
+/**
+ * Runs the Activity under the node's own deadline and under the invocation's abort, and
+ * does not return until whatever it started has settled.
+ *
+ * Both are the same mechanism: a cancellable `CancellationScope` the Activity runs in, so
+ * cancelling it is an ordinary, replay-safe Workflow command. ADK signals a sibling's
+ * failure or an outside abort through `ctx.abortSignal` (always set for a node inside a
+ * `Workflow`), which asyncio gives Python for free; the deadline is a durable timer this
+ * function owns.
+ *
+ * The plugin runs the deadline rather than declaring `timeout` on the node because ADK's
+ * own deadline races the node's generator and then abandons the unwind
+ * (`void iterator.return(...)` in `node_runner.ts`), leaving the Activity running while
+ * the runner has already moved on: a `retryConfig` attempt would overlap the Activity it
+ * is meant to replace. Awaiting the cancelled Activity here keeps the attempts in order,
+ * on the terms the Activity's own `cancellationType` sets.
+ *
+ * An abort that is not the deadline is not a timeout, so its failure (an `ActivityFailure`
+ * whose cause is the `CancelledFailure`) is rethrown as it is and the node fails with the
+ * cancellation it actually got. The abort listener is removed on the way out because the
+ * signal is shared by every node for the whole run, and the listener never throws: it runs
+ * inside a host `EventTarget` dispatch, outside the Workflow's own error handling.
+ */
+async function underNodeDeadline<T>(
+  ctx: NodeContext,
+  nodeName: string,
+  timeout: number | undefined,
+  body: () => Promise<T>
+): Promise<T> {
+  const signal = ctx.abortSignal;
+  const deadlineMs = timeout !== undefined && timeout > 0 ? timeout * 1000 : undefined;
+  if (signal === undefined && deadlineMs === undefined) return body();
+
+  const scope = new CancellationScope({ cancellable: true });
+  const cancel = (): void => {
+    try {
+      scope.cancel();
+    } catch {
+      /* cancelling an already-cancelled scope, or a scope with nothing in it, is not an error worth surfacing here */
+    }
+  };
+
+  let timedOut = false;
+  // The timer sits in its own scope so cancelling the Activity's scope does not cancel it,
+  // and so the `finally` below can cancel it once the Activity has settled.
+  let deadline: CancellationScope | undefined;
+  if (deadlineMs !== undefined) {
+    deadline = new CancellationScope({ cancellable: true });
+    void deadline
+      .run(() => sleep(deadlineMs))
+      .then(
+        () => {
+          timedOut = true;
+          cancel();
+        },
+        () => {
+          /* the deadline was cancelled because the Activity settled first */
+        }
+      );
+  }
+
+  const onAbort = (): void => cancel();
+  if (signal !== undefined) {
+    if (signal.aborted) cancel();
+    else signal.addEventListener('abort', onAbort, { once: true });
+  }
+
+  let settled: { ok: true; value: T } | { ok: false; error: unknown };
+  try {
+    settled = { ok: true, value: await scope.run(body) };
+  } catch (error) {
+    settled = { ok: false, error };
+  } finally {
+    deadline?.cancel();
+    signal?.removeEventListener('abort', onAbort);
+  }
+
+  // Reaching here after the deadline fired means the Activity has settled, however its
+  // `cancellationType` defines that, so the node can now fail the way ADK's own deadline
+  // would have. Matching ADK's error keeps `retryConfig.exceptions` and the plugin's
+  // failure-type mapping working on it.
+  if (timedOut) throw new NodeTimeoutError({ nodeName, timeout: deadlineMs! / 1000 });
+  if (settled.ok) return settled.value;
+  throw settled.error;
+}
