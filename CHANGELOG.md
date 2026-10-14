@@ -34,7 +34,7 @@ to docs, or any other relevant information.
 
 - **Experimental**: New External Storage concurrency controls.
 
-  - `ExternalStorage` takes a new `concurrency` option that holds two new concurrency limiting config values: `maxDriverOperations` caps how many are in flight across every driver registered on that `ExternalStorage` instance and `maxOperationsPerMessage` caps how many a single "message" may have in flight, where a message is any top-level input or ouput (e.g. a Workflow Task activation, a client request, a Nexus operation, etc)
+  - `ExternalStorage` takes a new `concurrency` option that holds two new concurrency limiting config values: `maxDriverOperations` caps how many are in flight across every driver used by a single client or worker, where each client and each worker gets its own limit, and `maxOperationsPerMessage` caps how many a single "message" may have in flight, where a message is any top-level input or ouput (e.g. a Workflow Task activation, a client request, a Nexus operation, etc)
   - Both limits are cooperative and drivers must use the new `context.limiter` to take out a permit for each request.
   - The bundled S3 and GCS drivers were updated to use the limiter.
 

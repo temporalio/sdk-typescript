@@ -1105,6 +1105,7 @@ export class WorkflowClient extends BaseClient {
           req,
           walkQueryWorkflowRequest,
           extstoreStoreOptions(externalStorage, {
+            driverOperationLimit: this.driverOperationLimit,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
@@ -1214,6 +1215,7 @@ export class WorkflowClient extends BaseClient {
           request,
           walkUpdateWorkflowExecutionRequest,
           extstoreStoreOptions(externalStorage, {
+            driverOperationLimit: this.driverOperationLimit,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
@@ -1306,6 +1308,7 @@ export class WorkflowClient extends BaseClient {
           multiOpReq,
           walkExecuteMultiOperationRequest,
           extstoreStoreOptions(externalStorage, {
+            driverOperationLimit: this.driverOperationLimit,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
@@ -1455,6 +1458,7 @@ export class WorkflowClient extends BaseClient {
           req,
           walkSignalWorkflowExecutionRequest,
           extstoreStoreOptions(externalStorage, {
+            driverOperationLimit: this.driverOperationLimit,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
@@ -1530,6 +1534,7 @@ export class WorkflowClient extends BaseClient {
           req,
           walkSignalWithStartWorkflowExecutionRequest,
           extstoreStoreOptions(externalStorage, {
+            driverOperationLimit: this.driverOperationLimit,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
@@ -1575,6 +1580,7 @@ export class WorkflowClient extends BaseClient {
           req,
           walkStartWorkflowExecutionRequest,
           extstoreStoreOptions(externalStorage, {
+            driverOperationLimit: this.driverOperationLimit,
             initialTarget: {
               kind: 'workflow',
               namespace: req.namespace ?? this.options.namespace,
@@ -1684,6 +1690,7 @@ export class WorkflowClient extends BaseClient {
           req,
           walkTerminateWorkflowExecutionRequest,
           extstoreStoreOptions(externalStorage, {
+            driverOperationLimit: this.driverOperationLimit,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,

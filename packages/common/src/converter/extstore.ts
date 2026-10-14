@@ -53,9 +53,9 @@ export interface StorageDriverActivityInfo {
 export type StorageDriverTargetInfo = StorageDriverWorkflowInfo | StorageDriverActivityInfo;
 
 /**
- * Bounds how many external storage operations all drivers managed by a single ExternalStorage
- * instance may have in flight at once. This limit is cooperative which means driver
- * implementations must use the provided context.limiter to acquire permits for each operation.
+ * Bounds how many external storage operations all drivers used by a single client or worker may
+ * have in flight at once. This limit is cooperative which means driver implementations must use
+ * the provided context.limiter to acquire permits for each operation.
  *
  * This limit can be configured via {@link ExternalStorageConcurrency.maxDriverOperations}.
  *
@@ -151,13 +151,11 @@ const DEFAULT_MAX_OPERATIONS_PER_MESSAGE = 8;
  */
 export interface ExternalStorageConcurrency {
   /**
-   * Maximum requests in flight at once across every driver registered on this
-   * {@link ExternalStorage} instance.
+   * Maximum requests in flight at once across every driver used by a single client or worker.
    *
    * Enforced through the {@link StorageDriverLimiter} handed to each driver.
    *
-   * Share one instance between workers and clients for a single process-wide budget, or give each
-   * its own instance for independent budgets. Defaults to 64.
+   * Each client and each worker gets its own limit of this size. Defaults to 64.
    */
   maxDriverOperations?: number;
   /**

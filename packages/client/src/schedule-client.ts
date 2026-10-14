@@ -270,6 +270,7 @@ export class ScheduleClient extends BaseClient {
           req,
           walkCreateScheduleRequest,
           extstoreStoreOptions(externalStorage, {
+            driverOperationLimit: this.driverOperationLimit,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
@@ -342,6 +343,7 @@ export class ScheduleClient extends BaseClient {
           req,
           walkUpdateScheduleRequest,
           extstoreStoreOptions(externalStorage, {
+            driverOperationLimit: this.driverOperationLimit,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,

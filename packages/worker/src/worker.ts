@@ -41,6 +41,7 @@ import {
   ExternalStorageMetricsAccumulator,
   extstoreInboundOptions,
   extstoreStoreOptions,
+  newDriverOperationLimit,
   visit,
   walkActivityHeartbeat,
   walkActivityTask,
@@ -50,6 +51,7 @@ import {
   walkWorkflowActivationCompletion,
 } from '@temporalio/common/lib/internal-non-workflow';
 import type { StorageDriverTargetInfo } from '@temporalio/common/lib/converter/extstore';
+import type { ConcurrencyLimit } from '@temporalio/common/lib/concurrency/limit';
 import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 import type { Duration } from '@temporalio/common/lib/time';
 import {
@@ -854,7 +856,14 @@ export class Worker {
     protected readonly plugins: WorkerPlugin[],
     protected _connection?: NativeConnection,
     protected readonly isReplayWorker: boolean = false
-  ) {}
+  ) {
+    const { externalStorage } = options.loadedDataConverter;
+    // A worker does not share its client's limit, even when built from that client.
+    this.driverOperationLimit = externalStorage ? newDriverOperationLimit(externalStorage) : undefined;
+  }
+
+  /** Limits the external storage operations this worker's drivers run at once. */
+  protected readonly driverOperationLimit: ConcurrencyLimit | undefined;
 
   /**
    * An Observable which emits each time the number of in flight activations changes
@@ -1300,7 +1309,11 @@ export class Worker {
                 await visit(
                   completion,
                   walkActivityTaskCompletion,
-                  extstoreStoreOptions(externalStorage, { initialTarget, logger: this.logger })
+                  extstoreStoreOptions(externalStorage, {
+                    initialTarget,
+                    logger: this.logger,
+                    driverOperationLimit: this.driverOperationLimit,
+                  })
                 );
               } catch (e) {
                 const error = ensureApplicationFailure(e);
@@ -1403,7 +1416,10 @@ export class Worker {
             await visit(
               completion,
               walkNexusTaskCompletion,
-              extstoreStoreOptions(externalStorage, { logger: this.logger })
+              extstoreStoreOptions(externalStorage, {
+                logger: this.logger,
+                driverOperationLimit: this.driverOperationLimit,
+              })
             );
           } catch (e) {
             this.logger.error(`Error while offloading Nexus task result to external storage: ${errorMessage(e)}`, {
@@ -1625,6 +1641,7 @@ export class Worker {
             deriveContext: workflowCommandStoreTarget(namespace, workflow.info),
             metrics: uploadMetrics,
             logger: this.logger,
+            driverOperationLimit: this.driverOperationLimit,
           });
           await visit(encodedCompletion, walkWorkflowActivationCompletion, visitorOptions);
           for (const { command, payload } of systemNexusInputs) {
@@ -1995,6 +2012,7 @@ export class Worker {
                   extstoreStoreOptions(externalStorage, {
                     initialTarget: activityStorageTarget(info),
                     logger: this.logger,
+                    driverOperationLimit: this.driverOperationLimit,
                   })
                 );
               }

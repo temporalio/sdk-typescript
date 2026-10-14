@@ -179,33 +179,37 @@ export class GcsStorageDriver implements StorageDriver {
     uploads: Map<string, Promise<void>>
   ): Promise<StorageDriverClaim> {
     const bucket = this.bucket(context, payload);
-
-    const payloadBytes = PayloadProto.encode(payload).finish();
-    if (payloadBytes.length > this.maxPayloadSize) {
-      throw new ValueError(
-        `Payload size ${payloadBytes.length} bytes exceeds the configured maxPayloadSize of ${this.maxPayloadSize} bytes`
-      );
-    }
-
-    const hashValue = createHash('sha256').update(payloadBytes).digest('hex');
-    const object = `v0${contextSegments}/d/sha256/${hashValue}`;
+    let object: string | undefined;
 
     try {
-      const dedupeKey = `${bucket} ${object}`;
-      let upload = uploads.get(dedupeKey);
-      if (!upload) {
-        upload = context.limiter.permit(payload, () => this.client.save(bucket, object, payloadBytes, { abortSignal }));
-        uploads.set(dedupeKey, upload);
-      }
-      await upload;
+      return await context.limiter.permit(payload, async () => {
+        const payloadBytes = PayloadProto.encode(payload).finish();
+        if (payloadBytes.length > this.maxPayloadSize) {
+          throw new ValueError(
+            `Payload size ${payloadBytes.length} bytes exceeds the configured maxPayloadSize of ${this.maxPayloadSize} bytes`
+          );
+        }
+
+        const hashValue = createHash('sha256').update(payloadBytes).digest('hex');
+        object = `v0${contextSegments}/d/sha256/${hashValue}`;
+
+        const dedupeKey = `${bucket} ${object}`;
+        let upload = uploads.get(dedupeKey);
+        if (!upload) {
+          upload = this.client.save(bucket, object, payloadBytes, { abortSignal });
+          uploads.set(dedupeKey, upload);
+        }
+        await upload;
+
+        return new StorageDriverClaim({ bucket, object_name: object, hash_algorithm: 'sha256', hash_value: hashValue });
+      });
     } catch (err) {
+      if (err instanceof ValueError) throw err;
       throw new Error(
         `GcsStorageDriver store failed [bucket=${bucket}, object=${object}${formatClientContext(this.client)}]`,
         { cause: err }
       );
     }
-
-    return new StorageDriverClaim({ bucket, object_name: object, hash_algorithm: 'sha256', hash_value: hashValue });
   }
 
   private async retrievePayload(claim: StorageDriverClaim, abortSignal: AbortSignal): Promise<Payload> {

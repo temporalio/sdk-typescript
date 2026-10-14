@@ -4,7 +4,7 @@
  *
  * @module
  */
-import { unbounded } from '../concurrency/limit';
+import { limit, type ConcurrencyLimit } from '../concurrency/limit';
 import type { ExternalStorage, StorageDriverTargetInfo } from '../converter/extstore';
 import { ExternalStorageNotConfiguredError } from '../errors';
 import type { Logger } from '../logger';
@@ -32,6 +32,8 @@ export interface ExternalStorageStoreOptions {
   /** Collects metrics of the store operations performed during the walk. */
   metrics?: ExternalStorageMetricsAccumulator;
   logger?: Logger;
+  /** The driver operation limit of the client or worker running the walk. */
+  driverOperationLimit?: ConcurrencyLimit;
 }
 
 /**
@@ -40,9 +42,16 @@ export interface ExternalStorageStoreOptions {
  */
 export function extstoreStoreOptions(
   externalStorage: ExternalStorage,
-  { initialTarget, deriveContext, abortSignal, metrics, logger }: ExternalStorageStoreOptions = {}
+  {
+    initialTarget,
+    deriveContext,
+    abortSignal,
+    metrics,
+    logger,
+    driverOperationLimit,
+  }: ExternalStorageStoreOptions = {}
 ): VisitOptions<StoreTarget> {
-  const runner = new ExternalStorageRunner(externalStorage, metrics, logger);
+  const runner = new ExternalStorageRunner(externalStorage, metrics, logger, driverOperationLimit);
   return {
     transformPayloads: (payloads, target, signal) => runner.store(payloads, { target, abortSignal: signal }),
     transformPayload: (payload, target, signal) =>
@@ -51,7 +60,7 @@ export function extstoreStoreOptions(
     initialContext: initialTarget,
     // Search attributes must keep their literal values so the server can index/search on them.
     skipSearchAttributes: true,
-    limit: unbounded(),
+    limit: limit(externalStorage.concurrency.maxOperationsPerMessage),
     abortSignal,
   };
 }
@@ -62,15 +71,21 @@ function extstoreRetrieveOptions(
     abortSignal,
     metrics,
     logger,
-  }: { abortSignal?: AbortSignal; metrics?: ExternalStorageMetricsAccumulator; logger?: Logger } = {}
+    driverOperationLimit,
+  }: {
+    abortSignal?: AbortSignal;
+    metrics?: ExternalStorageMetricsAccumulator;
+    logger?: Logger;
+    driverOperationLimit?: ConcurrencyLimit;
+  } = {}
 ): VisitOptions<void> {
-  const runner = new ExternalStorageRunner(externalStorage, metrics, logger);
+  const runner = new ExternalStorageRunner(externalStorage, metrics, logger, driverOperationLimit);
   return {
     transformPayloads: (payloads, _context, signal) => runner.retrieve(payloads, { abortSignal: signal }),
     transformPayload: (payload, _context, signal) =>
       runner.retrieve([payload], { abortSignal: signal }).then((retrieved) => retrieved[0]!),
     skipSearchAttributes: true,
-    limit: unbounded(),
+    limit: limit(externalStorage.concurrency.maxOperationsPerMessage),
     abortSignal,
   };
 }

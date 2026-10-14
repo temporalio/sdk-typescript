@@ -31,19 +31,13 @@ import { decodeReferencePayload, encodeReferencePayload, isReferencePayload } fr
 const PayloadProto = temporal.api.common.v1.Payload;
 
 /**
- * The map that holds extstore operation limits for each {@link ExternalStorage} instance.
- * Each time an {@link ExternalStorageRunner} is created, it retrieves the limit from this
- * based on the `ExternalStorage` config it's passed.
+ * Creates the limit a single client or worker applies to its own driver operations.
+ *
+ * @internal
+ * @experimental
  */
-const driverOperationLimits = new WeakMap<ExternalStorage, ConcurrencyLimit>();
-
-function driverOperationLimitFor(externalStorage: ExternalStorage): ConcurrencyLimit {
-  let operationLimit = driverOperationLimits.get(externalStorage);
-  if (operationLimit === undefined) {
-    operationLimit = limit(externalStorage.concurrency.maxDriverOperations);
-    driverOperationLimits.set(externalStorage, operationLimit);
-  }
-  return operationLimit;
+export function newDriverOperationLimit(externalStorage: ExternalStorage): ConcurrencyLimit {
+  return limit(externalStorage.concurrency.maxDriverOperations);
 }
 
 /** @internal @experimental */
@@ -73,10 +67,11 @@ export class ExternalStorageRunner {
   constructor(
     private readonly externalStorage: ExternalStorage,
     private readonly metrics?: ExternalStorageMetricsAccumulator,
-    private readonly logger?: Logger
+    private readonly logger?: Logger,
+    driverOperationLimit?: ConcurrencyLimit
   ) {
     this.messageLimit = limit(externalStorage.concurrency.maxOperationsPerMessage);
-    this.driverOperationLimit = driverOperationLimitFor(externalStorage);
+    this.driverOperationLimit = driverOperationLimit ?? newDriverOperationLimit(externalStorage);
   }
 
   /**
