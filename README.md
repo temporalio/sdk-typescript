@@ -17,6 +17,9 @@ For documentation and samples, see:
 - [TypeScript Samples](https://github.com/temporalio/samples-typescript)
 - [TypeScript API Reference](https://typescript.temporal.io/)
 - [General Temporal Documentation](https://docs.temporal.io)
+- [Standalone Nexus Operations](https://docs.temporal.io/develop/typescript/nexus/standalone-operations) are in
+  [Public Preview](https://docs.temporal.io/evaluate/development-production-features/release-stages#public-preview).
+  We aim to preserve backward compatibility and avoid breaking changes.
 
 ## Quick Start
 
