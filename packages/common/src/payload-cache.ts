@@ -1,14 +1,16 @@
 import type { Payload } from './interfaces';
 
 /**
- * Generic interface for a payload cache
+ * Generic interface for a payload cache.
+ *
+ * Implementations should not throw or reject. The SDK treats a failed `get` as a miss and ignores a failed `set`.
  *
  * @experimental
  */
 export interface PayloadCache {
-  /** Returns the payload stored under `key`, or `undefined` on a miss. The SDK treats a rejection as a miss. */
+  /** Returns the payload stored under `key`, or `undefined` on a miss. */
   get(key: string): Promise<Payload | undefined>;
 
-  /** Returns whether the cache accepted `payload`. The SDK ignores rejections. */
+  /** Returns whether the cache accepted `payload`. */
   set(key: string, payload: Payload): Promise<boolean>;
 }
