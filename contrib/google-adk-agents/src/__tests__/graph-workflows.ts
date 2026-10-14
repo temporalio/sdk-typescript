@@ -1,14 +1,16 @@
 /**
- * Workflow fixtures for ADK 2.0's workflow (graph) runtime and dynamic nodes.
- * Bundled into the sandbox through `workflows.ts`, which re-exports this module.
+ * Workflow fixtures for ADK 2.0's workflow (graph) runtime, dynamic nodes and
+ * durable human-in-the-loop. Bundled into the sandbox through `workflows.ts`,
+ * which re-exports this module.
  *
  * Every fixture runs the *native* ADK runtime inside the Workflow; the plugin
- * routes only model and Activity-node I/O to Activities.
+ * routes only model, Activity-node, activity-tool and MCP I/O to Activities.
  */
 
 import {
   App,
   BasePlugin,
+  BaseTool,
   createEvent,
   createResumabilityConfig,
   DEFAULT_ROUTE,
@@ -17,22 +19,54 @@ import {
   JoinNode,
   LlmAgent,
   node,
+  PolicyOutcome,
   REQUEST_INPUT_FUNCTION_CALL_NAME,
   RequestInput,
+  requestInputTool,
+  SecurityPlugin,
   stringifyContent,
   TruncatingContextCompactor,
   Workflow,
   type BaseNode,
+  type BasePolicyEngine,
+  type BaseToolset,
   type Event,
   type LlmResponse,
   type NodeContext,
+  type PolicyCheckResult,
+  type RunAsyncToolRequest,
+  type RunConfig,
+  type Runner,
   type RunnableRoot,
+  type ToolCallPolicyContext,
 } from '@google/adk';
-import { Type, type Part } from '@google/genai';
+import { Type, type Content, type FunctionDeclaration, type Part } from '@google/genai';
 import { z } from 'zod';
-import { ActivityCancellationType, sleep } from '@temporalio/workflow';
+import { ApplicationFailure } from '@temporalio/common';
+import {
+  ActivityCancellationType,
+  type ActivityOptions,
+  condition,
+  defineQuery,
+  defineUpdate,
+  setHandler,
+  sleep,
+} from '@temporalio/workflow';
 
-import { activityNode, markModelFailureHandled, TemporalModel, type TemporalModelOptions } from '../workflow';
+import {
+  activityAsTool,
+  activityNode,
+  hitlConfirmationResponse,
+  HITL_RESPONSE_FAILURE_TYPE,
+  hitlInputResponse,
+  markModelFailureHandled,
+  pendingHitlRequests,
+  TemporalMCPToolset,
+  TemporalModel,
+  type HitlConfirmation,
+  type HitlRequest,
+  type TemporalModelOptions,
+} from '../workflow';
 
 const USER = 'test-user';
 
@@ -380,6 +414,77 @@ export async function graphAgentNodeWithFailingSibling(): Promise<RunOutcome> {
   );
 }
 
+/** Activity options under which only a cancellation can end a hanging tool call before 20s. */
+const HANGING_TOOL_ACTIVITY: ActivityOptions = {
+  startToCloseTimeout: '20 seconds',
+  heartbeatTimeout: '6 seconds',
+  retry: { maximumAttempts: 3, initialInterval: '1 second' },
+  cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
+};
+
+/**
+ * An `LlmAgent` node calling `tool` beside a sibling that fails once that call is under
+ * way. ADK aborts the run's signal when the sibling fails and then waits for the agent
+ * node (`Workflow.cleanupPending`), so the node unwinds only if the abort cancels the
+ * tool's Activity: the tool phase of a turn, as opposed to its model call.
+ */
+function toolCallBesideFailingSibling(name: string, model: string, tool: BaseTool | BaseToolset): Promise<RunOutcome> {
+  let toolCalled = false;
+  const agent = new LlmAgent({
+    name: 'assistant',
+    model: new TemporalModel(model),
+    instruction: 'Use the tool.',
+    tools: [tool],
+    // Orders the sibling's failure after the tool call however slow the runner is.
+    beforeToolCallback: () => {
+      toolCalled = true;
+      return undefined;
+    },
+  });
+  const wait = node(
+    async () => {
+      await condition(() => toolCalled);
+      // Lets the tool's Activity get scheduled and start heartbeating first.
+      await sleep('1 second');
+      return 'waited';
+    },
+    { name: 'wait' }
+  );
+  const failing = activityNode({
+    name: 'failingActivity',
+    args: () => [],
+    activity: { retry: { maximumAttempts: 1 } },
+  });
+  return runOnce(
+    new Workflow({
+      name,
+      edges: [
+        ['START', agent],
+        ['START', wait, failing],
+      ],
+    }),
+    'hi'
+  );
+}
+
+/** {@link toolCallBesideFailingSibling} with an `activityAsTool` that never answers. */
+export async function graphActivityToolWithFailingSibling(): Promise<RunOutcome> {
+  return toolCallBesideFailingSibling(
+    'activity_tool_beside_failing_sibling',
+    'call-hanging-tool-model',
+    activityAsTool({ name: 'hangingTool', description: 'Never answers.', activity: HANGING_TOOL_ACTIVITY })
+  );
+}
+
+/** {@link toolCallBesideFailingSibling} with a `TemporalMCPToolset` tool that never answers. */
+export async function graphMcpToolWithFailingSibling(): Promise<RunOutcome> {
+  return toolCallBesideFailingSibling(
+    'mcp_tool_beside_failing_sibling',
+    'call-hanging-mcp-model',
+    new TemporalMCPToolset({ name: 'hangServer', activity: HANGING_TOOL_ACTIVITY })
+  );
+}
+
 /**
  * A {@link cancellableAgent} node under ADK's own one-second `timeout`, retried once on
  * `NodeTimeoutError`. ADK keeps the node's deadline from the agent, which runs with the
@@ -662,4 +767,370 @@ export async function workflowAsTool(schema: 'zod' | 'genai-string' | 'genai-obj
     tools: [flow],
   });
   return runOnce(agent, 'enrich 7');
+}
+
+// ---------------------------------------------------------------------------
+// Durable human-in-the-loop
+// ---------------------------------------------------------------------------
+
+/** Pending pauses of the current turn. */
+export const pendingHitlQuery = defineQuery<HitlRequest[]>('pendingHitl');
+/**
+ * Answers an interrupt: a value for `input`, `{ confirmed }` for `confirmation`.
+ * The handler builds the response `Part` itself, so an unknown interrupt id or a
+ * value the builder refuses rejects the Update instead of committing an answer
+ * the Workflow body would choke on a moment later.
+ */
+export const respondHitlUpdate = defineUpdate<void, [string, unknown]>('respondHitl');
+/** Sends the next turn as plain text instead of structured responses. */
+export const plainTextTurnUpdate = defineUpdate<void, [string]>('plainTextTurn');
+/**
+ * Answers an interrupt with an ordinary text turn and marks it answered locally.
+ * For an `adk_request_input` raised by a plain `LlmAgent` (ADK's `requestInputTool`),
+ * ADK 2.0 strips the framework call and its function response from the model's
+ * context, so only a text reply reaches the model — and ADK's own pending list
+ * clears only on a function response, so the loop tracks the answer itself.
+ */
+export const answerAsTextUpdate = defineUpdate<void, [string, string]>('answerAsText');
+
+/** How long a fixture waits for the test to answer before failing (see `runWithHitl`). */
+const HITL_ANSWER_TIMEOUT = '60 seconds';
+
+/**
+ * How long `respondHitlUpdate` waits for the request it answers to be published before
+ * refusing the id as unknown (see `installHitlHandlers`).
+ */
+export const HITL_LOOKUP_TIMEOUT_MS = 5_000;
+
+interface HitlState {
+  pending: HitlRequest[];
+  /** Response `Part`s the Update already validated, keyed by interrupt id. */
+  parts: Map<string, Part>;
+  textAnswers: Map<string, string>;
+  /** Interrupts answered with text: ADK still lists them, the loop does not. */
+  answered: Set<string>;
+  plainText?: string;
+}
+
+function installHitlHandlers(): HitlState {
+  const state: HitlState = { pending: [], parts: new Map(), textAnswers: new Map(), answered: new Set() };
+  setHandler(pendingHitlQuery, () => state.pending);
+  setHandler(respondHitlUpdate, async (interruptId, value) => {
+    // Within one Workflow Task the SDK runs signal and update handlers before it resumes
+    // the body: Core orders those jobs ahead of activity resolutions. An answer can land
+    // in the very task that carries the turn's last Activity result, before the body has
+    // published the request it answers, so wait for that briefly; only an id that never
+    // shows up is refused. Skipping the wait when the request is already pending keeps
+    // the usual answer timer-free: `condition` with a timeout always starts a timer.
+    const isPending = (): boolean => state.pending.some((r) => r.interruptId === interruptId);
+    if (!isPending()) await condition(isPending, HITL_LOOKUP_TIMEOUT_MS);
+    const request = state.pending.find((r) => r.interruptId === interruptId);
+    if (!request) {
+      throw ApplicationFailure.nonRetryable(
+        `no HITL request '${interruptId}' is pending; waiting on ${JSON.stringify(
+          state.pending.map((r) => r.interruptId)
+        )}`,
+        HITL_RESPONSE_FAILURE_TYPE
+      );
+    }
+    // Building the Part here is the point: a refused value rejects this Update and
+    // leaves the interrupt open, rather than failing the Workflow Task in the body.
+    state.parts.set(
+      interruptId,
+      request.kind === 'confirmation'
+        ? hitlConfirmationResponse(request, value as HitlConfirmation)
+        : hitlInputResponse(request, value)
+    );
+  });
+  setHandler(plainTextTurnUpdate, (text) => {
+    state.plainText = text;
+  });
+  setHandler(answerAsTextUpdate, (interruptId, text) => {
+    state.textAnswers.set(interruptId, text);
+  });
+  return state;
+}
+
+/**
+ * The durable HITL loop: run a turn; while pauses are pending, expose them,
+ * wait for answers through the Update, and run the next turn with the
+ * answers as user-authored function responses (all of them in one message).
+ */
+async function runWithHitl(
+  root: RunnableRoot,
+  prompt: string,
+  options: { plugins?: BasePlugin[]; runner?: Runner } = {}
+): Promise<RunOutcome & { turns: number }> {
+  const state = installHitlHandlers();
+  const runner = options.runner ?? new InMemoryRunner({ agent: root, plugins: options.plugins });
+  const session = await runner.sessionService.createSession({ appName: runner.appName, userId: USER });
+  let newMessage: Content = { role: 'user', parts: [{ text: prompt }] };
+  let runConfig: RunConfig | undefined;
+  let turns = 0;
+  for (;;) {
+    turns++;
+    const outcome = await collect(runner.runAsync({ userId: USER, sessionId: session.id, newMessage, runConfig }));
+    runConfig = undefined;
+    const current = await runner.sessionService.getSession({
+      appName: runner.appName,
+      userId: USER,
+      sessionId: session.id,
+    });
+    const pending = pendingHitlRequests(current?.events ?? []).filter((r) => !state.answered.has(r.interruptId));
+    state.pending = pending;
+    if (pending.length === 0) return { ...outcome, turns };
+
+    // A bounded wait: a fixture that is never answered must fail its Workflow
+    // rather than block `handle.result()` until the ava worker is killed.
+    const answeredInTime = await condition(
+      () =>
+        state.plainText !== undefined ||
+        pending.some((r) => state.parts.has(r.interruptId) || state.textAnswers.has(r.interruptId)),
+      HITL_ANSWER_TIMEOUT
+    );
+    if (!answeredInTime) {
+      throw ApplicationFailure.nonRetryable(
+        `no HITL answer within ${HITL_ANSWER_TIMEOUT} for ${JSON.stringify(pending.map((r) => r.interruptId))}`,
+        'TestHitlAnswerTimeout'
+      );
+    }
+    if (state.plainText !== undefined) {
+      // A plain-text approval runs the tool but never answers the gate's function
+      // call, so ADK keeps listing it; the loop marks it answered itself.
+      for (const r of pending) state.answered.add(r.interruptId);
+      newMessage = { role: 'user', parts: [{ text: state.plainText }] };
+      runConfig = { plainTextToolConfirmation: true };
+      state.plainText = undefined;
+      continue;
+    }
+    const textAnswered = pending.filter((r) => state.textAnswers.has(r.interruptId));
+    if (textAnswered.length > 0) {
+      const parts: Part[] = textAnswered.map((r) => ({ text: state.textAnswers.get(r.interruptId)! }));
+      for (const r of textAnswered) {
+        state.textAnswers.delete(r.interruptId);
+        state.answered.add(r.interruptId);
+      }
+      newMessage = { role: 'user', parts };
+      continue;
+    }
+    const parts: Part[] = [];
+    for (const request of pending) {
+      const part = state.parts.get(request.interruptId);
+      if (!part) continue;
+      state.parts.delete(request.interruptId);
+      parts.push(part);
+    }
+    newMessage = { role: 'user', parts };
+  }
+}
+
+/** START → a node that pauses for input → a node that uses the answer. */
+export async function hitlInputNode(): Promise<RunOutcome & { turns: number }> {
+  const ask = node(
+    async function* () {
+      yield new RequestInput({ interruptId: 'approval', message: 'Approve the release?' });
+    },
+    { name: 'ask' }
+  );
+  const answer = node((_ctx: NodeContext, input: unknown) => `approved:${String(input)}`, { name: 'answer' });
+  return runWithHitl(new Workflow({ name: 'hitl_input', edges: [['START', ask, answer]] }), 'go');
+}
+
+/**
+ * A `RequestInput` declaring a structured `responseSchema`. ADK checks the answer
+ * against it when the graph resumes and throws a plain `Error` on a mismatch, so
+ * the answer has to be checked where it arrives instead.
+ */
+export async function hitlStructuredInput(): Promise<RunOutcome & { turns: number }> {
+  const ask = node(
+    () =>
+      new RequestInput({
+        interruptId: 'structured',
+        message: 'Your name?',
+        responseSchema: z.object({ name: z.string() }),
+      }),
+    { name: 'ask' }
+  );
+  const answer = node((_ctx: NodeContext, input: unknown) => `hello:${(input as { name: string }).name}`, {
+    name: 'answer',
+  });
+  return runWithHitl(new Workflow({ name: 'hitl_structured', edges: [['START', ask, answer]] }), 'go');
+}
+
+/**
+ * A pause published only after a one-second durable timer, so a test can answer it
+ * before any Query could show it: the Update handler has to wait for the request rather
+ * than refuse a valid answer.
+ */
+export async function hitlAnswerBeforeRequest(): Promise<RunOutcome & { turns: number }> {
+  const warmUp = node(
+    async () => {
+      await sleep('1 second');
+      return 'ready';
+    },
+    { name: 'warm_up' }
+  );
+  const ask = node(() => new RequestInput({ interruptId: 'late', message: 'Proceed?' }), { name: 'ask' });
+  const answer = node((_ctx: NodeContext, input: unknown) => `answered:${String(input)}`, { name: 'answer' });
+  return runWithHitl(new Workflow({ name: 'hitl_answer_first', edges: [['START', warmUp, ask, answer]] }), 'go');
+}
+
+/** A `RequestInput` with no explicit id: ADK mints one, which must replay identically. */
+export async function hitlDefaultInterruptId(): Promise<RunOutcome & { turns: number }> {
+  const ask = node(() => new RequestInput({ message: 'Name?' }), { name: 'ask' });
+  const answer = node((_ctx: NodeContext, input: unknown) => `hello:${String(input)}`, { name: 'answer' });
+  return runWithHitl(new Workflow({ name: 'hitl_default_id', edges: [['START', ask, answer]] }), 'go');
+}
+
+/** Two pauses raised in parallel, joined: partial answers keep the other pending. */
+export async function hitlTwoPending(): Promise<RunOutcome & { turns: number }> {
+  const askA = node(() => new RequestInput({ interruptId: 'a', message: 'A?' }), { name: 'ask_a' });
+  const askB = node(() => new RequestInput({ interruptId: 'b', message: 'B?' }), { name: 'ask_b' });
+  const join = new JoinNode({ name: 'join' });
+  const final = node(
+    (_ctx: NodeContext, results: Record<string, unknown>) => `${String(results['ask_a'])}&${String(results['ask_b'])}`,
+    { name: 'final' }
+  );
+  return runWithHitl(
+    new Workflow({
+      name: 'hitl_two',
+      edges: [
+        ['START', askA, join],
+        ['START', askB, join],
+        [join, final],
+      ],
+    }),
+    'go'
+  );
+}
+
+/** An agent raises the pause itself through ADK's `requestInputTool`. */
+export async function hitlAgentRequestInput(): Promise<RunOutcome & { turns: number }> {
+  const agent = new LlmAgent({
+    name: 'assistant',
+    model: new TemporalModel('request-input-model'),
+    instruction: 'Ask the user.',
+    tools: [requestInputTool],
+  });
+  return runWithHitl(agent, 'start');
+}
+
+const dangerParameters = {
+  type: Type.OBJECT,
+  properties: { target: { type: Type.STRING, description: 'Deployment target.' } },
+  required: ['target'],
+};
+
+/** A confirmation-gated `activityAsTool`: the Activity runs only once approved. */
+export async function hitlConfirmActivityTool(): Promise<RunOutcome & { turns: number }> {
+  const agent = new LlmAgent({
+    name: 'assistant',
+    model: new TemporalModel('confirm-danger-model'),
+    instruction: 'Deploy.',
+    tools: [
+      activityAsTool({
+        name: 'dangerActivity',
+        description: 'Dangerous.',
+        parameters: dangerParameters,
+        requireConfirmation: true,
+      }),
+    ],
+  });
+  return runWithHitl(agent, 'deploy to prod');
+}
+
+/** A confirmation-gated MCP toolset: the `<name>-callTool` Activity runs only once approved. */
+export async function hitlConfirmMcpTool(): Promise<RunOutcome & { turns: number }> {
+  const agent = new LlmAgent({
+    name: 'assistant',
+    model: new TemporalModel('confirm-echo-model'),
+    instruction: 'Echo.',
+    tools: [new TemporalMCPToolset({ name: 'testServer', requireConfirmation: true })],
+  });
+  return runWithHitl(agent, 'echo hello');
+}
+
+/**
+ * A `BaseTool` that gates itself at run time without declaring it through
+ * `checkRequireConfirmation` — what a tool body calling
+ * `toolContext.requestConfirmation()` looks like. ADK 2.0.0 refuses to bind the
+ * approval to it (`confirmation_not_required`), which is why the plugin's tools
+ * declare their gate instead.
+ */
+class DynamicGateTool extends BaseTool {
+  constructor() {
+    super({ name: 'dynamicGate', description: 'Gated at run time.' });
+  }
+
+  override _getDeclaration(): FunctionDeclaration {
+    return { name: this.name, description: this.description, parameters: dangerParameters };
+  }
+
+  override async runAsync({ toolContext }: RunAsyncToolRequest): Promise<unknown> {
+    if (!toolContext.toolConfirmation) {
+      toolContext.requestConfirmation({ hint: 'Approve dynamicGate?' });
+      toolContext.actions.skipSummarization = true;
+      return { error: 'This tool call requires confirmation, please approve or reject.' };
+    }
+    if (!toolContext.toolConfirmation.confirmed) return { error: 'This tool call is rejected.' };
+    return { ran: true };
+  }
+}
+
+export async function hitlDynamicGateTool(): Promise<RunOutcome & { turns: number }> {
+  const agent = new LlmAgent({
+    name: 'assistant',
+    model: new TemporalModel('confirm-gate-model'),
+    instruction: 'Deploy.',
+    tools: [new DynamicGateTool()],
+  });
+  return runWithHitl(agent, 'deploy to prod');
+}
+
+/** A policy engine that requires confirmation for `dangerActivity`. */
+class ConfirmDangerPolicy implements BasePolicyEngine {
+  async evaluate({ tool }: ToolCallPolicyContext): Promise<PolicyCheckResult> {
+    return tool.name === 'dangerActivity'
+      ? { outcome: PolicyOutcome.CONFIRM, reason: 'Dangerous tool.' }
+      : { outcome: PolicyOutcome.ALLOW };
+  }
+}
+
+/**
+ * ADK's `SecurityPlugin` gating an ungated activity tool: its CONFIRM outcome
+ * raises the pause, but the approval hits the same ADK 2.0.0 limit as
+ * {@link DynamicGateTool} because the tool itself never declared a gate.
+ */
+export async function hitlSecurityPlugin(): Promise<RunOutcome & { turns: number }> {
+  const agent = new LlmAgent({
+    name: 'assistant',
+    model: new TemporalModel('confirm-danger-model'),
+    instruction: 'Deploy.',
+    tools: [activityAsTool({ name: 'dangerActivity', description: 'Dangerous.', parameters: dangerParameters })],
+  });
+  return runWithHitl(agent, 'deploy to prod', {
+    plugins: [new SecurityPlugin({ policyEngine: new ConfirmDangerPolicy() })],
+  });
+}
+
+/**
+ * A dynamic driver runs an Activity child, then pauses for input; on resume the
+ * driver body re-runs but the completed child is fast-forwarded from the session.
+ */
+export async function dynamicResume(): Promise<RunOutcome & { turns: number }> {
+  const fetch = activityNode({ name: 'countedFetch', nodeName: 'fetch', args: () => ['step1'] });
+  const approval = node(() => new RequestInput({ interruptId: 'approve', message: 'Continue?' }), {
+    name: 'approval',
+    rerunOnResume: false,
+  });
+  const driver = node(
+    async (ctx: NodeContext, _input: unknown) => {
+      const fetched = await ctx.runNode(fetch, undefined);
+      const approved = await ctx.runNode(approval, fetched.output);
+      if (approved.interruptIds.length > 0) return undefined;
+      return `${String(fetched.output)}|${String(approved.output)}`;
+    },
+    { name: 'driver', rerunOnResume: true }
+  );
+  return runWithHitl(new Workflow({ name: 'dynamic_resume', edges: [['START', driver]] }), 'go');
 }

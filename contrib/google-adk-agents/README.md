@@ -171,6 +171,9 @@ connection params above and ADK's `MCPToolset` both open a new session per
 operation rather than reusing one. Holding a session open across operations is
 the factory's job — see `MCPToolsetFactory`.
 
+Gate the toolset's tools behind human approval with
+`requireConfirmation` — see [Durable human-in-the-loop](#durable-human-in-the-loop).
+
 ### Activities as tools
 
 Use `activityAsTool` to expose an existing Temporal Activity to the agent:
@@ -287,6 +290,155 @@ const runner = new InMemoryRunner({ agent: graph });
 - `LongRunningFunctionTool`s (including a node-as-tool) cannot be used as a
   `ToolNode`; ADK rejects that.
 
+### Durable human-in-the-loop
+
+ADK pauses a run by emitting a long-running function call — `adk_request_input`
+from a `RequestInput` node or ADK's `requestInputTool`, `adk_request_confirmation`
+from a tool gated with `requireConfirmation` — and resumes when a later user
+message answers it. Because the runner runs inside the Workflow, the wait is
+ordinary Workflow code, and the plugin supplies the wire format:
+
+```typescript
+import { InMemoryRunner } from '@google/adk';
+import type { Content, Part } from '@google/genai';
+import { ApplicationFailure } from '@temporalio/common';
+import { condition, defineQuery, defineUpdate, setHandler } from '@temporalio/workflow';
+import {
+  HITL_RESPONSE_FAILURE_TYPE,
+  hitlConfirmationResponse,
+  hitlInputResponse,
+  pendingHitlRequests,
+  type HitlConfirmation,
+  type HitlRequest,
+} from '@temporalio/google-adk-agents/workflow';
+
+export const pendingQuery = defineQuery<HitlRequest[]>('pending');
+export const respondUpdate = defineUpdate<void, [string, unknown]>('respond');
+
+// `graph` is the Workflow built in the section above; any RunnableRoot works.
+export async function reviewWorkflow(prompt: string): Promise<unknown> {
+  let pending: HitlRequest[] = [];
+  const answers = new Map<string, Part>();
+  setHandler(pendingQuery, () => pending);
+  // Build the response inside the handler, so a bad answer rejects the Update
+  // rather than failing a Workflow Task once it is already in history.
+  setHandler(respondUpdate, async (interruptId, value) => {
+    // Handlers run before the body resumes, so the answer can arrive before the body
+    // has published its request: wait briefly (only when it is not pending yet, since
+    // a timeout starts a timer), and refuse only an id that never shows up.
+    const isPending = () => pending.some((r) => r.interruptId === interruptId);
+    if (!isPending()) await condition(isPending, '5 seconds');
+    const request = pending.find((r) => r.interruptId === interruptId);
+    if (!request) {
+      throw ApplicationFailure.nonRetryable(`nothing is waiting on '${interruptId}'`, HITL_RESPONSE_FAILURE_TYPE);
+    }
+    answers.set(
+      interruptId,
+      request.kind === 'confirmation'
+        ? hitlConfirmationResponse(request, value as HitlConfirmation)
+        : hitlInputResponse(request, value)
+    );
+  });
+
+  const runner = new InMemoryRunner({ agent: graph });
+  const session = await runner.sessionService.createSession({ appName: runner.appName, userId: 'user' });
+  let newMessage: Content = { role: 'user', parts: [{ text: prompt }] };
+  for (;;) {
+    let output: unknown;
+    for await (const event of runner.runAsync({ userId: 'user', sessionId: session.id, newMessage })) {
+      if (event.output !== undefined) output = event.output;
+    }
+    const current = await runner.sessionService.getSession({
+      appName: runner.appName,
+      userId: 'user',
+      sessionId: session.id,
+    });
+    pending = pendingHitlRequests(current?.events ?? []);
+    if (pending.length === 0) return output;
+
+    await condition(() => pending.every((r) => answers.has(r.interruptId)));
+    newMessage = { role: 'user', parts: pending.map((r) => answers.get(r.interruptId)!) };
+  }
+}
+```
+
+- `pendingHitlRequests(events)` returns ADK's `UserInputRequest`s (plain JSON, so a
+  Query can return them) that still await an answer, minus credential requests. The
+  returned `HitlRequest` is a union of `HitlInputRequest` and `HitlConfirmationRequest`
+  discriminated on `kind`, so narrowing on `kind` picks the builder that accepts it.
+- `hitlInputResponse(request, value)` answers an input request: a plain object is
+  sent as-is, anything else is wrapped in ADK's `{ result: value }` envelope.
+  ADK unwraps that envelope by shape (any response whose single key is `result`)
+  and parses the _string_ it unwraps as JSON, unless the request declared a
+  `responseSchema` that accepts strings. A string that reads as JSON is therefore
+  refused rather than silently retyped — declare a string schema on the
+  `RequestInput`, or pass the parsed value. Any string that parses is refused, a
+  quoted one included: `'"foo"'` would reach the node as `foo`. `value` must be a
+  JSON value (`null` included): `undefined` is refused because ADK reads it as no
+  answer, so the node would ask again while `pendingHitlRequests` counts it as
+  answered, and a function, symbol or bigint because it is not JSON. A structured
+  answer (an object or array) is also checked against the request's
+  `responseSchema` exactly as ADK checks it when the graph resumes, zod's
+  `fromJSONSchema` over the JSON Schema recorded on the interrupt, and refused with
+  ADK's own message if it does not match; a bare scalar is exempt, as it is in ADK.
+  An answer the builder accepts is one ADK will accept.
+- An answer can reach the handler before the request it answers is pending. Within one
+  Workflow Task the SDK runs signal and update handlers before it resumes the Workflow
+  body, so an Update that lands in the task carrying the turn's last Activity result
+  runs while `pending` still holds the previous turn's list. A handler that depends on
+  state the body sets has to `condition()` on it, as the one above does, or it will
+  refuse a valid answer; the bound only decides how long an unknown id takes to refuse.
+- Both builders refuse an answer only by throwing a non-retryable `ApplicationFailure`
+  of type `HITL_RESPONSE_FAILURE_TYPE`, never any other error, whatever they are
+  handed: they check a decision or value before reading it, schema included. That is
+  what makes it safe to call them on the raw argument where the answer arrives, in
+  the Signal or Update handler, as above: the SDK rejects an Update only for a
+  `TemporalFailure`, so validating there tells the caller no, while letting a bad
+  answer through to the Workflow body would fail the Workflow Task over and over with
+  the answer already accepted (ADK refuses a schema mismatch on resume with a plain
+  `Error`).
+- `hitlConfirmationResponse(request, { confirmed, hint?, payload? })` answers a tool
+  gate. `confirmed` must be a boolean and `hint`, when present, a string; anything
+  else (`null`, `'yes'`) is refused rather than guessed, since ADK approves only on
+  `confirmed === true`. ADK reads approvals from the **latest** user message only,
+  so answer every pending confirmation in one message, and rebuild the agent for
+  the resumed turn with the same tool names — an approval naming a tool the agent
+  no longer has is refused with `IntentMismatchError`.
+- Gate an Activity or MCP tool with `requireConfirmation` (a flag, or a predicate
+  over the arguments that must be a pure function of them): the Activity is not
+  scheduled until the human approves, and a rejection returns ADK's rejection
+  result to the model. The same gate applies to a `TemporalMCPToolset` used
+  directly with ADK (outside a Workflow, from `connectionParams`). A gate is only
+  enforced on an `LlmAgent` turn; ADK's workflow `ToolNode` does not route through
+  confirmation. Declare the gate this
+  way rather than calling `toolContext.requestConfirmation()` from a tool body:
+  ADK 2.0.0 binds an approval only to a tool whose `checkRequireConfirmation`
+  says the call needs one, and refuses a gate requested only at run time — the
+  same limit applies to `SecurityPlugin`'s `CONFIRM` outcome — ending the
+  Workflow with `GoogleAdkIntentMismatchError` (`confirmation_not_required`).
+
+  ```typescript
+  activityAsTool({ name: 'deploy', description: 'Deploy.', parameters, requireConfirmation: true });
+  new TemporalMCPToolset({ name: 'ops', requireConfirmation: (toolName) => toolName === 'delete' });
+  ```
+
+  With `runConfig: { plainTextToolConfirmation: true }`, a plain "yes" answers
+  the single most recent pending gate — the tool runs, but the gate's function
+  call is never answered, so `pendingHitlRequests` keeps listing it; track it
+  yourself, as for agent-raised input requests below.
+
+- **Agent-raised input requests.** `requestInputTool` / `getUserChoiceTool` on a
+  plain `LlmAgent` pause the turn, but ADK 2.0 removes the framework call and its
+  function response from the model's context: a `hitlInputResponse` clears ADK's
+  pending list without the model ever seeing the value. Answer those with an
+  ordinary text turn instead, and track the answered id yourself (ADK's list
+  clears only on a function response). Graph `RequestInput` nodes and node-tools
+  receive `hitlInputResponse` values as their input.
+- Each turn appends to the session and to the Workflow history. A conversation
+  long enough to need `continueAsNew` has to carry the session's events into the
+  next run and replay them into a fresh session: an `InMemoryRunner`'s session
+  does not survive the boundary.
+
 ### Failures
 
 A model or Activity failure ends the Workflow through its `ActivityFailure` as
@@ -319,9 +471,11 @@ cancelled Activity node ends it CANCELLED the same way, inside a dynamic run too
 A failing sibling does not cancel the execution either. When a graph node fails,
 ADK aborts the run and waits for the nodes still running before failing it. The
 plugin turns that abort into a cancellation of the Activity each of those nodes is
-waiting on, an Activity node's Activity or an agent node's model call, and the
-execution then fails with the failed node's failure. The Activity's
-`cancellationType` sets how long that wait lasts, as it does for a node `timeout`.
+waiting on, an Activity node's Activity or an agent node's model call or tool call
+(`activityAsTool`, a `TemporalMCPToolset` tool), and the execution then fails with
+the failed node's failure. The Activity's `cancellationType` sets how long that wait
+lasts, as it does for a node `timeout`. A tool gated with `requireConfirmation` is
+cancellable only once it is approved: a pending confirmation schedules nothing.
 
 An agent node's own `timeout` is the exception: ADK fails the node with
 `NodeTimeoutError` without cancelling the model call it was waiting on (see
@@ -419,12 +573,13 @@ Cautions:
 
 ## Determinism notes
 
-- ADK generates ids — event, invocation and session ids, function-call ids — with
-  `randomUUID()`. The sandbox has no `crypto`, so the plugin serves ADK a `crypto`
-  module whose values come from a **named workflow random stream**: replay-stable,
-  and independent of the Workflow's own `Math.random()` sequence. Those ids are
-  **not cryptographically random** inside a Workflow; nor is ADK's OAuth2 `state`,
-  which is one reason credential flows are unsupported there.
+- ADK generates ids — event, invocation and session ids, function-call ids,
+  `RequestInput` interrupt ids — with `randomUUID()`. The sandbox has no `crypto`,
+  so the plugin serves ADK a `crypto` module whose values come from a **named
+  workflow random stream**: replay-stable, and independent of the Workflow's own
+  `Math.random()` sequence. Those ids are **not cryptographically random** inside
+  a Workflow; nor is ADK's OAuth2 `state`, which is one reason credential flows
+  are unsupported there.
 - ADK's node retry backoff and timeouts are durable timers; the retry jitter is
   drawn from the Workflow's `Math.random()`.
 - ADK resumes a paused run from the session events: completed nodes are
@@ -432,6 +587,10 @@ Cautions:
 
 ## Not supported in Workflows
 
+- **Credential requests** (`adk_request_credential`). `pendingHitlRequests` drops
+  them: answering one would put a secret into an Update payload that is persisted
+  in Workflow history, and ADK's OAuth2 `state` is predictable in a Workflow.
+  Acquire credentials on the Worker — in an Activity, or in an MCP toolset factory.
 - **Live / bidirectional streaming**: `Runner.runLive`, `StreamingMode.BIDI` and
   `BaseLlm.connect` (`TemporalModel.connect` throws `GoogleAdkUnsupported`; ADK
   itself rejects `StreamingMode.BIDI` in `runAsync`).

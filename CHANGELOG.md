@@ -40,6 +40,12 @@ to docs, or any other relevant information.
     overlap it; `activityNode` makes a registered Activity a graph node, and its deadline (or a
     sibling's failure) cancels the in-flight Activity and waits for that cancellation to settle
     before failing the node;
+  - durable human-in-the-loop: `pendingHitlRequests`, `hitlInputResponse` and
+    `hitlConfirmationResponse` supply ADK's wire format (refusing an answer with a
+    `GoogleAdkHitlResponseError` `ApplicationFailure`, so building the response in a Signal or
+    Update handler rejects the call rather than failing the Workflow Task), and `activityAsTool` /
+    `TemporalMCPToolset` gain `requireConfirmation` so an Activity or MCP tool call runs only once
+    a human approves;
   - ADK's runtime errors (`NodeTimeoutError`, `IntentMismatchError`, …) fail the Workflow with typed
     `ApplicationFailure`s (`ADK_RUNTIME_FAILURE_TYPES`) instead of retrying the Workflow Task
     forever.
