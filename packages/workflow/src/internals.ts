@@ -90,6 +90,8 @@ import { deserializeSystemNexusOutput } from './nexus/system/payload-converter';
 
 const StartChildWorkflowExecutionFailedCause = {
   WORKFLOW_ALREADY_EXISTS: 'WORKFLOW_ALREADY_EXISTS',
+  NAMESPACE_NOT_FOUND: 'NAMESPACE_NOT_FOUND',
+  INVALID_VERSIONING_OVERRIDE: 'INVALID_VERSIONING_OVERRIDE',
 } as const;
 type StartChildWorkflowExecutionFailedCause =
   (typeof StartChildWorkflowExecutionFailedCause)[keyof typeof StartChildWorkflowExecutionFailedCause];
@@ -104,6 +106,8 @@ const [_encodeStartChildWorkflowExecutionFailedCause, decodeStartChildWorkflowEx
   >(
     {
       [StartChildWorkflowExecutionFailedCause.WORKFLOW_ALREADY_EXISTS]: 1,
+      [StartChildWorkflowExecutionFailedCause.NAMESPACE_NOT_FOUND]: 2,
+      [StartChildWorkflowExecutionFailedCause.INVALID_VERSIONING_OVERRIDE]: 3,
       UNSPECIFIED: 0,
     } as const,
     'START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_'
