@@ -1,8 +1,9 @@
 /**
  * Unit tests for `toApplicationFailure`'s status-based retry classification,
- * covering statuses carried on the wrapped `err.response.status` (not just the
- * top-level `err.status`), plus the header-driven retry contract
- * (`x-should-retry`, `retry-after-ms` / `retry-after`).
+ * covering statuses carried on the wrapped `err.response.status` and further
+ * down the `cause` chain (not just the top-level `err.status`), plus the
+ * header-driven retry contract (`x-should-retry`, `retry-after-ms` /
+ * `retry-after`).
  */
 
 import test from 'ava';
@@ -108,6 +109,35 @@ test('numericGrpcCodeIsNotTreatedAsHttpStatus', (t) => {
   const failure = toApplicationFailure(Object.assign(new Error('UNAVAILABLE'), { code: 14 }));
   t.is(failure.type, 'GoogleAdkModelError');
   t.is(failure.nonRetryable, false);
+});
+
+// ADK 2.0 rethrows a failed MCP session open as
+// `new Error('Failed to create MCP session: …', { cause })`, so the transport
+// error that carries the status and the headers sits one level down.
+test('classifiesStatusCarriedOnTheCauseChain', (t) => {
+  const transport = Object.assign(new Error('HTTP 429'), { status: 429 });
+  const failure = toApplicationFailure(
+    Object.assign(new Error('Failed to create MCP session: HTTP 429'), { cause: transport })
+  );
+  t.is(failure.type, 'GoogleAdkModelError.429');
+  t.is(failure.nonRetryable, false);
+});
+
+test('headersOnTheCauseChainDriveNextRetryDelay', (t) => {
+  const transport = Object.assign(new Error('rate limited'), {
+    status: 429,
+    headers: { 'retry-after-ms': '1500' },
+  });
+  const failure = toApplicationFailure(
+    Object.assign(new Error('Failed to create MCP session: rate limited'), { cause: transport })
+  );
+  t.is(failure.nextRetryDelay, '1500 milliseconds');
+});
+
+test('cyclicCauseChainTerminates', (t) => {
+  const err = new Error('loop') as Error & { cause?: unknown };
+  err.cause = err;
+  t.is(toApplicationFailure(err).type, 'GoogleAdkModelError');
 });
 
 test('mcpListToolsClassifiesToolsetResolutionErrors', async (t) => {
