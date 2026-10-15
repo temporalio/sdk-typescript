@@ -7,10 +7,21 @@
 import { randomUUID } from 'crypto';
 import test from 'ava';
 import Long from 'long';
-import { createPayloadValidationError, defaultPayloadConverter, type PayloadCodec } from '@temporalio/common';
+import {
+  IllegalStateError,
+  createPayloadValidationError,
+  defaultPayloadConverter,
+  type PayloadCodec,
+} from '@temporalio/common';
 import { msToTs } from '@temporalio/common/lib/time';
 import type { LogEntry, NativeConnection } from '@temporalio/worker';
-import { DefaultLogger, MetricsBuffer, Runtime } from '@temporalio/worker';
+import {
+  DefaultLogger,
+  GracefulShutdownPeriodExpiredError,
+  MetricsBuffer,
+  Runtime,
+  TransportError,
+} from '@temporalio/worker';
 import { UnexpectedError } from '@temporalio/worker/lib/errors';
 import { isolateFreeWorker, Worker as MockWorker } from './mock-native-worker';
 
@@ -275,4 +286,127 @@ test.serial('Mocked throws combined error in runUntil', async (t) => {
   const { workerError, innerError } = (err as any).cause;
   t.is(workerError.message, 'Timed out while waiting for worker to shutdown gracefully');
   t.is(innerError.message, 'inner');
+});
+
+test('Worker.run preserves primary failure when finalization fails and logs cleanup failure', async (t) => {
+  const primaryError = new Error('primary worker failure');
+  const cleanupError = new IllegalStateError('Worker still in use: Expected 1 reference, but got 2');
+
+  const loggedErrors: Array<{ message: string; meta?: any }> = [];
+  const worker = isolateFreeWorker({
+    taskQueue: t.title.replace(/ /g, '_'),
+    activities: {},
+  });
+
+  const originalLoggerError = (worker as any).logger.error.bind((worker as any).logger);
+  (worker as any).logger.error = (message: string, meta?: any) => {
+    loggedErrors.push({ message, meta });
+    originalLoggerError(message, meta);
+  };
+
+  worker.native.pollWorkflowActivation = async () => {
+    throw primaryError;
+  };
+  worker.native.finalizeShutdown = async () => {
+    throw cleanupError;
+  };
+
+  const err = await t.throwsAsync(worker.run());
+  t.is(err, primaryError);
+  t.is(worker.getState(), 'FAILED');
+
+  const cleanupLog = loggedErrors.find((entry) => entry.message === 'Failed to finalize shutdown');
+  t.truthy(cleanupLog);
+  t.is(cleanupLog?.meta?.error, cleanupError);
+});
+
+test('Worker.run preserves primary failure when finalization succeeds', async (t) => {
+  const primaryError = new Error('primary worker failure');
+  const worker = isolateFreeWorker({
+    taskQueue: t.title.replace(/ /g, '_'),
+    activities: {},
+  });
+
+  worker.native.pollWorkflowActivation = async () => {
+    throw primaryError;
+  };
+
+  const err = await t.throwsAsync(worker.run());
+  t.is(err, primaryError);
+  t.is(worker.getState(), 'FAILED');
+});
+
+test('Worker.run propagates finalization failure on otherwise successful run', async (t) => {
+  const cleanupError = new IllegalStateError('Cleanup failure on stop');
+  const worker = isolateFreeWorker({
+    taskQueue: t.title.replace(/ /g, '_'),
+    activities: {},
+  });
+
+  worker.native.finalizeShutdown = async () => {
+    throw cleanupError;
+  };
+
+  const runPromise = worker.run();
+  t.is(worker.getState(), 'RUNNING');
+  worker.shutdown();
+
+  const err = await t.throwsAsync(runPromise);
+  t.is(err, cleanupError);
+});
+
+test('Worker.run resolves normally on successful shutdown and cleanup', async (t) => {
+  const worker = isolateFreeWorker({
+    taskQueue: t.title.replace(/ /g, '_'),
+    activities: {},
+  });
+
+  const runPromise = worker.run();
+  t.is(worker.getState(), 'RUNNING');
+  worker.shutdown();
+  await runPromise;
+  t.is(worker.getState(), 'STOPPED');
+});
+
+test('Worker.run preserves GracefulShutdownPeriodExpiredError when finalization rejects with IllegalStateError', async (t) => {
+  const cleanupError = new IllegalStateError('Worker still in use: Expected 1 reference, but got 2');
+  const worker = isolateFreeWorker({
+    shutdownForceTime: '5ms',
+    taskQueue: t.title.replace(/ /g, '_'),
+  });
+
+  // Make sure shutdown does not resolve naturally so force timer triggers
+  worker.native.initiateShutdown = () => undefined;
+  worker.native.finalizeShutdown = async () => {
+    throw cleanupError;
+  };
+
+  const runPromise = worker.run();
+  worker.shutdown();
+
+  const err = await t.throwsAsync(runPromise);
+  t.assert(err instanceof GracefulShutdownPeriodExpiredError);
+  t.is(err?.message, 'Timed out while waiting for worker to shutdown gracefully');
+  t.is(worker.getState(), 'FAILED');
+});
+
+test('Worker.run preserves fatal TransportError when polling fails and finalization rejects', async (t) => {
+  const pollError = new TransportError('Namespace repro is not found'); // eslint-disable-line @typescript-eslint/no-deprecated
+  const cleanupError = new IllegalStateError('Worker still in use: Expected 1 reference, but got 2');
+
+  const worker = isolateFreeWorker({
+    taskQueue: t.title.replace(/ /g, '_'),
+    activities: {},
+  });
+
+  worker.native.pollWorkflowActivation = async () => {
+    throw pollError;
+  };
+  worker.native.finalizeShutdown = async () => {
+    throw cleanupError;
+  };
+
+  const err = await t.throwsAsync(worker.run());
+  t.is(err, pollError);
+  t.is(worker.getState(), 'FAILED');
 });

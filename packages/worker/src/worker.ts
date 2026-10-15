@@ -2306,6 +2306,10 @@ export class Worker {
       },
     });
 
+    let workerError: unknown;
+    let hasWorkerError = false;
+    let cleanupError: unknown;
+    let hasCleanupError = false;
     try {
       try {
         await lastValueFrom(
@@ -2343,10 +2347,28 @@ export class Worker {
           ),
           { defaultValue: undefined }
         );
+      } catch (err) {
+        hasWorkerError = true;
+        workerError = err;
       } finally {
         this.runtime.deregisterShutdownSignalCallback(shutdownCallback);
+      }
 
+      try {
         await this.nativeWorker.finalizeShutdown();
+      } catch (err) {
+        hasCleanupError = true;
+        cleanupError = err;
+      }
+
+      if (hasWorkerError) {
+        if (hasCleanupError) {
+          this.logger.error('Failed to finalize shutdown', { error: cleanupError });
+        }
+        throw workerError;
+      }
+      if (hasCleanupError) {
+        throw cleanupError;
       }
     } finally {
       unexpectedErrorSubscription.unsubscribe();
