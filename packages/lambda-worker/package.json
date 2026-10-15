@@ -13,17 +13,17 @@
     "./otel": {
       "types": "./lib/otel.d.ts",
       "default": "./lib/otel.js"
-    },
-    "./internal": {
-      "types": "./lib/internal.d.ts",
-      "default": "./lib/internal.js"
-    },
-    "./lib/*": {
-      "types": "./lib/*.d.ts",
-      "default": "./lib/*.js"
     }
   },
-  "scripts": {},
+  "scripts": {
+    "build": "tsc --build",
+    "test": "tsx ../../scripts/ava-ci.ts ./lib/__tests__/test-*.js"
+  },
+  "ava": {
+    "timeout": "60s",
+    "concurrency": 1,
+    "workerThreads": false
+  },
   "keywords": [
     "temporal",
     "aws",
@@ -40,6 +40,7 @@
   "devDependencies": {
     "@aws-lambda-powertools/logger": "^2.0.0",
     "@types/aws-lambda": "^8.10.145",
+    "ava": "^5.3.1",
     "long": "^5.3.2",
     "protobufjs": "^8.7.1"
   },
@@ -90,15 +91,14 @@
   },
   "files": [
     "src",
-    "lib"
+    "lib",
+    "!src/__tests__",
+    "!lib/__tests__"
   ],
   "typesVersions": {
     "*": {
       "otel": [
         "lib/otel.d.ts"
-      ],
-      "internal": [
-        "lib/internal.d.ts"
       ]
     }
   }

@@ -1,7 +1,7 @@
 import test from 'ava';
 import type { WorkerOptions, NativeConnectionOptions } from '@temporalio/worker';
-import type { LambdaWorkerConfig } from '@temporalio/lambda-worker';
-import { type WorkerDeps, _runWorkerInternal } from '@temporalio/lambda-worker/internal';
+import type { LambdaWorkerConfig } from '../types';
+import { type WorkerDeps, _runWorkerInternal } from '../lambda-worker';
 
 const TEST_VERSION = { buildId: 'test-build', deploymentName: 'test-deployment' };
 
