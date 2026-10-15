@@ -22,7 +22,7 @@ import {
 import * as temporalnexus from '@temporalio/nexus';
 import * as workflow from '@temporalio/workflow';
 import type { SignalWithStartWorkflowRequest } from '@temporalio/workflow';
-import { workflowService } from '@temporalio/workflow/lib/nexus/system/generated/services';
+import { workflowService } from '@temporalio/workflow/internal';
 import {
   CancelledFailure,
   TerminatedFailure,
