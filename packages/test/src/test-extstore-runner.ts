@@ -573,7 +573,7 @@ test('maxOperationsPerMessage bounds concurrent operations on the retrieve path'
   t.is(slowGate.peak(), 3);
 });
 
-test('each message gets its own maxOperationsPerMessage budget', async (t) => {
+test('each message gets its own maxOperationsPerMessage limit', async (t) => {
   const gate = makeGate();
   const externalStorage = new ExternalStorage({
     drivers: [makePermittingDriver('s3', gate)],

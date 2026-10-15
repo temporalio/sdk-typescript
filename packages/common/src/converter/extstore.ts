@@ -162,7 +162,7 @@ export interface ExternalStorageConcurrency {
    * Maximum requests in flight at once on behalf of a single message (e.g. a workflow task
    * activation, an activity task, a client request, or a nexus operation).
    *
-   * Every message gets its own budget of this size. This caps what any one message can take of
+   * Every message gets its own limit of this size. This caps what any one message can take of
    * the shared {@link maxDriverOperations} pool and keeps a message carrying many large payloads
    * from starving the others. Defaults to 8.
    */
