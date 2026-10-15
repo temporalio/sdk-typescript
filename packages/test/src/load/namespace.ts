@@ -1,32 +1,27 @@
+import { randomUUID } from 'node:crypto';
+import { status } from '@grpc/grpc-js';
 import type { Connection } from '@temporalio/client';
-import { msToTs } from '@temporalio/common/lib/time';
+import { isGrpcServiceError, NamespaceNotFoundError, WorkflowClient, WorkflowNotFoundError } from '@temporalio/client';
+import { msToTs } from '@temporalio/common/time';
 
-// Starting with 1.20, we should no longer need to wait on namespace
-// TODO: Remove all of this once we are confident that this is no longer required
 export async function waitOnNamespace(
   connection: Connection,
   namespace: string,
   maxAttempts = 100,
   retryIntervalSecs = 1
 ): Promise<void> {
-  const runId = '12345678-dead-beef-1234-1234567890ab';
+  // Registration can finish before the history service's namespace cache has caught up.
+  // A missing workflow confirms that workflow requests can resolve the namespace.
+  const handle = new WorkflowClient({ connection, namespace }).getHandle('namespace-readiness-probe', randomUUID());
   for (let attempt = 1; attempt <= maxAttempts; ++attempt) {
     try {
-      await connection.workflowService.getWorkflowExecutionHistory({
-        namespace,
-        execution: { workflowId: 'fake', runId },
-      });
-    } catch (err: any) {
-      if (
-        err.details.includes('workflow history not found') ||
-        err.details.includes('Workflow executionsRow not found') ||
-        err.details.includes('operation GetCurrentExecution') ||
-        err.details.includes('operation GetWorkflowExecution encountered not found') ||
-        err.details.includes(runId)
-      ) {
-        break;
+      await handle.describe();
+      return;
+    } catch (err) {
+      if (err instanceof WorkflowNotFoundError) {
+        return;
       }
-      if (attempt === maxAttempts) {
+      if (!(err instanceof NamespaceNotFoundError) || attempt === maxAttempts) {
         throw err;
       }
       await new Promise((resolve) => setTimeout(resolve, retryIntervalSecs * 1000));
@@ -47,8 +42,8 @@ export async function createNamespace(
         workflowExecutionRetentionPeriod: msToTs('1 day'),
       });
       break;
-    } catch (err: any) {
-      if (err.details === 'Namespace already exists.') {
+    } catch (err) {
+      if (isGrpcServiceError(err) && err.code === status.ALREADY_EXISTS) {
         break;
       }
       if (attempt === maxAttempts) {
