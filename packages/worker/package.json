@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.13.6",
+    "@jridgewell/trace-mapping": "^0.3.31",
     "@swc/core": "^1.3.102",
     "@temporalio/activity": "workspace:*",
     "@temporalio/client": "workspace:*",
