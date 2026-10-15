@@ -4,7 +4,7 @@ import { status } from '@grpc/grpc-js';
 import { Connection, isGrpcServiceError } from '@temporalio/client';
 import type { SetupArgSpec } from './args';
 import { setupArgSpec, getRequired } from './args';
-import { createNamespace } from './namespace';
+import { createNamespace, waitOnNamespace } from './namespace';
 
 async function main() {
   const args = arg<SetupArgSpec>(setupArgSpec);
@@ -31,16 +31,17 @@ async function main() {
   console.log('Checking if namespace already exists', { namespace });
   try {
     await connection.workflowService.describeNamespace({ namespace });
-    // Namespace already exists. Nothing to do
-    return;
   } catch (err) {
     if (!isGrpcServiceError(err) || err.code !== status.NOT_FOUND) {
       throw err;
     }
+    await createNamespace(connection, namespace);
+    console.log('Registered namespace', { namespace });
   }
 
-  await createNamespace(connection, namespace);
-  console.log('Registered namespace', { namespace });
+  console.log('Waiting for namespace to be ready', { namespace });
+  await waitOnNamespace(connection, namespace);
+  console.log('Namespace ready', { namespace });
 }
 
 main()
