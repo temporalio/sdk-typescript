@@ -45,5 +45,34 @@
   },
   "engines": {
     "node": ">= 20.3.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./protos/index.d.ts",
+      "default": "./protos/index.js"
+    },
+    "./package.json": "./package.json",
+    "./internal/patch-protobuf-root": {
+      "types": "./lib/patch-protobuf-root.d.ts",
+      "default": "./lib/patch-protobuf-root.js"
+    },
+    "./internal/payload-visitor.generated": {
+      "types": "./lib/payload-visitor.generated.d.ts",
+      "default": "./lib/payload-visitor.generated.js"
+    },
+    "./lib/*": {
+      "types": "./lib/*.d.ts",
+      "default": "./lib/*.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "internal/patch-protobuf-root": [
+        "lib/patch-protobuf-root.d.ts"
+      ],
+      "internal/payload-visitor.generated": [
+        "lib/payload-visitor.generated.d.ts"
+      ]
+    }
   }
 }
