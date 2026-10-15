@@ -28,7 +28,18 @@ export default tseslint.config(
       eqeqeq: ['error', 'always', { null: 'ignore' }],
       'no-duplicate-imports': ['error', { allowSeparateTypeImports: true }],
       'object-shorthand': ['error', 'always'],
-      'no-restricted-imports': ['error', { patterns: ['@temporalio/*/src/*'] }],
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: ['@temporalio/*/src/*'], message: 'Import from the package root or a documented export.' },
+            {
+              regex: '^@temporalio/(?!common/lib/(?:encoding|protobufs|proto-utils|time)$)[^/]+/lib(?:/|$)',
+              message: 'Import from the package root or a documented export, not an undocumented lib path.',
+            },
+          ],
+        },
+      ],
       '@typescript-eslint/no-deprecated': [
         'warn',
         {
@@ -149,6 +160,55 @@ export default tseslint.config(
       'import/newline-after-import': 'error',
       'import/no-unassigned-import': 'error',
       'import/no-named-default': 'error',
+    },
+  },
+  {
+    files: ['contrib/ai-sdk/src/__tests__/workflows/otel-interceptors.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: ['@temporalio/*/src/*'], message: 'Import from the package root or a documented export.' },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['contrib/openai-agents/src/__tests__/agent-sink-processor.test.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: ['@temporalio/*/src/*'], message: 'Import from the package root or a documented export.' },
+            {
+              regex:
+                '^@temporalio/(?!(?:common/lib/(?:encoding|protobufs|proto-utils|time)|workflow/lib/(?:global-attributes|sinks))$)[^/]+/lib(?:/|$)',
+              message: 'Import from the package root or a documented export, not an undocumented lib path.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['contrib/openai-agents/src/__tests__/openai-sandbox.test.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: ['@temporalio/*/src/*'], message: 'Import from the package root or a documented export.' },
+            {
+              regex:
+                '^@temporalio/(?!(?:common/lib/(?:encoding|protobufs|proto-utils|time)|workflow/lib/global-attributes)$)[^/]+/lib(?:/|$)',
+              message: 'Import from the package root or a documented export, not an undocumented lib path.',
+            },
+          ],
+        },
+      ],
     },
   },
   {
