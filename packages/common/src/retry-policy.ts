@@ -58,7 +58,9 @@ export function compileRetryPolicy(retryPolicy: RetryPolicy): temporal.api.commo
       const { maximumAttempts: _, ...without } = retryPolicy;
       retryPolicy = without;
     } else if (retryPolicy.maximumAttempts < 0) {
-      throw new ValueError('RetryPolicy.maximumAttempts must be a positive integer, 0 (unlimited), or Infinity (unlimited)');
+      throw new ValueError(
+        'RetryPolicy.maximumAttempts must be a positive integer, 0 (unlimited), or Infinity (unlimited)'
+      );
     } else if (!Number.isInteger(retryPolicy.maximumAttempts)) {
       throw new ValueError('RetryPolicy.maximumAttempts must be an integer');
     }
