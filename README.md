@@ -277,6 +277,8 @@ This monorepo contains the following packages:
 | [`packages/nyc-test-coverage/`](packages/nyc-test-coverage/)                       | [`@temporalio/nyc-test-coverage`](https://www.npmjs.com/package/@temporalio/nyc-test-coverage)                         |
 | [`packages/plugin/`](packages/plugin/)                                             | [`@temporalio/plugin`](https://www.npmjs.com/package/@temporalio/plugin)                                               |
 | [`packages/nexus/`](packages/nexus/)                                               | [`@temporalio/nexus`](https://www.npmjs.com/package/@temporalio/nexus)                                                 |
+| [`contrib/ai-sdk/`](contrib/ai-sdk/)                                               | [`@temporalio/ai-sdk`](https://www.npmjs.com/package/@temporalio/ai-sdk) (compatibility wrapper)                       |
+| [`contrib/google-adk-agents/`](contrib/google-adk-agents/)                         | [`@temporalio/google-adk-agents`](https://www.npmjs.com/package/@temporalio/google-adk-agents) (compatibility wrapper) |
 | [`contrib/interceptors-opentelemetry/`](contrib/interceptors-opentelemetry/)       | [`@temporalio/interceptors-opentelemetry`](https://www.npmjs.com/package/@temporalio/interceptors-opentelemetry)       |
 | [`contrib/interceptors-opentelemetry-v2/`](contrib/interceptors-opentelemetry-v2/) | [`@temporalio/interceptors-opentelemetry-v2`](https://www.npmjs.com/package/@temporalio/interceptors-opentelemetry-v2) |
 | [`contrib/workflow-streams/`](contrib/workflow-streams/)                           | [`@temporalio/workflow-streams`](https://www.npmjs.com/package/@temporalio/workflow-streams)                           |
@@ -295,8 +297,12 @@ AI integrations are maintained and released independently in
 | Strands Agents | `@temporalio/strands-agents`                                        |
 
 Install these packages separately and follow the setup instructions in the integrations
-repository. Vercel AI SDK and Google ADK applications must update their dependency names
-and imports; the other three package names are unchanged.
+repository. The legacy `@temporalio/ai-sdk` and `@temporalio/google-adk-agents` packages
+remain here as small compatibility wrappers, forwarding their public entrypoints to
+the standalone packages. Existing imports can be retained with the wrapper releases;
+new applications should use the standalone names. Both wrappers require Node.js
+22.12.0 or later and the standalone packages' provider versions. The other three
+package names are unchanged.
 
 ## Contributing
 

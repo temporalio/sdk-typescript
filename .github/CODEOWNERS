@@ -5,4 +5,6 @@
 * @temporalio/sdk
 
 CHANGELOG.md                @temporalio/sdk @temporalio/ai-sdk
+/contrib/ai-sdk/            @temporalio/sdk @temporalio/ai-sdk
+/contrib/google-adk-agents/ @temporalio/sdk @temporalio/ai-sdk
 /contrib/workflow-streams/  @temporalio/sdk @temporalio/ai-sdk

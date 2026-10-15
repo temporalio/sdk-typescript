@@ -17,6 +17,8 @@ packages:
   - packages/testing
   - packages/worker
   - packages/workflow
+  - contrib/ai-sdk
+  - contrib/google-adk-agents
   - contrib/interceptors-opentelemetry
   - contrib/interceptors-opentelemetry-v2
   - contrib/external-storage-s3
@@ -35,6 +37,16 @@ minimumReleaseAge: 20160
 minimumReleaseAgeExclude:
   - '@temporalio/*'
   - nexus-rpc
+
+  # The Vercel compatibility package forwards to the standalone AI SDK integration.
+  # Its provider family pins these versions to each other.
+  - ai@7.0.124
+  - '@ai-sdk/gateway@4.0.102'
+  - '@ai-sdk/mcp@2.0.64'
+  - '@ai-sdk/openai@4.0.83'
+  - '@ai-sdk/otel@1.0.124'
+  - '@ai-sdk/provider@4.0.21'
+  - '@ai-sdk/provider-utils@5.0.53'
 
 peerDependencyRules:
   ignoreMissing:

@@ -21,6 +21,10 @@ to docs, or any other relevant information.
 
 ### Breaking Changes
 
+- The `@temporalio/google-adk-agents` compatibility wrapper now requires Node.js 22.12.0
+  or later and Google ADK 2.0, matching `@temporalio/google-adk`. The wrapper preserves
+  import paths, but the ADK upgrade and renamed workflow random stream still require
+  draining affected in-flight Workflows or using separate task queues for the cutover.
 - SDK and contrib packages now declare `protobufjs` (`^8.7.1`) and `long` (`^5.3.2`) as peer
   dependencies rather than relying on separately installed copies. Package managers that do not
   automatically install peers require applications to add these dependencies explicitly.
@@ -58,10 +62,12 @@ to docs, or any other relevant information.
 
 - AI integrations are now maintained and released independently in
   [temporalio/ai-integrations](https://github.com/temporalio/ai-integrations/tree/main/typescript).
-  Install `@temporalio/vercel-ai-sdk` instead of `@temporalio/ai-sdk` and
-  `@temporalio/google-adk` instead of `@temporalio/google-adk-agents`, updating imports accordingly.
+  `@temporalio/ai-sdk` and `@temporalio/google-adk-agents` remain as compatibility wrappers
+  forwarding their public entrypoints to `@temporalio/vercel-ai-sdk` and `@temporalio/google-adk`.
+  Existing import paths can be retained; new applications should use the standalone names.
   `@temporalio/langsmith`, `@temporalio/openai-agents`, and `@temporalio/strands-agents` retain their
-  package names. Their source, tests, and API documentation are no longer built in this repository.
+  package names. The integrations' implementations, tests, and API documentation are no longer
+  built in this repository; the two wrappers have separate forwarding tests.
 - Updated the following dependencies: `unionfs` from 4.5.1 to 4.6.0, `@grpc/grpc-js` from 1.12.4 to 1.12.7, `smol-toml` from 1.6.1 to 1.7.1
   and `tar` from 7.5.11 to 7.5.21.
 - A Worker will now refuse to load and execute a Workflow bundle produced with a different version

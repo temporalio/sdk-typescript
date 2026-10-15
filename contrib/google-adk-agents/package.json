@@ -1,0 +1,71 @@
+{
+  "name": "@temporalio/google-adk-agents",
+  "version": "1.24.0",
+  "description": "Compatibility package forwarding to @temporalio/google-adk",
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.js",
+      "require": "./lib/index.js",
+      "default": "./lib/index.js"
+    },
+    "./workflow": {
+      "types": "./lib/workflow.d.ts",
+      "import": "./lib/workflow.js",
+      "require": "./lib/workflow.js",
+      "default": "./lib/workflow.js"
+    },
+    "./testing": {
+      "types": "./lib/testing.d.ts",
+      "import": "./lib/testing.js",
+      "require": "./lib/testing.js",
+      "default": "./lib/testing.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "workflow": [
+        "./lib/workflow.d.ts"
+      ],
+      "testing": [
+        "./lib/testing.d.ts"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "test": "node --test ../../scripts/test-ai-compatibility.cjs"
+  },
+  "dependencies": {
+    "@temporalio/google-adk": "^0.1.0"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/temporalio/sdk-typescript.git",
+    "directory": "contrib/google-adk-agents"
+  },
+  "bugs": {
+    "url": "https://github.com/temporalio/ai-integrations/issues"
+  },
+  "homepage": "https://github.com/temporalio/ai-integrations/tree/main/typescript/google-adk",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src",
+    "lib",
+    "!src/__tests__",
+    "!lib/__tests__"
+  ],
+  "devDependencies": {
+    "@temporalio/testing": "workspace:*",
+    "@temporalio/worker": "workspace:*"
+  }
+}
