@@ -29,8 +29,14 @@
     "@temporalio/worker": "workspace:*",
     "@temporalio/workflow": "workspace:*"
   },
+  "peerDependencies": {
+    "long": "^5.3.2",
+    "protobufjs": "^8.7.1"
+  },
   "devDependencies": {
-    "ava": "^5.3.1"
+    "ava": "^5.3.1",
+    "long": "^5.3.2",
+    "protobufjs": "^8.7.1"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

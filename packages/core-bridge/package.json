@@ -24,9 +24,15 @@
     "@grpc/grpc-js": "^1.13.6",
     "@temporalio/common": "workspace:*"
   },
+  "peerDependencies": {
+    "long": "^5.3.2",
+    "protobufjs": "^8.7.1"
+  },
   "devDependencies": {
     "arg": "^5.0.2",
     "cargo-cp-artifact": "^0.1.9",
+    "long": "^5.3.2",
+    "protobufjs": "^8.7.1",
     "tsx": "^4.20.6"
   },
   "bugs": {

@@ -1,7 +1,8 @@
 /**
- * Worker-side Activities for the E2E tests. They run on the worker (never
- * bundled) and record their real executions per Workflow, so a test can tell an
- * Activity that ran from one that was replayed.
+ * Worker-side Activities for the graph / dynamic / HITL E2E tests. They run on
+ * the worker (never bundled) and record their real executions per Workflow, so a
+ * test can tell an Activity that ran from one that was fast-forwarded on resume
+ * or never approved.
  */
 
 import { Context } from '@temporalio/activity';
@@ -124,6 +125,32 @@ export async function flakyActivity(): Promise<string> {
 export async function failingActivity(): Promise<never> {
   record('failingActivity');
   throw ApplicationFailure.nonRetryable('permanent failure', 'TestPermanentFailure');
+}
+
+export async function countedFetch(tag: string): Promise<string> {
+  record(`countedFetch:${tag}`);
+  return `fetched-${tag}`;
+}
+
+/** The tool-shaped Activity behind `activityAsTool` in the confirmation tests: receives the model's arguments. */
+export async function dangerActivity(args: { target: string }): Promise<string> {
+  record(`dangerActivity:${args.target}`);
+  return `danger-done:${args.target}`;
+}
+
+/**
+ * The tool behind `activityAsTool` in the sibling-failure test: heartbeats until it is
+ * cancelled (heartbeats are how a cancel request reaches a running Activity), recording
+ * each attempt, so history shows whether the cancel landed or the call ran its course.
+ */
+export async function hangingTool(_args: Record<string, unknown>): Promise<never> {
+  const ctx = Context.current();
+  record(`hangingTool:${ctx.info.attempt}`);
+  for (;;) {
+    ctx.heartbeat();
+    // Rejects with the CancelledFailure once the cancel lands.
+    await ctx.sleep(200);
+  }
 }
 
 /** Echoes `id` back, recording the value the Workflow actually sent. */

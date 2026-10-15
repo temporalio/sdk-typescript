@@ -21,6 +21,10 @@ to docs, or any other relevant information.
 
 ### Breaking Changes
 
+- SDK and contrib packages now declare `protobufjs` (`^8.7.1`) and `long` (`^5.3.2`) as peer
+  dependencies rather than relying on separately installed copies. Package managers that do not
+  automatically install peers require applications to add these dependencies explicitly.
+  `@temporalio/proto` retains its regular runtime dependencies.
 - `@temporalio/google-adk-agents` now requires `@google/adk` `>=2.0.0 <2.1.0` (was `>=1.5.0 <1.6.0`).
   ADK 2.0 changed its internals and its id generation, so a Workflow started under the 1.5 plugin
   cannot be replayed by a Worker on this version: drain in-flight Workflows before upgrading, or
@@ -30,19 +34,28 @@ to docs, or any other relevant information.
 
 ### Added
 
-- `@temporalio/google-adk-agents` supports Google ADK 2.0 inside Workflows:
-  - the Workflow bundle now uses ADK's web build, pinned regardless of the consumer's webpack
-    target, and ADK's UUIDs are generated from a named workflow random stream inside the sandbox,
-    so its ids are replay-stable;
+- `@temporalio/google-adk-agents` supports Google ADK 2.0's TypeScript feature set inside Workflows:
   - the workflow (graph) runtime — `Workflow`, `node()`, `JoinNode`, routing, dynamic nodes,
-    node-as-tool, node retries and timeouts — runs unchanged, except that ADK's `timeout` on an
-    `LlmAgent` node does not cancel the agent's in-flight model Activity, so a node retry can
-    overlap it; `activityNode` makes a registered Activity a graph node, and its deadline (or a
-    sibling's failure) cancels the in-flight Activity and waits for that cancellation to settle
+    `RequestInput`, node-as-tool, node retries and timeouts — runs unchanged, except that ADK's
+    `timeout` on an `LlmAgent` node does not cancel the agent's in-flight model Activity, so a node
+    retry can overlap it; `activityNode` makes a registered Activity a graph node, and its deadline
+    (or a sibling's failure) cancels the in-flight Activity and waits for that cancellation to settle
     before failing the node;
+  - durable human-in-the-loop: `pendingHitlRequests`, `hitlInputResponse` and
+    `hitlConfirmationResponse` supply ADK's wire format (refusing an answer with a
+    `GoogleAdkHitlResponseError` `ApplicationFailure`, so building the response in a Signal or
+    Update handler rejects the call rather than failing the Workflow Task), and `activityAsTool` /
+    `TemporalMCPToolset` gain `requireConfirmation` so an Activity or MCP tool call runs only once
+    a human approves;
+  - MCP resources: `TemporalMCPToolset.listResources` / `readResource` and `loadMcpResourceTool`,
+    backed by `<name>-listResources` / `<name>-readResource` Activities;
+  - raw model strings (`model: 'gemini-2.5-flash'`) resolve to `TemporalModel` inside a Workflow
+    (`GoogleAdkPluginOptions.autoRouteModels`, default on);
   - ADK's runtime errors (`NodeTimeoutError`, `IntentMismatchError`, …) fail the Workflow with typed
     `ApplicationFailure`s (`ADK_RUNTIME_FAILURE_TYPES`) instead of retrying the Workflow Task
-    forever.
+    forever;
+  - ADK's UUIDs are generated from a named workflow random stream inside the sandbox, so interrupt
+    and function-call ids are replay-stable. The Workflow bundle now uses ADK's web build.
 - **Experimental**: Workflows can signal another Workflow and start it when absent with
   `signalWithStartWorkflow`.
 - **Experimental**: Workflow outbound interceptors can intercept Temporal System Nexus calls
@@ -73,6 +86,9 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- Corrected the protobufjs dependency declarations to prevent `historyFromJSON` failing with
+  `type must be a Type` when npm installs separate protobufjs copies alongside a dependency on an
+  older protobufjs major (#2514).
 - `@temporalio/google-adk-agents` no longer turns a cancelled model or MCP Activity into a retryable
   `GoogleAdkModelError` / `GoogleAdkMCPError`. An error raised once the Activity's cancellation signal
   has fired is re-raised as the cancellation, so the attempt ends cancelled instead of being retried.
