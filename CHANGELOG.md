@@ -121,6 +121,9 @@ to docs, or any other relevant information.
   creating projects.
 - `WorkflowExecutionAlreadyStartedError` now exposes the `runId` of the already-running Workflow Execution when the server provides it in the error details (#1838).
 - Workflow code that blocks the sandbox past its time limit now fails with the `[TMPRL1101]` deadlock diagnostic (#2426).
+- A workflow task that arrives while a Workflow waits on a Local Activity, such as a legacy query, now
+  waits until the current workflow task is reported. Previously it replaced that workflow task, which then
+  timed out on the server and could leave the Workflow stuck on a nondeterminism error (temporalio/sdk-rust#1640).
 
 ### Changed
 
