@@ -8,13 +8,13 @@
  * Every call is recorded on `storeCalls` / `retrieveCalls` (the recording happens
  * before the override runs, so an override can introspect its own call).
  */
-import type { Payload } from '@temporalio/common';
 import {
+  type Payload,
   type StorageDriver,
   StorageDriverClaim,
   type StorageDriverRetrieveContext,
   type StorageDriverStoreContext,
-} from '@temporalio/common/lib/converter/extstore';
+} from '@temporalio/common';
 
 export interface FakeDriver extends StorageDriver {
   storeCalls: { context: StorageDriverStoreContext; payloads: Payload[] }[];

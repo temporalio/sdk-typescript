@@ -16,10 +16,10 @@ import { SdkFlags } from '@temporalio/workflow/lib/flags';
 import type { ActivityCancellationDetails, PayloadTypeInfo } from '@temporalio/common';
 import { ApplicationFailure, RawValue, rawValueTypeInfo } from '@temporalio/common';
 import {
-  TEMPORAL_RESERVED_PREFIX,
-  STACK_TRACE_QUERY_NAME,
   ENHANCED_STACK_TRACE_QUERY_NAME,
-} from '@temporalio/common/lib/reserved';
+  STACK_TRACE_QUERY_NAME,
+  TEMPORAL_RESERVED_PREFIX,
+} from '@temporalio/common/internal/internal-workflow';
 import { activityStartedSignal } from './workflows/definitions';
 import type { Context } from './helpers-integration';
 import { helpers } from './helpers-integration';

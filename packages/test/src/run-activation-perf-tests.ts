@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import Long from 'long';
-import { msToTs } from '@temporalio/common/lib/time';
+import { msToTs } from '@temporalio/common/time';
 import { coresdk } from '@temporalio/proto';
 import { ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
@@ -26,7 +26,7 @@ export const bundlerOptions = {
   // This is a bit ugly but it does the trick, when a test that includes workflow
   // code tries to import a forbidden workflow module, add it to this list:
   ignoreModules: [
-    '@temporalio/common/lib/internal-non-workflow',
+    '@temporalio/common/internal/internal-non-workflow',
     '@temporalio/activity',
     '@temporalio/client',
     '@temporalio/testing',

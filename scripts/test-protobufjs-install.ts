@@ -42,7 +42,7 @@ function verifyInstallation(targetDir: string): void {
   // Loading proto-utils exercises root patching and protojson against the installed
   // generated protos, not the workspace's dependency tree.
   const { historyFromJSON, historyToJSON, JSONToPayload, payloadToJSON } = commonRequire(
-    '@temporalio/common/lib/proto-utils'
+    '@temporalio/common/proto-utils'
   );
   const eventId = '9007199254740993'; // Number.MAX_SAFE_INTEGER + 2; must not pass through a JS number.
   const payloadJSON = {

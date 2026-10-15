@@ -14,7 +14,7 @@ import {
   decodeOptionalSingle,
   visit,
   walkPayloadsInMessage,
-} from '@temporalio/common/lib/internal-non-workflow';
+} from '@temporalio/common/internal/internal-non-workflow';
 import type { temporal } from '@temporalio/proto';
 import {
   decodeSystemNexusEnvelope,

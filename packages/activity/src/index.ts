@@ -131,7 +131,6 @@ import type {
 import { IllegalStateError } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
 
-import type { ActivityCancellationDetailsHolder } from '@temporalio/common/lib/activity-cancellation-details';
 import type { Client } from '@temporalio/client';
 
 export {
@@ -392,7 +391,7 @@ export class Context {
     /**
      * Holder object for activity cancellation details
      */
-    protected readonly _cancellationDetails: ActivityCancellationDetailsHolder
+    protected readonly _cancellationDetails: { details?: ActivityCancellationDetails }
   ) {}
 
   /**

@@ -9,7 +9,7 @@ import type { NativeConnectionPlugin, NativeConnectionOptions } from '@temporali
 import { NativeConnection, Runtime } from '@temporalio/worker';
 import { native } from '@temporalio/core-bridge';
 import type { temporal } from '@temporalio/proto';
-import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
+import { filterNullAndUndefined } from '@temporalio/common/internal/internal-workflow';
 import type { DevServerConfig, TimeSkippingServerConfig } from './ephemeral-server';
 import { toNativeEphemeralServerConfig } from './ephemeral-server';
 import type { ClientOptionsForTestEnv } from './client';
