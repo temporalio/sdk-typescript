@@ -1,7 +1,12 @@
-import type { AsyncCompletionClient, ClientPlugin, ConnectionPlugin, WorkflowClient } from '@temporalio/client';
+import type {
+  AsyncCompletionClient,
+  ClientPlugin,
+  ConnectionOptions,
+  ConnectionPlugin,
+  WorkflowClient,
+} from '@temporalio/client';
 import { Client, Connection } from '@temporalio/client';
-import type { ConnectionOptions, InternalConnectionOptions } from '@temporalio/client/lib/connection';
-import { InternalConnectionOptionsSymbol } from '@temporalio/client/lib/connection';
+import { type InternalConnectionOptions, InternalConnectionOptionsSymbol } from '@temporalio/client/internal';
 import type { Duration } from '@temporalio/common';
 import { TypedSearchAttributes } from '@temporalio/common';
 import { msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
