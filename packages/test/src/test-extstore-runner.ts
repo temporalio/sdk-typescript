@@ -17,7 +17,7 @@ import {
   ExternalStorageRunner,
   isReferencePayload,
 } from '@temporalio/common/internal/internal-non-workflow';
-import { encode } from '@temporalio/common/internal/internal-workflow';
+import { encode } from '@temporalio/common/encoding';
 import { makeFakeDriver, type FakeDriver } from './extstore-fake-driver';
 
 /** Build a Payload whose proto-encoded size is at least `bodyBytes`. */

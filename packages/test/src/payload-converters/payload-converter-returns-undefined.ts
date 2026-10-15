@@ -1,6 +1,6 @@
 import type { Payload, PayloadConverter } from '@temporalio/common';
 import { ValueError } from '@temporalio/common';
-import { decode } from '@temporalio/common/internal/internal-workflow';
+import { decode } from '@temporalio/common/encoding';
 
 class TestPayloadConverter implements PayloadConverter {
   public toPayload(_value: unknown): Payload {

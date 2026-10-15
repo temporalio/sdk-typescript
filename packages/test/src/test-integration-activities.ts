@@ -1,6 +1,6 @@
 import { firstValueFrom, Subject } from 'rxjs';
 import * as activity from '@temporalio/activity';
-import { tsToMs } from '@temporalio/common/lib/time';
+import { tsToMs } from '@temporalio/common/time';
 import type { CancelReason } from '@temporalio/worker/lib/activity';
 import { ApplicationFailure } from '@temporalio/common';
 import { signalSchedulingWorkflow } from './activities/helpers';

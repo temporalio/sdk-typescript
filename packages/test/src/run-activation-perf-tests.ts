@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import Long from 'long';
-import { msToTs } from '@temporalio/common/lib/time';
+import { msToTs } from '@temporalio/common/time';
 import { coresdk } from '@temporalio/proto';
 import { ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';

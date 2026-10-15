@@ -34,7 +34,7 @@ import {
   type PayloadCodec,
 } from '@temporalio/common';
 import { ExternalStorageRunner } from '@temporalio/common/internal/internal-non-workflow';
-import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/protobufs';
+import { ProtobufBinaryPayloadConverter } from '@temporalio/common/protobufs';
 import {
   SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE,

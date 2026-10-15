@@ -1,6 +1,6 @@
 import type { Payload, PayloadConverter, SerializationContext } from '@temporalio/common';
 import { defaultPayloadConverter } from '@temporalio/common';
-import { decode, encode } from '@temporalio/common/internal/internal-workflow';
+import { decode, encode } from '@temporalio/common/encoding';
 
 export const MANGLING_ENCODING = 'text/custom-mangled';
 export const MANGLING_PREFIX = 'custom-converter-';

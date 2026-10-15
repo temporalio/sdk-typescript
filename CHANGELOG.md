@@ -90,9 +90,9 @@ to docs, or any other relevant information.
 ### Deprecated
 
 - Undocumented imports through `@temporalio/*/lib/*` are deprecated. Where present, the wildcard remains
-  temporarily as a compatibility fallback. `@temporalio/common` will keep the following entrypoints
-  for compatibility: `@temporalio/common/lib/encoding`, `@temporalio/common/lib/protobufs`,
-  `@temporalio/common/lib/proto-utils`, and `@temporalio/common/lib/time`.
+  temporarily as a compatibility fallback. `@temporalio/common` explicitly supports
+  `@temporalio/common/encoding`, `@temporalio/common/protobufs`, `@temporalio/common/proto-utils`, and
+  `@temporalio/common/time`.
 
 ### Fixed
 

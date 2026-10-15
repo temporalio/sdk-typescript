@@ -3,7 +3,7 @@ import type * as vm from 'node:vm';
 import anyTest, { type TestFn } from 'ava';
 import Long from 'long';
 import { TypedSearchAttributes } from '@temporalio/common';
-import { msToTs } from '@temporalio/common/lib/time';
+import { msToTs } from '@temporalio/common/time';
 import { coresdk } from '@temporalio/proto';
 import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
 import { type ReusableVMWorkflow, ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';

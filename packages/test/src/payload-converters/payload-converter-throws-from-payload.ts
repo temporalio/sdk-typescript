@@ -1,6 +1,6 @@
 import type { Payload, PayloadConverter } from '@temporalio/common';
 import { encodingKeys, METADATA_ENCODING_KEY } from '@temporalio/common';
-import { encode } from '@temporalio/common/internal/internal-workflow';
+import { encode } from '@temporalio/common/encoding';
 
 class TestPayloadConverter implements PayloadConverter {
   public toPayload(value: unknown): Payload {

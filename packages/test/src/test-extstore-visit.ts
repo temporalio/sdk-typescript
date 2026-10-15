@@ -22,7 +22,7 @@ import {
   walkWorkflowActivation,
   walkWorkflowActivationCompletion,
 } from '@temporalio/common/internal/internal-non-workflow';
-import { encode } from '@temporalio/common/internal/internal-workflow';
+import { encode } from '@temporalio/common/encoding';
 import type { coresdk, temporal } from '@temporalio/proto';
 import { makeFakeDriver } from './extstore-fake-driver';
 
