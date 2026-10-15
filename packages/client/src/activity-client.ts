@@ -332,6 +332,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
           req,
           walkStartActivityExecutionRequest,
           extstoreStoreOptions(externalStorage, {
+            driverOperationLimit: this.driverOperationLimit,
             initialTarget: {
               kind: 'activity',
               namespace: this.options.namespace,

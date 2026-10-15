@@ -46,7 +46,7 @@ export interface VisitOptions<Ctx> {
   initialContext?: Ctx;
   /**
    * Optional concurrency limit applied to every transform call. Share one limit across visits for a
-   * global cap (e.g. a payload store's total budget), or nest limits to compose a per-visit cap under
+   * global cap (e.g. a payload store's total limit), or nest limits to compose a per-visit cap under
    * a global one. Omit to run transforms one at a time (sequential).
    */
   limit?: ConcurrencyLimit;

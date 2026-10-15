@@ -162,33 +162,37 @@ export class S3StorageDriver implements StorageDriver {
     uploads: Map<string, Promise<void>>
   ): Promise<StorageDriverClaim> {
     const bucket = this.bucket(context, payload);
-
-    const payloadBytes = PayloadProto.encode(payload).finish();
-    if (payloadBytes.length > this.maxPayloadSize) {
-      throw new ValueError(
-        `Payload size ${payloadBytes.length} bytes exceeds the configured maxPayloadSize of ${this.maxPayloadSize} bytes`
-      );
-    }
-
-    const hashValue = createHash('sha256').update(payloadBytes).digest('hex');
-    const key = `v0${contextSegments}/d/sha256/${hashValue}`;
+    let key: string | undefined;
 
     try {
-      const dedupeKey = `${bucket} ${key}`;
-      let upload = uploads.get(dedupeKey);
-      if (!upload) {
-        upload = context.limiter.permit(payload, () => this.uploadIfAbsent(bucket, key, payloadBytes, abortSignal));
-        uploads.set(dedupeKey, upload);
-      }
-      await upload;
+      return await context.limiter.permit(payload, async () => {
+        const payloadBytes = PayloadProto.encode(payload).finish();
+        if (payloadBytes.length > this.maxPayloadSize) {
+          throw new ValueError(
+            `Payload size ${payloadBytes.length} bytes exceeds the configured maxPayloadSize of ${this.maxPayloadSize} bytes`
+          );
+        }
+
+        const hashValue = createHash('sha256').update(payloadBytes).digest('hex');
+        key = `v0${contextSegments}/d/sha256/${hashValue}`;
+
+        const dedupeKey = `${bucket} ${key}`;
+        let upload = uploads.get(dedupeKey);
+        if (!upload) {
+          upload = this.uploadIfAbsent(bucket, key, payloadBytes, abortSignal);
+          uploads.set(dedupeKey, upload);
+        }
+        await upload;
+
+        return new StorageDriverClaim({ bucket, key, hash_algorithm: 'sha256', hash_value: hashValue });
+      });
     } catch (err) {
+      if (err instanceof ValueError) throw err;
       throw new Error(
         `S3StorageDriver store failed [bucket=${bucket}, key=${key}${formatClientContext(this.client)}]`,
         { cause: err }
       );
     }
-
-    return new StorageDriverClaim({ bucket, key, hash_algorithm: 'sha256', hash_value: hashValue });
   }
 
   private async uploadIfAbsent(

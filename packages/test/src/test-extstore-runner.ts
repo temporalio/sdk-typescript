@@ -13,6 +13,7 @@ import {
   ExternalStorageMetricsAccumulator,
   ExternalStorageRunner,
   isReferencePayload,
+  newDriverOperationLimit,
 } from '@temporalio/common/lib/internal-non-workflow';
 import { encode } from '@temporalio/common/lib/encoding';
 import { METADATA_ENCODING_KEY } from '@temporalio/common/lib/converter/types';
@@ -427,7 +428,7 @@ function makeRecordingLogger(): { logger: Logger; warnings: string[] } {
   };
 }
 
-test('maxDriverOperations is shared by every message using the same ExternalStorage', async (t) => {
+test('maxDriverOperations is shared by every message run by one owner', async (t) => {
   const gate = makeGate();
   const driver = makeFakeDriver({
     name: 's3',
@@ -444,8 +445,9 @@ test('maxDriverOperations is shared by every message using the same ExternalStor
     concurrency: { maxDriverOperations: 3, maxOperationsPerMessage: 10 },
   });
 
-  const firstMessage = new ExternalStorageRunner(externalStorage);
-  const secondMessage = new ExternalStorageRunner(externalStorage);
+  const ownerLimit = newDriverOperationLimit(externalStorage);
+  const firstMessage = new ExternalStorageRunner(externalStorage, undefined, undefined, ownerLimit);
+  const secondMessage = new ExternalStorageRunner(externalStorage, undefined, undefined, ownerLimit);
   const stores = [
     firstMessage.store([makePayload(8), makePayload(8), makePayload(8)]),
     secondMessage.store([makePayload(8), makePayload(8), makePayload(8)]),
@@ -571,7 +573,7 @@ test('maxOperationsPerMessage bounds concurrent operations on the retrieve path'
   t.is(slowGate.peak(), 3);
 });
 
-test('each message gets its own maxOperationsPerMessage budget', async (t) => {
+test('each message gets its own maxOperationsPerMessage limit', async (t) => {
   const gate = makeGate();
   const externalStorage = new ExternalStorage({
     drivers: [makePermittingDriver('s3', gate)],
@@ -591,4 +593,35 @@ test('each message gets its own maxOperationsPerMessage budget', async (t) => {
   gate.release();
   await Promise.all(stores);
   t.is(gate.peak(), 4);
+});
+
+test('separate owners do not share maxDriverOperations', async (t) => {
+  const gate = makeGate();
+  const externalStorage = new ExternalStorage({
+    drivers: [makePermittingDriver('s3', gate)],
+    payloadSizeThreshold: 0,
+    concurrency: { maxDriverOperations: 2, maxOperationsPerMessage: 10 },
+  });
+
+  const clientRunner = new ExternalStorageRunner(
+    externalStorage,
+    undefined,
+    undefined,
+    newDriverOperationLimit(externalStorage)
+  );
+  const workerRunner = new ExternalStorageRunner(
+    externalStorage,
+    undefined,
+    undefined,
+    newDriverOperationLimit(externalStorage)
+  );
+  const stores = [
+    clientRunner.store([makePayload(8), makePayload(8), makePayload(8)]),
+    workerRunner.store([makePayload(8), makePayload(8), makePayload(8)]),
+  ];
+  await flush();
+  t.is(gate.peak(), 4, 'each owner allows 2, so two owners allow 4');
+
+  gate.release();
+  await Promise.all(stores);
 });

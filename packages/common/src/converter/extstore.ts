@@ -53,9 +53,9 @@ export interface StorageDriverActivityInfo {
 export type StorageDriverTargetInfo = StorageDriverWorkflowInfo | StorageDriverActivityInfo;
 
 /**
- * Bounds how many external storage operations all drivers managed by a single ExternalStorage
- * instance may have in flight at once. This limit is cooperative which means driver
- * implementations must use the provided context.limiter to acquire permits for each operation.
+ * Bounds how many external storage operations all drivers used by a single client or worker may
+ * have in flight at once. This limit is cooperative which means driver implementations must use
+ * the provided context.limiter to acquire permits for each operation.
  *
  * This limit can be configured via {@link ExternalStorageConcurrency.maxDriverOperations}.
  *
@@ -151,20 +151,18 @@ const DEFAULT_MAX_OPERATIONS_PER_MESSAGE = 8;
  */
 export interface ExternalStorageConcurrency {
   /**
-   * Maximum requests in flight at once across every driver registered on this
-   * {@link ExternalStorage} instance.
+   * Maximum requests in flight at once across every driver used by a single client or worker.
    *
    * Enforced through the {@link StorageDriverLimiter} handed to each driver.
    *
-   * Share one instance between workers and clients for a single process-wide budget, or give each
-   * its own instance for independent budgets. Defaults to 64.
+   * Each client and each worker gets its own limit of this size. Defaults to 64.
    */
   maxDriverOperations?: number;
   /**
    * Maximum requests in flight at once on behalf of a single message (e.g. a workflow task
    * activation, an activity task, a client request, or a nexus operation).
    *
-   * Every message gets its own budget of this size. This caps what any one message can take of
+   * Every message gets its own limit of this size. This caps what any one message can take of
    * the shared {@link maxDriverOperations} pool and keeps a message carrying many large payloads
    * from starving the others. Defaults to 8.
    */
