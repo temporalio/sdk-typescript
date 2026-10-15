@@ -15,7 +15,7 @@ import {
   encodeOperationToken,
   generateWorkflowRunOperationToken,
   OperationTokenType,
-} from '@temporalio/nexus/lib/token';
+} from '@temporalio/nexus/internal';
 import * as workflow from '@temporalio/workflow';
 import { Context } from '@temporalio/activity';
 import { helpers, makeTestFunction } from './helpers-integration';
