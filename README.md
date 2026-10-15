@@ -277,14 +277,26 @@ This monorepo contains the following packages:
 | [`packages/nyc-test-coverage/`](packages/nyc-test-coverage/)                       | [`@temporalio/nyc-test-coverage`](https://www.npmjs.com/package/@temporalio/nyc-test-coverage)                         |
 | [`packages/plugin/`](packages/plugin/)                                             | [`@temporalio/plugin`](https://www.npmjs.com/package/@temporalio/plugin)                                               |
 | [`packages/nexus/`](packages/nexus/)                                               | [`@temporalio/nexus`](https://www.npmjs.com/package/@temporalio/nexus)                                                 |
-| [`contrib/ai-sdk/`](contrib/ai-sdk/)                                               | [`@temporalio/ai-sdk`](https://www.npmjs.com/package/@temporalio/ai-sdk)                                               |
-| [`contrib/google-adk-agents/`](contrib/google-adk-agents/)                         | [`@temporalio/google-adk-agents`](https://www.npmjs.com/package/@temporalio/google-adk-agents)                         |
 | [`contrib/interceptors-opentelemetry/`](contrib/interceptors-opentelemetry/)       | [`@temporalio/interceptors-opentelemetry`](https://www.npmjs.com/package/@temporalio/interceptors-opentelemetry)       |
 | [`contrib/interceptors-opentelemetry-v2/`](contrib/interceptors-opentelemetry-v2/) | [`@temporalio/interceptors-opentelemetry-v2`](https://www.npmjs.com/package/@temporalio/interceptors-opentelemetry-v2) |
-| [`contrib/langsmith/`](contrib/langsmith/)                                         | [`@temporalio/langsmith`](https://www.npmjs.com/package/@temporalio/langsmith)                                         |
-| [`contrib/openai-agents/`](contrib/openai-agents/)                                 | [`@temporalio/openai-agents`](https://www.npmjs.com/package/@temporalio/openai-agents)                                 |
-| [`contrib/strands/`](contrib/strands/)                                             | [`@temporalio/strands-agents`](https://www.npmjs.com/package/@temporalio/strands-agents)                               |
 | [`contrib/workflow-streams/`](contrib/workflow-streams/)                           | [`@temporalio/workflow-streams`](https://www.npmjs.com/package/@temporalio/workflow-streams)                           |
+
+### AI integrations
+
+AI integrations are maintained and released independently in
+[temporalio/ai-integrations](https://github.com/temporalio/ai-integrations/tree/main/typescript).
+
+| Integration    | Package                                                             |
+| -------------- | ------------------------------------------------------------------- |
+| Vercel AI SDK  | `@temporalio/vercel-ai-sdk` (formerly `@temporalio/ai-sdk`)         |
+| Google ADK     | `@temporalio/google-adk` (formerly `@temporalio/google-adk-agents`) |
+| LangSmith      | `@temporalio/langsmith`                                             |
+| OpenAI Agents  | `@temporalio/openai-agents`                                         |
+| Strands Agents | `@temporalio/strands-agents`                                        |
+
+Install these packages separately and follow the setup instructions in the integrations
+repository. Vercel AI SDK and Google ADK applications must update their dependency names
+and imports; the other three package names are unchanged.
 
 ## Contributing
 

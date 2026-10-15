@@ -17,13 +17,8 @@ packages:
   - packages/testing
   - packages/worker
   - packages/workflow
-  - contrib/ai-sdk
-  - contrib/google-adk-agents
   - contrib/interceptors-opentelemetry
   - contrib/interceptors-opentelemetry-v2
-  - contrib/langsmith
-  - contrib/openai-agents
-  - contrib/strands
   - contrib/external-storage-s3
   - contrib/external-storage-s3-aws-sdk
   - contrib/external-storage-gcs
@@ -40,16 +35,6 @@ minimumReleaseAge: 20160
 minimumReleaseAgeExclude:
   - '@temporalio/*'
   - nexus-rpc
-
-  # These AI SDK releases share provider-utils 5.0.53. The packages pin exact
-  # versions of each other, so the whole family has to be allowed together.
-  - ai@7.0.124
-  - '@ai-sdk/gateway@4.0.102'
-  - '@ai-sdk/mcp@2.0.64'
-  - '@ai-sdk/openai@4.0.83'
-  - '@ai-sdk/otel@1.0.124'
-  - '@ai-sdk/provider@4.0.21'
-  - '@ai-sdk/provider-utils@5.0.53'
 
 peerDependencyRules:
   ignoreMissing:
