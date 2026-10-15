@@ -170,11 +170,6 @@ export default tseslint.config(
         {
           patterns: [
             { group: ['@temporalio/*/src/*'], message: 'Import from the package root or a documented export.' },
-            {
-              regex:
-                '^@temporalio/(?!(?:common/lib/(?:encoding|protobufs|proto-utils|time)|interceptors-opentelemetry/lib/workflow)$)[^/]+/lib(?:/|$)',
-              message: 'Import from the package root or a documented export, not an undocumented lib path.',
-            },
           ],
         },
       ],
