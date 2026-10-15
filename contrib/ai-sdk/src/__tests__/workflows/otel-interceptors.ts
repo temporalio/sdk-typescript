@@ -5,7 +5,7 @@ import {
   OpenTelemetryInboundInterceptor,
   OpenTelemetryOutboundInterceptor,
   OpenTelemetryInternalsInterceptor,
-} from '@temporalio/interceptors-opentelemetry';
+} from '@temporalio/interceptors-opentelemetry/lib/workflow';
 
 export const interceptors = (): WorkflowInterceptors => ({
   inbound: [new OpenTelemetryInboundInterceptor()],
