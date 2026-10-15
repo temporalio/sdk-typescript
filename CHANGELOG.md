@@ -86,6 +86,7 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- Preserve the primary error that terminated `Worker.run()` when shutdown finalization fails, logging the cleanup error instead of masking the root cause with `IllegalStateError` (#2534).
 - Corrected the protobufjs dependency declarations to prevent `historyFromJSON` failing with
   `type must be a Type` when npm installs separate protobufjs copies alongside a dependency on an
   older protobufjs major (#2514).
