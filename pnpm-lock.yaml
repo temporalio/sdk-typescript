@@ -885,6 +885,9 @@ importers:
       '@types/aws-lambda':
         specifier: ^8.10.145
         version: 8.10.161
+      ava:
+        specifier: ^5.3.1
+        version: 5.3.1
       long:
         specifier: ^5.3.2
         version: 5.3.2
@@ -1098,9 +1101,6 @@ importers:
       '@temporalio/interceptors-opentelemetry':
         specifier: workspace:*
         version: link:../../contrib/interceptors-opentelemetry
-      '@temporalio/lambda-worker':
-        specifier: workspace:*
-        version: link:../lambda-worker
       '@temporalio/nexus':
         specifier: workspace:*
         version: link:../nexus
