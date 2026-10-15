@@ -7,7 +7,7 @@ import {
   encodeSystemNexusEnvelopeBytes,
 } from '@temporalio/common/internal/internal-workflow';
 import * as protoRoot from '@temporalio/proto';
-import { WorkflowCodecRunner } from '@temporalio/worker/lib/workflow-codec-runner';
+import { WorkflowCodecRunner } from '@temporalio/worker/internal';
 import { FreePayloadCodec, makeContextTrace } from './payload-converters/serialization-context-converter';
 
 const targetContext = { type: 'workflow' as const, namespace: 'target-ns', workflowId: 'target-id' };

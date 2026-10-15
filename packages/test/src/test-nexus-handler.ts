@@ -19,14 +19,13 @@ import {
   defaultDataConverter,
   WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
-
 import { ActivityExecutionAlreadyStartedError, ServiceError } from '@temporalio/client';
 import {
   PAYLOAD_VALIDATION_ERROR_TYPE,
   coerceToHandlerError,
   decodePayload,
   operationErrorToProto,
-} from '@temporalio/worker/lib/nexus/conversions';
+} from '@temporalio/worker/internal';
 
 export interface Context {
   taskQueue: string;

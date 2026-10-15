@@ -37,8 +37,12 @@
 export { NativeConnection, NativeConnectionPlugin } from './connection';
 export {
   DNSLoadBalancingConfig,
+  GzipGrpcCompressionConfig,
   GrpcCompressionConfig,
   NativeConnectionOptions,
+  NoneGrpcCompressionConfig,
+  PayloadLimitsConfig,
+  ProxyConfig,
   TLSConfig,
 } from './connection-options';
 export { startDebugReplayer } from './debug-replayer';

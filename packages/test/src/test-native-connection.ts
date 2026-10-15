@@ -7,10 +7,9 @@ import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 import { Client, NamespaceNotFoundError, WorkflowNotFoundError } from '@temporalio/client';
 import { type InternalConnectionOptions, InternalConnectionOptionsSymbol } from '@temporalio/client/internal';
-
 import type { NativeConnectionOptions } from '@temporalio/worker';
 import { NativeConnection, TransportError } from '@temporalio/worker';
-import { toNativeClientOptions } from '@temporalio/worker/lib/connection-options';
+import { toNativeClientOptions } from '@temporalio/worker/internal';
 import type { temporal } from '@temporalio/proto';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { RUN_INTEGRATION_TESTS } from './helpers';
