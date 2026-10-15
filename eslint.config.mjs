@@ -163,6 +163,60 @@ export default tseslint.config(
     },
   },
   {
+    files: ['contrib/ai-sdk/src/__tests__/workflows/otel-interceptors.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: ['@temporalio/*/src/*'], message: 'Import from the package root or a documented export.' },
+            {
+              regex:
+                '^@temporalio/(?!(?:common/lib/(?:encoding|protobufs|proto-utils|time)|interceptors-opentelemetry/lib/workflow)$)[^/]+/lib(?:/|$)',
+              message: 'Import from the package root or a documented export, not an undocumented lib path.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['contrib/openai-agents/src/__tests__/agent-sink-processor.test.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: ['@temporalio/*/src/*'], message: 'Import from the package root or a documented export.' },
+            {
+              regex:
+                '^@temporalio/(?!(?:common/lib/(?:encoding|protobufs|proto-utils|time)|workflow/lib/(?:global-attributes|sinks))$)[^/]+/lib(?:/|$)',
+              message: 'Import from the package root or a documented export, not an undocumented lib path.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['contrib/openai-agents/src/__tests__/openai-sandbox.test.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: ['@temporalio/*/src/*'], message: 'Import from the package root or a documented export.' },
+            {
+              regex:
+                '^@temporalio/(?!(?:common/lib/(?:encoding|protobufs|proto-utils|time)|workflow/lib/global-attributes)$)[^/]+/lib(?:/|$)',
+              message: 'Import from the package root or a documented export, not an undocumented lib path.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['contrib/ai-sdk/src/__tests__/**/*.ts'],
     settings: {
       'import/resolver': {
