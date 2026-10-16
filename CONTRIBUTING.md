@@ -220,6 +220,9 @@ The `scope` options are listed in [commitlint.config.js](./commitlint.config.js)
 
 ## Updating and pruning dependencies
 
+Dependency updates must satisfy the [dependency cooldown policy](docs/dependency-cooldown.md).
+Security updates do not automatically authorize immature collateral dependencies.
+
 There are various tools out there to help with updating and pruning NPM dependencies.
 
 I personally use the following commands to find NPM packages that needs to be updated. It runs

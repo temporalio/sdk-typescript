@@ -30,6 +30,7 @@
     "cloud:inventory": "tsx ./scripts/cloud-test-inventory.ts",
     "test": "pnpm --recursive --parallel --workspace-concurrency=1 --stream run test",
     "test:cloud": "tsx ./scripts/run-cloud-tests.ts",
+    "test:dependency-cooldown": "node --test .github/scripts/dependency-cooldown-policy.test.mjs .github/scripts/dependency-cooldown.test.mjs",
     "test:watch": "pnpm --recursive --stream run test:watch",
     "ci-stress": "node ./packages/test/lib/load/run-all-stress-ci-scenarios.js",
     "ci-nightly": "node ./packages/test/lib/load/run-all-nightly-scenarios.js",
@@ -59,11 +60,13 @@
     "fs-extra": "^11.2.0",
     "json5": "^2.2.3",
     "prettier": "^3.1.1",
+    "semver": "^7.8.5",
     "ts-prune": "^0.10.3",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.10.0",
-    "verdaccio": "^6.5.0"
+    "verdaccio": "^6.5.0",
+    "yaml": "^2.9.0"
   },
   "engines": {
     "node": ">= 20.3.0",
