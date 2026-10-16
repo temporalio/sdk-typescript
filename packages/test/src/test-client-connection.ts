@@ -290,6 +290,30 @@ test('grpc retry passes request and headers on retry, propagates responses', asy
   t.is(attempt, 10);
 });
 
+test('grpc retry backoff respects status-dependent maximum intervals', (t) => {
+  const retryOptions = defaultGrpcRetryOptions({
+    factor: 2,
+    maxJitter: 0,
+    initialIntervalMs: () => 100,
+    maxIntervalMs(status) {
+      return status.code === grpc.status.UNAVAILABLE ? 150 : 250;
+    },
+  });
+  const unavailableStatus: grpc.StatusObject = {
+    code: grpc.status.UNAVAILABLE,
+    details: 'unavailable',
+    metadata: new grpc.Metadata(),
+  };
+  const resourceExhaustedStatus: grpc.StatusObject = {
+    code: grpc.status.RESOURCE_EXHAUSTED,
+    details: 'resource exhausted',
+    metadata: new grpc.Metadata(),
+  };
+
+  t.is(retryOptions.delayFunction(3, unavailableStatus), 150);
+  t.is(retryOptions.delayFunction(3, resourceExhaustedStatus), 250);
+});
+
 test('Default keepalive settings are set while maintaining user provided channelArgs', async (t) => {
   const conn = Connection.lazy({
     channelArgs: { 'grpc.enable_channelz': 1, 'grpc.keepalive_permit_without_calls': 0 },
