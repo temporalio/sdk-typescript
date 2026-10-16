@@ -125,6 +125,9 @@ to docs, or any other relevant information.
 - A workflow task that arrives while a Workflow waits on a Local Activity, such as a legacy query, now
   waits until the current workflow task is reported. Previously it replaced that workflow task, which then
   timed out on the server and could leave the Workflow stuck on a nondeterminism error (temporalio/sdk-rust#1640).
+- **Experimental**: A Standalone Activity started from a Nexus operation handler directly through
+  `ActivityClient`, rather than through `TemporalNexusClient.startActivity()`'s guarded call, now
+  inherits the handler's Nexus request ID and inbound links.
 
 ### Changed
 
