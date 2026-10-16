@@ -36,6 +36,7 @@ const converterPath = require.resolve('./payload-converters/serialization-contex
 const dataConverter = { payloadConverterPath: converterPath, failureConverterPath: converterPath };
 
 const MARKER_KEY = 'nexus-context-marker';
+const NO_CONTEXT = 'no-context';
 
 const test = makeConfigurableEnvironmentTestFn<Context>({
   createTestContext: async () => {
@@ -100,11 +101,12 @@ function errorChainMessages(err: unknown): string[] {
  * Stamps a per-context marker into payload metadata on encode, and requires the same marker on
  * decode. A payload decoded under a different Nexus context, or none, throws rather than silently
  * round-tripping, so a test passes only if each payload is decoded with the exact context it was
- * encoded with.
+ * encoded with. Markers are keyed by context, or by {@link NO_CONTEXT} for payloads serialized
+ * without one.
  */
 function nexusContextMarkerCodec(markers: Record<string, string>): PayloadCodec {
   const markerFor = (context?: SerializationContext): string | undefined =>
-    context == null ? undefined : markers[contextToTraceString(context)];
+    markers[context == null ? NO_CONTEXT : contextToTraceString(context)];
   return {
     async encode(payloads: Payload[], context?: SerializationContext): Promise<Payload[]> {
       const marker = markerFor(context);
@@ -295,10 +297,50 @@ test('standalone Nexus handle obtained by id has no Nexus context', async (t) =>
   });
 });
 
-test('standalone Nexus describe reads user metadata with Nexus context', async (t) => {
+test('workflow Nexus user metadata is serialized with the caller context', async (t) => {
   const h = helpers(t);
   const { endpointName } = await h.registerNexusEndpoint();
-  const codec = nexusContextMarkerCodec({ [nexusCtx(endpointName, 'testService', 'echo')]: 'describe' });
+  const workflowId = `wf-id-${randomUUID()}`;
+  // The summary is written by the caller and read back from its history, so it stays on the
+  // caller's own context; the operation's payloads around it carry the Nexus one.
+  const codec = nexusContextMarkerCodec({
+    [workflowCtx(workflowId)]: 'caller',
+    [nexusCtx(endpointName, 'testService', 'echo')]: 'operation',
+  });
+  const client = makeClient(t.context.env, { payloadCodecs: [codec] });
+  const worker = await h.createWorker({
+    dataConverter: { ...dataConverter, payloadCodecs: [codec] },
+    nexusServices: [testServiceHandler],
+  });
+
+  await worker.runUntil(async () => {
+    await client.workflow.execute(echoOpCaller, {
+      args: [endpointName, makeContextTrace('wf-input')],
+      workflowId,
+      taskQueue: h.taskQueue,
+    });
+
+    // Read the raw event rather than decoding it: the marker is what identifies the context the
+    // summary was encoded under, and decoding would strip it.
+    const { history } = await t.context.env.client.workflowService.getWorkflowExecutionHistory({
+      namespace: t.context.env.client.options.namespace,
+      execution: { workflowId },
+    });
+    const scheduled = history?.events?.find((e) => e.nexusOperationScheduledEventAttributes != null);
+    const marker = scheduled?.userMetadata?.summary?.metadata?.[MARKER_KEY];
+    t.is(marker != null ? new TextDecoder().decode(marker) : undefined, 'caller');
+  });
+});
+
+test('standalone Nexus user metadata is serialized without the operation context', async (t) => {
+  const h = helpers(t);
+  const { endpointName } = await h.registerNexusEndpoint();
+  // NO_CONTEXT marks the summary when it takes its correct, contextless path; 'operation' marks
+  // it if a regression routes it through the Nexus context.
+  const codec = nexusContextMarkerCodec({
+    [nexusCtx(endpointName, 'testService', 'echo')]: 'operation',
+    [NO_CONTEXT]: 'metadata',
+  });
   const client = makeClient(t.context.env, { payloadCodecs: [codec] });
   const worker = await h.createWorker({
     dataConverter: { ...dataConverter, payloadCodecs: [codec] },
@@ -313,8 +355,8 @@ test('standalone Nexus describe reads user metadata with Nexus context', async (
       summary: 'nexus-summary',
     });
     await handle.result();
-    // The summary was encoded under the start request's endpoint/service/operation; describe can
-    // only read it back if it rebuilds the same three from the execution info.
+    // The summary never reaches the handler, so it carries no operation context; describe reads it
+    // back the same way, while the operation's own payloads keep the Nexus context around it.
     const description = await handle.describe();
     t.is(await description.staticSummary(), 'nexus-summary');
   });
