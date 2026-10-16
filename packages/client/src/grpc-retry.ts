@@ -61,15 +61,14 @@ function withDefaultBackoffOptions({
   factor,
   maxJitter,
   initialIntervalMs,
+  maxIntervalMs,
 }: Partial<BackoffOptions>): BackoffOptions {
   return {
     maxAttempts: maxAttempts ?? 10,
     factor: factor ?? 1.7,
     maxJitter: maxJitter ?? 0.2,
     initialIntervalMs: initialIntervalMs ?? defaultInitialIntervalMs,
-    maxIntervalMs() {
-      return 5_000;
-    },
+    maxIntervalMs: maxIntervalMs ?? (() => 5_000),
   };
 }
 
