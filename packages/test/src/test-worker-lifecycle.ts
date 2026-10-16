@@ -275,3 +275,185 @@ test.serial('Mocked throws combined error in runUntil', async (t) => {
   t.is(workerError.message, 'Timed out while waiting for worker to shutdown gracefully');
   t.is(innerError.message, 'inner');
 });
+
+test.serial('Runtime preserves flushable logger across shutdown and re-instantiation', async (t) => {
+  let closed = false;
+  let flushCount = 0;
+  const messages: string[] = [];
+
+  const logger = Object.assign(
+    new DefaultLogger('INFO', (entry) => {
+      if (closed) {
+        throw new Error(`Attempted to log to closed logger: ${entry.message}`);
+      }
+      messages.push(entry.message);
+    }),
+    {
+      flush: () => {
+        flushCount++;
+      },
+      close: () => {
+        closed = true;
+      },
+    }
+  );
+
+  try {
+    await Runtime._instance?.shutdown();
+    Runtime.install({ logger });
+
+    const runtime1 = Runtime.instance();
+    t.is(runtime1.logger, logger);
+
+    // Simulate an active native reference holding the runtime alive
+    const fakeRef = {} as any;
+    (runtime1 as any).backRefs.add(fakeRef);
+    await (runtime1 as any).shutdownIfIdle();
+    t.is(Runtime._instance, runtime1);
+    t.false(closed);
+
+    // Release the reference; runtime automatically shuts down on idle
+    (runtime1 as any).backRefs.delete(fakeRef);
+    await (runtime1 as any).shutdownIfIdle();
+    t.is(Runtime._instance, undefined);
+
+    // Assert: Runtime shutdown MUST NOT close user-provided logger, but MUST flush it
+    t.false(closed, 'user logger must not be closed on runtime shutdown');
+    t.true(flushCount > 0, 'user logger should be flushed on shutdown');
+
+    // Re-instantiate runtime using remembered defaultOptions (as NativeConnection.connect does)
+    const runtime2 = Runtime.instance();
+    t.is(runtime2.logger, logger, 'runtime reinstantiation should reuse the configured logger');
+
+    // Logger must remain valid and operational
+    t.notThrows(() => {
+      runtime2.logger.info('message after reinstantiation');
+    });
+    t.deepEqual(messages, ['message after reinstantiation']);
+  } finally {
+    await Runtime._instance?.shutdown();
+    Runtime.defaultOptions = {};
+    delete Runtime.instantiator;
+  }
+});
+
+test.serial(
+  'Runtime preserves flushable logger across shutdown and re-instantiation with log forwarding',
+  async (t) => {
+    let closed = false;
+    let flushCount = 0;
+    const messages: string[] = [];
+
+    const logger = Object.assign(
+      new DefaultLogger('INFO', (entry) => {
+        if (closed) {
+          throw new Error(`Attempted to log to closed logger: ${entry.message}`);
+        }
+        messages.push(entry.message);
+      }),
+      {
+        flush: () => {
+          flushCount++;
+        },
+        close: () => {
+          closed = true;
+        },
+      }
+    );
+
+    try {
+      await Runtime._instance?.shutdown();
+      Runtime.install({
+        logger,
+        telemetryOptions: {
+          logging: {
+            forward: { level: 'INFO' },
+          },
+        },
+      });
+
+      const runtime1 = Runtime.instance();
+      // When log forwarding is enabled, runtime1.logger wraps the downstream logger
+      t.not(runtime1.logger, logger);
+
+      // Simulate an active native reference holding the runtime alive
+      const fakeRef = {} as any;
+      (runtime1 as any).backRefs.add(fakeRef);
+      await (runtime1 as any).shutdownIfIdle();
+      t.is(Runtime._instance, runtime1);
+      t.false(closed);
+
+      // Release the reference; runtime automatically shuts down on idle
+      (runtime1 as any).backRefs.delete(fakeRef);
+      await (runtime1 as any).shutdownIfIdle();
+      t.is(Runtime._instance, undefined);
+
+      // Assert: Runtime shutdown MUST NOT close downstream user-provided logger, but MUST flush it
+      t.false(closed, 'user logger must not be closed on runtime shutdown with log forwarding');
+      t.true(flushCount > 0, 'user logger should be flushed on shutdown');
+
+      // Re-instantiate runtime using remembered defaultOptions
+      const runtime2 = Runtime.instance();
+      t.notThrows(() => {
+        runtime2.logger.info('message after reinstantiation with forwarding');
+      });
+
+      // Flush to ensure message is forwarded to downstream logger immediately
+      runtime2.flushLogs();
+      t.true(messages.includes('message after reinstantiation with forwarding'));
+      t.false(closed);
+    } finally {
+      await Runtime._instance?.shutdown();
+      Runtime.defaultOptions = {};
+      delete Runtime.instantiator;
+    }
+  }
+);
+
+test.serial('Runtime supports repeated shutdown and reinstantiation cycles with flushable logger', async (t) => {
+  let closed = false;
+  const messages: string[] = [];
+
+  const logger = Object.assign(
+    new DefaultLogger('INFO', (entry) => {
+      if (closed) {
+        throw new Error(`Attempted to log to closed logger: ${entry.message}`);
+      }
+      messages.push(entry.message);
+    }),
+    {
+      flush: () => undefined,
+      close: () => {
+        closed = true;
+      },
+    }
+  );
+
+  try {
+    await Runtime._instance?.shutdown();
+    Runtime.install({ logger });
+
+    for (let cycle = 1; cycle <= 3; cycle++) {
+      const runtime = Runtime.instance();
+      t.is(runtime.logger, logger);
+      runtime.logger.info(`cycle ${cycle} start`);
+
+      const fakeRef = {} as any;
+      (runtime as any).backRefs.add(fakeRef);
+      (runtime as any).backRefs.delete(fakeRef);
+      await (runtime as any).shutdownIfIdle();
+      t.is(Runtime._instance, undefined);
+      t.false(closed, `logger must not be closed after cycle ${cycle}`);
+    }
+
+    const finalRuntime = Runtime.instance();
+    finalRuntime.logger.info('final message');
+    t.is(messages.length, 4);
+    t.is(messages[3], 'final message');
+    t.false(closed);
+  } finally {
+    await Runtime._instance?.shutdown();
+    Runtime.defaultOptions = {};
+    delete Runtime.instantiator;
+  }
+});
