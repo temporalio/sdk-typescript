@@ -397,7 +397,9 @@ export class NexusClient extends BaseClient {
     const userMetadata =
       input.summary != null
         ? {
-            summary: await encodeToPayload(this.dataConverter, input.summary, context),
+            // User metadata isn't in the Nexus StartOperationRequest, so it never reaches the
+            // handler and carries no operation context. Describe decodes it the same way.
+            summary: await encodeToPayload(this.dataConverter, input.summary),
           }
         : undefined;
     const req: temporal.api.workflowservice.v1.IStartNexusOperationExecutionRequest = {
@@ -686,8 +688,8 @@ async function nexusOperationExecutionDescriptionFromProto(
   const decodeMetadata = async () => {
     if (decodedMetadata.state === 'pending') {
       const metadataPromise = Promise.all([
-        decodeOptionalSinglePayload<string>(dataConverter, raw.userMetadata?.summary, context),
-        decodeOptionalSinglePayload<string>(dataConverter, raw.userMetadata?.details, context),
+        decodeOptionalSinglePayload<string>(dataConverter, raw.userMetadata?.summary),
+        decodeOptionalSinglePayload<string>(dataConverter, raw.userMetadata?.details),
       ]).then(([summary, details]) => {
         return {
           summary: summary ?? undefined,

@@ -313,7 +313,6 @@ export class WorkflowCodecRunner {
             kind: 'nexus',
             context: nexusContext,
           });
-          userMetadataContext = nexusContext;
         }
         const signal = command.signalExternalWorkflowExecution;
         const signalContext = signal ? this.externalWorkflowContext(signal) : undefined;

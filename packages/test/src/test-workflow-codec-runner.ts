@@ -419,8 +419,9 @@ test('nexus operation paths use the operation context', async (t) => {
   t.deepEqual(traceFromPayload(encoded.successful?.commands?.[0]?.scheduleNexusOperation?.input as Payload), [
     `codec.encode.bound|nexus-input|${nexusOperationCtx}`,
   ]);
+  // User metadata is not part of the Nexus start request, so it stays on the caller's context.
   t.deepEqual(traceFromPayload(encoded.successful?.commands?.[0]?.userMetadata?.summary as Payload), [
-    `codec.encode.bound|nexus-summary|${nexusOperationCtx}`,
+    'codec.encode.bound|nexus-summary|workflow.default.wf-1',
   ]);
 
   // An asynchronous start is not terminal, so it must leave the context for the resolution below.

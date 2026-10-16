@@ -204,7 +204,7 @@ test('a marked System Nexus envelope is rewritten independently of its endpoint'
   t.is(new ProtobufBinaryPayloadConverter(protoRoot).fromPayload<any>(envelope!).links?.length, 0);
 });
 
-test('a marked System Nexus envelope keeps its target context for user metadata on any endpoint', async (t) => {
+test('a marked System Nexus envelope keeps the caller context for user metadata on any endpoint', async (t) => {
   const runner = new WorkflowCodecRunner([new FreePayloadCodec()], {
     type: 'workflow',
     namespace: 'caller-ns',

@@ -284,10 +284,18 @@ function startNexusOperationNextHandler({
 }: StartNexusOperationInput): Promise<StartNexusOperationOutput> {
   const activator = getActivator();
   const nexusContext: NexusSerializationContext = { type: 'nexus', endpoint, service, operation };
+  // User metadata isn't in the Nexus StartOperationRequest, so it never reaches the handler:
+  // it takes the caller's context, not the operation's.
+  const workflowContext: SerializationContext = {
+    type: 'workflow',
+    namespace: activator.info.namespace,
+    workflowId: activator.info.workflowId,
+  };
   const serialization = serializeNexusOperation(
     { input, endpoint, service, options, operation, inputType, outputType },
     activator.payloadConverter,
-    nexusContext
+    nexusContext,
+    workflowContext
   );
 
   return new Promise<StartNexusOperationOutput>((resolve, reject) => {
@@ -369,12 +377,13 @@ interface SerializedNexusOperation {
 function serializeNexusOperation(
   { input, endpoint, service, options, operation, inputType }: Omit<StartNexusOperationInput, 'seq' | 'headers'>,
   payloadConverter: PayloadConverter,
-  nexusContext: NexusSerializationContext
+  nexusContext: NexusSerializationContext,
+  workflowContext: SerializationContext
 ): SerializedNexusOperation {
   if (endpoint !== TEMPORAL_SYSTEM_NEXUS_ENDPOINT) {
     return {
       input: toPayloadWithTypeInfo(payloadConverter, input, nexusContext, inputType),
-      userMetadata: userMetadataToPayload(payloadConverter, options?.summary, undefined, nexusContext),
+      userMetadata: userMetadataToPayload(payloadConverter, options?.summary, undefined, workflowContext),
       systemNexus: undefined,
     };
   }
@@ -389,9 +398,7 @@ function serializeNexusOperation(
     input: withSystemNexusPayloadConversion(payloadConverter, context, () =>
       toPayloadWithTypeInfo(outerPayloadConverter, input, undefined, inputType)
     ),
-    userMetadata: withSystemNexusPayloadConversion(payloadConverter, context, () =>
-      userMetadataToPayload(payloadConverter, options?.summary, undefined, context)
-    ),
+    userMetadata: userMetadataToPayload(payloadConverter, options?.summary, undefined, workflowContext),
     systemNexus: { context },
   };
 }
