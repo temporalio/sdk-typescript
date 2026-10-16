@@ -21,10 +21,6 @@ to docs, or any other relevant information.
 
 ### Breaking Changes
 
-- The `@temporalio/google-adk-agents` compatibility wrapper now requires Node.js 22.12.0
-  or later and Google ADK 2.0, matching `@temporalio/google-adk`. The wrapper preserves
-  import paths, but the ADK upgrade and renamed workflow random stream still require
-  draining affected in-flight Workflows or using separate task queues for the cutover.
 - SDK and contrib packages now declare `protobufjs` (`^8.7.1`) and `long` (`^5.3.2`) as peer
   dependencies rather than relying on separately installed copies. Package managers that do not
   automatically install peers require applications to add these dependencies explicitly.
@@ -60,14 +56,6 @@ to docs, or any other relevant information.
 
 ### Changed
 
-- AI integrations are now maintained and released independently in
-  [temporalio/ai-integrations](https://github.com/temporalio/ai-integrations/tree/main/typescript).
-  `@temporalio/ai-sdk` and `@temporalio/google-adk-agents` remain as compatibility wrappers
-  forwarding their public entrypoints to `@temporalio/vercel-ai-sdk` and `@temporalio/google-adk`.
-  Existing import paths can be retained; new applications should use the standalone names.
-  `@temporalio/langsmith`, `@temporalio/openai-agents`, and `@temporalio/strands-agents` retain their
-  package names. The integrations' implementations, tests, and API documentation are no longer
-  built in this repository; the two wrappers have separate forwarding tests.
 - Updated the following dependencies: `unionfs` from 4.5.1 to 4.6.0, `@grpc/grpc-js` from 1.12.4 to 1.12.7, `smol-toml` from 1.6.1 to 1.7.1
   and `tar` from 7.5.11 to 7.5.21.
 - A Worker will now refuse to load and execute a Workflow bundle produced with a different version
@@ -92,8 +80,7 @@ to docs, or any other relevant information.
   representation, such as functions, symbols, and objects whose `toJSON` returns `undefined`. The default
   payload converter now throws a `ValueError` for these values, including symbols, which previously caused a
   `TypeError` while building the error message.
-- The Workflow sandbox now exposes `atob` and `btoa`, allowing integrations such as `@temporalio/vercel-ai-sdk` to
-  process image and file tool results containing base64 data.
+- The Workflow sandbox now exposes `atob` and `btoa` for encoding and decoding base64 data.
 - `@temporalio/create` now supports comments and trailing commas in `tsconfig.json` files when
   creating projects.
 - `WorkflowExecutionAlreadyStartedError` now exposes the `runId` of the already-running Workflow Execution when the server provides it in the error details (#1838).
@@ -110,8 +97,6 @@ to docs, or any other relevant information.
 
 ### Breaking Changes
 
-- `@temporalio/openai-agents` now requires `@openai/agents-core` and `@openai/agents-openai` `~0.14.3`. A project
-  pinned to `0.13.x` or earlier hits a peer dependency conflict until it upgrades.
 - **Experimental**: External storage `StorageDriverSelector` now receives a
   `StorageDriverSelectContext` instead of a `StorageDriverStoreContext`. Update the parameter
   type; the new type carries the same `abortSignal` and `target` fields.
@@ -121,9 +106,6 @@ to docs, or any other relevant information.
 - **Experimental**: New methods for `ActivityHandle`: `pause`, `unpause`, `updateOptions` and `restoreOriginalOptions`.
 - `ActivityHandle.describe` now accepts options that can be used to include additional data associated
   with activity execution, such as input and result.
-- **Experimental**: `@temporalio/openai-agents` can run OpenAI Agents `SandboxAgent`s as Temporal Workflows. SandboxAgent
-  operations are Activities; hosted tool credentials and sandbox environment values that reference allowlisted Worker
-  environment variables are resolved on Worker so their values are not recorded in Workflow history.
 - **Experimental**: Added `rawValueTypeInfo`, which allows `RawValue` inputs and results to be preserved across
   serialization boundaries when explicitly configured on TypeInfo-aware APIs.
 - **Experimental**: External Storage download and upload metrics are now reported to Core on Workflow Activation
@@ -212,10 +194,6 @@ to docs, or any other relevant information.
   arguments and results.
 - **Experimental**: Update definitions and named Update calls can use `TypeInfo` to convert Update arguments and
   results.
-- **Experimental**: `@temporalio/google-adk-agents` package for running Google ADK agents as durable Temporal Workflows,
-  requiring `@google/adk@>=1.5.0 <1.6.0` as a peer dependency.
-  ADK's OpenTelemetry agent-loop spans can be exported replay-safely from the Workflow sandbox by composing with
-  `OpenTelemetryPlugin` from `@temporalio/interceptors-opentelemetry`; see the package README's telemetry section.
 - **Experimental**: `TemporalOperationHandler` can now use Standalone Activities as asynchronous
   Nexus Operation backing executions through `TemporalNexusClient.startActivity` and
   `typedActivity`.
@@ -233,8 +211,6 @@ to docs, or any other relevant information.
 
 - Nexus is now generally available (GA) for calling Nexus Operations from Workflows and handling
   Workflow-backed Operations with `WorkflowRunOperationHandler`.
-- `@temporalio/ai-sdk` now requires `ai@>=7.0.59` as a peer dependency, up from `7.0.0`, since
-  earlier releases threw a `TypeError` on import in runtimes without a global `fetch`.
 - A Payload Converter or Payload Codec that fails to decode a Nexus Operation's input with a
   non-retryable `ApplicationFailure` of type `PayloadValidationError` now results in a `BAD_REQUEST`
   Nexus Handler Error instead of `INTERNAL`, so the caller is not retried on invalid input. The
@@ -277,11 +253,6 @@ to docs, or any other relevant information.
   update (e.g. a validation rejection) surfaces as a failed Nexus operation. Cancellation is
   customizable via the `cancelWorkflowUpdate` handler option; the default rejects with a
   `NOT_IMPLEMENTED` handler error.
-- `@temporalio/ai-sdk`: `listToolsActivity`/`callToolActivity` now reuse a single MCP client connection
-  across repeated invocations for the same server instead of creating and closing one on every call.
-  Configure the idle window via the new `mcpConnectionIdleTimeout` option on `createActivities` and
-  `AiSdkPluginOptions` (defaults to 5 minutes); pass `mcpConnectionIdleTimeout: 0` to opt out and restore
-  the original behavior for MCP servers/transports that don't tolerate a reused or concurrent session.
 
 ### Changed
 
@@ -294,8 +265,6 @@ to docs, or any other relevant information.
 
 ### Fixed
 
-- strands: Declare `zod` as a peer dependency.
-- strands: MCP connections are no longer disconnected while being used by a `callTool` or `listTools` activity.
 - workflow-streams: `WorkflowStream.onPoll` no longer serves a stale log index for a poll that
   was parked across a `truncate()` call, which could silently skip events.
 - Workflows no longer retain completion state when a child Workflow fails or is cancelled before starting.
@@ -306,14 +275,6 @@ to docs, or any other relevant information.
 - Bumped the vendored `quinn-proto` in `@temporalio/core-bridge`'s `Cargo.lock` from 0.11.14 to
   0.11.15, clearing GHSA-4w2j-m93h-cj5j / RUSTSEC-2026-0185 (unbounded out-of-order stream
   reassembly DoS) for downstream image scanners.
-
-## [1.21.1] - 2026-07-23
-
-### Fixed
-
-- strands: Add `@aws-sdk/client-s3` to the workflow bundler ignore list, fixing bundler errors when
-  using the S3-backed `context-offloader` vended plugin. The package is dynamically imported
-  worker-side and is never reached from workflow code.
 
 ## [1.21.0] - 2026-07-23
 
@@ -333,9 +294,6 @@ to docs, or any other relevant information.
   can be used with external storage to offload large payloads to GCS buckets in GCP instead of inlining them
   into workflow history.
 - `ResourceBasedController` can now be shared by resource-based tuners across multiple Workers in the same process.
-- **Experimental** New `@temporalio/strands-agents` package for building workflows with Strand Agents.
-- **Experimental**: `@temporalio/openai-agents` now supports streaming model events from Workflows.
-
 - Added opt-in `envconfig` support to the test workflow environment. This enables testing against arbitrary
   Temporal server environments (i.e. local, staging, prod)
 
@@ -350,7 +308,6 @@ to docs, or any other relevant information.
   `NativeConnectionOptions.payloadLimits`. If you use a proxy between the worker and server that
   alters the size of payloads (e.g. compression, encryption, external storage), it is advised that
   you disable size enforcement by setting `disablePayloadErrorLimit: true` on the worker.
-- `@temporalio/ai-sdk` now targets Vercel AI SDK v7, requiring Node 22.12.0+.
 
 ### Changed
 
@@ -365,10 +322,6 @@ to docs, or any other relevant information.
 
 ### Fixed
 
-- strands: add `@aws-sdk/client-s3` to the workflow bundler ignore list, fixing bundler errors when
-  using the S3-backed `context-offloader` vended plugin. The package is dynamically imported
-  worker-side and is never reached from workflow code.
-
 - `TEMPORAL_TLS` existing behavior when enabled was to _disable_ TLS configuration. This has been corrected,
   setting `TEMPORAL_TLS` now _enables_ TLS configuration
 
@@ -378,12 +331,6 @@ to docs, or any other relevant information.
 
 - Workflow Bundler: further strengthening of the `__webpack_module_cache__` replacement logic, addressing regressions introduced by the fix in 1.20.1.
 
-## [1.20.2] - 2026-07-08
-
-### Fixed
-
-- langsmith: resolve workflow interceptor module by absolute path
-
 ## [1.20.1] - 2026-07-07
 
 ### Fixed
@@ -391,12 +338,6 @@ to docs, or any other relevant information.
 - Workflow Bundler: fix a bug in our replacement of `__webpack_module_cache__` logic introduced by webpack 5.108.0, resulting in breaking workflow context isolation (fix #2170).
 
 ## [1.20.0] - 2026-07-07
-
-### Added
-
-- New `@temporalio/langsmith` package for tracing Temporal apps to [LangSmith](https://smith.langchain.com/).
-  It hooks the client, Workflow, and Activity interceptors so a Workflow and the Activities it runs show up
-  as a single LangSmith run tree.
 
 ### Changed
 
@@ -408,9 +349,6 @@ to docs, or any other relevant information.
     advertise SDK metadata support.
   - OTLP metric export failures from Core's periodic metric reader are now logged through Core
     telemetry.
-- `@temporalio/openai-agents`: Query handlers and update validators now derive trace span IDs from the SDK's
-  replay-safe random source instead of a private seeded PRNG. This removes the old seed-collision workaround
-  and gives read-only handlers distinct, well-formed span IDs.
 
 ## [1.19.2] - 2026-07-13
 
@@ -450,9 +388,7 @@ to docs, or any other relevant information.
 - Standalone Nexus operation links are now formatted to align with server side support.
 - Standalone Nexus operation links are now forwarded on start workflow and signal requests.
 - `protobufjs` bumped to 7.6.2
-- Rename @temporalio/openai-agents tracing sink to the reserved \__temporal_ prefix
 
 ### Fixed
 
-- fix(openai-agents): correct misleading legacy-query comment in resolveQueryKey
 - avoid logging `NativeConnection` on worker startup
