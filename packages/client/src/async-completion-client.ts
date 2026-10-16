@@ -225,7 +225,10 @@ export class AsyncCompletionClient extends BaseClient {
           await visit(
             req,
             walkRespondActivityTaskCompletedRequest,
-            extstoreStoreOptions(externalStorage, { initialTarget: this.storageTargetFor(taskTokenOrFullActivityId), driverOperationLimit: this.driverOperationLimit })
+            extstoreStoreOptions(externalStorage, {
+              initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
+              driverOperationLimit: this.driverOperationLimit,
+            })
           );
         }
         await this.workflowService.respondActivityTaskCompleted(req);
@@ -240,7 +243,10 @@ export class AsyncCompletionClient extends BaseClient {
           await visit(
             req,
             walkRespondActivityTaskCompletedByIdRequest,
-            extstoreStoreOptions(externalStorage, { initialTarget: this.storageTargetFor(taskTokenOrFullActivityId), driverOperationLimit: this.driverOperationLimit })
+            extstoreStoreOptions(externalStorage, {
+              initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
+              driverOperationLimit: this.driverOperationLimit,
+            })
           );
         }
         await this.workflowService.respondActivityTaskCompletedById(req);
@@ -282,7 +288,10 @@ export class AsyncCompletionClient extends BaseClient {
           await visit(
             req,
             walkRespondActivityTaskFailedRequest,
-            extstoreStoreOptions(externalStorage, { initialTarget: this.storageTargetFor(taskTokenOrFullActivityId), driverOperationLimit: this.driverOperationLimit })
+            extstoreStoreOptions(externalStorage, {
+              initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
+              driverOperationLimit: this.driverOperationLimit,
+            })
           );
         }
         await this.workflowService.respondActivityTaskFailed(req);
@@ -297,7 +306,10 @@ export class AsyncCompletionClient extends BaseClient {
           await visit(
             req,
             walkRespondActivityTaskFailedByIdRequest,
-            extstoreStoreOptions(externalStorage, { initialTarget: this.storageTargetFor(taskTokenOrFullActivityId), driverOperationLimit: this.driverOperationLimit })
+            extstoreStoreOptions(externalStorage, {
+              initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
+              driverOperationLimit: this.driverOperationLimit,
+            })
           );
         }
         await this.workflowService.respondActivityTaskFailedById(req);
@@ -343,7 +355,10 @@ export class AsyncCompletionClient extends BaseClient {
           await visit(
             req,
             walkRespondActivityTaskCanceledRequest,
-            extstoreStoreOptions(externalStorage, { initialTarget: this.storageTargetFor(taskTokenOrFullActivityId), driverOperationLimit: this.driverOperationLimit })
+            extstoreStoreOptions(externalStorage, {
+              initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
+              driverOperationLimit: this.driverOperationLimit,
+            })
           );
         }
         await this.workflowService.respondActivityTaskCanceled(req);
@@ -358,7 +373,10 @@ export class AsyncCompletionClient extends BaseClient {
           await visit(
             req,
             walkRespondActivityTaskCanceledByIdRequest,
-            extstoreStoreOptions(externalStorage, { initialTarget: this.storageTargetFor(taskTokenOrFullActivityId), driverOperationLimit: this.driverOperationLimit })
+            extstoreStoreOptions(externalStorage, {
+              initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
+              driverOperationLimit: this.driverOperationLimit,
+            })
           );
         }
         await this.workflowService.respondActivityTaskCanceledById(req);
@@ -403,7 +421,10 @@ export class AsyncCompletionClient extends BaseClient {
           await visit(
             req,
             walkRecordActivityTaskHeartbeatRequest,
-            extstoreStoreOptions(externalStorage, { initialTarget: this.storageTargetFor(taskTokenOrFullActivityId), driverOperationLimit: this.driverOperationLimit })
+            extstoreStoreOptions(externalStorage, {
+              initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
+              driverOperationLimit: this.driverOperationLimit,
+            })
           );
         }
         const response = await this.workflowService.recordActivityTaskHeartbeat(req);
@@ -421,7 +442,10 @@ export class AsyncCompletionClient extends BaseClient {
           await visit(
             req,
             walkRecordActivityTaskHeartbeatByIdRequest,
-            extstoreStoreOptions(externalStorage, { initialTarget: this.storageTargetFor(taskTokenOrFullActivityId), driverOperationLimit: this.driverOperationLimit })
+            extstoreStoreOptions(externalStorage, {
+              initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
+              driverOperationLimit: this.driverOperationLimit,
+            })
           );
         }
         const response = await this.workflowService.recordActivityTaskHeartbeatById(req);

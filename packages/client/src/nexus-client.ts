@@ -417,7 +417,11 @@ export class NexusClient extends BaseClient {
     let res: temporal.api.workflowservice.v1.IStartNexusOperationExecutionResponse;
     try {
       if (externalStorage) {
-        await visit(req, walkStartNexusOperationExecutionRequest, extstoreStoreOptions(externalStorage, { driverOperationLimit: this.driverOperationLimit }));
+        await visit(
+          req,
+          walkStartNexusOperationExecutionRequest,
+          extstoreStoreOptions(externalStorage, { driverOperationLimit: this.driverOperationLimit })
+        );
       }
       res = await this.connection.workflowService.startNexusOperationExecution(req);
     } catch (err: unknown) {

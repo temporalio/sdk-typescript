@@ -42,14 +42,7 @@ export interface ExternalStorageStoreOptions {
  */
 export function extstoreStoreOptions(
   externalStorage: ExternalStorage,
-  {
-    initialTarget,
-    deriveContext,
-    abortSignal,
-    metrics,
-    logger,
-    driverOperationLimit,
-  }: ExternalStorageStoreOptions = {}
+  { initialTarget, deriveContext, abortSignal, metrics, logger, driverOperationLimit }: ExternalStorageStoreOptions = {}
 ): VisitOptions<StoreTarget> {
   const runner = new ExternalStorageRunner(externalStorage, metrics, logger, driverOperationLimit);
   return {

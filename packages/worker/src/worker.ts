@@ -857,8 +857,8 @@ export class Worker {
     protected _connection?: NativeConnection,
     protected readonly isReplayWorker: boolean = false
   ) {
-    const { externalStorage } = options.loadedDataConverter;
     // A worker does not share its client's limit, even when built from that client.
+    const externalStorage = options.loadedDataConverter?.externalStorage;
     this.driverOperationLimit = externalStorage ? newDriverOperationLimit(externalStorage) : undefined;
   }
 
