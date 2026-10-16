@@ -56,7 +56,7 @@ to docs, or any other relevant information.
     forever;
   - ADK's UUIDs are generated from a named workflow random stream inside the sandbox, so interrupt
     and function-call ids are replay-stable. The Workflow bundle now uses ADK's web build.
-- **Experimental**: Added payload caching for External Storage. Clients and Workers cache External Storage payloads in memory by default. Users can provide a custom cache or disable caching with `payloadCache: false`.
+- **Experimental**: Added opt-in payload caching for External Storage. Pass a `PayloadCache`, such as `InMemoryPayloadCache`, as the `payloadCache` option of a Client or Worker to cache External Storage payloads.
 - **Experimental**: Workflows can signal another Workflow and start it when absent with
   `signalWithStartWorkflow`.
 - **Experimental**: Workflow outbound interceptors can intercept Temporal System Nexus calls

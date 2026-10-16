@@ -27,8 +27,8 @@ function compilePayloadCache(payloadCache?: PayloadCache | false): PayloadCache 
   return compileWorkerOptions({ ...defaultOptions, payloadCache }, runtime.logger, runtime.metricMeter).payloadCache;
 }
 
-test('creates a payload cache by default', (t) => {
-  t.truthy(compilePayloadCache());
+test('has no payload cache by default', (t) => {
+  t.is(compilePayloadCache(), false);
 });
 
 test('disables the payload cache when configured with false', (t) => {

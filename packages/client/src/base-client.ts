@@ -1,11 +1,7 @@
 import os from 'node:os';
 import type * as _grpc from '@grpc/grpc-js'; // For JSDoc only
 import type { DataConverter, LoadedDataConverter, PayloadCache } from '@temporalio/common';
-import {
-  InMemoryPayloadCache,
-  isLoadedDataConverter,
-  loadDataConverter,
-} from '@temporalio/common/lib/internal-non-workflow';
+import { isLoadedDataConverter, loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
 import { Connection } from './connection';
 import type { ConnectionLike, Metadata } from './types';
 
@@ -18,7 +14,7 @@ export interface BaseClientOptions {
   /**
    * Payload cache shared by this client, or `false` to disable payload caching.
    *
-   * @default `new InMemoryPayloadCache()` with a 64 MiB and 10,000 entry limit.
+   * @default `false`
    * @experimental
    */
   payloadCache?: PayloadCache | false;
@@ -81,7 +77,7 @@ export class BaseClient {
     this.connection = options?.connection ?? Connection.lazy();
     const dataConverter = options?.dataConverter ?? {};
     this.loadedDataConverter = isLoadedDataConverter(dataConverter) ? dataConverter : loadDataConverter(dataConverter);
-    this.payloadCache = options?.payloadCache ?? new InMemoryPayloadCache();
+    this.payloadCache = options?.payloadCache ?? false;
   }
 
   /**

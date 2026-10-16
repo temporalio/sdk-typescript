@@ -3,7 +3,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { ConnectionLike } from '@temporalio/client';
-import { Client } from '@temporalio/client';
+import { Client, InMemoryPayloadCache } from '@temporalio/client';
 import { ExternalStorage, type StorageDriverTargetInfo } from '@temporalio/common';
 import { decodeReferencePayload, isReferencePayload } from '@temporalio/common/lib/internal-non-workflow';
 import type { temporal } from '@temporalio/proto';
@@ -670,7 +670,7 @@ test('schedule create offloads a large memo and describe retrieves it', async (t
 
 test('Worker.client shares the Worker payload cache', async (t) => {
   const { createWorker } = helpers(t);
-  const worker = await createWorker();
+  const worker = await createWorker({ payloadCache: new InMemoryPayloadCache() });
 
   t.truthy(worker.options.payloadCache);
   t.is(worker.client?.options.payloadCache, worker.options.payloadCache);

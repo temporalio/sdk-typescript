@@ -13,11 +13,7 @@ import type {
 } from '@temporalio/common';
 import type { Duration } from '@temporalio/common/lib/time';
 import { msOptionalToNumber, msToNumber } from '@temporalio/common/lib/time';
-import {
-  InMemoryPayloadCache,
-  loadDataConverter,
-  withPayloadCacheMetrics,
-} from '@temporalio/common/lib/internal-non-workflow';
+import { loadDataConverter, withPayloadCacheMetrics } from '@temporalio/common/lib/internal-non-workflow';
 import type { LoggerSinks, WorkflowInfo } from '@temporalio/workflow';
 import type { Context } from '@temporalio/activity';
 import type { native } from '@temporalio/core-bridge';
@@ -442,9 +438,9 @@ export interface WorkerOptions {
   maxCachedWorkflows?: number;
 
   /**
-   * Payload cache.
+   * Payload cache shared by this Worker, or `false` to disable payload caching.
    *
-   * @default `new InMemoryPayloadCache()` with a 64 MiB and 10,000 entry limit.
+   * @default `false`
    * @experimental
    */
   payloadCache?: PayloadCache | false;
@@ -1159,10 +1155,7 @@ export function compileWorkerOptions(
 
   const tuner = asNativeTuner(opts.tuner, logger);
 
-  const payloadCache =
-    opts.payloadCache === false
-      ? false
-      : withPayloadCacheMetrics(opts.payloadCache ?? new InMemoryPayloadCache(), metricMeter);
+  const payloadCache = opts.payloadCache ? withPayloadCacheMetrics(opts.payloadCache, metricMeter) : false;
   const loadedDataConverter = loadDataConverter(opts.dataConverter);
 
   return {

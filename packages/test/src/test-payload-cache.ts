@@ -387,8 +387,8 @@ test('Client shares a custom payload cache across subclients', (t) => {
   t.is(client.nexus.options.payloadCache, payloadCache);
 });
 
-test('standalone clients create a default payload cache and allow disabling it', (t) => {
-  t.truthy(new WorkflowClient().options.payloadCache);
+test('standalone clients have no payload cache by default or when disabled', (t) => {
+  t.is(new WorkflowClient().options.payloadCache, false);
   t.is(new WorkflowClient({ payloadCache: false }).options.payloadCache, false);
 });
 
@@ -396,7 +396,7 @@ test("a client rebuilt from another client's options keeps its payload cache set
   const disabled = new WorkflowClient({ payloadCache: false });
   t.is(new WorkflowClient(disabled.options).options.payloadCache, false);
 
-  const enabled = new WorkflowClient();
+  const enabled = new WorkflowClient({ payloadCache: new InMemoryPayloadCache() });
   t.is(new WorkflowClient(enabled.options).options.payloadCache, enabled.options.payloadCache);
 });
 

@@ -12,7 +12,7 @@ Common library for code that's used across the Client, Worker, and/or Workflow:
 
 ## Payload Caching
 
-**Experimental.** Clients and Workers cache External Storage payloads in memory by default, so a payload already in the cache is not retrieved from its storage driver again. The SDK exposes a generic `PayloadCache` interface and an in-memory implementation, `InMemoryPayloadCache`, exported from `@temporalio/client` and `@temporalio/worker`. Pass a payload cache to clients and workers to configure it or share it between them, or pass `payloadCache: false` to disable caching:
+**Experimental.** Clients and Workers can cache External Storage payloads, so a payload already in the cache is not retrieved from its storage driver again. Caching is off by default. The SDK exposes a generic `PayloadCache` interface and an in-memory implementation, `InMemoryPayloadCache`, exported from `@temporalio/client` and `@temporalio/worker`. Pass a payload cache to clients and workers to enable caching, or pass the same cache to both to share it:
 
 ```ts
 import { Client, InMemoryPayloadCache } from '@temporalio/client';
@@ -25,8 +25,6 @@ const payloadCache = new InMemoryPayloadCache({
 
 const client = new Client({ payloadCache });
 const worker = await Worker.create({ taskQueue, workflowsPath, payloadCache });
-
-const uncachedClient = new Client({ payloadCache: false });
 ```
 
 n.b. The cache is a best-effort optimization.
