@@ -21,6 +21,27 @@ export function getHandlerContext(): HandlerContext {
 }
 
 /**
+ * The {@link TemporalStartOperationContext} of the {@link TemporalOperationHandler} start invocation
+ * currently in flight on this Nexus task, if any. Read by {@link nexusActivityStartInterceptor}.
+ *
+ * @internal
+ * @hidden
+ */
+export function getNexusStartOperationContext(): TemporalStartOperationContext | undefined {
+  return asyncLocalStorage.getStore()?.nexusStartOperationContext;
+}
+
+/**
+ * Runs `fn` with {@link getNexusStartOperationContext} set to `ctx` for its duration.
+ *
+ * @internal
+ * @hidden
+ */
+export function runWithNexusStartOperationContext<T>(ctx: TemporalStartOperationContext, fn: () => T): T {
+  return asyncLocalStorage.run({ ...getHandlerContext(), nexusStartOperationContext: ctx }, fn);
+}
+
+/**
  * Context used internally in the SDK to propagate information from the worker to the Temporal Nexus helpers.
  *
  * @internal
@@ -33,6 +54,7 @@ export interface HandlerContext {
   namespace: string;
   taskQueue: string;
   endpoint: string;
+  nexusStartOperationContext?: TemporalStartOperationContext;
 }
 
 /**

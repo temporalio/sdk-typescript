@@ -68,6 +68,7 @@ to docs, or any other relevant information.
   `@temporalio/langsmith`, `@temporalio/openai-agents`, and `@temporalio/strands-agents` retain their
   package names. The integrations' implementations, tests, and API documentation are no longer
   built in this repository; the two wrappers have separate forwarding tests.
+- `RetryPolicy.maximumAttempts` accepts `0` as another way to specify unlimited attempts, alongside `Infinity`.
 - Updated the following dependencies: `unionfs` from 4.5.1 to 4.6.0, `@grpc/grpc-js` from 1.12.4 to 1.12.7, `smol-toml` from 1.6.1 to 1.7.1
   and `tar` from 7.5.11 to 7.5.21.
 - A Worker will now refuse to load and execute a Workflow bundle produced with a different version
@@ -101,6 +102,9 @@ to docs, or any other relevant information.
 - A workflow task that arrives while a Workflow waits on a Local Activity, such as a legacy query, now
   waits until the current workflow task is reported. Previously it replaced that workflow task, which then
   timed out on the server and could leave the Workflow stuck on a nondeterminism error (temporalio/sdk-rust#1640).
+- **Experimental**: A Standalone Activity started from a Nexus operation handler directly through
+  `ActivityClient`, rather than through `TemporalNexusClient.startActivity()`'s guarded call, now
+  inherits the handler's Nexus request ID and inbound links.
 
 ### Changed
 
