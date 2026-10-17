@@ -6,6 +6,7 @@
 
 import * as encoding from './encoding';
 import * as helpers from './type-helpers';
+import pkg from './pkg';
 
 export * from './activity-definition-options';
 export { ActivityCancellationDetailsOptions, ActivityCancellationDetails } from './activity-cancellation-details';
@@ -37,6 +38,13 @@ export * from './workflow-definition-options';
 export * from './workflow-handle';
 export * from './workflow-options';
 export * from './versioning-intent';
+
+/**
+ * The version of the Temporal TypeScript SDK, e.g. `'1.24.0'`.
+ *
+ * All `@temporalio/*` packages are versioned and released in lockstep, so this is the version of the entire SDK.
+ */
+export const version: string = pkg.version;
 export {
   SearchAttributes,
   type SearchAttributeKey,
