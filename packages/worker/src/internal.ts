@@ -6,6 +6,7 @@ export {
   decodePayload,
   operationErrorToProto,
 } from './nexus/conversions';
+export { NexusHandler } from './nexus';
 export { visitNexusTask } from './system-nexus-operations';
 export { type NativeReplayHandle, type NativeWorkerLike, parseWorkflowCode } from './worker';
 export { compileWorkerOptions, toNativeWorkerOptions } from './worker-options';
