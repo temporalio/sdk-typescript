@@ -1,6 +1,12 @@
 import * as nexus from 'nexus-rpc';
 
-import type { LoadedDataConverter, Payload, MetricMeter, MetricTags } from '@temporalio/common';
+import type {
+  LoadedDataConverter,
+  NexusSerializationContext,
+  Payload,
+  MetricMeter,
+  MetricTags,
+} from '@temporalio/common';
 import {
   CancelledFailure,
   IllegalStateError,
@@ -107,11 +113,12 @@ export class NexusHandler {
 
   protected async startOperation(
     ctx: nexus.StartOperationContext,
-    payload: Payload | undefined
+    payload: Payload | undefined,
+    context: NexusSerializationContext
   ): Promise<coresdk.nexus.INexusTaskCompletion> {
     try {
       const handler = this.getOperationHandler(ctx);
-      const input = await decodePayload(this.dataConverter, payload, handler.inputType);
+      const input = await decodePayload(this.dataConverter, payload, handler.inputType, context);
 
       const executeNextHandler = async (interceptorInput: NexusStartOperationInput) => {
         const result = await this.invokeUserCode(
@@ -147,7 +154,7 @@ export class NexusHandler {
           completed: {
             startOperation: {
               syncSuccess: {
-                payload: await encodeToPayload(this.dataConverter, result.value, undefined, handler.outputType),
+                payload: await encodeToPayload(this.dataConverter, result.value, context, handler.outputType),
                 links: ctx.outboundLinks.map(nexusLinkToProtoLink),
               },
             },
@@ -160,21 +167,22 @@ export class NexusHandler {
           taskToken: this.taskToken,
           completed: {
             startOperation: {
-              failure: await operationErrorToProto(this.dataConverter, err),
+              failure: await operationErrorToProto(this.dataConverter, err, context),
             },
           },
         };
       }
       return {
         taskToken: this.taskToken,
-        failure: await handlerErrorToProto(this.dataConverter, coerceToHandlerError(err)),
+        failure: await handlerErrorToProto(this.dataConverter, coerceToHandlerError(err), context),
       };
     }
   }
 
   protected async cancelOperation(
     ctx: nexus.CancelOperationContext,
-    token: string
+    token: string,
+    context: NexusSerializationContext
   ): Promise<coresdk.nexus.INexusTaskCompletion> {
     try {
       const handler = this.getOperationHandler(ctx);
@@ -199,7 +207,7 @@ export class NexusHandler {
     } catch (err) {
       return {
         taskToken: this.taskToken,
-        failure: await handlerErrorToProto(this.dataConverter, coerceToHandlerError(err)),
+        failure: await handlerErrorToProto(this.dataConverter, coerceToHandlerError(err), context),
       };
     }
   }
@@ -228,6 +236,20 @@ export class NexusHandler {
   }
 
   /**
+   * Builds the completion for a failure the worker itself raised, rather than one the handler
+   * returned. The context is the Operation's, so these read back the same way handler failures do.
+   */
+  private async failedTask(
+    err: unknown,
+    context: NexusSerializationContext
+  ): Promise<coresdk.nexus.INexusTaskCompletion> {
+    return {
+      taskToken: this.taskToken,
+      failure: await handlerErrorToProto(this.dataConverter, coerceToHandlerError(err), context),
+    };
+  }
+
+  /**
    * Actually executes the Operation.
    *
    * Any call up to this function and including this one will be trimmed out of stack traces.
@@ -235,35 +257,55 @@ export class NexusHandler {
   protected async execute(
     task: temporal.api.workflowservice.v1.IPollNexusTaskQueueResponse
   ): Promise<coresdk.nexus.INexusTaskCompletion> {
-    if (task.request?.startOperation != null) {
-      const variant = task.request?.startOperation;
-      if (!variant.requestId) {
-        throw new IllegalStateError('Missing requestId in Nexus start operation request');
+    // The request's own shape is validated here, after the context is known, so a malformed
+    // request's failure is encoded with the same context as one raised by the handler itself.
+    // Errors raised before this method — while determining the service and operation — have no
+    // context to use and are encoded without one by the worker.
+    const serializationContext: NexusSerializationContext = {
+      type: 'nexus',
+      endpoint: task.request?.endpoint ?? '',
+      service: this.context.service,
+      operation: this.context.operation,
+    };
+
+    try {
+      if (task.request?.startOperation != null) {
+        const variant = task.request?.startOperation;
+        if (!variant.requestId) {
+          return await this.failedTask(
+            new IllegalStateError('Missing requestId in Nexus start operation request'),
+            serializationContext
+          );
+        }
+        return await this.startOperation(
+          {
+            ...this.context,
+            requestId: variant.requestId,
+            inboundLinks: (variant.links ?? []).map(protoLinkToNexusLink),
+            callbackUrl: variant.callback ?? undefined,
+            callbackHeaders: variant.callbackHeader ?? undefined,
+            outboundLinks: [],
+          },
+          variant.payload ?? undefined,
+          serializationContext
+        );
+      } else if (task.request?.cancelOperation != null) {
+        const variant = task.request?.cancelOperation;
+        if (variant.operationToken == null) {
+          return await this.failedTask(
+            new nexus.HandlerError('BAD_REQUEST', 'Request missing Operation token'),
+            serializationContext
+          );
+        }
+        return await this.cancelOperation({ ...this.context }, variant.operationToken, serializationContext);
+      } else {
+        return await this.failedTask(
+          new nexus.HandlerError('NOT_IMPLEMENTED', 'Request method not implemented'),
+          serializationContext
+        );
       }
-      return await this.startOperation(
-        {
-          ...this.context,
-          requestId: variant.requestId,
-          inboundLinks: (variant.links ?? []).map(protoLinkToNexusLink),
-          callbackUrl: variant.callback ?? undefined,
-          callbackHeaders: variant.callbackHeader ?? undefined,
-          outboundLinks: [],
-        },
-        variant.payload ?? undefined
-      );
-    } else if (task.request?.cancelOperation != null) {
-      const variant = task.request?.cancelOperation;
-      if (variant.operationToken == null) {
-        throw new nexus.HandlerError('BAD_REQUEST', 'Request missing Operation token');
-      }
-      return await this.cancelOperation(
-        {
-          ...this.context,
-        },
-        variant.operationToken
-      );
-    } else {
-      throw new nexus.HandlerError('NOT_IMPLEMENTED', 'Request method not implemented');
+    } catch (err) {
+      return await this.failedTask(err, serializationContext);
     }
   }
 
