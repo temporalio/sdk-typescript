@@ -4,10 +4,10 @@ import * as nexus from 'nexus-rpc';
 import type { Client } from '@temporalio/client';
 import type { ProtoFailure } from '@temporalio/common';
 import { noopMetricMeter } from '@temporalio/common';
-import { loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
+import { loadDataConverter } from '@temporalio/common/internal/internal-non-workflow';
 import type { temporal } from '@temporalio/proto';
 import { DefaultLogger } from '@temporalio/worker';
-import { NexusHandler } from '@temporalio/worker/lib/nexus';
+import { NexusHandler } from '@temporalio/worker/internal';
 import { nexusCtx } from './payload-converters/serialization-context-converter';
 
 const converterPath = require.resolve('./payload-converters/serialization-context-converter');
