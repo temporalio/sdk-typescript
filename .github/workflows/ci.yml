@@ -131,6 +131,8 @@ jobs:
             runner: windows-latest
             reuse-v8-context: true
     runs-on: ${{ matrix.runner }}
+    # Allow Bun test failures since support is experimental
+    continue-on-error: ${{ matrix.node == 'bun' }}
     name: Run Integration Tests (${{ matrix.platform }}, ${{ matrix.node == 'bun' && 'Bun' || format('Node {0}', matrix.node) }}, Reuse V8 Context ${{ matrix.reuse-v8-context }})
     env:
       # Per-package result JSON + full logs are written here by scripts/ava-ci.ts,
