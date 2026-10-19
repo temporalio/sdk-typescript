@@ -131,8 +131,6 @@ jobs:
             runner: windows-latest
             reuse-v8-context: true
     runs-on: ${{ matrix.runner }}
-    # Allow Bun test failures since support is experimental
-    continue-on-error: ${{ matrix.node == 'bun' }}
     name: Run Integration Tests (${{ matrix.platform }}, ${{ matrix.node == 'bun' && 'Bun' || format('Node {0}', matrix.node) }}, Reuse V8 Context ${{ matrix.reuse-v8-context }})
     env:
       # Per-package result JSON + full logs are written here by scripts/ava-ci.ts,
@@ -479,6 +477,28 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  # The single required status check for merging: a PR can merge only if every job in
+  # `needs` passed. Kept separate from ci-summary so that a bug in the summary script
+  # can't block merges.
+  required-checks:
+    name: Required Checks
+    # Without always(), this job would be skipped when a dependency fails, and GitHub
+    # treats a skipped required check as passing.
+    if: always()
+    needs:
+      - compile-native-binaries-debug
+      - integration-tests
+      - conventions
+      - features-tests
+      - stress-tests-no-reuse-context
+      - stress-tests-reuse-context
+      - docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any check failed or was cancelled
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1
 
   ci-summary:
     name: CI
