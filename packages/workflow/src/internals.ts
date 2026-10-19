@@ -41,6 +41,7 @@ import {
   decodeSearchAttributes,
   decodeTypedSearchAttributes,
   ENHANCED_STACK_TRACE_QUERY_NAME,
+  isPayloadValidationError,
   makeProtoEnumConverters,
   STACK_TRACE_QUERY_NAME,
   TEMPORAL_RESERVED_PREFIX,
@@ -299,6 +300,15 @@ export class Activator implements ActivationHandler {
    * the first captured error is preserved).
    */
   public workflowTaskError: unknown;
+
+  /**
+   * The first `PayloadValidationError` a payload converter threw for an outbound payload.
+   * See {@link convertOutboundPayloads}.
+   *
+   * This is intentionally never cleared: once set, every subsequent activation fails its Workflow
+   * Task, until Core evicts the Workflow run (which it does after a Workflow Task failure).
+   */
+  public outboundPayloadValidationError?: ApplicationFailure;
 
   /**
    * Error type _names_ (from {@link WorkerOptions.workflowFailureErrorTypes}) that
@@ -1394,7 +1404,10 @@ export class Activator implements ActivationHandler {
    * Used to handle any failure emitted by the Workflow.
    */
   handleWorkflowFailure(error: unknown): void {
-    if (this.cancelled && isCancellation(error)) {
+    if (this.outboundPayloadValidationError !== undefined && error === this.outboundPayloadValidationError) {
+      // A payload converter rejected an outbound payload; fail the Workflow Task, not the Workflow.
+      this.recordWorkflowTaskError(error);
+    } else if (this.cancelled && isCancellation(error)) {
       this.pushCommand({ cancelWorkflowExecution: {} }, true);
     } else if (error instanceof ContinueAsNew) {
       this.pushCommand(
@@ -1458,9 +1471,48 @@ export class Activator implements ActivationHandler {
     return false;
   }
 
+  /**
+   * Run a payload conversion for an outbound command (or the Workflow's result).
+   *
+   * If the payload converter rejects the value with a `PayloadValidationError`, that error fails
+   * the Workflow Task (which will be retried) rather than the Workflow Execution. It is rethrown, as
+   * the command can't be built, and is also kept aside so that the Workflow Task fails when the
+   * activation concludes even if Workflow code catches it.
+   */
+  convertOutboundPayloads<T>(convert: () => T): T {
+    try {
+      return convert();
+    } catch (error) {
+      if (isPayloadValidationError(error) && this.outboundPayloadValidationError === undefined) {
+        this.outboundPayloadValidationError = error;
+        // Replace any (non-PayloadValidationError) Workflow Task error recorded earlier. Otherwise,
+        // not recorded as a Workflow Task error right away, as that would abort the current
+        // activation synchronously, before microtasks attach handlers to the rejected promise.
+        if (this.workflowTaskError !== undefined) this.workflowTaskError = error;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Fail the Workflow Task if an outbound payload conversion failed during this activation.
+   * Called when concluding an activation.
+   */
+  maybeRecordOutboundPayloadConversionError(): void {
+    if (this.outboundPayloadValidationError !== undefined) {
+      this.recordWorkflowTaskError(this.outboundPayloadValidationError);
+    }
+  }
+
   recordWorkflowTaskError(error: unknown): void {
-    // Only keep the first error that bubbles up; subsequent errors will be ignored.
-    if (this.workflowTaskError === undefined) this.workflowTaskError = error;
+    // Only keep the first error that bubbles up; subsequent errors will be ignored. The exception
+    // is an outbound payload conversion `PayloadValidationError`, which wins over any other error
+    // (see `convertOutboundPayloads`).
+    if (this.outboundPayloadValidationError !== undefined) {
+      this.workflowTaskError = this.outboundPayloadValidationError;
+    } else if (this.workflowTaskError === undefined) {
+      this.workflowTaskError = error;
+    }
 
     // Immediately rethrow the error if we know it is safe to do so (i.e. we are not running async
     // microtasks). Otherwise, the error will be rethrown whenever we get an opportunity to do so,
@@ -1545,14 +1597,18 @@ export class Activator implements ActivationHandler {
 
   private completeWorkflow(result: unknown): void {
     const context = this.workflowSerializationContext();
-    this.pushCommand(
-      {
-        completeWorkflowExecution: {
-          result: toPayloadWithTypeInfo(this.payloadConverter, result, context, this.typeInfo?.outputType),
-        },
-      },
-      true
-    );
+    let payload;
+    try {
+      payload = this.convertOutboundPayloads(() =>
+        toPayloadWithTypeInfo(this.payloadConverter, result, context, this.typeInfo?.outputType)
+      );
+    } catch (error) {
+      // The Workflow Task will fail when the activation concludes
+      if (this.outboundPayloadValidationError !== undefined && error === this.outboundPayloadValidationError) return;
+      // As before, other conversion errors surface as an unhandled rejection, failing the Workflow Task
+      throw error;
+    }
+    this.pushCommand({ completeWorkflowExecution: { result: payload } }, true);
   }
 
   errorToFailure(err: unknown): ProtoFailure {

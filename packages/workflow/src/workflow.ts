@@ -168,7 +168,9 @@ function timerNextHandler({ seq, durationMs, options }: TimerInput) {
         seq,
         startToFireTimeout: msToTs(durationMs),
       },
-      userMetadata: userMetadataToPayload(activator.payloadConverter, options?.summary, undefined, context),
+      userMetadata: activator.convertOutboundPayloads(() =>
+        userMetadataToPayload(activator.payloadConverter, options?.summary, undefined, context)
+      ),
       eventGroupMarkers: eventGroupMarkersToProto(options?.eventGroups),
     });
     activator.completions.timer.set(seq, {
@@ -252,7 +254,9 @@ function scheduleActivityNextHandler({
         seq,
         activityId,
         activityType,
-        arguments: toPayloadsWithContext(activator.payloadConverter, context, args, typeInfo?.inputTypes),
+        arguments: activator.convertOutboundPayloads(() =>
+          toPayloadsWithContext(activator.payloadConverter, context, args, typeInfo?.inputTypes)
+        ),
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
         taskQueue: options.taskQueue || activator.info.taskQueue,
         heartbeatTimeout: msOptionalToTs(options.heartbeatTimeout),
@@ -265,7 +269,9 @@ function scheduleActivityNextHandler({
         versioningIntent: versioningIntentToProto(options.versioningIntent),
         priority: options.priority ? compilePriority(options.priority) : undefined,
       },
-      userMetadata: userMetadataToPayload(activator.payloadConverter, options.summary, undefined, context),
+      userMetadata: activator.convertOutboundPayloads(() =>
+        userMetadataToPayload(activator.payloadConverter, options.summary, undefined, context)
+      ),
       eventGroupMarkers: eventGroupMarkersToProto(options.eventGroups),
     });
     activator.completions.activity.set(seq, {
@@ -335,7 +341,9 @@ async function scheduleLocalActivityNextHandler({
         originalScheduleTime,
         activityId,
         activityType,
-        arguments: toPayloadsWithContext(activator.payloadConverter, context, args, typeInfo?.inputTypes),
+        arguments: activator.convertOutboundPayloads(() =>
+          toPayloadsWithContext(activator.payloadConverter, context, args, typeInfo?.inputTypes)
+        ),
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
         scheduleToCloseTimeout: msOptionalToTs(options.scheduleToCloseTimeout),
         startToCloseTimeout: msOptionalToTs(options.startToCloseTimeout),
@@ -344,7 +352,9 @@ async function scheduleLocalActivityNextHandler({
         headers,
         cancellationType: encodeActivityCancellationType(options.cancellationType),
       },
-      userMetadata: userMetadataToPayload(activator.payloadConverter, options.summary, undefined, context),
+      userMetadata: activator.convertOutboundPayloads(() =>
+        userMetadataToPayload(activator.payloadConverter, options.summary, undefined, context)
+      ),
       eventGroupMarkers: eventGroupMarkersToProto(options.eventGroups),
     });
     activator.completions.activity.set(seq, {
@@ -471,12 +481,15 @@ function startChildWorkflowExecutionNextHandler({
         })
       );
     }
+    const { memo } = options;
     activator.pushCommand({
       startChildWorkflowExecution: {
         seq,
         workflowId,
         workflowType,
-        input: toPayloadsWithContext(activator.payloadConverter, context, options.args, options.typeInfo?.inputTypes),
+        input: activator.convertOutboundPayloads(() =>
+          toPayloadsWithContext(activator.payloadConverter, context, options.args, options.typeInfo?.inputTypes)
+        ),
         retryPolicy: options.retry ? compileRetryPolicy(options.retry) : undefined,
         taskQueue: options.taskQueue || activator.info.taskQueue,
         workflowExecutionTimeout: msOptionalToTs(options.workflowExecutionTimeout),
@@ -492,16 +505,13 @@ function startChildWorkflowExecutionNextHandler({
           options.searchAttributes || options.typedSearchAttributes
             ? { indexedFields: encodeUnifiedSearchAttributes(options.searchAttributes, options.typedSearchAttributes) }
             : undefined,
-        memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo, context),
+        memo: memo && activator.convertOutboundPayloads(() => mapToPayloads(activator.payloadConverter, memo, context)),
         versioningIntent: versioningIntentToProto(options.versioningIntent),
         versioningOverride: versioningOverrideToProto(options.versioningOverride),
         priority: options.priority ? compilePriority(options.priority) : undefined,
       },
-      userMetadata: userMetadataToPayload(
-        activator.payloadConverter,
-        options?.staticSummary,
-        options?.staticDetails,
-        context
+      userMetadata: activator.convertOutboundPayloads(() =>
+        userMetadataToPayload(activator.payloadConverter, options?.staticSummary, options?.staticDetails, context)
       ),
       eventGroupMarkers: eventGroupMarkersToProto(options.eventGroups),
     });
@@ -565,7 +575,9 @@ function signalWorkflowNextHandler({
     activator.pushCommand({
       signalExternalWorkflowExecution: {
         seq,
-        args: toPayloadsWithContext(activator.payloadConverter, context, args, typeInfo?.inputTypes),
+        args: activator.convertOutboundPayloads(() =>
+          toPayloadsWithContext(activator.payloadConverter, context, args, typeInfo?.inputTypes)
+        ),
         headers,
         signalName,
         ...(target.type === 'external'
@@ -1231,13 +1243,17 @@ export function makeContinueAsNewFunc<F extends Workflow>(
       const { headers, args, options } = input;
       const typeInfo =
         options.typeInfo ?? (options.workflowType === info.workflowType ? activator.typeInfo : undefined);
+      const { memo } = options;
       throw new ContinueAsNew(
         {
           workflowType: options.workflowType,
-          arguments: toPayloadsWithContext(activator.payloadConverter, context, args, typeInfo?.inputTypes),
+          arguments: activator.convertOutboundPayloads(() =>
+            toPayloadsWithContext(activator.payloadConverter, context, args, typeInfo?.inputTypes)
+          ),
           headers,
           taskQueue: options.taskQueue,
-          memo: options.memo && mapToPayloads(activator.payloadConverter, options.memo, context),
+          memo:
+            memo && activator.convertOutboundPayloads(() => mapToPayloads(activator.payloadConverter, memo, context)),
           searchAttributes:
             options.searchAttributes || options.typedSearchAttributes
               ? {
@@ -1919,11 +1935,13 @@ export function upsertMemo(memo: Record<string, unknown>, options?: EventGroupsO
   activator.pushCommand({
     modifyWorkflowProperties: {
       upsertedMemo: {
-        fields: mapToPayloads(
-          activator.payloadConverter,
-          // Convert null to undefined
-          Object.fromEntries(Object.entries(memo).map(([k, v]) => [k, v ?? undefined])),
-          context
+        fields: activator.convertOutboundPayloads(() =>
+          mapToPayloads(
+            activator.payloadConverter,
+            // Convert null to undefined
+            Object.fromEntries(Object.entries(memo).map(([k, v]) => [k, v ?? undefined])),
+            context
+          )
         ),
       },
     },

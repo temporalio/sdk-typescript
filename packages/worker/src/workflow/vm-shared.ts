@@ -7,7 +7,8 @@ import * as nodeUrl from 'node:url';
 import { URL, URLSearchParams } from 'node:url';
 import { TextDecoder, TextEncoder } from 'node:util';
 import { SourceMapConsumer } from 'source-map';
-import { cutoffStackTrace, IllegalStateError, convertDeploymentVersion } from '@temporalio/common';
+import type { ProtoFailure } from '@temporalio/common';
+import { cutoffStackTrace, FAILURE_SOURCE, IllegalStateError, convertDeploymentVersion } from '@temporalio/common';
 import { suggestContinueAsNewReasonsFromProto } from '@temporalio/common/internal/internal-non-workflow';
 import { tsToMs } from '@temporalio/common/lib/time';
 import { coresdk } from '@temporalio/proto';
@@ -502,13 +503,30 @@ export abstract class BaseVMWorkflow implements Workflow {
 
       return completion;
     } catch (err) {
+      // An outbound payload conversion PayloadValidationError takes precedence over any other error
+      const error = this.activator.outboundPayloadValidationError ?? err;
       return {
         runId: this.activator.info.runId,
         // FIXME: Calling `activator.errorToFailure()` directly from outside the VM is unsafe, as it
         // depends on the `failureConverter` and `payloadConverter`, which may be customized and
         // therefore aren't guaranteed not to access `global` or to cause scheduling microtasks.
         // Admitingly, the risk is very low, so we're leaving it as is for now.
-        failed: { failure: this.activator.errorToFailure(err) },
+        failed: { failure: this.workflowTaskErrorToFailure(error) },
+      };
+    }
+  }
+
+  private workflowTaskErrorToFailure(error: unknown): ProtoFailure {
+    try {
+      return this.activator.errorToFailure(error);
+    } catch (conversionError) {
+      // The payload converter may also reject the PayloadValidationError's own details
+      const payloadValidationError = this.activator.outboundPayloadValidationError;
+      if (payloadValidationError === undefined || error !== payloadValidationError) throw conversionError;
+      return {
+        message: payloadValidationError.message,
+        source: FAILURE_SOURCE,
+        applicationFailureInfo: { type: payloadValidationError.type, nonRetryable: true },
       };
     }
   }

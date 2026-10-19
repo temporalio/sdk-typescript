@@ -223,6 +223,7 @@ export function concludeActivation(): coresdk.workflow_completion.IWorkflowActiv
   const activator = getActivator();
   activator.rethrowSynchronously = true;
   try {
+    activator.maybeRecordOutboundPayloadConversionError();
     activator.rejectBufferedUpdates();
     const intercept = composeInterceptors(activator.interceptors.internals, 'concludeActivation', (input) => input);
     const activationCompletion = activator.concludeActivation();
