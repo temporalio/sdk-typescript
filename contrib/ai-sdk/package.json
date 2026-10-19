@@ -56,7 +56,8 @@
     "!lib/__tests__"
   ],
   "devDependencies": {
-    "@temporalio/testing": "workspace:*",
-    "@temporalio/worker": "workspace:*"
+    "@temporalio/testing": "1.24.0",
+    "@temporalio/worker": "1.24.0",
+    "@temporalio/workflow": "1.24.0"
   }
 }

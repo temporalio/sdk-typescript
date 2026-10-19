@@ -1,7 +1,8 @@
 // Run from either compatibility package, including a clean installation of its tarball.
+// SDK test dependencies must use the standalone integrations' published SDK dependency graph.
 const assert = require('node:assert/strict');
 const { execFileSync } = require('node:child_process');
-const { mkdtempSync, readFileSync, rmSync, writeFileSync } = require('node:fs');
+const { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } = require('node:fs');
 const { createRequire } = require('node:module');
 const { randomUUID } = require('node:crypto');
 const { join } = require('node:path');
@@ -23,6 +24,14 @@ const typeNames =
 assert.ok(target, 'Run this test from a compatibility package');
 assert.deepEqual(Object.keys(pkg.dependencies), [target]);
 
+function createConsumerDirectory() {
+  const directory = mkdtempSync(join(process.cwd(), '.compatibility-'));
+  mkdirSync(join(directory, 'node_modules', '@temporalio'), { recursive: true });
+  // Legacy TypeScript resolution and Webpack need an installed package, even for self-imports.
+  symlinkSync(process.cwd(), join(directory, 'node_modules', pkg.name), 'junction');
+  return directory;
+}
+
 for (const subpath of Object.keys(pkg.exports)) {
   const suffix = subpath === '.' ? '' : subpath.slice(1);
   test(`${pkg.name}${suffix} preserves CommonJS and ESM exported bindings`, async () => {
@@ -38,7 +47,7 @@ for (const subpath of Object.keys(pkg.exports)) {
 }
 
 test(`${pkg.name} preserves types through legacy and modern TypeScript resolution`, () => {
-  const directory = mkdtempSync(join(process.cwd(), '.compatibility-'));
+  const directory = createConsumerDirectory();
   try {
     const declarations = Object.keys(pkg.exports).flatMap((subpath, index) => {
       const suffix = subpath === '.' ? '' : subpath.slice(1);
@@ -74,7 +83,7 @@ test(`${pkg.name} preserves types through legacy and modern TypeScript resolutio
           resolution,
           file,
         ],
-        { stdio: 'pipe' }
+        { stdio: 'inherit' }
       );
     }
   } finally {
@@ -93,7 +102,7 @@ test(
       pkg.name === '@temporalio/ai-sdk'
         ? new legacy.AiSdkPlugin({ modelProvider: { specificationVersion: 'v4' } })
         : new legacy.GoogleAdkPlugin();
-    const directory = mkdtempSync(join(process.cwd(), '.compatibility-'));
+    const directory = createConsumerDirectory();
     let environment;
     try {
       const file = join(directory, 'workflows.cjs');
