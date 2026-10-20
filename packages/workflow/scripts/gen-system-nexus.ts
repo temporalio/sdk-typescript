@@ -14,6 +14,7 @@ const witRoot = resolve(protoRoot, 'api_upstream/nexus');
 const protoRoots = [resolve(protoRoot, 'api_upstream'), protoRoot];
 
 const workflowServiceRequestResponseProto = 'temporal/api/workflowservice/v1/request_response.proto';
+const notificationServiceRequestResponseProto = 'temporal/api/notificationservice/v1/request_response.proto';
 
 async function main() {
   const descriptorDirectory = await mkdtemp(join(tmpdir(), 'temporal-system-nexus-'));
@@ -24,6 +25,7 @@ async function main() {
       '--include_imports',
       `--descriptor_set_out=${descriptor}`,
       workflowServiceRequestResponseProto,
+      notificationServiceRequestResponseProto,
     ]);
     await promisify(execFile)(nexgen, [
       'typescript',
@@ -37,6 +39,19 @@ async function main() {
       '--output',
       output,
       resolve(witRoot, 'workflow-service.wit'),
+      resolve(witRoot, 'deps'),
+    ]);
+    await promisify(execFile)(nexgen, [
+      'typescript',
+      '--system-nexus',
+      '--format',
+      '--descriptors',
+      descriptor,
+      '--support-package',
+      '../../support',
+      '--output',
+      join(output, 'notifications'),
+      resolve(witRoot, 'notification-service.wit'),
       resolve(witRoot, 'deps'),
     ]);
   } finally {
