@@ -361,6 +361,7 @@ const GenericConfigs = {
       dbFilename: null,
       log: { format: 'text', level: 'warn' },
       extraArgs: [],
+      startupTimeout: null,
     } satisfies native.EphemeralServerConfig,
   },
 } as const;
