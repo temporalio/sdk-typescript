@@ -204,6 +204,8 @@ pnpm --filter @temporalio/workflow run gen:system-nexus
 
 CI uses the same release and checks that the generated bindings are up to date. Set `NEXGEN_BIN`
 to use a local generator build when developing nexgen changes.
+The generator imports the SDK-owned helpers in `packages/workflow/src/nexus/system/support.ts`
+with `--support-package`; these helpers are not copied into the generated directory.
 
 ### Working with Individual Packages
 
