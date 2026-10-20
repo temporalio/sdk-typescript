@@ -7,7 +7,7 @@
 import { randomUUID } from 'crypto';
 import { ApplicationFailure, defaultPayloadConverter, WorkflowNotFoundError, type Payload } from '@temporalio/common';
 import type { WorkflowHandle } from '@temporalio/client';
-import { WorkflowUpdateFailedError } from '@temporalio/client';
+import { Client, WorkflowClient, WorkflowUpdateFailedError } from '@temporalio/client';
 import { isBun } from '@temporalio/test-helpers';
 import {
   FlushTimeoutError,
@@ -25,6 +25,7 @@ import {
   workflowStreamOffsetQuery,
   workflowStreamPublishSignal,
   workflowStreamPollUpdate,
+  workflowStreamPollQuery,
 } from '../workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
 import {
@@ -45,6 +46,7 @@ import {
   truncateWorkflow,
   ttlTestWorkflow,
   workflowSidePublishWorkflow,
+  terminalWorkflowStreamWorkflow,
 } from './workflows/workflow-streams';
 import * as streamActivities from './activities/workflow-streams';
 
@@ -742,16 +744,26 @@ test('follow_continue_as_new — describes the polled run, not the latest', asyn
     const latestDesc = await env.client.workflow.getHandle(workflowId).describe();
     t.is(latestDesc.status.name, 'RUNNING');
 
-    // The client follows the rollover when it describes the polled run, but the
-    // previous latest-run behavior (polledRunId unset) would not.
-    type Internals = { polledRunId?: string; followContinueAsNew(): Promise<boolean> };
-    const following = WorkflowStreamClient.create(env.client, workflowId) as unknown as Internals;
-    following.polledRunId = oldRunId;
-    t.true(await following.followContinueAsNew());
-
-    const latestOnly = WorkflowStreamClient.create(env.client, workflowId) as unknown as Internals;
-    latestOnly.polledRunId = undefined; // describes the latest run, as the bug did
-    t.false(await latestOnly.followContinueAsNew());
+    const client = WorkflowStreamClient.create(env.client, workflowId);
+    const interruptedHandle = {
+      ...handle,
+      async startUpdate() {
+        return {
+          workflowRunId: oldRunId,
+          async result() {
+            throw new WorkflowUpdateFailedError(
+              'Workflow closed during poll',
+              ApplicationFailure.create({ type: 'AcceptedUpdateCompletedWorkflow' })
+            );
+          },
+        };
+      },
+    } as unknown as WorkflowHandle;
+    (client as unknown as { handle: WorkflowHandle }).handle = interruptedHandle;
+    const subscription = client.topic<string>('events').subscribe(0, { pollCooldown: 0 });
+    const first = await subscription.next();
+    t.deepEqual(first.value?.data, encoder.encode('item-0'));
+    await subscription.return();
 
     await env.client.workflow.getHandle(workflowId).signal('close');
   });
@@ -795,6 +807,11 @@ test('subscribe_retries_while_draining — draining poll rejection is retried, n
       await handle.signal('triggerContinue');
       await new Promise((r) => setTimeout(r, 1000));
       t.is(consumeError, undefined, 'draining rejection must not end the subscription');
+      t.deepEqual(await handle.query(workflowStreamPollQuery, { topics: [], from_offset: 1 }), {
+        items: [],
+        next_offset: 1,
+        more_ready: false,
+      });
 
       // Release: the workflow continues-as-new; the subscription resumes on the
       // successor run and receives an item published there.
@@ -963,4 +980,191 @@ test('flush_retry_preserves_items_after_failures — behavioral retry coverage',
   await t.throwsAsync(client.flush(), { instanceOf: WorkflowNotFoundError });
   await new Promise((r) => setTimeout(r, 500));
   await t.throwsAsync(client[Symbol.asyncDispose](), { instanceOf: FlushTimeoutError });
+});
+
+for (const status of ['COMPLETED', 'FAILED', 'CANCELLED', 'TERMINATED', 'TIMED_OUT'] as const) {
+  test(`closed_stream_${status} — cold replay retains items without history writes`, async (t) => {
+    const { createWorker, startWorkflow } = helpers(t);
+    const worker = await createWorker({ maxCachedWorkflows: 0 });
+    await worker.runUntil(async () => {
+      const handle = await startWorkflow(terminalWorkflowStreamWorkflow, {
+        args: [status === 'FAILED'],
+        ...(status === 'TIMED_OUT' ? { workflowRunTimeout: '2 seconds' } : {}),
+      });
+      t.is(await handle.query(workflowStreamOffsetQuery), 2);
+      if (status === 'CANCELLED') await handle.cancel();
+      else if (status === 'TERMINATED') await handle.terminate();
+      else if (status !== 'TIMED_OUT') await handle.signal('close');
+      if (status === 'COMPLETED') await handle.result();
+      else await t.throwsAsync(handle.result());
+      t.is((await handle.describe()).status.name, status);
+      const before = (await handle.fetchHistory()).events?.length;
+      const client = new WorkflowStreamClient(handle);
+      const items: WorkflowStreamItem<string>[] = [];
+      for await (const item of client.topic<string>('events').subscribe(0, { pollCooldown: 0 })) items.push(item);
+      t.deepEqual(
+        items.map(({ data, offset }) => [data, offset]),
+        [
+          ['first', 0],
+          ['second', 1],
+        ]
+      );
+      t.true((await client.subscribe(['absent'], 0).next()).done);
+      t.true((await client.subscribe(undefined, 2).next()).done);
+      t.is((await handle.fetchHistory()).events?.length, before);
+    });
+  });
+}
+
+test('poll_query — immediate, read-only and clamps truncated offsets', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(truncateWorkflow);
+    const empty = await handle.query(workflowStreamPollQuery, { topics: [], from_offset: 0 });
+    t.deepEqual(empty, { items: [], next_offset: 0, more_ready: false });
+    await handle.signal(workflowStreamPublishSignal, {
+      items: [entry('events', 'a'), entry('events', 'b'), entry('events', 'c')],
+      publisher_id: 'query-test',
+      sequence: 1,
+    });
+    await handle.executeUpdate(truncateUpdate, { args: [2] });
+    await handle.signal('close');
+    await handle.result();
+    const result = await handle.query(workflowStreamPollQuery, { topics: ['events'], from_offset: 1 });
+    t.deepEqual(
+      result.items.map(({ offset, data }) => [offset, payloadString(decodePayloadWire(data))]),
+      [[2, 'c']]
+    );
+    const resumed = new WorkflowStreamClient(handle).topic<string>('events').subscribe(1);
+    t.is((await resumed.next()).value?.offset, 2);
+    t.true((await resumed.next()).done);
+  });
+});
+
+test('closed_stream_pagination — delivers every response-limited page before completion', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker({ maxCachedWorkflows: 0 });
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(basicWorkflowStreamWorkflow);
+    const value = 'x'.repeat(400_000);
+    for (let i = 0; i < 3; i++) {
+      await handle.signal(workflowStreamPublishSignal, {
+        items: [entry('events', value)],
+        publisher_id: 'pages',
+        sequence: i + 1,
+      });
+    }
+    await handle.signal('close');
+    await handle.result();
+    const first = await handle.query(workflowStreamPollQuery, { topics: ['events'], from_offset: 0 });
+    t.true(first.more_ready);
+    const items: WorkflowStreamItem[] = [];
+    for await (const item of new WorkflowStreamClient(handle).subscribe()) items.push(item);
+    t.deepEqual(
+      items.map(({ offset }) => offset),
+      [0, 1, 2]
+    );
+    t.true(items.every(({ data }) => payloadString(data) === value));
+  });
+});
+
+test('closed_stream — empty retained stream finishes immediately', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(basicWorkflowStreamWorkflow);
+    await handle.signal('close');
+    await handle.result();
+    t.true((await new WorkflowStreamClient(handle).subscribe().next()).done);
+  });
+});
+
+test('explicit_run — reads the closed run after its workflow ID is reused', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker({ maxCachedWorkflows: 0 });
+  const { env } = t.context;
+  await worker.runUntil(async () => {
+    const workflowId = `stream-reuse-${randomUUID()}`;
+    const old = await startWorkflow(workflowSidePublishWorkflow, { args: [2], workflowId });
+    await old.signal('close');
+    await old.result();
+    const current = await startWorkflow(basicWorkflowStreamWorkflow, { workflowId });
+    const pinned = env.client.workflow.getHandle(workflowId, old.firstExecutionRunId);
+    const values = [];
+    for await (const item of new WorkflowStreamClient(pinned).topic<string>('events').subscribe())
+      values.push(item.data);
+    t.deepEqual(values, ['item-0', 'item-1']);
+    await current.signal('close');
+    await current.result();
+  });
+});
+
+test('closed_stream — honors configured query rejection', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  const { env } = t.context;
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(terminalWorkflowStreamWorkflow, { args: [false] });
+    await handle.signal('close');
+    await handle.result();
+    const client = new WorkflowClient({
+      connection: env.connection,
+      namespace: env.namespace,
+      queryRejectCondition: 'NOT_OPEN',
+    });
+    const stream = new WorkflowStreamClient(client.getHandle(handle.workflowId, handle.firstExecutionRunId));
+    await t.throwsAsync(stream.subscribe().next(), { name: 'QueryRejectedError' });
+  });
+});
+
+test('closed_stream — round-trips query envelopes through configured payload codecs', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+  const { env } = t.context;
+  const transform = (payloads: Payload[]) =>
+    payloads.map((payload) => ({
+      ...payload,
+      data: payload.data?.map((byte) => byte ^ 0xff),
+    }));
+  const dataConverter = {
+    payloadCodecs: [
+      {
+        async encode(payloads: Payload[]) {
+          return transform(payloads);
+        },
+        async decode(payloads: Payload[]) {
+          return transform(payloads);
+        },
+      },
+    ],
+  };
+  const worker = await createWorker({ dataConverter, maxCachedWorkflows: 0 });
+  const client = new Client({ connection: env.connection, namespace: env.namespace, dataConverter });
+  await worker.runUntil(async () => {
+    const handle = await client.workflow.start(terminalWorkflowStreamWorkflow, {
+      workflowId: `stream-codec-${randomUUID()}`,
+      taskQueue,
+      args: [false],
+    });
+    await handle.signal('close');
+    await handle.result();
+    const values = [];
+    for await (const item of WorkflowStreamClient.create(client, handle.workflowId)
+      .topic<string>('events')
+      .subscribe()) {
+      values.push(item.data);
+    }
+    t.deepEqual(values, ['first', 'second']);
+  });
+});
+
+test('closed_stream — missing poll Query handlers remain visible to upgraded clients', async (t) => {
+  const { createWorker, startWorkflow } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const handle = await startWorkflow(terminalWorkflowStreamWorkflow, { args: [false, false] });
+    await handle.signal('close');
+    await handle.result();
+    await t.throwsAsync(new WorkflowStreamClient(handle).subscribe().next(), { name: 'QueryNotRegisteredError' });
+  });
 });

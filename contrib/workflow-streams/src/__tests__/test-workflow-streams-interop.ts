@@ -210,3 +210,19 @@ test('round_trip_preserves_all_fields', (t) => {
     t.deepEqual(out.data ?? new Uint8Array(0), input.data ?? new Uint8Array(0));
   }
 });
+
+test('shared_poll_wire_vector', (t) => {
+  const input = { topics: ['events'], from_offset: 3 };
+  const data = encodePayloadWire({
+    metadata: { encoding: encoder.encode('binary/plain') },
+    data: encoder.encode('abc'),
+  });
+  t.is(data, 'ChgKCGVuY29kaW5nEgxiaW5hcnkvcGxhaW4SA2FiYw==');
+  const result = { items: [{ topic: 'events', data, offset: 3 }], next_offset: 4, more_ready: false };
+  t.is(JSON.stringify(input), '{"topics":["events"],"from_offset":3}');
+  t.is(
+    JSON.stringify(result),
+    '{"items":[{"topic":"events","data":"ChgKCGVuY29kaW5nEgxiaW5hcnkvcGxhaW4SA2FiYw==","offset":3}],"next_offset":4,"more_ready":false}'
+  );
+  t.deepEqual(decodePayloadWire(result.items[0]!.data).data, encoder.encode('abc'));
+});

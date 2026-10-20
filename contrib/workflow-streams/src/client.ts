@@ -6,7 +6,7 @@
  *
  * Each published value is turned into a `Payload` via the client's payload
  * converter. The codec chain (encryption, PII-redaction, compression) is
- * NOT run per item — it runs once on the signal/update envelope that
+ * NOT run per item — it runs once on the signal/update/query envelope that
  * carries each batch. Running the codec per item would double-encrypt
  * because the envelope path already covers the items. The per-item
  * `Payload` still carries encoding metadata so consumers can decode
@@ -16,18 +16,8 @@
 import { randomUUID } from 'crypto';
 import { Context as ActivityContext } from '@temporalio/activity';
 import type { Client, WorkflowHandle } from '@temporalio/client';
-import {
-  WorkflowUpdateFailedError,
-  WorkflowUpdateRPCTimeoutOrCancelledError,
-  WorkflowUpdateStage,
-} from '@temporalio/client';
-import {
-  ApplicationFailure,
-  defaultPayloadConverter,
-  WorkflowNotFoundError,
-  type Payload,
-  type PayloadConverter,
-} from '@temporalio/common';
+import { WorkflowUpdateFailedError, WorkflowUpdateStage } from '@temporalio/client';
+import { ApplicationFailure, defaultPayloadConverter, type Payload, type PayloadConverter } from '@temporalio/common';
 import type { Duration } from '@temporalio/common/lib/time';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { decodePayloadWire, encodePayloadWire } from './codec';
@@ -121,10 +111,6 @@ export class WorkflowStreamClient {
   private handle: WorkflowHandle;
   private client: Client | undefined;
   private readonly workflowId: string;
-  // Run id the most recent poll's update was admitted to. Captured before
-  // awaiting the outcome so a mid-poll continue-as-new can be detected by
-  // describing that specific run. Undefined until the first poll is admitted.
-  private polledRunId: string | undefined;
   private readonly batchIntervalMs: number;
   private readonly maxBatchSize: number | undefined;
   private readonly maxRetryDurationMs: number;
@@ -427,6 +413,10 @@ export class WorkflowStreamClient {
    * With `resultType: true` — each item is decoded via the client's
    * configured payload converter and yielded as the generic `T`.
    *
+   * After the targeted run closes, reads its remaining retained items through
+   * Queries and finishes. Query errors, including configured rejection policies,
+   * propagate to the subscriber.
+   *
    * Automatically follows continue-as-new chains when created via
    * {@link WorkflowStreamClient.create}.
    *
@@ -451,67 +441,70 @@ export class WorkflowStreamClient {
     const pollCooldownMs = msToNumber(options?.pollCooldown ?? '100 milliseconds');
     const topicFilter: string[] = topics === undefined ? [] : typeof topics === 'string' ? [topics] : topics;
     let offset = fromOffset;
+    let handle = this.handle;
+    let terminalHandle: WorkflowHandle | undefined;
 
     while (true) {
       let result: PollResult;
-      try {
-        // Wait only for ACCEPTED so the handle (and the run id it was admitted
-        // to) is available before we await the outcome; if the run
-        // continues-as-new mid-poll, result() rejects but we still know which
-        // run to inspect.
-        const updateHandle = await this.handle.startUpdate<PollResult, [PollInput]>('__temporal_workflow_stream_poll', {
-          args: [{ topics: topicFilter, from_offset: offset }],
-          waitForStage: WorkflowUpdateStage.ACCEPTED,
+      if (terminalHandle) {
+        result = await terminalHandle.query<PollResult, [PollInput]>('__temporal_workflow_stream_poll', {
+          topics: topicFilter,
+          from_offset: offset,
         });
-        this.polledRunId = updateHandle.workflowRunId;
-        result = await updateHandle.result();
-      } catch (err) {
-        if (err instanceof WorkflowUpdateFailedError) {
-          const cause = err.cause;
-          if (cause instanceof ApplicationFailure && cause.type === 'TruncatedOffset') {
-            // Subscriber fell behind truncation. Retry from offset 0 which
-            // the mixin treats as "from the beginning of whatever exists"
-            // (i.e., from baseOffset).
-            offset = 0;
-            continue;
-          }
-          if (cause instanceof ApplicationFailure && cause.type === 'StreamDraining') {
-            // Workflow is detaching for continue-as-new. Back off and retry; the
-            // poll lands on the successor run once the rollover completes.
-            if (pollCooldownMs > 0) {
-              await sleep(pollCooldownMs);
-            }
-            continue;
-          }
-          if (cause instanceof ApplicationFailure && cause.type === 'AcceptedUpdateCompletedWorkflow') {
-            // Workflow returned (or continued-as-new) before this poll's
-            // update completed. Either follow the chain or exit cleanly.
-            if (await this.followContinueAsNew()) {
+      } else {
+        // Each attempt owns its admitted run: concurrent subscriptions and a
+        // rejection before admission must not reuse an earlier poll's run id.
+        let acceptedRunId: string | undefined;
+        try {
+          const updateHandle = await handle.startUpdate<PollResult, [PollInput]>('__temporal_workflow_stream_poll', {
+            args: [{ topics: topicFilter, from_offset: offset }],
+            waitForStage: WorkflowUpdateStage.ACCEPTED,
+          });
+          acceptedRunId = updateHandle.workflowRunId;
+          result = await updateHandle.result();
+        } catch (err) {
+          if (err instanceof WorkflowUpdateFailedError) {
+            const cause = err.cause;
+            if (cause instanceof ApplicationFailure && cause.type === 'TruncatedOffset') {
+              offset = 0;
               continue;
             }
-            return;
+            if (cause instanceof ApplicationFailure && cause.type === 'StreamDraining') {
+              if (pollCooldownMs > 0) {
+                await sleep(pollCooldownMs);
+              }
+              continue;
+            }
+          }
+          // An RPC timeout/cancellation while the run is still active must not
+          // become a successful end-of-stream. Only Describe confirms closure.
+          let description;
+          try {
+            description = await (acceptedRunId
+              ? handle.client.getHandle(this.workflowId, acceptedRunId)
+              : handle
+            ).describe();
+          } catch {
+            throw err;
+          }
+          if (description.status.name === 'CONTINUED_AS_NEW' && this.client) {
+            handle = this.client.workflow.getHandle(this.workflowId);
+            continue;
+          }
+          const status = description.status.name;
+          if (
+            description.runId &&
+            (status === 'COMPLETED' ||
+              status === 'FAILED' ||
+              status === 'CANCELLED' ||
+              status === 'TERMINATED' ||
+              status === 'TIMED_OUT')
+          ) {
+            terminalHandle = handle.client.getHandle(this.workflowId, description.runId);
+            continue;
           }
           throw err;
         }
-        if (err instanceof WorkflowUpdateRPCTimeoutOrCancelledError) {
-          if (await this.followContinueAsNew()) {
-            continue;
-          }
-          return;
-        }
-        if (err instanceof WorkflowNotFoundError) {
-          // Workflow may have completed between polls. subscribe() exits
-          // cleanly on terminal status so callers don't have to wrap the
-          // iterator in error handling for the normal end-of-stream case.
-          if (await this.followContinueAsNew()) {
-            continue;
-          }
-          if (await this.isInTerminalState()) {
-            return;
-          }
-          throw err;
-        }
-        throw err;
       }
 
       const decode = options?.resultType === true;
@@ -525,6 +518,7 @@ export class WorkflowStreamClient {
       }
       offset = result.next_offset;
 
+      if (terminalHandle && !result.more_ready) return;
       if (!result.more_ready && pollCooldownMs > 0) {
         await sleep(pollCooldownMs);
       }
@@ -534,59 +528,6 @@ export class WorkflowStreamClient {
   /** Query the current global offset. */
   async getOffset(): Promise<number> {
     return this.handle.query<number>('__temporal_workflow_stream_offset');
-  }
-
-  /**
-   * Describe the specific run the most recent poll was admitted to. Describing
-   * that run (rather than the latest) is what lets a continue-as-new be
-   * detected: a rolled-over run is closed with status CONTINUED_AS_NEW, whereas
-   * the latest run would report RUNNING. Falls back to the latest run when no
-   * run id has been captured yet, or when no client is available to target one.
-   */
-  private describePolledRun() {
-    const handle = this.client ? this.client.workflow.getHandle(this.workflowId, this.polledRunId) : this.handle;
-    return handle.describe();
-  }
-
-  /**
-   * Check if the polled run continued-as-new and re-target the handle. Returns
-   * true if the handle was updated (caller should retry). The successor run id
-   * is not needed — re-targeting to an unpinned handle makes the next poll
-   * address the latest (successor) run.
-   */
-  private async followContinueAsNew(): Promise<boolean> {
-    if (!this.client) return false;
-    try {
-      const desc = await this.describePolledRun();
-      if (desc.status.name === 'CONTINUED_AS_NEW') {
-        this.handle = this.client.workflow.getHandle(this.workflowId);
-        return true;
-      }
-    } catch {
-      return false;
-    }
-    return false;
-  }
-
-  /**
-   * Return true if the polled run has reached a terminal state. Used by
-   * `subscribe()` to distinguish "workflow finished — stream is done" from
-   * "wrong workflow id" when a poll surfaces `WorkflowNotFoundError`.
-   */
-  private async isInTerminalState(): Promise<boolean> {
-    try {
-      const desc = await this.describePolledRun();
-      const name = desc.status.name;
-      return (
-        name === 'COMPLETED' ||
-        name === 'FAILED' ||
-        name === 'CANCELLED' ||
-        name === 'TERMINATED' ||
-        name === 'TIMED_OUT'
-      );
-    } catch {
-      return false;
-    }
   }
 }
 

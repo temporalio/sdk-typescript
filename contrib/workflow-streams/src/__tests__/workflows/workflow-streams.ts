@@ -12,7 +12,8 @@ import {
   proxyActivities,
   setHandler,
 } from '@temporalio/workflow';
-import { WorkflowStream, type WorkflowStreamState } from '../../workflow';
+import { ApplicationFailure } from '@temporalio/common';
+import { WorkflowStream, workflowStreamPollQuery, type WorkflowStreamState } from '../../workflow';
 import type * as activities from '../activities/workflow-streams';
 
 const {
@@ -239,4 +240,17 @@ export async function drainingGateWorkflow(input: CANWorkflowInput): Promise<voi
   await condition(() => released);
   await condition(() => allHandlersFinished());
   await continueAsNew<typeof drainingGateWorkflow>({ streamState: stream.getState() });
+}
+
+export async function terminalWorkflowStreamWorkflow(fail: boolean, registerPollQuery = true): Promise<void> {
+  const stream = new WorkflowStream();
+  if (!registerPollQuery) setHandler(workflowStreamPollQuery, undefined);
+  stream.topic<string>('events').publish('first');
+  stream.topic<string>('events').publish('second');
+  let closed = false;
+  setHandler(closeSignal, () => {
+    closed = true;
+  });
+  await condition(() => closed);
+  if (fail) throw ApplicationFailure.nonRetryable('Stream workflow failed');
 }
