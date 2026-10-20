@@ -29,7 +29,7 @@
   },
   "devDependencies": {
     "glob": "^10.3.10",
-    "protobufjs-cli": "^2.6.1"
+    "protobufjs-cli": "^2.7.0"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
