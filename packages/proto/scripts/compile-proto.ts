@@ -148,6 +148,7 @@ async function main() {
   const entrypoints = [
     'temporal/sdk/core/core_interface.proto',
     'temporal/api/workflowservice/v1/service.proto',
+    'temporal/api/notificationservice/v1/request_response.proto',
     'temporal/api/operatorservice/v1/service.proto',
     'temporal/api/cloud/cloudservice/v1/service.proto',
     'temporal/api/errordetails/v1/message.proto',

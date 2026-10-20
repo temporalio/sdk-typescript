@@ -153,6 +153,11 @@ to use a local generator build when developing nexgen changes.
 The generator imports the SDK-owned helpers in `packages/workflow/src/nexus/system/support.ts`
 with `--support-package`; these helpers are not copied into the generated directory.
 
+Notification models are generated under `packages/workflow/src/nexus/system/generated/notifications`.
+Both workflow and notification bindings are generated directly from Core's upstream WIT files.
+After changing Core's API definitions, also run `pnpm run gen` to regenerate the protobuf
+definitions and payload visitor. The visitor includes the notification request and empty response.
+
 ### Working with Individual Packages
 
 You can build or test a single package using pnpm's filter flag:
