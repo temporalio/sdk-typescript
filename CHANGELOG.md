@@ -21,46 +21,27 @@ to docs, or any other relevant information.
 
 ### Breaking Changes
 
+- The `@temporalio/google-adk-agents` compatibility wrapper now requires Node.js 22.12.0
+  or later and Google ADK 2.0, matching `@temporalio/google-adk`. The wrapper preserves
+  import paths, but the ADK upgrade and renamed workflow random stream still require
+  draining affected in-flight Workflows or using separate task queues for the cutover.
 - SDK and contrib packages now declare `protobufjs` (`^8.7.1`) and `long` (`^5.3.2`) as peer
   dependencies rather than relying on separately installed copies. Package managers that do not
   automatically install peers require applications to add these dependencies explicitly.
   `@temporalio/proto` retains its regular runtime dependencies.
-- `@temporalio/google-adk-agents` now requires `@google/adk` `>=2.0.0 <2.1.0` (was `>=1.5.0 <1.6.0`).
-  ADK 2.0 changed its internals and its id generation, so a Workflow started under the 1.5 plugin
-  cannot be replayed by a Worker on this version: drain in-flight Workflows before upgrading, or
-  run the versions on separate task queues. `@modelcontextprotocol/sdk` is now an optional peer
-  dependency, needed only for `TemporalMCPToolset`.
 - Undocumented package subpaths that are not covered by a package's explicit export map no longer
   resolve.
 - **Experimental**: Nexus Workflow Updates now require `waitForStage` to be explicitly set to `ACCEPTED`.
 
 ### Added
 
-- `@temporalio/google-adk-agents` supports Google ADK 2.0's TypeScript feature set inside Workflows:
-  - the workflow (graph) runtime — `Workflow`, `node()`, `JoinNode`, routing, dynamic nodes,
-    `RequestInput`, node-as-tool, node retries and timeouts — runs unchanged, except that ADK's
-    `timeout` on an `LlmAgent` node does not cancel the agent's in-flight model Activity, so a node
-    retry can overlap it; `activityNode` makes a registered Activity a graph node, and its deadline
-    (or a sibling's failure) cancels the in-flight Activity and waits for that cancellation to settle
-    before failing the node;
-  - durable human-in-the-loop: `pendingHitlRequests`, `hitlInputResponse` and
-    `hitlConfirmationResponse` supply ADK's wire format (refusing an answer with a
-    `GoogleAdkHitlResponseError` `ApplicationFailure`, so building the response in a Signal or
-    Update handler rejects the call rather than failing the Workflow Task), and `activityAsTool` /
-    `TemporalMCPToolset` gain `requireConfirmation` so an Activity or MCP tool call runs only once
-    a human approves;
-  - MCP resources: `TemporalMCPToolset.listResources` / `readResource` and `loadMcpResourceTool`,
-    backed by `<name>-listResources` / `<name>-readResource` Activities;
-  - raw model strings (`model: 'gemini-2.5-flash'`) resolve to `TemporalModel` inside a Workflow
-    (`GoogleAdkPluginOptions.autoRouteModels`, default on);
-  - ADK's runtime errors (`NodeTimeoutError`, `IntentMismatchError`, …) fail the Workflow with typed
-    `ApplicationFailure`s (`ADK_RUNTIME_FAILURE_TYPES`) instead of retrying the Workflow Task
-    forever;
-  - ADK's UUIDs are generated from a named workflow random stream inside the sandbox, so interrupt
-    and function-call ids are replay-stable. The Workflow bundle now uses ADK's web build.
 - `@temporalio/interceptors-opentelemetry` and `@temporalio/interceptors-opentelemetry-v2` now expose
   Workflow-only `/workflow` entrypoints. Existing root exports and `lib/*` imports remain available.
 - `SearchAttributeKey` is now exported from the `@temporalio/common` package root.
+- **Experimental**: `ChildWorkflowOptions.versioningOverride` can pin, auto-upgrade, or one-time route
+  a Child Workflow independently of its parent. One-time routing is also available for client-started
+  Workflows through `{ oneTimeTo: WorkerDeploymentVersion }`. Both require Temporal Server 1.32.0 or
+  later. Invalid child overrides reject with `InvalidVersioningOverrideError`.
 - **Experimental**: Workflows can signal another Workflow and start it when absent with
   `signalWithStartWorkflow`.
 - **Experimental**: Workflow outbound interceptors can intercept Temporal System Nexus calls
@@ -83,6 +64,14 @@ to docs, or any other relevant information.
 
 ### Changed
 
+- AI integrations are now maintained and released independently in
+  [temporalio/ai-integrations](https://github.com/temporalio/ai-integrations/tree/main/typescript).
+  `@temporalio/ai-sdk` and `@temporalio/google-adk-agents` remain as compatibility wrappers
+  forwarding their public entrypoints to `@temporalio/vercel-ai-sdk` and `@temporalio/google-adk`.
+  Existing import paths can be retained; new applications should use the standalone names.
+  `@temporalio/langsmith`, `@temporalio/openai-agents`, and `@temporalio/strands-agents` retain their
+  package names. The integrations' implementations, tests, and API documentation are no longer
+  built in this repository; the two wrappers have separate forwarding tests.
 - `RetryPolicy.maximumAttempts` accepts `0` as another way to specify unlimited attempts, alongside `Infinity`.
 - Updated the following dependencies: `unionfs` from 4.5.1 to 4.6.0, `@grpc/grpc-js` from 1.12.4 to 1.12.7, `smol-toml` from 1.6.1 to 1.7.1
   and `tar` from 7.5.11 to 7.5.21.
@@ -102,21 +91,13 @@ to docs, or any other relevant information.
 - Corrected the protobufjs dependency declarations to prevent `historyFromJSON` failing with
   `type must be a Type` when npm installs separate protobufjs copies alongside a dependency on an
   older protobufjs major (#2514).
-- `@temporalio/google-adk-agents` no longer turns a cancelled model or MCP Activity into a retryable
-  `GoogleAdkModelError` / `GoogleAdkMCPError`. An error raised once the Activity's cancellation signal
-  has fired is re-raised as the cancellation, so the attempt ends cancelled instead of being retried.
 - Corrected the Schedule `catchupWindow` documentation to state that omitted values use the Temporal
   Server's configured default.
-- `@temporalio/strands-agents` tools built on Activities, `activityAsTool`, and MCP tools now give the
-  model the Activity's own error message when a tool call fails, instead of "Activity task failed",
-  and attach that error to the tool result for hooks.
 - `JsonPayloadConverter` no longer produces a payload with undefined data for values that have no JSON
   representation, such as functions, symbols, and objects whose `toJSON` returns `undefined`. The default
   payload converter now throws a `ValueError` for these values, including symbols, which previously caused a
   `TypeError` while building the error message.
-- `@temporalio/ai-sdk` now preserves text provider metadata when replaying streamed model responses
-  inside Workflows.
-- The Workflow sandbox now exposes `atob` and `btoa`, allowing integrations such as `@temporalio/ai-sdk` to
+- The Workflow sandbox now exposes `atob` and `btoa`, allowing integrations such as `@temporalio/vercel-ai-sdk` to
   process image and file tool results containing base64 data.
 - `@temporalio/create` now supports comments and trailing commas in `tsconfig.json` files when
   creating projects.
