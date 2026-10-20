@@ -63,18 +63,19 @@ export interface PublishInput {
   sequence: number;
 }
 
-/** Update payload: request to poll for new items. */
+/** Update or Query payload: request to poll for retained items. */
 export interface PollInput {
   topics: string[];
   from_offset: number;
 }
 
 /**
- * Update response: items matching the poll request (wire type).
+ * Update or Query response: items matching the poll request (wire type).
  *
  * When `more_ready` is true, the response was truncated to stay within size
  * limits and the subscriber should poll again immediately rather than applying
- * a cooldown delay.
+ * a cooldown delay. Queries return immediately, clamp offsets behind the retained
+ * base to that base, and return an empty final page when no items match.
  */
 export interface PollResult {
   items: WorkflowStreamWireItem[];

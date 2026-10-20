@@ -14,7 +14,7 @@
  * `WorkflowStreamClient.publish` use the default payload converter for per-item
  * `Payload` construction. The codec chain (encryption, PII-redaction,
  * compression) is NOT applied per item on either side — it runs once at
- * the envelope level when Temporal's SDK encodes the signal/update that
+ * the envelope level when Temporal's SDK encodes the signal/update/query that
  * carries the batch.
  *
  * This entrypoint exports only the workflow-safe surface so that it can be
@@ -78,6 +78,7 @@ function isUint8ArrayLike(value: unknown): value is ArrayLike<number> {
 // Fixed handler names for cross-language interop
 export const workflowStreamPublishSignal = defineSignal<[PublishInput]>('__temporal_workflow_stream_publish');
 export const workflowStreamPollUpdate = defineUpdate<PollResult, [PollInput]>('__temporal_workflow_stream_poll');
+export const workflowStreamPollQuery = defineQuery<PollResult, [PollInput]>('__temporal_workflow_stream_poll');
 export const workflowStreamOffsetQuery = defineQuery<number>('__temporal_workflow_stream_offset');
 
 const MAX_POLL_RESPONSE_BYTES = 1_000_000;
@@ -118,6 +119,7 @@ function isPayload(value: unknown): value is Payload {
  *
  * - `__temporal_workflow_stream_publish` signal — external publish with dedup
  * - `__temporal_workflow_stream_poll` update — long-poll subscription
+ * - `__temporal_workflow_stream_poll` query — immediate retained-item read
  * - `__temporal_workflow_stream_offset` query — current log length
  *
  * For continue-as-new, thread a `WorkflowStreamState | undefined` field through
@@ -165,6 +167,7 @@ export class WorkflowStream {
         }
       },
     });
+    setHandler(workflowStreamPollQuery, (input: PollInput) => this.collectBatch(input));
     setHandler(workflowStreamOffsetQuery, () => this.baseOffset + this.log.length);
   }
 
@@ -281,8 +284,8 @@ export class WorkflowStream {
 
   /**
    * Discard log entries before upToOffset.
-   * After truncation, polls requesting an offset before the new base
-   * will receive an error.
+   * After truncation, polling Updates requesting an offset before the new base
+   * receive an error; Queries read from the retained base instead.
    *
    * Raises `ApplicationFailure` with type `'TruncateOutOfRange'` and
    * `nonRetryable: true` when the requested offset is past the end of
@@ -341,15 +344,14 @@ export class WorkflowStream {
         (input.from_offset !== 0 && input.from_offset - this.baseOffset < 0) ||
         this.log.length > Math.max(input.from_offset - this.baseOffset, 0)
     );
-    let logOffset = input.from_offset - this.baseOffset;
-    if (logOffset < 0) {
-      if (input.from_offset === 0) {
-        // "From the beginning" — start at whatever is available.
-        logOffset = 0;
-      } else {
-        throw truncatedFailure();
-      }
+    if (input.from_offset !== 0 && input.from_offset < this.baseOffset) {
+      throw truncatedFailure();
     }
+    return this.collectBatch(input);
+  }
+
+  private collectBatch(input: PollInput): PollResult {
+    const logOffset = Math.max(input.from_offset - this.baseOffset, 0);
     const allNew = this.log.slice(logOffset);
 
     // Build [globalOffset, entry] candidates, filtering by topic if requested.

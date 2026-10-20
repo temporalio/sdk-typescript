@@ -96,6 +96,7 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- Workflow Stream subscriptions drain retained items through Queries after workflow closure, including subscriptions started after the run closes.
 - Update-with-Start gRPC errors now include the decoded operation error code and message in the
   first line of the stack trace.
 - Corrected the protobufjs dependency declarations to prevent `historyFromJSON` failing with

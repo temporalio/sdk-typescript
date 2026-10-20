@@ -17,12 +17,13 @@ object and external client. The workflow holds an append-only log of
 `(topic, data)` entries. Applications can interact directly from the workflow,
 or from external clients such as activities, starters, and other workflows.
 Under the hood, publishing uses signals (fire-and-forget) while subscribing
-uses updates (long-poll). A configurable batching coalesces high-frequency
+uses updates (long-poll) while the run is active and immediate queries after
+the run closes. Configurable batching coalesces high-frequency
 events, improving efficiency.
 
 Payloads are Temporal `Payload`s carrying the encoding metadata needed for
 typed decode and cross-language interop. The codec chain (encryption,
-PII-redaction, compression) runs once on the signal/update envelope that
+PII-redaction, compression) runs once on the signal/update/query envelope that
 carries each batch — **not** per item — so there is no double-encryption, and
 codec behavior is symmetric between workflow-side and client-side publishing.
 
@@ -52,7 +53,7 @@ export async function myWorkflow(input: MyInput): Promise<void> {
 ```
 
 The `WorkflowStream` constructor registers the `__temporal_workflow_stream_publish` signal,
-`__temporal_workflow_stream_poll` update, and `__temporal_workflow_stream_offset` query handlers on your workflow.
+`__temporal_workflow_stream_poll` update and query, and `__temporal_workflow_stream_offset` query handlers on your workflow.
 Any value the default payload converter can serialize or
 a pre-built `Payload` can be passed to `publish`. The type parameter `T` is
 only a compile-time annotation. Repeated calls to `stream.topic('foo')` return the same
@@ -121,6 +122,19 @@ For raw `Payload` access call
 `WorkflowStreamClient.subscribe(topics?, fromOffset?)` directly. The yielded
 items have `data: Payload` carrying encoding metadata; decode with
 `defaultPayloadConverter.fromPayload<T>(item.data)` per-topic.
+
+Subscriptions also work after a run completes, fails, is canceled, is terminated,
+or times out. The client confirms the terminal run with Describe, then reads
+all remaining retained items through Queries pinned to that run and finishes.
+Query pages use the same topic filtering, global offsets, payload conversion,
+and response size limits as live Updates. Queries return immediately, including
+for empty streams or unmatched topics, and offsets behind the retained base
+start at that base. Truncated items and expired history cannot be recovered.
+
+Upgrade workers before using upgraded clients: older workers do not have the
+poll Query handler. Reads require retained history and an available compatible
+worker. Missing handlers, configured query-rejection policies, and other Query
+errors propagate to subscribers.
 
 ## Topics
 
@@ -194,6 +208,7 @@ handler names:
 
 1. **Publish**: signal `__temporal_workflow_stream_publish` with `PublishInput`
 2. **Subscribe**: update `__temporal_workflow_stream_poll` with `PollInput` -> `PollResult`
+   while running; query the same name and wire types to drain a confirmed terminal run
 3. **Offset**: query `__temporal_workflow_stream_offset` -> `number`
 
 Each `PublishEntry.data` / `WorkflowStreamWireItem.data` is a base64-encoded
