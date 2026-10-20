@@ -96,6 +96,7 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- Fixed Worker crashes when running with `node --watch` by ignoring unrecognized messages from Workflow Worker threads.
 - Corrected the protobufjs dependency declarations to prevent `historyFromJSON` failing with
   `type must be a Type` when npm installs separate protobufjs copies alongside a dependency on an
   older protobufjs major (#2514).
