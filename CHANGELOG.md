@@ -35,6 +35,8 @@ to docs, or any other relevant information.
 
 ### Added
 
+- `@temporalio/testing` adds `DevServerConfig.startupTimeout` and `TimeSkippingServerConfig.startupTimeout`
+  to configure how long to wait for dev and time-skipping test servers to become ready.
 - `@temporalio/interceptors-opentelemetry` and `@temporalio/interceptors-opentelemetry-v2` now expose
   Workflow-only `/workflow` entrypoints. Existing root exports and `lib/*` imports remain available.
 - `SearchAttributeKey` is now exported from the `@temporalio/common` package root.
@@ -88,6 +90,12 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- Workflows paused before a scheduled Workflow Task starts now replay successfully and resume after unpause
+  (temporalio/sdk-rust#1618).
+- Workers skip unnecessary Workflow cache scans when no Workflow Tasks are waiting for a cache slot,
+  reducing CPU overhead with large caches (temporalio/sdk-rust#1667).
+- Dev and time-skipping test server startup now respects its deadline even when a readiness request stalls.
+  Timeout errors include the last connection error when available.
 - Corrected the protobufjs dependency declarations to prevent `historyFromJSON` failing with
   `type must be a Type` when npm installs separate protobufjs copies alongside a dependency on an
   older protobufjs major (#2514).
@@ -109,6 +117,11 @@ to docs, or any other relevant information.
 - **Experimental**: A Standalone Activity started from a Nexus operation handler directly through
   `ActivityClient`, rather than through `TemporalNexusClient.startActivity()`'s guarded call, now
   inherits the handler's Nexus request ID and inbound links.
+
+### Security
+
+- Ephemeral server downloads now use `zip` 9.x for ZIP extraction, replacing the 8.x dependency yanked
+  upstream for security issues (temporalio/sdk-rust#1666).
 
 ### Changed
 
