@@ -3,6 +3,8 @@ import { status as grpcStatus } from '@grpc/grpc-js';
 import {
   Client,
   Connection,
+  defaultGrpcRetryOptions,
+  makeGrpcRetryInterceptor,
   isGrpcServiceError,
   WorkflowUpdateStage,
   WorkflowUpdateRPCTimeoutOrCancelledError,
@@ -258,11 +260,17 @@ export async function workflowWithNeverReturningUpdate(): Promise<never> {
 
 test('updateWithStart failure: update fails early due to limit on number of updates', async (t) => {
   const workflowId = randomUUID();
+  const { env } = t.context;
   const { createWorker, taskQueue } = helpers(t);
   const worker = await createWorker();
-  const connection = await Connection.connect({ address: t.context.env.address, interceptors: [] });
+  // Use one attempt for the expected RESOURCE_EXHAUSTED error, preserving Cloud connection settings.
+  const connection = await Connection.connect({
+    ...env.connectionOptions,
+    address: env.address,
+    interceptors: [makeGrpcRetryInterceptor(defaultGrpcRetryOptions({ maxAttempts: 1 }))],
+  });
   t.teardown(() => connection.close());
-  const client = new Client({ connection });
+  const client = new Client({ ...env.client.options, connection });
   const makeStartOp = () =>
     new WithStartWorkflowOperation(workflowWithNeverReturningUpdate, {
       workflowId,
@@ -288,8 +296,11 @@ test('updateWithStart failure: update fails early due to limit on number of upda
     for (const promise of [startUpdateWithStart(startOp), startOp.workflowHandle()]) {
       const err = await t.throwsAsync(promise);
       t.true(isGrpcServiceError(err) && err.code === grpcStatus.RESOURCE_EXHAUSTED);
-      t.regex(err?.message ?? '', /limit on number of concurrent in-flight updates/i);
-      t.regex(err?.stack ?? '', /limit on number of concurrent in-flight updates/i);
+      t.is(err?.message, 'limit on number of concurrent in-flight updates has been reached (10)');
+      t.is(
+        err?.stack?.split('\n')[0],
+        'Error: 8 RESOURCE_EXHAUSTED: limit on number of concurrent in-flight updates has been reached (10)'
+      );
     }
   });
 });
