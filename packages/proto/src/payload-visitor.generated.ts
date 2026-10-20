@@ -492,6 +492,16 @@ export function walkWorkflowActivationCompletion<Ctx>(
   return pending;
 }
 
+export function walkOnCompleteRequest<Ctx>(
+  root: temporal.api.notificationservice.v1.IOnCompleteRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx
+): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  walk_temporal_api_notificationservice_v1_OnCompleteRequest(root, env, context, pending);
+  return pending;
+}
+
 export function walkCountActivityExecutionsResponse<Ctx>(
   root: temporal.api.workflowservice.v1.ICountActivityExecutionsResponse,
   env: WalkEnv<Ctx>,
@@ -1390,6 +1400,8 @@ export function walkPayloadsInMessage<Ctx>(root: object, env: WalkEnv<Ctx>, cont
         env,
         context
       );
+    case 'temporal.api.notificationservice.v1.OnCompleteRequest':
+      return walkOnCompleteRequest(root as temporal.api.notificationservice.v1.IOnCompleteRequest, env, context);
     case 'temporal.api.workflowservice.v1.CountActivityExecutionsResponse':
       return walkCountActivityExecutionsResponse(
         root as temporal.api.workflowservice.v1.ICountActivityExecutionsResponse,
@@ -1879,6 +1891,8 @@ export function walkPayloadsInMessage<Ctx>(root: object, env: WalkEnv<Ctx>, cont
     case 'coresdk.workflow_commands.StartTimer':
       return [];
     case 'coresdk.WorkflowSlotInfo':
+      return [];
+    case 'temporal.api.notificationservice.v1.OnCompleteResponse':
       return [];
     case 'temporal.api.workflowservice.v1.CountActivityExecutionsRequest':
       return [];
@@ -5165,6 +5179,39 @@ function walk_temporal_api_nexusoperation_v1_CallbackInfo<Ctx>(
   {
     const c = o.info;
     if (c != null) walk_temporal_api_callback_v1_CallbackInfo(c, env, ctx, pending);
+  }
+}
+
+function walk_temporal_api_notificationservice_v1_OnCompleteRequest<Ctx>(
+  o: temporal.api.notificationservice.v1.IOnCompleteRequest,
+  env: WalkEnv<Ctx>,
+  context: Ctx,
+  pending: Promise<unknown>[]
+): void {
+  const ctx = env.deriveContext
+    ? env.deriveContext(o, 'temporal.api.notificationservice.v1.OnCompleteRequest', context)
+    : context;
+  {
+    const p = o.success;
+    if (p != null)
+      pending.push(
+        env.transformPayload(p, ctx).then((r) => {
+          o.success = r;
+        })
+      );
+  }
+  {
+    const c = o.failure;
+    if (c != null) walk_temporal_api_failure_v1_Failure(c, env, ctx, pending);
+  }
+  {
+    const p = o.sourceContext;
+    if (p != null)
+      pending.push(
+        env.transformPayload(p, ctx).then((r) => {
+          o.sourceContext = r;
+        })
+      );
   }
 }
 
