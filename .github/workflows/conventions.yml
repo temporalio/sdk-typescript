@@ -53,8 +53,8 @@ jobs:
       - name: Check generated System Nexus bindings are up to date
         run: |
           pnpm --filter @temporalio/workflow run gen:system-nexus
-          if [ -n "$(git status --porcelain -- packages/workflow/src/nexus/system/generated)" ]; then
-            git diff -- packages/workflow/src/nexus/system/generated
+          if [ -n "$(git status --porcelain -- packages/workflow/src/nexus/system/generated packages/common/src/nexus/notifications/generated)" ]; then
+            git diff -- packages/workflow/src/nexus/system/generated packages/common/src/nexus/notifications/generated
             echo "::error::System Nexus bindings are out of date. Run 'pnpm --filter @temporalio/workflow run gen:system-nexus' with nexgen 0.2.10 and commit the result."
             exit 1
           fi

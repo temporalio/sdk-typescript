@@ -61,6 +61,10 @@
       "default": "./lib/index.js"
     },
     "./package.json": "./package.json",
+    "./nexus": {
+      "types": "./lib/nexus.d.ts",
+      "default": "./lib/nexus.js"
+    },
     "./proto-utils": {
       "types": "./lib/proto-utils.d.ts",
       "default": "./lib/proto-utils.js"
@@ -72,6 +76,10 @@
     "./internal/interfaces": {
       "types": "./lib/interfaces.d.ts",
       "default": "./lib/interfaces.js"
+    },
+    "./internal/nexus": {
+      "types": "./lib/nexus/system/support.d.ts",
+      "default": "./lib/nexus/system/support.js"
     },
     "./internal/internal-non-workflow": {
       "types": "./lib/internal-non-workflow/index.d.ts",
@@ -104,6 +112,9 @@
   },
   "typesVersions": {
     "*": {
+      "nexus": [
+        "lib/nexus.d.ts"
+      ],
       "proto-utils": [
         "lib/proto-utils.d.ts"
       ],
@@ -112,6 +123,9 @@
       ],
       "internal/interfaces": [
         "lib/interfaces.d.ts"
+      ],
+      "internal/nexus": [
+        "lib/nexus/system/support.d.ts"
       ],
       "internal/internal-non-workflow": [
         "lib/internal-non-workflow/index.d.ts"

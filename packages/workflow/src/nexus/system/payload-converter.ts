@@ -6,8 +6,8 @@ import {
   type TypeInfo,
   fromPayloadWithTypeInfo,
 } from '@temporalio/common';
+import { withSystemNexusPayloadConversion } from '@temporalio/common/internal/nexus';
 import { operationRegistry } from './generated/registry';
-import { withSystemNexusPayloadConversion } from './user-payload-converter';
 
 export function isSystemNexusOperation(service: string | undefined, operation: string | undefined): boolean {
   return (

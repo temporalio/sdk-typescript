@@ -1,27 +1,32 @@
 import test from 'ava';
-import type { LoadedDataConverter, Payload, PayloadCodec, TypeInfo } from '@temporalio/common';
+import * as protoRoot from '@temporalio/proto';
+import type { temporal } from '@temporalio/proto';
+import type { LoadedDataConverter, Payload, PayloadCodec, TypeInfo } from '../index';
 import {
   ApplicationFailure,
   CancelledFailure,
   defaultDataConverter,
   defaultPayloadConverter,
   fromPayloadWithTypeInfo,
-} from '@temporalio/common';
-import { ProtobufBinaryPayloadConverter } from '@temporalio/common/protobufs';
-import { decode, encode, visit, walkPayloadsInMessage } from '@temporalio/common/internal/internal-non-workflow';
-import * as protoRoot from '@temporalio/proto';
-import type { temporal } from '@temporalio/proto';
+} from '../index';
+import { ProtobufBinaryPayloadConverter } from '../protobufs';
+import { decode, encode, visit, walkPayloadsInMessage } from '../internal-non-workflow';
 import {
   type OnCompleteRequest,
   type OnCompleteResponse,
   onCompleteRequestTransferTypeConverter,
   onCompleteResponseTransferTypeConverter,
-} from '../nexus/system/generated/notifications';
+} from '../nexus';
 import { withSystemNexusPayloadConversion } from '../nexus/system/user-payload-converter';
 
 const { OnCompleteRequest: Request, OnCompleteResponse: Response } = protoRoot.temporal.api.notificationservice.v1;
 const protobufConverter = new ProtobufBinaryPayloadConverter(protoRoot);
-const context = { type: 'workflow', namespace: 'test-namespace', workflowId: 'test-workflow' } as const;
+const context = {
+  type: 'nexus',
+  endpoint: 'test-endpoint',
+  service: 'Notifications',
+  operation: 'onComplete',
+} as const;
 type Notification = OnCompleteRequest<{ value: string }, { source: string }>;
 const requestType: TypeInfo<Notification, temporal.api.notificationservice.v1.IOnCompleteRequest> = {
   transferTypeConverter: onCompleteRequestTransferTypeConverter,

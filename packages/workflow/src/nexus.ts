@@ -7,6 +7,7 @@ import {
   toPayloadWithTypeInfo,
 } from '@temporalio/common';
 import { msOptionalToTs } from '@temporalio/common/lib/time';
+import { withSystemNexusPayloadConversion } from '@temporalio/common/internal/nexus';
 import {
   encodeSystemNexusEnvelopeBytes,
   makeProtoEnumConverters,
@@ -19,7 +20,6 @@ import {
 import type { coresdk } from '@temporalio/proto';
 import { eventGroupMarkersToProto } from './event-groups';
 import { systemNexusOperationDefinition } from './nexus/system/payload-converter';
-import { withSystemNexusPayloadConversion } from './nexus/system/user-payload-converter';
 import { dispatchSystemNexusSpecificInterceptors } from './nexus/system/generated/interceptors';
 import { CancellationScope } from './cancellation-scope';
 import { getActivator } from './global-attributes';
