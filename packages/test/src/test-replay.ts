@@ -38,6 +38,43 @@ test.before(async (t) => {
   };
 });
 
+test.serial('Replay keeps its runtime alive while another replay finishes during bundling', async (t) => {
+  const history = await loadHistory('cancel_fake_progress_history.bin');
+  let bundlingStarted!: () => void;
+  const started = new Promise<void>((resolve) => (bundlingStarted = resolve));
+  let resumeBundling!: () => void;
+  const resume = new Promise<void>((resolve) => (resumeBundling = resolve));
+  const replay = t.notThrowsAsync(
+    Worker.runReplayHistory(
+      {
+        workflowsPath: require.resolve('./workflows'),
+        bundlerOptions: {
+          webpackConfigHook(config) {
+            config.plugins ??= [];
+            config.plugins.push({
+              apply(compiler) {
+                compiler.hooks.beforeCompile.tapPromise('pause-replay-bundling', async () => {
+                  bundlingStarted();
+                  await resume;
+                });
+              },
+            });
+            return config;
+          },
+        },
+      },
+      history
+    )
+  );
+  await started;
+  try {
+    await Worker.runReplayHistory({ workflowBundle: t.context.bundle }, history);
+  } finally {
+    resumeBundling();
+  }
+  await replay;
+});
+
 test('cancel-fake-progress-replay', async (t) => {
   const hist = await loadHistory('cancel_fake_progress_history.bin');
   await Worker.runReplayHistory(
