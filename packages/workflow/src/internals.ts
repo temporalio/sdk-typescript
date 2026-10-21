@@ -870,7 +870,7 @@ export class Activator implements ActivationHandler {
           systemNexus?.service,
           systemNexus?.operation,
           activation.result.completed,
-          this.payloadConverter,
+          { payloadConverter: this.payloadConverter, failureConverter: this.failureConverter },
           systemNexus?.context,
           systemNexus?.outputType
         ) ?? fromPayloadWithTypeInfo(this.payloadConverter, activation.result.completed, context, outputTypeInfo);

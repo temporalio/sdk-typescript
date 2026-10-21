@@ -7,7 +7,7 @@ import {
   toPayloadWithTypeInfo,
 } from '@temporalio/common';
 import { msOptionalToTs } from '@temporalio/common/lib/time';
-import { withSystemNexusPayloadConversion } from '@temporalio/common/internal/nexus';
+import { type SystemNexusDataConverter, withSystemNexusPayloadConversion } from '@temporalio/common/internal/nexus';
 import {
   encodeSystemNexusEnvelopeBytes,
   makeProtoEnumConverters,
@@ -293,7 +293,7 @@ function startNexusOperationNextHandler({
   };
   const serialization = serializeNexusOperation(
     { input, endpoint, service, options, operation, inputType, outputType },
-    activator.payloadConverter,
+    { payloadConverter: activator.payloadConverter, failureConverter: activator.failureConverter },
     nexusContext,
     workflowContext
   );
@@ -376,10 +376,11 @@ interface SerializedNexusOperation {
  */
 function serializeNexusOperation(
   { input, endpoint, service, options, operation, inputType }: Omit<StartNexusOperationInput, 'seq' | 'headers'>,
-  payloadConverter: PayloadConverter,
+  dataConverter: SystemNexusDataConverter,
   nexusContext: NexusSerializationContext,
   workflowContext: SerializationContext
 ): SerializedNexusOperation {
+  const { payloadConverter } = dataConverter;
   if (endpoint !== TEMPORAL_SYSTEM_NEXUS_ENDPOINT) {
     return {
       input: toPayloadWithTypeInfo(payloadConverter, input, nexusContext, inputType),
@@ -395,7 +396,7 @@ function serializeNexusOperation(
   const context = definition.serializationContext?.(input as any);
   const outerPayloadConverter = systemNexusOuterPayloadConverter(context);
   return {
-    input: withSystemNexusPayloadConversion(payloadConverter, context, () =>
+    input: withSystemNexusPayloadConversion(dataConverter, context, () =>
       toPayloadWithTypeInfo(outerPayloadConverter, input, undefined, inputType)
     ),
     userMetadata: userMetadataToPayload(payloadConverter, options?.summary, undefined, workflowContext),

@@ -1,12 +1,11 @@
 import {
   defaultPayloadConverter,
   type Payload,
-  type PayloadConverter,
   type SerializationContext,
   type TypeInfo,
   fromPayloadWithTypeInfo,
 } from '@temporalio/common';
-import { withSystemNexusPayloadConversion } from '@temporalio/common/internal/nexus';
+import { type SystemNexusDataConverter, withSystemNexusPayloadConversion } from '@temporalio/common/internal/nexus';
 import { operationRegistry } from './generated/registry';
 
 export function isSystemNexusOperation(service: string | undefined, operation: string | undefined): boolean {
@@ -29,12 +28,12 @@ export function deserializeSystemNexusOutput(
   service: string | undefined,
   operation: string | undefined,
   payload: Payload | undefined,
-  converter: PayloadConverter,
+  dataConverter: SystemNexusDataConverter,
   context: SerializationContext | undefined,
   outputType: TypeInfo | undefined
 ): unknown | undefined {
   if (!isSystemNexusOperation(service, operation) || payload == null) return undefined;
-  return withSystemNexusPayloadConversion(converter, context, () =>
+  return withSystemNexusPayloadConversion(dataConverter, context, () =>
     fromPayloadWithTypeInfo(defaultPayloadConverter, payload, undefined, outputType)
   );
 }

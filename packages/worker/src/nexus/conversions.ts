@@ -83,7 +83,7 @@ export async function decodePayload(
 
   try {
     return isSystemPayload
-      ? fromSystemNexusPayload(decoded, dataConverter.payloadConverter, typeInfo)
+      ? fromSystemNexusPayload(decoded, dataConverter, typeInfo)
       : fromPayloadWithTypeInfo(dataConverter.payloadConverter, decoded, context, typeInfo);
   } catch (err) {
     if (isPayloadValidationFailure(err)) {

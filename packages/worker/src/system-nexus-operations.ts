@@ -1,8 +1,8 @@
 import type { Service as ProtobufService, Type as ProtobufType } from 'protobufjs';
-import type { Payload, PayloadConverter, SerializationContext, TypeInfo } from '@temporalio/common';
+import type { Payload, SerializationContext, TypeInfo } from '@temporalio/common';
 import { defaultPayloadConverter, fromPayloadWithTypeInfo, METADATA_MESSAGE_TYPE_KEY } from '@temporalio/common';
 import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/protobufs';
-import { withSystemNexusPayloadConversion } from '@temporalio/common/internal/nexus';
+import { type SystemNexusDataConverter, withSystemNexusPayloadConversion } from '@temporalio/common/internal/nexus';
 import {
   decode,
   decodeSystemNexusEnvelopeBytes,
@@ -69,10 +69,10 @@ export function encodeSystemNexusEnvelope(envelope: Payload, message: Record<str
 /** Converts a System Nexus request and applies the operation's input TypeInfo. */
 export function fromSystemNexusPayload(
   payload: Payload,
-  converter: PayloadConverter,
+  dataConverter: SystemNexusDataConverter,
   typeInfo: TypeInfo | undefined
 ): unknown {
-  return withSystemNexusPayloadConversion(converter, undefined, () =>
+  return withSystemNexusPayloadConversion(dataConverter, undefined, () =>
     fromPayloadWithTypeInfo(protobufPayloadConverter, payload, undefined, typeInfo)
   );
 }
