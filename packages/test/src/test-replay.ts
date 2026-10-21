@@ -2,7 +2,7 @@ import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import type { temporal } from '@temporalio/proto';
 import type { WorkflowBundle } from '@temporalio/worker';
-import { bundleWorkflowCode, ReplayError } from '@temporalio/worker';
+import { bundleWorkflowCode, ReplayError, Runtime } from '@temporalio/worker';
 import { DeterminismViolationError } from '@temporalio/workflow';
 import { loadHistory, Worker } from './helpers';
 
@@ -73,6 +73,15 @@ test.serial('Replay keeps its runtime alive while another replay finishes during
     resumeBundling();
   }
   await replay;
+});
+
+test.serial('Replay releases its runtime when preparation fails', async (t) => {
+  const history = await loadHistory('cancel_fake_progress_history.bin');
+  await t.throwsAsync(
+    Worker.runReplayHistory({ workflowBundle: { codePath: `${__dirname}/nonexistent-workflow-bundle.js` } }, history),
+    { code: 'ENOENT' }
+  );
+  t.is(Runtime._instance, undefined);
 });
 
 test('cancel-fake-progress-replay', async (t) => {
