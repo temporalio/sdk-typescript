@@ -34,11 +34,6 @@ import {
   extractWorkflowTypeAndConfig,
   ExternalStorageError,
 } from '@temporalio/common';
-import { encodeUserMetadata } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
-import { encodeUnifiedSearchAttributes } from '@temporalio/common/lib/converter/payload-search-attributes';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
-import type { History } from '@temporalio/common/lib/proto-utils';
-import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
@@ -46,6 +41,7 @@ import {
   decodeOptionalSinglePayload,
   encodeMapToPayloads,
   encodeToPayloadsWithContext,
+  encodeUserMetadata,
   extstoreInboundOptions,
   extstoreStoreOptions,
   visit,
@@ -63,8 +59,14 @@ import {
   walkTerminateWorkflowExecutionRequest,
   walkUpdateWorkflowExecutionRequest,
   walkUpdateWorkflowExecutionResponse,
-} from '@temporalio/common/lib/internal-non-workflow';
-import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
+} from '@temporalio/common/internal/internal-non-workflow';
+import type { History } from '@temporalio/common/lib/proto-utils';
+import {
+  composeInterceptors,
+  encodeUnifiedSearchAttributes,
+  filterNullAndUndefined,
+  SymbolBasedInstanceOfError,
+} from '@temporalio/common/internal/internal-workflow';
 import { temporal } from '@temporalio/proto';
 import {
   ServiceError,

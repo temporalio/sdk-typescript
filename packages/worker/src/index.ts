@@ -37,8 +37,12 @@
 export { NativeConnection, NativeConnectionPlugin } from './connection';
 export {
   DNSLoadBalancingConfig,
+  GzipGrpcCompressionConfig,
   GrpcCompressionConfig,
   NativeConnectionOptions,
+  NoneGrpcCompressionConfig,
+  PayloadLimitsConfig,
+  ProxyConfig,
   TLSConfig,
 } from './connection-options';
 export { startDebugReplayer } from './debug-replayer';
@@ -167,7 +171,7 @@ export {
    * @deprecated This function is meant for internal usage. Don't use it.
    */
   workflowLogAttributes,
-} from '@temporalio/workflow/lib/logs';
+} from '@temporalio/workflow/internal/logs';
 
 export {
   /**

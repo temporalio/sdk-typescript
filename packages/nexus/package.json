@@ -25,11 +25,16 @@
     "@temporalio/client": "workspace:*",
     "@temporalio/common": "workspace:*",
     "@temporalio/proto": "workspace:*",
-    "long": "^5.3.2",
     "nexus-rpc": "^0.0.3"
   },
+  "peerDependencies": {
+    "long": "^5.3.2",
+    "protobufjs": "^8.7.1"
+  },
   "devDependencies": {
-    "ava": "^5.3.1"
+    "ava": "^5.3.1",
+    "long": "^5.3.2",
+    "protobufjs": "^8.7.1"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
@@ -51,5 +56,27 @@
     "lib",
     "!src/__tests__",
     "!lib/__tests__"
-  ]
+  ],
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json",
+    "./internal": {
+      "types": "./lib/internal.d.ts",
+      "default": "./lib/internal.js"
+    },
+    "./lib/*": {
+      "types": "./lib/*.d.ts",
+      "default": "./lib/*.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "internal": [
+        "lib/internal.d.ts"
+      ]
+    }
+  }
 }

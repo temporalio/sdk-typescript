@@ -2,7 +2,7 @@ import type { coresdk } from '@temporalio/proto';
 import type { RetryPolicy } from './retry-policy';
 import type { Duration } from './time';
 import type { VersioningIntent } from './versioning-intent';
-import { makeProtoEnumConverters } from './internal-workflow';
+import { makeProtoEnumConverters } from './internal-workflow/enums-helpers';
 import type { Priority } from './priority';
 
 // Note: The types defined in this file are here for legacy reasons. They should have been defined

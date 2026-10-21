@@ -191,6 +191,10 @@ jobs:
       - name: Publish to Verdaccio
         run: pnpm tsx scripts/publish-to-verdaccio.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry
 
+      - name: Test npm protobufjs peer resolution
+        if: matrix.platform == 'linux-x64' && matrix.node == 24
+        run: pnpm tsx scripts/test-protobufjs-install.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --target-dir ${{ steps.tmp-dir.outputs.dir }}/protobufjs-install
+
       - name: Install Temporal CLI
         uses: temporalio/setup-temporal@8bde337644eaaa6644b8b527d9a8406c2207de5b # v0
         with:
@@ -231,23 +235,6 @@ jobs:
         env:
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: ${{ matrix.reuse-v8-context }}
-
-          # For Temporal Cloud + mTLS tests
-          TEMPORAL_CLOUD_MTLS_TEST_TARGET_HOST: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud:7233
-          TEMPORAL_CLOUD_MTLS_TEST_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
-          TEMPORAL_CLOUD_MTLS_TEST_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
-          TEMPORAL_CLOUD_MTLS_TEST_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
-
-          # For Temporal Cloud + API key tests
-          TEMPORAL_CLOUD_API_KEY_TEST_TARGET_HOST: ca-central-1.aws.api.temporal.io:7233
-          TEMPORAL_CLOUD_API_KEY_TEST_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
-          TEMPORAL_CLOUD_API_KEY_TEST_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
-
-          # For Temporal Cloud + Cloud Ops tests
-          TEMPORAL_CLOUD_OPS_TEST_TARGET_HOST: saas-api.tmprl.cloud:443
-          TEMPORAL_CLOUD_OPS_TEST_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
-          TEMPORAL_CLOUD_OPS_TEST_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
-          TEMPORAL_CLOUD_OPS_TEST_API_VERSION: 2024-05-13-00
 
       - name: Run Tests (Bun)
         if: matrix.node == 'bun'
@@ -346,6 +333,8 @@ jobs:
     defaults:
       run:
         shell: bash
+    env:
+      TEMPORAL_CLIENT_CLOUD_API_VERSION: v0.19.1
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -386,30 +375,57 @@ jobs:
             echo "TEMPORAL_TLS_CLIENT_KEY_PATH=$cert_dir/client.key"
           } >> "$GITHUB_ENV"
 
-      - name: Create Cloud namespace
+      - name: Create Cloud mTLS namespace
         id: create-cloud-namespace
-        run: pnpm exec tsx .github/scripts/cloud-namespace.ts create
+        run: pnpm exec tsx .github/scripts/cloud-namespace.ts create mtls
         env:
           TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
-          TEMPORAL_CLIENT_CLOUD_API_VERSION: v0.19.1
+
+      - name: Create Cloud API key namespace
+        id: create-cloud-api-key-namespace
+        run: pnpm exec tsx .github/scripts/cloud-namespace.ts create api-key
+        env:
+          TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
 
       - name: Run tests against Temporal Cloud
         # Fail a hung suite while leaving job-level time for namespace cleanup and log upload.
         timeout-minutes: 20
-        run: pnpm --silent test:cloud | tee cloud-integration.tap
+        run: |
+          # test-temporal-cloud.ts reads the client certificate and key contents, not their paths.
+          TEMPORAL_CLOUD_MTLS_TEST_CLIENT_CERT="$(cat "$TEMPORAL_TLS_CLIENT_CERT_PATH")"
+          TEMPORAL_CLOUD_MTLS_TEST_CLIENT_KEY="$(cat "$TEMPORAL_TLS_CLIENT_KEY_PATH")"
+          export TEMPORAL_CLOUD_MTLS_TEST_CLIENT_CERT TEMPORAL_CLOUD_MTLS_TEST_CLIENT_KEY
+          pnpm --silent test:cloud | tee cloud-integration.tap
         env:
           RUN_INTEGRATION_TESTS: true
           REUSE_V8_CONTEXT: true
           TEMPORAL_TEST_ENV_CONFIG_SERVER: true
-          TEMPORAL_ADDRESS: ${{ steps.create-cloud-namespace.outputs.namespace }}.tmprl.cloud:7233
+          TEMPORAL_ADDRESS: ${{ steps.create-cloud-namespace.outputs.address }}
           TEMPORAL_NAMESPACE: ${{ steps.create-cloud-namespace.outputs.namespace }}
 
-      - name: Delete Cloud namespace
+          # For test-temporal-cloud.ts, against this run's namespaces
+          TEMPORAL_CLOUD_MTLS_TEST_TARGET_HOST: ${{ steps.create-cloud-namespace.outputs.address }}
+          TEMPORAL_CLOUD_MTLS_TEST_NAMESPACE: ${{ steps.create-cloud-namespace.outputs.namespace }}
+          TEMPORAL_CLOUD_API_KEY_TEST_TARGET_HOST: ${{ steps.create-cloud-api-key-namespace.outputs.address }}
+          TEMPORAL_CLOUD_API_KEY_TEST_NAMESPACE: ${{ steps.create-cloud-api-key-namespace.outputs.namespace }}
+          TEMPORAL_CLOUD_API_KEY_TEST_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
+          # The Cloud Operations API has a single global endpoint.
+          TEMPORAL_CLOUD_OPS_TEST_TARGET_HOST: saas-api.tmprl.cloud:443
+          TEMPORAL_CLOUD_OPS_TEST_NAMESPACE: ${{ steps.create-cloud-api-key-namespace.outputs.namespace }}
+          TEMPORAL_CLOUD_OPS_TEST_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
+          TEMPORAL_CLOUD_OPS_TEST_API_VERSION: ${{ env.TEMPORAL_CLIENT_CLOUD_API_VERSION }}
+
+      - name: Delete Cloud mTLS namespace
         if: ${{ always() && steps.create-cloud-namespace.outputs.namespace != '' }}
         run: pnpm exec tsx .github/scripts/cloud-namespace.ts delete "${{ steps.create-cloud-namespace.outputs.namespace }}"
         env:
           TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
-          TEMPORAL_CLIENT_CLOUD_API_VERSION: v0.19.1
+
+      - name: Delete Cloud API key namespace
+        if: ${{ always() && steps.create-cloud-api-key-namespace.outputs.namespace != '' }}
+        run: pnpm exec tsx .github/scripts/cloud-namespace.ts delete "${{ steps.create-cloud-api-key-namespace.outputs.namespace }}"
+        env:
+          TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
 
       - name: Upload Cloud test output
         if: always()
@@ -463,6 +479,28 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  # The single required status check for merging: a PR can merge only if every job in
+  # `needs` passed. Kept separate from ci-summary so that a bug in the summary script
+  # can't block merges.
+  required-pr-checks:
+    name: Required PR Checks
+    # Without always(), this job would be skipped when a dependency fails, and GitHub
+    # treats a skipped required check as passing.
+    if: always()
+    needs:
+      - compile-native-binaries-debug
+      - integration-tests
+      - conventions
+      - features-tests
+      - stress-tests-no-reuse-context
+      - stress-tests-reuse-context
+      - docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any check failed or was cancelled
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1
 
   ci-summary:
     name: CI

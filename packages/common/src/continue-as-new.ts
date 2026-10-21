@@ -1,5 +1,5 @@
 import type { temporal } from '@temporalio/proto';
-import { makeProtoEnumConverters } from './internal-workflow';
+import { makeProtoEnumConverters } from './internal-workflow/enums-helpers';
 
 /**
  * Reason(s) why continue as new is suggested. Can potentially be multiple reasons.
@@ -30,7 +30,6 @@ export const [encodeSuggestContinueAsNewReason, decodeSuggestContinueAsNewReason
   'SUGGEST_CONTINUE_AS_NEW_REASON_'
 );
 
-// ts-prune-ignore-next
 export function suggestContinueAsNewReasonsFromProto(
   reasons: temporal.api.enums.v1.SuggestContinueAsNewReason[] | null | undefined
 ): SuggestContinueAsNewReason[] | undefined {

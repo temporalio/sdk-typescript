@@ -4,7 +4,7 @@ import * as os from 'os';
 import test from 'ava';
 import dedent from 'dedent';
 import { Connection, Client } from '@temporalio/client';
-import { encode } from '@temporalio/common/lib/encoding';
+import { encode } from '@temporalio/common/internal/internal-workflow';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { NativeConnection } from '@temporalio/worker';
 import type { ClientConfig, ClientConfigProfile, ConfigDataSource } from '../index';

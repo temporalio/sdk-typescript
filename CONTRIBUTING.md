@@ -6,6 +6,9 @@ This guide describes expectations that apply across Temporal SDK repositories. E
 repository may have additional local conventions, but the guidance below should help
 you open issues and pull requests that maintainers can evaluate efficiently.
 
+> [!IMPORTANT]
+> Non-Temporal contributors must not solicit user or customer information, including but not limited to workload, use-case, or failure information. Doing so will result in a ban from all Temporal repositories at Temporal's sole discretion.
+
 ## Before You Open an Issue
 
 Search the existing issues first. If you find an issue that describes the same bug,
@@ -192,6 +195,7 @@ pnpm run rebuild
 TMP_DIR=$( mktemp -d )
 
 pnpm tsx scripts/publish-to-verdaccio.ts --registry-dir "$TMP_DIR"
+pnpm tsx scripts/test-protobufjs-install.ts --registry-dir "$TMP_DIR" --target-dir "$TMP_DIR/protobufjs-install"
 pnpm tsx scripts/init-from-verdaccio.ts --registry-dir "$TMP_DIR" --target-dir "./example" --sample hello-world
 pnpm tsx scripts/test-example.ts --work-dir "./example"
 

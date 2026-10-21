@@ -1,20 +1,21 @@
 import type * as nexus from 'nexus-rpc';
 import {
   defaultPayloadConverter,
+  type NexusSerializationContext,
   type PayloadConverter,
   type SerializationContext,
   toPayloadWithTypeInfo,
 } from '@temporalio/common';
 import { msOptionalToTs } from '@temporalio/common/lib/time';
-import { userMetadataToPayload } from '@temporalio/common/lib/user-metadata';
 import {
-  makeProtoEnumConverters,
   encodeSystemNexusEnvelopeBytes,
+  makeProtoEnumConverters,
   SYSTEM_NEXUS_CONTEXT_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE,
   TEMPORAL_SYSTEM_NEXUS_ENDPOINT,
-} from '@temporalio/common/lib/internal-workflow';
+  userMetadataToPayload,
+} from '@temporalio/common/internal/internal-workflow';
 import type { coresdk } from '@temporalio/proto';
 import { eventGroupMarkersToProto } from './event-groups';
 import { systemNexusOperationDefinition } from './nexus/system/payload-converter';
@@ -282,14 +283,18 @@ function startNexusOperationNextHandler({
   outputType,
 }: StartNexusOperationInput): Promise<StartNexusOperationOutput> {
   const activator = getActivator();
-  const workflowContext = {
-    type: 'workflow' as const,
+  const nexusContext: NexusSerializationContext = { type: 'nexus', endpoint, service, operation };
+  // User metadata isn't in the Nexus StartOperationRequest, so it never reaches the handler:
+  // it takes the caller's context, not the operation's.
+  const workflowContext: SerializationContext = {
+    type: 'workflow',
     namespace: activator.info.namespace,
     workflowId: activator.info.workflowId,
   };
   const serialization = serializeNexusOperation(
     { input, endpoint, service, options, operation, inputType, outputType },
     activator.payloadConverter,
+    nexusContext,
     workflowContext
   );
 
@@ -342,11 +347,16 @@ function startNexusOperationNextHandler({
         context: serialization.systemNexus.context,
         outputType,
       });
-      activator.completions.nexusOperationStart.set(seq, { resolve, reject });
+      activator.completions.nexusOperationStart.set(seq, {
+        resolve,
+        reject,
+        context: serialization.systemNexus.context,
+      });
     } else {
       activator.completions.nexusOperationStart.set(seq, {
         resolve,
         reject,
+        context: nexusContext,
         outputTypeInfo: outputType,
       });
     }
@@ -367,11 +377,12 @@ interface SerializedNexusOperation {
 function serializeNexusOperation(
   { input, endpoint, service, options, operation, inputType }: Omit<StartNexusOperationInput, 'seq' | 'headers'>,
   payloadConverter: PayloadConverter,
+  nexusContext: NexusSerializationContext,
   workflowContext: SerializationContext
 ): SerializedNexusOperation {
   if (endpoint !== TEMPORAL_SYSTEM_NEXUS_ENDPOINT) {
     return {
-      input: toPayloadWithTypeInfo(payloadConverter, input, workflowContext, inputType),
+      input: toPayloadWithTypeInfo(payloadConverter, input, nexusContext, inputType),
       userMetadata: userMetadataToPayload(payloadConverter, options?.summary, undefined, workflowContext),
       systemNexus: undefined,
     };
@@ -387,9 +398,7 @@ function serializeNexusOperation(
     input: withSystemNexusPayloadConversion(payloadConverter, context, () =>
       toPayloadWithTypeInfo(outerPayloadConverter, input, undefined, inputType)
     ),
-    userMetadata: withSystemNexusPayloadConversion(payloadConverter, context, () =>
-      userMetadataToPayload(payloadConverter, options?.summary, undefined, context)
-    ),
+    userMetadata: userMetadataToPayload(payloadConverter, options?.summary, undefined, workflowContext),
     systemNexus: { context },
   };
 }

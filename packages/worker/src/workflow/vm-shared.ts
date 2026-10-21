@@ -8,20 +8,16 @@ import { URL, URLSearchParams } from 'node:url';
 import { TextDecoder, TextEncoder } from 'node:util';
 import { SourceMapConsumer } from 'source-map';
 import { cutoffStackTrace, IllegalStateError, convertDeploymentVersion } from '@temporalio/common';
-import { suggestContinueAsNewReasonsFromProto } from '@temporalio/common/lib/continue-as-new';
+import { suggestContinueAsNewReasonsFromProto } from '@temporalio/common/internal/internal-non-workflow';
 import { tsToMs } from '@temporalio/common/lib/time';
 import { coresdk } from '@temporalio/proto';
-import type { StackTraceFileLocation } from '@temporalio/workflow';
-import { type SinkCall } from '@temporalio/workflow/lib/sinks';
-import type * as internals from '@temporalio/workflow/lib/worker-interface';
-import type { Activator } from '@temporalio/workflow/lib/internals';
-import { SdkFlags } from '@temporalio/workflow/lib/flags';
+import type { SinkCall, StackTraceFileLocation } from '@temporalio/workflow';
+import type * as internals from '@temporalio/workflow/internal/worker-interface';
+import { type Activator, SdkFlags } from '@temporalio/workflow/internal';
 import { UnhandledRejectionError } from '../errors';
 import type { Workflow } from './interface';
 import type { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
 
-// We need this import for the ambient global extensions
-import '@temporalio/workflow/lib/global-attributes'; // eslint-disable-line import/no-unassigned-import
 import { isBunPre1_4 } from './bun';
 
 // Best effort to catch unhandled rejections from workflow code.
@@ -44,6 +40,23 @@ export function setUnhandledRejectionHandler(getWorkflowByRunId: (runId: string)
       err
     );
   });
+}
+
+/**
+ * Replace Node's generic VM timeout error with the TMPRL1101 deadlock diagnostic shared by all Temporal SDKs,
+ * so that users can find and act on it. Other errors are returned unchanged.
+ */
+export function toDeadlockErrorIfVmTimeout(err: unknown, isolateExecutionTimeoutMs: number): unknown {
+  if ((err as { code?: unknown } | null)?.code !== 'ERR_SCRIPT_EXECUTION_TIMEOUT') return err;
+  const timeoutError = err as Error;
+  const deadlockError = new Error(
+    `[TMPRL1101] Potential deadlock detected: workflow didn't yield within ${isolateExecutionTimeoutMs}ms ` +
+      `(${timeoutError.message}). Workflow code must not block, busy-loop, or run long CPU-bound work ` +
+      `without awaiting. See https://github.com/temporalio/rules/blob/main/rules/TMPRL1101.md`
+  );
+  // Reuse Node's stack so the failure recorded in history doesn't gain the worker's own frames.
+  deadlockError.stack = timeoutError.stack?.replace(timeoutError.message, () => deadlockError.message);
+  return deadlockError;
 }
 
 /**

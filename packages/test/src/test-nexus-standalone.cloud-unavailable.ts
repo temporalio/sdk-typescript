@@ -22,7 +22,7 @@ import {
 import * as temporalnexus from '@temporalio/nexus';
 import * as workflow from '@temporalio/workflow';
 import type { SignalWithStartWorkflowRequest } from '@temporalio/workflow';
-import { workflowService } from '@temporalio/workflow/lib/nexus/system/generated/services';
+import { workflowService } from '@temporalio/workflow/internal';
 import {
   CancelledFailure,
   TerminatedFailure,
@@ -33,13 +33,13 @@ import {
   type Payload,
   type PayloadCodec,
 } from '@temporalio/common';
-import { ExternalStorageRunner } from '@temporalio/common/lib/internal-non-workflow';
-import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
+import { ExternalStorageRunner } from '@temporalio/common/internal/internal-non-workflow';
+import { ProtobufBinaryPayloadConverter } from '@temporalio/common/protobufs';
 import {
   SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE,
-} from '@temporalio/common/lib/internal-workflow';
-import { generateWorkflowRunOperationToken } from '@temporalio/nexus/lib/token';
+} from '@temporalio/common/internal/internal-workflow';
+import { generateWorkflowRunOperationToken } from '@temporalio/nexus/internal';
 import type { Context } from './helpers-integration';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { waitUntil } from './helpers';

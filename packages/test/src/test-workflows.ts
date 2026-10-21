@@ -4,7 +4,7 @@ import type { ExecutionContext, TestFn } from 'ava';
 import anyTest from 'ava';
 import dedent from 'dedent';
 import Long from 'long';
-import type { Logger, Payload } from '@temporalio/common';
+import type { Logger, Payload, VersioningOverride } from '@temporalio/common';
 import {
   ApplicationFailure,
   defaultFailureConverter,
@@ -13,24 +13,23 @@ import {
   toPayloads,
   TypedSearchAttributes,
 } from '@temporalio/common';
-import { msToTs } from '@temporalio/common/lib/time';
+import { msToTs } from '@temporalio/common/time';
 import { coresdk, temporal } from '@temporalio/proto';
 import { sleep as workflowSleep, type WorkflowInfo } from '@temporalio/workflow';
-import { DefaultLogger, LogTimestamp, type LogEntry } from '@temporalio/worker';
-import { WorkflowCodeBundler } from '@temporalio/worker/lib/workflow/bundler';
-import { invokePatchActivationCallback } from '@temporalio/worker/lib/workflow/patch-activation-callback';
-import { ThreadedVMWorkflowCreator } from '@temporalio/worker/lib/workflow/threaded-vm';
-import type { WorkflowBundleWithSourceMapAndFilename } from '@temporalio/worker/lib/workflow/workflow-worker-thread/input';
+import { bundleWorkflowCode, DefaultLogger, LogTimestamp, type LogEntry } from '@temporalio/worker';
+import {
+  invokePatchActivationCallback,
+  parseWorkflowCode,
+  type ReusableVMWorkflow,
+  ReusableVMWorkflowCreator,
+  ThreadedVMWorkflowCreator,
+  type VMWorkflow,
+  VMWorkflowCreator,
+  type WorkflowBundleWithSourceMapAndFilename,
+  type WorkflowCreator,
+} from '@temporalio/worker/internal';
 import type { PatchActivationCallback, PatchActivationInput } from '@temporalio/worker';
-import type { VMWorkflow } from '@temporalio/worker/lib/workflow/vm';
-import { VMWorkflowCreator } from '@temporalio/worker/lib/workflow/vm';
-import type { WorkflowCreator } from '@temporalio/worker/lib/workflow/interface';
-import type { SdkFlag } from '@temporalio/workflow/lib/flags';
-import { SdkFlags } from '@temporalio/workflow/lib/flags';
-import { createUnsafeRandomSource } from '@temporalio/workflow/lib/random-helpers';
-import type { ReusableVMWorkflow } from '@temporalio/worker/lib/workflow/reusable-vm';
-import { ReusableVMWorkflowCreator } from '@temporalio/worker/lib/workflow/reusable-vm';
-import { parseWorkflowCode } from '@temporalio/worker/lib/worker';
+import { createUnsafeRandomSource, type SdkFlag, SdkFlags } from '@temporalio/workflow/internal';
 import * as activityFunctions from './activities';
 import { isBun, cleanStackTrace, compareStackTrace, REUSE_V8_CONTEXT, u8 } from './helpers';
 import type { ProcessedSignal } from './workflows';
@@ -76,8 +75,7 @@ class TestReusableVMWorkflowCreator extends ReusableVMWorkflowCreator {
 
 test.before(async (t) => {
   const workflowsPath = path.join(__dirname, 'workflows');
-  const bundler = new WorkflowCodeBundler({ workflowsPath });
-  const workflowBundle = parseWorkflowCode((await bundler.createBundle()).code);
+  const workflowBundle = parseWorkflowCode((await bundleWorkflowCode({ workflowsPath })).code);
   t.context.workflowBundle = workflowBundle;
   // FIXME: isolateExecutionTimeoutMs used to be 200 ms, but that's causing
   //        lot of flakes on CI. Revert this after investigation / resolution.
@@ -1529,6 +1527,77 @@ test('childAndNonCancellable', async (t) => {
   }
 });
 
+const childDeploymentVersion = { deploymentName: 'deployment', buildId: 'build' };
+const childVersioningOverrides: {
+  name: string;
+  override: VersioningOverride | undefined;
+  proto: temporal.api.workflow.v1.IVersioningOverride | undefined;
+}[] = [
+  { name: 'none', override: undefined, proto: undefined },
+  {
+    name: 'pinned',
+    override: { pinnedTo: childDeploymentVersion },
+    proto: { pinned: { version: childDeploymentVersion, behavior: 1 } },
+  },
+  { name: 'auto-upgrade', override: 'AUTO_UPGRADE', proto: { autoUpgrade: true } },
+  {
+    name: 'one-time',
+    override: { oneTimeTo: childDeploymentVersion },
+    proto: { oneTime: { targetDeploymentVersion: childDeploymentVersion } },
+  },
+];
+
+for (const useStartChild of [false, true]) {
+  const api = useStartChild ? 'startChild' : 'executeChild';
+  for (const { name, override, proto } of childVersioningOverrides) {
+    test(`${api} encodes ${name} childWorkflowVersioningOverride`, async (t) => {
+      const completion = await activate(
+        t,
+        makeStartWorkflow(t.context.workflowType, toPayloads(defaultPayloadConverter, override, useStartChild))
+      );
+      t.is(completion.successful?.commands?.length, 1);
+      const command = completion.successful!.commands![0].startChildWorkflowExecution!;
+      t.is(command.workflowId, 'child-workflow');
+      t.is(command.workflowType, 'successString');
+      const encoded = command.versioningOverride
+        ? temporal.api.workflow.v1.VersioningOverride.create(command.versioningOverride).toJSON()
+        : undefined;
+      const expected = proto ? temporal.api.workflow.v1.VersioningOverride.create(proto).toJSON() : undefined;
+      t.deepEqual(encoded, expected);
+    });
+  }
+
+  test(`${api} rejects invalid override with a typed error childWorkflowVersioningOverride`, async (t) => {
+    await activate(
+      t,
+      makeStartWorkflow(
+        t.context.workflowType,
+        toPayloads(defaultPayloadConverter, { pinnedTo: childDeploymentVersion }, useStartChild)
+      )
+    );
+    const completion = await activate(
+      t,
+      makeActivation(Date.now(), {
+        resolveChildWorkflowExecutionStart: {
+          seq: 1,
+          failed: {
+            cause:
+              coresdk.child_workflow.StartChildWorkflowExecutionFailedCause
+                .START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_INVALID_VERSIONING_OVERRIDE,
+            workflowId: 'child-workflow',
+            workflowType: 'successString',
+          },
+        },
+      })
+    );
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload('invalid versioning override'))])
+    );
+  });
+}
+
 test('partialNonCancellable', async (t) => {
   const { workflowType, logs } = t.context;
   {
@@ -1841,7 +1910,11 @@ test('globalOverrides', async (t) => {
 test('logAndTimeout', async (t) => {
   const { workflowType, workflow } = t.context;
   const completion = await activate(t, makeStartWorkflow(workflowType));
-  const expectedStackTrace = 'Error: Script execution timed out after 400ms';
+  const expectedMessage =
+    "[TMPRL1101] Potential deadlock detected: workflow didn't yield within 400ms " +
+    '(Script execution timed out after 400ms). Workflow code must not block, busy-loop, or run long CPU-bound work ' +
+    'without awaiting. See https://github.com/temporalio/rules/blob/main/rules/TMPRL1101.md';
+  const expectedStackTrace = `Error: ${expectedMessage}`;
   // Clean the stack trace for comparison
   if (completion.failed?.failure?.stackTrace) {
     completion.failed.failure.stackTrace = cleanStackTrace(completion.failed.failure.stackTrace);
@@ -1849,7 +1922,7 @@ test('logAndTimeout', async (t) => {
   compareCompletion(t, completion, {
     failed: {
       failure: {
-        message: 'Script execution timed out after 400ms',
+        message: expectedMessage,
         source: 'TypeScriptSDK',
         stackTrace: expectedStackTrace,
         cause: undefined,

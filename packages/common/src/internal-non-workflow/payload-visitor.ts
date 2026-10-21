@@ -1,4 +1,4 @@
-import type { WalkEnv } from '@temporalio/proto/lib/payload-visitor.generated';
+import type { WalkEnv } from '@temporalio/proto/internal/payload-visitor.generated';
 import { sequential, type ConcurrencyLimit } from '../concurrency/limit';
 import type { Payload } from '../interfaces';
 
@@ -147,4 +147,4 @@ export async function visit<Root, Ctx = void>(
 
 // Re-export every generated walker so consumers pair any of them with `visit` without a deep import
 // into the generated file.
-export * from '@temporalio/proto/lib/payload-visitor.generated';
+export * from '@temporalio/proto/internal/payload-visitor.generated';

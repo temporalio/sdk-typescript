@@ -1,7 +1,6 @@
 import test from 'ava';
 import type { LogEntry } from '@temporalio/worker';
-import { ActivityInboundLogInterceptor, DefaultLogger, Runtime } from '@temporalio/worker';
-import { activityLogAttributes } from '@temporalio/worker/lib/activity';
+import { ActivityInboundLogInterceptor, DefaultLogger, Runtime, activityLogAttributes } from '@temporalio/worker';
 import { MockActivityEnvironment, defaultActivityInfo } from '@temporalio/testing';
 import { isCancellation } from '@temporalio/workflow';
 import * as activity from '@temporalio/activity';

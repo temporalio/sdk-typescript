@@ -6,3 +6,7 @@
 
 - [Interceptors docs](https://docs.temporal.io/typescript/interceptors)
 - [OpenTelemetry Interceptor example setup](https://github.com/temporalio/samples-typescript/tree/main/interceptors-opentelemetry)
+
+Import Workflow interceptors from `@temporalio/interceptors-opentelemetry/workflow`. Use the package
+root for the plugin, Client interceptors, and Worker interceptors. Existing root exports and
+`lib/*` imports remain available for compatibility.

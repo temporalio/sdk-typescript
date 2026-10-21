@@ -13,9 +13,11 @@
   "license": "MIT",
   "dependencies": {
     "@temporalio/proto": "workspace:*",
-    "long": "^5.3.2",
     "ms": "3.0.0-canary.1",
-    "nexus-rpc": "^0.0.3",
+    "nexus-rpc": "^0.0.3"
+  },
+  "peerDependencies": {
+    "long": "^5.3.2",
     "protobufjs": "^8.7.1"
   },
   "scripts": {
@@ -28,7 +30,9 @@
     "workerThreads": false
   },
   "devDependencies": {
-    "ava": "^5.3.1"
+    "ava": "^5.3.1",
+    "long": "^5.3.2",
+    "protobufjs": "^8.7.1"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
@@ -50,5 +54,83 @@
     "lib",
     "!src/__tests__",
     "!lib/__tests__"
-  ]
+  ],
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json",
+    "./proto-utils": {
+      "types": "./lib/proto-utils.d.ts",
+      "default": "./lib/proto-utils.js"
+    },
+    "./internal/errors": {
+      "types": "./lib/errors.d.ts",
+      "default": "./lib/errors.js"
+    },
+    "./internal/interfaces": {
+      "types": "./lib/interfaces.d.ts",
+      "default": "./lib/interfaces.js"
+    },
+    "./internal/internal-non-workflow": {
+      "types": "./lib/internal-non-workflow/index.d.ts",
+      "default": "./lib/internal-non-workflow/index.js"
+    },
+    "./internal/internal-workflow": {
+      "types": "./lib/internal-workflow/index.d.ts",
+      "default": "./lib/internal-workflow/index.js"
+    },
+    "./protobufs": {
+      "types": "./lib/protobufs.d.ts",
+      "default": "./lib/protobufs.js"
+    },
+    "./time": {
+      "types": "./lib/time.d.ts",
+      "default": "./lib/time.js"
+    },
+    "./internal/workflow-options": {
+      "types": "./lib/workflow-options.d.ts",
+      "default": "./lib/workflow-options.js"
+    },
+    "./encoding": {
+      "types": "./lib/encoding.d.ts",
+      "default": "./lib/encoding.js"
+    },
+    "./lib/*": {
+      "types": "./lib/*.d.ts",
+      "default": "./lib/*.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "proto-utils": [
+        "lib/proto-utils.d.ts"
+      ],
+      "internal/errors": [
+        "lib/errors.d.ts"
+      ],
+      "internal/interfaces": [
+        "lib/interfaces.d.ts"
+      ],
+      "internal/internal-non-workflow": [
+        "lib/internal-non-workflow/index.d.ts"
+      ],
+      "internal/internal-workflow": [
+        "lib/internal-workflow/index.d.ts"
+      ],
+      "encoding": [
+        "lib/encoding.d.ts"
+      ],
+      "protobufs": [
+        "lib/protobufs.d.ts"
+      ],
+      "time": [
+        "lib/time.d.ts"
+      ],
+      "internal/workflow-options": [
+        "lib/workflow-options.d.ts"
+      ]
+    }
+  }
 }

@@ -1,10 +1,16 @@
 import vm from 'node:vm';
-import type * as internals from '@temporalio/workflow/lib/worker-interface';
+import type * as internals from '@temporalio/workflow/internal/worker-interface';
 import { IllegalStateError } from '@temporalio/common';
 import { native } from '@temporalio/core-bridge';
 import type { Workflow, WorkflowCreateOptions, WorkflowCreator } from './interface';
 import type { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
-import { BaseVMWorkflow, globalHandlers, injectGlobals, setUnhandledRejectionHandler } from './vm-shared';
+import {
+  BaseVMWorkflow,
+  globalHandlers,
+  injectGlobals,
+  setUnhandledRejectionHandler,
+  toDeadlockErrorIfVmTimeout,
+} from './vm-shared';
 import { isBun, isBunPre1_4 } from './bun';
 import type { WorkflowPatchActivationCallback } from './patch-activation-callback';
 
@@ -232,10 +238,14 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
           return (...args: any[]) => {
             // By the time we get out of this call, all microtasks will have been executed
             context.__temporal_args = [holder, fn, args];
-            return callIntoVmScript.runInContext(context, {
-              timeout: isolateExecutionTimeoutMs,
-              displayErrors: true,
-            });
+            try {
+              return callIntoVmScript.runInContext(context, {
+                timeout: isolateExecutionTimeoutMs,
+                displayErrors: true,
+              });
+            } catch (err) {
+              throw toDeadlockErrorIfVmTimeout(err, isolateExecutionTimeoutMs);
+            }
           };
         },
       }

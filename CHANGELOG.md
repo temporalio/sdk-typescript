@@ -21,16 +21,41 @@ to docs, or any other relevant information.
 
 ### Breaking Changes
 
+- The `@temporalio/google-adk-agents` compatibility wrapper now requires Node.js 22.12.0
+  or later and Google ADK 2.0, matching `@temporalio/google-adk`. The wrapper preserves
+  import paths, but the ADK upgrade and renamed workflow random stream still require
+  draining affected in-flight Workflows or using separate task queues for the cutover.
+- SDK and contrib packages now declare `protobufjs` (`^8.7.1`) and `long` (`^5.3.2`) as peer
+  dependencies rather than relying on separately installed copies. Package managers that do not
+  automatically install peers require applications to add these dependencies explicitly.
+  `@temporalio/proto` retains its regular runtime dependencies.
+- Undocumented package subpaths that are not covered by a package's explicit export map no longer
+  resolve.
 - **Experimental**: Nexus Workflow Updates now require `waitForStage` to be explicitly set to `ACCEPTED`.
 
 ### Added
 
+- `@temporalio/interceptors-opentelemetry` and `@temporalio/interceptors-opentelemetry-v2` now expose
+  Workflow-only `/workflow` entrypoints. Existing root exports and `lib/*` imports remain available.
+- `SearchAttributeKey` is now exported from the `@temporalio/common` package root.
+- **Experimental**: `ChildWorkflowOptions.versioningOverride` can pin, auto-upgrade, or one-time route
+  a Child Workflow independently of its parent. One-time routing is also available for client-started
+  Workflows through `{ oneTimeTo: WorkerDeploymentVersion }`. Both require Temporal Server 1.32.0 or
+  later. Invalid child overrides reject with `InvalidVersioningOverrideError`.
 - **Experimental**: Workflows can signal another Workflow and start it when absent with
   `signalWithStartWorkflow`.
 - **Experimental**: Workflow outbound interceptors can intercept Temporal System Nexus calls
   generically with `startSystemNexusOperation` or specifically with `signalWithStartWorkflow`.
 - **Experimental**: Nexus workers decode Temporal System Nexus inputs sent by the server with the
   System Nexus converter.
+- **Experimental**: `NexusSerializationContext` is now passed to payload converters, payload codecs,
+  and failure converters for Nexus operation payloads, identifying the operation's endpoint, service,
+  and operation name. Callers use it for inputs, summaries, results, and failures; handlers use it
+  for inputs, synchronous results, and failures. A standalone handle obtained from
+  `NexusClient.getHandle` has none of that information and therefore decodes without Nexus context,
+  so contextual encodings must be self-describing and decoders must keep accepting payloads encoded
+  without context. `GetNexusOperationResultInput` now carries the operation's `endpoint`, `service`,
+  and `operation` when known.
 
 - **Experimental**: New External Storage concurrency controls.
 
@@ -47,30 +72,54 @@ to docs, or any other relevant information.
 
 ### Changed
 
+- AI integrations are now maintained and released independently in
+  [temporalio/ai-integrations](https://github.com/temporalio/ai-integrations/tree/main/typescript).
+  `@temporalio/ai-sdk` and `@temporalio/google-adk-agents` remain as compatibility wrappers
+  forwarding their public entrypoints to `@temporalio/vercel-ai-sdk` and `@temporalio/google-adk`.
+  Existing import paths can be retained; new applications should use the standalone names.
+  `@temporalio/langsmith`, `@temporalio/openai-agents`, and `@temporalio/strands-agents` retain their
+  package names. The integrations' implementations, tests, and API documentation are no longer
+  built in this repository; the two wrappers have separate forwarding tests.
+- `RetryPolicy.maximumAttempts` accepts `0` as another way to specify unlimited attempts, alongside `Infinity`.
 - Updated the following dependencies: `unionfs` from 4.5.1 to 4.6.0, `@grpc/grpc-js` from 1.12.4 to 1.12.7, `smol-toml` from 1.6.1 to 1.7.1
   and `tar` from 7.5.11 to 7.5.21.
 - A Worker will now refuse to load and execute a Workflow bundle produced with a different version
   of the SDK. This practice has never been supported, but was never formally prevented, resulting
   in various subtle, hard to diagnose issues. This change could potentially result in
 
+### Deprecated
+
+- Undocumented imports through `@temporalio/*/lib/*` are deprecated. Where present, the wildcard remains
+  temporarily as a compatibility fallback. `@temporalio/common` explicitly supports
+  `@temporalio/common/encoding`, `@temporalio/common/protobufs`, `@temporalio/common/proto-utils`, and
+  `@temporalio/common/time`
+
 ### Fixed
 
+- Fixed Worker crashes when running with `node --watch` by ignoring unrecognized messages from Workflow Worker threads.
+- Update-with-Start gRPC errors now include the decoded operation error code and message in the
+  first line of the stack trace.
+- Corrected the protobufjs dependency declarations to prevent `historyFromJSON` failing with
+  `type must be a Type` when npm installs separate protobufjs copies alongside a dependency on an
+  older protobufjs major (#2514).
 - Corrected the Schedule `catchupWindow` documentation to state that omitted values use the Temporal
   Server's configured default.
-- `@temporalio/strands-agents` tools built on Activities, `activityAsTool`, and MCP tools now give the
-  model the Activity's own error message when a tool call fails, instead of "Activity task failed",
-  and attach that error to the tool result for hooks.
 - `JsonPayloadConverter` no longer produces a payload with undefined data for values that have no JSON
   representation, such as functions, symbols, and objects whose `toJSON` returns `undefined`. The default
   payload converter now throws a `ValueError` for these values, including symbols, which previously caused a
   `TypeError` while building the error message.
-- `@temporalio/ai-sdk` now preserves text provider metadata when replaying streamed model responses
-  inside Workflows.
-- The Workflow sandbox now exposes `atob` and `btoa`, allowing integrations such as `@temporalio/ai-sdk` to
+- The Workflow sandbox now exposes `atob` and `btoa`, allowing integrations such as `@temporalio/vercel-ai-sdk` to
   process image and file tool results containing base64 data.
 - `@temporalio/create` now supports comments and trailing commas in `tsconfig.json` files when
   creating projects.
 - `WorkflowExecutionAlreadyStartedError` now exposes the `runId` of the already-running Workflow Execution when the server provides it in the error details (#1838).
+- Workflow code that blocks the sandbox past its time limit now fails with the `[TMPRL1101]` deadlock diagnostic (#2426).
+- A workflow task that arrives while a Workflow waits on a Local Activity, such as a legacy query, now
+  waits until the current workflow task is reported. Previously it replaced that workflow task, which then
+  timed out on the server and could leave the Workflow stuck on a nondeterminism error (temporalio/sdk-rust#1640).
+- **Experimental**: A Standalone Activity started from a Nexus operation handler directly through
+  `ActivityClient`, rather than through `TemporalNexusClient.startActivity()`'s guarded call, now
+  inherits the handler's Nexus request ID and inbound links.
 
 ### Changed
 

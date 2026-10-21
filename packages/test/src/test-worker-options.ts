@@ -1,6 +1,6 @@
 import test from 'ava';
 import { Runtime } from '@temporalio/worker';
-import { compileWorkerOptions, toNativeWorkerOptions } from '@temporalio/worker/lib/worker-options';
+import { compileWorkerOptions, toNativeWorkerOptions } from '@temporalio/worker/internal';
 import { defaultOptions } from './mock-native-worker';
 
 test('forwards the eager activity reservation limit to Core', (t) => {

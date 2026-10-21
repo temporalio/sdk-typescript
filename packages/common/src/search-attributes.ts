@@ -1,5 +1,5 @@
 import type { temporal } from '@temporalio/proto';
-import { makeProtoEnumConverters } from './internal-workflow';
+import { makeProtoEnumConverters } from './internal-workflow/enums-helpers';
 
 /** @deprecated: Use {@link TypedSearchAttributes} instead */
 export type SearchAttributeValueOrReadonly = SearchAttributeValue | Readonly<SearchAttributeValue> | undefined;

@@ -1,13 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { status as grpcStatus } from '@grpc/grpc-js';
-import { ExternalStorageError, type Workflow } from '@temporalio/common';
+import { ExternalStorageError, type Headers, type Workflow } from '@temporalio/common';
 import {
+  composeInterceptors,
   decodeSearchAttributes,
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
-} from '@temporalio/common/lib/converter/payload-search-attributes';
-import type { Headers } from '@temporalio/common/lib/interceptors';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
+  filterNullAndUndefined,
+  SymbolBasedInstanceOfError,
+} from '@temporalio/common/internal/internal-workflow';
 import {
   encodeMapToPayloads,
   decodeMapFromPayloads,
@@ -18,8 +19,7 @@ import {
   walkDescribeScheduleResponse,
   walkListSchedulesResponse,
   walkUpdateScheduleRequest,
-} from '@temporalio/common/lib/internal-non-workflow';
-import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
+} from '@temporalio/common/internal/internal-non-workflow';
 import { temporal } from '@temporalio/proto';
 import {
   optionalDateToTs,
@@ -28,7 +28,6 @@ import {
   requiredTsToDate,
   tsToDate,
 } from '@temporalio/common/lib/time';
-import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import type { CreateScheduleInput, CreateScheduleOutput, ScheduleClientInterceptor } from './interceptors';
 import type { WorkflowService } from './types';
 import { isGrpcServiceError, ServiceError } from './errors';

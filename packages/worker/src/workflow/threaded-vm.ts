@@ -13,7 +13,7 @@ import { Worker as NodeWorker } from 'node:worker_threads';
 import { setTimeout } from 'node:timers/promises';
 import { coresdk } from '@temporalio/proto';
 import { IllegalStateError, type SinkCall } from '@temporalio/workflow';
-import { createUnsafeRandomSource } from '@temporalio/workflow/lib/random-helpers';
+import { createUnsafeRandomSource } from '@temporalio/workflow/internal';
 import type { Logger } from '@temporalio/common';
 import type { PatchActivationCallback } from '../worker-options';
 import { UnexpectedError } from '../errors';
@@ -78,7 +78,12 @@ export class WorkerThreadClient {
   ) {
     workerThread.on('message', (message: WorkerThreadResponse | PatchActivationCallbackRequest) => {
       if (!('requestId' in message)) {
-        this.handlePatchActivationCallback(message);
+        if ('type' in message && message.type === 'patch-activation-callback') {
+          this.handlePatchActivationCallback(message);
+          return;
+        }
+        // Ignore unknown messages.
+        this.logger.trace('Received unknown message type from worker thread, ignoring', { message });
         return;
       }
       const { requestId, result } = message;

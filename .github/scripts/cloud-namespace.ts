@@ -58,19 +58,30 @@ async function withCloudClient(fn: (client: CloudOperationsClient) => Promise<vo
   }
 }
 
-async function create(): Promise<void> {
+type AuthMethod = 'mtls' | 'api-key';
+
+async function create(authMethod: AuthMethod): Promise<void> {
   await withCloudClient(async (client) => {
-    const namespaceName = `sdk-typescript-ci-${requiredEnv('GITHUB_RUN_ID')}-${requiredEnv('GITHUB_RUN_ATTEMPT')}`;
+    // Cloud namespace names are limited to 39 characters.
+    const suffix = authMethod === 'api-key' ? '-apikey' : '-mtls';
+    const namespaceName = `sdk-typescript-ci-${requiredEnv('GITHUB_RUN_ID')}-${requiredEnv(
+      'GITHUB_RUN_ATTEMPT'
+    )}${suffix}`;
     const result = await client.cloudService.createNamespace({
       asyncOperationId: randomUUID(),
       spec: {
         name: namespaceName,
         regions: ['aws-ca-central-1'],
         retentionDays: 1,
-        mtlsAuth: {
-          acceptedClientCa: await readFile(requiredEnv('TEMPORAL_CLOUD_CLIENT_CA_PATH')),
-          enabled: true,
-        },
+        // Cloud fixes a namespace's auth method at creation, so each auth method needs its own namespace.
+        ...(authMethod === 'mtls'
+          ? {
+              mtlsAuth: {
+                acceptedClientCa: await readFile(requiredEnv('TEMPORAL_CLOUD_CLIENT_CA_PATH')),
+                enabled: true,
+              },
+            }
+          : { apiKeyAuth: { enabled: true } }),
       },
     });
     // Make cleanup possible even if provisioning fails after Cloud accepts the request.
@@ -78,6 +89,13 @@ async function create(): Promise<void> {
     await appendFile(requiredEnv('GITHUB_OUTPUT'), `namespace=${result.namespace}\n`);
     if (!result.asyncOperation) throw new Error('Create namespace response did not include an operation');
     await waitForOperation(client, result.asyncOperation);
+
+    // Publish the gRPC address Cloud assigned for this auth method, rather than deriving it from the region.
+    const { endpoints } = (await client.cloudService.getNamespace({ namespace: result.namespace })).namespace ?? {};
+    const address = authMethod === 'mtls' ? endpoints?.mtlsGrpcAddress : endpoints?.grpcAddress;
+    if (!address) throw new Error(`Cloud namespace ${result.namespace} did not report a ${authMethod} gRPC address`);
+    console.log(`Namespace ${result.namespace} ${authMethod} gRPC address: ${address}`);
+    await appendFile(requiredEnv('GITHUB_OUTPUT'), `address=${address}\n`);
   });
 }
 
@@ -99,9 +117,10 @@ async function deleteNamespace(namespace: string): Promise<void> {
 
 async function main(): Promise<void> {
   const [command, namespace] = process.argv.slice(2);
-  if (command === 'create' && namespace === undefined) return await create();
+  if (command === 'create' && (namespace === undefined || namespace === 'mtls')) return await create('mtls');
+  if (command === 'create' && namespace === 'api-key') return await create('api-key');
   if (command === 'delete' && namespace !== undefined) return await deleteNamespace(namespace);
-  throw new Error('Usage: cloud-namespace.ts create | delete <namespace>');
+  throw new Error('Usage: cloud-namespace.ts create [mtls|api-key] | delete <namespace>');
 }
 
 main().catch((error) => {
