@@ -96,6 +96,7 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- Fixed Worker crashes when running with `node --watch` by ignoring unrecognized messages from Workflow Worker threads.
 - Update-with-Start gRPC errors now include the decoded operation error code and message in the
   first line of the stack trace.
 - Corrected the protobufjs dependency declarations to prevent `historyFromJSON` failing with
