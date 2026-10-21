@@ -1,4 +1,5 @@
 import test from 'ava';
+import { DefaultFailureConverter } from '../converter/failure-converter';
 import { DefaultPayloadConverter } from '../converter/payload-converter';
 import type { SerializationContext } from '../converter/serialization-context';
 import {
@@ -16,8 +17,14 @@ test('System Nexus conversion state is shared through the internal entry point',
 });
 
 test('System Nexus conversion scopes restore the outer state, including after errors', (t) => {
-  const converter = new DefaultPayloadConverter();
-  const innerConverter = new DefaultPayloadConverter();
+  const converter = {
+    payloadConverter: new DefaultPayloadConverter(),
+    failureConverter: new DefaultFailureConverter(),
+  };
+  const innerConverter = {
+    payloadConverter: new DefaultPayloadConverter(),
+    failureConverter: new DefaultFailureConverter({ encodeCommonAttributes: true }),
+  };
   const context: SerializationContext = { type: 'workflow', namespace: 'outer', workflowId: 'outer' };
   const innerContext: SerializationContext = {
     type: 'nexus',
@@ -30,12 +37,14 @@ test('System Nexus conversion scopes restore the outer state, including after er
   });
   const result = withSystemNexusPayloadConversion(converter, context, () => {
     const outer = currentSystemNexusPayloadConversion();
-    t.is(outer.converter, converter);
+    t.is(outer.converter, converter.payloadConverter);
+    t.is(outer.failureConverter, converter.failureConverter);
     t.is(outer.context, context);
     t.is(
       withSystemNexusPayloadConversion(innerConverter, innerContext, () => {
         const inner = currentSystemNexusPayloadConversion();
-        t.is(inner.converter, innerConverter);
+        t.is(inner.converter, innerConverter.payloadConverter);
+        t.is(inner.failureConverter, innerConverter.failureConverter);
         t.is(inner.context, innerContext);
         return 'inner result';
       }),

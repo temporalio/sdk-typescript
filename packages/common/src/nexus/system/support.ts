@@ -1,9 +1,12 @@
 import type { temporal } from '@temporalio/proto';
-import { defaultFailureConverter } from '../../converter/data-converter';
 import type { Payload } from '../../interfaces';
 import { currentSystemNexusPayloadConversion } from './user-payload-converter';
 
-export { currentSystemNexusPayloadConversion, withSystemNexusPayloadConversion } from './user-payload-converter';
+export {
+  type SystemNexusDataConverter,
+  currentSystemNexusPayloadConversion,
+  withSystemNexusPayloadConversion,
+} from './user-payload-converter';
 
 /** Convert one application value to a protobuf payload. */
 export function valueToPayload(value: unknown): Payload {
@@ -18,11 +21,11 @@ export function payloadToValue<T>(payload: Payload): T {
 }
 
 export function failureFromProto(proto: temporal.api.failure.v1.IFailure): Error {
-  const { converter, context } = currentSystemNexusPayloadConversion();
-  return defaultFailureConverter.failureToError(proto, converter, context);
+  const { converter, failureConverter, context } = currentSystemNexusPayloadConversion();
+  return failureConverter.failureToError(proto, converter, context);
 }
 
 export function failureToProto(failure: Error): temporal.api.failure.v1.IFailure {
-  const { converter, context } = currentSystemNexusPayloadConversion();
-  return defaultFailureConverter.errorToFailure(failure, converter, context);
+  const { converter, failureConverter, context } = currentSystemNexusPayloadConversion();
+  return failureConverter.errorToFailure(failure, converter, context);
 }

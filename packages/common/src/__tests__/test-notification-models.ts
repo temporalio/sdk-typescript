@@ -1,13 +1,23 @@
 import test from 'ava';
 import * as protoRoot from '@temporalio/proto';
 import type { temporal } from '@temporalio/proto';
-import type { LoadedDataConverter, Payload, PayloadCodec, TypeInfo } from '../index';
+import type {
+  ConverterHint,
+  LoadedDataConverter,
+  Payload,
+  PayloadCodec,
+  PayloadConverter,
+  SerializationContext,
+  TypeInfo,
+} from '../index';
 import {
   ApplicationFailure,
   CancelledFailure,
   defaultDataConverter,
   defaultPayloadConverter,
+  DefaultFailureConverter,
   fromPayloadWithTypeInfo,
+  toPayloadWithTypeInfo,
 } from '../index';
 import { ProtobufBinaryPayloadConverter } from '../protobufs';
 import { decode, encode, visit, walkPayloadsInMessage } from '../internal-non-workflow';
@@ -43,10 +53,15 @@ async function encodeNotification<Model, Wire extends object>(
   typeInfo: TypeInfo<Model, Wire>,
   create: (wire: Wire) => object
 ): Promise<Payload> {
-  const wire = withSystemNexusPayloadConversion(dataConverter.payloadConverter, context, () =>
-    typeInfo.transferTypeConverter!.toTransferType(model)
+  // Materialize protobuf properties after TypeInfo conversion, as the Worker does for an envelope.
+  const envelopeConverter: PayloadConverter = {
+    toPayload: (wire) => protobufConverter.toPayload(create(wire as unknown as Wire))!,
+    fromPayload: (payload) => protobufConverter.fromPayload(payload),
+  };
+  const payload = withSystemNexusPayloadConversion(dataConverter, context, () =>
+    toPayloadWithTypeInfo(envelopeConverter, model, context, typeInfo)
   );
-  const message = create(wire);
+  const message = protobufConverter.fromPayload<object>(payload);
   await transformNestedPayloads(message, dataConverter, 'encode');
   return protobufConverter.toPayload(message)!;
 }
@@ -58,7 +73,7 @@ async function decodeNotification<Model, Wire>(
 ): Promise<Model> {
   const message = protobufConverter.fromPayload<object>(payload);
   await transformNestedPayloads(message, dataConverter, 'decode');
-  return withSystemNexusPayloadConversion(dataConverter.payloadConverter, context, () =>
+  return withSystemNexusPayloadConversion(dataConverter, context, () =>
     fromPayloadWithTypeInfo(protobufConverter, protobufConverter.toPayload(message)!, context, typeInfo)
   );
 }
@@ -170,7 +185,92 @@ for (const withCodec of [false, true]) {
     t.is(payload.data?.length, 0);
     t.deepEqual(await decodeNotification(converter, payload, responseType), {});
   });
+
+  test(`notification failures use the configured failure converter ${suffix}`, async (t) => {
+    const failureConverter = new DefaultFailureConverter({ encodeCommonAttributes: true });
+    let encoded = 0;
+    let decoded = 0;
+    const dataConverter: LoadedDataConverter = {
+      ...converter,
+      failureConverter: {
+        errorToFailure(error, payloadConverter, ctx) {
+          t.is(payloadConverter, dataConverter.payloadConverter);
+          t.deepEqual(ctx, context);
+          encoded++;
+          return failureConverter.errorToFailure(error, payloadConverter, ctx);
+        },
+        failureToError(failure, payloadConverter, ctx) {
+          t.is(payloadConverter, dataConverter.payloadConverter);
+          t.deepEqual(ctx, context);
+          decoded++;
+          return failureConverter.failureToError(failure, payloadConverter, ctx);
+        },
+      },
+    };
+    const failure = ApplicationFailure.nonRetryable('private message', 'OperationError', 'private detail');
+    failure.stack = 'private stack trace';
+    const request: Notification = {
+      result: { tag: 'failure', value: failure },
+      sourceContext: { source: 'caller' },
+    };
+    const payload = await encodeNotification(dataConverter, request, requestType, (wire) => Request.create(wire));
+    const wire = Request.decode(payload.data!);
+    t.is(wire.failure?.message, 'Encoded failure');
+    t.is(wire.failure?.stackTrace, '');
+    t.is(encoding(wire.failure?.encodedAttributes), expectedEncoding);
+    t.is(encoding(wire.failure?.applicationFailureInfo?.details?.payloads?.[0]), expectedEncoding);
+    t.is(encoding(wire.sourceContext), expectedEncoding);
+
+    const restored = await decodeNotification(dataConverter, payload, requestType);
+    t.is(restored.result.tag, 'failure');
+    t.true(restored.result.value instanceof ApplicationFailure);
+    const error = restored.result.value as ApplicationFailure;
+    t.is(error.message, failure.message);
+    t.is(error.stack, failure.stack);
+    t.is(error.type, 'OperationError');
+    t.true(error.nonRetryable);
+    t.deepEqual(error.details, ['private detail']);
+    t.deepEqual(restored.sourceContext, request.sourceContext);
+    t.is(encoded, 1);
+    t.is(decoded, 1);
+  });
 }
+
+test('notification TypeInfo forwards the envelope converter hint and serialization context', (t) => {
+  const hint = { converter: 'test-notification-protobuf' };
+  const typeInfo: typeof requestType = { ...requestType, payloadConverterHint: hint };
+  let encoded = 0;
+  let decoded = 0;
+  const envelopeConverter: PayloadConverter = {
+    toPayload(wire, ctx, receivedHint) {
+      t.is(receivedHint, hint);
+      t.deepEqual(ctx, context);
+      encoded++;
+      return protobufConverter.toPayload(
+        Request.create(wire as temporal.api.notificationservice.v1.IOnCompleteRequest)
+      )!;
+    },
+    fromPayload<T>(payload: Payload, ctx?: SerializationContext, receivedHint?: ConverterHint<T>): T {
+      t.is(receivedHint, hint);
+      t.deepEqual(ctx, context);
+      decoded++;
+      return protobufConverter.fromPayload<T>(payload);
+    },
+  };
+  const request: Notification = {
+    result: { tag: 'success', value: { value: 'finished' } },
+    sourceContext: { source: 'caller' },
+  };
+  const payload = withSystemNexusPayloadConversion(defaultDataConverter, context, () =>
+    toPayloadWithTypeInfo(envelopeConverter, request, context, typeInfo)
+  );
+  const restored = withSystemNexusPayloadConversion(defaultDataConverter, context, () =>
+    fromPayloadWithTypeInfo(envelopeConverter, payload, context, typeInfo)
+  );
+  t.deepEqual(restored, request);
+  t.is(encoded, 1);
+  t.is(decoded, 1);
+});
 
 test('notification conversion uses the configured payload converter and serialization context', async (t) => {
   let encoded = 0;
@@ -205,14 +305,14 @@ test('notification request rejects a missing result or missing source context', 
   const value = defaultPayloadConverter.toPayload('value');
   t.throws(
     () =>
-      withSystemNexusPayloadConversion(defaultPayloadConverter, context, () =>
+      withSystemNexusPayloadConversion(defaultDataConverter, context, () =>
         onCompleteRequestTransferTypeConverter.fromTransferType(Request.create({ sourceContext: value }))
       ),
     { message: 'missing required field OnCompleteRequest.result' }
   );
   t.throws(
     () =>
-      withSystemNexusPayloadConversion(defaultPayloadConverter, context, () =>
+      withSystemNexusPayloadConversion(defaultDataConverter, context, () =>
         onCompleteRequestTransferTypeConverter.fromTransferType(Request.create({ success: value }))
       ),
     { message: 'missing required field OnCompleteRequest.sourceContext' }
@@ -224,7 +324,7 @@ test('notification request rejects a selected result with no payload', (t) => {
   for (const result of ['success', 'failure'] as const) {
     t.throws(
       () =>
-        withSystemNexusPayloadConversion(defaultPayloadConverter, context, () =>
+        withSystemNexusPayloadConversion(defaultDataConverter, context, () =>
           onCompleteRequestTransferTypeConverter.fromTransferType({ result, sourceContext })
         ),
       { message: `missing required field OnCompleteRequest.${result}` }
