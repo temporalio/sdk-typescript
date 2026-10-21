@@ -96,6 +96,8 @@ to docs, or any other relevant information.
 
 ### Fixed
 
+- `defaultGrpcRetryOptions` now respects a custom `maxIntervalMs` callback instead of always using
+  the default 5-second maximum backoff interval.
 - Update-with-Start gRPC errors now include the decoded operation error code and message in the
   first line of the stack trace.
 - Corrected the protobufjs dependency declarations to prevent `historyFromJSON` failing with
