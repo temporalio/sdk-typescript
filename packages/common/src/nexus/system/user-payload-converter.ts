@@ -1,4 +1,5 @@
-import type { PayloadConverter, SerializationContext } from '@temporalio/common';
+import type { PayloadConverter } from '../../converter/payload-converter';
+import type { SerializationContext } from '../../converter/serialization-context';
 
 let currentPayloadConversion: { converter: PayloadConverter; context: SerializationContext | undefined } | undefined;
 
