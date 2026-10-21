@@ -1,0 +1,1 @@
+The `@temporalio/google-adk-agents` compatibility wrapper now requires Node.js 22.12.0 or later and Google ADK 2.0, matching `@temporalio/google-adk`. The wrapper preserves import paths, but the ADK upgrade and renamed workflow random stream still require draining affected in-flight Workflows or using separate task queues for the cutover.
