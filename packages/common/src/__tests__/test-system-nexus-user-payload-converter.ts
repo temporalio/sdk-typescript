@@ -6,15 +6,6 @@ import {
   currentSystemNexusPayloadConversion,
   withSystemNexusPayloadConversion,
 } from '../nexus/system/user-payload-converter';
-import {
-  currentSystemNexusPayloadConversion as currentFromInternalEntryPoint,
-  withSystemNexusPayloadConversion as withFromInternalEntryPoint,
-} from '../nexus/system/support';
-
-test('System Nexus conversion state is shared through the internal entry point', (t) => {
-  t.is(currentFromInternalEntryPoint, currentSystemNexusPayloadConversion);
-  t.is(withFromInternalEntryPoint, withSystemNexusPayloadConversion);
-});
 
 test('System Nexus conversion scopes restore the outer state, including after errors', (t) => {
   const converter = {

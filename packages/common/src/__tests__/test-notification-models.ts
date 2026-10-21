@@ -112,129 +112,248 @@ function makeCodec(): PayloadCodec {
   };
 }
 
-for (const withCodec of [false, true]) {
-  const suffix = withCodec ? 'with codec' : 'without codec';
+function encoding(payload: temporal.api.common.v1.IPayload | null | undefined): string {
+  return new TextDecoder().decode(payload?.metadata?.encoding);
+}
+
+test('notification success round trips typed output and source context without codec', async (t) => {
+  const request: Notification = {
+    result: { tag: 'success', value: { value: 'finished' } },
+    sourceContext: { source: 'caller' },
+  };
+  const payload = await encodeNotification(defaultDataConverter, request, requestType, (wire) => Request.create(wire));
+  t.is(encoding(payload), 'binary/protobuf');
+  t.is(
+    new TextDecoder().decode(payload.metadata?.messageType),
+    'temporal.api.notificationservice.v1.OnCompleteRequest'
+  );
+  const wire = Request.decode(payload.data!);
+  t.is(wire.result, 'success');
+  t.is(encoding(wire.success), 'json/plain');
+  t.is(encoding(wire.sourceContext), 'json/plain');
+  t.deepEqual(await decodeNotification(defaultDataConverter, payload, requestType), request);
+});
+
+test('notification success round trips typed output and source context with codec', async (t) => {
   const converter: LoadedDataConverter = {
     ...defaultDataConverter,
-    payloadCodecs: withCodec ? [makeCodec()] : [],
+    payloadCodecs: [makeCodec()],
   };
-  const expectedEncoding = withCodec ? 'binary/test-codec' : 'json/plain';
-  const encoding = (payload: temporal.api.common.v1.IPayload | null | undefined): string =>
-    new TextDecoder().decode(payload?.metadata?.encoding);
+  const request: Notification = {
+    result: { tag: 'success', value: { value: 'finished' } },
+    sourceContext: { source: 'caller' },
+  };
+  const payload = await encodeNotification(converter, request, requestType, (wire) => Request.create(wire));
+  t.is(encoding(payload), 'binary/protobuf');
+  t.is(
+    new TextDecoder().decode(payload.metadata?.messageType),
+    'temporal.api.notificationservice.v1.OnCompleteRequest'
+  );
+  const wire = Request.decode(payload.data!);
+  t.is(wire.result, 'success');
+  t.is(encoding(wire.success), 'binary/test-codec');
+  t.is(encoding(wire.sourceContext), 'binary/test-codec');
+  t.deepEqual(await decodeNotification(converter, payload, requestType), request);
+});
 
-  test(`notification success round trips typed output and source context ${suffix}`, async (t) => {
-    const request: Notification = {
-      result: { tag: 'success', value: { value: 'finished' } },
-      sourceContext: { source: 'caller' },
-    };
-    const payload = await encodeNotification(converter, request, requestType, (wire) => Request.create(wire));
-    t.is(encoding(payload), 'binary/protobuf');
-    t.is(
-      new TextDecoder().decode(payload.metadata?.messageType),
-      'temporal.api.notificationservice.v1.OnCompleteRequest'
-    );
-    const wire = Request.decode(payload.data!);
-    t.is(wire.result, 'success');
-    t.is(encoding(wire.success), expectedEncoding);
-    t.is(encoding(wire.sourceContext), expectedEncoding);
-    t.deepEqual(await decodeNotification(converter, payload, requestType), request);
+test('notification failure round trips application failure details and cause without codec', async (t) => {
+  const failure = ApplicationFailure.create({
+    message: 'failed',
+    type: 'OperationError',
+    nonRetryable: true,
+    details: ['diagnostic', { code: 42 }],
+    cause: new CancelledFailure('cancelled', ['cancellation detail']),
   });
+  const request: Notification = {
+    result: { tag: 'failure', value: failure },
+    sourceContext: { source: 'caller' },
+  };
+  const payload = await encodeNotification(defaultDataConverter, request, requestType, (wire) => Request.create(wire));
+  const wire = Request.decode(payload.data!);
+  t.is(encoding(payload), 'binary/protobuf');
+  t.is(wire.result, 'failure');
+  t.is(wire.failure?.applicationFailureInfo?.type, 'OperationError');
+  t.is(encoding(wire.sourceContext), 'json/plain');
+  t.is(encoding(wire.failure?.applicationFailureInfo?.details?.payloads?.[0]), 'json/plain');
+  t.is(encoding(wire.failure?.applicationFailureInfo?.details?.payloads?.[1]), 'json/plain');
+  t.is(encoding(wire.failure?.cause?.canceledFailureInfo?.details?.payloads?.[0]), 'json/plain');
 
-  test(`notification failure round trips application failure details and cause ${suffix}`, async (t) => {
-    const failure = ApplicationFailure.create({
-      message: 'failed',
-      type: 'OperationError',
-      nonRetryable: true,
-      details: ['diagnostic', { code: 42 }],
-      cause: new CancelledFailure('cancelled', ['cancellation detail']),
-    });
-    const request: Notification = {
-      result: { tag: 'failure', value: failure },
-      sourceContext: { source: 'caller' },
-    };
-    const payload = await encodeNotification(converter, request, requestType, (wire) => Request.create(wire));
-    const wire = Request.decode(payload.data!);
-    t.is(encoding(payload), 'binary/protobuf');
-    t.is(wire.result, 'failure');
-    t.is(wire.failure?.applicationFailureInfo?.type, 'OperationError');
-    t.is(encoding(wire.sourceContext), expectedEncoding);
-    t.is(encoding(wire.failure?.applicationFailureInfo?.details?.payloads?.[0]), expectedEncoding);
-    t.is(encoding(wire.failure?.applicationFailureInfo?.details?.payloads?.[1]), expectedEncoding);
-    t.is(encoding(wire.failure?.cause?.canceledFailureInfo?.details?.payloads?.[0]), expectedEncoding);
+  const restored = await decodeNotification(defaultDataConverter, payload, requestType);
+  t.deepEqual(restored.sourceContext, request.sourceContext);
+  t.is(restored.result.tag, 'failure');
+  t.true(restored.result.value instanceof ApplicationFailure);
+  const error = restored.result.value as ApplicationFailure;
+  t.is(error.message, 'failed');
+  t.is(error.type, 'OperationError');
+  t.true(error.nonRetryable);
+  t.deepEqual(error.details, ['diagnostic', { code: 42 }]);
+  t.true(error.cause instanceof CancelledFailure);
+  t.deepEqual((error.cause as CancelledFailure).details, ['cancellation detail']);
+});
 
-    const restored = await decodeNotification(converter, payload, requestType);
-    t.deepEqual(restored.sourceContext, request.sourceContext);
-    t.is(restored.result.tag, 'failure');
-    t.true(restored.result.value instanceof ApplicationFailure);
-    const error = restored.result.value as ApplicationFailure;
-    t.is(error.message, 'failed');
-    t.is(error.type, 'OperationError');
-    t.true(error.nonRetryable);
-    t.deepEqual(error.details, ['diagnostic', { code: 42 }]);
-    t.true(error.cause instanceof CancelledFailure);
-    t.deepEqual((error.cause as CancelledFailure).details, ['cancellation detail']);
+test('notification failure round trips application failure details and cause with codec', async (t) => {
+  const converter: LoadedDataConverter = {
+    ...defaultDataConverter,
+    payloadCodecs: [makeCodec()],
+  };
+  const failure = ApplicationFailure.create({
+    message: 'failed',
+    type: 'OperationError',
+    nonRetryable: true,
+    details: ['diagnostic', { code: 42 }],
+    cause: new CancelledFailure('cancelled', ['cancellation detail']),
   });
+  const request: Notification = {
+    result: { tag: 'failure', value: failure },
+    sourceContext: { source: 'caller' },
+  };
+  const payload = await encodeNotification(converter, request, requestType, (wire) => Request.create(wire));
+  const wire = Request.decode(payload.data!);
+  t.is(encoding(payload), 'binary/protobuf');
+  t.is(wire.result, 'failure');
+  t.is(wire.failure?.applicationFailureInfo?.type, 'OperationError');
+  t.is(encoding(wire.sourceContext), 'binary/test-codec');
+  t.is(encoding(wire.failure?.applicationFailureInfo?.details?.payloads?.[0]), 'binary/test-codec');
+  t.is(encoding(wire.failure?.applicationFailureInfo?.details?.payloads?.[1]), 'binary/test-codec');
+  t.is(encoding(wire.failure?.cause?.canceledFailureInfo?.details?.payloads?.[0]), 'binary/test-codec');
 
-  test(`empty notification response round trips ${suffix}`, async (t) => {
-    const payload = await encodeNotification(converter, {}, responseType, (wire) => Response.create(wire));
-    t.is(encoding(payload), 'binary/protobuf');
-    t.is(
-      new TextDecoder().decode(payload.metadata?.messageType),
-      'temporal.api.notificationservice.v1.OnCompleteResponse'
-    );
-    t.is(payload.data?.length, 0);
-    t.deepEqual(await decodeNotification(converter, payload, responseType), {});
-  });
+  const restored = await decodeNotification(converter, payload, requestType);
+  t.deepEqual(restored.sourceContext, request.sourceContext);
+  t.is(restored.result.tag, 'failure');
+  t.true(restored.result.value instanceof ApplicationFailure);
+  const error = restored.result.value as ApplicationFailure;
+  t.is(error.message, 'failed');
+  t.is(error.type, 'OperationError');
+  t.true(error.nonRetryable);
+  t.deepEqual(error.details, ['diagnostic', { code: 42 }]);
+  t.true(error.cause instanceof CancelledFailure);
+  t.deepEqual((error.cause as CancelledFailure).details, ['cancellation detail']);
+});
 
-  test(`notification failures use the configured failure converter ${suffix}`, async (t) => {
-    const failureConverter = new DefaultFailureConverter({ encodeCommonAttributes: true });
-    let encoded = 0;
-    let decoded = 0;
-    const dataConverter: LoadedDataConverter = {
-      ...converter,
-      failureConverter: {
-        errorToFailure(error, payloadConverter, ctx) {
-          t.is(payloadConverter, dataConverter.payloadConverter);
-          t.deepEqual(ctx, context);
-          encoded++;
-          return failureConverter.errorToFailure(error, payloadConverter, ctx);
-        },
-        failureToError(failure, payloadConverter, ctx) {
-          t.is(payloadConverter, dataConverter.payloadConverter);
-          t.deepEqual(ctx, context);
-          decoded++;
-          return failureConverter.failureToError(failure, payloadConverter, ctx);
-        },
+test('empty notification response round trips without codec', async (t) => {
+  const payload = await encodeNotification(defaultDataConverter, {}, responseType, (wire) => Response.create(wire));
+  t.is(encoding(payload), 'binary/protobuf');
+  t.is(
+    new TextDecoder().decode(payload.metadata?.messageType),
+    'temporal.api.notificationservice.v1.OnCompleteResponse'
+  );
+  t.is(payload.data?.length, 0);
+  t.deepEqual(await decodeNotification(defaultDataConverter, payload, responseType), {});
+});
+
+test('empty notification response round trips with codec', async (t) => {
+  const converter: LoadedDataConverter = {
+    ...defaultDataConverter,
+    payloadCodecs: [makeCodec()],
+  };
+  const payload = await encodeNotification(converter, {}, responseType, (wire) => Response.create(wire));
+  t.is(encoding(payload), 'binary/protobuf');
+  t.is(
+    new TextDecoder().decode(payload.metadata?.messageType),
+    'temporal.api.notificationservice.v1.OnCompleteResponse'
+  );
+  t.is(payload.data?.length, 0);
+  t.deepEqual(await decodeNotification(converter, payload, responseType), {});
+});
+
+test('notification failures use the configured failure converter without codec', async (t) => {
+  const failureConverter = new DefaultFailureConverter({ encodeCommonAttributes: true });
+  let encoded = 0;
+  let decoded = 0;
+  const dataConverter: LoadedDataConverter = {
+    ...defaultDataConverter,
+    failureConverter: {
+      errorToFailure(error, payloadConverter, ctx) {
+        t.is(payloadConverter, dataConverter.payloadConverter);
+        t.deepEqual(ctx, context);
+        encoded++;
+        return failureConverter.errorToFailure(error, payloadConverter, ctx);
       },
-    };
-    const failure = ApplicationFailure.nonRetryable('private message', 'OperationError', 'private detail');
-    failure.stack = 'private stack trace';
-    const request: Notification = {
-      result: { tag: 'failure', value: failure },
-      sourceContext: { source: 'caller' },
-    };
-    const payload = await encodeNotification(dataConverter, request, requestType, (wire) => Request.create(wire));
-    const wire = Request.decode(payload.data!);
-    t.is(wire.failure?.message, 'Encoded failure');
-    t.is(wire.failure?.stackTrace, '');
-    t.is(encoding(wire.failure?.encodedAttributes), expectedEncoding);
-    t.is(encoding(wire.failure?.applicationFailureInfo?.details?.payloads?.[0]), expectedEncoding);
-    t.is(encoding(wire.sourceContext), expectedEncoding);
+      failureToError(failure, payloadConverter, ctx) {
+        t.is(payloadConverter, dataConverter.payloadConverter);
+        t.deepEqual(ctx, context);
+        decoded++;
+        return failureConverter.failureToError(failure, payloadConverter, ctx);
+      },
+    },
+  };
+  const failure = ApplicationFailure.nonRetryable('private message', 'OperationError', 'private detail');
+  failure.stack = 'private stack trace';
+  const request: Notification = {
+    result: { tag: 'failure', value: failure },
+    sourceContext: { source: 'caller' },
+  };
+  const payload = await encodeNotification(dataConverter, request, requestType, (wire) => Request.create(wire));
+  const wire = Request.decode(payload.data!);
+  t.is(wire.failure?.message, 'Encoded failure');
+  t.is(wire.failure?.stackTrace, '');
+  t.is(encoding(wire.failure?.encodedAttributes), 'json/plain');
+  t.is(encoding(wire.failure?.applicationFailureInfo?.details?.payloads?.[0]), 'json/plain');
+  t.is(encoding(wire.sourceContext), 'json/plain');
 
-    const restored = await decodeNotification(dataConverter, payload, requestType);
-    t.is(restored.result.tag, 'failure');
-    t.true(restored.result.value instanceof ApplicationFailure);
-    const error = restored.result.value as ApplicationFailure;
-    t.is(error.message, failure.message);
-    t.is(error.stack, failure.stack);
-    t.is(error.type, 'OperationError');
-    t.true(error.nonRetryable);
-    t.deepEqual(error.details, ['private detail']);
-    t.deepEqual(restored.sourceContext, request.sourceContext);
-    t.is(encoded, 1);
-    t.is(decoded, 1);
-  });
-}
+  const restored = await decodeNotification(dataConverter, payload, requestType);
+  t.is(restored.result.tag, 'failure');
+  t.true(restored.result.value instanceof ApplicationFailure);
+  const error = restored.result.value as ApplicationFailure;
+  t.is(error.message, failure.message);
+  t.is(error.stack, failure.stack);
+  t.is(error.type, 'OperationError');
+  t.true(error.nonRetryable);
+  t.deepEqual(error.details, ['private detail']);
+  t.deepEqual(restored.sourceContext, request.sourceContext);
+  t.is(encoded, 1);
+  t.is(decoded, 1);
+});
+
+test('notification failures use the configured failure converter with codec', async (t) => {
+  const failureConverter = new DefaultFailureConverter({ encodeCommonAttributes: true });
+  let encoded = 0;
+  let decoded = 0;
+  const dataConverter: LoadedDataConverter = {
+    ...defaultDataConverter,
+    payloadCodecs: [makeCodec()],
+    failureConverter: {
+      errorToFailure(error, payloadConverter, ctx) {
+        t.is(payloadConverter, dataConverter.payloadConverter);
+        t.deepEqual(ctx, context);
+        encoded++;
+        return failureConverter.errorToFailure(error, payloadConverter, ctx);
+      },
+      failureToError(failure, payloadConverter, ctx) {
+        t.is(payloadConverter, dataConverter.payloadConverter);
+        t.deepEqual(ctx, context);
+        decoded++;
+        return failureConverter.failureToError(failure, payloadConverter, ctx);
+      },
+    },
+  };
+  const failure = ApplicationFailure.nonRetryable('private message', 'OperationError', 'private detail');
+  failure.stack = 'private stack trace';
+  const request: Notification = {
+    result: { tag: 'failure', value: failure },
+    sourceContext: { source: 'caller' },
+  };
+  const payload = await encodeNotification(dataConverter, request, requestType, (wire) => Request.create(wire));
+  const wire = Request.decode(payload.data!);
+  t.is(wire.failure?.message, 'Encoded failure');
+  t.is(wire.failure?.stackTrace, '');
+  t.is(encoding(wire.failure?.encodedAttributes), 'binary/test-codec');
+  t.is(encoding(wire.failure?.applicationFailureInfo?.details?.payloads?.[0]), 'binary/test-codec');
+  t.is(encoding(wire.sourceContext), 'binary/test-codec');
+
+  const restored = await decodeNotification(dataConverter, payload, requestType);
+  t.is(restored.result.tag, 'failure');
+  t.true(restored.result.value instanceof ApplicationFailure);
+  const error = restored.result.value as ApplicationFailure;
+  t.is(error.message, failure.message);
+  t.is(error.stack, failure.stack);
+  t.is(error.type, 'OperationError');
+  t.true(error.nonRetryable);
+  t.deepEqual(error.details, ['private detail']);
+  t.deepEqual(restored.sourceContext, request.sourceContext);
+  t.is(encoded, 1);
+  t.is(decoded, 1);
+});
 
 test('notification TypeInfo forwards the envelope converter hint and serialization context', (t) => {
   const hint = { converter: 'test-notification-protobuf' };
