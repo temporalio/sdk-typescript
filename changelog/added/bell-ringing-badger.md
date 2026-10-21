@@ -1,0 +1,1 @@
+**Experimental**: Added Nexus completion notification models and transfer converters in `@temporalio/nexus/notifications`, representing a source operation's successful output or failure together with caller-provided source context.
