@@ -48,9 +48,9 @@ async function main() {
       '--descriptors',
       descriptor,
       '--support-package',
-      '../../support',
+      '../../system/support',
       '--output',
-      join(output, 'notifications'),
+      resolve(repoRoot, 'packages/common/src/nexus/notifications/generated'),
       resolve(witRoot, 'notification-service.wit'),
       resolve(witRoot, 'deps'),
     ]);

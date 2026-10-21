@@ -2,6 +2,7 @@ import type { Service as ProtobufService, Type as ProtobufType } from 'protobufj
 import type { Payload, PayloadConverter, SerializationContext, TypeInfo } from '@temporalio/common';
 import { defaultPayloadConverter, fromPayloadWithTypeInfo, METADATA_MESSAGE_TYPE_KEY } from '@temporalio/common';
 import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/protobufs';
+import { withSystemNexusPayloadConversion } from '@temporalio/common/internal/nexus';
 import {
   decode,
   decodeSystemNexusEnvelopeBytes,
@@ -19,7 +20,6 @@ import {
 import * as protoRoot from '@temporalio/proto';
 import type { coresdk } from '@temporalio/proto';
 import { operationRegistry } from '@temporalio/workflow/internal/nexus/system/generated/registry';
-import { withSystemNexusPayloadConversion } from '@temporalio/workflow/internal';
 
 const protobufPayloadConverter = new ProtobufBinaryPayloadConverter(protoRoot);
 const protoRootWithLookup = protoRoot as typeof protoRoot & {

@@ -63,6 +63,10 @@
       "default": "./lib/index.js"
     },
     "./package.json": "./package.json",
+    "./notifications": {
+      "types": "./lib/notifications.d.ts",
+      "default": "./lib/notifications.js"
+    },
     "./internal": {
       "types": "./lib/internal.d.ts",
       "default": "./lib/internal.js"
@@ -74,6 +78,9 @@
   },
   "typesVersions": {
     "*": {
+      "notifications": [
+        "lib/notifications.d.ts"
+      ],
       "internal": [
         "lib/internal.d.ts"
       ]
