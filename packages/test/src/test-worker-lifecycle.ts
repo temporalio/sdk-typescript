@@ -10,8 +10,19 @@ import Long from 'long';
 import { createPayloadValidationError, defaultPayloadConverter, type PayloadCodec } from '@temporalio/common';
 import { msToTs } from '@temporalio/common/time';
 import type { LogEntry, NativeConnection } from '@temporalio/worker';
-import { DefaultLogger, MetricsBuffer, Runtime, UnexpectedError } from '@temporalio/worker';
+import { DefaultLogger, MetricsBuffer, Runtime, UnexpectedError, Worker } from '@temporalio/worker';
 import { isolateFreeWorker, Worker as MockWorker } from './mock-native-worker';
+
+test.serial('Worker.create releases its runtime when bundling fails', async (t) => {
+  await t.throwsAsync(
+    Worker.create({
+      taskQueue: 'failed-worker-preparation',
+      workflowBundle: { codePath: `${__dirname}/nonexistent-workflow-bundle.js` },
+    }),
+    { code: 'ENOENT' }
+  );
+  t.is(Runtime._instance, undefined);
+});
 
 test.serial('Worker.create debug log options are JSON serializable with buffered metrics and connection', async (t) => {
   const logEntries: LogEntry[] = [];

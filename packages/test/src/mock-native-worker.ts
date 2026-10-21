@@ -55,12 +55,14 @@ export class MockNativeWorker implements NativeWorkerLike {
   namespace = 'mock';
   logger = new DefaultLogger('DEBUG');
 
-  public static async create(): Promise<NativeWorkerLike> {
-    return new this();
+  public static async create<T>(_runtime: Runtime, prepare: () => Promise<T>): Promise<[NativeWorkerLike, T]> {
+    const prepared = await prepare();
+    return [new this(), prepared];
   }
 
-  public static async createReplay(): Promise<NativeReplayHandle> {
-    return { worker: new this(), historyPusher: { type: 'history-pusher' } };
+  public static async createReplay<T>(_runtime: Runtime, prepare: () => Promise<T>): Promise<[NativeReplayHandle, T]> {
+    const prepared = await prepare();
+    return [{ worker: new this(), historyPusher: { type: 'history-pusher' } }, prepared];
   }
 
   public async finalizeShutdown(): Promise<void> {
