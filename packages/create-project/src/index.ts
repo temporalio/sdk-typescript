@@ -5,12 +5,12 @@ import dedent from 'dedent';
 import { Command } from 'commander';
 // eslint-disable-next-line import/no-named-as-default
 import prompts from 'prompts';
-import checkForUpdate from 'update-check';
 
 import { createApp } from './create-project.js';
 import { validateNpmName } from './helpers/validate-pkg.js';
 import { fetchSamples } from './helpers/fetch-samples.js';
 import packageJson from './pkg.js';
+import { createUpdateNotifier } from './helpers/update-notifier.js';
 
 const program = new Command(packageJson.name)
   .version(packageJson.version, '-v, --version', 'Print the version and exit')
@@ -177,30 +177,15 @@ async function start(): Promise<void> {
   });
 }
 
-const update = checkForUpdate(packageJson).catch(() => null);
-
-async function notifyUpdate(): Promise<void> {
-  try {
-    const res = await update;
-    if (res?.latest) {
-      console.log();
-      console.log(chalk.yellow.bold('A new version of `@temporalio/create` is available!'));
-      console.log(
-        'You can update by running: ' +
-          chalk.cyan(opts.useYarn ? 'yarn global add @temporalio/create' : 'npm i -g @temporalio/create')
-      );
-      console.log();
-    }
-    process.exit();
-  } catch {
-    // ignore error
-  }
-}
+const notifyUpdate = createUpdateNotifier(packageJson);
 
 export function run(): void {
   start()
-    .then(notifyUpdate)
-    .catch(async (reason) => {
+    .then(() => {
+      notifyUpdate();
+      process.exit(0);
+    })
+    .catch((reason) => {
       console.log();
       console.log('Aborting installation.');
       if (reason.command) {
@@ -211,7 +196,7 @@ export function run(): void {
       }
       console.log();
 
-      await notifyUpdate();
+      notifyUpdate();
 
       process.exit(1);
     });

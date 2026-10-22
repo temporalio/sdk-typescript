@@ -1,0 +1,1 @@
+The project initializer checks for updates in the background and displays cached notifications on subsequent interactive runs, including `npx` invocations. Update checks no longer delay completion or override scaffolding failure exit codes.
