@@ -20,7 +20,6 @@ export const SearchAttributeType = {
 export type SearchAttributeType = (typeof SearchAttributeType)[keyof typeof SearchAttributeType];
 
 // Note: encodeSearchAttributeIndexedValueType exported for use in tests to register search attributes
-// ts-prune-ignore-next
 export const [encodeSearchAttributeIndexedValueType, _] = makeProtoEnumConverters<
   temporal.api.enums.v1.IndexedValueType,
   typeof temporal.api.enums.v1.IndexedValueType,
@@ -104,7 +103,6 @@ class BaseSearchAttributeValue<T extends SearchAttributeType, V = IndexedValueTy
 // Internal type for class private data.
 // Exported for use in payload conversion.
 export class TypedSearchAttributeValue<T extends SearchAttributeType> extends BaseSearchAttributeValue<T> {}
-// ts-prune-ignore-next
 export class TypedSearchAttributeUpdateValue<T extends SearchAttributeType> extends BaseSearchAttributeValue<
   T,
   IndexedValueTypeMapping[T] | null
