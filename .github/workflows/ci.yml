@@ -138,6 +138,7 @@ jobs:
       # Per-package result JSON + full logs are written here by scripts/ava-ci.ts,
       # archived as the test-logs-* artifact, and aggregated by the ci-summary job.
       TEST_RESULTS_DIR: ${{ github.workspace }}/.test-results
+      TEST_LOGS_ARTIFACT_NAME: test-logs-${{ matrix.platform }}-${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}
     defaults:
       run:
         shell: bash
@@ -308,7 +309,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
-          name: test-logs-${{ matrix.platform }}-${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}
+          name: ${{ env.TEST_LOGS_ARTIFACT_NAME }}
           path: ${{ env.TEST_RESULTS_DIR }}
           retention-days: 7
           if-no-files-found: ignore
@@ -320,7 +321,7 @@ jobs:
       - name: Report test logs artifact
         if: ${{ always() && steps.upload-test-logs.outputs.artifact-id != '' }}
         run: |
-          echo "- CI artifact: test-logs-${{ matrix.platform }}-${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}"
+          echo "- CI artifact: $TEST_LOGS_ARTIFACT_NAME"
 
       - name: Upload Dev Server logs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -341,6 +342,7 @@ jobs:
         shell: bash
     env:
       TEMPORAL_CLIENT_CLOUD_API_VERSION: v0.19.1
+      CLOUD_TEST_OUTPUT_ARTIFACT_NAME: cloud-integration-tests-output
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -438,7 +440,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: cloud-integration-tests-output
+          name: ${{ env.CLOUD_TEST_OUTPUT_ARTIFACT_NAME }}
           path: cloud-integration.tap
           if-no-files-found: ignore
           retention-days: 14
@@ -446,7 +448,7 @@ jobs:
       - name: Report Cloud test output artifact
         if: ${{ always() && steps.upload-cloud-test-output.outputs.artifact-id != '' }}
         run: |
-          echo "- CI artifact: cloud-integration-tests-output"
+          echo "- CI artifact: $CLOUD_TEST_OUTPUT_ARTIFACT_NAME"
 
   conventions:
     name: Lint and Prune
