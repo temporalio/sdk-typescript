@@ -4,6 +4,10 @@ updates:
     directory: '/'
     schedule:
       interval: weekly
+    # Dependabot exempts security updates from this cooldown, including collateral
+    # lockfile refreshes. The Dependency cooldown check independently gates new
+    # npm versions; exact exceptions must already be approved on the base branch.
+    # See docs/dependency-cooldown.md.
     cooldown:
       default-days: 14
     exclude-paths:

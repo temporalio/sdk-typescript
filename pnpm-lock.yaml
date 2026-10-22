@@ -61,6 +61,9 @@ importers:
       prettier:
         specifier: ^3.1.1
         version: 3.1.1
+      semver:
+        specifier: ^7.8.5
+        version: 7.8.5
       ts-prune:
         specifier: ^0.10.3
         version: 0.10.3
@@ -76,6 +79,9 @@ importers:
       verdaccio:
         specifier: ^6.5.0
         version: 6.5.0(encoding@0.1.13)(typanion@3.14.0)
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
 
   contrib/ai-sdk:
     dependencies:
