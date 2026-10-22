@@ -6,7 +6,7 @@ import prettierConfig from 'eslint-config-prettier';
 export default tseslint.config(
   { ignores: ['**/node_modules/**', '**/lib/**', '**/*.js', '**/*.mjs', '**/*.cjs', '**/*.generated.ts'] },
   {
-    files: ['packages/*/src/**/*.ts', 'contrib/*/src/**/*.ts'],
+    files: ['packages/*/src/**/*.ts', 'packages/core-bridge/ts/**/*.ts', 'contrib/*/src/**/*.ts'],
     extends: [js.configs.recommended, ...tseslint.configs.recommended, prettierConfig],
     plugins: { import: importPlugin },
     languageOptions: {

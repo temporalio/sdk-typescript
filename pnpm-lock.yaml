@@ -444,9 +444,15 @@ importers:
         specifier: workspace:*
         version: link:../common
     devDependencies:
+      '@grpc/proto-loader':
+        specifier: ^0.7.10
+        version: 0.7.13
       arg:
         specifier: ^5.0.2
         version: 5.0.2
+      ava:
+        specifier: ^5.3.1
+        version: 5.3.1
       cargo-cp-artifact:
         specifier: ^0.1.9
         version: 0.1.9
