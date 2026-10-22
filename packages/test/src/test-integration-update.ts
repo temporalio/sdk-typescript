@@ -493,6 +493,7 @@ test('Rejected update does not evaluate conditions', async (t) => {
   await worker.runUntil(async () => {
     const wfHandle = await startWorkflow(workflowCountingConditionEvaluations);
     const evaluations = await wfHandle.query(conditionEvaluationsQuery);
+    t.true(evaluations > 0);
 
     // Neither the rejected update nor the queries can change state, so none of their activations may
     // evaluate the condition
@@ -503,6 +504,8 @@ test('Rejected update does not evaluate conditions', async (t) => {
     );
     t.is(await wfHandle.query(conditionEvaluationsQuery), evaluations);
 
+    // Completing is what shows an accepted update re-enables evaluation; a count queried after
+    // completion would come from replaying history rather than from this run
     await wfHandle.executeUpdate(finishUpdate, { args: [true] });
     await wfHandle.result();
   });
