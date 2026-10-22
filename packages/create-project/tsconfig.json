@@ -3,8 +3,7 @@
   "compilerOptions": {
     "outDir": "./lib",
     "rootDir": "./src",
-    "resolveJsonModule": true,
-    "module": "esnext"
+    "resolveJsonModule": true
   },
   "include": ["./src/**/*.ts"]
 }
