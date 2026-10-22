@@ -1,5 +1,5 @@
 import { setTimeout } from 'node:timers/promises';
-import ms from 'ms';
+import { ms } from 'ms';
 import test from 'ava';
 import { native, errors } from '@temporalio/core-bridge';
 
