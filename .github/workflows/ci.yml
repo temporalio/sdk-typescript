@@ -304,6 +304,7 @@ jobs:
       # and sample-init logs (the firehose we keep off the console). Placed at the end
       # so it captures logs written by the sample steps above too.
       - name: Upload test logs
+        id: upload-test-logs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
@@ -315,6 +316,11 @@ jobs:
           # excludes files under dot-dirs unless this is set, which would leave the
           # ci-summary job with no results to report.
           include-hidden-files: true
+
+      - name: Report test logs artifact
+        if: ${{ always() && steps.upload-test-logs.outputs.artifact-id != '' }}
+        run: |
+          echo "- CI artifact: test-logs-${{ matrix.platform }}-${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}"
 
       - name: Upload Dev Server logs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -428,6 +434,7 @@ jobs:
           TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
 
       - name: Upload Cloud test output
+        id: upload-cloud-test-output
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -435,6 +442,11 @@ jobs:
           path: cloud-integration.tap
           if-no-files-found: ignore
           retention-days: 14
+
+      - name: Report Cloud test output artifact
+        if: ${{ always() && steps.upload-cloud-test-output.outputs.artifact-id != '' }}
+        run: |
+          echo "- CI artifact: cloud-integration-tests-output"
 
   conventions:
     name: Lint and Prune
