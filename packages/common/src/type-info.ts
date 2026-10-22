@@ -63,3 +63,12 @@ export interface PayloadTypeInfo {
   inputTypes?: readonly TypeInfo[];
   outputType?: TypeInfo;
 }
+
+/**
+ * Type information used to decode an output value of type `T`.
+ *
+ * @experimental
+ */
+export type OutputTypeInfo<T> = {
+  outputType?: TypeInfo<T, any>;
+};

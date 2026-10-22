@@ -14,6 +14,7 @@ import type {
   WorkflowSerializationContext,
   WorkflowTypeOptions,
   PayloadTypeInfo,
+  OutputTypeInfo,
   TypeInfo,
   WorkflowQueryOptions,
   WorkflowSignalOptions,
@@ -66,6 +67,7 @@ import {
   encodeUnifiedSearchAttributes,
   filterNullAndUndefined,
   SymbolBasedInstanceOfError,
+  type Replace,
 } from '@temporalio/common/internal/internal-workflow';
 import { temporal } from '@temporalio/proto';
 import {
@@ -382,7 +384,7 @@ function ensureArgs<W extends Workflow, T extends WorkflowStartOptions<W>>(
 /**
  * Options for getting a result of a Workflow execution.
  */
-export interface WorkflowResultOptions {
+export interface WorkflowResultOptions<R = any> {
   /**
    * If set to true, instructs the client to follow the chain of execution before returning a Workflow's result.
    *
@@ -401,13 +403,18 @@ export interface WorkflowResultOptions {
    *
    * @experimental
    */
-  typeInfo?: PayloadTypeInfo;
+  typeInfo?: Replace<PayloadTypeInfo, OutputTypeInfo<R>>;
 }
 
 /**
  * Options for {@link WorkflowClient.getHandle}
  */
-export interface GetWorkflowHandleOptions extends WorkflowResultOptions {
+export interface GetWorkflowHandleOptions<R = any> extends WorkflowResultOptions<R> {
+  /**
+   * Workflow definitions are accepted through {@link WorkflowHandleDefinitionOptions}.
+   */
+  workflow?: never;
+
   /**
    * ID of the first execution in the Workflow execution chain.
    *
@@ -417,6 +424,14 @@ export interface GetWorkflowHandleOptions extends WorkflowResultOptions {
    */
   firstExecutionRunId?: string;
 }
+
+/**
+ * Options for getting a Workflow handle using a Workflow definition.
+ */
+export type WorkflowHandleDefinitionOptions<T extends Workflow> = Replace<
+  GetWorkflowHandleOptions<WorkflowResultType<T>>,
+  { workflow: T; typeInfo?: never }
+>;
 
 interface WorkflowHandleOptions extends GetWorkflowHandleOptions {
   workflowId: string;
@@ -1976,9 +1991,21 @@ export class WorkflowClient extends BaseClient {
    */
   public getHandle<T extends Workflow>(
     workflowId: string,
+    runId: string | undefined,
+    options: WorkflowHandleDefinitionOptions<T>
+  ): WorkflowHandle<T>;
+  public getHandle<T extends Workflow>(
+    workflowId: string,
     runId?: string,
-    options?: GetWorkflowHandleOptions
+    options?: GetWorkflowHandleOptions<WorkflowResultType<T>>
+  ): WorkflowHandle<T>;
+  public getHandle<T extends Workflow>(
+    workflowId: string,
+    runId?: string,
+    options?: Replace<GetWorkflowHandleOptions, { workflow?: Workflow }>
   ): WorkflowHandle<T> {
+    const typeInfo =
+      options?.typeInfo ?? (options?.workflow ? extractWorkflowTypeAndConfig(options.workflow).typeInfo : undefined);
     const interceptors = this.getOrMakeInterceptors(workflowId, runId);
 
     return this._createWorkflowHandle({
@@ -1988,7 +2015,7 @@ export class WorkflowClient extends BaseClient {
       runIdForResult: runId ?? options?.firstExecutionRunId,
       interceptors,
       followRuns: options?.followRuns ?? true,
-      typeInfo: options?.typeInfo,
+      typeInfo,
     });
   }
 
