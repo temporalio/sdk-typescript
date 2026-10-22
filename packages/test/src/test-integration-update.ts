@@ -461,6 +461,53 @@ test('Update validator can reject when using handle.result() but handle can be o
   });
 });
 
+const finishUpdate = wf.defineUpdate<void, [boolean]>('finish');
+const conditionEvaluationsQuery = wf.defineQuery<number>('conditionEvaluations');
+
+export async function workflowCountingConditionEvaluations(): Promise<void> {
+  let conditionEvaluations = 0;
+  let done = false;
+  wf.setHandler(conditionEvaluationsQuery, () => conditionEvaluations);
+  wf.setHandler(
+    finishUpdate,
+    (_accept: boolean): void => {
+      done = true;
+    },
+    {
+      validator: (accept: boolean): void => {
+        if (!accept) {
+          throw new Error('Rejected');
+        }
+      },
+    }
+  );
+  await wf.condition(() => {
+    conditionEvaluations++;
+    return done;
+  });
+}
+
+test('Rejected update does not evaluate conditions', async (t) => {
+  const { createWorker, startWorkflow, assertWorkflowUpdateFailed } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const wfHandle = await startWorkflow(workflowCountingConditionEvaluations);
+    const evaluations = await wfHandle.query(conditionEvaluationsQuery);
+
+    // Neither the rejected update nor the queries can change state, so none of their activations may
+    // evaluate the condition
+    await assertWorkflowUpdateFailed(
+      wfHandle.executeUpdate(finishUpdate, { args: [false] }),
+      wf.ApplicationFailure,
+      'Rejected'
+    );
+    t.is(await wfHandle.query(conditionEvaluationsQuery), evaluations);
+
+    await wfHandle.executeUpdate(finishUpdate, { args: [true] });
+    await wfHandle.result();
+  });
+});
+
 const syncUpdate = wf.defineUpdate('sync');
 const asyncUpdate = wf.defineUpdate('async');
 

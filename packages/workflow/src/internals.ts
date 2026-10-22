@@ -322,6 +322,13 @@ export class Activator implements ActivationHandler {
    */
   public rethrowSynchronously = false;
 
+  /**
+   * Whether conditions may be checked in the current activation, which requires that it may have
+   * changed workflow state. Set from the activation's jobs at the start of each activation, and when
+   * an update is accepted.
+   */
+  public checkConditions = false;
+
   public readonly rootScope = new RootCancellationScope();
 
   /**
@@ -1489,6 +1496,7 @@ export class Activator implements ActivationHandler {
   }
 
   private acceptUpdate(protocolInstanceId: string): void {
+    this.checkConditions = true;
     this.pushCommand({ updateResponse: { protocolInstanceId, accepted: {} } });
   }
 
