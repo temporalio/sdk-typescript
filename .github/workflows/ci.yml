@@ -192,6 +192,10 @@ jobs:
       - name: Publish to Verdaccio
         run: pnpm tsx scripts/publish-to-verdaccio.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry
 
+      - name: Test packed project initializer through npx
+        if: matrix.node != 'bun'
+        run: pnpm tsx scripts/test-create-project-install.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --target-dir ${{ steps.tmp-dir.outputs.dir }}/create-project-install
+
       - name: Test npm protobufjs peer resolution
         if: matrix.platform == 'linux-x64' && matrix.node == 24
         run: pnpm tsx scripts/test-protobufjs-install.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --target-dir ${{ steps.tmp-dir.outputs.dir }}/protobufjs-install
