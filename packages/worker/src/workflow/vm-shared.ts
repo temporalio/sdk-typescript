@@ -416,6 +416,8 @@ export abstract class BaseVMWorkflow implements Workflow {
       if (activation.timestamp == null)
         throw new TypeError('Expected activation.timestamp to be set for non-query activation');
       this.activator.now = tsToMs(activation.timestamp);
+      // Updates can only change state once accepted, which is recorded when that happens
+      this.activator.checkConditions = activation.jobs.some(({ doUpdate }) => doUpdate == null);
       this.activator.mutateWorkflowInfo((info) => ({
         ...info,
         historyLength: activation.historyLength as number,
