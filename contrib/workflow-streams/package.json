@@ -43,7 +43,6 @@
     "@temporalio/activity": "workspace:*",
     "@temporalio/client": "workspace:*",
     "@temporalio/common": "workspace:*",
-    "@temporalio/proto": "workspace:*",
     "@temporalio/workflow": "workspace:*"
   },
   "peerDependencies": {
