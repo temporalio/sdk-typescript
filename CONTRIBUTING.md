@@ -197,12 +197,14 @@ To regenerate System Nexus bindings from Core's upstream API WIT files, install 
 release with its `advanced` feature and ensure `protoc` is on your `PATH`:
 
 ```sh
-cargo install nexgen --version '=0.2.6' --locked --features advanced
+cargo install nexgen --version '=0.2.10' --locked --features advanced
 pnpm --filter @temporalio/workflow run gen:system-nexus
 ```
 
 CI uses the same release and checks that the generated bindings are up to date. Set `NEXGEN_BIN`
 to use a local generator build when developing nexgen changes.
+The generator imports the SDK-owned helpers in `packages/workflow/src/nexus/system/support.ts`
+with `--support-package`; these helpers are not copied into the generated directory.
 
 ### Working with Individual Packages
 
