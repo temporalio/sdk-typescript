@@ -36,9 +36,6 @@ importers:
       '@types/node':
         specifier: ^20.19.39
         version: 20.19.41
-      '@typescript-eslint/eslint-plugin':
-        specifier: ^8.10.0
-        version: 8.13.0(@typescript-eslint/parser@8.13.0(eslint@9.39.2(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.2(jiti@2.7.0))(typescript@5.9.3)
       '@typescript-eslint/parser':
         specifier: ^8.10.0
         version: 8.13.0(eslint@9.39.2(jiti@2.7.0))(typescript@5.9.3)
@@ -226,9 +223,6 @@ importers:
       '@temporalio/common':
         specifier: workspace:*
         version: link:../../packages/common
-      '@temporalio/proto':
-        specifier: workspace:*
-        version: link:../../packages/proto
       '@temporalio/test-helpers':
         specifier: workspace:*
         version: link:../../packages/test-helpers
@@ -287,9 +281,6 @@ importers:
       '@temporalio/common':
         specifier: workspace:*
         version: link:../../packages/common
-      '@temporalio/proto':
-        specifier: workspace:*
-        version: link:../../packages/proto
       '@temporalio/test-helpers':
         specifier: workspace:*
         version: link:../../packages/test-helpers
@@ -326,9 +317,6 @@ importers:
       '@temporalio/common':
         specifier: workspace:*
         version: link:../../packages/common
-      '@temporalio/proto':
-        specifier: workspace:*
-        version: link:../../packages/proto
       '@temporalio/workflow':
         specifier: workspace:*
         version: link:../../packages/workflow
@@ -379,9 +367,6 @@ importers:
       '@temporalio/proto':
         specifier: workspace:*
         version: link:../proto
-      abort-controller:
-        specifier: ^3.0.0
-        version: 3.0.0
       nexus-rpc:
         specifier: ^0.0.3
         version: 0.0.3
@@ -694,9 +679,6 @@ importers:
       '@types/istanbul-lib-instrument':
         specifier: ^1.7.7
         version: 1.7.7
-      '@types/webpack':
-        specifier: ^5.28.5
-        version: 5.28.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -776,9 +758,6 @@ importers:
       '@temporalio/core-bridge':
         specifier: workspace:*
         version: link:../core-bridge
-      '@temporalio/envconfig':
-        specifier: workspace:*
-        version: link:../envconfig
       '@temporalio/interceptors-opentelemetry':
         specifier: workspace:*
         version: link:../../contrib/interceptors-opentelemetry
