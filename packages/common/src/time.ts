@@ -48,7 +48,7 @@ export function tsToMs(ts: Timestamp | null | undefined): number {
     throw new Error(`Expected timestamp, got ${ts}`);
   }
   const { seconds, nanos } = ts;
-  return (seconds || Long.UZERO)
+  return Long.fromValue(seconds ?? Long.UZERO)
     .mul(1000)
     .add(Math.floor((nanos || 0) / 1000000))
     .toNumber();
