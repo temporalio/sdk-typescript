@@ -2048,9 +2048,7 @@ export class WorkflowClient extends BaseClient {
       pageSize: options?.pageSize,
     };
     // Deprecated interceptor factories require a workflowId and are skipped for client-level list.
-    const interceptors = Array.isArray(this.options.interceptors)
-      ? (this.options.interceptors as WorkflowClientInterceptor[])
-      : [];
+    const interceptors = Array.isArray(this.options.interceptors) ? this.options.interceptors : [];
     const list = composeInterceptors(interceptors, 'list', this._list.bind(this));
     const interceptedList: AsyncIterable<WorkflowExecutionInfo> = {
       [Symbol.asyncIterator]: () => list(input)[Symbol.asyncIterator](),

@@ -1,5 +1,6 @@
+import { setImmediate } from 'node:timers/promises';
 import test from 'ava';
-import { mapAsyncIterable } from '@temporalio/client/internal';
+import { mapAsyncIterable } from '../iterators-utils';
 
 test(`mapAsyncIterable (with no concurrency) returns mapped values`, async (t) => {
   async function* source(): AsyncIterable<number> {
@@ -238,8 +239,113 @@ test(`mapAsyncIterable (with concurrency) doesn't hang on source exceptions`, as
   });
 });
 
+test(`mapAsyncIterable (with concurrency) propagates mapper errors while another mapper is pending`, async (t) => {
+  const mapError = new Error('Map Exception');
+  let unblockMapper!: () => void;
+  const blockedMapper = new Promise<void>((resolve) => {
+    unblockMapper = resolve;
+  });
+  let sourceClosed = false;
+  async function* source(): AsyncIterable<number> {
+    try {
+      yield 1;
+      yield 2;
+    } finally {
+      sourceClosed = true;
+    }
+  }
+
+  const iterable = mapAsyncIterable(
+    source(),
+    async (value) => {
+      if (value === 1) {
+        await blockedMapper;
+        return value;
+      }
+      throw mapError;
+    },
+    { concurrency: 2 }
+  );
+  const iterator = iterable[Symbol.asyncIterator]();
+  const result = iterator.next().catch((err: unknown) => err);
+
+  try {
+    // Let the ready promise callbacks finish without unblocking the other mapper.
+    t.is(
+      await Promise.race([result, setImmediate()]),
+      mapError,
+      'The error must propagate before the other mapper settles'
+    );
+    t.true(sourceClosed);
+  } finally {
+    unblockMapper();
+    await result;
+  }
+});
+
+test(`mapAsyncIterable (with concurrency) awaits source cleanup and preserves the mapper error`, async (t) => {
+  const mapError = new Error('Map Exception');
+  const cleanupError = new Error('cleanup failed');
+  let unblockCleanup!: () => void;
+  const blockedCleanup = new Promise<void>((resolve) => {
+    unblockCleanup = resolve;
+  });
+  let cleanupStarted!: () => void;
+  const startedCleanup = new Promise<void>((resolve) => {
+    cleanupStarted = resolve;
+  });
+  let returnCalls = 0;
+  const source: AsyncIterable<number> = {
+    [Symbol.asyncIterator]() {
+      return {
+        async next() {
+          return { done: false as const, value: 1 };
+        },
+        async return() {
+          returnCalls += 1;
+          cleanupStarted();
+          await blockedCleanup;
+          throw cleanupError;
+        },
+      };
+    },
+  };
+  const iterator = mapAsyncIterable(
+    source,
+    async () => {
+      throw mapError;
+    },
+    { concurrency: 2 }
+  )[Symbol.asyncIterator]();
+  const result = iterator.next().catch((err: unknown) => err);
+
+  try {
+    await startedCleanup;
+    const pending = Symbol('pending');
+    t.is(
+      await Promise.race([result, setImmediate().then(() => pending)]),
+      pending,
+      'The iterator must await source cleanup'
+    );
+    unblockCleanup();
+    t.is(await result, mapError);
+    t.is(returnCalls, 1);
+  } finally {
+    unblockCleanup();
+    await result;
+  }
+});
+
 test(`mapAsyncIterable (with concurrency) doesn't hang when a backpressured mapper fails`, async (t) => {
   const mapError = new Error('Map Exception');
+  let failMapper!: () => void;
+  const mapperFailure = new Promise<void>((resolve) => {
+    failMapper = resolve;
+  });
+  let thirdMapped!: () => void;
+  const mappedThird = new Promise<void>((resolve) => {
+    thirdMapped = resolve;
+  });
   async function* source(): AsyncIterable<number> {
     for (let value = 1; ; value++) {
       yield value;
@@ -250,19 +356,29 @@ test(`mapAsyncIterable (with concurrency) doesn't hang when a backpressured mapp
     source(),
     async (value) => {
       if (value === 2) {
-        await new Promise((resolve) => setTimeout(resolve, 25));
+        await mapperFailure;
         throw mapError;
       }
+      if (value === 3) thirdMapped();
       return value;
     },
     { concurrency: 2, bufferLimit: 0 }
   );
   const iterator = iterable[Symbol.asyncIterator]();
 
-  t.is((await iterator.next()).value, 1);
-  await new Promise((resolve) => setTimeout(resolve, 50));
-  t.is((await iterator.next()).value, 3);
-  await t.throwsAsync(iterator.next(), { is: mapError });
+  try {
+    t.is((await iterator.next()).value, 1);
+    await mappedThird;
+    // Let the producer reach the full-buffer wait before failing the other mapper.
+    await setImmediate();
+    failMapper();
+    await setImmediate();
+    t.is((await iterator.next()).value, 3);
+    await t.throwsAsync(iterator.next(), { is: mapError });
+  } finally {
+    failMapper();
+    await iterator.return?.();
+  }
 });
 
 // FIXME: This test is producing rare flakes

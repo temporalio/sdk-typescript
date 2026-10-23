@@ -396,8 +396,7 @@ if (RUN_INTEGRATION_TESTS) {
         const result = await historiesIterator.next();
         t.false(result.done);
         const { history } = result.value!;
-        const events = (history as { events?: unknown[] } | undefined)?.events;
-        t.true((events?.length ?? 0) > 0);
+        t.true((history.events?.length ?? 0) > 0);
         histories += 1;
         if (histories === 1) {
           t.is(listCalls, 1);

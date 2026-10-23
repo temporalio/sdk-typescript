@@ -233,12 +233,12 @@ export function instrumentAsyncIterable<T>({
         },
         async return(value?: unknown): Promise<IteratorResult<T>> {
           if (iterator === undefined) {
-            return { done: true, value: undefined as any };
+            return { done: true, value: undefined };
           }
           try {
-            const result = iterator.return
+            const result: IteratorResult<T> = iterator.return
               ? await otel.context.with(spanContext!, async () => iterator!.return!(value))
-              : ({ done: true, value: undefined } as IteratorResult<T>);
+              : { done: true, value: undefined };
             finish();
             return result;
           } catch (err) {

@@ -93,7 +93,7 @@ export async function* mapAsyncIterable<A, B>(
 
       if (Array.isArray(val)) return;
       if (stopped) return;
-      if ((val as IteratorResult<[B]>)?.done) {
+      if (val?.done) {
         sourceExhausted = true;
         return;
       }
@@ -111,8 +111,11 @@ export async function* mapAsyncIterable<A, B>(
     (err) => emitter.emit('error', err)
   );
 
-  const closeSource = async (suppressReturnError: boolean): Promise<void> => {
+  const closeSource = async (hasPrimaryError: boolean): Promise<void> => {
+    // Stop producers and close the source iterable so interceptor/OTel lifecycles end on
+    // early consumer termination (break/return), not only after the source is exhausted.
     stopped = true;
+    // Wake producers waiting for buffer space before awaiting source cleanup.
     controller.abort();
     let hasReturnError = false;
     let returnError: unknown;
@@ -124,8 +127,9 @@ export async function* mapAsyncIterable<A, B>(
         returnError = err;
       }
     }
-    await Promise.allSettled(mappers);
-    if (hasReturnError && !suppressReturnError) {
+    // After a failure, unrelated mappers may remain pending indefinitely.
+    if (!hasPrimaryError) await Promise.allSettled(mappers);
+    if (hasReturnError && !hasPrimaryError) {
       throw returnError;
     }
   };
