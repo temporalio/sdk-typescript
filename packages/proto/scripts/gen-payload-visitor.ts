@@ -14,7 +14,7 @@ const ANY = 'google.protobuf.Any';
 // Namespaces scanned for root messages. Every payload-bearing message declared under these gets an
 // exported entry point, so any message can be walked and new messages are covered automatically on
 // regen.
-const ROOT_NAMESPACES = ['coresdk', 'temporal.api.workflowservice.v1'] as const;
+const ROOT_NAMESPACES = ['coresdk', 'temporal.api.workflowservice.v1', 'temporal.api.notificationservice.v1'] as const;
 
 const jsonModule = require(resolve(__dirname, '../protos/json-module.js'));
 const root = protobuf.Root.fromJSON(jsonModule);
