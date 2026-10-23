@@ -27,6 +27,8 @@ export { SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE } from './system-nexus';
 export { SYSTEM_NEXUS_CONTEXT_METADATA_KEY } from './system-nexus';
 // ts-prune-ignore-next
 export { TEMPORAL_SYSTEM_NEXUS_ENDPOINT } from './system-nexus';
+// ts-prune-ignore-next
+export { PAYLOAD_VALIDATION_ERROR_TYPE, isPayloadValidationError } from './payload-validation-error';
 export {
   filterNullAndUndefined,
   mergeObjects,

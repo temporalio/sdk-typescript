@@ -21,6 +21,7 @@ import {
   visit,
   walkPayloadsInMessage,
 } from '@temporalio/common/internal/internal-non-workflow';
+import { isPayloadValidationError, PAYLOAD_VALIDATION_ERROR_TYPE } from '@temporalio/common/internal/internal-workflow';
 import type { temporal } from '@temporalio/proto';
 import {
   decodeSystemNexusEnvelope,
@@ -35,24 +36,15 @@ import {
 // Payloads
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+export { PAYLOAD_VALIDATION_ERROR_TYPE };
+
 /**
- * Error type used by a Payload Converter or Payload Codec to report that a Payload failed
- * validation, i.e. that the input is invalid rather than that the handler failed to process it.
+ * Decode Payload Codecs and apply optional TypeInfo while translating invalid Nexus input errors.
  *
- * When a Nexus operation's input fails to decode with a non-retryable {@link ApplicationFailure} of
- * this type, the resulting Nexus Handler Error is `BAD_REQUEST` rather than `INTERNAL`.
+ * When the input fails to decode with a non-retryable {@link ApplicationFailure} of type
+ * {@link PAYLOAD_VALIDATION_ERROR_TYPE}, the resulting Nexus Handler Error is `BAD_REQUEST` rather
+ * than `INTERNAL`.
  */
-export const PAYLOAD_VALIDATION_ERROR_TYPE = 'PayloadValidationError';
-
-/**
- * Whether `err` is a non-retryable {@link ApplicationFailure} whose type is exactly
- * {@link PAYLOAD_VALIDATION_ERROR_TYPE}.
- */
-function isPayloadValidationFailure(err: unknown): err is ApplicationFailure {
-  return err instanceof ApplicationFailure && err.nonRetryable === true && err.type === PAYLOAD_VALIDATION_ERROR_TYPE;
-}
-
-/** Decode Payload Codecs and apply optional TypeInfo while translating invalid Nexus input errors. */
 export async function decodePayload(
   dataConverter: LoadedDataConverter,
   payload: temporal.api.common.v1.IPayload | undefined,
@@ -66,7 +58,7 @@ export async function decodePayload(
       ? await decodeSystemNexus(dataConverter, payload)
       : await decodeOptionalSingle(dataConverter.payloadCodecs, payload, context);
   } catch (err) {
-    if (isPayloadValidationFailure(err)) {
+    if (isPayloadValidationError(err)) {
       throw new nexus.HandlerError('BAD_REQUEST', `Invalid operation input`, {
         cause: err,
       });
@@ -86,7 +78,7 @@ export async function decodePayload(
       ? fromSystemNexusPayload(decoded, dataConverter.payloadConverter, typeInfo)
       : fromPayloadWithTypeInfo(dataConverter.payloadConverter, decoded, context, typeInfo);
   } catch (err) {
-    if (isPayloadValidationFailure(err)) {
+    if (isPayloadValidationError(err)) {
       throw new nexus.HandlerError('BAD_REQUEST', `Invalid operation input`, {
         cause: err,
       });

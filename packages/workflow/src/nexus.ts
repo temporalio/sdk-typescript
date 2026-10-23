@@ -291,11 +291,13 @@ function startNexusOperationNextHandler({
     namespace: activator.info.namespace,
     workflowId: activator.info.workflowId,
   };
-  const serialization = serializeNexusOperation(
-    { input, endpoint, service, options, operation, inputType, outputType },
-    activator.payloadConverter,
-    nexusContext,
-    workflowContext
+  const serialization = activator.convertOutboundPayloads(() =>
+    serializeNexusOperation(
+      { input, endpoint, service, options, operation, inputType, outputType },
+      activator.payloadConverter,
+      nexusContext,
+      workflowContext
+    )
   );
 
   return new Promise<StartNexusOperationOutput>((resolve, reject) => {
