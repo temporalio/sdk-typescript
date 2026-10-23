@@ -41,7 +41,7 @@
     "ci-nightly": "node ./packages/test/lib/load/run-all-nightly-scenarios.js",
     "lint": "eslint --no-error-on-unmatched-pattern --fix && prettier --write . && pnpm --recursive --stream run lint",
     "lint:check": "eslint --no-error-on-unmatched-pattern && prettier --end-of-line auto --check . && pnpm --recursive --stream run lint:check",
-    "lint:prune": "knip --include exports,types",
+    "lint:prune": "knip --include exports,types,nsExports,nsTypes",
     "commitlint": "commitlint --from origin/main",
     "format": "prettier --write . && pnpm --recursive --stream run format",
     "clean": "tsx ./scripts/clean.ts",

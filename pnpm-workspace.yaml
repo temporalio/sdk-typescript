@@ -58,3 +58,7 @@ overrides:
   'minimatch@>=7.0.0 <7.4.8': '>=7.4.8'
   serialize-javascript: '>=7.0.3'
   handlebars: '>=4.7.9'
+
+# Remove this patch when the temporary ./lib/* compatibility exports are removed.
+patchedDependencies:
+  knip@6.40.0: patches/knip@6.40.0.patch

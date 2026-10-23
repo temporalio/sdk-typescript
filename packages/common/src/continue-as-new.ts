@@ -13,6 +13,7 @@ export const SuggestContinueAsNewReason = {
 } as const;
 export type SuggestContinueAsNewReason = (typeof SuggestContinueAsNewReason)[keyof typeof SuggestContinueAsNewReason];
 
+/* @lintignore Keep both directions of the enum converter pair. */
 export const [encodeSuggestContinueAsNewReason, decodeSuggestContinueAsNewReason] = makeProtoEnumConverters<
   temporal.api.enums.v1.SuggestContinueAsNewReason,
   typeof temporal.api.enums.v1.SuggestContinueAsNewReason,

@@ -20,7 +20,7 @@ export const SearchAttributeType = {
 export type SearchAttributeType = (typeof SearchAttributeType)[keyof typeof SearchAttributeType];
 
 // Note: encodeSearchAttributeIndexedValueType exported for use in tests to register search attributes
-export const [encodeSearchAttributeIndexedValueType, _] = makeProtoEnumConverters<
+export const [encodeSearchAttributeIndexedValueType] = makeProtoEnumConverters<
   temporal.api.enums.v1.IndexedValueType,
   typeof temporal.api.enums.v1.IndexedValueType,
   keyof typeof temporal.api.enums.v1.IndexedValueType,

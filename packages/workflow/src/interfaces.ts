@@ -507,6 +507,7 @@ export const ChildWorkflowCancellationType = {
 export type ChildWorkflowCancellationType =
   (typeof ChildWorkflowCancellationType)[keyof typeof ChildWorkflowCancellationType];
 
+/* @lintignore Keep both directions of the enum converter pair. */
 export const [encodeChildWorkflowCancellationType, decodeChildWorkflowCancellationType] = makeProtoEnumConverters<
   coresdk.child_workflow.ChildWorkflowCancellationType,
   typeof coresdk.child_workflow.ChildWorkflowCancellationType,
@@ -578,6 +579,7 @@ export const ParentClosePolicy = {
 } as const;
 export type ParentClosePolicy = (typeof ParentClosePolicy)[keyof typeof ParentClosePolicy];
 
+/* @lintignore Keep both directions of the enum converter pair. */
 export const [encodeParentClosePolicy, decodeParentClosePolicy] = makeProtoEnumConverters<
   coresdk.child_workflow.ParentClosePolicy,
   typeof coresdk.child_workflow.ParentClosePolicy,

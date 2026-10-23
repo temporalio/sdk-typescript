@@ -9,6 +9,11 @@ overrides:
   serialize-javascript: '>=7.0.3'
   handlebars: '>=4.7.9'
 
+patchedDependencies:
+  knip@6.40.0:
+    hash: 36cdbf7e497e4bb8a8a7706a29fafb03598ec376fcf6b33644cb0eb5c40b55cc
+    path: patches/knip@6.40.0.patch
+
 importers:
 
   .:
@@ -60,7 +65,7 @@ importers:
         version: 2.2.3
       knip:
         specifier: 6.40.0
-        version: 6.40.0
+        version: 6.40.0(patch_hash=36cdbf7e497e4bb8a8a7706a29fafb03598ec376fcf6b33644cb0eb5c40b55cc)
       prettier:
         specifier: ^3.1.1
         version: 3.1.1
@@ -10865,7 +10870,7 @@ snapshots:
 
   kleur@3.0.3: {}
 
-  knip@6.40.0:
+  knip@6.40.0(patch_hash=36cdbf7e497e4bb8a8a7706a29fafb03598ec376fcf6b33644cb0eb5c40b55cc):
     dependencies:
       fdir: 6.5.0(picomatch@4.0.7)
       formatly: 0.7.1

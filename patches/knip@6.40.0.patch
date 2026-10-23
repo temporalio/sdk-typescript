@@ -1,0 +1,15 @@
+diff --git a/dist/util/package-json.js b/dist/util/package-json.js
+--- a/dist/util/package-json.js
++++ b/dist/util/package-json.js
+@@ -249,7 +249,10 @@ const getHiddenExportTargets = (exports) => {
+     return targets;
+ };
+ export const getEntrySpecifiersFromManifest = (manifest) => {
+-    const { main, module, browser, bin, exports, types, typings } = manifest;
++    const { main, module, browser, bin, exports: allExports, types, typings } = manifest;
++    const exports = allExports && typeof allExports === 'object' && !Array.isArray(allExports)
++        ? Object.fromEntries(Object.entries(allExports).filter(([key]) => key !== './lib/*'))
++        : allExports;
+     const entryPaths = new Set();
+     if (typeof main === 'string' && main)
+         entryPaths.add(main);

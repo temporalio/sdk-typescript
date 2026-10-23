@@ -494,6 +494,7 @@ function compileLoggerOptions(options: RuntimeOptions): [Logger, native.LogExpor
 /**
  * @deprecated Use {@link CoreLogFilterOptions} instead.
  */
+/* @lintignore Retain the deprecated compatibility alias. */
 export type MakeTelemetryFilterStringOptions = CoreLogFilterOptions;
 
 /**
