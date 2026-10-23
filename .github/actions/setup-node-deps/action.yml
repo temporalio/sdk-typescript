@@ -13,6 +13,13 @@ inputs:
     description: 'Whether to save the NPM cache at the end'
     required: false
     default: 'false'
+  install-node:
+    description: >-
+      Whether to install Node via actions/setup-node. Set to false when the job container already
+      provides the required Node build (e.g. musl-based images: setup-node only installs glibc
+      builds from the official dist).
+    required: false
+    default: 'true'
 
 outputs:
   cache-dir:
@@ -32,6 +39,7 @@ runs:
         run_install: false
 
     - name: Install Node
+      if: inputs.install-node == 'true'
       uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
       with:
         node-version: ${{ inputs.node-version }}
