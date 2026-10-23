@@ -25,12 +25,12 @@
     "@temporalio/external-storage-s3": "workspace:*"
   },
   "peerDependencies": {
-    "@aws-sdk/client-s3": "^3.0.0",
+    "@aws-sdk/client-s3": "^3.1148.0",
     "long": "^5.3.2",
     "protobufjs": "^8.7.1"
   },
   "devDependencies": {
-    "@aws-sdk/client-s3": "^3.0.0",
+    "@aws-sdk/client-s3": "^3.1148.0",
     "ava": "^5.3.1",
     "long": "^5.3.2",
     "protobufjs": "^8.7.1"

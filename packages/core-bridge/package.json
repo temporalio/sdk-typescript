@@ -33,7 +33,7 @@
     "cargo-cp-artifact": "^0.1.9",
     "long": "^5.3.2",
     "protobufjs": "^8.7.1",
-    "tsx": "^4.20.6"
+    "tsx": "^4.23.15"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
