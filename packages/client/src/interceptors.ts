@@ -13,7 +13,7 @@ import type {
   TypedSearchAttributes,
 } from '@temporalio/common';
 import { Headers, Next } from '@temporalio/common';
-import type { History } from '@temporalio/common/lib/proto-utils';
+import type { History } from '@temporalio/common/proto-utils';
 import type { temporal } from '@temporalio/proto';
 import type { NexusOperationHandle } from './nexus-client';
 import type {

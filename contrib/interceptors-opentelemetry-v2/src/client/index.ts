@@ -21,7 +21,7 @@ import type {
   DescribeWorkflowExecutionResponse,
   WorkflowExecutionInfo,
 } from '@temporalio/client';
-import type { History } from '@temporalio/common/lib/proto-utils';
+import type { History } from '@temporalio/common/proto-utils';
 import {
   instrument,
   instrumentAsyncIterable,

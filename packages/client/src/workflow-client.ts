@@ -60,7 +60,7 @@ import {
   walkUpdateWorkflowExecutionRequest,
   walkUpdateWorkflowExecutionResponse,
 } from '@temporalio/common/internal/internal-non-workflow';
-import type { History } from '@temporalio/common/lib/proto-utils';
+import type { History } from '@temporalio/common/proto-utils';
 import {
   composeInterceptors,
   encodeUnifiedSearchAttributes,
