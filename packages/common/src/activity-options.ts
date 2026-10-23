@@ -61,6 +61,7 @@ export const ActivityCancellationType = {
 } as const;
 export type ActivityCancellationType = (typeof ActivityCancellationType)[keyof typeof ActivityCancellationType];
 
+/* @lintignore Keep both directions of the enum converter pair. */
 export const [encodeActivityCancellationType, decodeActivityCancellationType] = makeProtoEnumConverters<
   coresdk.workflow_commands.ActivityCancellationType,
   typeof coresdk.workflow_commands.ActivityCancellationType,

@@ -57,7 +57,6 @@ export function composeInterceptorsWith<I, M extends keyof I>(
  * @param next the original function to be executed at the end of the interception chain
  */
 // Consumed through the internal-workflow package entry point.
-// ts-prune-ignore-next
 export function composeInterceptors<I, M extends keyof I>(interceptors: I[], method: M, next: Next<I, M>): Next<I, M> {
   return composeInterceptorsWith(interceptors, method, next, ((wrappedNext) => wrappedNext) as WrapNext);
 }

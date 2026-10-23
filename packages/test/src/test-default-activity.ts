@@ -1,8 +1,9 @@
-import * as activities from './activities/default-and-defined';
+import { defaultActivity, definedActivity } from './activities/default-and-defined';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { workflowWithMaybeDefinedActivity } from './workflows/default-activity-wf';
 
 const test = makeTestFunction({ workflowsPath: require.resolve('./workflows/default-activity-wf') });
+const activities = { default: defaultActivity, definedActivity };
 
 test('Uses default activity if no matching activity exists', async (t) => {
   const { executeWorkflow, createWorker } = helpers(t);
