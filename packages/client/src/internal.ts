@@ -7,8 +7,6 @@ import type { WorkflowUpdateStage } from './workflow-update-stage';
 import type { WorkflowQueryInput, WorkflowSignalInput } from './interceptors';
 import type { ConnectionOptions } from './connection';
 
-export { mapAsyncIterable } from './iterators-utils';
-
 /**
  * A symbol used to attach extra, SDK-internal connection options.
  *
