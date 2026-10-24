@@ -39,6 +39,7 @@ import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
+  decodeHeaders,
   encodeErrorToFailure,
   encodeToPayload,
   ExternalStorageMetricsAccumulator,
@@ -1173,7 +1174,7 @@ export class Worker {
                         nonRetryable: false,
                       });
                     }
-                    const headers = task.start?.headerFields ?? {};
+                    const headers = await decodeHeaders(loadedDataConverter, task.start?.headerFields ?? {}, context);
                     const input = {
                       args,
                       headers,
@@ -1593,11 +1594,15 @@ export class Worker {
           throw new IllegalStateError(
             'Received workflow activation for an untracked workflow with no init workflow job'
           );
-        workflowCodecRunner = new WorkflowCodecRunner(this.options.loadedDataConverter.payloadCodecs, {
-          type: 'workflow',
-          namespace: this.options.namespace,
-          workflowId,
-        });
+        workflowCodecRunner = new WorkflowCodecRunner(
+          this.options.loadedDataConverter.payloadCodecs,
+          {
+            type: 'workflow',
+            namespace: this.options.namespace,
+            workflowId,
+          },
+          this.options.loadedDataConverter.encodeHeaders
+        );
       }
       const { externalStorage } = this.options.loadedDataConverter;
       // Measure external-storage work so Core can include it in its workflow-task duration log;

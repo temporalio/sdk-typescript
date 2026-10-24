@@ -44,6 +44,46 @@ export async function encode(
   return payloads as EncodedPayload[];
 }
 
+/** Apply only codecs to already serialized headers, without exposing caller-owned payloads to codecs. */
+export async function encodeHeaders(
+  converter: LoadedDataConverter,
+  headers: Record<string, Payload>,
+  context?: SerializationContext
+): Promise<Record<string, Payload>> {
+  return transformHeaders(converter, headers, context, encode);
+}
+
+/** Decode headers before interceptors consume them, without applying a payload converter. */
+export async function decodeHeaders(
+  converter: LoadedDataConverter,
+  headers: Record<string, Payload>,
+  context?: SerializationContext
+): Promise<Record<string, Payload>> {
+  return transformHeaders(converter, headers, context, decode);
+}
+
+async function transformHeaders(
+  converter: LoadedDataConverter,
+  headers: Record<string, Payload>,
+  context: SerializationContext | undefined,
+  transform: typeof encode | typeof decode
+): Promise<Record<string, Payload>> {
+  if (!converter.encodeHeaders) return headers;
+  return Object.fromEntries(
+    await Promise.all(
+      Object.entries(headers).map(async ([key, payload]) => {
+        const transformed = await transform(converter.payloadCodecs, [structuredClone(payload)], context);
+        if (transformed.length !== 1) {
+          throw new PayloadConverterError(
+            `Header '${key}' codec processing must return exactly one payload, got ${transformed.length}`
+          );
+        }
+        return [key, transformed[0]!];
+      })
+    )
+  );
+}
+
 /** Run {@link PayloadCodec.decode} on `payloads` */
 async function decodeOptional(
   codecs: PayloadCodec[],
