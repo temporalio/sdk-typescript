@@ -54,6 +54,20 @@ export interface DataConverter {
   payloadCodecs?: PayloadCodec[];
 
   /**
+   * Apply payload codecs automatically to payload-valued headers, including tracing headers.
+   * Defaults to false. Supplied headers must already be serialized, but must not be codec-encoded.
+   *
+   * Enable this on both Clients and Workers. Remove any manual header codec processing first.
+   * Codecs must accept headers from existing histories (which may be plaintext) before enabling
+   * this option. Codec errors are not retried as plaintext.
+   *
+   * This does not affect Nexus string headers or gRPC metadata.
+   *
+   * @experimental
+   */
+  encodeHeaders?: boolean;
+
+  /**
    * Configuration for offloading {@link Payload}s to external storage instead of sending them inline to Temporal Server.
    *
    * When set, {@link Payload}s whose size exceeds {@link ExternalStorage.payloadSizeThreshold} are written to one of the
@@ -72,6 +86,9 @@ export interface LoadedDataConverter {
   payloadConverter: PayloadConverter;
   failureConverter: FailureConverter;
   payloadCodecs: PayloadCodec[];
+
+  /** See {@link DataConverter.encodeHeaders}. */
+  encodeHeaders?: boolean;
 
   /**
    * Configuration for offloading {@link Payload}s to external storage, carried through unchanged from

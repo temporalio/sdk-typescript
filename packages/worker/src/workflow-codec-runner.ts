@@ -47,7 +47,8 @@ export class WorkflowCodecRunner {
 
   constructor(
     private readonly codecs: PayloadCodec[],
-    public readonly workflowContext: WorkflowSerializationContext
+    public readonly workflowContext: WorkflowSerializationContext,
+    private readonly encodeHeaders = false
   ) {}
 
   /** Returns the serialization context selected for a pending System Nexus operation. */
@@ -155,9 +156,11 @@ export class WorkflowCodecRunner {
       }
     }
     const visitorOptions: Omit<VisitOptions<SerializationContext | undefined>, 'initialContext'> = {
-      transformPayload: async (payload, context) => (await decode(this.codecs, [payload], context))[0]!,
-      transformPayloads: (payloads, context) => decode(this.codecs, payloads, context),
-      skipHeaders: true,
+      transformPayload: async (payload, context) =>
+        (await decode(this.codecs, [this.encodeHeaders ? structuredClone(payload) : payload], context))[0]!,
+      transformPayloads: (payloads, context) =>
+        decode(this.codecs, this.encodeHeaders ? structuredClone(payloads) : payloads, context),
+      skipHeaders: !this.encodeHeaders,
       skipSearchAttributes: true,
       limit: this.codecOperationLimit,
       deriveContext: (message, typeName, context) => {
@@ -252,9 +255,11 @@ export class WorkflowCodecRunner {
     const isSystemNexus = (command: coresdk.workflow_commands.IScheduleNexusOperation): boolean =>
       systemInputs.some((input) => input.command === command);
     const visitorOptions: Omit<VisitOptions<SerializationContext>, 'initialContext'> = {
-      transformPayload: async (payload, context) => (await encode(this.codecs, [payload], context))[0]!,
-      transformPayloads: (payloads, context) => encode(this.codecs, payloads, context),
-      skipHeaders: true,
+      transformPayload: async (payload, context) =>
+        (await encode(this.codecs, [this.encodeHeaders ? structuredClone(payload) : payload], context))[0]!,
+      transformPayloads: (payloads, context) =>
+        encode(this.codecs, this.encodeHeaders ? structuredClone(payloads) : payloads, context),
+      skipHeaders: !this.encodeHeaders,
       skipSearchAttributes: true,
       limit: this.codecOperationLimit,
       deriveContext: (message, typeName, context) => {

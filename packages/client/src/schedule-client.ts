@@ -12,6 +12,7 @@ import {
 import {
   encodeMapToPayloads,
   decodeMapFromPayloads,
+  decodeHeaders,
   extstoreInboundOptions,
   extstoreStoreOptions,
   visit,
@@ -511,7 +512,12 @@ export class ScheduleClient extends BaseClient {
       async update(updateFn): Promise<void> {
         const current = await this.describe();
         // Keep existing headers
-        const currentHeader: Headers = current.raw.schedule?.action?.startWorkflow?.header?.fields ?? {};
+        const startWorkflow = current.raw.schedule?.action?.startWorkflow;
+        const currentHeader = await decodeHeaders(this.client.dataConverter, startWorkflow?.header?.fields ?? {}, {
+          type: 'workflow',
+          namespace: this.client.options.namespace,
+          workflowId: startWorkflow!.workflowId!,
+        });
         const updated = updateFn(current);
         assertRequiredScheduleOptions(updated, 'UPDATE');
         await this.client._updateSchedule(
