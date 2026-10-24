@@ -16,6 +16,7 @@ import {
   decodeArrayFromPayloads,
   decodeMapFromPayloads,
   decodeUserMetadata,
+  encodeHeaders,
   encodeMapToPayloads,
   encodeToPayloadsWithContext,
   encodeUserMetadata,
@@ -280,7 +281,7 @@ export async function encodeScheduleAction(
               indexedFields: encodeUnifiedSearchAttributes(action.searchAttributes, action.typedSearchAttributes),
             }
           : undefined,
-      header: { fields: headers },
+      header: { fields: await encodeHeaders(dataConverter, headers, context) },
       userMetadata: await encodeUserMetadata(dataConverter, action.staticSummary, action.staticDetails, context),
       priority: action.priority ? compilePriority(action.priority) : undefined,
     },

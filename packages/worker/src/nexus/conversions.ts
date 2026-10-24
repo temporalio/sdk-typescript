@@ -122,7 +122,7 @@ async function decodeSystemNexus(dataConverter: LoadedDataConverter, payload: Pa
       (await decode(dataConverter.payloadCodecs, [nestedPayload], context))[0]!,
     transformPayloads: (nestedPayloads, context) => decode(dataConverter.payloadCodecs, nestedPayloads, context),
     initialContext: undefined,
-    skipHeaders: true,
+    skipHeaders: !dataConverter.encodeHeaders,
     skipSearchAttributes: true,
   });
   return encodeSystemNexusEnvelope(payload, message);
