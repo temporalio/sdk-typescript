@@ -6,11 +6,11 @@ import { Command } from 'commander';
 // eslint-disable-next-line import/no-named-as-default
 import prompts from 'prompts';
 
+import updateNotifier from 'update-notifier';
 import { createApp } from './create-project.js';
 import { validateNpmName } from './helpers/validate-pkg.js';
 import { fetchSamples } from './helpers/fetch-samples.js';
 import packageJson from './pkg.js';
-import updateNotifier from 'update-notifier';
 
 const program = new Command(packageJson.name)
   .version(packageJson.version, '-v, --version', 'Print the version and exit')
