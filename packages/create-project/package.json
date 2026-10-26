@@ -33,7 +33,7 @@
     "validate-npm-package-name": "^5.0.0"
   },
   "devDependencies": {
-    "@types/async-retry": "^1.4.8",
+    "@types/async-retry": "^1.4.9",
     "@types/got": "^9.6.12",
     "@types/prompts": "2.4.9",
     "@types/validate-npm-package-name": "^4.0.2",
