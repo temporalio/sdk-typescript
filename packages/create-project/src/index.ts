@@ -10,7 +10,7 @@ import { createApp } from './create-project.js';
 import { validateNpmName } from './helpers/validate-pkg.js';
 import { fetchSamples } from './helpers/fetch-samples.js';
 import packageJson from './pkg.js';
-import { createUpdateNotifier } from './helpers/update-notifier.js';
+import updateNotifier from 'update-notifier';
 
 const program = new Command(packageJson.name)
   .version(packageJson.version, '-v, --version', 'Print the version and exit')
@@ -177,7 +177,20 @@ async function start(): Promise<void> {
   });
 }
 
-const notifyUpdate = createUpdateNotifier(packageJson);
+function notifyUpdate(): void {
+  try {
+    updateNotifier({
+      pkg: packageJson,
+      updateCheckInterval: 60 * 60 * 1000,
+      shouldNotifyInNpmScript: true,
+    }).notify({
+      defer: false,
+      message: 'A new version of {packageName} is available!\nRun npx {packageName}@latest to use it.',
+    });
+  } catch {
+    // Update notifications must never interrupt project creation.
+  }
+}
 
 export function run(): void {
   start()
