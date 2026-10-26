@@ -181,7 +181,7 @@ test('withMetadata and withDeadline propagate metadata and deadline', async (t) 
   });
 
   const port = await util.promisify(server.bindAsync.bind(server))(
-    'localhost:0',
+    '127.0.0.1:0',
     grpc.ServerCredentials.createInsecure()
   );
   const connection = await NativeConnection.connect({
@@ -227,7 +227,7 @@ test('all WorkflowService methods are implemented', async (t) => {
   );
 
   const port = await util.promisify(server.bindAsync.bind(server))(
-    'localhost:0',
+    '127.0.0.1:0',
     grpc.ServerCredentials.createInsecure()
   );
   const connection = await NativeConnection.connect({
@@ -273,7 +273,7 @@ test('all OperatorService methods are implemented', async (t) => {
   );
 
   const port = await util.promisify(server.bindAsync.bind(server))(
-    'localhost:0',
+    '127.0.0.1:0',
     grpc.ServerCredentials.createInsecure()
   );
   const connection = await NativeConnection.connect({
@@ -319,7 +319,7 @@ test('all HealthService methods are implemented', async (t) => {
   );
 
   const port = await util.promisify(server.bindAsync.bind(server))(
-    'localhost:0',
+    '127.0.0.1:0',
     grpc.ServerCredentials.createInsecure()
   );
   const connection = await NativeConnection.connect({
@@ -369,7 +369,7 @@ test('all TestService methods are implemented', async (t) => {
   );
 
   const port = await util.promisify(server.bindAsync.bind(server))(
-    'localhost:0',
+    '127.0.0.1:0',
     grpc.ServerCredentials.createInsecure()
   );
   const connection = await NativeConnection.connect(<NativeConnectionOptions & InternalConnectionOptions>{
@@ -443,7 +443,7 @@ test('setMetadata accepts binary headers', async (t) => {
   });
 
   const port = await util.promisify(server.bindAsync.bind(server))(
-    'localhost:0',
+    '127.0.0.1:0',
     grpc.ServerCredentials.createInsecure()
   );
   const connection = await NativeConnection.connect({
