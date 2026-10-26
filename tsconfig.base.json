@@ -5,8 +5,6 @@
     "incremental": true,
     "module": "node20",
     "moduleResolution": "node16",
-    "moduleDetection": "auto",
-    "target": "es2022",
     "sourceMap": true,
     "experimentalDecorators": true,
     "noUncheckedIndexedAccess": true,
