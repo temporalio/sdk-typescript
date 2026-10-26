@@ -3,6 +3,7 @@ import type { ExecutionContext } from 'ava';
 import type { ScheduleOptionsAction, WorkflowExecutionDescription } from '@temporalio/client';
 import type { SearchAttributes, SearchAttributePair, SearchAttributeUpdatePair } from '@temporalio/common';
 import { TypedSearchAttributes, SearchAttributeType, defineSearchAttributeKey } from '@temporalio/common';
+import { encodeSearchAttributeIndexedValueType } from '@temporalio/common/internal/internal-workflow';
 import { temporal } from '@temporalio/proto';
 import type { WorkflowInfo } from '@temporalio/workflow';
 import {
@@ -13,7 +14,6 @@ import {
   upsertSearchAttributes,
   workflowInfo,
 } from '@temporalio/workflow';
-import { encodeSearchAttributeIndexedValueType } from '@temporalio/common/lib/search-attributes';
 import { waitUntil } from './helpers';
 import type { Context } from './helpers-integration';
 import { helpers, makeTestFunction } from './helpers-integration';

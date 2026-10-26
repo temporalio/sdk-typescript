@@ -2,7 +2,7 @@ import type { coresdk } from '@temporalio/proto';
 import type { RetryPolicy } from './retry-policy';
 import type { Duration } from './time';
 import type { VersioningIntent } from './versioning-intent';
-import { makeProtoEnumConverters } from './internal-workflow';
+import { makeProtoEnumConverters } from './internal-workflow/enums-helpers';
 import type { Priority } from './priority';
 
 // Note: The types defined in this file are here for legacy reasons. They should have been defined
@@ -61,6 +61,7 @@ export const ActivityCancellationType = {
 } as const;
 export type ActivityCancellationType = (typeof ActivityCancellationType)[keyof typeof ActivityCancellationType];
 
+/* @lintignore Keep both directions of the enum converter pair. */
 export const [encodeActivityCancellationType, decodeActivityCancellationType] = makeProtoEnumConverters<
   coresdk.workflow_commands.ActivityCancellationType,
   typeof coresdk.workflow_commands.ActivityCancellationType,

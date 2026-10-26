@@ -21,9 +21,6 @@ packages:
   - contrib/google-adk-agents
   - contrib/interceptors-opentelemetry
   - contrib/interceptors-opentelemetry-v2
-  - contrib/langsmith
-  - contrib/openai-agents
-  - contrib/strands
   - contrib/external-storage-s3
   - contrib/external-storage-s3-aws-sdk
   - contrib/external-storage-gcs
@@ -41,8 +38,8 @@ minimumReleaseAgeExclude:
   - '@temporalio/*'
   - nexus-rpc
 
-  # These AI SDK releases share provider-utils 5.0.53. The packages pin exact
-  # versions of each other, so the whole family has to be allowed together.
+  # The Vercel compatibility package forwards to the standalone AI SDK integration.
+  # Its provider family pins these versions to each other.
   - ai@7.0.124
   - '@ai-sdk/gateway@4.0.102'
   - '@ai-sdk/mcp@2.0.64'
@@ -61,3 +58,7 @@ overrides:
   'minimatch@>=7.0.0 <7.4.8': '>=7.4.8'
   serialize-javascript: '>=7.0.3'
   handlebars: '>=4.7.9'
+
+# Remove this patch when the temporary ./lib/* compatibility exports are removed.
+patchedDependencies:
+  knip@6.40.0: patches/knip@6.40.0.patch

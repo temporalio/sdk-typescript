@@ -3,17 +3,7 @@
   "compilerOptions": {
     "outDir": "./lib",
     "rootDir": "./src",
-    "lib": ["ES2022", "ESNext.Disposable", "DOM"],
-    "target": "ES2022"
+    "skipLibCheck": true
   },
-  "references": [
-    { "path": "../../packages/plugin" },
-    { "path": "../../packages/worker" },
-    { "path": "../../packages/workflow" },
-    { "path": "../../packages/activity" },
-    { "path": "../../packages/common" },
-    { "path": "../../packages/testing" },
-    { "path": "../workflow-streams" }
-  ],
   "include": ["./src/**/*.ts"]
 }

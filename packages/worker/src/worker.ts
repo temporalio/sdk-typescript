@@ -16,6 +16,7 @@ import type {
   MetricMeter,
   ActivitySerializationContext,
   PayloadTypeInfo,
+  StorageDriverTargetInfo,
 } from '@temporalio/common';
 import {
   DataConverter,
@@ -25,6 +26,7 @@ import {
   SdkComponent,
   ApplicationFailure,
   ensureApplicationFailure,
+  LoggerWithComposedMetadata,
   TypedSearchAttributes,
   decodePriority,
   CancelledFailure,
@@ -32,7 +34,8 @@ import {
   convertDeploymentVersion,
   isActivityFunctionWithOptions,
 } from '@temporalio/common';
-import type { Decoded } from '@temporalio/common/lib/internal-non-workflow';
+import type { Decoded } from '@temporalio/common/internal/internal-non-workflow';
+import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
@@ -41,6 +44,7 @@ import {
   ExternalStorageMetricsAccumulator,
   externalStorageRetrieveVisitOptions,
   externalStorageStoreVisitOptions,
+  suggestContinueAsNewReasonsFromProto,
   visit,
   walkActivityHeartbeat,
   walkActivityTask,
@@ -48,9 +52,7 @@ import {
   walkNexusTaskCompletion,
   walkWorkflowActivation,
   walkWorkflowActivationCompletion,
-} from '@temporalio/common/lib/internal-non-workflow';
-import type { StorageDriverTargetInfo } from '@temporalio/common/lib/converter/extstore';
-import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
+} from '@temporalio/common/internal/internal-non-workflow';
 import type { Duration } from '@temporalio/common/lib/time';
 import {
   msToNumber,
@@ -60,18 +62,19 @@ import {
   tsToDate,
   tsToMs,
 } from '@temporalio/common/lib/time';
-import { LoggerWithComposedMetadata } from '@temporalio/common/lib/logger';
-import type { NonNullableObject, OmitFirstParam } from '@temporalio/common/lib/type-helpers';
-import { errorMessage } from '@temporalio/common/lib/type-helpers';
-import { workflowLogAttributes } from '@temporalio/workflow/lib/logs';
-import { createUnsafeRandomSource } from '@temporalio/workflow/lib/random-helpers';
+import {
+  errorMessage,
+  type NonNullableObject,
+  type OmitFirstParam,
+  throwIfReservedName,
+} from '@temporalio/common/internal/internal-workflow';
+import { workflowLogAttributes } from '@temporalio/workflow/internal/logs';
+import { createUnsafeRandomSource } from '@temporalio/workflow/internal';
 import { native } from '@temporalio/core-bridge';
 import { Client } from '@temporalio/client';
 import type { temporal } from '@temporalio/proto';
 import { coresdk } from '@temporalio/proto';
 import { type SinkCall, type WorkflowInfo } from '@temporalio/workflow';
-import { throwIfReservedName } from '@temporalio/common/lib/reserved';
-import { suggestContinueAsNewReasonsFromProto } from '@temporalio/common/lib/continue-as-new';
 import type { CancelReason } from './activity';
 import { Activity, activityLogAttributes } from './activity';
 import type { NativeConnection } from './connection';
@@ -176,12 +179,20 @@ export interface NativeReplayHandle {
 }
 
 interface NativeWorkerConstructor {
-  create(
+  create<T extends { connection: NativeConnection; options: CompiledWorkerOptionsWithBuildId }>(
     runtime: Runtime,
-    connection: NativeConnection,
-    options: CompiledWorkerOptionsWithBuildId
-  ): Promise<NativeWorkerLike>;
-  createReplay(runtime: Runtime, options: CompiledWorkerOptionsWithBuildId): Promise<NativeReplayHandle>;
+    prepare: () => Promise<T>
+  ): Promise<[NativeWorkerLike, T]>;
+  createReplay<T extends { options: CompiledWorkerOptionsWithBuildId }>(
+    runtime: Runtime,
+    prepare: () => Promise<T>
+  ): Promise<[NativeReplayHandle, T]>;
+}
+
+interface PreparedWorker {
+  connection: NativeConnection;
+  options: CompiledWorkerOptionsWithBuildId;
+  workflowCreator: WorkflowCreator | undefined;
 }
 
 interface WorkflowWithLogAttributes {
@@ -214,24 +225,30 @@ export class NativeWorker implements NativeWorkerLike {
   public readonly recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
   public readonly initiateShutdown: OmitFirstParam<typeof native.workerInitiateShutdown>;
 
-  public static async create(
+  public static async create<T extends { connection: NativeConnection; options: CompiledWorkerOptionsWithBuildId }>(
     runtime: Runtime,
-    connection: NativeConnection,
-    options: CompiledWorkerOptionsWithBuildId
-  ): Promise<NativeWorkerLike> {
-    const nativeWorker = await runtime.registerWorker(extractNativeClient(connection), toNativeWorkerOptions(options));
-    return new NativeWorker(runtime, nativeWorker);
+    prepare: () => Promise<T>
+  ): Promise<[NativeWorkerLike, T]> {
+    const [nativeWorker, { prepared }] = await runtime.registerWorker(async () => {
+      const prepared = await prepare();
+      return {
+        client: extractNativeClient(prepared.connection),
+        options: toNativeWorkerOptions(prepared.options),
+        prepared,
+      };
+    });
+    return [new NativeWorker(runtime, nativeWorker), prepared];
   }
 
-  public static async createReplay(
+  public static async createReplay<T extends { options: CompiledWorkerOptionsWithBuildId }>(
     runtime: Runtime,
-    options: CompiledWorkerOptionsWithBuildId
-  ): Promise<NativeReplayHandle> {
-    const [worker, historyPusher] = await runtime.createReplayWorker(toNativeWorkerOptions(options));
-    return {
-      worker: new NativeWorker(runtime, worker),
-      historyPusher,
-    };
+    prepare: () => Promise<T>
+  ): Promise<[NativeReplayHandle, T]> {
+    const [worker, historyPusher, { prepared }] = await runtime.createReplayWorker(async () => {
+      const prepared = await prepare();
+      return { options: toNativeWorkerOptions(prepared.options), prepared };
+    });
+    return [{ worker: new NativeWorker(runtime, worker), historyPusher }, prepared];
   }
 
   protected constructor(
@@ -535,7 +552,6 @@ export class Worker {
       namespace: options.namespace ?? 'default',
       taskQueue: options.taskQueue ?? 'default',
     });
-    const nativeWorkerCtor: NativeWorkerConstructor = this.nativeWorkerCtor;
     const compiledOptions = compileWorkerOptions(options, logger, metricMeter);
     logger.debug('Creating worker', {
       options: {
@@ -556,35 +572,43 @@ export class Worker {
           : {}),
       },
     });
-    const bundle = await this.getOrCreateBundle(compiledOptions, logger);
-    let workflowCreator: WorkflowCreator | undefined = undefined;
-    if (bundle) {
-      workflowCreator = await this.createWorkflowCreator(bundle, compiledOptions, logger);
-    }
-    // Create a new connection if one is not provided with no CREATOR reference
-    // so it can be automatically closed when this Worker shuts down.
-    const connection = options.connection ?? (await InternalNativeConnection.connect());
+    const nativeWorkerCtor: NativeWorkerConstructor = this.nativeWorkerCtor;
+    let connection: NativeConnection | undefined;
     let nativeWorker: NativeWorkerLike;
-    const compiledOptionsWithBuildId = addBuildIdIfMissing(compiledOptions, bundle?.code);
+    let prepared: PreparedWorker;
     try {
-      nativeWorker = await nativeWorkerCtor.create(runtime, connection, compiledOptionsWithBuildId);
+      [nativeWorker, prepared] = await nativeWorkerCtor.create(runtime, async () => {
+        const bundle = await this.getOrCreateBundle(compiledOptions, logger);
+        let workflowCreator: WorkflowCreator | undefined = undefined;
+        if (bundle) {
+          workflowCreator = await this.createWorkflowCreator(bundle, compiledOptions, logger);
+        }
+        // Create a new connection if one is not provided with no CREATOR reference
+        // so it can be automatically closed when this Worker shuts down.
+        connection = options.connection ?? (await InternalNativeConnection.connect());
+        return {
+          connection,
+          options: addBuildIdIfMissing(compiledOptions, bundle?.code),
+          workflowCreator,
+        };
+      });
     } catch (err) {
       // We just created this connection, close it
       if (!options.connection) {
-        await connection.close();
+        await connection?.close();
       }
       throw err;
     }
-    extractReferenceHolders(connection).add(nativeWorker);
+    extractReferenceHolders(prepared.connection).add(nativeWorker);
     return new this(
       runtime,
       nativeWorker,
-      workflowCreator,
-      compiledOptionsWithBuildId,
+      prepared.workflowCreator,
+      prepared.options,
       logger,
       metricMeter,
       options.plugins ?? [],
-      connection
+      prepared.connection
     );
   }
 
@@ -761,20 +785,22 @@ export class Worker {
       taskQueue: fixedUpOptions.taskQueue,
     });
     const compiledOptions = compileWorkerOptions(fixedUpOptions, logger, metricMeter);
-    const bundle = await this.getOrCreateBundle(compiledOptions, logger);
-    if (!bundle) {
-      throw new TypeError('ReplayWorkerOptions must contain workflowsPath or workflowBundle');
-    }
-    const workflowCreator = await this.createWorkflowCreator(bundle, compiledOptions, logger);
-    const replayHandle = await nativeWorkerCtor.createReplay(
-      runtime,
-      addBuildIdIfMissing(compiledOptions, bundle.code)
-    );
+    const [replayHandle, prepared] = await nativeWorkerCtor.createReplay(runtime, async () => {
+      const bundle = await this.getOrCreateBundle(compiledOptions, logger);
+      if (!bundle) {
+        throw new TypeError('ReplayWorkerOptions must contain workflowsPath or workflowBundle');
+      }
+      const workflowCreator = await this.createWorkflowCreator(bundle, compiledOptions, logger);
+      return {
+        options: addBuildIdIfMissing(compiledOptions, bundle.code),
+        workflowCreator,
+      };
+    });
     return [
       new this(
         runtime,
         replayHandle.worker,
-        workflowCreator,
+        prepared.workflowCreator,
         compiledOptions,
         logger,
         metricMeter,

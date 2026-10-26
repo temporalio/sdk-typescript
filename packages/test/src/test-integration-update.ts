@@ -1,6 +1,10 @@
 import { randomUUID } from 'crypto';
 import { status as grpcStatus } from '@grpc/grpc-js';
 import {
+  Client,
+  Connection,
+  defaultGrpcRetryOptions,
+  makeGrpcRetryInterceptor,
   isGrpcServiceError,
   WorkflowUpdateStage,
   WorkflowUpdateRPCTimeoutOrCancelledError,
@@ -256,8 +260,17 @@ export async function workflowWithNeverReturningUpdate(): Promise<never> {
 
 test('updateWithStart failure: update fails early due to limit on number of updates', async (t) => {
   const workflowId = randomUUID();
+  const { env } = t.context;
   const { createWorker, taskQueue } = helpers(t);
   const worker = await createWorker();
+  // Use one attempt for the expected RESOURCE_EXHAUSTED error, preserving Cloud connection settings.
+  const connection = await Connection.connect({
+    ...env.connectionOptions,
+    address: env.address,
+    interceptors: [makeGrpcRetryInterceptor(defaultGrpcRetryOptions({ maxAttempts: 1 }))],
+  });
+  t.teardown(() => connection.close());
+  const client = new Client({ ...env.client.options, connection });
   const makeStartOp = () =>
     new WithStartWorkflowOperation(workflowWithNeverReturningUpdate, {
       workflowId,
@@ -265,7 +278,7 @@ test('updateWithStart failure: update fails early due to limit on number of upda
       workflowIdConflictPolicy: 'USE_EXISTING',
     });
   const startUpdateWithStart = async (startOp: WithStartWorkflowOperation<typeof workflowWithNeverReturningUpdate>) => {
-    await t.context.env.client.workflow.startUpdateWithStart(neverReturningUpdate, {
+    await client.workflow.startUpdateWithStart(neverReturningUpdate, {
       waitForStage: 'ACCEPTED',
       startWorkflowOperation: startOp,
     });
@@ -279,13 +292,15 @@ test('updateWithStart failure: update fails early due to limit on number of upda
       await startOp.workflowHandle;
     }
     // The 11th call should fail with a gRPC error
-
-    // TODO: set gRPC retries to 1. This generates a RESOURCE_EXHAUSTED error,
-    // and by default these are retried 10 times.
     const startOp = makeStartOp();
     for (const promise of [startUpdateWithStart(startOp), startOp.workflowHandle()]) {
       const err = await t.throwsAsync(promise);
       t.true(isGrpcServiceError(err) && err.code === grpcStatus.RESOURCE_EXHAUSTED);
+      t.is(err?.message, 'limit on number of concurrent in-flight updates has been reached (10)');
+      t.is(
+        err?.stack?.split('\n')[0],
+        'Error: 8 RESOURCE_EXHAUSTED: limit on number of concurrent in-flight updates has been reached (10)'
+      );
     }
   });
 });
@@ -443,6 +458,56 @@ test('Update validator can reject when using handle.result() but handle can be o
       waitForStage: WorkflowUpdateStage.ACCEPTED,
     });
     await assertWorkflowUpdateFailed(updateHandle.result(), wf.ApplicationFailure, 'Validation failed');
+  });
+});
+
+const finishUpdate = wf.defineUpdate<void, [boolean]>('finish');
+const conditionEvaluationsQuery = wf.defineQuery<number>('conditionEvaluations');
+
+export async function workflowCountingConditionEvaluations(): Promise<void> {
+  let conditionEvaluations = 0;
+  let done = false;
+  wf.setHandler(conditionEvaluationsQuery, () => conditionEvaluations);
+  wf.setHandler(
+    finishUpdate,
+    (_accept: boolean): void => {
+      done = true;
+    },
+    {
+      validator: (accept: boolean): void => {
+        if (!accept) {
+          throw new Error('Rejected');
+        }
+      },
+    }
+  );
+  await wf.condition(() => {
+    conditionEvaluations++;
+    return done;
+  });
+}
+
+test('Rejected update does not evaluate conditions', async (t) => {
+  const { createWorker, startWorkflow, assertWorkflowUpdateFailed } = helpers(t);
+  const worker = await createWorker();
+  await worker.runUntil(async () => {
+    const wfHandle = await startWorkflow(workflowCountingConditionEvaluations);
+    const evaluations = await wfHandle.query(conditionEvaluationsQuery);
+    t.true(evaluations > 0);
+
+    // Neither the rejected update nor the queries can change state, so none of their activations may
+    // evaluate the condition
+    await assertWorkflowUpdateFailed(
+      wfHandle.executeUpdate(finishUpdate, { args: [false] }),
+      wf.ApplicationFailure,
+      'Rejected'
+    );
+    t.is(await wfHandle.query(conditionEvaluationsQuery), evaluations);
+
+    // Completing is what shows an accepted update re-enables evaluation; a count queried after
+    // completion would come from replaying history rather than from this run
+    await wfHandle.executeUpdate(finishUpdate, { args: [true] });
+    await wfHandle.result();
   });
 });
 

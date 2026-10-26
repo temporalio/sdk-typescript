@@ -1,0 +1,1 @@
+Undocumented imports through `@temporalio/*/lib/*` are deprecated. Where present, the wildcard remains temporarily as a compatibility fallback. `@temporalio/common` explicitly supports `@temporalio/common/encoding`, `@temporalio/common/protobufs`, `@temporalio/common/proto-utils`, and `@temporalio/common/time`

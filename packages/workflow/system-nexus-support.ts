@@ -3,8 +3,7 @@ import { msToTs, requiredTsToMs } from '@temporalio/common/lib/time';
 import {
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
-} from '@temporalio/common/lib/converter/payload-search-attributes';
-import { versioningOverrideToProto as commonVersioningOverrideToProto } from '@temporalio/common/lib/worker-deployments';
+} from '@temporalio/common/internal/internal-workflow';
 import type { google, temporal } from '@temporalio/proto';
 import { workflowInfo } from '../../../workflow';
 import { currentSystemNexusPayloadConversion } from '../user-payload-converter';
@@ -172,6 +171,15 @@ export function versioningOverrideFromProto(
   if (proto.autoUpgrade || proto.behavior === VERSIONING_BEHAVIOR_AUTO_UPGRADE) {
     return 'AUTO_UPGRADE';
   }
+  const oneTimeVersion = proto.oneTime?.targetDeploymentVersion;
+  if (oneTimeVersion?.deploymentName != null && oneTimeVersion.buildId != null) {
+    return {
+      oneTimeTo: {
+        deploymentName: oneTimeVersion.deploymentName,
+        buildId: oneTimeVersion.buildId,
+      },
+    };
+  }
   const pinnedVersion = proto.pinned?.version;
   if (pinnedVersion?.deploymentName != null && pinnedVersion.buildId != null) {
     return {
@@ -195,7 +203,7 @@ export function versioningOverrideFromProto(
 export function versioningOverrideToProto(
   versioningOverride: common.VersioningOverride
 ): temporal.api.workflow.v1.IVersioningOverride {
-  return commonVersioningOverrideToProto(versioningOverride)!;
+  return common.versioningOverrideToProto(versioningOverride)!;
 }
 
 export function workflowIdReusePolicyFromProto(

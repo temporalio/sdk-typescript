@@ -15,11 +15,11 @@ import type {
   WorkerDeploymentVersion,
   VersioningBehavior,
   InitialVersioningBehavior,
+  VersioningOverride,
   SuggestContinueAsNewReason,
   PayloadTypeInfo,
 } from '@temporalio/common';
-import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
-import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow/enums-helpers';
+import { makeProtoEnumConverters, SymbolBasedInstanceOfError } from '@temporalio/common/internal/internal-workflow';
 import type { coresdk } from '@temporalio/proto';
 import type { EventGroup } from './event-groups';
 
@@ -507,7 +507,7 @@ export const ChildWorkflowCancellationType = {
 export type ChildWorkflowCancellationType =
   (typeof ChildWorkflowCancellationType)[keyof typeof ChildWorkflowCancellationType];
 
-// ts-prune-ignore-next
+/* @lintignore Keep both directions of the enum converter pair. */
 export const [encodeChildWorkflowCancellationType, decodeChildWorkflowCancellationType] = makeProtoEnumConverters<
   coresdk.child_workflow.ChildWorkflowCancellationType,
   typeof coresdk.child_workflow.ChildWorkflowCancellationType,
@@ -579,7 +579,7 @@ export const ParentClosePolicy = {
 } as const;
 export type ParentClosePolicy = (typeof ParentClosePolicy)[keyof typeof ParentClosePolicy];
 
-// ts-prune-ignore-next
+/* @lintignore Keep both directions of the enum converter pair. */
 export const [encodeParentClosePolicy, decodeParentClosePolicy] = makeProtoEnumConverters<
   coresdk.child_workflow.ParentClosePolicy,
   typeof coresdk.child_workflow.ParentClosePolicy,
@@ -652,6 +652,19 @@ export interface ChildWorkflowOptions extends Omit<CommonWorkflowOptions, 'workf
    * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
    */
   versioningIntent?: VersioningIntent;
+
+  /**
+   * Explicit versioning configuration for the Child Workflow. Takes precedence over versioning
+   * inherited from the Parent Workflow. By default, no override is set.
+   *
+   * Supports pinning to a deployment version, auto-upgrading, or routing the first Workflow Task
+   * to a version once before adopting the versioning behavior defined in the Child Workflow's code.
+   *
+   * Requires Temporal Server 1.32.0 or later.
+   *
+   * @experimental
+   */
+  versioningOverride?: VersioningOverride;
 
   /**
    * Event Groups to attach to the child workflow start command. They will be reflected on the

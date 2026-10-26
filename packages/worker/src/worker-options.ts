@@ -13,11 +13,12 @@ import type {
 } from '@temporalio/common';
 import type { Duration } from '@temporalio/common/lib/time';
 import { msOptionalToNumber, msToNumber } from '@temporalio/common/lib/time';
-import { loadDataConverter, withPayloadCacheMetrics } from '@temporalio/common/lib/internal-non-workflow';
+import { loadDataConverter, withPayloadCacheMetrics } from '@temporalio/common/internal/internal-non-workflow';
 import type { LoggerSinks, WorkflowInfo } from '@temporalio/workflow';
 import type { Context } from '@temporalio/activity';
 import type { native } from '@temporalio/core-bridge';
-import { throwIfReservedName } from '@temporalio/common/lib/reserved';
+import { throwIfReservedName } from '@temporalio/common/internal/internal-workflow';
+import { withNexusActivityLinking } from '@temporalio/nexus/internal';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import type { NativeConnection } from './connection';
 import type { CompiledWorkerInterceptors, WorkerInterceptors } from './interceptors';
@@ -894,6 +895,7 @@ function compileWorkerInterceptors({
     client: {
       workflow: client?.workflow ?? [],
       schedule: client?.schedule ?? [],
+      activity: withNexusActivityLinking(client?.activity ?? []),
     },
     activity: [...activityInbound.map((factory) => (ctx: Context) => ({ inbound: factory(ctx) })), ...activity],
     nexus: nexus ?? [],
@@ -1088,6 +1090,7 @@ function addDefaultWorkerOptions(
       client: {
         workflow: interceptors?.client?.workflow ?? [],
         schedule: interceptors?.client?.schedule ?? [],
+        activity: interceptors?.client?.activity ?? [],
       },
       activity: interceptors?.activity ?? [],
       nexus: interceptors?.nexus ?? [],

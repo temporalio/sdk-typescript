@@ -37,14 +37,18 @@
 export { NativeConnection, NativeConnectionPlugin } from './connection';
 export {
   DNSLoadBalancingConfig,
+  GzipGrpcCompressionConfig,
   GrpcCompressionConfig,
   NativeConnectionOptions,
+  NoneGrpcCompressionConfig,
+  PayloadLimitsConfig,
+  ProxyConfig,
   TLSConfig,
 } from './connection-options';
 export { startDebugReplayer } from './debug-replayer';
 export { IllegalStateError } from '@temporalio/common';
-export { InMemoryPayloadCache } from '@temporalio/common/lib/internal-non-workflow';
-export type { InMemoryPayloadCacheOptions } from '@temporalio/common/lib/internal-non-workflow';
+export { InMemoryPayloadCache } from '@temporalio/common/internal/internal-non-workflow';
+export type { InMemoryPayloadCacheOptions } from '@temporalio/common/internal/internal-non-workflow';
 export type { PayloadCache } from '@temporalio/common';
 export {
   CombinedWorkerRunError,
@@ -170,7 +174,7 @@ export {
    * @deprecated This function is meant for internal usage. Don't use it.
    */
   workflowLogAttributes,
-} from '@temporalio/workflow/lib/logs';
+} from '@temporalio/workflow/internal/logs';
 
 export {
   /**

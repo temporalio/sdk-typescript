@@ -25,7 +25,7 @@ export const disallowedModules = [
   '@temporalio/activity',
   '@temporalio/client',
   '@temporalio/worker',
-  '@temporalio/common/lib/internal-non-workflow',
+  '@temporalio/common/internal/internal-non-workflow',
   '@temporalio/interceptors-opentelemetry/lib/client',
   '@temporalio/interceptors-opentelemetry/lib/worker',
   '@temporalio/interceptors-opentelemetry-v2/lib/client',
@@ -179,10 +179,10 @@ export class WorkflowCodeBundler {
       .join('\n');
 
     const code = `
-const api = require('@temporalio/workflow/lib/worker-interface.js');
+const api = require('@temporalio/workflow/internal/worker-interface');
 exports.api = api;
 
-const { overrideGlobals } = require('@temporalio/workflow/lib/global-overrides.js');
+const { overrideGlobals } = require('@temporalio/workflow/internal/global-overrides');
 overrideGlobals();
 
 exports.preloadModules = function preloadModules() {

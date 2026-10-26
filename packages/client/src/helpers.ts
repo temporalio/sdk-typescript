@@ -6,10 +6,10 @@ import {
   decodeSearchAttributes,
   decodeTypedSearchAttributes,
   searchAttributePayloadConverter,
-} from '@temporalio/common/lib/converter/payload-search-attributes';
-import type { Replace } from '@temporalio/common/lib/type-helpers';
+  type Replace,
+} from '@temporalio/common/internal/internal-workflow';
 import { optionalTsToDate, requiredTsToDate } from '@temporalio/common/lib/time';
-import { decodeMapFromPayloads } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
+import { decodeMapFromPayloads } from '@temporalio/common/internal/internal-non-workflow';
 import { temporal, google } from '@temporalio/proto';
 import type {
   CountWorkflowExecution,
@@ -155,6 +155,7 @@ export function rethrowKnownErrorTypes(err: GrpcServiceError): void {
           err.message = status.message ?? err.message;
           err.code = status.code || err.code;
           err.details = detail?.value?.toString() || err.details;
+          err.stack = err.stack?.replace(/^.*$/m, `${err.name}: ${err.code} ${grpcStatus[err.code]}: ${err.message}`);
           throw err;
         }
       }

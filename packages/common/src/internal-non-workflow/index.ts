@@ -3,6 +3,9 @@
  *
  * @module
  */
+export * from '../concurrency/limit';
+export { suggestContinueAsNewReasonsFromProto } from '../continue-as-new';
+export { isSerializationContext } from '../converter/serialization-context';
 export * from './codec-helpers';
 export * from './codec-types';
 export * from './data-converter-helpers';

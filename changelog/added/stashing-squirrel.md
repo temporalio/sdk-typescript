@@ -1,0 +1,1 @@
+**Experimental**: Added opt-in payload caching for External Storage. Pass a `PayloadCache`, such as `InMemoryPayloadCache`, as the `payloadCache` option of a Client or Worker to cache External Storage payloads.

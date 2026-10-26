@@ -1,8 +1,8 @@
 import test from 'ava';
 import type { Payload, PayloadCache } from '@temporalio/common';
 import { Runtime } from '@temporalio/worker';
-import { compileWorkerOptions, toNativeWorkerOptions } from '@temporalio/worker/lib/worker-options';
-import { ExternalStorage, type StorageDriver } from '@temporalio/common/lib/converter/extstore';
+import { compileWorkerOptions, toNativeWorkerOptions } from '@temporalio/worker/internal';
+import { ExternalStorage, type StorageDriver } from '@temporalio/common';
 import { defaultOptions } from './mock-native-worker';
 
 /** Minimal driver whose reported `type` is independent of its (unique) `name`. */

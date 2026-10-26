@@ -22,6 +22,28 @@ env:
   # TESTS_TIME_SKIPPING_SERVER_VERSION: 'v1.24.1'
 
 jobs:
+  release-notes:
+    name: Generate release notes
+    if: startsWith(github.ref, 'refs/heads/releases/') || startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          submodules: true
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - name: Generate completed changelog and Core commit notes
+        shell: bash
+        run: |
+          VERSION=$(node -p 'require("./packages/common/package.json").version')
+          cargo run --manifest-path packages/core-bridge/sdk-core/crates/changelog-release-notes/Cargo.toml \
+            --bin changelog-tool -- release-notes --repo "$PWD" \
+            --submodule packages/core-bridge/sdk-core --version "$VERSION" --output release-notes.md
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-notes
+          path: release-notes.md
+
   # Compile native bridge code for each target platform.
   # Uploads the native library for each target as a build artifact.
   compile-native-binaries-release:

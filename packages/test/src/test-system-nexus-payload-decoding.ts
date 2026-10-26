@@ -6,26 +6,25 @@ import {
   defaultDataConverter,
   defaultPayloadConverter,
   ExternalStorageNotConfiguredError,
+  ExternalStorage,
   RawValue,
   rawValueTypeInfo,
 } from '@temporalio/common';
-import { ExternalStorage } from '@temporalio/common/lib/converter/extstore';
 import {
   ExternalStorageRunner,
   externalStorageRetrieveVisitOptions,
   isReferencePayload,
-} from '@temporalio/common/lib/internal-non-workflow';
-import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
+} from '@temporalio/common/internal/internal-non-workflow';
+import { ProtobufBinaryPayloadConverter } from '@temporalio/common/protobufs';
 import {
   SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE,
-} from '@temporalio/common/lib/internal-workflow';
+} from '@temporalio/common/internal/internal-workflow';
 import * as protoRoot from '@temporalio/proto';
 import type { coresdk, temporal } from '@temporalio/proto';
 import type { SignalWithStartWorkflowRequest } from '@temporalio/workflow';
-import { workflowService } from '@temporalio/workflow/lib/nexus/system/generated/services';
-import { decodePayload, PAYLOAD_VALIDATION_ERROR_TYPE } from '@temporalio/worker/lib/nexus/conversions';
-import { visitNexusTask } from '@temporalio/worker/lib/system-nexus-operations';
+import { workflowService } from '@temporalio/workflow/internal';
+import { decodePayload, PAYLOAD_VALIDATION_ERROR_TYPE, visitNexusTask } from '@temporalio/worker/internal';
 import { makeFakeDriver } from './extstore-fake-driver';
 
 const protobufPayloadConverter = new ProtobufBinaryPayloadConverter(protoRoot);
@@ -112,6 +111,19 @@ test('decodePayload uses the System Nexus converter for a marked input', async (
   t.is(result.taskQueue, 'target-task-queue');
   t.is(result.signal, 'test-signal');
   t.is(result.namespace, 'target-namespace');
+});
+
+test('decodePayload preserves a one-time versioning override in a System Nexus input', async (t) => {
+  const version = { deploymentName: 'deployment', buildId: 'build' };
+  const result = (await decodePayload(
+    defaultDataConverter,
+    systemNexusPayloadWith(defaultPayloadConverter.toPayload('input'), undefined, {
+      versioningOverride: { oneTime: { targetDeploymentVersion: version } },
+    }),
+    signalWithStartInputType
+  )) as SignalWithStartWorkflowRequest;
+
+  t.deepEqual(result.versioningOverride, { oneTimeTo: version });
 });
 
 interface TestSystemRequest {

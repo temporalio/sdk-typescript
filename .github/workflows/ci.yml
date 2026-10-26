@@ -138,6 +138,7 @@ jobs:
       # Per-package result JSON + full logs are written here by scripts/ava-ci.ts,
       # archived as the test-logs-* artifact, and aggregated by the ci-summary job.
       TEST_RESULTS_DIR: ${{ github.workspace }}/.test-results
+      TEST_LOGS_ARTIFACT_NAME: test-logs-${{ matrix.platform }}-${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}
     defaults:
       run:
         shell: bash
@@ -304,10 +305,11 @@ jobs:
       # and sample-init logs (the firehose we keep off the console). Placed at the end
       # so it captures logs written by the sample steps above too.
       - name: Upload test logs
+        id: upload-test-logs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
-          name: test-logs-${{ matrix.platform }}-${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}
+          name: ${{ env.TEST_LOGS_ARTIFACT_NAME }}
           path: ${{ env.TEST_RESULTS_DIR }}
           retention-days: 7
           if-no-files-found: ignore
@@ -315,6 +317,11 @@ jobs:
           # excludes files under dot-dirs unless this is set, which would leave the
           # ci-summary job with no results to report.
           include-hidden-files: true
+
+      - name: Report test logs artifact
+        if: ${{ always() && steps.upload-test-logs.outputs.artifact-id != '' }}
+        run: |
+          echo "- CI artifact: $TEST_LOGS_ARTIFACT_NAME"
 
       - name: Upload Dev Server logs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -335,6 +342,7 @@ jobs:
         shell: bash
     env:
       TEMPORAL_CLIENT_CLOUD_API_VERSION: v0.19.1
+      CLOUD_TEST_OUTPUT_ARTIFACT_NAME: cloud-integration-tests-output
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -428,13 +436,19 @@ jobs:
           TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
 
       - name: Upload Cloud test output
+        id: upload-cloud-test-output
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: cloud-integration-tests-output
+          name: ${{ env.CLOUD_TEST_OUTPUT_ARTIFACT_NAME }}
           path: cloud-integration.tap
           if-no-files-found: ignore
           retention-days: 14
+
+      - name: Report Cloud test output artifact
+        if: ${{ always() && steps.upload-cloud-test-output.outputs.artifact-id != '' }}
+        run: |
+          echo "- CI artifact: $CLOUD_TEST_OUTPUT_ARTIFACT_NAME"
 
   conventions:
     name: Lint and Prune
@@ -479,6 +493,28 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  # The single required status check for merging: a PR can merge only if every job in
+  # `needs` passed. Kept separate from ci-summary so that a bug in the summary script
+  # can't block merges.
+  required-pr-checks:
+    name: Required PR Checks
+    # Without always(), this job would be skipped when a dependency fails, and GitHub
+    # treats a skipped required check as passing.
+    if: always()
+    needs:
+      - compile-native-binaries-debug
+      - integration-tests
+      - conventions
+      - features-tests
+      - stress-tests-no-reuse-context
+      - stress-tests-reuse-context
+      - docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any check failed or was cancelled
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1
 
   ci-summary:
     name: CI

@@ -1,5 +1,5 @@
 import test from 'ava';
-import { patchProtobufRoot } from '@temporalio/common/lib/protobufs';
+import { patchProtobufRoot } from '@temporalio/common/protobufs';
 
 test('patchRoot', (t) => {
   const type = new Type();

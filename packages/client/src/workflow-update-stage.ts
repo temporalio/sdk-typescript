@@ -1,5 +1,5 @@
 import type { temporal } from '@temporalio/proto';
-import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
+import { makeProtoEnumConverters } from '@temporalio/common/internal/internal-workflow';
 
 export const WorkflowUpdateStage = {
   /** Admitted stage. This stage is reached when the server accepts the update request. It is not

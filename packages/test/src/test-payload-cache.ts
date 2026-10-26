@@ -2,9 +2,8 @@
 import test, { type ExecutionContext } from 'ava';
 import Long from 'long';
 import type { MetricCounter, MetricMeter, MetricTags, Payload, PayloadCache } from '@temporalio/common';
-import { ValueError } from '@temporalio/common';
+import { ExternalStorage, METADATA_ENCODING_KEY, ValueError } from '@temporalio/common';
 import { Client, WorkflowClient } from '@temporalio/client';
-import { ExternalStorage } from '@temporalio/common/lib/converter/extstore';
 import {
   decodeReferencePayload,
   externalStorageClaimCacheKey,
@@ -13,9 +12,8 @@ import {
   ExternalStorageRunner,
   InMemoryPayloadCache,
   withPayloadCacheMetrics,
-} from '@temporalio/common/lib/internal-non-workflow';
-import { encode } from '@temporalio/common/lib/encoding';
-import { METADATA_ENCODING_KEY } from '@temporalio/common/lib/converter/types';
+} from '@temporalio/common/internal/internal-non-workflow';
+import { encode } from '@temporalio/common/encoding';
 import { temporal } from '@temporalio/proto';
 import { makeFakeDriver } from './extstore-fake-driver';
 

@@ -14,6 +14,7 @@ import type {
   WorkflowSerializationContext,
   WorkflowTypeOptions,
   PayloadTypeInfo,
+  OutputTypeInfo,
   TypeInfo,
   WorkflowQueryOptions,
   WorkflowSignalOptions,
@@ -34,11 +35,6 @@ import {
   extractWorkflowTypeAndConfig,
   ExternalStorageError,
 } from '@temporalio/common';
-import { encodeUserMetadata } from '@temporalio/common/lib/internal-non-workflow/codec-helpers';
-import { encodeUnifiedSearchAttributes } from '@temporalio/common/lib/converter/payload-search-attributes';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
-import type { History } from '@temporalio/common/lib/proto-utils';
-import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
@@ -46,6 +42,7 @@ import {
   decodeOptionalSinglePayload,
   encodeMapToPayloads,
   encodeToPayloadsWithContext,
+  encodeUserMetadata,
   externalStorageRetrieveVisitOptions,
   externalStorageStoreVisitOptions,
   visit,
@@ -63,8 +60,15 @@ import {
   walkTerminateWorkflowExecutionRequest,
   walkUpdateWorkflowExecutionRequest,
   walkUpdateWorkflowExecutionResponse,
-} from '@temporalio/common/lib/internal-non-workflow';
-import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
+} from '@temporalio/common/internal/internal-non-workflow';
+import type { History } from '@temporalio/common/proto-utils';
+import {
+  composeInterceptors,
+  encodeUnifiedSearchAttributes,
+  filterNullAndUndefined,
+  SymbolBasedInstanceOfError,
+  type Replace,
+} from '@temporalio/common/internal/internal-workflow';
 import { temporal } from '@temporalio/proto';
 import {
   ServiceError,
@@ -79,6 +83,8 @@ import type {
   WorkflowClientInterceptor,
   WorkflowClientInterceptors,
   WorkflowDescribeInput,
+  WorkflowFetchHistoryInput,
+  WorkflowListInput,
   WorkflowQueryInput,
   WorkflowSignalInput,
   WorkflowSignalWithStartInput,
@@ -380,7 +386,7 @@ function ensureArgs<W extends Workflow, T extends WorkflowStartOptions<W>>(
 /**
  * Options for getting a result of a Workflow execution.
  */
-export interface WorkflowResultOptions {
+export interface WorkflowResultOptions<R = any> {
   /**
    * If set to true, instructs the client to follow the chain of execution before returning a Workflow's result.
    *
@@ -399,13 +405,18 @@ export interface WorkflowResultOptions {
    *
    * @experimental
    */
-  typeInfo?: PayloadTypeInfo;
+  typeInfo?: Replace<PayloadTypeInfo, OutputTypeInfo<R>>;
 }
 
 /**
  * Options for {@link WorkflowClient.getHandle}
  */
-export interface GetWorkflowHandleOptions extends WorkflowResultOptions {
+export interface GetWorkflowHandleOptions<R = any> extends WorkflowResultOptions<R> {
+  /**
+   * Workflow definitions are accepted through {@link WorkflowHandleDefinitionOptions}.
+   */
+  workflow?: never;
+
   /**
    * ID of the first execution in the Workflow execution chain.
    *
@@ -415,6 +426,14 @@ export interface GetWorkflowHandleOptions extends WorkflowResultOptions {
    */
   firstExecutionRunId?: string;
 }
+
+/**
+ * Options for getting a Workflow handle using a Workflow definition.
+ */
+export type WorkflowHandleDefinitionOptions<T extends Workflow> = Replace<
+  GetWorkflowHandleOptions<WorkflowResultType<T>>,
+  { workflow: T; typeInfo?: never }
+>;
 
 interface WorkflowHandleOptions extends GetWorkflowHandleOptions {
   workflowId: string;
@@ -1792,6 +1811,28 @@ export class WorkflowClient extends BaseClient {
   }
 
   /**
+   * Uses given input to make getWorkflowExecutionHistory call(s) to the service
+   *
+   * Used as the final function of the fetchHistory interceptor chain
+   */
+  protected async _fetchHistoryHandler(input: WorkflowFetchHistoryInput): Promise<History> {
+    let nextPageToken: Uint8Array | undefined = undefined;
+    const events = Array<temporal.api.history.v1.IHistoryEvent>();
+    for (;;) {
+      const response: temporal.api.workflowservice.v1.GetWorkflowExecutionHistoryResponse =
+        await this.workflowService.getWorkflowExecutionHistory({
+          nextPageToken,
+          namespace: this.options.namespace,
+          execution: input.workflowExecution,
+        });
+      events.push(...(response.history?.events ?? []));
+      nextPageToken = response.nextPageToken;
+      if (nextPageToken == null || nextPageToken.length === 0) break;
+    }
+    return temporal.api.history.v1.History.create({ events });
+  }
+
+  /**
    * Create a new workflow handle for new or existing Workflow execution
    */
   protected _createWorkflowHandle<T extends Workflow>({
@@ -1940,20 +1981,11 @@ export class WorkflowClient extends BaseClient {
         };
       },
       async fetchHistory() {
-        let nextPageToken: Uint8Array | undefined = undefined;
-        const events = Array<temporal.api.history.v1.IHistoryEvent>();
-        for (;;) {
-          const response: temporal.api.workflowservice.v1.GetWorkflowExecutionHistoryResponse =
-            await this.client.workflowService.getWorkflowExecutionHistory({
-              nextPageToken,
-              namespace: this.client.options.namespace,
-              execution: { workflowId, runId },
-            });
-          events.push(...(response.history?.events ?? []));
-          nextPageToken = response.nextPageToken;
-          if (nextPageToken == null || nextPageToken.length === 0) break;
-        }
-        return temporal.api.history.v1.History.create({ events });
+        const next = this.client._fetchHistoryHandler.bind(this.client);
+        const fn = composeInterceptors(interceptors, 'fetchHistory', next);
+        return await fn({
+          workflowExecution: { workflowId, runId },
+        });
       },
       async startUpdate<Ret, Args extends any[]>(
         def: UpdateDefinition<Ret, Args> | string,
@@ -2029,9 +2061,21 @@ export class WorkflowClient extends BaseClient {
    */
   public getHandle<T extends Workflow>(
     workflowId: string,
+    runId: string | undefined,
+    options: WorkflowHandleDefinitionOptions<T>
+  ): WorkflowHandle<T>;
+  public getHandle<T extends Workflow>(
+    workflowId: string,
     runId?: string,
-    options?: GetWorkflowHandleOptions
+    options?: GetWorkflowHandleOptions<WorkflowResultType<T>>
+  ): WorkflowHandle<T>;
+  public getHandle<T extends Workflow>(
+    workflowId: string,
+    runId?: string,
+    options?: Replace<GetWorkflowHandleOptions, { workflow?: Workflow }>
   ): WorkflowHandle<T> {
+    const typeInfo =
+      options?.typeInfo ?? (options?.workflow ? extractWorkflowTypeAndConfig(options.workflow).typeInfo : undefined);
     const interceptors = this.getOrMakeInterceptors(workflowId, runId);
 
     return this._createWorkflowHandle({
@@ -2041,20 +2085,20 @@ export class WorkflowClient extends BaseClient {
       runIdForResult: runId ?? options?.firstExecutionRunId,
       interceptors,
       followRuns: options?.followRuns ?? true,
-      typeInfo: options?.typeInfo,
+      typeInfo,
     });
   }
 
-  protected async *_list(options?: ListOptions): AsyncIterable<WorkflowExecutionInfo> {
+  protected async *_list(input: WorkflowListInput): AsyncIterable<WorkflowExecutionInfo> {
     let nextPageToken: Uint8Array = Buffer.alloc(0);
     for (;;) {
       let response: temporal.api.workflowservice.v1.ListWorkflowExecutionsResponse;
       try {
         response = await this.workflowService.listWorkflowExecutions({
           namespace: this.options.namespace,
-          query: options?.query,
+          query: input.query,
           nextPageToken,
-          pageSize: options?.pageSize,
+          pageSize: input.pageSize,
         });
         await visit(
           response,
@@ -2087,16 +2131,29 @@ export class WorkflowClient extends BaseClient {
    * https://docs.temporal.io/visibility
    */
   public list(options?: ListOptions): AsyncWorkflowListIterable {
+    const input: WorkflowListInput = {
+      query: options?.query,
+      pageSize: options?.pageSize,
+    };
+    // Deprecated interceptor factories require a workflowId and are skipped for client-level list.
+    const interceptors = Array.isArray(this.options.interceptors) ? this.options.interceptors : [];
+    const list = composeInterceptors(interceptors, 'list', this._list.bind(this));
+    const interceptedList: AsyncIterable<WorkflowExecutionInfo> = {
+      [Symbol.asyncIterator]: () => list(input)[Symbol.asyncIterator](),
+    };
     return {
-      [Symbol.asyncIterator]: () => this._list(options)[Symbol.asyncIterator](),
+      [Symbol.asyncIterator]: () => interceptedList[Symbol.asyncIterator](),
       intoHistories: (intoHistoriesOptions?: IntoHistoriesOptions) => {
         return mapAsyncIterable(
-          this._list(options),
+          interceptedList,
           async ({ workflowId, runId }) => ({
             workflowId,
             history: await this.getHandle(workflowId, runId).fetchHistory(),
           }),
-          { concurrency: intoHistoriesOptions?.concurrency ?? 5 }
+          {
+            concurrency: intoHistoriesOptions?.concurrency ?? 5,
+            bufferLimit: intoHistoriesOptions?.bufferLimit,
+          }
         );
       },
     };

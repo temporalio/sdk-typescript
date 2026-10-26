@@ -1,0 +1,1 @@
+The Workflow sandbox now exposes `URLPattern`, both as a global and from the `url` module, when the Worker runs on Node.js 23.8 or later. On older Node.js versions, `URLPattern` remains undefined inside Workflows.

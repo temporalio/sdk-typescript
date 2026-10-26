@@ -1,0 +1,1 @@
+**Experimental**: External storage failures now surface as dedicated error types exported from `@temporalio/common`: `ExternalStorageDriverError`, `ExternalStorageUnregisteredDriverError`, and `ExternalStorageReferenceError`, all extending the new `ExternalStorageError` base type.

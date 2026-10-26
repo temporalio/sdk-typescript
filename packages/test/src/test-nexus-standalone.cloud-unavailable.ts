@@ -22,7 +22,7 @@ import {
 import * as temporalnexus from '@temporalio/nexus';
 import * as workflow from '@temporalio/workflow';
 import type { SignalWithStartWorkflowRequest } from '@temporalio/workflow';
-import { workflowService } from '@temporalio/workflow/lib/nexus/system/generated/services';
+import { workflowService } from '@temporalio/workflow/internal';
 import {
   CancelledFailure,
   TerminatedFailure,
@@ -33,13 +33,13 @@ import {
   type Payload,
   type PayloadCodec,
 } from '@temporalio/common';
-import { ExternalStorageRunner } from '@temporalio/common/lib/internal-non-workflow';
-import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
+import { ExternalStorageRunner } from '@temporalio/common/internal/internal-non-workflow';
+import { ProtobufBinaryPayloadConverter } from '@temporalio/common/protobufs';
 import {
   SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE,
-} from '@temporalio/common/lib/internal-workflow';
-import { generateWorkflowRunOperationToken } from '@temporalio/nexus/lib/token';
+} from '@temporalio/common/internal/internal-workflow';
+import { generateWorkflowRunOperationToken } from '@temporalio/nexus/internal';
 import type { Context } from './helpers-integration';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { waitUntil } from './helpers';
@@ -361,7 +361,7 @@ test('TypeInfo hydrates standalone start input and retained handle result', asyn
   });
 });
 
-test('Detached standalone Nexus handle hydrates result using output TypeInfo', async (t) => {
+test('Detached standalone Nexus handles hydrate results using explicit and definition TypeInfo', async (t) => {
   const { createWorker, registerNexusEndpoint } = helpers(t);
   const { endpointName } = await registerNexusEndpoint();
   const worker = await createWorker({ nexusServices: [makeStandaloneTypeInfoHandler()] });
@@ -376,13 +376,19 @@ test('Detached standalone Nexus handle hydrates result using output TypeInfo', a
       { id, scheduleToCloseTimeout: '10s' }
     );
 
-    const detached = client.nexus.getHandle<Receipt>(id, {
+    const explicitHandle = client.nexus.getHandle<Receipt>(id, {
       runId: handle.runId,
       typeInfo: { outputType: receiptTypeInfo },
     });
-    const result = await detached.result();
-    assertReceipt(result);
-    t.is(result.summary(), 'order-1:42');
+    assertReceipt(await explicitHandle.result());
+
+    const definitionHandle = client.nexus.getHandle(id, {
+      operation: standaloneTypeInfoService.operations.convert,
+      runId: handle.runId,
+    });
+    const definitionResult = await definitionHandle.result();
+    assertReceipt(definitionResult);
+    t.is(definitionResult.summary(), 'order-1:42');
   });
 });
 
