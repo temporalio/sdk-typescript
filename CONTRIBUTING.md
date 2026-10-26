@@ -219,12 +219,6 @@ pnpm -F @temporalio/common run test
 
 The `...` suffix includes all dependencies of the specified package.
 
-The SDK uses TypeScript's fixed `node20` module mode with `node16` resolution.
-Package metadata selects CommonJS for the SDK libraries and ESM for the project
-initializer. The mode name describes module semantics, independently of the
-supported Node.js versions. Keep `target: es2022` explicit to preserve emitted
-syntax and `moduleDetection: auto` to preserve script-style Workflow fixtures.
-
 ### Testing
 
 #### Testing local changes to core
