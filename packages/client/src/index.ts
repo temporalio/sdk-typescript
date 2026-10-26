@@ -49,6 +49,9 @@ export {
   TimeoutFailure,
   WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
+export { InMemoryPayloadCache } from '@temporalio/common/internal/internal-non-workflow';
+export type { InMemoryPayloadCacheOptions } from '@temporalio/common/internal/internal-non-workflow';
+export type { PayloadCache } from '@temporalio/common';
 export { TLSConfig } from '@temporalio/common/internal/internal-non-workflow';
 export * from '@temporalio/common/internal/errors';
 export * from '@temporalio/common/internal/interfaces';

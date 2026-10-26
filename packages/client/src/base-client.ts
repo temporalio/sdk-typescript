@@ -1,6 +1,6 @@
 import os from 'node:os';
 import type * as _grpc from '@grpc/grpc-js'; // For JSDoc only
-import type { DataConverter, LoadedDataConverter } from '@temporalio/common';
+import type { DataConverter, LoadedDataConverter, PayloadCache } from '@temporalio/common';
 import { isLoadedDataConverter, loadDataConverter } from '@temporalio/common/internal/internal-non-workflow';
 import { Connection } from './connection';
 import type { ConnectionLike, Metadata } from './types';
@@ -10,6 +10,14 @@ export interface BaseClientOptions {
    * {@link DataConverter} to use for serializing and deserializing payloads
    */
   dataConverter?: DataConverter;
+
+  /**
+   * Payload cache shared by this client, or `false` to disable payload caching.
+   *
+   * @default `false`
+   * @experimental
+   */
+  payloadCache?: PayloadCache | false;
 
   /**
    * Identity to report to the server
@@ -36,11 +44,13 @@ export interface BaseClientOptions {
 }
 
 export type WithDefaults<Options extends BaseClientOptions> = //
-  Required<Omit<Options, 'connection'>> & Pick<Options, 'connection'>;
+  Required<Omit<Options, 'connection' | 'payloadCache'>> & Pick<Options, 'connection'>;
 
 export type LoadedWithDefaults<Options extends BaseClientOptions> = //
   WithDefaults<Options> & {
     loadedDataConverter: LoadedDataConverter;
+    /** Payload cache used by this client, or `false` when payload caching is disabled. */
+    payloadCache: PayloadCache | false;
   };
 
 export function defaultBaseClientOptions(): WithDefaults<BaseClientOptions> {
@@ -61,11 +71,13 @@ export class BaseClient {
   public readonly connection: ConnectionLike;
 
   private readonly loadedDataConverter: LoadedDataConverter;
+  protected readonly payloadCache: PayloadCache | false;
 
   protected constructor(options?: BaseClientOptions) {
     this.connection = options?.connection ?? Connection.lazy();
     const dataConverter = options?.dataConverter ?? {};
     this.loadedDataConverter = isLoadedDataConverter(dataConverter) ? dataConverter : loadDataConverter(dataConverter);
+    this.payloadCache = options?.payloadCache ?? false;
   }
 
   /**

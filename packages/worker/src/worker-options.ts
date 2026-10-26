@@ -7,12 +7,13 @@ import type {
   DataConverter,
   LoadedDataConverter,
   MetricMeter,
+  PayloadCache,
   VersioningBehavior,
   WorkerDeploymentVersion,
 } from '@temporalio/common';
 import type { Duration } from '@temporalio/common/lib/time';
 import { msOptionalToNumber, msToNumber } from '@temporalio/common/lib/time';
-import { loadDataConverter } from '@temporalio/common/internal/internal-non-workflow';
+import { loadDataConverter, withPayloadCacheMetrics } from '@temporalio/common/internal/internal-non-workflow';
 import type { LoggerSinks, WorkflowInfo } from '@temporalio/workflow';
 import type { Context } from '@temporalio/activity';
 import type { native } from '@temporalio/core-bridge';
@@ -436,6 +437,14 @@ export interface WorkerOptions {
    *          Otherwise `max(floor(max(maxHeapMemory - 400MB, 0) * (250WF / 1024MB)), 10)`
    */
   maxCachedWorkflows?: number;
+
+  /**
+   * Payload cache shared by this Worker, or `false` to disable payload caching.
+   *
+   * @default `false`
+   * @experimental
+   */
+  payloadCache?: PayloadCache | false;
 
   /**
    * Controls the number of threads to be created for executing Workflow Tasks.
@@ -942,7 +951,9 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
  * formatted strings to numbers.
  */
 export interface CompiledWorkerOptions
-  extends Omit<WorkerOptionsWithDefaults, 'interceptors' | 'activities' | 'nexusServices' | 'tuner'> {
+  extends Omit<WorkerOptionsWithDefaults, 'interceptors' | 'activities' | 'nexusServices' | 'tuner' | 'payloadCache'> {
+  /** Shared payload cache for this Worker, or `false` when payload caching is disabled. */
+  payloadCache: PayloadCache | false;
   interceptors: CompiledWorkerInterceptors;
   shutdownGraceTimeMs: number;
   shutdownForceTimeMs?: number;
@@ -1147,8 +1158,12 @@ export function compileWorkerOptions(
 
   const tuner = asNativeTuner(opts.tuner, logger);
 
+  const payloadCache = opts.payloadCache ? withPayloadCacheMetrics(opts.payloadCache, metricMeter) : false;
+  const loadedDataConverter = loadDataConverter(opts.dataConverter);
+
   return {
     ...opts,
+    payloadCache,
     interceptors: compileWorkerInterceptors(opts.interceptors),
     shutdownGraceTimeMs: msToNumber(opts.shutdownGraceTime),
     shutdownForceTimeMs: msOptionalToNumber(opts.shutdownForceTime),
@@ -1156,7 +1171,7 @@ export function compileWorkerOptions(
     isolateExecutionTimeoutMs: msToNumber(opts.isolateExecutionTimeout),
     maxHeartbeatThrottleIntervalMs: msToNumber(opts.maxHeartbeatThrottleInterval),
     defaultHeartbeatThrottleIntervalMs: msToNumber(opts.defaultHeartbeatThrottleInterval),
-    loadedDataConverter: loadDataConverter(opts.dataConverter),
+    loadedDataConverter,
     activities,
     nexusServiceHandlers: nexusServiceHandlersFromOptions(opts),
     enableNonLocalActivities: opts.enableNonLocalActivities && activities.size > 0,

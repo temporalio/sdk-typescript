@@ -92,6 +92,7 @@ export class Client extends BaseClient {
       ...(workflow ?? {}),
       connection: this.connection,
       dataConverter: this.dataConverter,
+      payloadCache: this.payloadCache,
       interceptors: interceptors?.workflow,
       queryRejectCondition: workflow?.queryRejectCondition,
     });
@@ -100,6 +101,7 @@ export class Client extends BaseClient {
       ...commonOptions,
       connection: this.connection,
       dataConverter: this.dataConverter,
+      payloadCache: this.payloadCache,
       interceptors: interceptors?.activity,
     });
 
@@ -107,6 +109,7 @@ export class Client extends BaseClient {
       ...commonOptions,
       connection: this.connection,
       dataConverter: this.dataConverter,
+      payloadCache: this.payloadCache,
       interceptors: interceptors?.schedule,
     });
 
@@ -114,12 +117,14 @@ export class Client extends BaseClient {
       ...commonOptions,
       connection: this.connection,
       dataConverter: this.dataConverter,
+      payloadCache: this.payloadCache,
     });
 
     this.nexus = new NexusClient({
       ...commonOptions,
       connection: this.connection,
       dataConverter: this.dataConverter,
+      payloadCache: this.payloadCache,
       interceptors: interceptors?.nexus,
     });
 
@@ -127,6 +132,7 @@ export class Client extends BaseClient {
       ...defaultBaseClientOptions(),
       ...filterNullAndUndefined(commonOptions),
       loadedDataConverter: this.dataConverter,
+      payloadCache: this.payloadCache,
       interceptors: {
         workflow: this.workflow.options.interceptors,
         schedule: this.schedule.options.interceptors,

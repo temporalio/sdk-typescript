@@ -16,8 +16,8 @@ import {
   decodeOptionalFailureToOptionalError,
   decodeOptionalSinglePayload,
   encodeToPayload,
-  extstoreInboundOptions,
-  extstoreStoreOptions,
+  externalStorageRetrieveVisitOptions,
+  externalStorageStoreVisitOptions,
   visit,
   walkDescribeNexusOperationExecutionResponse,
   walkListNexusOperationExecutionsResponse,
@@ -205,6 +205,7 @@ export class NexusClient extends BaseClient {
       ...defaultNexusClientOptions(),
       ...filterNullAndUndefined(options ?? {}),
       loadedDataConverter: this.dataConverter,
+      payloadCache: this.payloadCache,
     };
     this.interceptors = this.options.interceptors;
   }
@@ -430,11 +431,15 @@ export class NexusClient extends BaseClient {
       nexusHeader: input.headers ?? {},
       userMetadata,
     };
-    const externalStorage = this.dataConverter.externalStorage;
     let res: temporal.api.workflowservice.v1.IStartNexusOperationExecutionResponse;
     try {
+      const externalStorage = this.dataConverter.externalStorage;
       if (externalStorage) {
-        await visit(req, walkStartNexusOperationExecutionRequest, extstoreStoreOptions(externalStorage));
+        await visit(
+          req,
+          walkStartNexusOperationExecutionRequest,
+          externalStorageStoreVisitOptions({ externalStorage, payloadCache: this.payloadCache })
+        );
       }
       res = await this.connection.workflowService.startNexusOperationExecution(req);
     } catch (err: unknown) {
@@ -529,14 +534,19 @@ export class NexusClient extends BaseClient {
     };
     for (;;) {
       let res: temporal.api.workflowservice.v1.IPollNexusOperationExecutionResponse;
-      const externalStorage = this.dataConverter.externalStorage;
       try {
         res = await this.connection.workflowService.pollNexusOperationExecution(req);
-        await visit(res, walkPollNexusOperationExecutionResponse, extstoreInboundOptions(externalStorage));
+        await visit(
+          res,
+          walkPollNexusOperationExecutionResponse,
+          externalStorageRetrieveVisitOptions({
+            externalStorage: this.dataConverter.externalStorage,
+            payloadCache: this.payloadCache,
+          })
+        );
       } catch (err: unknown) {
         this.rethrowGrpcError(err, 'Failed to poll Nexus operation result', input.operationId);
       }
-
       // The operation is closed if we have a result or failure
       if (res.result) {
         return await decodeFromPayloadsAtIndex(this.dataConverter, 0, [res.result], context, input.outputType);
@@ -558,10 +568,16 @@ export class NexusClient extends BaseClient {
       runId: input.runId ?? '',
     };
     let res: temporal.api.workflowservice.v1.IDescribeNexusOperationExecutionResponse;
-    const externalStorage = this.dataConverter.externalStorage;
     try {
       res = await this.connection.workflowService.describeNexusOperationExecution(req);
-      await visit(res, walkDescribeNexusOperationExecutionResponse, extstoreInboundOptions(externalStorage));
+      await visit(
+        res,
+        walkDescribeNexusOperationExecutionResponse,
+        externalStorageRetrieveVisitOptions({
+          externalStorage: this.dataConverter.externalStorage,
+          payloadCache: this.payloadCache,
+        })
+      );
     } catch (err: unknown) {
       this.rethrowGrpcError(err, 'Failed to describe Nexus operation', input.operationId);
     }
@@ -607,7 +623,6 @@ export class NexusClient extends BaseClient {
     let nextPageToken: Uint8Array | undefined = undefined;
     for (;;) {
       let response: temporal.api.workflowservice.v1.IListNexusOperationExecutionsResponse;
-      const externalStorage = this.dataConverter.externalStorage;
       try {
         response = await this.connection.workflowService.listNexusOperationExecutions({
           namespace: this.options.namespace,
@@ -615,7 +630,14 @@ export class NexusClient extends BaseClient {
           pageSize: input.pageSize,
           nextPageToken,
         });
-        await visit(response, walkListNexusOperationExecutionsResponse, extstoreInboundOptions(externalStorage));
+        await visit(
+          response,
+          walkListNexusOperationExecutionsResponse,
+          externalStorageRetrieveVisitOptions({
+            externalStorage: this.dataConverter.externalStorage,
+            payloadCache: this.payloadCache,
+          })
+        );
       } catch (err: unknown) {
         this.rethrowGrpcError(err, 'Failed to list Nexus operations', undefined);
       }

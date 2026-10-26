@@ -42,8 +42,8 @@ import {
   encodeErrorToFailure,
   encodeToPayload,
   ExternalStorageMetricsAccumulator,
-  extstoreInboundOptions,
-  extstoreStoreOptions,
+  externalStorageRetrieveVisitOptions,
+  externalStorageStoreVisitOptions,
   suggestContinueAsNewReasonsFromProto,
   visit,
   walkActivityHeartbeat,
@@ -944,6 +944,7 @@ export class Worker {
         connection: this._connection,
         identity: this.options.identity,
         dataConverter: this.options.dataConverter,
+        payloadCache: this.options.payloadCache,
         interceptors: this.options.interceptors.client,
       });
     }
@@ -1133,7 +1134,11 @@ export class Worker {
                     await visit(
                       task,
                       walkActivityTask,
-                      extstoreInboundOptions(loadedDataConverter.externalStorage, { logger: this.logger })
+                      externalStorageRetrieveVisitOptions({
+                        externalStorage: loadedDataConverter.externalStorage,
+                        payloadCache: this.options.payloadCache,
+                        logger: this.logger,
+                      })
                     );
                     info = await extractActivityInfo({
                       task,
@@ -1326,7 +1331,12 @@ export class Worker {
                 await visit(
                   completion,
                   walkActivityTaskCompletion,
-                  extstoreStoreOptions(externalStorage, { initialTarget, logger: this.logger })
+                  externalStorageStoreVisitOptions({
+                    externalStorage,
+                    initialTarget,
+                    payloadCache: this.options.payloadCache,
+                    logger: this.logger,
+                  })
                 );
               } catch (e) {
                 const error = ensureApplicationFailure(e);
@@ -1382,7 +1392,11 @@ export class Worker {
               try {
                 await visitNexusTask(
                   task,
-                  extstoreInboundOptions(this.options.loadedDataConverter.externalStorage, { logger: this.logger })
+                  externalStorageRetrieveVisitOptions({
+                    externalStorage: this.options.loadedDataConverter.externalStorage,
+                    payloadCache: this.options.payloadCache,
+                    logger: this.logger,
+                  })
                 );
               } catch (e) {
                 this.logger.error(
@@ -1429,7 +1443,11 @@ export class Worker {
             await visit(
               completion,
               walkNexusTaskCompletion,
-              extstoreStoreOptions(externalStorage, { logger: this.logger })
+              externalStorageStoreVisitOptions({
+                externalStorage,
+                payloadCache: this.options.payloadCache,
+                logger: this.logger,
+              })
             );
           } catch (e) {
             this.logger.error(`Error while offloading Nexus task result to external storage: ${errorMessage(e)}`, {
@@ -1607,7 +1625,12 @@ export class Worker {
       await visit(
         activation,
         walkWorkflowActivation,
-        extstoreInboundOptions(externalStorage, { metrics: downloadMetrics, logger: this.logger })
+        externalStorageRetrieveVisitOptions({
+          externalStorage,
+          metrics: downloadMetrics,
+          payloadCache: this.options.payloadCache,
+          logger: this.logger,
+        })
       );
       const decodedActivation = await workflowCodecRunner.decodeActivation(activation);
 
@@ -1640,7 +1663,8 @@ export class Worker {
               schedule.input = undefined;
             }
           }
-          const visitorOptions = extstoreStoreOptions(externalStorage, {
+          const visitorOptions = externalStorageStoreVisitOptions({
+            externalStorage,
             initialTarget: {
               kind: 'workflow',
               namespace,
@@ -1650,6 +1674,7 @@ export class Worker {
             },
             deriveContext: workflowCommandStoreTarget(namespace, workflow.info),
             metrics: uploadMetrics,
+            payloadCache: this.options.payloadCache,
             logger: this.logger,
           });
           await visit(encodedCompletion, walkWorkflowActivationCompletion, visitorOptions);
@@ -2018,8 +2043,10 @@ export class Worker {
                 await visit(
                   heartbeat,
                   walkActivityHeartbeat,
-                  extstoreStoreOptions(externalStorage, {
+                  externalStorageStoreVisitOptions({
+                    externalStorage,
                     initialTarget: activityStorageTarget(info),
+                    payloadCache: this.options.payloadCache,
                     logger: this.logger,
                   })
                 );

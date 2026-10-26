@@ -12,7 +12,7 @@ import {
 } from '@temporalio/common';
 import {
   ExternalStorageRunner,
-  extstoreInboundOptions,
+  externalStorageRetrieveVisitOptions,
   isReferencePayload,
 } from '@temporalio/common/internal/internal-non-workflow';
 import { ProtobufBinaryPayloadConverter } from '@temporalio/common/protobufs';
@@ -397,14 +397,14 @@ function nestedPayloads(envelope: Payload): { input: Payload[]; signalInput: Pay
 test('visitNexusTask resolves External Storage references nested in a System Nexus input', async (t) => {
   const driver = makeFakeDriver();
   const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 });
-  const runner = new ExternalStorageRunner(externalStorage);
+  const runner = new ExternalStorageRunner(externalStorage, { payloadCache: false });
   const [inputReference, signalReference] = await runner.store([
     defaultPayloadConverter.toPayload('workflow-input'),
     defaultPayloadConverter.toPayload('signal-input'),
   ]);
   const task = nexusStartTask(systemNexusPayloadWith(inputReference!, signalReference!));
 
-  await visitNexusTask(task, extstoreInboundOptions(externalStorage));
+  await visitNexusTask(task, externalStorageRetrieveVisitOptions({ payloadCache: false, externalStorage }));
 
   const envelope = task.task!.request!.startOperation!.payload as Payload;
   t.deepEqual(envelope.metadata?.[SYSTEM_NEXUS_PAYLOAD_METADATA_KEY], SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE);
@@ -421,14 +421,18 @@ test('visitNexusTask resolves External Storage references nested in a System Nex
 
 test('visitNexusTask rejects a nested reference when External Storage is not configured', async (t) => {
   const externalStorage = new ExternalStorage({ drivers: [makeFakeDriver()], payloadSizeThreshold: 0 });
-  const [reference] = await new ExternalStorageRunner(externalStorage).store([
+  const [reference] = await new ExternalStorageRunner(externalStorage, { payloadCache: false }).store([
     defaultPayloadConverter.toPayload('workflow-input'),
   ]);
   const task = nexusStartTask(systemNexusPayloadWith(reference!));
 
-  await t.throwsAsync(() => visitNexusTask(task, extstoreInboundOptions(undefined)), {
-    instanceOf: ExternalStorageNotConfiguredError,
-  });
+  await t.throwsAsync(
+    () =>
+      visitNexusTask(task, externalStorageRetrieveVisitOptions({ payloadCache: false, externalStorage: undefined })),
+    {
+      instanceOf: ExternalStorageNotConfiguredError,
+    }
+  );
 });
 
 test('visitNexusTask leaves an unrecognized or corrupt marked input for decodePayload to reject', async (t) => {
@@ -438,7 +442,10 @@ test('visitNexusTask leaves an unrecognized or corrupt marked input for decodePa
   ] as const) {
     const task = nexusStartTask(payload);
 
-    await visitNexusTask(task, extstoreInboundOptions(undefined));
+    await visitNexusTask(
+      task,
+      externalStorageRetrieveVisitOptions({ payloadCache: false, externalStorage: undefined })
+    );
 
     t.is(task.task!.request!.startOperation!.payload, payload, name);
   }
@@ -450,10 +457,12 @@ test('visitNexusTask retrieves nested references before codecs decode them', asy
     defaultPayloadConverter.toPayload('workflow-input'),
     defaultPayloadConverter.toPayload('signal-input'),
   ]);
-  const [inputReference, signalReference] = await new ExternalStorageRunner(externalStorage).store(encoded);
+  const [inputReference, signalReference] = await new ExternalStorageRunner(externalStorage, {
+    payloadCache: false,
+  }).store(encoded);
   const task = nexusStartTask(systemNexusPayloadWith(inputReference!, signalReference!));
 
-  await visitNexusTask(task, extstoreInboundOptions(externalStorage));
+  await visitNexusTask(task, externalStorageRetrieveVisitOptions({ payloadCache: false, externalStorage }));
   const result = (await decodePayload(
     { ...defaultDataConverter, payloadCodecs: [shiftingCodec] },
     task.task!.request!.startOperation!.payload as Payload,
