@@ -134,7 +134,8 @@ module.exports = {
         },
         readme: 'none',
         watch,
-        frontmatter: {
+        plugin: ['typedoc-plugin-frontmatter'],
+        frontmatterGlobals: {
           image: 'img/social.png',
         },
       },
