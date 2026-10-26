@@ -191,6 +191,7 @@ After your environment is set up, you can run these commands:
 - `pnpm test:watch` runs the test suite on each change to Typescript files.
 - `pnpm format` formats code with prettier.
 - `pnpm lint` verifies code style with prettier and ES lint.
+- `pnpm lint:prune` checks unused exports and types with Knip.
 - `pnpm commitlint` validates [commit messages](#style-guide).
 
 To regenerate System Nexus bindings from Core's upstream API WIT files, install the pinned nexgen

@@ -92,7 +92,6 @@ export type SerializationContext =
 
 /** @internal */
 // Consumed through the internal-non-workflow package entry point.
-// ts-prune-ignore-next
 export function isSerializationContext(value: unknown): value is SerializationContext {
   if (value == null || typeof value !== 'object') return false;
   const context = value as Record<string, unknown>;
