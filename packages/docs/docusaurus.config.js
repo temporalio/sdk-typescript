@@ -123,6 +123,7 @@ module.exports = {
       {
         id: 'meta-docs',
         entryPoints: ['../meta/src/index.ts'],
+        router: 'member',
         tsconfig: '../meta/tsconfig.json',
         excludeInternal: true,
         excludePrivate: true,
@@ -134,7 +135,8 @@ module.exports = {
         },
         readme: 'none',
         watch,
-        plugin: ['typedoc-plugin-frontmatter'],
+        membersWithOwnFile: ['Class', 'Enum', 'Interface'],
+        plugin: ['typedoc-plugin-frontmatter', './typedoc-docusaurus-routes.mjs'],
         frontmatterGlobals: {
           image: 'img/social.png',
         },
