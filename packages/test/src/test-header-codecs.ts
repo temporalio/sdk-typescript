@@ -4,6 +4,7 @@ import { Client, WithStartWorkflowOperation } from '@temporalio/client';
 import type { PayloadCodec } from '@temporalio/common';
 import { defaultDataConverter, defaultPayloadConverter, PayloadConverterError } from '@temporalio/common';
 import { decodeHeaders, encodeHeaders } from '@temporalio/common/internal/internal-non-workflow';
+import { msToTs } from '@temporalio/common/time';
 import { temporal } from '@temporalio/proto';
 import { WorkflowCodecRunner } from '@temporalio/worker/internal';
 
@@ -94,7 +95,7 @@ for (const enabled of [false, true]) {
           schedule = req.schedule;
           return {};
         },
-        describeSchedule: async () => ({ schedule, info: { createTime: { seconds: 1 } } }),
+        describeSchedule: async () => ({ schedule, info: { createTime: msToTs('1s') } }),
         updateSchedule: async (req: temporal.api.workflowservice.v1.IUpdateScheduleRequest) => {
           schedule = req.schedule;
           return {};
