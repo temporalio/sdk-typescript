@@ -9,8 +9,8 @@ slug: /
 - SDK docs: [`t.mp/ts`](https://docs.temporal.io/typescript/introduction/)
 - API reference: 👇
 
-| Package                                                                  | Description                                                                    |
-| :----------------------------------------------------------------------- | :----------------------------------------------------------------------------- |
+| Package                                                                                      | Description                                                                    |
+| :------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------- |
 | [@temporalio/worker](./api/temporalio/namespaces/worker/index.md)                            | Runs Workflows and Activities                                                  |
 | [@temporalio/workflow](./api/temporalio/namespaces/workflow/index.md)                        | Workflow runtime library                                                       |
 | [@temporalio/activity](./api/temporalio/namespaces/activity/index.md)                        | Get current Activity's context                                                 |

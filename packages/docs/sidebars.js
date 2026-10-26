@@ -1,6 +1,6 @@
 const typedocSidebar = require('./docs/api/typedoc-sidebar.cjs');
 const apiItems = typedocSidebar.flatMap((item) =>
-  item.type === 'category' && item.label === 'Namespaces' ? item.items : [item],
+  item.type === 'category' && item.label === 'Namespaces' ? item.items : [item]
 );
 
 module.exports = {
