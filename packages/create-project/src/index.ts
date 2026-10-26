@@ -183,7 +183,6 @@ export function run(): void {
   start()
     .then(() => {
       notifyUpdate();
-      process.exit(0);
     })
     .catch((reason) => {
       console.log();
@@ -198,6 +197,6 @@ export function run(): void {
 
       notifyUpdate();
 
-      process.exit(1);
+      process.exitCode = 1;
     });
 }

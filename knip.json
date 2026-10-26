@@ -1,35 +1,18 @@
 {
   "$schema": "./node_modules/knip/schema.json",
   "ignoreExportsUsedInFile": true,
-  "tags": [
-    "-lintignore"
-  ],
+  "tags": ["-lintignore"],
   "ignoreIssues": {
-    "packages/workflow/src/nexus/system/generated/**": [
-      "exports",
-      "types"
-    ]
+    "packages/workflow/src/nexus/system/generated/**": ["exports", "types"]
   },
   "workspaces": {
     "scripts": {
-      "entry": [
-        "*.ts",
-        "fixtures/*.mjs"
-      ],
-      "project": [
-        "**/*.ts",
-        "fixtures/*.mjs"
-      ]
+      "entry": ["*.ts"],
+      "project": ["**/*.ts"]
     },
     "packages/test": {
-      "entry": [
-        "src/test-*.ts",
-        "src/helpers.ts",
-        "src/mocks/**/*.ts"
-      ],
-      "project": [
-        "src/**/*.ts"
-      ]
+      "entry": ["src/test-*.ts", "src/helpers.ts", "src/mocks/**/*.ts"],
+      "project": ["src/**/*.ts"]
     }
   }
 }
