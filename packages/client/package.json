@@ -24,7 +24,6 @@
     "@grpc/grpc-js": "^1.13.6",
     "@temporalio/common": "workspace:*",
     "@temporalio/proto": "workspace:*",
-    "abort-controller": "^3.0.0",
     "nexus-rpc": "^0.0.3",
     "uuid": "^11.1.0"
   },
