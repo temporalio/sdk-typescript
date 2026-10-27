@@ -14,6 +14,8 @@ const targets = [
   'aarch64-apple-darwin',
   'x86_64-unknown-linux-gnu',
   'aarch64-unknown-linux-gnu',
+  'x86_64-unknown-linux-musl',
+  'aarch64-unknown-linux-musl',
   // TODO: this is not supported on macos
   'x86_64-pc-windows-msvc',
   'x86_64-pc-windows-gnu',
@@ -29,6 +31,19 @@ class PrebuildError extends Error {
   }
 }
 
+let muslSystem;
+
+// A glibc-compiled Node advertises the glibc version it was built against in the process report
+// header (also when statically linked); a Linux build without it is musl-based (e.g. Alpine).
+// On runtimes compiled without report support, assume glibc.
+function isMuslSystem() {
+  if (muslSystem === undefined) {
+    const header = process.report?.getReport?.()?.header;
+    muslSystem = header != null && header.glibcVersionCompiler == null;
+  }
+  return muslSystem;
+}
+
 function getPrebuiltTargetName() {
   const arch = archAlias[os.arch()];
   if (arch === undefined) {
@@ -37,6 +52,9 @@ function getPrebuiltTargetName() {
   const platform = platformMapping[os.platform()];
   if (platform === undefined) {
     throw new PrebuildError(`No prebuilt module for platform ${os.platform()}`);
+  }
+  if (os.platform() === 'linux' && isMuslSystem()) {
+    return `${arch}-unknown-linux-musl`;
   }
   return `${arch}-${platform}`;
 }
