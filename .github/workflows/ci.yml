@@ -332,7 +332,7 @@ jobs:
 
   cloud-integration-tests:
     name: Cloud Integration Tests
-    if: ${{ vars.IS_TEMPORALIO_SDK_TYPESCRIPT_REPO == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    if: ${{ vars.IS_TEMPORALIO_SDK_TYPESCRIPT_REPO == 'true' && github.actor != 'dependabot[bot]' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 40
     needs:
       - compile-native-binaries-debug
