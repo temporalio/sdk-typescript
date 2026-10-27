@@ -1,1 +1,0 @@
-SDK and contrib packages now declare `protobufjs` (`^8.7.1`) and `long` (`^5.3.2`) as peer dependencies rather than relying on separately installed copies. Package managers that do not automatically install peers require applications to add these dependencies explicitly. `@temporalio/proto` retains its regular runtime dependencies.

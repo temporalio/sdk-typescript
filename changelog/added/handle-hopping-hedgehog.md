@@ -1,1 +1,0 @@
-**Experimental**: `WorkflowClient.getHandle`, `ActivityClient.getHandleWithOptions`, and `NexusClient.getHandle` can infer detached handle result types and read output `TypeInfo` from supplied Workflow, Activity, and Nexus Operation definitions. Explicit output `TypeInfo` is checked against the declared handle result type.
