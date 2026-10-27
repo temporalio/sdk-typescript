@@ -956,6 +956,12 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
     workflowTaskPollerBehavior: Required<PollerBehavior>;
     activityTaskPollerBehavior: Required<PollerBehavior>;
     nexusTaskPollerBehavior: Required<PollerBehavior>;
+    // True when the user configured neither a fixed poll count nor an explicit poller behavior for
+    // the given poller type, making it eligible for automatic enrollment into poller autoscaling
+    // when the namespace advertises support for it.
+    workflowTaskPollerBehaviorAutoEnroll: boolean;
+    activityTaskPollerBehaviorAutoEnroll: boolean;
+    nexusTaskPollerBehaviorAutoEnroll: boolean;
   };
 
 /**
@@ -1081,6 +1087,15 @@ function addDefaultWorkerOptions(
   const atPollerBehavior = createPollerBehavior(maxATPolls, activityTaskPollerBehavior);
   const nexusPollerBehavior = createPollerBehavior(maxNexusTaskPolls, nexusTaskPollerBehavior);
 
+  // A poller is eligible for auto-enrollment into poller autoscaling when the user configured
+  // neither a fixed poll count nor an explicit poller behavior for it.
+  const workflowTaskPollerBehaviorAutoEnroll =
+    workflowTaskPollerBehavior === undefined && options.maxConcurrentWorkflowTaskPolls === undefined;
+  const activityTaskPollerBehaviorAutoEnroll =
+    activityTaskPollerBehavior === undefined && options.maxConcurrentActivityTaskPolls === undefined;
+  const nexusTaskPollerBehaviorAutoEnroll =
+    nexusTaskPollerBehavior === undefined && options.maxConcurrentNexusTaskPolls === undefined;
+
   return {
     namespace: namespace ?? 'default',
     identity: `${process.pid}@${os.hostname()}`,
@@ -1091,6 +1106,9 @@ function addDefaultWorkerOptions(
     workflowTaskPollerBehavior: wftPollerBehavior,
     activityTaskPollerBehavior: atPollerBehavior,
     nexusTaskPollerBehavior: nexusPollerBehavior,
+    workflowTaskPollerBehaviorAutoEnroll,
+    activityTaskPollerBehaviorAutoEnroll,
+    nexusTaskPollerBehaviorAutoEnroll,
     stickyQueueScheduleToStartTimeout: '10s',
     maxHeartbeatThrottleInterval: '60s',
     defaultHeartbeatThrottleInterval: '30s',
@@ -1243,8 +1261,11 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
     tuner: opts.tuner,
     nonStickyToStickyPollRatio: opts.nonStickyToStickyPollRatio,
     workflowTaskPollerBehavior: toNativeTaskPollerBehavior(opts.workflowTaskPollerBehavior),
+    workflowTaskPollerBehaviorAutoEnroll: opts.workflowTaskPollerBehaviorAutoEnroll,
     activityTaskPollerBehavior: toNativeTaskPollerBehavior(opts.activityTaskPollerBehavior),
+    activityTaskPollerBehaviorAutoEnroll: opts.activityTaskPollerBehaviorAutoEnroll,
     nexusTaskPollerBehavior: toNativeTaskPollerBehavior(opts.nexusTaskPollerBehavior),
+    nexusTaskPollerBehaviorAutoEnroll: opts.nexusTaskPollerBehaviorAutoEnroll,
     taskTypes: {
       enableWorkflows,
       enableLocalActivities,

@@ -249,8 +249,11 @@ export interface WorkerOptions {
   tuner: WorkerTunerOptions;
   nonStickyToStickyPollRatio: number;
   workflowTaskPollerBehavior: PollerBehavior;
+  workflowTaskPollerBehaviorAutoEnroll: boolean;
   activityTaskPollerBehavior: PollerBehavior;
+  activityTaskPollerBehaviorAutoEnroll: boolean;
   nexusTaskPollerBehavior: PollerBehavior;
+  nexusTaskPollerBehaviorAutoEnroll: boolean;
   taskTypes: {
     enableWorkflows: boolean;
     enableLocalActivities: boolean;
