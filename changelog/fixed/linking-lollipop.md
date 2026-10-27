@@ -1,1 +1,0 @@
-**Experimental**: A Standalone Activity started from a Nexus operation handler directly through `ActivityClient`, rather than through `TemporalNexusClient.startActivity()`'s guarded call, now inherits the handler's Nexus request ID and inbound links.

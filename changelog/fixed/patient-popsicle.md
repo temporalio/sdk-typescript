@@ -1,1 +1,0 @@
-A workflow task that arrives while a Workflow waits on a Local Activity, such as a legacy query, now waits until the current workflow task is reported. Previously it replaced that workflow task, which then timed out on the server and could leave the Workflow stuck on a nondeterminism error (temporalio/sdk-rust#1640).
