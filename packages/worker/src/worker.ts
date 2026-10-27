@@ -2442,8 +2442,8 @@ export function parseWorkflowCode(code: string, codePath?: string): WorkflowBund
   let script: vm.Script | undefined = new vm.Script(code, { filename });
   let context: any = vm.createContext({});
   try {
-    // displayErrors: false keeps Node from formatting the stack of an error we ignore, which would otherwise make
-    // source-map-support parse and cache the bundle's source map for the lifetime of the process.
+    // displayErrors: false keeps Node from formatting the stack of an error we ignore, which would parse and cache
+    // the bundle's source map.
     script.runInContext(context, { displayErrors: false });
   } catch (_e) {
     // Context has not been properly configured, so eventual errors are possible. Just ignore at this point

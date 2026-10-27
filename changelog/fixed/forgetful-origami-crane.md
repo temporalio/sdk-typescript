@@ -1,1 +1,1 @@
-Loading a Workflow bundle no longer makes `source-map-support` retain the bundle's source map in the main thread's heap, which raised memory use and slowed `Worker.create()` when `source-map-support/register` was loaded (#2458).
+Loading a Workflow bundle no longer makes `source-map-support` retain the bundle's source map in the main thread's heap, which raised memory use and slowed `Worker.create()` when `source-map-support/register` was loaded.
