@@ -99,7 +99,7 @@ jobs:
           mkdir -p ./releases/${{ matrix.target }}
           cp target/${{ matrix.target }}/debug/${{ matrix.out-file }} ./releases/${{ matrix.target }}/index.node
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: corebridge-native-debug-${{ matrix.platform }}
           # Actual file will be named ${{ matrix.target }}/index.node
@@ -306,7 +306,7 @@ jobs:
       # so it captures logs written by the sample steps above too.
       - name: Upload test logs
         id: upload-test-logs
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
         with:
           name: ${{ env.TEST_LOGS_ARTIFACT_NAME }}
@@ -324,7 +324,7 @@ jobs:
           echo "- CI artifact: $TEST_LOGS_ARTIFACT_NAME"
 
       - name: Upload Dev Server logs
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: failure() || cancelled()
         with:
           name: integration-tests-${{ matrix.platform }}-${{ matrix.node }}-${{ matrix.reuse-v8-context && 'reuse' || 'noreuse' }}-devserver-logs
@@ -438,7 +438,7 @@ jobs:
       - name: Upload Cloud test output
         id: upload-cloud-test-output
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: ${{ env.CLOUD_TEST_OUTPUT_ARTIFACT_NAME }}
           path: cloud-integration.tap
