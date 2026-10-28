@@ -386,17 +386,19 @@ export interface CompiledRuntimeOptions {
   shutdownSignals: NodeJS.Signals[];
   runtimeOptions: native.RuntimeOptions;
   logger: Logger;
+  logCollector?: NativeLogCollector;
   metricsBuffer: MetricsBuffer | undefined;
 }
 
 export function compileOptions(options: RuntimeOptions): CompiledRuntimeOptions {
   const { metrics, noTemporalPrefixForMetrics } = options.telemetryOptions ?? {}; // eslint-disable-line @typescript-eslint/no-deprecated
-  const [logger, logExporter] = compileLoggerOptions(options);
+  const [logger, logExporter, logCollector] = compileLoggerOptions(options);
 
   const heartbeatMillis = msToNumber(options.workerHeartbeatInterval ?? '60s');
 
   return {
     logger,
+    logCollector,
     shutdownSignals: options.shutdownSignals ?? ['SIGINT', 'SIGTERM', 'SIGQUIT', 'SIGUSR2'],
     runtimeOptions: {
       logExporter,
@@ -440,7 +442,9 @@ export function compileOptions(options: RuntimeOptions): CompiledRuntimeOptions 
   };
 }
 
-function compileLoggerOptions(options: RuntimeOptions): [Logger, native.LogExporterOptions] {
+function compileLoggerOptions(
+  options: RuntimeOptions
+): [Logger, native.LogExporterOptions, NativeLogCollector | undefined] {
   const { logging, tracingFilter } = options.telemetryOptions ?? {}; // eslint-disable-line @typescript-eslint/no-deprecated
 
   const logger = options.logger ?? new DefaultLogger('INFO');
@@ -476,6 +480,7 @@ function compileLoggerOptions(options: RuntimeOptions): [Logger, native.LogExpor
         filter: loggingFilter ?? forwardLevelFilter ?? defaultFilter,
         receiver: collector.receive,
       },
+      collector,
     ];
   } else {
     return [
@@ -485,6 +490,7 @@ function compileLoggerOptions(options: RuntimeOptions): [Logger, native.LogExpor
         filter: loggingFilter ?? defaultFilter,
         format: logging && 'console' in logging ? logging.console?.format ?? null : null,
       },
+      undefined,
     ];
   }
 }
