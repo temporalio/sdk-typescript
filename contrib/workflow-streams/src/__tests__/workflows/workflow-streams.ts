@@ -15,16 +15,15 @@ import {
 import { WorkflowStream, type WorkflowStreamState } from '../../workflow';
 import type * as activities from '../activities/workflow-streams';
 
-const {
-  publishItems,
-  publishBinaryItems,
-  publishMultiTopic,
-  publishWithForceFlush,
-  publishBatchTest,
-  publishWithMaxBatch,
-} = proxyActivities<typeof activities>({
+const { publishItems, publishBinaryItems, publishMultiTopic, publishBatchTest, publishWithMaxBatch } = proxyActivities<
+  typeof activities
+>({
   startToCloseTimeout: '30 seconds',
   heartbeatTimeout: '10 seconds',
+});
+
+const { publishWithForceFlush } = proxyActivities<{ publishWithForceFlush(): Promise<void> }>({
+  startToCloseTimeout: '1 hour',
 });
 
 export const closeSignal = defineSignal('close');

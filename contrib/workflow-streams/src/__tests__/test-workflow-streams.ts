@@ -5,6 +5,7 @@
  */
 
 import { randomUUID } from 'crypto';
+import { cancelled } from '@temporalio/activity';
 import { ApplicationFailure, defaultPayloadConverter, WorkflowNotFoundError, type Payload } from '@temporalio/common';
 import type { WorkflowHandle } from '@temporalio/client';
 import { WorkflowUpdateFailedError } from '@temporalio/client';
@@ -320,19 +321,39 @@ test('subscribe_recovers_from_truncation — client auto-restarts from 0', async
   });
 });
 
-test('force_flush — forceFlush wakes flusher despite 60s interval', async (t) => {
+test('force_flush — forceFlush wakes flusher despite 1h interval', async (t) => {
   const { createWorker, startWorkflow } = helpers(t);
-  const worker = await createWorker({ activities: streamActivities });
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const worker = await createWorker({
+    activities: {
+      async publishWithForceFlush(): Promise<void> {
+        // Longer than the test timeout: only forceFlush can deliver before release.
+        await using client = WorkflowStreamClient.fromWithinActivity({ batchInterval: '1 hour' });
+        const events = client.topic<string>('events');
+        events.publish('normal-0');
+        events.publish('normal-1');
+        events.publish('force-flush', { forceFlush: true });
+        await Promise.race([released, cancelled()]);
+      },
+    },
+  });
   await worker.runUntil(async () => {
     const handle = await startWorkflow(forceFlushWorkflow, { args: [] });
-    // The activity holds for ~10s after the forceFlush publish; 5s timeout
-    // gives plenty of margin for scheduling while staying well below the
-    // hold so a regression (no forceFlush wakeup) surfaces as a missing
-    // item, not a pass via the dispose-driven flush at activity exit.
-    const items = await collectItems(handle, undefined, 0, 3, 5_000);
-    t.is(items.length, 3);
-    t.is(payloadString(items[2]!.data), 'force-flush');
-    await handle.signal('close');
+    try {
+      const items = await collectItems(handle, undefined, 0, 3, 10 * 60_000);
+      t.deepEqual(
+        items.map((item) => payloadString(item.data)),
+        ['normal-0', 'normal-1', 'force-flush']
+      );
+    } finally {
+      // Disposal cannot flush until the subscriber has observed the items.
+      release();
+      await handle.signal('close');
+      await handle.result();
+    }
   });
 });
 
