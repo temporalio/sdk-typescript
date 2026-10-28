@@ -123,7 +123,7 @@ module.exports = {
       {
         id: 'meta-docs',
         entryPoints: ['../meta/src/index.ts'],
-        router: 'member',
+        router: 'legacy',
         tsconfig: '../meta/tsconfig.json',
         excludeInternal: true,
         excludePrivate: true,
