@@ -26,7 +26,7 @@
     "@temporalio/proto": "workspace:*",
     "@temporalio/workflow": "workspace:*",
     "heap-js": "^2.6.0",
-    "memfs": "^4.6.0",
+    "memfs": "^4.80.0",
     "nexus-rpc": "^0.0.3",
     "rxjs": "^7.8.1",
     "source-map": "^0.7.4",
