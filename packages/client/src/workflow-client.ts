@@ -1498,7 +1498,7 @@ export class WorkflowClient extends BaseClient {
       identity: this.options.identity,
       namespace: this.options.namespace,
       workflowExecution: input.workflowExecution,
-      requestId: randomUUID(),
+      requestId: internalOptions?.requestId ?? randomUUID(),
       // control is unused,
       signalName: input.signalName,
       header: { fields: input.headers },
@@ -1549,7 +1549,7 @@ export class WorkflowClient extends BaseClient {
     const req: temporal.api.workflowservice.v1.ISignalWithStartWorkflowExecutionRequest = {
       namespace: this.options.namespace,
       identity,
-      requestId: randomUUID(),
+      requestId: internalOptions?.requestId ?? randomUUID(),
       workflowId: options.workflowId,
       workflowIdReusePolicy: encodeWorkflowIdReusePolicy(options.workflowIdReusePolicy),
       workflowIdConflictPolicy: encodeWorkflowIdConflictPolicy(options.workflowIdConflictPolicy),

@@ -1,0 +1,1 @@
+**Experimental**: A Temporal operation handler can now send only one signal per invocation through `TemporalNexusClient.signalWithStartWorkflow` and `TemporalNexusClient.getWorkflowHandle().signal`; a second one throws a `BAD_REQUEST` handler error unless the first failed. Use `TemporalNexusClient.client` for additional signals, which are not deduplicated.
