@@ -15,12 +15,13 @@ export async function cancellableFetch(url: string): Promise<Uint8Array> {
     throw new Error('expected response body');
   }
 
-  let { done, value } = await reader.read();
-  while (!done) {
+  let result = await reader.read();
+  while (!result.done) {
+    const { value } = result;
     bytesRead += value.length;
     chunks.push(value);
     Context.current().heartbeat(bytesRead / contentLength);
-    ({ done, value } = await reader.read());
+    result = await reader.read();
   }
 
   return Buffer.concat(chunks);
