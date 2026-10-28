@@ -39,23 +39,6 @@ export async function publishMultiTopic(count: number): Promise<void> {
   }
 }
 
-export async function publishWithForceFlush(): Promise<void> {
-  // Long batchInterval AND long post-publish hold ensure that only a
-  // working forceFlush wakeup can deliver items before dispose flushes.
-  // The hold is deliberately much longer than the test's collect timeout
-  // so a regression (forceFlush no-op) surfaces as a missing item rather
-  // than flaking on slow CI.
-  await using client = WorkflowStreamClient.fromWithinActivity({ batchInterval: '60 seconds' });
-  const events = client.topic<string>('events');
-  events.publish('normal-0');
-  events.publish('normal-1');
-  events.publish('force-flush', { forceFlush: true });
-  for (let i = 0; i < 100; i++) {
-    Context.current().heartbeat();
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-}
-
 export async function publishBatchTest(count: number): Promise<void> {
   await using client = WorkflowStreamClient.fromWithinActivity({ batchInterval: '60 seconds' });
   const events = client.topic<string>('events');
