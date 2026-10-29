@@ -24,6 +24,7 @@ import { decode, encode, visit, walkPayloadsInMessage } from '../internal-non-wo
 import {
   type OnCompleteRequest,
   type OnCompleteResponse,
+  createOnCompleteRequestTransferTypeConverter,
   onCompleteRequestTransferTypeConverter,
   onCompleteResponseTransferTypeConverter,
 } from '../nexus';
@@ -115,6 +116,32 @@ function makeCodec(): PayloadCodec {
 function encoding(payload: temporal.api.common.v1.IPayload | null | undefined): string {
   return new TextDecoder().decode(payload?.metadata?.encoding);
 }
+
+test('notification converter applies nested output and source context TypeInfo', (t) => {
+  const outputT: TypeInfo<number, string> = {
+    transferTypeConverter: {
+      toTransferType: (value) => `output:${value}`,
+      fromTransferType: (value) => Number(value.slice('output:'.length)),
+    },
+  };
+  const sourceContextT: TypeInfo<number, string> = {
+    transferTypeConverter: {
+      toTransferType: (value) => `source:${value}`,
+      fromTransferType: (value) => Number(value.slice('source:'.length)),
+    },
+  };
+  const converter = createOnCompleteRequestTransferTypeConverter({ outputT, sourceContextT });
+  const request: OnCompleteRequest<number, number> = {
+    result: { tag: 'success', value: 42 },
+    sourceContext: 7,
+  };
+  withSystemNexusPayloadConversion(defaultDataConverter, context, () => {
+    const wire = converter.toTransferType(request);
+    t.is(defaultPayloadConverter.fromPayload(wire.success!), 'output:42');
+    t.is(defaultPayloadConverter.fromPayload(wire.sourceContext!), 'source:7');
+    t.deepEqual(converter.fromTransferType(wire), request);
+  });
+});
 
 test('notification success round trips typed output and source context without codec', async (t) => {
   const request: Notification = {

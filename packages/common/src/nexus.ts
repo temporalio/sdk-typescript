@@ -10,6 +10,7 @@ export type {
   OnCompleteResponse,
 } from './nexus/notifications/generated/models';
 export {
+  createOnCompleteRequestTransferTypeConverter,
   onCompleteRequestTransferTypeConverter,
   onCompleteResponseTransferTypeConverter,
 } from './nexus/notifications/generated/models';

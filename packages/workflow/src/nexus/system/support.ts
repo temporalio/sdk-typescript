@@ -10,7 +10,7 @@ import { workflowInfo } from '../../workflow';
 import type { SignalWithStartWorkflowRequest } from './generated/models';
 
 export { valueToPayload, payloadToValue } from '@temporalio/common/internal/nexus';
-// ts-prune-ignore-next (nexgen support hooks; not used by the current Workflow service models)
+/** @lintignore Nexgen support hooks not used by the current Workflow service models. */
 export { failureFromProto, failureToProto } from '@temporalio/common/internal/nexus';
 
 export function retryPolicyFromProto(proto: temporal.api.common.v1.IRetryPolicy): common.RetryPolicy {

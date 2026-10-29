@@ -6,6 +6,7 @@
 
 export type { OnCompleteRequest, OnCompleteRequestResult, OnCompleteResponse } from '@temporalio/common/nexus';
 export {
+  createOnCompleteRequestTransferTypeConverter,
   onCompleteRequestTransferTypeConverter,
   onCompleteResponseTransferTypeConverter,
 } from '@temporalio/common/nexus';
