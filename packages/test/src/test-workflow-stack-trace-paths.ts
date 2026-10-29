@@ -14,9 +14,9 @@ import { isBun } from './helpers';
   const workflowsPath = require.resolve('./workflows/throw-async');
   const bundle = parseWorkflowCode((await bundleWorkflowCode({ workflowsPath })).code);
   // Move the Workflow's source into a directory whose name needs URL encoding.
-  const sourceIndex = bundle.sourceMap.sources.findIndex((source) => source.endsWith('/workflows/throw-async.ts'));
-  t.not(sourceIndex, -1, 'throw-async.ts is not a source of the bundle');
+  const sourceIndex = bundle.sourceMap.sources.findIndex((source) => source?.endsWith('/workflows/throw-async.ts'));
   const originalSource = bundle.sourceMap.sources[sourceIndex];
+  if (!originalSource) return t.fail('throw-async.ts is not a source of the bundle');
   const renamedSource = path.join(path.dirname(originalSource), 'zz space dir é', 'throw-async.ts');
   bundle.sourceMap.sources[sourceIndex] = renamedSource;
 

@@ -7,7 +7,7 @@ import { setTimeout as setTimeoutCallback } from 'node:timers';
 import type { MonoTypeOperatorFunction, Observable, OperatorFunction } from 'rxjs';
 import { BehaviorSubject, EMPTY, from, lastValueFrom, merge, pipe, race, Subject } from 'rxjs';
 import { delay, filter, first, ignoreElements, last, map, mergeMap, takeUntil, takeWhile, tap } from 'rxjs/operators';
-import type { RawSourceMap } from 'source-map';
+import type { EncodedSourceMap } from '@jridgewell/trace-mapping';
 import * as nexus from 'nexus-rpc';
 import type { Info as ActivityInfo } from '@temporalio/activity';
 import type {
@@ -2431,13 +2431,15 @@ export function parseWorkflowCode(code: string, codePath?: string): WorkflowBund
   assertWorkflowBundleSdkVersion(code, pkg.version);
 
   const [actualCode, sourceMapJson] = extractSourceMap(code);
-  const sourceMap: RawSourceMap = JSON.parse(sourceMapJson);
+  const sourceMap: EncodedSourceMap = JSON.parse(sourceMapJson);
 
   // JS debuggers (at least VSCode's) have a few requirements regarding the script and its source map, notably:
   // - The script file name's must look like an absolute path (relative paths are treated as node internals scripts)
   // - If the script contains a sourceMapURL directive, the executable 'file' indicated by the source map must match the
   //   filename of the script itself. If the source map's file is a relative path, then it gets resolved relative to cwd
-  const filename = path.resolve(process.cwd(), codePath ?? sourceMap.file);
+  const bundlePath = codePath ?? sourceMap.file;
+  if (!bundlePath) throw new TypeError('Workflow bundle source map has no file, and no code path was given');
+  const filename = path.resolve(process.cwd(), bundlePath);
   if (filename !== codePath) {
     sourceMap.file = filename;
     const patchedSourceMapJson = Buffer.from(JSON.stringify(sourceMap)).toString('base64');
