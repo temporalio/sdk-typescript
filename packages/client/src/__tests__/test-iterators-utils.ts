@@ -54,29 +54,57 @@ test(`mapAsyncIterable (with no concurrency) doesn't consume more input that req
 });
 
 test(`mapAsyncIterable (with concurrency) run tasks concurrently`, async (t) => {
-  async function* name(): AsyncIterable<number> {
-    yield 200;
-    yield 1;
-    yield 1;
-    yield 200;
-    yield 1;
-    yield 1;
-    yield 200;
-    yield 1;
-    yield 1;
+  const itemCount = 3;
+  const concurrency = 2;
+  const unblockMappers: (() => void)[] = [];
+  const gates = Array.from({ length: itemCount }, () => new Promise<void>((resolve) => unblockMappers.push(resolve)));
+  let active = 0;
+  async function* source(): AsyncIterable<number> {
+    for (let value = 1; value <= itemCount; value++) {
+      yield value;
+    }
   }
 
-  const iterable = mapAsyncIterable(name(), sleepThatTime, { concurrency: 4 });
+  const iterable = mapAsyncIterable(
+    source(),
+    async (value) => {
+      active++;
+      await gates[value - 1];
+      const result = { value, active };
+      active--;
+      return result;
+    },
+    { concurrency }
+  );
+  const values: { value: number; active: number }[] = [];
+  const consuming = (async () => {
+    for await (const value of iterable) {
+      values.push(value);
+    }
+  })();
 
-  const startTime = Date.now();
-  const values: number[] = [];
-  for await (const val of iterable) {
-    values.push(val);
+  async function unblockMapper(value: number): Promise<void> {
+    unblockMappers[value - 1]!();
+    await setImmediate();
   }
-  const endTime = Date.now();
 
-  t.deepEqual(values, [1, 1, 1, 1, 1, 1, 200, 200, 200]);
-  t.truthy(endTime - startTime < 400);
+  await setImmediate();
+  t.is(active, concurrency);
+
+  // Keep item 1 blocked while every other item takes a turn in the second slot.
+  await unblockMapper(2);
+  t.is(active, 2);
+  await unblockMapper(3);
+  t.is(active, 1);
+
+  await unblockMapper(1);
+  await consuming;
+  t.deepEqual(values, [
+    { value: 2, active: 2 },
+    { value: 3, active: 2 },
+    { value: 1, active: 1 },
+  ]);
+  t.is(active, 0);
 });
 
 test(`mapAsyncIterable (with concurrency) source function not executed until the mapped iterator actually get invoked`, async (t) => {
