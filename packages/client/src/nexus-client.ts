@@ -7,6 +7,7 @@ import {
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
   filterNullAndUndefined,
+  nexusSerializationContextFromProto,
   SymbolBasedInstanceOfError,
   typedSearchAttributePayloadConverter,
   type Replace,
@@ -520,9 +521,9 @@ export class NexusClient extends BaseClient {
   }
 
   protected async getResultHandler(input: GetNexusOperationResultInput): Promise<unknown> {
-    // These three are set together or not at all: a handle that started the operation has all of
-    // them, while a handle obtained by operation ID alone has none and decodes without context.
-    const context: NexusSerializationContext | undefined =
+    // Fallback for older servers that don't return the context when polling. These three are set
+    // together or not at all: a handle obtained by operation ID alone has none of them.
+    const startContext: NexusSerializationContext | undefined =
       input.endpoint && input.service && input.operation
         ? { type: 'nexus', endpoint: input.endpoint, service: input.service, operation: input.operation }
         : undefined;
@@ -547,6 +548,9 @@ export class NexusClient extends BaseClient {
       } catch (err: unknown) {
         this.rethrowGrpcError(err, 'Failed to poll Nexus operation result', input.operationId);
       }
+      // The context the server returns also identifies an operation whose handle was obtained by
+      // operation ID
+      const context = nexusSerializationContextFromProto(res.propagatedNexusSerializationContext) ?? startContext;
       // The operation is closed if we have a result or failure
       if (res.result) {
         return await decodeFromPayloadsAtIndex(this.dataConverter, 0, [res.result], context, input.outputType);

@@ -18,7 +18,7 @@ import type { LoggerSinks, WorkflowInfo } from '@temporalio/workflow';
 import type { Context } from '@temporalio/activity';
 import type { native } from '@temporalio/core-bridge';
 import { throwIfReservedName } from '@temporalio/common/internal/internal-workflow';
-import { withNexusActivityLinking } from '@temporalio/nexus/internal';
+import { withNexusActivityLinking, withNexusWorkflowSerializationContext } from '@temporalio/nexus/internal';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import type { NativeConnection } from './connection';
 import type { CompiledWorkerInterceptors, WorkerInterceptors } from './interceptors';
@@ -893,7 +893,7 @@ function compileWorkerInterceptors({
 }: Required<WorkerInterceptors>): CompiledWorkerInterceptors {
   return {
     client: {
-      workflow: client?.workflow ?? [],
+      workflow: withNexusWorkflowSerializationContext(client?.workflow ?? []),
       schedule: client?.schedule ?? [],
       activity: withNexusActivityLinking(client?.activity ?? []),
     },

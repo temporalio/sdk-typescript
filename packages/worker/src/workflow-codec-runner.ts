@@ -14,6 +14,7 @@ import {
   walkWorkflowActivation,
   walkWorkflowActivationCompletion,
 } from '@temporalio/common/internal/internal-non-workflow';
+import { nexusSerializationContextFromProto } from '@temporalio/common/internal/internal-workflow';
 import { coresdk } from '@temporalio/proto';
 import { decodeSystemNexusOutput, encodeSystemNexusInput, isSystemNexusEnvelope } from './system-nexus-operations';
 
@@ -44,6 +45,12 @@ export class WorkflowCodecRunner {
     cancelWorkflow: new Map<number, WorkflowSerializationContext>(),
     nexusOperation: new Map<number, PendingNexusContext>(),
   };
+
+  /**
+   * Serialization context of the Nexus operation handler that started this Workflow, if any. The
+   * Workflow's result and closing failure go back to the Nexus caller, which decodes them with it.
+   */
+  private nexusContext?: NexusSerializationContext;
 
   constructor(
     private readonly codecs: PayloadCodec[],
@@ -132,6 +139,10 @@ export class WorkflowCodecRunner {
     activation: T
   ): Promise<Decoded<T>> {
     const decodedActivation = coresdk.workflow_activation.WorkflowActivation.fromObject(activation);
+    const initializeWorkflow = decodedActivation.jobs?.find((job) => job.initializeWorkflow)?.initializeWorkflow;
+    if (initializeWorkflow != null) {
+      this.nexusContext = nexusSerializationContextFromProto(initializeWorkflow.propagatedNexusSerializationContext);
+    }
     const systemOutputs: Array<{
       result: coresdk.nexus.INexusOperationResult;
       payload: import('@temporalio/common').Payload;
@@ -273,6 +284,12 @@ export class WorkflowCodecRunner {
           if (typeName === 'coresdk.workflow_commands.ScheduleNexusOperation') {
             const schedule = message as coresdk.workflow_commands.IScheduleNexusOperation;
             return this.nexusOperationContext(schedule, isSystemNexus(schedule)) ?? context;
+          }
+          if (
+            typeName === 'coresdk.workflow_commands.CompleteWorkflowExecution' ||
+            typeName === 'coresdk.workflow_commands.FailWorkflowExecution'
+          ) {
+            return this.nexusContext ?? context;
           }
           if (typeName === 'coresdk.workflow_commands.SignalExternalWorkflowExecution') {
             return (

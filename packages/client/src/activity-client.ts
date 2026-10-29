@@ -28,6 +28,7 @@ import {
   composeInterceptors,
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
+  nexusSerializationContextFromProto,
   searchAttributePayloadConverter,
   type Replace,
 } from '@temporalio/common/internal/internal-workflow';
@@ -433,6 +434,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       completionCallbacks: internalOptions?.completionCallbacks,
       links: internalOptions?.links,
       onConflictOptions: internalOptions?.onConflictOptions,
+      propagatedNexusSerializationContext: internalOptions?.propagatedNexusSerializationContext,
     };
   }
 
@@ -466,12 +468,15 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
             payloadCache: this.payloadCache,
           })
         );
+        // An Activity started by a Nexus operation handler encodes its outcome with the handler's
+        // Nexus context, which the server returns with the outcome
+        const outcomeContext = nexusSerializationContextFromProto(resp.propagatedNexusSerializationContext) ?? context;
         if (resp.outcome?.result) {
           return await decodeFromPayloadsAtIndex(
             this.dataConverter,
             0,
             resp.outcome.result.payloads,
-            context,
+            outcomeContext,
             input.outputType
           );
         } else if (resp.outcome?.failure) {
@@ -479,7 +484,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
           // If it succeeds, we want to throw the ActivityExecutionFailedError directly, so outside of try/catch.
           failedErr = new ActivityExecutionFailedError(
             'Activity execution failed',
-            await decodeOptionalFailureToOptionalError(this.dataConverter, resp.outcome.failure, context),
+            await decodeOptionalFailureToOptionalError(this.dataConverter, resp.outcome.failure, outcomeContext),
             input.activityId,
             resp.runId || input.activityRunId || undefined
           );
@@ -1068,6 +1073,11 @@ function buildActivityDescription(
   dataConverter: LoadedDataConverter,
   serializationContext: ActivitySerializationContext
 ): ActivityExecutionDescription {
+  // An Activity started by a Nexus operation handler encodes its result, failures and heartbeat
+  // details with the handler's Nexus context, which the server returns with the Activity info. Its
+  // input keeps the Activity context.
+  const callerFacingContext =
+    nexusSerializationContextFromProto(resp.info.propagatedNexusSerializationContext) ?? serializationContext;
   return {
     ...buildActivityExecutionInfoCommonPart(resp.info),
     rawInfo: resp.info,
@@ -1099,15 +1109,15 @@ function buildActivityDescription(
     hasOutcomeFailure: !!resp.outcome?.failure,
 
     getHeartbeatDetails: async <T>() =>
-      await decodeFromPayloadsAtIndex<T>(dataConverter, 0, resp.info.heartbeatDetails?.payloads, serializationContext),
+      await decodeFromPayloadsAtIndex<T>(dataConverter, 0, resp.info.heartbeatDetails?.payloads, callerFacingContext),
     getLastFailure: async () =>
-      await decodeOptionalFailureToOptionalError(dataConverter, resp.info.lastFailure, serializationContext),
+      await decodeOptionalFailureToOptionalError(dataConverter, resp.info.lastFailure, callerFacingContext),
     getInput: async <T>() =>
       (await decodeArrayFromPayloads(dataConverter, resp.input?.payloads, serializationContext)) as T,
     getResult: async <T>() =>
-      await decodeFromPayloadsAtIndex<T>(dataConverter, 0, resp.outcome?.result?.payloads, serializationContext),
+      await decodeFromPayloadsAtIndex<T>(dataConverter, 0, resp.outcome?.result?.payloads, callerFacingContext),
     getOutcomeFailure: async () =>
-      await decodeOptionalFailureToOptionalError(dataConverter, resp.outcome?.failure, serializationContext),
+      await decodeOptionalFailureToOptionalError(dataConverter, resp.outcome?.failure, callerFacingContext),
   };
 }
 

@@ -15,6 +15,7 @@ import type {
   Payload,
   MetricMeter,
   ActivitySerializationContext,
+  NexusSerializationContext,
   PayloadTypeInfo,
   StorageDriverTargetInfo,
 } from '@temporalio/common';
@@ -64,6 +65,7 @@ import {
 } from '@temporalio/common/lib/time';
 import {
   errorMessage,
+  nexusSerializationContextFromProto,
   type NonNullableObject,
   type OmitFirstParam,
   throwIfReservedName,
@@ -1126,6 +1128,11 @@ export class Worker {
                   let info: ActivityInfo | undefined = undefined;
                   const start = task.start as NonNullableObject<coresdk.activity_task.IStart>;
                   const context = activitySerializationContextFromTaskStart(start, this.options.namespace);
+                  // A standalone Activity started by a Nexus operation handler returns its result and
+                  // failure to the Nexus caller, which decodes them with the handler's Nexus context.
+                  // The input keeps the Activity context.
+                  const resultContext =
+                    nexusSerializationContextFromProto(start.propagatedNexusSerializationContext) ?? context;
                   const loadedDataConverter = this.options.loadedDataConverter;
                   try {
                     if (activity !== undefined) {
@@ -1147,7 +1154,7 @@ export class Worker {
                       dataConverter: loadedDataConverter,
                       taskQueue: this.options.taskQueue,
                       activityNamespace: this.options.namespace,
-                      context,
+                      resultContext,
                     });
 
                     const { activityType } = info;
@@ -1192,7 +1199,7 @@ export class Worker {
                       info,
                       fn,
                       loadedDataConverter,
-                      context,
+                      resultContext,
                       outputTypeInfo,
                       (details) =>
                         this.activityHeartbeatSubject.next({
@@ -1229,7 +1236,7 @@ export class Worker {
                       type: 'result',
                       result: {
                         failed: {
-                          failure: await encodeErrorToFailure(loadedDataConverter, error, context),
+                          failure: await encodeErrorToFailure(loadedDataConverter, error, resultContext),
                         },
                       },
                     };
@@ -2027,7 +2034,9 @@ export class Worker {
           takeWhile((out): out is HeartbeatSendRequest => out.type !== 'close'),
           mergeMap(async ({ heartbeat: { base64TaskToken, taskToken, details, onError, info } }) => {
             let payload: Payload;
-            const context = activitySerializationContextFromInfo(info);
+            // The server puts a standalone Activity's last heartbeat details into its timeout failure,
+            // which goes back to the Nexus caller if a Nexus operation handler started it
+            const context = info.nexusSerializationContext ?? activitySerializationContextFromInfo(info);
             try {
               try {
                 payload = await encodeToPayload(this.options.loadedDataConverter, details, context);
@@ -2516,13 +2525,14 @@ async function extractActivityInfo({
   dataConverter,
   taskQueue,
   activityNamespace,
-  context,
+  resultContext,
 }: {
   task: coresdk.activity_task.ActivityTask;
   dataConverter: LoadedDataConverter;
   taskQueue: string;
   activityNamespace: string;
-  context: ActivitySerializationContext;
+  /** Context the previous attempt encoded its heartbeat details with. */
+  resultContext: ActivitySerializationContext | NexusSerializationContext;
 }): Promise<ActivityInfo> {
   // NOTE: We trust core to supply all of these fields instead of checking for null and undefined everywhere
   const { taskToken } = task as NonNullableObject<coresdk.activity_task.IActivityTask>;
@@ -2530,7 +2540,7 @@ async function extractActivityInfo({
   const activityId = start.activityId;
   let heartbeatDetails = undefined;
   try {
-    heartbeatDetails = await decodeFromPayloadsAtIndex(dataConverter, 0, start.heartbeatDetails, context);
+    heartbeatDetails = await decodeFromPayloadsAtIndex(dataConverter, 0, start.heartbeatDetails, resultContext);
   } catch (e) {
     throw ApplicationFailure.fromError(e, {
       message: `Failed to parse heartbeat details for activity ${activityId}: ${errorMessage(e)}`,
@@ -2565,6 +2575,7 @@ async function extractActivityInfo({
     namespace: start.workflowNamespace || activityNamespace,
     activityRunId: !inWorkflow ? start.runId : undefined,
     inWorkflow,
+    nexusSerializationContext: resultContext.type === 'nexus' ? resultContext : undefined,
   };
 }
 

@@ -1,5 +1,10 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
-import type { ActivitySerializationContext, PayloadTypeInfo, StorageDriverTargetInfo } from '@temporalio/common';
+import type {
+  ActivitySerializationContext,
+  NexusSerializationContext,
+  PayloadTypeInfo,
+  StorageDriverTargetInfo,
+} from '@temporalio/common';
 import { ensureTemporalFailure, ExternalStorageError } from '@temporalio/common';
 import {
   encodeErrorToFailure,
@@ -50,9 +55,13 @@ export interface AsyncCompletionOperationOptions {
    *
    * By-ID operations infer their Activity serialization context from the supplied IDs.
    *
+   * A standalone Activity started by a Nexus operation handler encodes its result, failure and
+   * heartbeat details with the handler's {@link NexusSerializationContext}. To complete or heartbeat
+   * such an Activity, pass `ActivityInfo.nexusSerializationContext`.
+   *
    * @experimental Serialization context is an experimental feature and may change.
    */
-  serializationContext?: ActivitySerializationContext;
+  serializationContext?: ActivitySerializationContext | NexusSerializationContext;
 }
 
 /**
@@ -143,7 +152,7 @@ export class AsyncCompletionClient extends BaseClient {
   protected serializationContextFor(
     taskTokenOrFullActivityId: Uint8Array | FullActivityId,
     options?: AsyncCompletionOperationOptions
-  ): ActivitySerializationContext | undefined {
+  ): ActivitySerializationContext | NexusSerializationContext | undefined {
     return taskTokenOrFullActivityId instanceof Uint8Array
       ? options?.serializationContext
       : activityContextFromFullActivityId(this.options.namespace, taskTokenOrFullActivityId);
