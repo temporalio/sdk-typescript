@@ -1,0 +1,1 @@
+Workflow stack traces no longer percent-encode source paths that contain spaces or non-ASCII characters. `@temporalio/worker` and `@temporalio/workflow` now pin `source-map` to 0.7.4, since 0.7.6 encodes them.
