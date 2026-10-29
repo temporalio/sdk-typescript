@@ -53,6 +53,13 @@ export class WorkflowCodecRunner {
    */
   private nexusContext?: NexusSerializationContext;
 
+  /**
+   * Serialization contexts of Updates sent by a Nexus operation handler, keyed by protocol instance
+   * ID because Updates have no sequence number. An Update's result and failure go back to the Nexus
+   * caller, which decodes them with it. Kept until the response that finishes the Update is encoded.
+   */
+  private readonly nexusUpdateContexts = new Map<string, NexusSerializationContext>();
+
   constructor(
     private readonly codecs: PayloadCodec[],
     public readonly workflowContext: WorkflowSerializationContext,
@@ -157,6 +164,12 @@ export class WorkflowCodecRunner {
         });
         initializeWorkflow.continuedFailure = null;
         initializeWorkflow.lastCompletionResult = null;
+      }
+    }
+    for (const job of decodedActivation.jobs ?? []) {
+      const context = nexusSerializationContextFromProto(job.doUpdate?.propagatedNexusSerializationContext);
+      if (context != null && job.doUpdate?.protocolInstanceId) {
+        this.nexusUpdateContexts.set(job.doUpdate.protocolInstanceId, context);
       }
     }
     const systemOutputs: Array<{
@@ -287,6 +300,7 @@ export class WorkflowCodecRunner {
     }
     const isSystemNexus = (command: coresdk.workflow_commands.IScheduleNexusOperation): boolean =>
       systemInputs.some((input) => input.command === command);
+    const finishedUpdates: string[] = [];
     const visitorOptions: Omit<VisitOptions<SerializationContext>, 'initialContext'> = {
       transformPayload: async (payload, context) => (await encode(this.codecs, [payload], context))[0]!,
       transformPayloads: (payloads, context) => encode(this.codecs, payloads, context),
@@ -315,6 +329,16 @@ export class WorkflowCodecRunner {
             typeName === 'coresdk.workflow_commands.FailWorkflowExecution'
           ) {
             return this.nexusContext ?? context;
+          }
+          if (typeName === 'coresdk.workflow_commands.UpdateResponse') {
+            const response = message as coresdk.workflow_commands.IUpdateResponse;
+            const updateContext = response.protocolInstanceId
+              ? this.nexusUpdateContexts.get(response.protocolInstanceId)
+              : undefined;
+            if (updateContext != null && (response.completed != null || response.rejected != null)) {
+              finishedUpdates.push(response.protocolInstanceId!);
+            }
+            return updateContext ?? context;
           }
           if (typeName === 'coresdk.workflow_commands.SignalExternalWorkflowExecution') {
             return (
@@ -374,6 +398,9 @@ export class WorkflowCodecRunner {
       walkWorkflowActivationCompletion,
       { ...visitorOptions, initialContext: this.workflowContext }
     );
+    for (const protocolInstanceId of finishedUpdates) {
+      this.nexusUpdateContexts.delete(protocolInstanceId);
+    }
     for (const input of systemInputs) {
       const encoded = await encodeSystemNexusInput(
         input.command.service,
