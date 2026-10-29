@@ -54,29 +54,45 @@ test(`mapAsyncIterable (with no concurrency) doesn't consume more input that req
 });
 
 test(`mapAsyncIterable (with concurrency) run tasks concurrently`, async (t) => {
-  async function* name(): AsyncIterable<number> {
-    yield 200;
-    yield 1;
-    yield 1;
-    yield 200;
-    yield 1;
-    yield 1;
-    yield 200;
-    yield 1;
-    yield 1;
+  let unblockMappers!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    unblockMappers = resolve;
+  });
+  let started = 0;
+  async function* source(): AsyncIterable<number> {
+    for (let value = 1; value <= 5; value++) {
+      yield value;
+    }
   }
 
-  const iterable = mapAsyncIterable(name(), sleepThatTime, { concurrency: 4 });
-
-  const startTime = Date.now();
+  const iterable = mapAsyncIterable(
+    source(),
+    async (value) => {
+      started++;
+      await gate;
+      return value * 10;
+    },
+    { concurrency: 4 }
+  );
   const values: number[] = [];
-  for await (const val of iterable) {
-    values.push(val);
-  }
-  const endTime = Date.now();
+  const consuming = (async () => {
+    for await (const value of iterable) {
+      values.push(value);
+    }
+  })();
 
-  t.deepEqual(values, [1, 1, 1, 1, 1, 1, 200, 200, 200]);
-  t.truthy(endTime - startTime < 400);
+  try {
+    // Drain ready promise callbacks while every mapper remains blocked.
+    await setImmediate();
+    t.is(started, 4);
+  } finally {
+    unblockMappers();
+    await consuming;
+  }
+  t.deepEqual(
+    values.sort((a, b) => a - b),
+    [10, 20, 30, 40, 50]
+  );
 });
 
 test(`mapAsyncIterable (with concurrency) source function not executed until the mapped iterator actually get invoked`, async (t) => {
