@@ -23,8 +23,10 @@ type ActivityKeys<A> = {
 export type ActivityTypeInfoMap<A> = Partial<Record<ActivityKeys<A>, PayloadTypeInfo>>;
 
 /** @internal */
-export interface ActivityFunctionWithOptions<Args extends any[] = any[], ReturnType = any>
-  extends ActivityFunction<Args, ReturnType> {
+export interface ActivityFunctionWithOptions<Args extends any[] = any[], ReturnType = any> extends ActivityFunction<
+  Args,
+  ReturnType
+> {
   activityDefinitionOptions: ActivityDefinitionOptions;
 }
 

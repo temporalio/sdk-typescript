@@ -65,8 +65,10 @@ export interface WorkflowFunctionWithOptions<Args extends any[], ReturnType> ext
 }
 
 /** @internal */
-export interface WorkflowFunctionWithStaticOptions<Args extends any[], ReturnType>
-  extends AsyncFunction<Args, ReturnType> {
+export interface WorkflowFunctionWithStaticOptions<Args extends any[], ReturnType> extends AsyncFunction<
+  Args,
+  ReturnType
+> {
   staticOptions: WorkflowStaticOptions;
 }
 

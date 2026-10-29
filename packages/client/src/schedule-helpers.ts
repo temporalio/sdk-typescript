@@ -133,7 +133,7 @@ function makeCalendarSpecFieldCoders<Unit>(
         if (start !== undefined) {
           return {
             start,
-            end: range.end !== undefined ? encodeValueFn(range.end) ?? start : 1,
+            end: range.end !== undefined ? (encodeValueFn(range.end) ?? start) : 1,
             step: typeof range.step === 'number' && range.step > 0 ? range.step : 1,
           };
         }
@@ -153,7 +153,7 @@ function makeCalendarSpecFieldCoders<Unit>(
       if (start === undefined) {
         throw new RangeError(`Invalid CalendarSpec component for field ${fieldName}: ${pb.start} is out of bounds`);
       }
-      const end = pb.end > pb.start ? decodeValueFn(pb.end) ?? start : start;
+      const end = pb.end > pb.start ? (decodeValueFn(pb.end) ?? start) : start;
       const step = pb.step > 0 ? pb.step : 1;
       return { start, end, step };
     });
@@ -183,18 +183,16 @@ export function decodeOptionalStructuredCalendarSpecs(
 ): CalendarSpecDescription[] {
   if (!input) return [];
 
-  return (input as temporal.api.schedule.v1.StructuredCalendarSpec[]).map(
-    (pb): CalendarSpecDescription => ({
-      second: decodeSecond(pb.second),
-      minute: decodeMinue(pb.minute),
-      hour: decodeHour(pb.hour),
-      dayOfMonth: decodeDayOfMonth(pb.dayOfMonth),
-      month: decodeMonth(pb.month),
-      year: decodeYear(pb.year),
-      dayOfWeek: decodeDayOfWeek(pb.dayOfWeek),
-      comment: pb.comment,
-    })
-  );
+  return (input as temporal.api.schedule.v1.StructuredCalendarSpec[]).map((pb): CalendarSpecDescription => ({
+    second: decodeSecond(pb.second),
+    minute: decodeMinue(pb.minute),
+    hour: decodeHour(pb.hour),
+    dayOfMonth: decodeDayOfMonth(pb.dayOfMonth),
+    month: decodeMonth(pb.month),
+    year: decodeYear(pb.year),
+    dayOfWeek: decodeDayOfWeek(pb.dayOfWeek),
+    comment: pb.comment,
+  }));
 }
 
 export function compileScheduleOptions(options: ScheduleOptions): CompiledScheduleOptions {
@@ -367,16 +365,14 @@ export function decodeScheduleRunningActions(
   pb?: temporal.api.common.v1.IWorkflowExecution[] | null
 ): ScheduleExecutionStartWorkflowActionResult[] {
   if (!pb) return [];
-  return pb.map(
-    (x): ScheduleExecutionStartWorkflowActionResult => ({
-      type: 'startWorkflow',
-      workflow: {
-        workflowId: x.workflowId!,
+  return pb.map((x): ScheduleExecutionStartWorkflowActionResult => ({
+    type: 'startWorkflow',
+    workflow: {
+      workflowId: x.workflowId!,
 
-        firstExecutionRunId: x.runId!,
-      },
-    })
-  );
+      firstExecutionRunId: x.runId!,
+    },
+  }));
 }
 
 export function decodeScheduleRecentActions(

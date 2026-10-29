@@ -22,7 +22,7 @@ export class TextDecoder {
     const len = inputAs8.length | 0;
     const lenMinus32 = (len - 32) | 0;
     // Note that tmp represents the 2nd half of a surrogate pair incase a surrogate gets divided between blocks
-    for (; index < len; ) {
+    for (; index < len;) {
       nextEnd = index <= lenMinus32 ? 32 : (len - index) | 0;
       for (; pos < nextEnd; index = (index + 1) | 0, pos = (pos + 1) | 0) {
         // @ts-expect-error ignoring unchecked index
@@ -186,9 +186,9 @@ function encoderReplacer(nonAsciiChars: string) {
             (0x2 /*0b10*/ << 6) | ((point >> 6) & 0x3f) /*0b00111111*/,
             (0x2 /*0b10*/ << 6) | (point & 0x3f) /*0b00111111*/
           );
-      } else point = 65533 /*0b1111111111111101*/; //return '\xEF\xBF\xBD';//fromCharCode(0xef, 0xbf, 0xbd);
+      } else point = 65533; /*0b1111111111111101*/ //return '\xEF\xBF\xBD';//fromCharCode(0xef, 0xbf, 0xbd);
     } else if (point <= 0xdfff) {
-      point = 65533 /*0b1111111111111101*/; //return '\xEF\xBF\xBD';//fromCharCode(0xef, 0xbf, 0xbd);
+      point = 65533; /*0b1111111111111101*/ //return '\xEF\xBF\xBD';//fromCharCode(0xef, 0xbf, 0xbd);
     }
   }
   /*if (point <= 0x007f) return nonAsciiChars;
@@ -233,16 +233,16 @@ export class TextEncoder {
                 point = ((point << 10) + nextcode - 0x35fdc00) | 0;
                 if (point > 0xffff) {
                   result[pos] = (0x1e /*0b11110*/ << 3) | (point >> 18);
-                  result[(pos = (pos + 1) | 0)] = (0x2 /*0b10*/ << 6) | ((point >> 12) & 0x3f) /*0b00111111*/;
-                  result[(pos = (pos + 1) | 0)] = (0x2 /*0b10*/ << 6) | ((point >> 6) & 0x3f) /*0b00111111*/;
-                  result[(pos = (pos + 1) | 0)] = (0x2 /*0b10*/ << 6) | (point & 0x3f) /*0b00111111*/;
+                  result[(pos = (pos + 1) | 0)] = (0x2 /*0b10*/ << 6) | ((point >> 12) & 0x3f); /*0b00111111*/
+                  result[(pos = (pos + 1) | 0)] = (0x2 /*0b10*/ << 6) | ((point >> 6) & 0x3f); /*0b00111111*/
+                  result[(pos = (pos + 1) | 0)] = (0x2 /*0b10*/ << 6) | (point & 0x3f); /*0b00111111*/
                   continue;
                 }
                 break widenCheck;
               }
-              point = 65533 /*0b1111111111111101*/; //return '\xEF\xBF\xBD';//fromCharCode(0xef, 0xbf, 0xbd);
+              point = 65533; /*0b1111111111111101*/ //return '\xEF\xBF\xBD';//fromCharCode(0xef, 0xbf, 0xbd);
             } else if (point <= 0xdfff) {
-              point = 65533 /*0b1111111111111101*/; //return '\xEF\xBF\xBD';//fromCharCode(0xef, 0xbf, 0xbd);
+              point = 65533; /*0b1111111111111101*/ //return '\xEF\xBF\xBD';//fromCharCode(0xef, 0xbf, 0xbd);
             }
           }
           if (!upgradededArraySize && i << 1 < pos && i << 1 < ((pos - 7) | 0)) {
@@ -253,8 +253,8 @@ export class TextEncoder {
           }
         }
         result[pos] = (0xe /*0b1110*/ << 4) | (point >> 12);
-        result[(pos = (pos + 1) | 0)] = (0x2 /*0b10*/ << 6) | ((point >> 6) & 0x3f) /*0b00111111*/;
-        result[(pos = (pos + 1) | 0)] = (0x2 /*0b10*/ << 6) | (point & 0x3f) /*0b00111111*/;
+        result[(pos = (pos + 1) | 0)] = (0x2 /*0b10*/ << 6) | ((point >> 6) & 0x3f); /*0b00111111*/
+        result[(pos = (pos + 1) | 0)] = (0x2 /*0b10*/ << 6) | (point & 0x3f); /*0b00111111*/
       }
     }
     return Uint8Array ? result.subarray(0, pos) : result.slice(0, pos);
