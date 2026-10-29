@@ -1,6 +1,7 @@
 {
   "name": "@temporalio/ai-sdk",
   "version": "1.25.0",
+  "private": true,
   "description": "Compatibility package forwarding to @temporalio/vercel-ai-sdk",
   "main": "./lib/index.js",
   "types": "./lib/index.d.ts",
