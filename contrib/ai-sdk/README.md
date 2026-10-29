@@ -1,5 +1,7 @@
 # Vercel AI SDK compatibility package
 
+No additional versions of `@temporalio/ai-sdk` are expected to be published after 1.25.0.
+
 `@temporalio/ai-sdk` forwards its root and `/workflow` entrypoints to
 [`@temporalio/vercel-ai-sdk`](https://github.com/temporalio/ai-integrations/tree/main/typescript/vercel-ai-sdk).
 Existing imports continue to work, and both names expose the same classes,
