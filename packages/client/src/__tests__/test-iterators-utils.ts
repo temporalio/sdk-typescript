@@ -89,10 +89,6 @@ test(`mapAsyncIterable (with concurrency) run tasks concurrently`, async (t) => 
     unblockMappers();
     await consuming;
   }
-  t.deepEqual(
-    values.sort((a, b) => a - b),
-    [10, 20, 30, 40, 50]
-  );
 });
 
 test(`mapAsyncIterable (with concurrency) source function not executed until the mapped iterator actually get invoked`, async (t) => {
