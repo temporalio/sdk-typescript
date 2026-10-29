@@ -119,6 +119,13 @@ export interface InternalWorkflowUpdateOptions {
      * ID, or an Update that completes immediately). Left unset while the Update is only accepted.
      */
     outcome?: temporal.api.update.v1.IOutcome;
+
+    /**
+     * Serialization context of the Nexus operation handler sending this Update. The server
+     * propagates it to the worker, which encodes the Update's result and failure returned to the
+     * Nexus caller with it.
+     */
+    propagatedNexusSerializationContext?: temporal.api.nexus.v1.IPropagatedSerializationContext;
   };
 }
 

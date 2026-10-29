@@ -51,9 +51,9 @@ export interface ActivitySerializationContext {
  * receive it when decoding inputs, encoding synchronous results, and encoding failures raised
  * while handling a Nexus task.
  *
- * Workflows and standalone Activities started by a handler receive this context through the
- * server and use it for the payloads returned to the caller: results, failures, and standalone
- * Activity heartbeat details. Clients decode these with the context the server returns. See
+ * Workflows and standalone Activities started by a handler, and Workflow Updates it sends, receive
+ * this context through the server and use it for the payloads returned to the caller: results,
+ * failures, and standalone Activity heartbeat details. Clients decode these with the context the server returns. See
  * `ActivityInfo.nexusSerializationContext` for asynchronous Activity completion.
  *
  * A standalone operation handle decodes with the context the server returns, falling back to the

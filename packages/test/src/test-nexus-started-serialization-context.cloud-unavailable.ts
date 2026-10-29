@@ -1,10 +1,12 @@
 /**
- * Serialization context coverage for executions started by a Nexus operation handler.
+ * Serialization context coverage for executions started, and Updates sent, by a Nexus operation
+ * handler.
  *
- * A Workflow or standalone Activity started by a handler returns its result and failure to the
- * Nexus caller, which decodes them with the operation's {@link NexusSerializationContext}. The
- * handler sends that context with the start request, the server propagates it to the Worker, and
- * Clients reading the outcome decode with the context the server returns.
+ * A Workflow or standalone Activity started by a handler, or an Update it sends, returns its result
+ * and failure to the Nexus caller, which decodes them with the operation's
+ * {@link NexusSerializationContext}. The handler sends that context with the request, the server
+ * propagates it to the Worker, and Clients reading the outcome decode with the context the server
+ * returns.
  *
  * Every test runs with {@link nexusContextMarkerCodec}, which marks payloads encoded under the
  * operation's context and rejects a marked payload decoded under any other context.
@@ -13,17 +15,20 @@ import { randomUUID } from 'crypto';
 import type { ExecutionContext } from 'ava';
 import * as nexus from 'nexus-rpc';
 import * as activity from '@temporalio/activity';
+import type { WorkflowClientInterceptor } from '@temporalio/client';
 import {
   ActivityExecutionFailedError,
   Client,
   NexusOperationFailureError,
   WorkflowFailedError,
+  WorkflowUpdateFailedError,
+  WorkflowUpdateStage,
 } from '@temporalio/client';
 import type { NexusSerializationContext, Payload, PayloadCodec } from '@temporalio/common';
 import { ApplicationFailure } from '@temporalio/common';
 import * as temporalnexus from '@temporalio/nexus';
 import * as wf from '@temporalio/workflow';
-import { waitUntil } from './helpers';
+import { waitUntil, Worker } from './helpers';
 import type { Context } from './helpers-integration';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { MARKER_KEY, nexusContextMarkerCodec } from './helpers-nexus';
@@ -42,6 +47,8 @@ const test = makeTestFunction({
         'history.enableChasmCallbacks=true',
         '--dynamic-config-value',
         'activity.enableCallbacks=true',
+        '--dynamic-config-value',
+        'history.enableUpdateCallbacks=true',
       ],
     },
   },
@@ -70,6 +77,43 @@ export async function nexusStartedWorkflow(input: NexusStartedInput): Promise<st
     });
   }
   return input.value;
+}
+
+export interface NexusUpdateInput {
+  workflowId: string;
+  updateId: string;
+  value: 'result' | 'failure' | 'rejection';
+}
+
+export const nexusUpdate = wf.defineUpdate<string, [string]>('nexusUpdate');
+export const finishSignal = wf.defineSignal('finish');
+
+export async function nexusUpdatedWorkflow(): Promise<void> {
+  let finished = false;
+  wf.setHandler(
+    nexusUpdate,
+    async (value) => {
+      if (value === 'failure') {
+        throw ApplicationFailure.create({
+          message: 'nexus-update-failure',
+          details: ['failure-detail'],
+          nonRetryable: true,
+        });
+      }
+      return value;
+    },
+    {
+      validator: (value) => {
+        if (value === 'rejection') {
+          throw ApplicationFailure.create({ message: 'nexus-update-rejection', details: ['rejection-detail'] });
+        }
+      },
+    }
+  );
+  wf.setHandler(finishSignal, () => {
+    finished = true;
+  });
+  await wf.condition(() => finished);
 }
 
 /** Context each attempt saw in `ActivityInfo.nexusSerializationContext`, keyed by Activity ID. */
@@ -110,6 +154,7 @@ const activities = {
 const nexusStartedService = nexus.service('nexusStartedService', {
   startWorkflow: nexus.operation<NexusStartedInput, string>(),
   startActivity: nexus.operation<NexusStartedInput, string>(),
+  updateWorkflow: nexus.operation<NexusUpdateInput, string>(),
 });
 
 // Built on demand: this module is also the Workflow bundle, where the Nexus package isn't available
@@ -130,13 +175,26 @@ function nexusStartedServiceHandler() {
         });
       },
     }),
+    updateWorkflow: new temporalnexus.TemporalOperationHandler<NexusUpdateInput, string>({
+      async start(_ctx, client, input) {
+        return await client.getWorkflowHandle(input.workflowId).update(nexusUpdate, {
+          args: [input.value],
+          updateId: input.updateId,
+          waitForStage: WorkflowUpdateStage.ACCEPTED,
+        });
+      },
+    }),
   });
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Helpers
 
-async function setup(t: ExecutionContext<Context>, operation: keyof typeof nexusStartedService.operations) {
+async function setup(
+  t: ExecutionContext<Context>,
+  operation: keyof typeof nexusStartedService.operations,
+  workerClientInterceptors: WorkflowClientInterceptor[] = []
+) {
   const h = helpers(t);
   const { endpointName } = await h.registerNexusEndpoint();
   const context: NexusSerializationContext = {
@@ -151,9 +209,10 @@ async function setup(t: ExecutionContext<Context>, operation: keyof typeof nexus
     activities,
     dataConverter: { payloadCodecs: [codec] },
     nexusServices: [nexusStartedServiceHandler()],
+    interceptors: { client: { workflow: workerClientInterceptors } },
   });
   const nexusClient = client.nexus.createServiceClient({ endpoint: endpointName, service: nexusStartedService });
-  return { client, worker, nexusClient, context };
+  return { client, worker, nexusClient, context, codec, taskQueue: h.taskQueue };
 }
 
 function makeClient({ env }: Context, codec: PayloadCodec): Client {
@@ -306,3 +365,85 @@ test('standalone Activity started by a Nexus handler completes asynchronously wi
     t.is(await client.activity.getHandle(activityId).result(), 'async-value');
   });
 });
+
+for (const value of ['result', 'failure', 'rejection'] as const) {
+  test(`Update sent by a Nexus handler uses the Nexus context - ${value}`, async (t) => {
+    // Rejected Updates aren't stored in history, so the test reads the marker on the rejection the
+    // handler's Client receives
+    const rejectionMarkers: (string | undefined)[] = [];
+    const captureRejection: WorkflowClientInterceptor = {
+      async startUpdate(input, next) {
+        const output = await next(input);
+        if (output.outcome?.failure != null) {
+          rejectionMarkers.push(marker(output.outcome.failure.applicationFailureInfo?.details?.payloads?.[0]));
+        }
+        return output;
+      },
+    };
+    const { client, worker, nexusClient, context, codec, taskQueue } = await setup(t, 'updateWorkflow', [
+      captureRejection,
+    ]);
+    const updateId = randomUUID();
+
+    const history = await worker.runUntil(async () => {
+      const handle = await client.workflow.start(nexusUpdatedWorkflow, {
+        workflowId: `nexus-updated-workflow-${randomUUID()}`,
+        taskQueue,
+      });
+      const operation = nexusClient.executeOperation(
+        'updateWorkflow',
+        { workflowId: handle.workflowId, updateId, value },
+        { id: randomUUID() }
+      );
+      if (value === 'result') {
+        t.is(await operation, 'result');
+      } else {
+        await t.throwsAsync(operation, { instanceOf: NexusOperationFailureError });
+      }
+
+      if (value === 'rejection') {
+        t.deepEqual(rejectionMarkers, [MARKER]);
+      } else {
+        // This handle never sent the Update, so it relies on the context the server returns
+        const updateHandle = handle.getUpdateHandle<string>(updateId);
+        if (value === 'result') {
+          t.is(await updateHandle.result(), 'result');
+        } else {
+          const err = await t.throwsAsync(updateHandle.result(), { instanceOf: WorkflowUpdateFailedError });
+          t.true(err?.cause instanceof ApplicationFailure);
+          t.deepEqual((err?.cause as ApplicationFailure).details, ['failure-detail']);
+        }
+      }
+
+      await handle.signal(finishSignal);
+      await handle.result();
+      return await handle.fetchHistory();
+    });
+
+    const events = history.events ?? [];
+    if (value !== 'rejection') {
+      const accepted = events.find((e) => e.workflowExecutionUpdateAcceptedEventAttributes != null)
+        ?.workflowExecutionUpdateAcceptedEventAttributes;
+      t.like(accepted?.acceptedRequest?.propagatedNexusSerializationContext, {
+        endpoint: context.endpoint,
+        service: context.service,
+        operation: context.operation,
+      });
+      // The input keeps the Workflow context
+      t.true((accepted?.acceptedRequest?.input?.args?.payloads ?? []).every((payload) => marker(payload) == null));
+      const completed = events.find((e) => e.workflowExecutionUpdateCompletedEventAttributes != null)
+        ?.workflowExecutionUpdateCompletedEventAttributes;
+      const outcomePayload =
+        value === 'result'
+          ? completed?.outcome?.success?.payloads?.[0]
+          : completed?.outcome?.failure?.applicationFailureInfo?.details?.payloads?.[0];
+      t.is(marker(outcomePayload), MARKER);
+    }
+
+    // Replaying re-runs the Update handler with the context from history
+    await Worker.runReplayHistory(
+      { workflowBundle: t.context.workflowBundle, dataConverter: { payloadCodecs: [codec] } },
+      history
+    );
+  });
+}
