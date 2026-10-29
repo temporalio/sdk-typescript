@@ -83,7 +83,7 @@ importers:
     dependencies:
       '@temporalio/vercel-ai-sdk':
         specifier: ^1.0.0
-        version: 1.0.0(@ai-sdk/mcp@2.0.66(zod@4.6.7))(@ai-sdk/provider@4.0.21)(ai@7.0.127(zod@4.6.7))(long@5.3.2)(protobufjs@8.7.1)
+        version: 1.0.0(@ai-sdk/mcp@2.0.66(zod@4.6.7))(@ai-sdk/provider@4.0.21)(ai@7.0.127(zod@4.6.7))(long@5.3.2)(protobufjs@8.8.1)
     devDependencies:
       '@temporalio/testing':
         specifier: 1.24.0
@@ -112,7 +112,7 @@ importers:
         version: 5.3.2
       protobufjs:
         specifier: ^8.7.1
-        version: 8.7.1
+        version: 8.8.1
 
   contrib/external-storage-gcs-google-sdk:
     dependencies:
@@ -131,7 +131,7 @@ importers:
         version: 5.3.2
       protobufjs:
         specifier: ^8.7.1
-        version: 8.7.1
+        version: 8.8.1
 
   contrib/external-storage-s3:
     dependencies:
@@ -150,7 +150,7 @@ importers:
         version: 5.3.2
       protobufjs:
         specifier: ^8.7.1
-        version: 8.7.1
+        version: 8.8.1
 
   contrib/external-storage-s3-aws-sdk:
     dependencies:
@@ -169,13 +169,13 @@ importers:
         version: 5.3.2
       protobufjs:
         specifier: ^8.7.1
-        version: 8.7.1
+        version: 8.8.1
 
   contrib/google-adk-agents:
     dependencies:
       '@temporalio/google-adk':
         specifier: ^0.1.0
-        version: 0.1.0(@google/adk@2.0.0(@google-cloud/storage@7.21.0(encoding@0.1.13))(@grpc/grpc-js@1.14.5)(encoding@0.1.13)(express@4.22.1))(@google/genai@2.27.0)(long@5.3.2)(protobufjs@8.7.1)
+        version: 0.1.0(@google/adk@2.0.0(@google-cloud/storage@7.21.0(encoding@0.1.13))(@grpc/grpc-js@1.14.5)(encoding@0.1.13)(express@4.22.1))(@google/genai@2.27.0)(long@5.3.2)(protobufjs@8.8.1)
     devDependencies:
       '@temporalio/testing':
         specifier: 1.24.0
@@ -338,7 +338,7 @@ importers:
         version: 5.3.2
       protobufjs:
         specifier: ^8.7.1
-        version: 8.7.1
+        version: 8.8.1
 
   packages/activity:
     dependencies:
@@ -354,7 +354,7 @@ importers:
         version: 5.3.2
       protobufjs:
         specifier: ^8.7.1
-        version: 8.7.1
+        version: 8.8.1
 
   packages/client:
     dependencies:
@@ -382,7 +382,7 @@ importers:
         version: 5.3.2
       protobufjs:
         specifier: ^8.7.1
-        version: 8.7.1
+        version: 8.8.1
 
   packages/cloud:
     dependencies:
@@ -404,7 +404,7 @@ importers:
         version: 5.3.2
       protobufjs:
         specifier: ^8.7.1
-        version: 8.7.1
+        version: 8.8.1
 
   packages/common:
     dependencies:
@@ -426,7 +426,7 @@ importers:
         version: 5.3.2
       protobufjs:
         specifier: ^8.7.1
-        version: 8.7.1
+        version: 8.8.1
 
   packages/core-bridge:
     dependencies:
@@ -448,7 +448,7 @@ importers:
         version: 5.3.2
       protobufjs:
         specifier: ^8.7.1
-        version: 8.7.1
+        version: 8.8.1
       tsx:
         specifier: ^4.20.6
         version: 4.20.6
@@ -540,7 +540,7 @@ importers:
         version: 5.3.2
       protobufjs:
         specifier: ^8.7.1
-        version: 8.7.1
+        version: 8.8.1
 
   packages/lambda-worker:
     dependencies:
@@ -580,7 +580,7 @@ importers:
         version: 5.3.2
       protobufjs:
         specifier: ^8.7.1
-        version: 8.7.1
+        version: 8.8.1
 
   packages/meta:
     dependencies:
@@ -650,7 +650,7 @@ importers:
         version: 5.3.2
       protobufjs:
         specifier: ^8.7.1
-        version: 8.7.1
+        version: 8.8.1
 
   packages/nyc-test-coverage:
     dependencies:
@@ -714,14 +714,14 @@ importers:
         version: 5.3.2
       protobufjs:
         specifier: ^8.7.1
-        version: 8.7.1
+        version: 8.8.1
     devDependencies:
       glob:
         specifier: ^10.3.10
         version: 10.5.0
       protobufjs-cli:
         specifier: ^2.6.1
-        version: 2.7.1(protobufjs@8.7.1)
+        version: 2.7.1(protobufjs@8.8.1)
 
   packages/test:
     dependencies:
@@ -823,10 +823,10 @@ importers:
         version: 3.0.2
       protobufjs:
         specifier: ^8.7.1
-        version: 8.7.1
+        version: 8.8.1
       protobufjs-cli:
         specifier: ^2.6.1
-        version: 2.7.1(protobufjs@8.7.1)
+        version: 2.7.1(protobufjs@8.8.1)
       rxjs:
         specifier: 7.8.2
         version: 7.8.2
@@ -913,7 +913,7 @@ importers:
         version: 5.3.2
       protobufjs:
         specifier: ^8.7.1
-        version: 8.7.1
+        version: 8.8.1
 
   packages/worker:
     dependencies:
@@ -983,7 +983,7 @@ importers:
         version: 5.3.2
       protobufjs:
         specifier: ^8.7.1
-        version: 8.7.1
+        version: 8.8.1
 
   packages/workflow:
     dependencies:
@@ -1005,7 +1005,7 @@ importers:
         version: 5.3.2
       protobufjs:
         specifier: ^8.7.1
-        version: 8.7.1
+        version: 8.8.1
       source-map:
         specifier: ^0.7.4
         version: 0.7.4
@@ -5581,10 +5581,6 @@ packages:
     peerDependencies:
       protobufjs: ^8.8.1
 
-  protobufjs@7.6.4:
-    resolution: {integrity: sha512-RJJPTTpvFfHcWLkIa2JFWK4XvtSzS0yEWDmunqHXli1h3JlkbcQZXDZdcWxv+JK3Xsl5/UFDPZ0iGm7DAengYw==}
-    engines: {node: '>=12.0.0'}
-
   protobufjs@7.6.6:
     resolution: {integrity: sha512-dYDWdjSl5RNb7SgPxGQcRU+GtvP7s2fpkrY0r432PcOIaZ0/rBcxEZnQN67iJhFuQiVw754JDoPruPCNdGsbjg==}
     engines: {node: '>=12.0.0'}
@@ -5595,6 +5591,10 @@ packages:
 
   protobufjs@8.7.1:
     resolution: {integrity: sha512-agdGHrXNTv0IrYscJPDou/PlEJk1c/hBZ9o/B5NH2i/nSPtPqacNxzgwf1CebXxFMjMrZH5sqv9uQuw96aGt/A==}
+    engines: {node: '>=12.0.0'}
+
+  protobufjs@8.8.1:
+    resolution: {integrity: sha512-d9e9179bjXSJdpJ3+R9fP8hzXsnKLyxTjHLG1dUzje8a27pPyXCe6PrcRtgx2rjoM3IZzHd2vAs+6J/BsO1k7Q==}
     engines: {node: '>=12.0.0'}
 
   proxy-addr@2.0.7:
@@ -6287,8 +6287,8 @@ packages:
   undici-types@8.3.0:
     resolution: {integrity: sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ==}
 
-  undici@7.30.0:
-    resolution: {integrity: sha512-dkrQXeHSaoamnItlYbmzG0wFYrM0ZwDxCIg0A7aKjTyyhh9svRzCNFEzV+Vm05/yehjCzjDZ31KXfGEjYSztDQ==}
+  undici@7.30.1:
+    resolution: {integrity: sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg==}
     engines: {node: '>=20.18.1'}
 
   unionfs@4.6.0:
@@ -6585,7 +6585,7 @@ snapshots:
       '@standard-schema/spec': 1.1.0
       '@workflow/serde': 4.1.0
       eventsource-parser: 3.1.1
-      undici: 7.30.0
+      undici: 7.30.1
       zod: 4.6.7
 
   '@ai-sdk/provider@4.0.21':
@@ -7403,7 +7403,7 @@ snapshots:
     dependencies:
       lodash.camelcase: 4.3.0
       long: 5.3.2
-      protobufjs: 7.6.4
+      protobufjs: 7.6.6
       yargs: 17.7.2
 
   '@grpc/proto-loader@0.8.1':
@@ -8377,14 +8377,14 @@ snapshots:
       long: 5.3.2
       ms: 3.0.0-canary.1
       nexus-rpc: 0.0.3
-      protobufjs: 8.7.1
+      protobufjs: 8.8.1
 
   '@temporalio/core-bridge@1.24.0':
     dependencies:
       '@grpc/grpc-js': 1.14.5
       '@temporalio/common': 1.24.0
 
-  '@temporalio/google-adk@0.1.0(@google/adk@2.0.0(@google-cloud/storage@7.21.0(encoding@0.1.13))(@grpc/grpc-js@1.14.5)(encoding@0.1.13)(express@4.22.1))(@google/genai@2.27.0)(long@5.3.2)(protobufjs@8.7.1)':
+  '@temporalio/google-adk@0.1.0(@google/adk@2.0.0(@google-cloud/storage@7.21.0(encoding@0.1.13))(@grpc/grpc-js@1.14.5)(encoding@0.1.13)(express@4.22.1))(@google/genai@2.27.0)(long@5.3.2)(protobufjs@8.8.1)':
     dependencies:
       '@google/adk': 2.0.0(@google-cloud/storage@7.21.0(encoding@0.1.13))(@grpc/grpc-js@1.14.5)(encoding@0.1.13)(express@4.22.1)
       '@google/genai': 2.27.0
@@ -8396,7 +8396,7 @@ snapshots:
       '@ungap/structured-clone': 1.4.0
       headers-polyfill: 4.0.3
       long: 5.3.2
-      protobufjs: 8.7.1
+      protobufjs: 8.8.1
       web-streams-polyfill: 4.3.0
       zod: 4.6.5
 
@@ -8413,7 +8413,7 @@ snapshots:
   '@temporalio/proto@1.24.0':
     dependencies:
       long: 5.3.2
-      protobufjs: 8.7.1
+      protobufjs: 8.8.1
 
   '@temporalio/testing@1.24.0(tslib@2.8.1)':
     dependencies:
@@ -8441,7 +8441,7 @@ snapshots:
       - uglify-js
       - webpack-cli
 
-  '@temporalio/vercel-ai-sdk@1.0.0(@ai-sdk/mcp@2.0.66(zod@4.6.7))(@ai-sdk/provider@4.0.21)(ai@7.0.127(zod@4.6.7))(long@5.3.2)(protobufjs@8.7.1)':
+  '@temporalio/vercel-ai-sdk@1.0.0(@ai-sdk/mcp@2.0.66(zod@4.6.7))(@ai-sdk/provider@4.0.21)(ai@7.0.127(zod@4.6.7))(long@5.3.2)(protobufjs@8.8.1)':
     dependencies:
       '@ai-sdk/mcp': 2.0.66(zod@4.6.7)
       '@ai-sdk/provider': 4.0.21
@@ -8456,7 +8456,7 @@ snapshots:
       base64-js: 1.5.1
       headers-polyfill: 4.0.3
       long: 5.3.2
-      protobufjs: 8.7.1
+      protobufjs: 8.8.1
       web-streams-polyfill: 4.3.0
 
   '@temporalio/worker@1.24.0(tslib@2.8.1)':
@@ -11696,7 +11696,7 @@ snapshots:
 
   proto-list@1.2.4: {}
 
-  protobufjs-cli@2.7.1(protobufjs@8.7.1):
+  protobufjs-cli@2.7.1(protobufjs@8.8.1):
     dependencies:
       escodegen: 2.1.0
       espree: 9.6.1
@@ -11704,22 +11704,8 @@ snapshots:
       glob: 8.1.0
       jsdoc: 4.0.5
       minimist: 1.2.8
-      protobufjs: 8.7.1
+      protobufjs: 8.8.1
       tmp: 0.2.7
-
-  protobufjs@7.6.4:
-    dependencies:
-      '@protobufjs/aspromise': 1.1.2
-      '@protobufjs/base64': 1.1.2
-      '@protobufjs/codegen': 2.0.5
-      '@protobufjs/eventemitter': 1.1.1
-      '@protobufjs/fetch': 1.1.1
-      '@protobufjs/float': 1.0.2
-      '@protobufjs/path': 1.1.2
-      '@protobufjs/pool': 1.1.0
-      '@protobufjs/utf8': 1.1.2
-      '@types/node': 20.19.41
-      long: 5.3.2
 
   protobufjs@7.6.6:
     dependencies:
@@ -11732,7 +11718,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.2
-      '@types/node': 26.4.1
+      '@types/node': 20.19.41
       long: 5.3.2
 
   protobufjs@8.0.1:
@@ -11751,6 +11737,10 @@ snapshots:
       long: 5.3.2
 
   protobufjs@8.7.1:
+    dependencies:
+      long: 5.3.2
+
+  protobufjs@8.8.1:
     dependencies:
       long: 5.3.2
 
@@ -12522,7 +12512,7 @@ snapshots:
 
   undici-types@8.3.0: {}
 
-  undici@7.30.0: {}
+  undici@7.30.1: {}
 
   unionfs@4.6.0:
     dependencies:
