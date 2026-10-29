@@ -38,7 +38,7 @@ export function patchProtobufRoot<T extends Record<string, unknown>>(root: T): T
   if (!Object.getOwnPropertyDescriptor(patched, 'root')) {
     Object.defineProperty(patched, 'root', {
       get(this: any) {
-        // eslint-disable-next-line @typescript-eslint/no-this-alias
+        // oxlint-disable-next-line typescript/no-this-alias
         let ptr = this;
         while (ptr.parent !== null) ptr = ptr.parent;
         return ptr;

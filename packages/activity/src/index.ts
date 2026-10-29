@@ -136,7 +136,7 @@ import type { Client } from '@temporalio/client';
 export {
   ActivityDefinitionOptions,
   ActivityFunction,
-  ActivityInterface, // eslint-disable-line @typescript-eslint/no-deprecated
+  ActivityInterface, // oxlint-disable-line typescript/no-deprecated
   ActivityTypeInfoMap,
   ApplicationFailure,
   CancelledFailure,

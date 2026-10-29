@@ -1,2 +1,2 @@
-/* eslint-disable @typescript-eslint/no-unused-expressions,import/unambiguous */
+/* oxlint-disable no-unused-expressions */
 null;

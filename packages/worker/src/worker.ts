@@ -730,7 +730,7 @@ export class Worker {
       try {
         await runPromise;
       } catch (err) {
-        /* eslint-disable no-unsafe-finally */
+        /* oxlint-disable no-unsafe-finally */
         if (err instanceof ShutdownError) {
           if (innerError !== undefined) throw innerError;
           return;
@@ -744,7 +744,7 @@ export class Worker {
             },
           });
         }
-        /* eslint-enable no-unsafe-finally */
+        /* oxlint-enable no-unsafe-finally */
       }
     }
   }
@@ -2619,7 +2619,7 @@ function workflowCommandStoreTarget(
 function activitySerializationContextFromInfo(info: ActivityInfo): ActivitySerializationContext {
   return {
     type: 'activity',
-    namespace: info.activityNamespace, // eslint-disable-line @typescript-eslint/no-deprecated
+    namespace: info.activityNamespace, // oxlint-disable-line typescript/no-deprecated
     activityId: info.activityId,
     workflowId: info.workflowExecution?.workflowId,
     isLocal: info.isLocal,

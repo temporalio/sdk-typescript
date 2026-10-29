@@ -11,7 +11,7 @@ import test from 'ava';
 import { DefaultLogger, NativeConnection, Runtime, makeTelemetryFilterString } from '@temporalio/worker';
 import type { LogEntry } from '@temporalio/worker';
 import { Client, WorkflowFailedError } from '@temporalio/client';
-import proto from '@temporalio/proto'; // eslint-disable-line import/default
+import proto from '@temporalio/proto'; // oxlint-disable-line import/default
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { waitUntil } from '@temporalio/test-helpers';
 import { Worker } from './helpers';

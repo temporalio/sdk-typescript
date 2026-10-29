@@ -4,7 +4,7 @@ import { promisify } from 'node:util';
 import { rm, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import * as tar from 'tar';
-// eslint-disable-next-line import/no-named-as-default
+// oxlint-disable-next-line import/no-named-as-default
 import got from 'got';
 import chalk from 'chalk';
 import { getErrorCode } from './get-error-code.js';
@@ -31,7 +31,7 @@ export async function isUrlOk(url: string): Promise<boolean> {
 
 // https://stackoverflow.com/a/3561711/627729
 function escapeRegex(s: string) {
-  // eslint-disable-next-line no-useless-escape
+  // oxlint-disable-next-line no-useless-escape
   return s.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
 }
 

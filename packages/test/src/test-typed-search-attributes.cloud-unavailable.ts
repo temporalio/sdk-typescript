@@ -305,7 +305,7 @@ test('upsert works with various search attribute mutations', async (t) => {
     res = await handle.query(getWorkflowInfo);
     desc = await handle.describe();
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    // oxlint-disable-next-line typescript/no-unused-vars
     const { typed_bool, ...untypedUpdateExpected } = untypedUpdateAttrs;
 
     assertWorkflowInfoSearchAttributes(t, res, untypedUpdateExpected, [
@@ -360,7 +360,7 @@ test('upsert works with various search attribute mutations', async (t) => {
       typed_keyword: ['new_keyword'],
       typed_datetime: [secondDate],
     };
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    // oxlint-disable-next-line typescript/no-unused-vars
     const { typed_keyword, typed_datetime, ...newDescExpected } = expectedUntyped;
     const expectedTyped = [
       { key: defineSearchAttributeKey('typed_int', SearchAttributeType.INT), value: 3 },

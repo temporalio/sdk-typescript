@@ -480,7 +480,7 @@ export interface ActivateInput {
 /**
  * Input for {@link WorkflowInternalsInterceptor.dispose}
  */
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+// oxlint-disable-next-line typescript/no-empty-object-type
 export interface DisposeInput {}
 
 /**

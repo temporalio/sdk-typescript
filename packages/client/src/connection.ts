@@ -675,7 +675,7 @@ export class Connection {
   ): temporal.api.workflowservice.v1.WorkflowService {
     const wrapper: any = {};
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+    // oxlint-disable-next-line typescript/no-unsafe-function-type
     for (const [methodName, methodImpl] of Object.entries(workflowService) as [string, Function][]) {
       if (typeof methodImpl !== 'function') continue;
 

@@ -1,4 +1,3 @@
-/* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import { randomUUID } from 'crypto';
 import asyncRetry from 'async-retry';
 import dedent from 'dedent';

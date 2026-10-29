@@ -1,4 +1,3 @@
-/* eslint @typescript-eslint/no-non-null-assertion: 0 */
 /**
  * E2E Tests for the various SDK interceptors.
  * Tests run serially to improve CI reliability..

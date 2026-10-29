@@ -50,7 +50,7 @@ export class MockActivityEnvironment extends events.EventEmitter {
       loadedDataConverter,
       {
         type: 'activity',
-        namespace: activityInfo.activityNamespace, // eslint-disable-line @typescript-eslint/no-deprecated
+        namespace: activityInfo.activityNamespace, // oxlint-disable-line typescript/no-deprecated
         activityId: activityInfo.activityId,
         workflowId: activityInfo.workflowExecution?.workflowId,
         isLocal: activityInfo.isLocal,

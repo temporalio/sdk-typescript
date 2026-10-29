@@ -1,4 +1,3 @@
-/* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import test, { type ExecutionContext } from 'ava';
 import Long from 'long';
 import type { MetricCounter, MetricMeter, MetricTags, Payload, PayloadCache } from '@temporalio/common';
