@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type vm from 'node:vm';
+import vm from 'node:vm';
 import type { ExecutionContext, TestFn } from 'ava';
 import anyTest from 'ava';
 import dedent from 'dedent';
@@ -47,6 +47,7 @@ export interface Context {
 const test = anyTest as TestFn<Context>;
 
 function injectCustomConsole(logsGetter: (runId: string) => unknown[][], context: vm.Context) {
+  vm.runInContext('if (typeof Temporal !== "undefined") Temporal.Now.unsupported = () => 0;', context);
   context.console = {
     log(...args: unknown[]) {
       const { runId } = context.__TEMPORAL_ACTIVATOR__.info;
@@ -1895,16 +1896,23 @@ test('resolve activity with failure - http', async (t) => {
 
 test('globalOverrides', async (t) => {
   const { workflowType, logs } = t.context;
+  const now = 12345;
   {
-    const completion = await activate(t, makeStartWorkflow(workflowType));
+    const completion = await activate(t, makeStartWorkflow(workflowType, undefined, now));
     compareCompletion(t, completion, makeSuccess());
   }
-  t.deepEqual(
-    logs,
-    ['WeakRef' /* First error happens on startup */, 'FinalizationRegistry', 'WeakRef'].map((type) => [
-      `DeterminismViolationError: ${type} cannot be used in Workflows because v8 GC is non-deterministic`,
-    ])
-  );
+  const expectedLogs: unknown[][] = [
+    'WeakRef' /* First error happens on startup */,
+    'FinalizationRegistry',
+    'WeakRef',
+  ].map((type) => [
+    `DeterminismViolationError: ${type} cannot be used in Workflows because v8 GC is non-deterministic`,
+  ]);
+  if ((globalThis as any).Temporal !== undefined) {
+    expectedLogs.push([now], [now], ['1970-01-01T00:00:12.345'], ['1970-01-01'], ['00:00:12.345']);
+    expectedLogs.push(['DeterminismViolationError: Temporal.Now.unsupported is not supported in Workflows']);
+  }
+  t.deepEqual(logs, expectedLogs);
 });
 
 test('logAndTimeout', async (t) => {
