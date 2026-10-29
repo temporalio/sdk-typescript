@@ -36,12 +36,16 @@ export async function globalOverrides(): Promise<void> {
   const Temporal = (globalThis as any).Temporal;
   if (Temporal !== undefined) {
     const temporalNow = Temporal.Now;
-    console.log(temporalNow.instant().epochMilliseconds);
+    const { instant } = temporalNow;
+    console.log(instant().epochMilliseconds);
     console.log(temporalNow.zonedDateTimeISO('UTC').epochMilliseconds);
     console.log(temporalNow.plainDateTimeISO('UTC').toString());
     console.log(temporalNow.plainDateISO('UTC').toString());
     console.log(temporalNow.plainTimeISO('UTC').toString());
-    console.log(temporalNow.zonedDateTimeISO().timeZoneId);
-    console.log(temporalNow.timeZoneId());
+    try {
+      temporalNow.unsupported();
+    } catch (err: any) {
+      console.log(err.toString());
+    }
   }
 }

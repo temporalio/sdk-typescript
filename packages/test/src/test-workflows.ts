@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type vm from 'node:vm';
+import vm from 'node:vm';
 import type { ExecutionContext, TestFn } from 'ava';
 import anyTest from 'ava';
 import dedent from 'dedent';
@@ -47,6 +47,7 @@ export interface Context {
 const test = anyTest as TestFn<Context>;
 
 function injectCustomConsole(logsGetter: (runId: string) => unknown[][], context: vm.Context) {
+  vm.runInContext('if (typeof Temporal !== "undefined") Temporal.Now.unsupported = () => 0;', context);
   context.console = {
     log(...args: unknown[]) {
       const { runId } = context.__TEMPORAL_ACTIVATOR__.info;
@@ -1907,25 +1908,9 @@ test('globalOverrides', async (t) => {
   ].map((type) => [
     `DeterminismViolationError: ${type} cannot be used in Workflows because v8 GC is non-deterministic`,
   ]);
-  const Temporal = (globalThis as any).Temporal;
-  if (Temporal !== undefined) {
-    const temporalNow = Temporal.Now;
-    t.deepEqual(
-      Reflect.ownKeys(temporalNow)
-        .filter((key) => typeof temporalNow[key] === 'function')
-        .sort(),
-      ['instant', 'timeZoneId', 'plainDateTimeISO', 'zonedDateTimeISO', 'plainDateISO', 'plainTimeISO'].sort()
-    );
-    const zonedDateTime = Temporal.Instant.fromEpochMilliseconds(now).toZonedDateTimeISO('UTC');
-    expectedLogs.push(
-      [now],
-      [now],
-      [zonedDateTime.toPlainDateTime().toString()],
-      [zonedDateTime.toPlainDate().toString()],
-      [zonedDateTime.toPlainTime().toString()],
-      [Temporal.Now.timeZoneId()],
-      [Temporal.Now.timeZoneId()]
-    );
+  if ((globalThis as any).Temporal !== undefined) {
+    expectedLogs.push([now], [now], ['1970-01-01T00:00:12.345'], ['1970-01-01'], ['00:00:12.345']);
+    expectedLogs.push(['DeterminismViolationError: Temporal.Now.unsupported is not supported in Workflows']);
   }
   t.deepEqual(logs, expectedLogs);
 });
