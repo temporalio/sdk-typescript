@@ -198,7 +198,7 @@ To regenerate System Nexus bindings from Core's upstream API WIT files, install 
 release with its `advanced` feature and ensure `protoc` is on your `PATH`:
 
 ```sh
-cargo install nexgen --version '=0.2.6' --locked --features advanced
+cargo install nexgen --version '=0.2.11' --locked --features advanced
 pnpm --filter @temporalio/workflow run gen:system-nexus
 ```
 
