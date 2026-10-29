@@ -33,6 +33,7 @@ test('Activity Context logger funnel through the parent Logger', async (t) => {
   const logs = (env.context as MyTestActivityContext).logs;
   const entry = logs.find((x) => x.level === 'DEBUG' && x.message === 'log message from activity');
   t.not(entry, undefined);
+  // oxlint-disable-next-line typescript/no-deprecated -- Assert the SDK's internal log attributes.
   t.deepEqual(entry?.meta, { ...activityLogAttributes(defaultActivityInfo), sdkComponent: SdkComponent.activity });
 });
 
@@ -44,6 +45,7 @@ test('Activity Worker logs when activity starts', async (t) => {
   const logs = (env.context as MyTestActivityContext).logs;
   const entry = logs.find((x) => x.level === 'DEBUG' && x.message === 'Activity started');
   t.not(entry, undefined);
+  // oxlint-disable-next-line typescript/no-deprecated -- Assert the SDK's internal log attributes.
   t.deepEqual(entry?.meta, { ...activityLogAttributes(defaultActivityInfo), sdkComponent: SdkComponent.worker });
 });
 
@@ -63,6 +65,7 @@ test('Activity Worker logs warning when activity fails', async (t) => {
   const { durationMs, error, ...rest } = entry?.meta ?? {};
   t.true(Number.isInteger(durationMs));
   t.is(err, error);
+  // oxlint-disable-next-line typescript/no-deprecated -- Assert the SDK's internal log attributes.
   t.deepEqual(rest, { ...activityLogAttributes(defaultActivityInfo), sdkComponent: SdkComponent.worker });
 });
 
@@ -80,6 +83,7 @@ test('Activity Worker logs when activity completes async', async (t) => {
   t.not(entry, undefined);
   const { durationMs, ...rest } = entry?.meta ?? {};
   t.true(Number.isInteger(durationMs));
+  // oxlint-disable-next-line typescript/no-deprecated -- Assert the SDK's internal log attributes.
   t.deepEqual(rest, { ...activityLogAttributes(defaultActivityInfo), sdkComponent: SdkComponent.worker });
 });
 
@@ -99,6 +103,7 @@ test('Activity Worker logs when activity is cancelled with promise', async (t) =
   t.not(entry, undefined);
   const { durationMs, ...rest } = entry?.meta ?? {};
   t.true(Number.isInteger(durationMs));
+  // oxlint-disable-next-line typescript/no-deprecated -- Assert the SDK's internal log attributes.
   t.deepEqual(rest, { ...activityLogAttributes(defaultActivityInfo), sdkComponent: SdkComponent.worker });
 });
 
@@ -119,6 +124,7 @@ test('Activity Worker logs when activity is cancelled with signal', async (t) =>
   t.not(entry, undefined);
   const { durationMs, ...rest } = entry?.meta ?? {};
   t.true(Number.isInteger(durationMs));
+  // oxlint-disable-next-line typescript/no-deprecated -- Assert the SDK's internal log attributes.
   t.deepEqual(rest, { ...activityLogAttributes(defaultActivityInfo), sdkComponent: SdkComponent.worker });
 });
 

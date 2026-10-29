@@ -5,6 +5,7 @@
     "correctness": "off"
   },
   "options": {
+    "denyWarnings": true,
     "typeAware": true
   },
   "env": {

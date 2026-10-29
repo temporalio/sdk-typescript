@@ -976,7 +976,7 @@ test('Activity Context exposes Client connection', configMacro, async (t, config
       client: {
         workflow: [
           {
-            async start(input, next) {
+            async startWithDetails(input, next) {
               input.options.args = ['native client intercepted'];
               return await next(input);
             },

@@ -56,7 +56,7 @@ if (RUN_INTEGRATION_TESTS) {
     const client = new WorkflowClient({
       interceptors: [
         {
-          async start(input, next) {
+          async startWithDetails(input, next) {
             return next({
               ...input,
               headers: {

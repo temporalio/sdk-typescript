@@ -51,7 +51,7 @@ test('InMemoryPayloadCache resolves undefined on a miss', async (t) => {
 
 test('InMemoryPayloadCache rejects an entry larger than its total budget', async (t) => {
   const fits = payloadOfSize(10);
-  const cache = new InMemoryPayloadCache({ maxTotalBytes: PayloadProto.encode(fits).len });
+  const cache = new InMemoryPayloadCache({ maxTotalBytes: PayloadProto.encode(fits).pos });
   t.true(await cache.set('fits', fits));
   t.false(await cache.set('toobig', payloadOfSize(11)));
   t.is(await cache.get('toobig'), undefined);
@@ -60,7 +60,7 @@ test('InMemoryPayloadCache rejects an entry larger than its total budget', async
 
 test('InMemoryPayloadCache evicts least-recently-used entries to stay under the byte budget', async (t) => {
   const payload = payloadOfSize(10);
-  const cache = new InMemoryPayloadCache({ maxTotalBytes: PayloadProto.encode(payload).len * 3 });
+  const cache = new InMemoryPayloadCache({ maxTotalBytes: PayloadProto.encode(payload).pos * 3 });
   await cache.set('a', payloadOfSize(10));
   await cache.set('b', payloadOfSize(10));
   await cache.set('c', payloadOfSize(10));
@@ -73,7 +73,7 @@ test('InMemoryPayloadCache evicts least-recently-used entries to stay under the 
 
 test('InMemoryPayloadCache.get promotes an entry to most-recently-used', async (t) => {
   const payload = payloadOfSize(10);
-  const cache = new InMemoryPayloadCache({ maxTotalBytes: PayloadProto.encode(payload).len * 3 });
+  const cache = new InMemoryPayloadCache({ maxTotalBytes: PayloadProto.encode(payload).pos * 3 });
   await cache.set('a', payloadOfSize(10));
   await cache.set('b', payloadOfSize(10));
   await cache.set('c', payloadOfSize(10));
@@ -86,7 +86,7 @@ test('InMemoryPayloadCache.get promotes an entry to most-recently-used', async (
 test('InMemoryPayloadCache.set on an existing key does not double-count bytes', async (t) => {
   const payloadA = payloadOfSize(10);
   const payloadB = payloadOfSize(2);
-  const maxTotalBytes = PayloadProto.encode(payloadA).len + PayloadProto.encode(payloadB).len;
+  const maxTotalBytes = PayloadProto.encode(payloadA).pos + PayloadProto.encode(payloadB).pos;
   const cache = new InMemoryPayloadCache({ maxTotalBytes });
   await cache.set('a', payloadA);
   await cache.set('a', payloadA);
@@ -152,7 +152,7 @@ test('InMemoryPayloadCache does not retain the backing buffer of a partial view'
 test('InMemoryPayloadCache budgets a partial view by its own length, not its buffer', async (t) => {
   const backing = new Uint8Array(100_000);
   const payload = { data: backing.subarray(0, 10) };
-  const cache = new InMemoryPayloadCache({ maxTotalBytes: PayloadProto.encode(payload).len });
+  const cache = new InMemoryPayloadCache({ maxTotalBytes: PayloadProto.encode(payload).pos });
   t.true(await cache.set('k', { data: backing.subarray(0, 10) }));
 });
 
@@ -354,7 +354,7 @@ test('withPayloadCacheMetrics records cache outcomes without changing the cache 
   };
   const payload = payloadOfSize(10);
   const cache = withPayloadCacheMetrics(
-    new InMemoryPayloadCache({ maxTotalBytes: PayloadProto.encode(payload).len }),
+    new InMemoryPayloadCache({ maxTotalBytes: PayloadProto.encode(payload).pos }),
     meter
   );
 
@@ -364,7 +364,7 @@ test('withPayloadCacheMetrics records cache outcomes without changing the cache 
 
   t.deepEqual(records.get('payload_cache_lookup_hit'), [{ value: 1, tags: undefined }]);
   t.deepEqual(records.get('payload_cache_lookup_hit_bytes'), [
-    { value: PayloadProto.encode(payload).len, tags: undefined },
+    { value: PayloadProto.encode(payload).pos, tags: undefined },
   ]);
   t.deepEqual(records.get('payload_cache_rejection'), [{ value: 1, tags: { reason: 'declined' } }]);
 });

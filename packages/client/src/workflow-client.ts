@@ -1467,7 +1467,6 @@ export class WorkflowClient extends BaseClient {
     for (;;) {
       try {
         const response = await this.workflowService.pollWorkflowExecutionUpdate(req);
-        const externalStorage = this.dataConverter.externalStorage;
         await visit(
           response,
           walkPollWorkflowExecutionUpdateResponse,
@@ -1796,7 +1795,6 @@ export class WorkflowClient extends BaseClient {
         namespace: this.options.namespace,
         execution: input.workflowExecution,
       });
-      const externalStorage = this.dataConverter.externalStorage;
       await visit(
         response,
         walkDescribeWorkflowExecutionResponse,

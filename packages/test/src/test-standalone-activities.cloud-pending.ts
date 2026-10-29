@@ -741,7 +741,7 @@ if (RUN_INTEGRATION_TESTS) {
 
     const desc = await handle.describe({ includeInput: true, includeOutcome: true });
     const input = await desc.getInput();
-    t.deepEqual(await desc.getInput(), [
+    t.deepEqual(input, [
       {
         label: 'input',
         trace: encdec('input', ctx),

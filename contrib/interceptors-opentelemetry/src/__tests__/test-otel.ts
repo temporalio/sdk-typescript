@@ -454,7 +454,6 @@ if (RUN_INTEGRATION_TESTS) {
       const worker = await Worker.create({
         workflowsPath: require.resolve('./workflows'),
         activities,
-        enableSDKTracing: true,
         taskQueue: 'test-otel',
         interceptors: {
           workflowModules: [require.resolve('./workflows/otel-interceptors')],
