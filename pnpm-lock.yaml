@@ -100,7 +100,7 @@ importers:
     devDependencies:
       ava:
         specifier: ^5.3.1
-        version: 5.3.1
+        version: 5.3.1(supports-color@8.1.1)
       long:
         specifier: ^5.3.2
         version: 5.3.2
@@ -119,7 +119,7 @@ importers:
         version: 7.21.0(encoding@0.1.13)
       ava:
         specifier: ^5.3.1
-        version: 5.3.1
+        version: 5.3.1(supports-color@8.1.1)
       long:
         specifier: ^5.3.2
         version: 5.3.2
@@ -138,7 +138,7 @@ importers:
     devDependencies:
       ava:
         specifier: ^5.3.1
-        version: 5.3.1
+        version: 5.3.1(supports-color@8.1.1)
       long:
         specifier: ^5.3.2
         version: 5.3.2
@@ -157,7 +157,7 @@ importers:
         version: 3.1060.0
       ava:
         specifier: ^5.3.1
-        version: 5.3.1
+        version: 5.3.1(supports-color@8.1.1)
       long:
         specifier: ^5.3.2
         version: 5.3.2
@@ -231,7 +231,7 @@ importers:
         version: link:../../packages/workflow
       ava:
         specifier: ^5.3.1
-        version: 5.3.1
+        version: 5.3.1(supports-color@8.1.1)
       nexus-rpc:
         specifier: ^0.0.3
         version: 0.0.3
@@ -289,7 +289,7 @@ importers:
         version: link:../../packages/workflow
       ava:
         specifier: ^5.3.1
-        version: 5.3.1
+        version: 5.3.1(supports-color@8.1.1)
       nexus-rpc:
         specifier: ^0.0.3
         version: 0.0.3
@@ -326,7 +326,7 @@ importers:
         version: link:../../packages/worker
       ava:
         specifier: ^5.3.1
-        version: 5.3.1
+        version: 5.3.1(supports-color@8.1.1)
       long:
         specifier: ^5.3.2
         version: 5.3.2
@@ -370,7 +370,7 @@ importers:
     devDependencies:
       ava:
         specifier: ^5.3.1
-        version: 5.3.1
+        version: 5.3.1(supports-color@8.1.1)
       long:
         specifier: ^5.3.2
         version: 5.3.2
@@ -414,7 +414,7 @@ importers:
     devDependencies:
       ava:
         specifier: ^5.3.1
-        version: 5.3.1
+        version: 5.3.1(supports-color@8.1.1)
       long:
         specifier: ^5.3.2
         version: 5.3.2
@@ -503,7 +503,7 @@ importers:
         version: 4.0.2
       ava:
         specifier: ^5.3.1
-        version: 5.3.1
+        version: 5.3.1(supports-color@8.1.1)
 
   packages/envconfig:
     dependencies:
@@ -525,7 +525,7 @@ importers:
         version: link:../worker
       ava:
         specifier: ^5.3.1
-        version: 5.3.1
+        version: 5.3.1(supports-color@8.1.1)
       dedent:
         specifier: ^1.5.1
         version: 1.5.3
@@ -568,7 +568,7 @@ importers:
         version: 8.10.161
       ava:
         specifier: ^5.3.1
-        version: 5.3.1
+        version: 5.3.1(supports-color@8.1.1)
       long:
         specifier: ^5.3.2
         version: 5.3.2
@@ -638,7 +638,7 @@ importers:
     devDependencies:
       ava:
         specifier: ^5.3.1
-        version: 5.3.1
+        version: 5.3.1(supports-color@8.1.1)
       long:
         specifier: ^5.3.2
         version: 5.3.2
@@ -793,7 +793,7 @@ importers:
         version: 1.3.3
       ava:
         specifier: ^5.3.1
-        version: 5.3.1
+        version: 5.3.1(supports-color@8.1.1)
       dedent:
         specifier: ^1.5.1
         version: 1.5.3
@@ -863,7 +863,7 @@ importers:
         version: link:../workflow
       ava:
         specifier: ^5.3.1
-        version: 5.3.1
+        version: 5.3.1(supports-color@8.1.1)
       stack-utils:
         specifier: ^2.0.6
         version: 2.0.6
@@ -901,7 +901,7 @@ importers:
     devDependencies:
       ava:
         specifier: ^5.3.1
-        version: 5.3.1
+        version: 5.3.1(supports-color@8.1.1)
       long:
         specifier: ^5.3.2
         version: 5.3.2
@@ -914,6 +914,9 @@ importers:
       '@grpc/grpc-js':
         specifier: ^1.13.6
         version: 1.14.5
+      '@jridgewell/trace-mapping':
+        specifier: ^0.3.31
+        version: 0.3.31
       '@swc/core':
         specifier: ^1.3.102
         version: 1.3.102
@@ -950,9 +953,6 @@ importers:
       rxjs:
         specifier: ^7.8.1
         version: 7.8.2
-      source-map:
-        specifier: ^0.7.4
-        version: 0.7.4
       source-map-loader:
         specifier: ^5.0.0
         version: 5.0.0(webpack@5.108.4(@swc/core@1.3.102))
@@ -974,7 +974,7 @@ importers:
         version: 8.1.3
       ava:
         specifier: ^5.3.1
-        version: 5.3.1
+        version: 5.3.1(supports-color@8.1.1)
       long:
         specifier: ^5.3.2
         version: 5.3.2
@@ -994,18 +994,18 @@ importers:
         specifier: ^0.0.3
         version: 0.0.3
     devDependencies:
+      '@jridgewell/trace-mapping':
+        specifier: ^0.3.31
+        version: 0.3.31
       ava:
         specifier: ^5.3.1
-        version: 5.3.1
+        version: 5.3.1(supports-color@8.1.1)
       long:
         specifier: ^5.3.2
         version: 5.3.2
       protobufjs:
         specifier: ^8.7.1
         version: 8.8.1
-      source-map:
-        specifier: ^0.7.4
-        version: 0.7.4
 
   scripts: {}
 
@@ -1723,9 +1723,6 @@ packages:
 
   '@jridgewell/source-map@0.3.11':
     resolution: {integrity: sha512-ZMp1V8ZFcPG5dIWnQLr3NSI1MiCU7UETdS/A0G8V/XWHvJv3ZsFqutJn1Y5RPmAPX6F3BiE397OqveU/9NCuIA==}
-
-  '@jridgewell/sourcemap-codec@1.4.15':
-    resolution: {integrity: sha512-eF2rxCRulEKXHTRiDrDy6erMYWqNw4LPdQ8UQA4huuxaQsVeRPFl2oM8oDGxMFhJUWZf9McpLtJasDDZb/Bpeg==}
 
   '@jridgewell/sourcemap-codec@1.5.5':
     resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
@@ -2787,7 +2784,9 @@ packages:
   '@smithy/core@3.24.6':
     resolution: {integrity: sha512-wBXDRup6UU97VKyaiRo8AssnfStPtG0oAAfpq/bC0a1YYau8pM86YB4kM6ccoVi1mS8l/UHbn9oDM+7uozr/ug==}
     engines: {node: '>=18.0.0'}
-    deprecated: Deprecated due to a bug in custom logger data redaction. See https://github.com/aws/aws-sdk-js-v3/issues/8393.
+    deprecated: |-
+      Deprecated due to a bug in custom logger data redaction. Upgrade to the latest version. If you used a custom logger with this
+        version, review your logs and rotate any credentials or other secrets. See https://github.com/aws/aws-sdk-js-v3/issues/8393.
 
   '@smithy/credential-provider-imds@4.3.7':
     resolution: {integrity: sha512-xj8gq/bjFABAh6qWPSDCYcY3kzQIm4b561C+YnHH4zGq8rOgzQ3Shk+JGlpUxSd41UGiO6FkLdUCtNX1FAeHgg==}
@@ -6223,10 +6222,6 @@ packages:
     resolution: {integrity: sha512-UjgapumWlbMhkBgzT7Ykc5YXUT46F0iKu8SGXq0bcwP5dz/h0Plj6enJqjz1Zbq2l5WaqYnrVbwWOWMyF3F47g==}
     engines: {node: '>=0.10.0'}
 
-  source-map@0.7.4:
-    resolution: {integrity: sha512-l3BikUxvPOcn5E74dZiq5BGsTb5yEwhaTSzccU6t4sDOH8NWJCstKO5QT2CvtFoK6F0saL7p9xHAqHOlCPJygA==}
-    engines: {node: '>= 8'}
-
   source-map@0.7.6:
     resolution: {integrity: sha512-i5uvt8C3ikiWeNZSVZNWcfZPItFQOsYTUAOkcUPGd8DqDy1uOUikjt5dG+uRlwyvR108Fb9DOd4GvXfT0N2/uQ==}
     engines: {node: '>= 12'}
@@ -7179,7 +7174,7 @@ snapshots:
       '@babel/traverse': 7.23.7
       '@babel/types': 7.27.1
       convert-source-map: 2.0.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
       gensync: 1.0.0-beta.2
       json5: 2.2.3
       semver: 6.3.1
@@ -7272,7 +7267,7 @@ snapshots:
       '@babel/helper-split-export-declaration': 7.24.5
       '@babel/parser': 7.27.2
       '@babel/types': 7.27.1
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
       globals: 11.12.0
     transitivePeerDependencies:
       - supports-color
@@ -7544,7 +7539,7 @@ snapshots:
   '@eslint/config-array@0.21.1':
     dependencies:
       '@eslint/object-schema': 2.1.7
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
       minimatch: 3.1.5
     transitivePeerDependencies:
       - supports-color
@@ -7560,7 +7555,7 @@ snapshots:
   '@eslint/eslintrc@3.3.3':
     dependencies:
       ajv: 6.14.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
       espree: 10.4.0
       globals: 14.0.0
       ignore: 5.3.2
@@ -7730,7 +7725,7 @@ snapshots:
   '@jridgewell/gen-mapping@0.3.3':
     dependencies:
       '@jridgewell/set-array': 1.1.2
-      '@jridgewell/sourcemap-codec': 1.4.15
+      '@jridgewell/sourcemap-codec': 1.5.5
       '@jridgewell/trace-mapping': 0.3.31
 
   '@jridgewell/resolve-uri@3.1.2': {}
@@ -7741,8 +7736,6 @@ snapshots:
     dependencies:
       '@jridgewell/gen-mapping': 0.3.13
       '@jridgewell/trace-mapping': 0.3.31
-
-  '@jridgewell/sourcemap-codec@1.4.15': {}
 
   '@jridgewell/sourcemap-codec@1.5.5': {}
 
@@ -9111,7 +9104,7 @@ snapshots:
       '@verdaccio/core': 8.0.0-next-8.37
       '@verdaccio/loaders': 8.0.0-next-8.27
       '@verdaccio/signature': 8.0.0-next-8.29
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
       lodash: 4.18.1
       verdaccio-htpasswd: 13.0.0-next-8.37
     transitivePeerDependencies:
@@ -9120,7 +9113,7 @@ snapshots:
   '@verdaccio/config@8.0.0-next-8.37':
     dependencies:
       '@verdaccio/core': 8.0.0-next-8.37
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
       js-yaml: 4.1.1
       lodash: 4.18.1
     transitivePeerDependencies:
@@ -9156,7 +9149,7 @@ snapshots:
     dependencies:
       '@verdaccio/core': 8.0.0-next-8.37
       '@verdaccio/logger': 8.0.0-next-8.37
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
       got-cjs: 12.5.4
       handlebars: 4.7.9
     transitivePeerDependencies:
@@ -9165,7 +9158,7 @@ snapshots:
   '@verdaccio/loaders@8.0.0-next-8.27':
     dependencies:
       '@verdaccio/core': 8.0.0-next-8.37
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
       lodash: 4.18.1
     transitivePeerDependencies:
       - supports-color
@@ -9188,7 +9181,7 @@ snapshots:
       '@verdaccio/core': 8.0.0-next-8.37
       '@verdaccio/logger-prettify': 8.0.0-next-8.5
       colorette: 2.0.20
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
 
@@ -9213,7 +9206,7 @@ snapshots:
       '@verdaccio/config': 8.0.0-next-8.37
       '@verdaccio/core': 8.0.0-next-8.37
       '@verdaccio/url': 13.0.0-next-8.37
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
       express: 4.22.1
       express-rate-limit: 5.5.1
       lodash: 4.18.1
@@ -9224,7 +9217,7 @@ snapshots:
   '@verdaccio/package-filter@13.0.0-next-8.5':
     dependencies:
       '@verdaccio/core': 8.0.0-next-8.37
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
       semver: 7.7.4
     transitivePeerDependencies:
       - supports-color
@@ -9235,7 +9228,7 @@ snapshots:
     dependencies:
       '@verdaccio/config': 8.0.0-next-8.37
       '@verdaccio/core': 8.0.0-next-8.37
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
       jsonwebtoken: 9.0.3
     transitivePeerDependencies:
       - supports-color
@@ -9246,7 +9239,7 @@ snapshots:
     dependencies:
       '@verdaccio/core': 8.0.0-next-8.37
       '@verdaccio/url': 13.0.0-next-8.37
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
       gunzip-maybe: 1.4.2
       tar-stream: 3.1.7
     transitivePeerDependencies:
@@ -9259,7 +9252,7 @@ snapshots:
   '@verdaccio/url@13.0.0-next-8.37':
     dependencies:
       '@verdaccio/core': 8.0.0-next-8.37
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
       validator: 13.15.26
     transitivePeerDependencies:
       - supports-color
@@ -9388,7 +9381,7 @@ snapshots:
 
   agent-base@6.0.2:
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
 
@@ -9561,7 +9554,7 @@ snapshots:
       stubborn-fs: 2.0.0
       when-exit: 2.1.5
 
-  ava@5.3.1:
+  ava@5.3.1(supports-color@8.1.1):
     dependencies:
       acorn: 8.16.0
       acorn-walk: 8.3.1
@@ -9581,7 +9574,7 @@ snapshots:
       common-path-prefix: 3.0.0
       concordance: 5.0.4
       currently-unhandled: 0.4.1
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
       emittery: 1.0.3
       figures: 5.0.0
       globby: 13.2.2
@@ -10048,9 +10041,11 @@ snapshots:
     dependencies:
       ms: 2.1.3
 
-  debug@4.4.3:
+  debug@4.4.3(supports-color@8.1.1):
     dependencies:
       ms: 2.1.3
+    optionalDependencies:
+      supports-color: 8.1.1
 
   decompress-response@6.0.0:
     dependencies:
@@ -10417,7 +10412,7 @@ snapshots:
       ajv: 6.14.0
       chalk: 4.1.2
       cross-spawn: 7.0.6
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
       escape-string-regexp: 4.0.0
       eslint-scope: 8.4.0
       eslint-visitor-keys: 4.2.1
@@ -10994,7 +10989,7 @@ snapshots:
     dependencies:
       '@tootallnate/once': 2.0.1
       agent-base: 6.0.2
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
 
@@ -11014,14 +11009,14 @@ snapshots:
   https-proxy-agent@5.0.1:
     dependencies:
       agent-base: 6.0.2
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
 
   https-proxy-agent@7.0.6:
     dependencies:
       agent-base: 7.1.4
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
 
@@ -12236,7 +12231,7 @@ snapshots:
 
   require-in-the-middle@7.2.0:
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
       module-details-from-path: 1.0.3
       resolve: 1.22.8
     transitivePeerDependencies:
@@ -12244,7 +12239,7 @@ snapshots:
 
   require-in-the-middle@8.0.1:
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
       module-details-from-path: 1.0.4
     transitivePeerDependencies:
       - supports-color
@@ -12487,8 +12482,6 @@ snapshots:
       source-map: 0.6.1
 
   source-map@0.6.1: {}
-
-  source-map@0.7.4: {}
 
   source-map@0.7.6: {}
 
@@ -12947,7 +12940,7 @@ snapshots:
       '@verdaccio/file-locking': 13.0.0-next-8.7
       apache-md5: 1.1.8
       bcryptjs: 2.4.3
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
       http-errors: 2.0.1
       unix-crypt-td-js: 1.1.4
     transitivePeerDependencies:
@@ -12977,7 +12970,7 @@ snapshots:
       clipanion: 4.0.0-rc.4(typanion@3.14.0)
       compression: 1.8.1
       cors: 2.8.6
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@8.1.1)
       envinfo: 7.21.0
       express: 4.22.1
       lodash: 4.18.1

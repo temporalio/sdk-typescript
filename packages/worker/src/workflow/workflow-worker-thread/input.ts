@@ -1,11 +1,11 @@
-import type { RawSourceMap } from 'source-map';
+import type { EncodedSourceMap } from '@jridgewell/trace-mapping';
 import type { coresdk } from '@temporalio/proto';
 import type { WorkflowCreateOptions } from '../interface';
 import type { PatchActivationWorkflowInfoSnapshot } from '../patch-activation-callback';
 
 export interface WorkflowBundleWithSourceMapAndFilename {
   code: string;
-  sourceMap: RawSourceMap;
+  sourceMap: EncodedSourceMap;
   filename: string;
 }
 
