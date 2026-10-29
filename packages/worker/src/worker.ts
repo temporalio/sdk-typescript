@@ -825,8 +825,8 @@ export class Worker {
       const modules = new Set(compiledOptions.interceptors.workflowModules);
       // Warn if user tries to customize the default set of workflow interceptor modules
       if (modules.size > 0) {
-        // The bundler is loaded on demand: it pulls in webpack, which a Worker running a pre-built bundle never needs.
-        const { defaultWorkflowInterceptorModules } = await import('./workflow/bundler');
+        // Loaded on demand, so that importing the Worker never evaluates its `require.resolve`.
+        const { defaultWorkflowInterceptorModules } = await import('./workflow/default-interceptor-modules');
         if (
           new Set([...modules, ...defaultWorkflowInterceptorModules]).size !== defaultWorkflowInterceptorModules.length
         ) {

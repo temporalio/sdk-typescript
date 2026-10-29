@@ -5,7 +5,10 @@ import test from 'ava';
 function modulesLoadedBy(expression: string): string[] {
   const script = `
     Promise.resolve(${expression})
-      .catch(() => undefined)
+      .catch((err) => {
+        console.error(err);
+        process.exitCode = 1;
+      })
       .then(() => process.stdout.write(JSON.stringify(Object.keys(require.cache))));
   `;
   const { status, stdout, stderr } = spawnSync(process.execPath, ['-e', script], { cwd: __dirname, encoding: 'utf8' });
@@ -21,7 +24,15 @@ test('Importing @temporalio/worker does not load the Workflow bundler', (t) => {
   t.deepEqual(loaded.filter(isBundlerModule), []);
 });
 
-test('bundleWorkflowCode loads the Workflow bundler on first use', (t) => {
-  const loaded = modulesLoadedBy(`require('@temporalio/worker').bundleWorkflowCode({ workflowsPath: __filename })`);
+test('bundleWorkflowCode produces a bundle in a fresh process', (t) => {
+  const loaded = modulesLoadedBy(`
+    (async () => {
+      const { bundleWorkflowCode, DefaultLogger } = require('@temporalio/worker');
+      await bundleWorkflowCode({
+        workflowsPath: require.resolve('./workflows/preload-shared-counter'),
+        logger: new DefaultLogger('ERROR'),
+      });
+    })()
+  `);
   t.true(loaded.some(isBundlerModule));
 });
