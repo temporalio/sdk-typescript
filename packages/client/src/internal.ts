@@ -67,6 +67,13 @@ export interface InternalWorkflowStartOptions extends WorkflowOptions {
      * Used by the Nexus WorkflowRunOperations to attach to a callback to a running workflow.
      */
     onConflictOptions?: temporal.api.workflow.v1.IOnConflictOptions;
+
+    /**
+     * Serialization context of the Nexus operation handler starting this execution. The server
+     * propagates it to the worker, which encodes the result and failure returned to the Nexus caller
+     * with it.
+     */
+    propagatedNexusSerializationContext?: temporal.api.nexus.v1.IPropagatedSerializationContext;
   };
 }
 
@@ -257,5 +264,12 @@ export interface InternalActivityStartOptions extends ActivityOptions {
      * Used by the Nexus TemporalOperations to attach to a callback to a running activity.
      */
     onConflictOptions?: temporal.api.workflow.v1.IOnConflictOptions;
+
+    /**
+     * Serialization context of the Nexus operation handler starting this execution. The server
+     * propagates it to the worker, which encodes the result and failure returned to the Nexus caller
+     * with it.
+     */
+    propagatedNexusSerializationContext?: temporal.api.nexus.v1.IPropagatedSerializationContext;
   };
 }

@@ -5,6 +5,7 @@ import type {
   ActivityFunction,
   ActivitySerializationContext,
   LoadedDataConverter,
+  NexusSerializationContext,
   Logger,
   MetricMeter,
   MetricTags,
@@ -68,7 +69,11 @@ export class Activity {
     public readonly info: Info,
     public readonly fn: ActivityFunction<any[], any> | undefined,
     public readonly dataConverter: LoadedDataConverter,
-    public readonly serializationContext: ActivitySerializationContext,
+    /**
+     * Context for the Activity's result and failures. A standalone Activity started by a Nexus
+     * operation handler uses the handler's Nexus context, because these go back to the Nexus caller.
+     */
+    public readonly serializationContext: ActivitySerializationContext | NexusSerializationContext,
     public readonly outputTypeInfo: TypeInfo | undefined,
     public readonly heartbeatCallback: Context['heartbeat'],
     private readonly _client: Client | undefined, // May be undefined in the case of MockActivityEnvironment

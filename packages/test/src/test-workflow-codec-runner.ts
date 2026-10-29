@@ -439,6 +439,71 @@ test('nexus operation paths use the operation context', async (t) => {
   ]);
 });
 
+test('a Workflow started by a Nexus handler encodes its result and failure with the Nexus context', async (t) => {
+  const runner = new WorkflowCodecRunner([new FreePayloadCodec()], {
+    type: 'workflow',
+    namespace: 'default',
+    workflowId: 'wf-1',
+  });
+  const handlerCtx = nexusCtx('handler-endpoint', 'handler-service', 'handler-operation');
+
+  const decoded = await runner.decodeActivation({
+    runId: 'run-1',
+    jobs: [
+      {
+        initializeWorkflow: {
+          workflowId: 'wf-1',
+          workflowType: 'test',
+          randomnessSeed: { toBytes: () => new Uint8Array([1]) } as any,
+          firstExecutionRunId: 'run-1',
+          attempt: 1,
+          startTime: {} as any,
+          arguments: [payload('wf-input')],
+          propagatedNexusSerializationContext: {
+            endpoint: 'handler-endpoint',
+            service: 'handler-service',
+            operation: 'handler-operation',
+          },
+        },
+      },
+    ],
+  });
+  // The input keeps the Workflow context
+  t.deepEqual(traceFromPayload(decoded.jobs?.[0]?.initializeWorkflow?.arguments?.[0] as Payload), [
+    'codec.decode.bound|wf-input|workflow.default.wf-1',
+  ]);
+
+  const completed = decodeCompletion(
+    await runner.encodeCompletion({
+      successful: {
+        commands: [
+          { scheduleActivity: { seq: 1, activityId: 'act-1', arguments: [payload('activity-input')] } },
+          { completeWorkflowExecution: { result: payload('wf-result') } },
+        ],
+      },
+    })
+  );
+  t.deepEqual(traceFromPayload(completed.successful?.commands?.[0]?.scheduleActivity?.arguments?.[0] as Payload), [
+    'codec.encode.bound|activity-input|activity.default.wf-1.act-1.false',
+  ]);
+  t.deepEqual(traceFromPayload(completed.successful?.commands?.[1]?.completeWorkflowExecution?.result as Payload), [
+    `codec.encode.bound|wf-result|${handlerCtx}`,
+  ]);
+
+  const failed = decodeCompletion(
+    await runner.encodeCompletion({
+      successful: { commands: [{ failWorkflowExecution: { failure: failureWithDetail('wf-failure') } }] },
+    })
+  );
+  t.deepEqual(
+    traceFromPayload(
+      failed.successful?.commands?.[0]?.failWorkflowExecution?.failure?.applicationFailureInfo?.details
+        ?.payloads?.[0] as Payload
+    ),
+    [`codec.encode.bound|wf-failure|${handlerCtx}`]
+  );
+});
+
 test('a resolution with no scheduled nexus operation falls back to workflow context', async (t) => {
   const runner = nexusRunner();
 

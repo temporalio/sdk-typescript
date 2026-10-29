@@ -124,6 +124,7 @@ import type {
   LogLevel,
   LogMetadata,
   MetricMeter,
+  NexusSerializationContext,
   Priority,
   ActivityCancellationDetails,
   RetryPolicy,
@@ -290,6 +291,17 @@ export interface Info {
    * Whether this activity was started by a workflow
    */
   readonly inWorkflow: boolean;
+  /**
+   * Serialization context of the Nexus operation handler that started this Activity, if any.
+   *
+   * Only set for standalone Activities. The Activity's result, failure and heartbeat details are
+   * encoded with it, because they are returned to the Nexus caller. To complete the Activity
+   * asynchronously, store this context with the task token and pass it as
+   * `AsyncCompletionOperationOptions.serializationContext`.
+   *
+   * @experimental Serialization context is an experimental feature and may change.
+   */
+  readonly nexusSerializationContext?: NexusSerializationContext;
 }
 
 /**
