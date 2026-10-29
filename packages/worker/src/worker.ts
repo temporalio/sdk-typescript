@@ -2359,6 +2359,7 @@ export class Worker {
       },
     });
 
+    let hasWorkerError = false;
     try {
       try {
         await lastValueFrom(
@@ -2396,10 +2397,16 @@ export class Worker {
           ),
           { defaultValue: undefined }
         );
+      } catch (err) {
+        hasWorkerError = true;
+        throw err;
       } finally {
         this.runtime.deregisterShutdownSignalCallback(shutdownCallback);
 
-        await this.nativeWorker.finalizeShutdown();
+        await this.nativeWorker.finalizeShutdown().catch((err) => {
+          if (!hasWorkerError) throw err;
+          this.logger.error('Failed to finalize shutdown', { error: err });
+        });
       }
     } finally {
       unexpectedErrorSubscription.unsubscribe();

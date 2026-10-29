@@ -7,7 +7,12 @@
 import { randomUUID } from 'crypto';
 import test from 'ava';
 import Long from 'long';
-import { createPayloadValidationError, defaultPayloadConverter, type PayloadCodec } from '@temporalio/common';
+import {
+  IllegalStateError,
+  createPayloadValidationError,
+  defaultPayloadConverter,
+  type PayloadCodec,
+} from '@temporalio/common';
 import { msToTs } from '@temporalio/common/time';
 import type { LogEntry, NativeConnection } from '@temporalio/worker';
 import { DefaultLogger, MetricsBuffer, Runtime, UnexpectedError, Worker } from '@temporalio/worker';
@@ -285,4 +290,44 @@ test.serial('Mocked throws combined error in runUntil', async (t) => {
   const { workerError, innerError } = (err as any).cause;
   t.is(workerError.message, 'Timed out while waiting for worker to shutdown gracefully');
   t.is(innerError.message, 'inner');
+});
+
+test('Worker.run preserves primary failure when finalization fails', async (t) => {
+  const primaryError = new Error('primary worker failure');
+  const cleanupError = new IllegalStateError('Worker still in use: Expected 1 reference, but got 2');
+
+  const worker = isolateFreeWorker({
+    taskQueue: t.title.replace(/ /g, '_'),
+    activities: {},
+  });
+
+  worker.native.pollWorkflowActivation = async () => {
+    throw primaryError;
+  };
+  worker.native.finalizeShutdown = async () => {
+    throw cleanupError;
+  };
+
+  const err = await t.throwsAsync(worker.run());
+  t.is(err, primaryError);
+  t.is(worker.getState(), 'FAILED');
+});
+
+test('Worker.run propagates finalization failure on otherwise successful run', async (t) => {
+  const cleanupError = new IllegalStateError('Cleanup failure on stop');
+  const worker = isolateFreeWorker({
+    taskQueue: t.title.replace(/ /g, '_'),
+    activities: {},
+  });
+
+  worker.native.finalizeShutdown = async () => {
+    throw cleanupError;
+  };
+
+  const runPromise = worker.run();
+  t.is(worker.getState(), 'RUNNING');
+  worker.shutdown();
+
+  const err = await t.throwsAsync(runPromise);
+  t.is(err, cleanupError);
 });
