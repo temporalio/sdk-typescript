@@ -201,7 +201,13 @@ export class GlobalHandlers {
   installed = false;
 
   async addWorkflowBundle(workflowBundle: WorkflowBundleWithSourceMapAndFilename): Promise<void> {
-    const sourceMapConsumer = await new SourceMapConsumer(workflowBundle.sourceMap);
+    const { sourceMap } = workflowBundle;
+    // source-map >= 0.7.5 percent-encodes the source paths it returns. Escaping `%` first makes
+    // `decodeURIComponent` an exact inverse, so a path is reported as written on every version.
+    const sourceMapConsumer = await new SourceMapConsumer({
+      ...sourceMap,
+      sources: sourceMap.sources.map((source) => source.replaceAll('%', '%25')),
+    });
     this.bundleFilenameToSourceMapConsumer.set(workflowBundle.filename, sourceMapConsumer);
   }
 
@@ -254,10 +260,11 @@ export class GlobalHandlers {
         const sourceMapConsumer = filename && this.bundleFilenameToSourceMapConsumer.get(filename);
         if (sourceMapConsumer && line && column) {
           const pos = sourceMapConsumer.originalPositionFor({ line, column });
+          const source = pos.source === null ? null : decodeURIComponent(pos.source);
 
           const name = pos.name || formatCallsiteName(callsite);
           this.currentStackTrace?.push({
-            file_path: pos.source ?? undefined,
+            file_path: source ?? undefined,
             function_name: name ?? undefined,
             line: pos.line ?? undefined,
             column: pos.column ?? undefined,
@@ -265,8 +272,8 @@ export class GlobalHandlers {
           });
 
           return name
-            ? `    at ${name} (${pos.source}:${pos.line}:${pos.column})`
-            : `    at ${pos.source}:${pos.line}:${pos.column}`;
+            ? `    at ${name} (${source}:${pos.line}:${pos.column})`
+            : `    at ${source}:${pos.line}:${pos.column}`;
         } else {
           const name = formatCallsiteName(callsite);
 
