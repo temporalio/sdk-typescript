@@ -16,8 +16,6 @@ import {
   assertWorkflowModuleCacheGlobalApplied,
 } from './bundler/patch-module-cache';
 
-export const defaultWorkflowInterceptorModules = [require.resolve('../workflow-log-interceptor')];
-
 export const allowedBuiltinModules = ['assert', 'url', 'util'];
 export const disallowedBuiltinModules = builtinModules.filter((module) => !allowedBuiltinModules.includes(module));
 export const disallowedModules = [
