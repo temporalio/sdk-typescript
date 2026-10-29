@@ -120,6 +120,8 @@ import { handlerErrorToProto } from './nexus/conversions';
 
 export { DataConverter, defaultPayloadConverter };
 
+const defaultWorkflowInterceptorModules = [require.resolve('./workflow-log-interceptor')];
+
 /**
  * The worker's possible states
  * * `INITIALIZED` - The initial state of the Worker after calling {@link Worker.create} and successful connection to the server
@@ -825,8 +827,6 @@ export class Worker {
       const modules = new Set(compiledOptions.interceptors.workflowModules);
       // Warn if user tries to customize the default set of workflow interceptor modules
       if (modules.size > 0) {
-        // Loaded on demand, so that importing the Worker never evaluates its `require.resolve`.
-        const { defaultWorkflowInterceptorModules } = await import('./workflow/default-interceptor-modules');
         if (
           new Set([...modules, ...defaultWorkflowInterceptorModules]).size !== defaultWorkflowInterceptorModules.length
         ) {
