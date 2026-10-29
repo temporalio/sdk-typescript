@@ -151,9 +151,20 @@ export class WorkflowCoverage {
       // ts-node is currently loaded
       // ts-node and SWC doesn't translate TypeScript code the same way, which will cause
       // line number mismatches in generated coverage reports.
+      let tsLoader: string;
+      try {
+        tsLoader = require.resolve('ts-loader');
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'MODULE_NOT_FOUND') throw error;
+        throw new Error(
+          '@temporalio/nyc-test-coverage requires ts-loader when coverage is enabled and ts-node/register is loaded. ' +
+            'Install it with `npm install --save-dev ts-loader`, choosing a version compatible with your Node.js and TypeScript versions.',
+          { cause: error }
+        );
+      }
       const tsLoaderRule = {
         test: /\.ts$/,
-        loader: require.resolve('ts-loader'),
+        loader: tsLoader,
         exclude: /node_modules/,
       };
 

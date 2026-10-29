@@ -31,6 +31,12 @@ after(() => {
 });
 ```
 
+## Running coverage tests with ts-node
+
+If you use ts-node to execute your tests with coverage enabled, install `ts-loader` so this package can compile your Workflows for coverage.
+
+Choose a version compatible with your Node.js and TypeScript versions. ts-loader uses your project's `tsconfig.json` by default. If needed, customize the loader rule through `webpackConfigHook`.
+
 ## Usage with `bundleWorkflowCode()`
 
 If you are pre-bundling your Workflows using `bundleWorkflowCode()`, we recommend using the `augmentBundleOptions()` method to configure your bundle options, followed by `augmentWorkerOptionsWithBundle()` to configure your Worker options as follows.
