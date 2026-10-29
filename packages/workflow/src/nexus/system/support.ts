@@ -101,13 +101,13 @@ export function payloadToValue<T>(payload: common.Payload): T {
   return converter.fromPayload<T>(payload, context);
 }
 
-// ts-prune-ignore-next (nexgen support hook; not used by the current System Nexus operations)
+/** @lintignore Nexgen support hook not used by the current System Nexus operations. */
 export function failureFromProto(proto: temporal.api.failure.v1.IFailure): Error {
   const { converter, context } = currentSystemNexusPayloadConversion();
   return common.defaultFailureConverter.failureToError(proto, converter, context);
 }
 
-// ts-prune-ignore-next (nexgen support hook; not used by the current System Nexus operations)
+/** @lintignore Nexgen support hook not used by the current System Nexus operations. */
 export function failureToProto(failure: Error): temporal.api.failure.v1.IFailure {
   const { converter, context } = currentSystemNexusPayloadConversion();
   return common.defaultFailureConverter.errorToFailure(failure, converter, context);
