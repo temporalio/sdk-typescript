@@ -846,7 +846,7 @@ export class Worker {
         throw new TypeError('Invalid WorkflowOptions.workflowBundle');
       }
     } else if (compiledOptions.workflowsPath) {
-      const { WorkflowCodeBundler } = await import('./workflow/bundler');
+      const { WorkflowCodeBundler } = await import('./workflow/bundler.js');
       const bundler = new WorkflowCodeBundler({
         logger,
         workflowsPath: compiledOptions.workflowsPath,
