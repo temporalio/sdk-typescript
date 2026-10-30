@@ -100,7 +100,6 @@ import type {
 import { compileWorkerOptions, isCodeBundleOption, isPathBundleOption, toNativeWorkerOptions } from './worker-options';
 import { WorkflowCodecRunner } from './workflow-codec-runner';
 import { isSystemNexusEnvelope, transformEncodedSystemNexusEnvelope, visitNexusTask } from './system-nexus-operations';
-import { defaultWorkflowInterceptorModules, WorkflowCodeBundler } from './workflow/bundler';
 import { assertWorkflowBundleSdkVersion } from './workflow/bundle-metadata';
 import { isBunPre1_4 } from './workflow/bun';
 import type { Workflow, WorkflowCreator } from './workflow/interface';
@@ -120,6 +119,8 @@ import { constructNexusOperationContext, NexusHandler } from './nexus';
 import { handlerErrorToProto } from './nexus/conversions';
 
 export { DataConverter, defaultPayloadConverter };
+
+const defaultWorkflowInterceptorModules = [require.resolve('./workflow-log-interceptor')];
 
 /**
  * The worker's possible states
@@ -825,15 +826,15 @@ export class Worker {
       }
       const modules = new Set(compiledOptions.interceptors.workflowModules);
       // Warn if user tries to customize the default set of workflow interceptor modules
-
-      if (
-        modules &&
-        new Set([...modules, ...defaultWorkflowInterceptorModules]).size !== defaultWorkflowInterceptorModules.length
-      ) {
-        logger.warn(
-          'Ignoring WorkerOptions.interceptors.workflowModules because WorkerOptions.workflowBundle is set.\n' +
-            'To use workflow interceptors with a workflowBundle, pass them in the call to bundleWorkflowCode.'
-        );
+      if (modules.size > 0) {
+        if (
+          new Set([...modules, ...defaultWorkflowInterceptorModules]).size !== defaultWorkflowInterceptorModules.length
+        ) {
+          logger.warn(
+            'Ignoring WorkerOptions.interceptors.workflowModules because WorkerOptions.workflowBundle is set.\n' +
+              'To use workflow interceptors with a workflowBundle, pass them in the call to bundleWorkflowCode.'
+          );
+        }
       }
 
       if (isCodeBundleOption(compiledOptions.workflowBundle)) {
@@ -845,6 +846,7 @@ export class Worker {
         throw new TypeError('Invalid WorkflowOptions.workflowBundle');
       }
     } else if (compiledOptions.workflowsPath) {
+      const { WorkflowCodeBundler } = await import('./workflow/bundler');
       const bundler = new WorkflowCodeBundler({
         logger,
         workflowsPath: compiledOptions.workflowsPath,
@@ -2359,6 +2361,7 @@ export class Worker {
       },
     });
 
+    let hasWorkerError = false;
     try {
       try {
         await lastValueFrom(
@@ -2396,10 +2399,16 @@ export class Worker {
           ),
           { defaultValue: undefined }
         );
+      } catch (err) {
+        hasWorkerError = true;
+        throw err;
       } finally {
         this.runtime.deregisterShutdownSignalCallback(shutdownCallback);
 
-        await this.nativeWorker.finalizeShutdown();
+        await this.nativeWorker.finalizeShutdown().catch((err) => {
+          if (!hasWorkerError) throw err;
+          this.logger.error('Failed to finalize shutdown', { error: err });
+        });
       }
     } finally {
       unexpectedErrorSubscription.unsubscribe();

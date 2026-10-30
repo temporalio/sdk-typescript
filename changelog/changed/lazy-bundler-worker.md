@@ -1,0 +1,1 @@
+`@temporalio/worker` now loads the Workflow bundler, including webpack, only when Workflow code is first bundled. Workers using a prebuilt `workflowBundle` no longer load the bundler on import (#1718).

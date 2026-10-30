@@ -43,6 +43,29 @@ export function overrideGlobals(): void {
 
   global.Date.prototype = OriginalDate.prototype;
 
+  // Use workflow time for Temporal.Now when available.
+  const Temporal = global.Temporal;
+  if (Temporal !== undefined) {
+    const temporalNow = Temporal.Now;
+    // Reject unknown clock methods before installing deterministic replacements.
+    for (const key of Reflect.ownKeys(temporalNow)) {
+      if (typeof temporalNow[key] === 'function' && key !== 'timeZoneId') {
+        temporalNow[key] = () => {
+          throw new DeterminismViolationError(`Temporal.Now.${String(key)} is not supported in Workflows`);
+        };
+      }
+    }
+    const getNow = () => Temporal.Instant.fromEpochMilliseconds(getActivator().now);
+    const getZonedDateTime = (timeZoneLike?: unknown) =>
+      getNow().toZonedDateTimeISO(timeZoneLike === undefined ? temporalNow.timeZoneId() : timeZoneLike);
+
+    temporalNow.instant = getNow;
+    temporalNow.zonedDateTimeISO = getZonedDateTime;
+    temporalNow.plainDateTimeISO = (timeZoneLike?: unknown) => getZonedDateTime(timeZoneLike).toPlainDateTime();
+    temporalNow.plainDateISO = (timeZoneLike?: unknown) => getZonedDateTime(timeZoneLike).toPlainDate();
+    temporalNow.plainTimeISO = (timeZoneLike?: unknown) => getZonedDateTime(timeZoneLike).toPlainTime();
+  }
+
   const timeoutCancellationScopes = new Map<number, CancellationScope>();
 
   /**
