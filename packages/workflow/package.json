@@ -72,7 +72,7 @@
   },
   "scripts": {
     "build": "tsc --build",
-    "gen:system-nexus": "tsx ./scripts/gen-system-nexus.ts",
+    "gen:system-nexus": "tsx ./scripts/gen-system-nexus.ts && oxfmt --write src/nexus/system/generated",
     "test": "tsx ../../scripts/ava-ci.ts ./lib/__tests__/test-*.js"
   },
   "ava": {

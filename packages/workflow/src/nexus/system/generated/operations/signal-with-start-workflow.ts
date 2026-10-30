@@ -11,11 +11,12 @@ import { workflowNamespace } from '../support';
 type SignalWithStartWorkflowInput<
   WorkflowFn extends (...args: any[]) => Promise<any> = (...args: any[]) => Promise<any>,
   SignalValue extends common.SignalDefinition<any[]> = common.SignalDefinition<any[]>,
-> = SignalWithStartWorkflowRequest<WorkflowFn, SignalValue> extends infer Input
-  ? Input extends unknown
-    ? Omit<Input, 'headers' | 'namespace'> & { headers?: never; namespace?: never }
-    : never
-  : never;
+> =
+  SignalWithStartWorkflowRequest<WorkflowFn, SignalValue> extends infer Input
+    ? Input extends unknown
+      ? Omit<Input, 'headers' | 'namespace'> & { headers?: never; namespace?: never }
+      : never
+    : never;
 
 /**
  * Signal a workflow, starting it first if needed.

@@ -748,38 +748,37 @@ export type WorkerDeploymentOptions = {
 /**
  * {@link WorkerOptions} with inapplicable-to-replay fields removed.
  */
-export interface ReplayWorkerOptions
-  extends Omit<
-    WorkerOptions,
-    | 'connection'
-    | 'namespace'
-    | 'taskQueue'
-    | 'activities'
-    | 'nexusServices'
-    | 'tuner'
-    | 'maxConcurrentActivityTaskExecutions'
-    | 'maxConcurrentLocalActivityExecutions'
-    | 'maxConcurrentWorkflowTaskExecutions'
-    | 'maxConcurrentNexusTaskExecutions'
-    | 'maxConcurrentActivityTaskPolls'
-    | 'maxConcurrentWorkflowTaskPolls'
-    | 'maxConcurrentNexusTaskPolls'
-    | 'workflowTaskPollerBehavior'
-    | 'activityTaskPollerBehavior'
-    | 'nexusTaskPollerBehavior'
-    | 'nonStickyToStickyPollRatio'
-    | 'maxHeartbeatThrottleInterval'
-    | 'defaultHeartbeatThrottleInterval'
-    | 'debugMode'
-    | 'enableNonLocalActivities'
-    | 'maxActivitiesPerSecond'
-    | 'maxTaskQueueActivitiesPerSecond'
-    | 'maxEagerActivityReservationsPerWorkflowTask'
-    | 'stickyQueueScheduleToStartTimeout'
-    | 'maxCachedWorkflows'
-    | 'useVersioning'
-    | 'patchActivationCallback'
-  > {
+export interface ReplayWorkerOptions extends Omit<
+  WorkerOptions,
+  | 'connection'
+  | 'namespace'
+  | 'taskQueue'
+  | 'activities'
+  | 'nexusServices'
+  | 'tuner'
+  | 'maxConcurrentActivityTaskExecutions'
+  | 'maxConcurrentLocalActivityExecutions'
+  | 'maxConcurrentWorkflowTaskExecutions'
+  | 'maxConcurrentNexusTaskExecutions'
+  | 'maxConcurrentActivityTaskPolls'
+  | 'maxConcurrentWorkflowTaskPolls'
+  | 'maxConcurrentNexusTaskPolls'
+  | 'workflowTaskPollerBehavior'
+  | 'activityTaskPollerBehavior'
+  | 'nexusTaskPollerBehavior'
+  | 'nonStickyToStickyPollRatio'
+  | 'maxHeartbeatThrottleInterval'
+  | 'defaultHeartbeatThrottleInterval'
+  | 'debugMode'
+  | 'enableNonLocalActivities'
+  | 'maxActivitiesPerSecond'
+  | 'maxTaskQueueActivitiesPerSecond'
+  | 'maxEagerActivityReservationsPerWorkflowTask'
+  | 'stickyQueueScheduleToStartTimeout'
+  | 'maxCachedWorkflows'
+  | 'useVersioning'
+  | 'patchActivationCallback'
+> {
   /**
    *  A optional name for this replay worker. It will be combined with an incremental ID to form a unique
    *  task queue for the replay worker.
@@ -950,8 +949,10 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
  * {@link WorkerOptions} where the attributes the Worker requires are required and time units are converted from ms
  * formatted strings to numbers.
  */
-export interface CompiledWorkerOptions
-  extends Omit<WorkerOptionsWithDefaults, 'interceptors' | 'activities' | 'nexusServices' | 'tuner' | 'payloadCache'> {
+export interface CompiledWorkerOptions extends Omit<
+  WorkerOptionsWithDefaults,
+  'interceptors' | 'activities' | 'nexusServices' | 'tuner' | 'payloadCache'
+> {
   /** Shared payload cache for this Worker, or `false` when payload caching is disabled. */
   payloadCache: PayloadCache | false;
   interceptors: CompiledWorkerInterceptors;

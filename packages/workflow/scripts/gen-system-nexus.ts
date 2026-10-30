@@ -30,7 +30,6 @@ async function main() {
       'typescript',
       '--native-api',
       '--system-nexus',
-      '--format',
       '--descriptors',
       descriptor,
       '--support-file',
