@@ -1,5 +1,5 @@
 import type { AsyncLocalStorage as ALS } from 'node:async_hooks';
-import type { RawSourceMap } from 'source-map';
+import type { EncodedSourceMap } from '@jridgewell/trace-mapping';
 import type {
   ActivitySerializationContext,
   FailureConverter,
@@ -262,7 +262,7 @@ export class Activator implements ActivationHandler {
   /**
    * Source map file for looking up the source files in response to __enhanced_stack_trace
    */
-  protected readonly sourceMap: RawSourceMap;
+  protected readonly sourceMap: EncodedSourceMap;
 
   /**
    * Whether or not to send the sources in enhanced stack trace query responses
