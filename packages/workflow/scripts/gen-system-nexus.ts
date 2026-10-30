@@ -6,7 +6,6 @@ import { promisify } from 'node:util';
 
 const workflowDir = resolve(__dirname, '..');
 const repoRoot = resolve(workflowDir, '../..');
-const supportFile = resolve(workflowDir, 'system-nexus-support.ts');
 const output = resolve(workflowDir, 'src/nexus/system/generated');
 const nexgen = process.env.NEXGEN_BIN ?? 'nexgen';
 const protoRoot = resolve(repoRoot, 'packages/core-bridge/sdk-core/crates/protos/protos');
@@ -33,8 +32,8 @@ async function main() {
       '--format',
       '--descriptors',
       descriptor,
-      '--support-file',
-      supportFile,
+      '--support-package',
+      '../support',
       '--output',
       output,
       resolve(witRoot, 'workflow-service.wit'),
