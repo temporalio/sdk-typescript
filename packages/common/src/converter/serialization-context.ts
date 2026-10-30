@@ -49,13 +49,15 @@ export interface ActivitySerializationContext {
  *
  * Callers receive this context when encoding inputs and decoding results or failures. Handlers
  * receive it when decoding inputs, encoding synchronous results, and encoding failures raised
- * while handling a Nexus task. It is not propagated to a handler that completes an operation
- * asynchronously.
+ * while handling a Nexus task.
  *
- * A standalone operation handle uses the context of its start request, including when the start
- * request returns an already-running operation; a handle obtained by operation ID without starting
- * an operation has no endpoint, service, or operation information to build a context from and
- * therefore serializes without one.
+ * Workflows and standalone Activities started by a handler receive this context through the
+ * server and use it for the payloads returned to the caller: results, failures, and standalone
+ * Activity heartbeat details. Clients decode these with the context the server returns. See
+ * `ActivityInfo.nexusSerializationContext` for asynchronous Activity completion.
+ *
+ * A standalone operation handle decodes with the context the server returns, falling back to the
+ * context of its start request on older servers.
  *
  * A failure encoded by a handler is later decoded by a caller, and some operation paths lack this
  * context entirely. Contextual encodings must therefore be self-describing, and decoders must keep
@@ -110,4 +112,23 @@ export function isSerializationContext(value: unknown): value is SerializationCo
     (context.activityId == null || typeof context.activityId === 'string') &&
     (context.workflowId == null || typeof context.workflowId === 'string')
   );
+}
+
+/**
+ * Converts the Nexus serialization context the server propagates on executions started by a Nexus
+ * operation handler.
+ *
+ * @internal
+ */
+// Consumed through the internal-workflow package entry point.
+export function nexusSerializationContextFromProto(
+  context: { endpoint?: string | null; service?: string | null; operation?: string | null } | null | undefined
+): NexusSerializationContext | undefined {
+  if (context == null) return undefined;
+  return {
+    type: 'nexus',
+    endpoint: context.endpoint ?? '',
+    service: context.service ?? '',
+    operation: context.operation ?? '',
+  };
 }

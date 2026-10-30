@@ -1,12 +1,12 @@
 import type { ActivityClientInterceptor } from '@temporalio/client';
 import { type InternalActivityStartOptions, InternalActivityStartOptionsSymbol } from '@temporalio/client/internal';
-import { getNexusStartOperationContext } from './context';
+import { currentPropagatedNexusSerializationContext, getNexusStartOperationContext } from './context';
 import { pushResponseLink, requestLinksToTemporalLinks } from './operation-links';
 
 /**
- * Adds the active Nexus operation's request ID and inbound links to Activities started through the
- * Worker's Client. A no-op outside an active Nexus operation, or for a start that already carries
- * its own SDK-internal options.
+ * Adds the active Nexus operation's request ID, inbound links and serialization context to
+ * Activities started through the Worker's Client. A no-op outside an active Nexus operation. A start
+ * that already carries its own SDK-internal options only gets the serialization context.
  *
  * @internal
  * @hidden
@@ -19,7 +19,10 @@ export const nexusActivityStartInterceptor: ActivityClientInterceptor = {
     }
     const optionsWithInternal = input.options as InternalActivityStartOptions;
     const existingInternalOptions = optionsWithInternal[InternalActivityStartOptionsSymbol];
+    const propagatedNexusSerializationContext = currentPropagatedNexusSerializationContext();
     if (existingInternalOptions != null) {
+      // Set in place rather than copied: the caller reads the response link back from this object
+      existingInternalOptions.propagatedNexusSerializationContext ??= propagatedNexusSerializationContext;
       return next(input);
     }
     const links = requestLinksToTemporalLinks(ctx);
@@ -27,6 +30,7 @@ export const nexusActivityStartInterceptor: ActivityClientInterceptor = {
       requestId: ctx.requestId,
       links,
       onConflictOptions: links.length > 0 ? { attachLinks: true, attachRequestId: true } : undefined,
+      propagatedNexusSerializationContext,
     };
     const options: InternalActivityStartOptions = {
       ...input.options,

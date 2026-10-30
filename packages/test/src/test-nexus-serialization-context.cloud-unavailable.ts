@@ -4,13 +4,13 @@
  * Operation inputs, results, and failures are converted with a
  * {@link NexusSerializationContext} identifying the endpoint, service and operation; this holds on
  * both sides of the call, for Workflow callers and for standalone Client callers. A handle obtained
- * from {@link NexusClient.getHandle} knows none of those three and therefore decodes without
- * context.
+ * from {@link NexusClient.getHandle} knows none of those three, and decodes with the context the
+ * server returns.
  */
 import { randomUUID } from 'crypto';
 import * as nexus from 'nexus-rpc';
 import { Client } from '@temporalio/client';
-import { ApplicationFailure, type Payload, type PayloadCodec, type SerializationContext } from '@temporalio/common';
+import { ApplicationFailure, type PayloadCodec } from '@temporalio/common';
 import { workflowInterceptorModules } from '@temporalio/testing';
 import { bundleWorkflowCode } from '@temporalio/worker';
 import * as wf from '@temporalio/workflow';
@@ -18,11 +18,9 @@ import type { TestWorkflowEnvironment } from './helpers';
 import { bundlerOptions } from './helpers';
 import type { Context } from './helpers-integration';
 import { createTestWorkflowEnvironment, helpers, makeConfigurableEnvironmentTestFn } from './helpers-integration';
+import { MARKER_KEY, NO_CONTEXT, nexusContextMarkerCodec } from './helpers-nexus';
 import type { ContextTrace } from './payload-converters/serialization-context-converter';
 import {
-  contextToTraceString,
-  dec,
-  enc,
   encdec,
   makeContextTrace,
   nexusCtx,
@@ -34,9 +32,6 @@ type Trace = ContextTrace<string>;
 
 const converterPath = require.resolve('./payload-converters/serialization-context-converter');
 const dataConverter = { payloadConverterPath: converterPath, failureConverterPath: converterPath };
-
-const MARKER_KEY = 'nexus-context-marker';
-const NO_CONTEXT = 'no-context';
 
 const test = makeConfigurableEnvironmentTestFn<Context>({
   createTestContext: async () => {
@@ -95,41 +90,6 @@ function errorChainMessages(err: unknown): string[] {
     messages.push(cur.message);
   }
   return messages;
-}
-
-/**
- * Stamps a per-context marker into payload metadata on encode, and requires the same marker on
- * decode. A payload decoded under a different Nexus context, or none, throws rather than silently
- * round-tripping, so a test passes only if each payload is decoded with the exact context it was
- * encoded with. Markers are keyed by context, or by {@link NO_CONTEXT} for payloads serialized
- * without one.
- */
-function nexusContextMarkerCodec(markers: Record<string, string>): PayloadCodec {
-  const markerFor = (context?: SerializationContext): string | undefined =>
-    markers[context == null ? NO_CONTEXT : contextToTraceString(context)];
-  return {
-    async encode(payloads: Payload[], context?: SerializationContext): Promise<Payload[]> {
-      const marker = markerFor(context);
-      if (marker == null) return payloads;
-      return payloads.map((payload) => ({
-        ...payload,
-        metadata: { ...payload.metadata, [MARKER_KEY]: new TextEncoder().encode(marker) },
-      }));
-    },
-    async decode(payloads: Payload[], context?: SerializationContext): Promise<Payload[]> {
-      return payloads.map((payload) => {
-        const stamped = payload.metadata?.[MARKER_KEY];
-        if (stamped == null) return payload;
-        const found = new TextDecoder().decode(stamped);
-        const expected = markerFor(context);
-        if (found !== expected) {
-          throw new Error(`payload marked '${found}' was decoded as '${expected ?? 'no context'}'`);
-        }
-        const { [MARKER_KEY]: _marker, ...metadata } = payload.metadata ?? {};
-        return { ...payload, metadata };
-      });
-    },
-  };
 }
 
 export async function echoOpCaller(endpoint: string, inputTrace: Trace): Promise<Trace> {
@@ -268,7 +228,7 @@ test('standalone Nexus failures carry Nexus context', async (t) => {
   });
 });
 
-test('standalone Nexus handle obtained by id has no Nexus context', async (t) => {
+test('standalone Nexus handle obtained by id uses the Nexus context the server returns', async (t) => {
   const h = helpers(t);
   const client = makeClient(t.context.env);
   const { endpointName } = await h.registerNexusEndpoint();
@@ -284,15 +244,11 @@ test('standalone Nexus handle obtained by id has no Nexus context', async (t) =>
     });
     await started.result();
 
+    // This handle never started the operation, so it relies on the context the server returns
     const detached = client.nexus.getHandle<Trace>(operationId);
     t.deepEqual(await detached.result(), {
       label: 'nexus-output',
-      trace: [
-        enc('nexus-input', opCtx),
-        dec('nexus-input', opCtx),
-        enc('nexus-output', opCtx),
-        'payload.decode.free|nexus-output',
-      ],
+      trace: [...encdec('nexus-input', opCtx), ...encdec('nexus-output', opCtx)],
     });
   });
 });

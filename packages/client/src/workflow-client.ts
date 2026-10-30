@@ -11,6 +11,7 @@ import type {
   Workflow,
   WorkflowResultType,
   WorkflowIdConflictPolicy,
+  SerializationContext,
   WorkflowSerializationContext,
   WorkflowTypeOptions,
   PayloadTypeInfo,
@@ -66,6 +67,7 @@ import {
   composeInterceptors,
   encodeUnifiedSearchAttributes,
   filterNullAndUndefined,
+  nexusSerializationContextFromProto,
   SymbolBasedInstanceOfError,
   type Replace,
 } from '@temporalio/common/internal/internal-workflow';
@@ -955,6 +957,10 @@ export class WorkflowClient extends BaseClient {
       historyEventFilterType: temporal.api.enums.v1.HistoryEventFilterType.HISTORY_EVENT_FILTER_TYPE_CLOSE_EVENT,
     };
     let ev: temporal.api.history.v1.IHistoryEvent;
+    // A Workflow started by a Nexus operation handler encodes its result and closing failure with the
+    // handler's Nexus context. The server returns it with the first page of each run's history, and
+    // may omit it from later pages.
+    let closeEventContext: SerializationContext = context;
 
     for (;;) {
       let res: temporal.api.workflowservice.v1.GetWorkflowExecutionHistoryResponse;
@@ -970,6 +976,12 @@ export class WorkflowClient extends BaseClient {
         );
       } catch (err) {
         this.rethrowGrpcError(err, 'Failed to get Workflow execution history', { workflowId, runId });
+      }
+      const serverContext = nexusSerializationContextFromProto(res.propagatedNexusSerializationContext);
+      if (serverContext != null) {
+        closeEventContext = serverContext;
+      } else if (!req.nextPageToken?.length) {
+        closeEventContext = context;
       }
       const events = res.history?.events;
 
@@ -995,7 +1007,7 @@ export class WorkflowClient extends BaseClient {
           dataConverter,
           0,
           ev.workflowExecutionCompletedEventAttributes.result?.payloads,
-          context,
+          closeEventContext,
           opts?.typeInfo?.outputType as TypeInfo<WorkflowResultType<T>, unknown> | undefined
         );
         return result;
@@ -1008,7 +1020,7 @@ export class WorkflowClient extends BaseClient {
         const { failure, retryState } = ev.workflowExecutionFailedEventAttributes;
         throw new WorkflowFailedError(
           'Workflow execution failed',
-          await decodeOptionalFailureToOptionalError(dataConverter, failure, context),
+          await decodeOptionalFailureToOptionalError(dataConverter, failure, closeEventContext),
           decodeRetryState(retryState)
         );
       } else if (ev.workflowExecutionCanceledEventAttributes) {
@@ -1017,7 +1029,7 @@ export class WorkflowClient extends BaseClient {
           await decodeArrayFromPayloads(
             dataConverter,
             ev.workflowExecutionCanceledEventAttributes.details?.payloads,
-            context
+            closeEventContext
           )
         );
         failure.stack = '';

@@ -22,4 +22,5 @@ export { decodeSystemNexusEnvelopeBytes, encodeSystemNexusEnvelopeBytes } from '
 export { SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE } from './system-nexus';
 export { SYSTEM_NEXUS_CONTEXT_METADATA_KEY } from './system-nexus';
 export { TEMPORAL_SYSTEM_NEXUS_ENDPOINT } from './system-nexus';
+export { nexusSerializationContextFromProto } from '../converter/serialization-context';
 export { filterNullAndUndefined, mergeObjects, deepMerge } from './objects-helpers';
