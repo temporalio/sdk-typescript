@@ -203,6 +203,7 @@ jobs:
 
       - name: Run Temporal CLI
         working-directory: ${{ runner.temp }}
+        # Graceful poll shutdown can make Core panic on Worker shutdown, so the last flag disables it
         run: |
           temporal server start-dev \
             --db-filename temporal.sqlite \
@@ -216,7 +217,8 @@ jobs:
             --dynamic-config-value activity.startDelayEnabled=true \
             --dynamic-config-value 'activity.longPollTimeout="5000ms"' \
             --dynamic-config-value history.enableChasm=true \
-            --dynamic-config-value history.enableTransitionHistory=true &
+            --dynamic-config-value history.enableTransitionHistory=true \
+            --dynamic-config-value frontend.enableCancelWorkerPollsOnShutdown=false &
 
       # `@temporalio/test` alone is about 60% of the test wall time, and the root `test` script
       # runs the workspace packages one at a time. Run it alongside the other packages instead,
