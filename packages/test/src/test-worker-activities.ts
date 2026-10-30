@@ -91,7 +91,8 @@ test('Worker decodes activity headers before inbound interceptors', async (t) =>
   const worker = isolateFreeWorker({
     ...defaultOptions,
     namespace: 'default',
-    dataConverter: { payloadCodecs: [codec], encodeHeaders: true },
+    dataConverter: { payloadCodecs: [codec] },
+    codecHeaders: true,
     activities: { echo: async () => undefined },
     interceptors: {
       activity: [
