@@ -3,7 +3,7 @@ import path from 'node:path';
 import test from 'ava';
 import Long from 'long';
 import { historyFromJSON } from '@temporalio/common/proto-utils';
-import proto from '@temporalio/proto'; // eslint-disable-line import/default
+import proto from '@temporalio/proto'; // oxlint-disable-line import/default
 
 const EventType = proto.temporal.api.enums.v1.EventType;
 const ContinueAsNewInitiator = proto.temporal.api.enums.v1.ContinueAsNewInitiator;

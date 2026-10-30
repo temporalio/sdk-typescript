@@ -1467,7 +1467,6 @@ export class WorkflowClient extends BaseClient {
     for (;;) {
       try {
         const response = await this.workflowService.pollWorkflowExecutionUpdate(req);
-        const externalStorage = this.dataConverter.externalStorage;
         await visit(
           response,
           walkPollWorkflowExecutionUpdateResponse,
@@ -1796,7 +1795,6 @@ export class WorkflowClient extends BaseClient {
         namespace: this.options.namespace,
         execution: input.workflowExecution,
       });
-      const externalStorage = this.dataConverter.externalStorage;
       await visit(
         response,
         walkDescribeWorkflowExecutionResponse,
@@ -2185,7 +2183,7 @@ export class WorkflowClient extends BaseClient {
 
   protected getOrMakeInterceptors(workflowId: string, runId?: string): WorkflowClientInterceptor[] {
     if (typeof this.options.interceptors === 'object' && 'calls' in this.options.interceptors) {
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      // oxlint-disable-next-line typescript/no-deprecated
       const factories = (this.options.interceptors as WorkflowClientInterceptors).calls ?? [];
       return factories.map((ctor) => ctor({ workflowId, runId }));
     }

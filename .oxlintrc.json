@@ -1,0 +1,219 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "import"],
+  "categories": {
+    "correctness": "error"
+  },
+  "options": {
+    "denyWarnings": true,
+    "typeAware": true
+  },
+  "env": {
+    "builtin": true
+  },
+  "ignorePatterns": ["**/node_modules/**", "**/lib/**", "**/*.js", "**/*.mjs", "**/*.cjs", "**/*.generated.ts"],
+  "overrides": [
+    {
+      "files": ["packages/*/src/**/*.ts", "contrib/*/src/**/*.ts"],
+      "rules": {
+        "no-case-declarations": "error",
+        "no-empty": "error",
+        "no-fallthrough": "error",
+        "no-import-assign": "off",
+        "no-prototype-builtins": "error",
+        "no-redeclare": "off",
+        "no-regex-spaces": "error",
+        "no-undef": "off",
+        "no-unexpected-multiline": "off",
+        "no-unused-vars": [
+          "error",
+          {
+            "argsIgnorePattern": "^_",
+            "caughtErrorsIgnorePattern": "^_",
+            "varsIgnorePattern": "^_"
+          }
+        ],
+        "no-var": "error",
+        "prefer-const": "error",
+        "prefer-rest-params": "error",
+        "prefer-spread": "error",
+        "no-array-constructor": "error",
+        "typescript/ban-ts-comment": "error",
+        "typescript/no-empty-object-type": "error",
+        "typescript/no-explicit-any": "off",
+        "typescript/no-namespace": "error",
+        "typescript/no-require-imports": "error",
+        "typescript/no-unnecessary-type-constraint": "error",
+        "typescript/no-unsafe-function-type": "error",
+        "curly": "off",
+        "eqeqeq": [
+          "error",
+          "always",
+          {
+            "null": "ignore"
+          }
+        ],
+        "no-duplicate-imports": [
+          "error",
+          {
+            "allowSeparateTypeImports": true
+          }
+        ],
+        "object-shorthand": ["error", "always"],
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@temporalio/*/src/*"],
+                "message": "Import from the package root or a documented export."
+              },
+              {
+                "message": "Import from the package root or a documented export, not an undocumented lib path.",
+                "group": [
+                  "@temporalio/*/lib",
+                  "@temporalio/*/lib/**",
+                  "!@temporalio/common/lib/encoding",
+                  "!@temporalio/common/lib/protobufs",
+                  "!@temporalio/common/lib/proto-utils",
+                  "!@temporalio/common/lib/time"
+                ]
+              }
+            ]
+          }
+        ],
+        "import/named": "off",
+        "import/no-absolute-path": "error",
+        "import/no-self-import": "error",
+        "import/no-cycle": "error",
+        "import/no-named-as-default": "error",
+        "import/no-mutable-exports": "error",
+        "import/unambiguous": "error",
+        "import/first": "error",
+        "import/newline-after-import": "error",
+        "import/no-unassigned-import": "error",
+        "import/no-named-default": "error",
+        "typescript/no-deprecated": [
+          "warn",
+          {
+            "allow": [
+              "SearchAttributes",
+              "searchAttributes",
+              "searchAttributeValue",
+              "SearchAttributeValue",
+              "SearchAttributeValueOrReadonly",
+              "AddNewCompatibleVersion",
+              "AddNewIdInNewDefaultSet",
+              "BaseReachabilityOptions",
+              "buildId",
+              "BuildIdNotFoundError",
+              "BuildIdOperation",
+              "BuildIdReachability",
+              "BuildIdVersionSet",
+              "currentBuildId",
+              "getBuildIdCompatability",
+              "getReachability",
+              "LoadedTaskQueueClientOptions",
+              "MergeSets",
+              "PromoteBuildIdWithinSet",
+              "PromoteSetByBuildId",
+              "ReachabilityOptions",
+              "ReachabilityResponse",
+              "ReachabilityType",
+              "ReachabilityTypeResponse",
+              "TaskQueueClient",
+              "TaskQueueClientOptions",
+              "UnversionedBuildId",
+              "updateBuildIdCompatibility",
+              "useVersioning",
+              "versioningIntent",
+              "VersioningIntent",
+              "versioningIntentToProto",
+              "VersioningIntentString",
+              "workerBuildId",
+              "WorkerBuildIdVersionSets",
+              "activityInbound",
+              "ActivityInboundCallsInterceptorFactory",
+              "WorkflowClientInterceptors",
+              "WorkflowClientCallsInterceptor",
+              "WorkflowClientCallsInterceptorFactory",
+              "WorkflowClientCallsInterceptorFactoryInput",
+              "ActivityInboundLogInterceptor",
+              "defaultSinks",
+              "defaultWorkerLogger",
+              "LoggerSinks",
+              "WorkflowLogInterceptor"
+            ]
+          }
+        ],
+        "typescript/no-floating-promises": "error",
+        "typescript/explicit-module-boundary-types": "error",
+        "typescript/consistent-type-imports": [
+          "error",
+          {
+            "prefer": "type-imports",
+            "fixStyle": "separate-type-imports",
+            "disallowTypeAnnotations": false
+          }
+        ],
+        "import-js/no-useless-path-segments": "error",
+        "import-js/no-relative-packages": "error",
+        "import-js/no-extraneous-dependencies": "error",
+        "import-js/order": [
+          "error",
+          {
+            "groups": ["builtin", "external", "internal", "parent", "sibling", "index"]
+          }
+        ],
+        "import-js/no-unresolved": [
+          "error",
+          {
+            "ignore": ["^__temporal_"]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "packages/worker/src/workflow/module-overrides/assert.ts",
+        "packages/worker/src/workflow/module-overrides/url.ts",
+        "packages/worker/src/workflow/module-overrides/util.ts",
+        "packages/test/src/payload-converters/payload-converter-no-export.ts"
+      ],
+      "rules": {
+        "import/unambiguous": "off"
+      }
+    }
+  ],
+  "settings": {
+    "import/internal-regex": "^@temporalio/",
+    "import/resolver": {
+      "typescript": {
+        "alwaysTryTypes": true,
+        "project": ["packages/*/tsconfig.json", "contrib/*/tsconfig.json"]
+      }
+    }
+  },
+  "jsPlugins": [
+    {
+      "name": "import-js",
+      "specifier": "eslint-plugin-import"
+    }
+  ],
+  "rules": {
+    "no-eval": "off",
+    "no-import-assign": "off",
+    "no-useless-rename": "off",
+    "typescript/await-thenable": "off",
+    "typescript/no-base-to-string": "off",
+    "typescript/no-duplicate-type-constituents": "off",
+    "typescript/no-misused-spread": "off",
+    "typescript/no-redundant-type-constituents": "off",
+    "typescript/no-useless-empty-export": "off",
+    "typescript/require-array-sort-compare": "off",
+    "typescript/restrict-template-expressions": "off",
+    "typescript/unbound-method": "off",
+    "no-unused-vars": "off",
+    "typescript/no-floating-promises": "off"
+  }
+}

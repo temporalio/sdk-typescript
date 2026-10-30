@@ -116,6 +116,8 @@ export function makeProtoEnumConverters<
   ProtoEnumValue extends number,
   ProtoEnum extends { [k in ProtoEnumKey]: ProtoEnumValue },
   ProtoEnumKey extends `${Prefix}${string}`,
+  // Enforce the exact enum shape through the constraint; this parameter is not referenced elsewhere.
+  // oxlint-disable-next-line no-unused-vars
   StringEnumTypeActual extends Exact<StringEnumType, StringEnumTypeActual>,
   Prefix extends string,
   //

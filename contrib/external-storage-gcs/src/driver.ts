@@ -55,7 +55,7 @@ export interface GcsStorageDriverOptions {
  * encoding stays injective), leaving readable Unicode intact.
  * See https://cloud.google.com/storage/docs/objects#naming.
  */
-// eslint-disable-next-line no-control-regex -- intentionally matches the control characters GCS recommends avoiding
+// oxlint-disable-next-line no-control-regex -- intentionally matches the control characters GCS recommends avoiding
 const GCS_UNSAFE_SEGMENT = /[\u0000-\u001f\u007f-\u009f#[\]*?:"<>|/%]/g;
 
 function percentEncodeChar(char: string): string {

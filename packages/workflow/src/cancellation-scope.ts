@@ -122,7 +122,7 @@ export class CancellationScope {
   #cancelRequested = false;
 
   // Typescript does not understand that the Promise executor runs synchronously in the constructor
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // oxlint-disable-next-line typescript/ban-ts-comment
   // @ts-ignore
   protected readonly reject: (reason?: any) => void;
 

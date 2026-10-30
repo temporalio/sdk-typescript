@@ -825,7 +825,7 @@ export type WorkflowBundleOption =
   | WorkflowBundle
   | WorkflowBundleWithSourceMap
   | WorkflowBundlePath
-  | WorkflowBundlePathWithSourceMap; // eslint-disable-line @typescript-eslint/no-deprecated
+  | WorkflowBundlePathWithSourceMap; // oxlint-disable-line typescript/no-deprecated
 
 export function isCodeBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt is WorkflowBundle {
   const opt = bundleOpt as any; // Cast to access properties without TS complaining

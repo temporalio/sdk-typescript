@@ -28,6 +28,8 @@ export function withPayloadCacheMetrics(cache: PayloadCache, meter: MetricMeter)
     async get(key) {
       const payload = await cache.get(key);
       if (payload !== undefined) {
+        // Keep .len for compatibility with protobufjs < 8.7.0, which does not expose .pos.
+        // oxlint-disable-next-line typescript/no-deprecated
         const bytes = PayloadProto.encode(payload).len;
         hit.add(1);
         hitBytes.add(bytes);

@@ -88,9 +88,9 @@ test('Worker activity info does not confuse task queue and namespace', async (t)
         return {
           taskQueue: info.taskQueue,
           namespace: info.namespace,
-          // eslint-disable-next-line @typescript-eslint/no-deprecated
+          // oxlint-disable-next-line typescript/no-deprecated
           activityNamespace: info.activityNamespace,
-          // eslint-disable-next-line @typescript-eslint/no-deprecated
+          // oxlint-disable-next-line typescript/no-deprecated
           workflowNamespace: info.workflowNamespace,
         };
       },

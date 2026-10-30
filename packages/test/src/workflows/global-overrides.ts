@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
+/* oxlint-disable typescript/ban-ts-comment */
 
 /**
  * Test that we get meaningful errors when trying to use the non-deterministic

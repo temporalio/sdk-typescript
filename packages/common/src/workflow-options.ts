@@ -79,7 +79,7 @@ export const [encodeWorkflowIdReusePolicy, decodeWorkflowIdReusePolicy] = makePr
     [WorkflowIdReusePolicy.ALLOW_DUPLICATE]: 1,
     [WorkflowIdReusePolicy.ALLOW_DUPLICATE_FAILED_ONLY]: 2,
     [WorkflowIdReusePolicy.REJECT_DUPLICATE]: 3,
-    [WorkflowIdReusePolicy.TERMINATE_IF_RUNNING]: 4, // eslint-disable-line @typescript-eslint/no-deprecated
+    [WorkflowIdReusePolicy.TERMINATE_IF_RUNNING]: 4, // oxlint-disable-line typescript/no-deprecated
     UNSPECIFIED: 0,
   } as const,
   'WORKFLOW_ID_REUSE_POLICY_'

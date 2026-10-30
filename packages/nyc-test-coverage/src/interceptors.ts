@@ -10,7 +10,7 @@ export const interceptors = (): WorkflowInterceptors => ({
   internals: [
     {
       concludeActivation(input, next) {
-        /* eslint-disable @typescript-eslint/ban-ts-comment */
+        /* oxlint-disable typescript/ban-ts-comment */
         // @ts-ignore
         const globalCoverage: CoverageMapData = global.__coverage__;
         if (globalCoverage) {

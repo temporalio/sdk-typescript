@@ -467,9 +467,10 @@ test('decodePayload maps non-retryable PayloadValidationError from converter to 
   // The original failure, including its message, is retained as the cause.
   t.true(err?.cause instanceof ApplicationFailure);
   t.is(err?.cause, cause);
-  t.is((err?.cause as ApplicationFailure).type, PAYLOAD_VALIDATION_ERROR_TYPE);
-  t.true((err?.cause as ApplicationFailure).nonRetryable);
-  t.is((err?.cause as ApplicationFailure).message, 'Payload validation failed');
+  const applicationFailure = err?.cause as ApplicationFailure;
+  t.is(applicationFailure.type, PAYLOAD_VALIDATION_ERROR_TYPE);
+  t.true(applicationFailure.nonRetryable);
+  t.is(applicationFailure.message, 'Payload validation failed');
 });
 
 test('decodePayload maps non-retryable PayloadValidationError from codec to a bad request handler error', async (t) => {
@@ -486,9 +487,10 @@ test('decodePayload maps non-retryable PayloadValidationError from codec to a ba
   // The original failure, including its message, is retained as the cause.
   t.true(err?.cause instanceof ApplicationFailure);
   t.is(err?.cause, cause);
-  t.is((err?.cause as ApplicationFailure).type, PAYLOAD_VALIDATION_ERROR_TYPE);
-  t.true((err?.cause as ApplicationFailure).nonRetryable);
-  t.is((err?.cause as ApplicationFailure).message, 'Payload validation failed');
+  const applicationFailure = err?.cause as ApplicationFailure;
+  t.is(applicationFailure.type, PAYLOAD_VALIDATION_ERROR_TYPE);
+  t.true(applicationFailure.nonRetryable);
+  t.is(applicationFailure.message, 'Payload validation failed');
 });
 
 test('decodePayload leaves non-retryable ApplicationFailure of another type as an internal handler error', async (t) => {

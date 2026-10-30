@@ -60,6 +60,7 @@ test.serial('Worker fails validation against unknown namespace', async (t) => {
       namespace: 'oogabooga',
     }),
     {
+      // oxlint-disable-next-line typescript/no-deprecated -- Assert the internal worker error type.
       instanceOf: TransportError,
       // Cloud credentials cannot describe namespaces outside their authorized scope.
       message: /Namespace oogabooga (?:is not found|was not found or otherwise could not be described)/,
@@ -91,6 +92,7 @@ test.serial('Worker fails validation against unknown namespace', async (t) => {
     t.log('Non-conclusive result: Worker did not fail as expected');
     t.pass();
   } catch (err) {
+    // oxlint-disable-next-line typescript/no-deprecated -- Assert the internal worker error type.
     t.is((err as Error).name, UnexpectedError.name);
     t.is(
       (err as Error).message,

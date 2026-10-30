@@ -237,7 +237,7 @@ export interface NexusSlotInfo {
 /**
  * A permit to use a slot.
  */
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+// oxlint-disable-next-line typescript/no-empty-object-type
 export interface SlotPermit {}
 
 /**

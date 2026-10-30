@@ -13,11 +13,11 @@ import { REUSE_V8_CONTEXT, TESTS_CLI_VERSION, TESTS_TIME_SKIPPING_SERVER_VERSION
 
 // Hack around Worker and TestWorkflowEnvironment not being available in workflow context
 if (inWorkflowContext()) {
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // oxlint-disable-next-line typescript/ban-ts-comment
   // @ts-ignore
-  worker.Worker = class {}; // eslint-disable-line import/namespace
+  worker.Worker = class {}; // oxlint-disable-line import/namespace
 
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // oxlint-disable-next-line typescript/ban-ts-comment
   // @ts-ignore
   RealTestWorkflowEnvironment = class {};
 }
