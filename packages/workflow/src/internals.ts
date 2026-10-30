@@ -1065,6 +1065,7 @@ export class Activator implements ActivationHandler {
     // Note that there is a deliberately unhandled promise rejection below.
     // These are caught elsewhere and fail the corresponding activation.
     const implicitMarker = createInboundUpdateMarker(updateId);
+    const resultContext = this.updateResultSerializationContext(activation);
     const doUpdateImpl = async () => {
       let input: UpdateInput;
       try {
@@ -1092,7 +1093,7 @@ export class Activator implements ActivationHandler {
         }
         input = makeInput();
       } catch (error) {
-        this.rejectUpdate(protocolInstanceId, error);
+        this.rejectUpdate(protocolInstanceId, error, resultContext);
         return;
       }
       this.acceptUpdate(protocolInstanceId);
@@ -1105,10 +1106,10 @@ export class Activator implements ActivationHandler {
       this.inProgressUpdates.set(updateId, { name, unfinishedPolicy, id: updateId });
       const res = implicitMarker
         .withScope(() => execute(input))
-        .then((result) => this.completeUpdate(protocolInstanceId, result, entry.typeInfo?.outputType))
+        .then((result) => this.completeUpdate(protocolInstanceId, result, resultContext, entry.typeInfo?.outputType))
         .catch((error) => {
           if (error instanceof TemporalFailure) {
-            this.rejectUpdate(protocolInstanceId, error);
+            this.rejectUpdate(protocolInstanceId, error, resultContext);
           } else {
             this.handleWorkflowFailure(error);
           }
@@ -1157,7 +1158,8 @@ export class Activator implements ActivationHandler {
       if (update) {
         this.rejectUpdate(
           update.protocolInstanceId!,
-          ApplicationFailure.nonRetryable(`No registered handler for update: ${update.name}`)
+          ApplicationFailure.nonRetryable(`No registered handler for update: ${update.name}`),
+          this.updateResultSerializationContext(update)
         );
       }
     }
@@ -1509,8 +1511,12 @@ export class Activator implements ActivationHandler {
     this.pushCommand({ updateResponse: { protocolInstanceId, accepted: {} } });
   }
 
-  private completeUpdate(protocolInstanceId: string, result: unknown, typeInfo?: TypeInfo): void {
-    const context = this.workflowSerializationContext();
+  private completeUpdate(
+    protocolInstanceId: string,
+    result: unknown,
+    context: SerializationContext,
+    typeInfo?: TypeInfo
+  ): void {
     this.pushCommand({
       updateResponse: {
         protocolInstanceId,
@@ -1519,11 +1525,11 @@ export class Activator implements ActivationHandler {
     });
   }
 
-  private rejectUpdate(protocolInstanceId: string, error: unknown): void {
+  private rejectUpdate(protocolInstanceId: string, error: unknown, context: SerializationContext): void {
     this.pushCommand({
       updateResponse: {
         protocolInstanceId,
-        rejected: this.errorToFailure(ensureTemporalFailure(error)),
+        rejected: this.errorToFailure(ensureTemporalFailure(error), context),
       },
     });
   }
@@ -1583,6 +1589,17 @@ export class Activator implements ActivationHandler {
   /** Context for the Workflow's result and closing failure, which go back to a Nexus caller if a handler started it. */
   private resultSerializationContext(): SerializationContext {
     return this.nexusSerializationContext ?? this.workflowSerializationContext();
+  }
+
+  /**
+   * Context for an Update's result, failure and rejection, which go back to a Nexus caller if a
+   * handler sent the Update. Its arguments keep the Workflow context.
+   */
+  private updateResultSerializationContext(activation: coresdk.workflow_activation.IDoUpdate): SerializationContext {
+    return (
+      nexusSerializationContextFromProto(activation.propagatedNexusSerializationContext) ??
+      this.workflowSerializationContext()
+    );
   }
 }
 

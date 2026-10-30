@@ -504,6 +504,74 @@ test('a Workflow started by a Nexus handler encodes its result and failure with 
   );
 });
 
+test('an Update sent by a Nexus handler encodes its result and rejection with the Nexus context', async (t) => {
+  const runner = new WorkflowCodecRunner([new FreePayloadCodec()], {
+    type: 'workflow',
+    namespace: 'default',
+    workflowId: 'wf-1',
+  });
+  const handlerCtx = nexusCtx('handler-endpoint', 'handler-service', 'handler-operation');
+  const propagatedNexusSerializationContext = {
+    endpoint: 'handler-endpoint',
+    service: 'handler-service',
+    operation: 'handler-operation',
+  };
+
+  const decoded = await runner.decodeActivation({
+    runId: 'run-1',
+    jobs: [
+      {
+        doUpdate: {
+          id: 'u-1',
+          protocolInstanceId: 'p-1',
+          name: 'u',
+          input: [payload('update-input')],
+          propagatedNexusSerializationContext,
+        },
+      },
+      { doUpdate: { id: 'u-2', protocolInstanceId: 'p-2', name: 'u', propagatedNexusSerializationContext } },
+      { doUpdate: { id: 'u-3', protocolInstanceId: 'p-3', name: 'u' } },
+    ],
+  });
+  // The arguments keep the Workflow context
+  t.deepEqual(traceFromPayload(decoded.jobs?.[0]?.doUpdate?.input?.[0] as Payload), [
+    'codec.decode.bound|update-input|workflow.default.wf-1',
+  ]);
+
+  const encodeResponses = async () =>
+    decodeCompletion(
+      await runner.encodeCompletion({
+        successful: {
+          commands: [
+            { updateResponse: { protocolInstanceId: 'p-1', completed: payload('p-1-result') } },
+            { updateResponse: { protocolInstanceId: 'p-2', rejected: failureWithDetail('p-2-rejection') } },
+            { updateResponse: { protocolInstanceId: 'p-3', completed: payload('p-3-result') } },
+          ],
+        },
+      })
+    );
+  const rejectionDetail = (encoded: coresdk.workflow_completion.WorkflowActivationCompletion) =>
+    encoded.successful?.commands?.[1]?.updateResponse?.rejected?.applicationFailureInfo?.details?.payloads?.[0];
+
+  const first = await encodeResponses();
+  t.deepEqual(traceFromPayload(first.successful?.commands?.[0]?.updateResponse?.completed as Payload), [
+    `codec.encode.bound|p-1-result|${handlerCtx}`,
+  ]);
+  t.deepEqual(traceFromPayload(rejectionDetail(first) as Payload), [`codec.encode.bound|p-2-rejection|${handlerCtx}`]);
+  t.deepEqual(traceFromPayload(first.successful?.commands?.[2]?.updateResponse?.completed as Payload), [
+    'codec.encode.bound|p-3-result|workflow.default.wf-1',
+  ]);
+
+  // A finished Update releases its context
+  const second = await encodeResponses();
+  t.deepEqual(traceFromPayload(second.successful?.commands?.[0]?.updateResponse?.completed as Payload), [
+    'codec.encode.bound|p-1-result|workflow.default.wf-1',
+  ]);
+  t.deepEqual(traceFromPayload(rejectionDetail(second) as Payload), [
+    'codec.encode.bound|p-2-rejection|workflow.default.wf-1',
+  ]);
+});
+
 test('a resolution with no scheduled nexus operation falls back to workflow context', async (t) => {
   const runner = nexusRunner();
 

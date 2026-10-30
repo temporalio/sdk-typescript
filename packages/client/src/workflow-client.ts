@@ -590,6 +590,13 @@ export class WithStartWorkflowOperation<T extends Workflow> {
 export class WorkflowClient extends BaseClient {
   public readonly options: LoadedWorkflowClientOptions;
 
+  /**
+   * Serialization context the server returned with an Update outcome. An Update sent by a Nexus
+   * operation handler encodes its outcome with the handler's Nexus context. Keyed by the outcome
+   * object, so an interceptor that replaces the outcome falls back to the Workflow context.
+   */
+  private readonly updateOutcomeContexts = new WeakMap<temporal.api.update.v1.IOutcome, SerializationContext>();
+
   constructor(options?: WorkflowClientOptions) {
     super(options);
     this.options = {
@@ -1226,8 +1233,19 @@ export class WorkflowClient extends BaseClient {
         requestId: internalOptions?.requestId,
         completionCallbacks: internalOptions?.completionCallbacks,
         links: internalOptions?.links,
+        propagatedNexusSerializationContext: internalOptions?.propagatedNexusSerializationContext,
       },
     };
+  }
+
+  private rememberUpdateOutcomeContext(response: {
+    outcome?: temporal.api.update.v1.IOutcome | null;
+    propagatedNexusSerializationContext?: temporal.api.nexus.v1.IPropagatedSerializationContext | null;
+  }): void {
+    const context = nexusSerializationContextFromProto(response.propagatedNexusSerializationContext);
+    if (response.outcome != null && context != null) {
+      this.updateOutcomeContexts.set(response.outcome, context);
+    }
   }
 
   /**
@@ -1283,6 +1301,7 @@ export class WorkflowClient extends BaseClient {
           payloadCache: this.payloadCache,
         })
       );
+      this.rememberUpdateOutcomeContext(response);
     } catch (err) {
       this.rethrowUpdateGrpcError(err, 'Workflow Update failed', input.workflowExecution);
     }
@@ -1390,6 +1409,7 @@ export class WorkflowClient extends BaseClient {
         }
         updateResp = multiOpResp.responses?.[1]
           ?.updateWorkflow as temporal.api.workflowservice.v1.IUpdateWorkflowExecutionResponse;
+        this.rememberUpdateOutcomeContext(updateResp);
         reachedStage =
           updateResp.stage ??
           UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_UNSPECIFIED;
@@ -1439,10 +1459,11 @@ export class WorkflowClient extends BaseClient {
       result: async () => {
         const completedOutcome =
           outcome ?? (await this._pollForUpdateOutcome(updateId, { workflowId, runId: workflowRunId }));
+        const outcomeContext = this.updateOutcomeContexts.get(completedOutcome) ?? context;
         if (completedOutcome.failure) {
           throw new WorkflowUpdateFailedError(
             'Workflow Update failed',
-            await decodeOptionalFailureToOptionalError(dataConverter, completedOutcome.failure, context)
+            await decodeOptionalFailureToOptionalError(dataConverter, completedOutcome.failure, outcomeContext)
           );
         } else {
           // PayloadTypeInfo stores output metadata without its application type, so TypeScript cannot know that this
@@ -1451,7 +1472,7 @@ export class WorkflowClient extends BaseClient {
             dataConverter,
             0,
             completedOutcome.success?.payloads,
-            context,
+            outcomeContext,
             outputTypeInfo as TypeInfo<Ret, unknown> | undefined
           );
         }
@@ -1488,6 +1509,7 @@ export class WorkflowClient extends BaseClient {
           })
         );
         if (response.outcome) {
+          this.rememberUpdateOutcomeContext(response);
           return response.outcome;
         }
       } catch (err) {
