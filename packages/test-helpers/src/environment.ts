@@ -14,6 +14,8 @@ export const defaultDynamicConfigOptions = [
   'activity.enableStandalone=true',
   'history.enableChasm=true',
   'history.enableTransitionHistory=true',
+  // Graceful poll shutdown can make Core panic on Worker shutdown
+  'frontend.enableCancelWorkerPollsOnShutdown=false',
 ];
 
 export const defaultSAKeys = {
