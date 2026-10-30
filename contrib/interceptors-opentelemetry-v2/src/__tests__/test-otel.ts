@@ -5,7 +5,12 @@ import * as http2 from 'http2';
 import * as path from 'path';
 import * as otelApi from '@opentelemetry/api';
 import { SpanStatusCode, createTraceState } from '@opentelemetry/api';
-import { ExportResultCode, W3CTraceContextPropagator } from '@opentelemetry/core';
+import {
+  CompositePropagator,
+  ExportResultCode,
+  W3CBaggagePropagator,
+  W3CTraceContextPropagator,
+} from '@opentelemetry/core';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import * as opentelemetry from '@opentelemetry/sdk-node';
 import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
@@ -956,6 +961,61 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(serialized, 'vendor1=value1,vendor2=value2');
       t.is(traceState!.get('vendor1'), 'value1');
       t.is(traceState!.get('vendor2'), 'value2');
+    }
+  });
+
+  test.serial('baggage crosses the client -> Workflow -> Activity boundary', async (t) => {
+    Runtime.install({});
+    try {
+      const staticResource = opentelemetry.resources.resourceFromAttributes({
+        [ATTR_SERVICE_NAME]: 'ts-test-otel-v2-baggage',
+      });
+      const traceExporter: opentelemetry.tracing.SpanExporter = {
+        export(_spans, resultCallback) {
+          resultCallback({ code: ExportResultCode.SUCCESS });
+        },
+        async shutdown() {},
+      };
+      // Explicit composite propagator (trace context + baggage), the same shape a consumer following
+      // the package README's setup would register, rather than relying on NodeSDK's implicit default.
+      const otel = new opentelemetry.NodeSDK({
+        resource: staticResource,
+        traceExporter,
+        textMapPropagator: new CompositePropagator({
+          propagators: [new W3CTraceContextPropagator(), new W3CBaggagePropagator()],
+        }),
+      });
+      otel.start();
+
+      const plugin = new OpenTelemetryPlugin({
+        resource: staticResource,
+        spanProcessor: new SimpleSpanProcessor(traceExporter),
+      });
+      const worker = await Worker.create({
+        workflowsPath: require.resolve('./workflows'),
+        activities,
+        taskQueue: 'test-otel-v2-baggage',
+        plugins: [plugin],
+      });
+      const client = new Client({ plugins: [plugin] });
+
+      const baggage = otelApi.propagation.createBaggage({
+        userId: { value: 'user-42' },
+        tenant: { value: 'acme' },
+      });
+      const observed = await worker.runUntil(
+        otelApi.context.with(otelApi.propagation.setBaggage(otelApi.context.active(), baggage), () =>
+          client.workflow.execute(workflows.baggagePropagation, {
+            taskQueue: 'test-otel-v2-baggage',
+            workflowId: uuid4(),
+          })
+        )
+      );
+      await otel.shutdown();
+
+      t.deepEqual(observed, { userId: 'user-42', tenant: 'acme' });
+    } finally {
+      await Runtime._instance?.shutdown();
     }
   });
 
