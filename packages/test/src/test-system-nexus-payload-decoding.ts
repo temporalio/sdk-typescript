@@ -334,7 +334,6 @@ test('decodePayload applies the configured converter to nested System Nexus payl
   const dataConverter: LoadedDataConverter = {
     ...defaultDataConverter,
     payloadCodecs: [shiftingCodec],
-    encodeHeaders: true,
     payloadConverter: {
       toPayload(value) {
         return defaultPayloadConverter.toPayload(value);
@@ -356,7 +355,9 @@ test('decodePayload applies the configured converter to nested System Nexus payl
   const result = (await decodePayload(
     dataConverter,
     systemNexusPayloadWith(input!, signal!, { header: { fields: { custom: header! } } }),
-    signalWithStartInputType
+    signalWithStartInputType,
+    undefined,
+    true
   )) as SignalWithStartWorkflowRequest;
 
   t.deepEqual(result.args, ['converted-workflow-input']);

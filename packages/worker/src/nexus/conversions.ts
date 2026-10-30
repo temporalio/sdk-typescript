@@ -57,13 +57,14 @@ export async function decodePayload(
   dataConverter: LoadedDataConverter,
   payload: temporal.api.common.v1.IPayload | undefined,
   typeInfo?: TypeInfo,
-  context?: NexusSerializationContext
+  context?: NexusSerializationContext,
+  codecHeaders = false
 ): Promise<unknown> {
   const isSystemPayload = payload != null && isSystemNexusEnvelope(payload);
   let decoded: Payload | undefined | null;
   try {
     decoded = isSystemPayload
-      ? await decodeSystemNexus(dataConverter, payload)
+      ? await decodeSystemNexus(dataConverter, payload, codecHeaders)
       : await decodeOptionalSingle(dataConverter.payloadCodecs, payload, context);
   } catch (err) {
     if (isPayloadValidationFailure(err)) {
@@ -100,7 +101,11 @@ export async function decodePayload(
   }
 }
 
-async function decodeSystemNexus(dataConverter: LoadedDataConverter, payload: Payload): Promise<Payload> {
+async function decodeSystemNexus(
+  dataConverter: LoadedDataConverter,
+  payload: Payload,
+  codecHeaders: boolean
+): Promise<Payload> {
   const messageType = systemNexusRequestType(payload);
   if (!isKnownSystemNexusRequestType(messageType)) {
     // Retryable: a newer server may send a request type this SDK version does not know yet.
@@ -122,7 +127,7 @@ async function decodeSystemNexus(dataConverter: LoadedDataConverter, payload: Pa
       (await decode(dataConverter.payloadCodecs, [nestedPayload], context))[0]!,
     transformPayloads: (nestedPayloads, context) => decode(dataConverter.payloadCodecs, nestedPayloads, context),
     initialContext: undefined,
-    skipHeaders: !dataConverter.encodeHeaders,
+    skipHeaders: !codecHeaders,
     skipSearchAttributes: true,
   });
   return encodeSystemNexusEnvelope(payload, message);

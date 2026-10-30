@@ -1,1 +1,1 @@
-Add opt-in `dataConverter.encodeHeaders` to apply payload codecs automatically to client, schedule, workflow, and activity headers, including tracing headers. The default remains unchanged; enable it on both Clients and Workers only after removing manual header codec processing and ensuring codecs can decode existing histories.
+Add opt-in `WorkerOptions.codecHeaders` to decode incoming Workflow and Activity headers and encode headers emitted by Workflows, including tracing headers. Client-supplied Payload headers remain wire-ready and are not automatically encoded.

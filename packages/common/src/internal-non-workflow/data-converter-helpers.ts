@@ -82,7 +82,6 @@ export function loadDataConverter(dataConverter?: DataConverter): LoadedDataConv
     payloadConverter,
     failureConverter,
     payloadCodecs: dataConverter?.payloadCodecs ?? [],
-    encodeHeaders: dataConverter?.encodeHeaders,
     externalStorage: dataConverter?.externalStorage,
   };
 }

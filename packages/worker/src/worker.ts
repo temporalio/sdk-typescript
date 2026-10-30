@@ -39,7 +39,7 @@ import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
-  decodeHeaders,
+  decode,
   encodeErrorToFailure,
   encodeToPayload,
   ExternalStorageMetricsAccumulator,
@@ -1179,7 +1179,17 @@ export class Worker {
                         nonRetryable: false,
                       });
                     }
-                    const headers = await decodeHeaders(loadedDataConverter, task.start?.headerFields ?? {}, context);
+                    const wireHeaders = task.start?.headerFields ?? {};
+                    const headers = this.options.codecHeaders
+                      ? Object.fromEntries(
+                          await Promise.all(
+                            Object.entries(wireHeaders).map(async ([key, payload]) => [
+                              key,
+                              (await decode(loadedDataConverter.payloadCodecs, [payload], context))[0]!,
+                            ])
+                          )
+                        )
+                      : wireHeaders;
                     const input = {
                       args,
                       headers,
@@ -1497,7 +1507,8 @@ export class Worker {
         this.options.loadedDataConverter,
         this.logger,
         this.metricMeter,
-        this.options.interceptors.nexus
+        this.options.interceptors.nexus,
+        this.options.codecHeaders
       );
       this.taskTokenToNexusHandler.set(base64TaskToken, nexusHandler);
       this.numInFlightNexusOperationsSubject.next(this.numInFlightNexusOperationsSubject.value + 1);
@@ -1619,7 +1630,7 @@ export class Worker {
             namespace: this.options.namespace,
             workflowId,
           },
-          this.options.loadedDataConverter.encodeHeaders
+          this.options.codecHeaders
         );
       }
       const { externalStorage } = this.options.loadedDataConverter;

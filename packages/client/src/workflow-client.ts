@@ -40,7 +40,6 @@ import {
   decodeFromPayloadsAtIndex,
   decodeOptionalFailureToOptionalError,
   decodeOptionalSinglePayload,
-  encodeHeaders,
   encodeMapToPayloads,
   encodeToPayloadsWithContext,
   encodeUserMetadata,
@@ -1121,7 +1120,7 @@ export class WorkflowClient extends BaseClient {
         queryArgs: {
           payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args, input.typeInfo?.inputTypes),
         },
-        header: { fields: await encodeHeaders(dataConverter, input.headers, context) },
+        header: { fields: input.headers },
       },
     };
     let response: temporal.api.workflowservice.v1.QueryWorkflowResponse;
@@ -1206,7 +1205,7 @@ export class WorkflowClient extends BaseClient {
           identity: this.options.identity,
         },
         input: {
-          header: { fields: await encodeHeaders(dataConverter, input.headers, context) },
+          header: { fields: input.headers },
           name: input.updateName,
           args: {
             payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args, input.typeInfo?.inputTypes),
@@ -1502,7 +1501,7 @@ export class WorkflowClient extends BaseClient {
       requestId: randomUUID(),
       // control is unused,
       signalName: input.signalName,
-      header: { fields: await encodeHeaders(dataConverter, input.headers, context) },
+      header: { fields: input.headers },
       input: {
         payloads: await encodeToPayloadsWithContext(dataConverter, context, input.args, input.typeInfo?.inputTypes),
       },
@@ -1579,7 +1578,7 @@ export class WorkflowClient extends BaseClient {
             }
           : undefined,
       cronSchedule: options.cronSchedule,
-      header: { fields: await encodeHeaders(dataConverter, headers, context) },
+      header: { fields: headers },
       userMetadata: await encodeUserMetadata(dataConverter, options.staticSummary, options.staticDetails, context),
       priority: options.priority ? compilePriority(options.priority) : undefined,
       versioningOverride: options.versioningOverride ?? undefined,
@@ -1715,7 +1714,7 @@ export class WorkflowClient extends BaseClient {
             }
           : undefined,
       cronSchedule: opts.cronSchedule,
-      header: { fields: await encodeHeaders(dataConverter, headers, context) },
+      header: { fields: headers },
       userMetadata: await encodeUserMetadata(dataConverter, opts.staticSummary, opts.staticDetails, context),
       priority: opts.priority ? compilePriority(opts.priority) : undefined,
       versioningOverride: opts.versioningOverride ?? undefined,
