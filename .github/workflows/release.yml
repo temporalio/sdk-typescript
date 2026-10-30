@@ -68,7 +68,7 @@ jobs:
             target: x86_64-apple-darwin
             out-file: libtemporal_sdk_typescript_bridge.dylib
           - platform: macos-arm
-            runner: macos-14
+            runner: macos-15
             target: aarch64-apple-darwin
             out-file: libtemporal_sdk_typescript_bridge.dylib
           - platform: windows-x64
@@ -245,7 +245,7 @@ jobs:
           - platform: macos-x64
             runner: macos-15-intel
           - platform: macos-arm
-            runner: macos-14
+            runner: macos-15
           - platform: windows-x64
             runner: windows-latest
     runs-on: ${{ matrix.runner }}
