@@ -1,13 +1,17 @@
 import * as common from '@temporalio/common';
 import { msToTs, requiredTsToMs } from '@temporalio/common/time';
+import { currentSystemNexusPayloadConversion } from '@temporalio/common/internal/nexus';
 import {
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
 } from '@temporalio/common/internal/internal-workflow';
 import type { google, temporal } from '@temporalio/proto';
 import { workflowInfo } from '../../workflow';
-import { currentSystemNexusPayloadConversion } from './user-payload-converter';
 import type { SignalWithStartWorkflowRequest } from './generated/models';
+
+export { valueToPayload, payloadToValue } from '@temporalio/common/internal/nexus';
+/** @lintignore Nexgen support hooks not used by the current Workflow service models. */
+export { failureFromProto, failureToProto } from '@temporalio/common/internal/nexus';
 
 export function retryPolicyFromProto(proto: temporal.api.common.v1.IRetryPolicy): common.RetryPolicy {
   return common.decompileRetryPolicy(proto)!;
@@ -87,30 +91,6 @@ export function payloadsToProto(
 export function payloadsFromProto(proto: temporal.api.common.v1.IPayloads): unknown[] {
   const { converter, context } = currentSystemNexusPayloadConversion();
   return common.arrayFromPayloads(converter, proto.payloads, context) ?? [];
-}
-
-/** Convert one application value to a protobuf payload. */
-export function valueToPayload(value: unknown): common.Payload {
-  const { converter, context } = currentSystemNexusPayloadConversion();
-  return converter.toPayload(value, context);
-}
-
-/** Convert one protobuf payload to an application value. */
-export function payloadToValue<T>(payload: common.Payload): T {
-  const { converter, context } = currentSystemNexusPayloadConversion();
-  return converter.fromPayload<T>(payload, context);
-}
-
-/** @lintignore Nexgen support hook not used by the current System Nexus operations. */
-export function failureFromProto(proto: temporal.api.failure.v1.IFailure): Error {
-  const { converter, context } = currentSystemNexusPayloadConversion();
-  return common.defaultFailureConverter.failureToError(proto, converter, context);
-}
-
-/** @lintignore Nexgen support hook not used by the current System Nexus operations. */
-export function failureToProto(failure: Error): temporal.api.failure.v1.IFailure {
-  const { converter, context } = currentSystemNexusPayloadConversion();
-  return common.defaultFailureConverter.errorToFailure(failure, converter, context);
 }
 
 export function memoFromProto(proto: temporal.api.common.v1.IMemo): Record<string, unknown> {
