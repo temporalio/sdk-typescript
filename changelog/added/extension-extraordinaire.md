@@ -1,0 +1,1 @@
+`@temporalio/envconfig` adds experimental client config extensions: `loadClientConnectConfig` accepts `extensions` that read their own config from `profile.<profile>.ext.<name>` TOML tables (never rejected by strict mode) and env vars, and contribute plugins to `connectionOptions.plugins`.

@@ -35,6 +35,7 @@ export function fromTomlProfile(tomlProfile: TomlClientConfigProfile): ClientCon
     apiKey: tomlProfile.api_key,
     tls: fromTomlTLS(tomlProfile.tls),
     grpcMeta,
+    ext: tomlProfile.ext,
   };
   return filterNullAndUndefined(profile);
 }

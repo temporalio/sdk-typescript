@@ -9,10 +9,14 @@ export {
 
 export {
   ClientConfig,
+  ClientConfigExtension,
+  ClientConfigExtensionPlugin,
+  ClientConfigExtensionRequest,
   ClientConfigProfile,
   ClientConfigTLS,
   ClientConnectConfig,
   LoadClientConfigOptions,
+  LoadClientConnectConfigOptions,
   LoadClientProfileOptions,
   ClientConfigFromTomlOptions,
   ConfigDataSource,
