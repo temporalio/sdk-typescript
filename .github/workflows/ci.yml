@@ -450,6 +450,28 @@ jobs:
         run: |
           echo "- CI artifact: $CLOUD_TEST_OUTPUT_ARTIFACT_NAME"
 
+  typescript-compatibility:
+    name: TypeScript 5.7 Consumer Compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Setup Node and Install Dependencies
+        uses: ./.github/actions/setup-node-deps
+        with:
+          node-version: '22'
+          platform: 'linux-x64'
+
+      - name: Compile all non-rust code with the build compiler
+        run: pnpm --recursive --stream --filter '!@temporalio/core-bridge' --filter '!typescript-sdk' run build
+
+      - name: Type-check existing tests with the minimum supported TypeScript
+        run: pnpm test:typescript-compatibility
+
   conventions:
     name: Lint and Prune
     uses: ./.github/workflows/conventions.yml
@@ -505,6 +527,7 @@ jobs:
     needs:
       - compile-native-binaries-debug
       - integration-tests
+      - typescript-compatibility
       - conventions
       - features-tests
       - stress-tests-no-reuse-context
@@ -523,6 +546,7 @@ jobs:
       - compile-native-binaries-debug
       - integration-tests
       - cloud-integration-tests
+      - typescript-compatibility
       - conventions
       - features-tests
       - stress-tests-no-reuse-context

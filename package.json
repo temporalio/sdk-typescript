@@ -37,6 +37,7 @@
     "test": "pnpm --recursive --parallel --workspace-concurrency=1 --stream run test",
     "test:cloud": "tsx ./scripts/run-cloud-tests.ts",
     "test:watch": "pnpm --recursive --stream run test:watch",
+    "test:typescript-compatibility": "node node_modules/typescript-compat/bin/tsc -p packages/test/tsconfig.compatibility.json",
     "ci-stress": "node ./packages/test/lib/load/run-all-stress-ci-scenarios.js",
     "ci-nightly": "node ./packages/test/lib/load/run-all-nightly-scenarios.js",
     "lint": "eslint --no-error-on-unmatched-pattern --fix && prettier --write . && pnpm --recursive --stream run lint",
@@ -67,6 +68,7 @@
     "prettier": "^3.1.1",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
+    "typescript-compat": "npm:typescript@5.7.3",
     "typescript-eslint": "^8.10.0",
     "verdaccio": "^6.5.0"
   },
