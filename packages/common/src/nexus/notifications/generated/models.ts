@@ -11,10 +11,33 @@ function requiredField<T>(value: T | null | undefined, owner: string, field: str
   return value;
 }
 
-export type OnCompleteRequestResult<OutputT> = { tag: 'success'; value: OutputT } | { tag: 'failure'; value: Error };
+/**
+ * The successful output or failure of the source operation.
+ *
+ * @experimental This API is experimental and subject to change.
+ */
+export type OnCompleteRequestResult<OutputT> =
+  /**
+   * The source operation completed successfully with this output.
+   */
+  | { tag: 'success'; value: OutputT }
+  /**
+   * The source operation failed, including timeout, cancellation, and application
+   * errors.
+   */
+  | { tag: 'failure'; value: Error };
 
+/**
+ * @experimental This API is experimental and subject to change.
+ */
 export interface OnCompleteRequest<OutputT, SourceContextT> {
+  /**
+   * The successful output or failure of the source operation.
+   */
   result: OnCompleteRequestResult<OutputT>;
+  /**
+   * User-supplied data associated with the source invocation.
+   */
   sourceContext: SourceContextT;
 }
 
@@ -115,6 +138,9 @@ export function createOnCompleteRequestTransferTypeConverter<OutputT, SourceCont
     },
   };
 }
+/**
+ * @experimental This API is experimental and subject to change.
+ */
 export type OnCompleteResponse = Record<string, never>;
 
 function onCompleteResponseFromProto(
