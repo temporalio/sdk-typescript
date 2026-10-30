@@ -207,7 +207,13 @@ export async function startWorkflow<T extends Workflow>(
 
   // The Workflow run just started is this operation's async backing operation, so the handle's
   // `update()` must not be able to start another one.
-  return createWorkflowHandle(ctx, handle.workflowId, handle.firstExecutionRunId, alreadyBackedReservation);
+  return createWorkflowHandle(
+    ctx,
+    handle.workflowId,
+    handle.firstExecutionRunId,
+    alreadyBackedReservation,
+    unreservedSignal
+  );
 }
 
 /**
@@ -233,11 +239,24 @@ const alreadyBackedReservation: AsyncOperationStartReservation = () => {
   );
 };
 
+/**
+ * Wraps a signal sent as part of a Nexus Operation, supplying the request ID the signal RPC should
+ * carry (`undefined` lets the client generate one). Like {@link AsyncOperationStartReservation} there
+ * is deliberately no default, so every call site has to state whether signals are deduplicated.
+ */
+type SignalReservation = <T>(fn: (requestId: string | undefined) => Promise<T>) => Promise<T>;
+
+/**
+ * Signal guard for the standalone helpers: no limit, and every signal gets its own request ID.
+ */
+const unreservedSignal: SignalReservation = (fn) => fn(undefined);
+
 function createWorkflowHandle<T extends Workflow>(
   ctx: nexus.StartOperationContext,
   workflowId: string,
   runId: string | undefined,
-  reserve: AsyncOperationStartReservation
+  reserve: AsyncOperationStartReservation,
+  reserveSignal: SignalReservation
 ): UpdatableWorkflowHandle<WorkflowResultType<T>> {
   return {
     workflowId,
@@ -255,14 +274,17 @@ function createWorkflowHandle<T extends Workflow>(
       // links to the handle via the SDK-internal symbol; the signal handler reads them and writes the
       // server's response link back onto the same payload.
       const handle = client.workflow.getHandle(this.workflowId, this.runId) as InternalWorkflowHandle;
-      const internalOptions: InternalWorkflowSignalOptions[typeof InternalWorkflowSignalOptionsSymbol] = {
-        links,
-      };
-      handle[InternalWorkflowSignalOptionsSymbol] = internalOptions;
-      await handle.signal(def, ...args);
-      if (internalOptions.responseLink != null) {
-        pushResponseLink(ctx, internalOptions.responseLink);
-      }
+      await reserveSignal(async (requestId) => {
+        const internalOptions: InternalWorkflowSignalOptions[typeof InternalWorkflowSignalOptionsSymbol] = {
+          links,
+          requestId,
+        };
+        handle[InternalWorkflowSignalOptionsSymbol] = internalOptions;
+        await handle.signal(def, ...args);
+        if (internalOptions.responseLink != null) {
+          pushResponseLink(ctx, internalOptions.responseLink);
+        }
+      });
     },
 
     async query<Ret, Args extends any[] = []>(def: QueryDefinition<Ret, Args> | string, ...args: Args): Promise<Ret> {
@@ -313,10 +335,20 @@ export async function signalWithStartWorkflow<T extends Workflow, SignalArgs ext
   workflowTypeOrFunc: string | T,
   workflowOptions: WithWorkflowArgs<T, WorkflowSignalWithStartOptions<SignalArgs>>
 ): Promise<WorkflowHandle<WorkflowResultType<T>>> {
+  return await signalWithStartWorkflowWithRequestId(ctx, workflowTypeOrFunc, workflowOptions, undefined);
+}
+
+async function signalWithStartWorkflowWithRequestId<T extends Workflow, SignalArgs extends any[] = []>(
+  ctx: nexus.StartOperationContext,
+  workflowTypeOrFunc: string | T,
+  workflowOptions: WithWorkflowArgs<T, WorkflowSignalWithStartOptions<SignalArgs>>,
+  requestId: string | undefined
+): Promise<WorkflowHandle<WorkflowResultType<T>>> {
   const { client, taskQueue } = getHandlerContext();
   const links = requestLinksToTemporalLinks(ctx);
   const internalOptions: InternalWorkflowStartOptions[typeof InternalWorkflowStartOptionsSymbol] = {
     links,
+    requestId,
   };
 
   const { taskQueue: userSpecifiedTaskQueue, ...rest } = workflowOptions;
@@ -333,7 +365,7 @@ export async function signalWithStartWorkflow<T extends Workflow, SignalArgs ext
 
   // As in `startWorkflow`, the Workflow run this handle refers to is the operation's async backing
   // operation, so the handle's `update()` must not be able to start another one.
-  return createWorkflowHandle(ctx, handle.workflowId, handle.signaledRunId, alreadyBackedReservation);
+  return createWorkflowHandle(ctx, handle.workflowId, handle.signaledRunId, alreadyBackedReservation, unreservedSignal);
 }
 
 /**
@@ -536,6 +568,9 @@ export interface TemporalNexusClient {
    * This method does not validate `workflowId`. If there is no Workflow Execution with the given `workflowId`, handle
    * methods like `handle.signal()` will throw a {@link WorkflowNotFoundError} error.
    *
+   * The handle's `signal()` shares the one-signal-per-invocation limit and request ID deduplication described on
+   * {@link signalWithStartWorkflow}.
+   *
    * @experimental Temporal Operation handlers are experimental.
    */
   getWorkflowHandle<T extends Workflow>(
@@ -546,6 +581,11 @@ export interface TemporalNexusClient {
   /**
    * Signals a Workflow, starting it first if it is not already running, forwarding the Nexus
    * Operation's request links and propagating the response link the server returns (when supported).
+   *
+   * The signal carries the operation's request ID so a retried Nexus task does not deliver it twice. Only one signal
+   * may be sent per invocation in total through this method and {@link getWorkflowHandle}'s `signal()`; a second one
+   * throws a `BAD_REQUEST` handler error unless an earlier one already failed. Signals sent through {@link client} are
+   * not limited or deduplicated.
    *
    * @experimental Temporal Operation handlers are experimental.
    */
@@ -591,6 +631,10 @@ class TemporalNexusClientImpl implements TemporalNexusClient {
   // sdk-python's per-invocation `_started_async` on its Nexus client.
   private asyncOperationStarted = false;
 
+  // Signals carry the operation's request ID so retries are deduped. Since they share that ID, a
+  // second signal could be dropped as a duplicate, so only one is allowed per invocation.
+  private signalSent = false;
+
   constructor(private readonly startOperationContext: TemporalStartOperationContext) {}
 
   /**
@@ -612,6 +656,26 @@ class TemporalNexusClientImpl implements TemporalNexusClient {
       return await fn();
     } catch (err) {
       this.asyncOperationStarted = false;
+      throw err;
+    }
+  };
+
+  /**
+   * Reserves the single signal slot for this invocation and runs `fn` with the operation's request
+   * ID, releasing the reservation if `fn` throws.
+   */
+  private readonly withSignalReservation: SignalReservation = async (fn) => {
+    if (this.signalSent) {
+      throw new nexus.HandlerError(
+        'BAD_REQUEST',
+        'Only one signal can be sent per operation handler invocation. Use TemporalNexusClient.client for additional signals'
+      );
+    }
+    this.signalSent = true;
+    try {
+      return await fn(this.startOperationContext.requestId);
+    } catch (err) {
+      this.signalSent = false;
       throw err;
     }
   };
@@ -644,7 +708,13 @@ class TemporalNexusClientImpl implements TemporalNexusClient {
     workflowId: string,
     runId?: string
   ): UpdatableWorkflowHandle<WorkflowResultType<T>> {
-    return createWorkflowHandle(this.startOperationContext, workflowId, runId, this.withAsyncOperationStartReservation);
+    return createWorkflowHandle(
+      this.startOperationContext,
+      workflowId,
+      runId,
+      this.withAsyncOperationStartReservation,
+      this.withSignalReservation
+    );
   }
 
   /**
@@ -672,7 +742,9 @@ class TemporalNexusClientImpl implements TemporalNexusClient {
     workflowTypeOrFunc: string | T,
     workflowOptions: WithWorkflowArgs<T, WorkflowSignalWithStartOptions<SignalArgs>>
   ): Promise<void> {
-    await signalWithStartWorkflow(this.startOperationContext, workflowTypeOrFunc, workflowOptions);
+    await this.withSignalReservation((requestId) =>
+      signalWithStartWorkflowWithRequestId(this.startOperationContext, workflowTypeOrFunc, workflowOptions, requestId)
+    );
   }
 
   public async startActivity<R = any>(activity: string, options: ActivityOptions): Promise<TemporalOperationResult<R>> {

@@ -128,6 +128,11 @@ export const InternalWorkflowSignalOptionsSymbol = Symbol.for('__temporal_intern
 export interface InternalWorkflowSignalOptions {
   [InternalWorkflowSignalOptionsSymbol]?: {
     /**
+     * Request ID used for server-side deduplication of the signal.
+     */
+    requestId?: string;
+
+    /**
      * Links to be associated with the WorkflowExecutionSignaled event.
      */
     links?: temporal.api.common.v1.ILink[];
