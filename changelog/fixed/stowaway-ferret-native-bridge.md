@@ -1,0 +1,1 @@
+`@temporalio/core-bridge` now loads its prebuilt native module through a literal path for each supported platform, so bundlers that embed native modules (such as `bun build --compile`) include it, and a compiled worker no longer fails at startup with `PrebuildError: No prebuilt module found at /$bunfs/...`.
