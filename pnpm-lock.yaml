@@ -957,7 +957,7 @@ importers:
         specifier: ^7.8.1
         version: 7.8.2
       source-map:
-        specifier: ^0.7.4
+        specifier: 0.7.4
         version: 0.7.4
       source-map-loader:
         specifier: ^5.0.0
@@ -1007,7 +1007,7 @@ importers:
         specifier: ^8.7.1
         version: 8.8.1
       source-map:
-        specifier: ^0.7.4
+        specifier: 0.7.4
         version: 0.7.4
 
   scripts: {}
