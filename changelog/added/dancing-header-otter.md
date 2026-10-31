@@ -1,0 +1,1 @@
+Add opt-in `WorkerOptions.codecHeaders` to decode incoming Workflow and Activity headers and encode headers emitted by Workflows, including tracing headers. Client-supplied Payload headers remain wire-ready and are not automatically encoded.

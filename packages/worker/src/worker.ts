@@ -39,6 +39,7 @@ import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
+  decode,
   encodeErrorToFailure,
   encodeToPayload,
   ExternalStorageMetricsAccumulator,
@@ -1180,7 +1181,17 @@ export class Worker {
                         nonRetryable: false,
                       });
                     }
-                    const headers = task.start?.headerFields ?? {};
+                    const wireHeaders = task.start?.headerFields ?? {};
+                    const headers = this.options.codecHeaders
+                      ? Object.fromEntries(
+                          await Promise.all(
+                            Object.entries(wireHeaders).map(async ([key, payload]) => [
+                              key,
+                              (await decode(loadedDataConverter.payloadCodecs, [payload], context))[0]!,
+                            ])
+                          )
+                        )
+                      : wireHeaders;
                     const input = {
                       args,
                       headers,
@@ -1498,7 +1509,8 @@ export class Worker {
         this.options.loadedDataConverter,
         this.logger,
         this.metricMeter,
-        this.options.interceptors.nexus
+        this.options.interceptors.nexus,
+        this.options.codecHeaders
       );
       this.taskTokenToNexusHandler.set(base64TaskToken, nexusHandler);
       this.numInFlightNexusOperationsSubject.next(this.numInFlightNexusOperationsSubject.value + 1);
@@ -1613,11 +1625,15 @@ export class Worker {
           throw new IllegalStateError(
             'Received workflow activation for an untracked workflow with no init workflow job'
           );
-        workflowCodecRunner = new WorkflowCodecRunner(this.options.loadedDataConverter.payloadCodecs, {
-          type: 'workflow',
-          namespace: this.options.namespace,
-          workflowId,
-        });
+        workflowCodecRunner = new WorkflowCodecRunner(
+          this.options.loadedDataConverter.payloadCodecs,
+          {
+            type: 'workflow',
+            namespace: this.options.namespace,
+            workflowId,
+          },
+          this.options.codecHeaders
+        );
       }
       const { externalStorage } = this.options.loadedDataConverter;
       // Measure external-storage work so Core can include it in its workflow-task duration log;
