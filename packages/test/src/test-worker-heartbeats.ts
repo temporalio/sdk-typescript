@@ -5,8 +5,10 @@ import type { coresdk } from '@temporalio/proto';
 import { Context } from '@temporalio/activity';
 import type { PayloadCodec } from '@temporalio/common';
 import { defaultPayloadConverter } from '@temporalio/common';
+import { ExternalStorage } from '@temporalio/common/lib/converter/extstore';
 import type { Worker } from './mock-native-worker';
 import { isolateFreeWorker } from './mock-native-worker';
+import { makeFakeDriver } from './extstore-fake-driver';
 import { contextToTraceString, makeContextTrace } from './payload-converters/serialization-context-converter';
 
 async function runActivity(worker: Worker, callback?: (completion: coresdk.ActivityTaskCompletion) => void) {
@@ -142,6 +144,35 @@ test('Activity gets cancelled if heartbeat fails', async (t) => {
   });
 
   const heartbeatsSeen = Array<number>();
+  worker.native.activityHeartbeatCallback = (_tt, details) => {
+    heartbeatsSeen.push(details);
+  };
+  await runActivity(worker, (completion) => {
+    t.is(completion.result?.failed?.failure?.message, 'HEARTBEAT_DETAILS_CONVERSION_FAILED');
+  });
+  t.deepEqual(heartbeatsSeen, []);
+});
+
+test('Activity gets cancelled if storing heartbeat details in external storage fails', async (t) => {
+  const driver = makeFakeDriver({
+    onStore() {
+      throw new Error('Refuse to store data for test');
+    },
+  });
+  const worker = isolateFreeWorker({
+    taskQueue: 'unused',
+    dataConverter: {
+      externalStorage: new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1 }),
+    },
+    activities: {
+      async rapidHeartbeater() {
+        Context.current().heartbeat('a value large enough to be offloaded');
+        await Context.current().cancelled;
+      },
+    },
+  });
+
+  const heartbeatsSeen = Array<unknown>();
   worker.native.activityHeartbeatCallback = (_tt, details) => {
     heartbeatsSeen.push(details);
   };
