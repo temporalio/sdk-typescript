@@ -28,7 +28,7 @@
     "protobufjs": "^8.7.1"
   },
   "devDependencies": {
-    "glob": "^10.3.10",
+    "glob": "^14.0.2",
     "protobufjs-cli": "^2.6.1"
   },
   "bugs": {
