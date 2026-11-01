@@ -8,7 +8,7 @@ export const ENHANCED_STACK_TRACE_QUERY_NAME = '__enhanced_stack_trace';
 export type ReservedNameEntityType = 'query' | 'signal' | 'update' | 'activity' | 'task queue' | 'sink' | 'workflow';
 
 /**
- * Wire identifiers used by first-party SDK contrib packages. Each entry pairs
+ * Wire identifiers used by first-party SDK packages and integrations. Each entry pairs
  * a name with the entity type it's allowed to register as; that pair bypasses
  * the {@link TEMPORAL_RESERVED_PREFIX} check at registration time. Registering
  * the same name as a different entity type is still rejected.

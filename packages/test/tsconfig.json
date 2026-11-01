@@ -30,9 +30,6 @@
       "path": "../../contrib/interceptors-opentelemetry"
     },
     {
-      "path": "../lambda-worker"
-    },
-    {
       "path": "../nexus"
     },
     {

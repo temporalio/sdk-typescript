@@ -1,13 +1,13 @@
 import test from 'ava';
-import { ValueError } from '@temporalio/common';
-import type { Payload } from '@temporalio/common';
 import {
+  ValueError,
   ExternalStorage,
+  type Payload,
   type StorageDriver,
   type StorageDriverClaim,
   type StorageDriverRetrieveContext,
   type StorageDriverStoreContext,
-} from '@temporalio/common/lib/converter/extstore';
+} from '@temporalio/common';
 
 function stubDriver(name: string, type = name): StorageDriver {
   return {

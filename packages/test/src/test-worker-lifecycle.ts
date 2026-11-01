@@ -7,12 +7,27 @@
 import { randomUUID } from 'crypto';
 import test from 'ava';
 import Long from 'long';
-import { createPayloadValidationError, defaultPayloadConverter, type PayloadCodec } from '@temporalio/common';
-import { msToTs } from '@temporalio/common/lib/time';
+import {
+  IllegalStateError,
+  createPayloadValidationError,
+  defaultPayloadConverter,
+  type PayloadCodec,
+} from '@temporalio/common';
+import { msToTs } from '@temporalio/common/time';
 import type { LogEntry, NativeConnection } from '@temporalio/worker';
-import { DefaultLogger, MetricsBuffer, Runtime } from '@temporalio/worker';
-import { UnexpectedError } from '@temporalio/worker/lib/errors';
+import { DefaultLogger, MetricsBuffer, Runtime, UnexpectedError, Worker } from '@temporalio/worker';
 import { isolateFreeWorker, Worker as MockWorker } from './mock-native-worker';
+
+test.serial('Worker.create releases its runtime when bundling fails', async (t) => {
+  await t.throwsAsync(
+    Worker.create({
+      taskQueue: 'failed-worker-preparation',
+      workflowBundle: { codePath: `${__dirname}/nonexistent-workflow-bundle.js` },
+    }),
+    { code: 'ENOENT' }
+  );
+  t.is(Runtime._instance, undefined);
+});
 
 test.serial('Worker.create debug log options are JSON serializable with buffered metrics and connection', async (t) => {
   const logEntries: LogEntry[] = [];
@@ -276,6 +291,45 @@ test.serial('Mocked throws combined error in runUntil', async (t) => {
   t.is(workerError.message, 'Timed out while waiting for worker to shutdown gracefully');
   t.is(innerError.message, 'inner');
 });
+
+test('Worker.run preserves primary failure when finalization fails', async (t) => {
+  const primaryError = new Error('primary worker failure');
+  const cleanupError = new IllegalStateError('Worker still in use: Expected 1 reference, but got 2');
+
+  const worker = isolateFreeWorker({
+    taskQueue: t.title.replace(/ /g, '_'),
+    activities: {},
+  });
+
+  worker.native.pollWorkflowActivation = async () => {
+    throw primaryError;
+  };
+  worker.native.finalizeShutdown = async () => {
+    throw cleanupError;
+  };
+
+  const err = await t.throwsAsync(worker.run());
+  t.is(err, primaryError);
+  t.is(worker.getState(), 'FAILED');
+});
+
+test('Worker.run propagates finalization failure on otherwise successful run', async (t) => {
+  const cleanupError = new IllegalStateError('Cleanup failure on stop');
+  const worker = isolateFreeWorker({
+    taskQueue: t.title.replace(/ /g, '_'),
+    activities: {},
+  });
+
+  worker.native.finalizeShutdown = async () => {
+    throw cleanupError;
+  };
+
+  const runPromise = worker.run();
+  t.is(worker.getState(), 'RUNNING');
+  worker.shutdown();
+
+  const err = await t.throwsAsync(runPromise);
+  t.is(err, cleanupError);
 
 test.serial('Runtime preserves flushable logger across shutdown and re-instantiation', async (t) => {
   let closed = false;

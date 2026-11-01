@@ -17,6 +17,7 @@ export * from './converter/payload-codec';
 export * from './converter/payload-converter';
 export type {
   ActivitySerializationContext,
+  NexusSerializationContext,
   SerializationContext,
   WorkflowSerializationContext,
 } from './converter/serialization-context';
@@ -29,9 +30,10 @@ export * from './interfaces';
 export * from './logger';
 export * from './priority';
 export * from './metrics';
+export * from './payload-cache';
 export * from './retry-policy';
 export type { Timestamp, Duration, StringValue } from './time';
-export type { ConverterHint, PayloadTypeInfo, TransferTypeConverter, TypeInfo } from './type-info';
+export type { ConverterHint, OutputTypeInfo, PayloadTypeInfo, TransferTypeConverter, TypeInfo } from './type-info';
 export * from './worker-deployments';
 export * from './workflow-definition-options';
 export * from './workflow-handle';
@@ -39,6 +41,7 @@ export * from './workflow-options';
 export * from './versioning-intent';
 export {
   SearchAttributes,
+  type SearchAttributeKey,
   SearchAttributeValue,
   SearchAttributeType,
   SearchAttributePair,

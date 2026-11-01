@@ -10,3 +10,7 @@ This package targets OpenTelemetry JS SDK v2. For OpenTelemetry JS SDK v1, use [
 
 - [Interceptors docs](https://docs.temporal.io/typescript/interceptors)
 - [OpenTelemetry Interceptor example setup](https://github.com/temporalio/samples-typescript/tree/main/interceptors-opentelemetry)
+
+Import Workflow interceptors from `@temporalio/interceptors-opentelemetry-v2/workflow`. Use the package
+root for the plugin, Client interceptors, and Worker interceptors. Existing root exports and
+`lib/*` imports remain available for compatibility.

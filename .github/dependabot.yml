@@ -2,6 +2,7 @@ version: 2
 updates:
   - package-ecosystem: npm
     directory: '/'
+    versioning-strategy: increase-if-necessary
     schedule:
       interval: weekly
     cooldown:
@@ -35,6 +36,7 @@ updates:
 
   - package-ecosystem: npm
     directory: '/contrib/interceptors-opentelemetry'
+    versioning-strategy: increase-if-necessary
     schedule:
       interval: weekly
     cooldown:
@@ -68,3 +70,7 @@ updates:
       interval: weekly
     cooldown:
       default-days: 14
+    groups:
+      github-actions:
+        patterns:
+          - '*'

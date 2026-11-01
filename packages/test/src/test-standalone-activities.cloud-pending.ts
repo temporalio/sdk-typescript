@@ -16,7 +16,7 @@ import type { Payload, PayloadCodec, PayloadTypeInfo } from '@temporalio/common'
 import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
 import type { Info } from '@temporalio/activity';
 import { activityInfo, heartbeat } from '@temporalio/activity';
-import { msToNumber } from '@temporalio/common/lib/time';
+import { msToNumber } from '@temporalio/common/time';
 import type { TestWorkflowEnvironment } from './helpers';
 import { assertEventually, RUN_INTEGRATION_TESTS, waitUntil, Worker } from './helpers';
 import { echo, throwAnError } from './activities';
@@ -24,7 +24,7 @@ import { heartbeatCancellationDetailsActivity } from './activities/heartbeat-can
 import { createTestWorkflowEnvironment } from './helpers-integration';
 import { convertOrder, createAsyncOrderActivities } from './workflows/type-info/activities';
 import { activityTypeInfo } from './workflows/type-info/activity-type-info';
-import { Order, Receipt } from './workflows/type-info/models';
+import { Order, Receipt, receiptTypeInfo } from './workflows/type-info/models';
 import { encdec, makeContextTrace, standaloneActivityCtx } from './payload-converters/serialization-context-converter';
 
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
@@ -277,7 +277,7 @@ if (RUN_INTEGRATION_TESTS) {
     assertReceipt(t, await handle.result());
   });
 
-  test('Detached Activity handle decodes its result with output TypeInfo', async (t) => {
+  test('Detached Activity handles decode results using explicit and definition TypeInfo', async (t) => {
     const client = t.context.env.client.activity;
     const activityId = randomUUID();
     const handle = await client.start<Receipt>('convertOrder', {
@@ -287,11 +287,17 @@ if (RUN_INTEGRATION_TESTS) {
       typeInfo: activityTypeInfo.convertOrder,
     });
 
-    const detachedHandle = client.getHandleWithOptions<Receipt>(activityId, {
+    const explicitHandle = client.getHandleWithOptions<Receipt>(activityId, {
       runId: handle.runId,
-      typeInfo: { outputType: activityTypeInfo.convertOrder.outputType },
+      typeInfo: { outputType: receiptTypeInfo },
     });
-    assertReceipt(t, await detachedHandle.result());
+    assertReceipt(t, await explicitHandle.result());
+
+    const definitionHandle = client.getHandleWithOptions(activityId, {
+      activity: convertOrder,
+      runId: handle.runId,
+    });
+    assertReceipt(t, await definitionHandle.result());
   });
 
   test('Activity interceptors can provide input and result TypeInfo', async (t) => {

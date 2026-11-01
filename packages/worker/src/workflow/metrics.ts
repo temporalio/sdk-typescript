@@ -1,6 +1,6 @@
 import type { NumericMetricValueType, Metric } from '@temporalio/common';
 import { type MetricMeter, type MetricTags } from '@temporalio/common';
-import type { MetricSinks } from '@temporalio/workflow/lib/metrics';
+import type { MetricSinks } from '@temporalio/workflow/internal';
 import type { InjectedSinks } from '../sinks';
 
 export function initMetricSink(metricMeter: MetricMeter): InjectedSinks<MetricSinks> {

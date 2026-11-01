@@ -8,20 +8,16 @@ import { URL, URLSearchParams } from 'node:url';
 import { TextDecoder, TextEncoder } from 'node:util';
 import { SourceMapConsumer } from 'source-map';
 import { cutoffStackTrace, IllegalStateError, convertDeploymentVersion } from '@temporalio/common';
-import { suggestContinueAsNewReasonsFromProto } from '@temporalio/common/lib/continue-as-new';
+import { suggestContinueAsNewReasonsFromProto } from '@temporalio/common/internal/internal-non-workflow';
 import { tsToMs } from '@temporalio/common/lib/time';
 import { coresdk } from '@temporalio/proto';
-import type { StackTraceFileLocation } from '@temporalio/workflow';
-import { type SinkCall } from '@temporalio/workflow/lib/sinks';
-import type * as internals from '@temporalio/workflow/lib/worker-interface';
-import type { Activator } from '@temporalio/workflow/lib/internals';
-import { SdkFlags } from '@temporalio/workflow/lib/flags';
+import type { SinkCall, StackTraceFileLocation } from '@temporalio/workflow';
+import type * as internals from '@temporalio/workflow/internal/worker-interface';
+import { type Activator, SdkFlags } from '@temporalio/workflow/internal';
 import { UnhandledRejectionError } from '../errors';
 import type { Workflow } from './interface';
 import type { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
 
-// We need this import for the ambient global extensions
-import '@temporalio/workflow/lib/global-attributes'; // eslint-disable-line import/no-unassigned-import
 import { isBunPre1_4 } from './bun';
 
 // Best effort to catch unhandled rejections from workflow code.
@@ -420,6 +416,8 @@ export abstract class BaseVMWorkflow implements Workflow {
       if (activation.timestamp == null)
         throw new TypeError('Expected activation.timestamp to be set for non-query activation');
       this.activator.now = tsToMs(activation.timestamp);
+      // Updates can only change state once accepted, which is recorded when that happens
+      this.activator.checkConditions = activation.jobs.some(({ doUpdate }) => doUpdate == null);
       this.activator.mutateWorkflowInfo((info) => ({
         ...info,
         historyLength: activation.historyLength as number,

@@ -6,7 +6,6 @@ import { promisify } from 'node:util';
 
 const workflowDir = resolve(__dirname, '..');
 const repoRoot = resolve(workflowDir, '../..');
-const supportFile = resolve(workflowDir, 'system-nexus-support.ts');
 const output = resolve(workflowDir, 'src/nexus/system/generated');
 const nexgen = process.env.NEXGEN_BIN ?? 'nexgen';
 const protoRoot = resolve(repoRoot, 'packages/core-bridge/sdk-core/crates/protos/protos');
@@ -15,6 +14,7 @@ const witRoot = resolve(protoRoot, 'api_upstream/nexus');
 const protoRoots = [resolve(protoRoot, 'api_upstream'), protoRoot];
 
 const workflowServiceRequestResponseProto = 'temporal/api/workflowservice/v1/request_response.proto';
+const notificationServiceRequestResponseProto = 'temporal/api/notificationservice/v1/request_response.proto';
 
 async function main() {
   const descriptorDirectory = await mkdtemp(join(tmpdir(), 'temporal-system-nexus-'));
@@ -25,6 +25,7 @@ async function main() {
       '--include_imports',
       `--descriptor_set_out=${descriptor}`,
       workflowServiceRequestResponseProto,
+      notificationServiceRequestResponseProto,
     ]);
     await promisify(execFile)(nexgen, [
       'typescript',
@@ -33,11 +34,24 @@ async function main() {
       '--format',
       '--descriptors',
       descriptor,
-      '--support-file',
-      supportFile,
+      '--support-package',
+      '../support',
       '--output',
       output,
       resolve(witRoot, 'workflow-service.wit'),
+      resolve(witRoot, 'deps'),
+    ]);
+    await promisify(execFile)(nexgen, [
+      'typescript',
+      '--system-nexus',
+      '--format',
+      '--descriptors',
+      descriptor,
+      '--support-package',
+      '../../system/support',
+      '--output',
+      resolve(repoRoot, 'packages/common/src/nexus/notifications/generated'),
+      resolve(witRoot, 'notification-service.wit'),
       resolve(witRoot, 'deps'),
     ]);
   } finally {

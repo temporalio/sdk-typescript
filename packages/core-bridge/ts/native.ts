@@ -428,6 +428,7 @@ export interface TimeSkippingServerConfig {
   exe: EphemeralServerExecutableConfig;
   port: Option<number>;
   extraArgs: string[];
+  startupTimeout: Option<number>;
 }
 
 export interface DevServerConfig {
@@ -441,6 +442,7 @@ export interface DevServerConfig {
   ui: boolean;
   log: DevServerLogConfig;
   extraArgs: string[];
+  startupTimeout: Option<number>;
 }
 
 export interface DevServerLogConfig {

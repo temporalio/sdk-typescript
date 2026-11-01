@@ -17,7 +17,7 @@ import {
   isRetryableError,
   makeGrpcRetryInterceptor,
 } from '@temporalio/client';
-import pkg from '@temporalio/client/lib/pkg';
+import pkg from '@temporalio/client/internal/pkg';
 import type { temporal } from '@temporalio/proto';
 import { grpc as grpcProto } from '@temporalio/proto';
 
@@ -288,6 +288,30 @@ test('grpc retry passes request and headers on retry, propagates responses', asy
     message: '2 UNKNOWN: Unknown Error',
   });
   t.is(attempt, 10);
+});
+
+test('grpc retry backoff respects status-dependent maximum intervals', (t) => {
+  const retryOptions = defaultGrpcRetryOptions({
+    factor: 2,
+    maxJitter: 0,
+    initialIntervalMs: () => 100,
+    maxIntervalMs(status) {
+      return status.code === grpc.status.UNAVAILABLE ? 150 : 250;
+    },
+  });
+  const unavailableStatus: grpc.StatusObject = {
+    code: grpc.status.UNAVAILABLE,
+    details: 'unavailable',
+    metadata: new grpc.Metadata(),
+  };
+  const resourceExhaustedStatus: grpc.StatusObject = {
+    code: grpc.status.RESOURCE_EXHAUSTED,
+    details: 'resource exhausted',
+    metadata: new grpc.Metadata(),
+  };
+
+  t.is(retryOptions.delayFunction(3, unavailableStatus), 150);
+  t.is(retryOptions.delayFunction(3, resourceExhaustedStatus), 250);
 });
 
 test('Default keepalive settings are set while maintaining user provided channelArgs', async (t) => {

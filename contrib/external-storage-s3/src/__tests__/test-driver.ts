@@ -2,13 +2,13 @@ import assert from 'node:assert';
 import { createHash } from 'node:crypto';
 import test from 'ava';
 import * as proto from '@temporalio/proto';
-import { ValueError } from '@temporalio/common';
-import type { Payload } from '@temporalio/common';
 import {
+  ValueError,
   StorageDriverClaim,
+  type Payload,
   type StorageDriverLimiter,
   type StorageDriverStoreContext,
-} from '@temporalio/common/lib/converter/extstore';
+} from '@temporalio/common';
 import { S3StorageDriver } from '../driver';
 import type { S3StorageDriverClient, S3RequestOptions } from '../client';
 

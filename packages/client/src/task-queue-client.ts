@@ -1,7 +1,11 @@
 import { status } from '@grpc/grpc-js';
-import type { RequireAtLeastOne } from '@temporalio/common/lib/type-helpers';
-import { assertNever, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
-import { filterNullAndUndefined, makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
+import {
+  assertNever,
+  filterNullAndUndefined,
+  makeProtoEnumConverters,
+  type RequireAtLeastOne,
+  SymbolBasedInstanceOfError,
+} from '@temporalio/common/internal/internal-workflow';
 import type { temporal } from '@temporalio/proto';
 import type { BaseClientOptions, LoadedWithDefaults } from './base-client';
 import { BaseClient, defaultBaseClientOptions } from './base-client';
@@ -47,6 +51,7 @@ export class TaskQueueClient extends BaseClient {
       ...defaultBaseClientOptions(),
       ...filterNullAndUndefined(options ?? {}),
       loadedDataConverter: this.dataConverter,
+      payloadCache: this.payloadCache,
     };
   }
 

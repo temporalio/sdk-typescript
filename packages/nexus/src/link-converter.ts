@@ -2,21 +2,24 @@ import Long from 'long';
 import type { Link as NexusLink } from 'nexus-rpc';
 import { temporal } from '@temporalio/proto';
 
-const { EventType } = temporal.api.enums.v1;
+const { EventType, ExecutionType } = temporal.api.enums.v1;
 type TemporalLink = temporal.api.common.v1.ILink;
 type WorkflowEventLink = temporal.api.common.v1.Link.IWorkflowEvent;
 type WorkflowLink = temporal.api.common.v1.Link.IWorkflow;
 type NexusOperationLink = temporal.api.common.v1.Link.INexusOperation;
 type ActivityLink = temporal.api.common.v1.Link.IActivity;
+type CallbackLink = temporal.api.common.v1.Link.ICallback;
 type EventReference = temporal.api.common.v1.Link.WorkflowEvent.IEventReference;
 type RequestIdReference = temporal.api.common.v1.Link.WorkflowEvent.IRequestIdReference;
 type EventTypeValue = temporal.api.enums.v1.EventType;
+type ExecutionTypeValue = temporal.api.enums.v1.ExecutionType;
 
 const LINK_EVENT_ID_PARAM = 'eventID';
 const LINK_EVENT_TYPE_PARAM = 'eventType';
 const LINK_REQUEST_ID_PARAM = 'requestID';
 const LINK_REFERENCE_TYPE_KEY = 'referenceType';
 const LINK_REASON_PARAM = 'reason';
+const LINK_COMPONENT_PATH_PARAM = 'componentPath';
 
 const EVENT_REFERENCE_TYPE = 'EventReference';
 const REQUEST_ID_REFERENCE_TYPE = 'RequestIdReference';
@@ -26,6 +29,15 @@ const WORKFLOW_EVENT_TYPE: string = (temporal.api.common.v1.Link.WorkflowEvent a
 const NEXUS_OPERATION_TYPE: string = (temporal.api.common.v1.Link.NexusOperation as any).fullName.slice(1);
 const WORKFLOW_TYPE: string = (temporal.api.common.v1.Link.Workflow as any).fullName.slice(1);
 const ACTIVITY_TYPE: string = (temporal.api.common.v1.Link.Activity as any).fullName.slice(1);
+const CALLBACK_TYPE: string = (temporal.api.common.v1.Link.Callback as any).fullName.slice(1);
+
+// The collection path segment for each execution type a callback can be attached to.
+const EXECUTION_TYPE_COLLECTIONS = new Map<ExecutionTypeValue, string>([
+  [ExecutionType.EXECUTION_TYPE_WORKFLOW, 'workflows'],
+  [ExecutionType.EXECUTION_TYPE_ACTIVITY, 'activities'],
+  [ExecutionType.EXECUTION_TYPE_NEXUS_OPERATION, 'nexus-operations'],
+]);
+const COLLECTION_EXECUTION_TYPES = new Map([...EXECUTION_TYPE_COLLECTIONS].map(([type, c]) => [c, type]));
 
 export function convertTemporalLinkToNexusLink(link: TemporalLink): NexusLink {
   if (link.workflowEvent != null) {
@@ -42,6 +54,10 @@ export function convertTemporalLinkToNexusLink(link: TemporalLink): NexusLink {
 
   if (link.activity != null) {
     return convertActivityLinkToNexusLink(link.activity);
+  }
+
+  if (link.callback != null) {
+    return convertCallbackLinkToNexusLink(link.callback);
   }
 
   throw new TypeError('Invalid Temporal link: unknown variant');
@@ -70,6 +86,11 @@ export function convertNexusLinkToTemporalLink(link: NexusLink): TemporalLink {
     case ACTIVITY_TYPE:
       return {
         activity: convertNexusLinkToActivityLink(link),
+      };
+
+    case CALLBACK_TYPE:
+      return {
+        callback: convertNexusLinkToCallbackLink(link),
       };
 
     default:
@@ -215,6 +236,66 @@ export function convertActivityLinkToNexusLink(activityLink: ActivityLink): Nexu
   return {
     url,
     type: ACTIVITY_TYPE,
+  };
+}
+
+/**
+ * Converts a Callback link to a Nexus link of the shape
+ * `/namespaces/:namespace/:collection/:businessId/:runId/callbacks/:requestId`, where the collection
+ * is derived from the execution type. Each component path segment is its own query param, so a
+ * delimiter inside a segment can't be mistaken for a separator.
+ */
+export function convertCallbackLinkToNexusLink(cb: CallbackLink): NexusLink {
+  const executionType = cb.execution?.type ?? ExecutionType.EXECUTION_TYPE_UNSPECIFIED;
+  const collection = EXECUTION_TYPE_COLLECTIONS.get(executionType);
+  if (collection == null) {
+    throw new TypeError(`Unsupported execution type: ${ExecutionType[executionType] ?? executionType}`);
+  }
+  if (!cb.namespace || !cb.execution?.businessId || !cb.execution?.runId || !cb.requestId) {
+    throw new TypeError('Missing required fields: namespace, businessId, runId, or requestId');
+  }
+
+  const url = buildTemporalLinkUrl(
+    collection,
+    cb.namespace,
+    cb.execution.businessId,
+    cb.execution.runId,
+    `callbacks/${encodeURIComponent(cb.requestId)}`
+  );
+  const params = new URLSearchParams();
+  for (const segment of cb.componentPath ?? []) {
+    params.append(LINK_COMPONENT_PATH_PARAM, segment);
+  }
+  url.search = params.toString();
+
+  return {
+    url,
+    type: CALLBACK_TYPE,
+  };
+}
+
+export function convertNexusLinkToCallbackLink(link: NexusLink): CallbackLink {
+  // /namespaces/:namespace/:collection/:businessId/:runId/callbacks/:requestId
+  const parts = link.url.pathname.split('/');
+  if (parts.length !== 8 || parts[1] !== 'namespaces' || parts[6] !== 'callbacks') {
+    throw new TypeError(`Invalid URL path: ${link.url}`);
+  }
+  const type = COLLECTION_EXECUTION_TYPES.get(parts[3]!);
+  if (type == null) {
+    throw new TypeError(`Unsupported execution type: ${parts[3]}`);
+  }
+  const [namespace, businessId, runId, requestId] = [parts[2]!, parts[4]!, parts[5]!, parts[7]!].map(
+    decodeURIComponent
+  );
+  if (!namespace || !businessId || !runId || !requestId) {
+    throw new TypeError('Missing required fields: namespace, businessId, runId, or requestId');
+  }
+
+  return {
+    namespace,
+    execution: { type, businessId, runId },
+    componentPath: link.url.searchParams.getAll(LINK_COMPONENT_PATH_PARAM),
+    requestId,
   };
 }
 

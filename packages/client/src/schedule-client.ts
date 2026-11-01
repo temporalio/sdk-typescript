@@ -1,25 +1,25 @@
 import { randomUUID } from 'node:crypto';
 import { status as grpcStatus } from '@grpc/grpc-js';
-import { ExternalStorageError, type Workflow } from '@temporalio/common';
+import { ExternalStorageError, type Headers, type Workflow } from '@temporalio/common';
 import {
+  composeInterceptors,
   decodeSearchAttributes,
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
-} from '@temporalio/common/lib/converter/payload-search-attributes';
-import type { Headers } from '@temporalio/common/lib/interceptors';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
+  filterNullAndUndefined,
+  SymbolBasedInstanceOfError,
+} from '@temporalio/common/internal/internal-workflow';
 import {
   encodeMapToPayloads,
+  externalStorageRetrieveVisitOptions,
+  externalStorageStoreVisitOptions,
   decodeMapFromPayloads,
-  extstoreInboundOptions,
-  extstoreStoreOptions,
   visit,
   walkCreateScheduleRequest,
   walkDescribeScheduleResponse,
   walkListSchedulesResponse,
   walkUpdateScheduleRequest,
-} from '@temporalio/common/lib/internal-non-workflow';
-import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
+} from '@temporalio/common/internal/internal-non-workflow';
 import { temporal } from '@temporalio/proto';
 import {
   optionalDateToTs,
@@ -28,7 +28,6 @@ import {
   requiredTsToDate,
   tsToDate,
 } from '@temporalio/common/lib/time';
-import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import type { CreateScheduleInput, CreateScheduleOutput, ScheduleClientInterceptor } from './interceptors';
 import type { WorkflowService } from './types';
 import { isGrpcServiceError, ServiceError } from './errors';
@@ -185,6 +184,7 @@ export class ScheduleClient extends BaseClient {
       ...defaultScheduleClientOptions(),
       ...filterNullAndUndefined(options ?? {}),
       loadedDataConverter: this.dataConverter,
+      payloadCache: this.payloadCache,
     };
   }
 
@@ -269,13 +269,15 @@ export class ScheduleClient extends BaseClient {
         await visit(
           req,
           walkCreateScheduleRequest,
-          extstoreStoreOptions(externalStorage, {
+          externalStorageStoreVisitOptions({
+            externalStorage,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
               id: startWorkflow?.workflowId ?? undefined,
               type: startWorkflow?.workflowType?.name ?? undefined,
             },
+            payloadCache: this.payloadCache,
           })
         );
       }
@@ -301,7 +303,14 @@ export class ScheduleClient extends BaseClient {
         scheduleId,
       });
       const externalStorage = this.dataConverter.externalStorage;
-      await visit(response, walkDescribeScheduleResponse, extstoreInboundOptions(externalStorage));
+      await visit(
+        response,
+        walkDescribeScheduleResponse,
+        externalStorageRetrieveVisitOptions({
+          externalStorage: this.dataConverter.externalStorage,
+          payloadCache: this.payloadCache,
+        })
+      );
       return response;
     } catch (err: any) {
       this.rethrowGrpcError(err, 'Failed to describe schedule', scheduleId);
@@ -341,13 +350,15 @@ export class ScheduleClient extends BaseClient {
         await visit(
           req,
           walkUpdateScheduleRequest,
-          extstoreStoreOptions(externalStorage, {
+          externalStorageStoreVisitOptions({
+            externalStorage,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
               id: startWorkflow?.workflowId ?? undefined,
               type: startWorkflow?.workflowType?.name ?? undefined,
             },
+            payloadCache: this.payloadCache,
           })
         );
       }
@@ -414,7 +425,6 @@ export class ScheduleClient extends BaseClient {
     let nextPageToken: Uint8Array | undefined = undefined;
     for (;;) {
       let response: temporal.api.workflowservice.v1.ListSchedulesResponse;
-      const externalStorage = this.dataConverter.externalStorage;
       try {
         response = await this.workflowService.listSchedules({
           nextPageToken,
@@ -422,11 +432,17 @@ export class ScheduleClient extends BaseClient {
           maximumPageSize: options?.pageSize,
           query: options?.query,
         });
-        await visit(response, walkListSchedulesResponse, extstoreInboundOptions(externalStorage));
+        await visit(
+          response,
+          walkListSchedulesResponse,
+          externalStorageRetrieveVisitOptions({
+            externalStorage: this.dataConverter.externalStorage,
+            payloadCache: this.payloadCache,
+          })
+        );
       } catch (e) {
         this.rethrowGrpcError(e, 'Failed to list schedules', undefined);
       }
-
       for (const raw of response.schedules ?? []) {
         yield <ScheduleSummary>{
           scheduleId: raw.scheduleId,

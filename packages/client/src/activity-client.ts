@@ -5,6 +5,7 @@ import type {
   ActivitySerializationContext,
   LoadedDataConverter,
   Next,
+  OutputTypeInfo,
   PayloadTypeInfo,
   Priority,
   RetryPolicy,
@@ -19,31 +20,32 @@ import {
   decodePriority,
   decompileRetryPolicy,
   ExternalStorageError,
+  isActivityFunctionWithOptions,
 } from '@temporalio/common';
 import type { Duration } from '@temporalio/common/lib/time';
 import { msOptionalToTs, msToNumber, optionalTsToDate, optionalTsToMs } from '@temporalio/common/lib/time';
-import { composeInterceptors } from '@temporalio/common/lib/interceptors';
 import {
+  composeInterceptors,
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
   searchAttributePayloadConverter,
-} from '@temporalio/common/lib/converter/payload-search-attributes';
+  type Replace,
+} from '@temporalio/common/internal/internal-workflow';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
   decodeOptionalFailureToOptionalError,
   encodeToPayloadsWithContext,
   encodeUserMetadata,
-  extstoreInboundOptions,
-  extstoreStoreOptions,
+  externalStorageRetrieveVisitOptions,
+  externalStorageStoreVisitOptions,
   visit,
   walkDescribeActivityExecutionResponse,
   walkListActivityExecutionsResponse,
   walkPollActivityExecutionResponse,
   walkStartActivityExecutionRequest,
-} from '@temporalio/common/lib/internal-non-workflow';
+} from '@temporalio/common/internal/internal-non-workflow';
 import { temporal } from '@temporalio/proto';
-import type { Replace } from '@temporalio/common/lib/type-helpers';
 import type {
   ActivityCancelInput,
   ActivityClientInterceptor,
@@ -183,14 +185,27 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
   }
 
   /**
-   * Creates an Activity handle using options that may include result TypeInfo.
+   * Creates an Activity handle using options that may include an Activity definition or result TypeInfo.
    *
    * @param activityId ID of the Activity.
    * @param options Options identifying the Activity run and describing its result type.
    * @returns Handle to the specified Activity execution.
    */
-  getHandleWithOptions<R = any>(activityId: string, options: GetActivityHandleOptions): ActivityHandle<R> {
-    return this.createHandle(activityId, options.runId, options.typeInfo?.outputType);
+  getHandleWithOptions<A extends ActivityFunction>(
+    activityId: string,
+    options: ActivityHandleDefinitionOptions<A>
+  ): ActivityHandle<Awaited<ReturnType<A>>>;
+  getHandleWithOptions<R = any>(activityId: string, options: GetActivityHandleOptions<R>): ActivityHandle<R>;
+  getHandleWithOptions(
+    activityId: string,
+    options: Replace<GetActivityHandleOptions, { activity?: ActivityFunction }>
+  ): ActivityHandle {
+    const outputType =
+      options.typeInfo?.outputType ??
+      (isActivityFunctionWithOptions(options.activity)
+        ? options.activity.activityDefinitionOptions.typeInfo?.outputType
+        : undefined);
+    return this.createHandle(activityId, options.runId, outputType);
   }
 
   /**
@@ -331,13 +346,15 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
         await visit(
           req,
           walkStartActivityExecutionRequest,
-          extstoreStoreOptions(externalStorage, {
+          externalStorageStoreVisitOptions({
+            externalStorage,
             initialTarget: {
               kind: 'activity',
               namespace: this.options.namespace,
               id: input.options.id,
               type: input.activityType,
             },
+            payloadCache: this.payloadCache,
           })
         );
       }
@@ -441,8 +458,14 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
 
       try {
         const resp = await this.workflowService.pollActivityExecution(req);
-        const externalStorage = this.dataConverter.externalStorage;
-        await visit(resp, walkPollActivityExecutionResponse, extstoreInboundOptions(externalStorage));
+        await visit(
+          resp,
+          walkPollActivityExecutionResponse,
+          externalStorageRetrieveVisitOptions({
+            externalStorage: this.dataConverter.externalStorage,
+            payloadCache: this.payloadCache,
+          })
+        );
         if (resp.outcome?.result) {
           return await decodeFromPayloadsAtIndex(
             this.dataConverter,
@@ -494,8 +517,14 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       if (!hasInfo(resp)) {
         throw new ServiceError('Missing info in describeActivityExecution response');
       }
-      const externalStorage = this.dataConverter.externalStorage;
-      await visit(resp, walkDescribeActivityExecutionResponse, extstoreInboundOptions(externalStorage));
+      await visit(
+        resp,
+        walkDescribeActivityExecutionResponse,
+        externalStorageRetrieveVisitOptions({
+          externalStorage: this.dataConverter.externalStorage,
+          payloadCache: this.payloadCache,
+        })
+      );
       const context: ActivitySerializationContext = {
         type: 'activity',
         namespace,
@@ -557,8 +586,14 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
             nextPageToken,
           });
 
-        const externalStorage = this.dataConverter.externalStorage;
-        await visit(resp, walkListActivityExecutionsResponse, extstoreInboundOptions(externalStorage));
+        await visit(
+          resp,
+          walkListActivityExecutionsResponse,
+          externalStorageRetrieveVisitOptions({
+            externalStorage: this.dataConverter.externalStorage,
+            payloadCache: this.payloadCache,
+          })
+        );
 
         for (const info of resp.executions ?? []) {
           yield buildActivityExecutionInfo(info);
@@ -870,7 +905,12 @@ export interface ActivityOptions {
 /**
  * Options for {@link ActivityClient.getHandleWithOptions}.
  */
-export interface GetActivityHandleOptions {
+export interface GetActivityHandleOptions<R = any> {
+  /**
+   * Activity definitions are accepted through {@link ActivityHandleDefinitionOptions}.
+   */
+  activity?: never;
+
   /**
    * If provided, targets this specific Activity run. If absent, the handle targets the latest run.
    */
@@ -881,8 +921,18 @@ export interface GetActivityHandleOptions {
    *
    * @experimental
    */
-  typeInfo?: Pick<PayloadTypeInfo, 'outputType'>;
+  typeInfo?: OutputTypeInfo<R>;
 }
+
+/**
+ * Options for getting an Activity handle using an Activity definition.
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ */
+export type ActivityHandleDefinitionOptions<A extends ActivityFunction> = Replace<
+  GetActivityHandleOptions,
+  { activity: A; typeInfo?: never }
+>;
 
 /**
  * Options for {@link ActivityHandle.describe}.

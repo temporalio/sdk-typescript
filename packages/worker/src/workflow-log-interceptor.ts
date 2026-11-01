@@ -37,7 +37,6 @@ export class WorkflowLogInterceptor implements WorkflowInboundCallsInterceptor, 
  */
 export const WorkflowInboundLogInterceptor = WorkflowLogInterceptor;
 
-// ts-prune-ignore-next
 export const interceptors: WorkflowInterceptorsFactory = () => {
   const interceptor = new WorkflowLogInterceptor();
   return { inbound: [interceptor], outbound: [interceptor] };

@@ -3,7 +3,6 @@
  * @module
  */
 import * as wf from '@temporalio/workflow';
-import type { EnhancedStackTrace } from '@temporalio/workflow/lib/interfaces';
 import type * as activities from '../activities';
 import { unblockOrCancel } from './unblock-or-cancel';
 
@@ -26,9 +25,9 @@ export async function stackTracer(): Promise<[string, string]> {
   return [first, second];
 }
 
-export async function enhancedStackTracer(): Promise<EnhancedStackTrace> {
+export async function enhancedStackTracer(): Promise<wf.EnhancedStackTrace> {
   const { executeChild, sleep } = wf;
-  const trigger = new wf.Trigger<EnhancedStackTrace>();
+  const trigger = new wf.Trigger<wf.EnhancedStackTrace>();
   const [enhStack] = await Promise.all([
     trigger,
     Promise.race([

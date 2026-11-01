@@ -7,9 +7,8 @@ import type {
   RetryPolicy,
   WorkerDeploymentVersion,
 } from '@temporalio/common';
-import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
+import { makeProtoEnumConverters, type Replace } from '@temporalio/common/internal/internal-workflow';
 import * as proto from '@temporalio/proto';
-import type { Replace } from '@temporalio/common/lib/type-helpers';
 import type { ConnectionPlugin } from './connection';
 
 export interface WorkflowExecution {

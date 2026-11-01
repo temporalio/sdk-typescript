@@ -1,7 +1,6 @@
-import type { Duration, SearchAttributeType } from '@temporalio/common';
+import type { Duration, SearchAttributeType, SearchAttributeKey } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common/lib/time';
 import type { native } from '@temporalio/core-bridge';
-import type { SearchAttributeKey } from '@temporalio/common/lib/search-attributes';
 import pkg from './pkg';
 
 /**
@@ -11,6 +10,13 @@ export interface DevServerConfig {
   type: 'dev-server';
 
   executable?: EphemeralServerExecutable;
+
+  /**
+   * Maximum time to wait for server readiness after spawning the process, excluding executable download time.
+   *
+   * @default '5s'
+   */
+  startupTimeout?: Duration;
 
   /**
    * Sqlite DB filename if persisting or non-persistent if none (default).
@@ -78,6 +84,13 @@ export interface TimeSkippingServerConfig {
   executable?: EphemeralServerExecutable;
 
   /**
+   * Maximum time to wait for server readiness after spawning the process, excluding executable download time.
+   *
+   * @default '5s'
+   */
+  startupTimeout?: Duration;
+
+  /**
    * Optional port to listen on, defaults to find a random free port.
    */
   port?: number;
@@ -140,6 +153,7 @@ export function toNativeEphemeralServerConfig(
         dbFilename: server.dbFilename ?? null,
         log: server.log ?? { format: 'pretty', level: 'warn' },
         extraArgs: server.extraArgs ?? [],
+        startupTimeout: server.startupTimeout === undefined ? null : msToNumber(server.startupTimeout),
       };
 
     case 'time-skipping':
@@ -148,6 +162,7 @@ export function toNativeEphemeralServerConfig(
         exe: toNativeEphemeralServerExecutableConfig(server.executable),
         port: server.port ?? null,
         extraArgs: server.extraArgs ?? [],
+        startupTimeout: server.startupTimeout === undefined ? null : msToNumber(server.startupTimeout),
       };
 
     default:

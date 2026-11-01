@@ -13,6 +13,7 @@ import type {
   TypedSearchAttributes,
 } from '@temporalio/common';
 import { Headers, Next } from '@temporalio/common';
+import type { History } from '@temporalio/common/proto-utils';
 import type { temporal } from '@temporalio/proto';
 import type { NexusOperationHandle } from './nexus-client';
 import type {
@@ -31,6 +32,7 @@ import type {
   RequestCancelWorkflowExecutionResponse,
   TerminateWorkflowExecutionResponse,
   WorkflowExecution,
+  WorkflowExecutionInfo,
 } from './types';
 import type { CompiledWorkflowOptions, WorkflowUpdateOptions } from './workflow-options';
 import type {
@@ -155,6 +157,25 @@ export interface WorkflowDescribeInput {
 }
 
 /**
+ * Input for WorkflowClientInterceptor.fetchHistory
+ *
+ * @experimental This interceptor input type is experimental - API changes are still possible.
+ */
+export interface WorkflowFetchHistoryInput {
+  readonly workflowExecution: WorkflowExecution;
+}
+
+/**
+ * Input for WorkflowClientInterceptor.list
+ *
+ * @experimental This interceptor input type is experimental - API changes are still possible.
+ */
+export interface WorkflowListInput {
+  readonly query?: string;
+  readonly pageSize?: number;
+}
+
+/**
  * Implement any of these methods to intercept {@link WorkflowClient} outbound calls
  */
 export interface WorkflowClientInterceptor {
@@ -222,6 +243,21 @@ export interface WorkflowClientInterceptor {
    * Intercept a service call to describeWorkflowExecution
    */
   describe?: (input: WorkflowDescribeInput, next: Next<this, 'describe'>) => Promise<DescribeWorkflowExecutionResponse>;
+  /**
+   * Intercept a service call to getWorkflowExecutionHistory
+   *
+   * @experimental This interceptor method is experimental - API changes are still possible.
+   */
+  fetchHistory?: (input: WorkflowFetchHistoryInput, next: Next<this, 'fetchHistory'>) => Promise<History>;
+  /**
+   * Intercept a service call to listWorkflowExecutions
+   *
+   * One interception spans a single consumption of the returned async iterable, including
+   * pagination across multiple RPCs and early consumer termination.
+   *
+   * @experimental This interceptor method is experimental - API changes are still possible.
+   */
+  list?: (input: WorkflowListInput, next: Next<this, 'list'>) => AsyncIterable<WorkflowExecutionInfo>;
 }
 
 /** @deprecated: Use {@link WorkflowClientInterceptor} instead */
@@ -329,6 +365,9 @@ export interface StartNexusOperationInput {
 export interface GetNexusOperationResultInput {
   readonly operationId: string;
   readonly runId?: string;
+  readonly endpoint?: string;
+  readonly service?: string;
+  readonly operation?: string;
   readonly outputType?: TypeInfo;
 }
 

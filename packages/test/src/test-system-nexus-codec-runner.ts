@@ -1,13 +1,13 @@
 import test from 'ava';
 import type { Payload, SerializationContext } from '@temporalio/common';
 import { ApplicationFailure, defaultFailureConverter, defaultPayloadConverter } from '@temporalio/common';
-import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
+import { ProtobufBinaryPayloadConverter } from '@temporalio/common/protobufs';
 import {
   decodeSystemNexusEnvelopeBytes,
   encodeSystemNexusEnvelopeBytes,
-} from '@temporalio/common/lib/internal-workflow';
+} from '@temporalio/common/internal/internal-workflow';
 import * as protoRoot from '@temporalio/proto';
-import { WorkflowCodecRunner } from '@temporalio/worker/lib/workflow-codec-runner';
+import { WorkflowCodecRunner } from '@temporalio/worker/internal';
 import { FreePayloadCodec, makeContextTrace } from './payload-converters/serialization-context-converter';
 
 const targetContext = { type: 'workflow' as const, namespace: 'target-ns', workflowId: 'target-id' };
@@ -202,4 +202,34 @@ test('a marked System Nexus envelope is rewritten independently of its endpoint'
   });
   const envelope = encoded.successful?.commands?.[0]?.scheduleNexusOperation?.input;
   t.is(new ProtobufBinaryPayloadConverter(protoRoot).fromPayload<any>(envelope!).links?.length, 0);
+});
+
+test('a marked System Nexus envelope keeps the caller context for user metadata on any endpoint', async (t) => {
+  const runner = new WorkflowCodecRunner([new FreePayloadCodec()], {
+    type: 'workflow',
+    namespace: 'caller-ns',
+    workflowId: 'caller-id',
+  });
+  const encoded = await runner.encodeCompletion({
+    successful: {
+      commands: [
+        {
+          scheduleNexusOperation: {
+            seq: 44,
+            endpoint: 'an-ordinary-endpoint',
+            service: 'temporal.api.workflowservice.v1.WorkflowService',
+            operation: 'SignalWithStartWorkflowExecution',
+            input: systemNexusEnvelope({}, targetContext),
+          },
+          userMetadata: { summary: payload('system-summary') },
+        },
+      ],
+    },
+  });
+
+  // The command is System Nexus because its envelope is marked, not because of its endpoint, so
+  // its metadata must not pick up the Nexus context the endpoint would otherwise imply.
+  t.deepEqual(traceFromPayload(encoded.successful?.commands?.[0]?.userMetadata?.summary as Payload), [
+    'codec.encode.bound|system-summary|workflow.caller-ns.caller-id',
+  ]);
 });

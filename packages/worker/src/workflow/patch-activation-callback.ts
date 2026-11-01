@@ -1,9 +1,8 @@
 import { IllegalStateError, TypedSearchAttributes, type SearchAttributePair } from '@temporalio/common';
 import type { WorkflowInfo } from '@temporalio/workflow';
-import { createUnsafeRandomSource } from '@temporalio/workflow/lib/random-helpers';
+import { createUnsafeRandomSource } from '@temporalio/workflow/internal';
 import type { PatchActivationCallback, PatchActivationInput } from '../worker-options';
 
-// ts-prune-ignore-next (used by the workflow Worker thread entry point)
 export const PATCH_ACTIVATION_CALLBACK_BUFFER_SIZE = 64 * 1024;
 export const PATCH_ACTIVATION_CALLBACK_HEADER_SIZE = 3 * Int32Array.BYTES_PER_ELEMENT;
 
@@ -106,7 +105,6 @@ export function completePatchActivationCallback(resultBuffer: SharedArrayBuffer)
   Atomics.notify(header, 0);
 }
 
-// ts-prune-ignore-next (used by the workflow Worker thread entry point)
 export function waitForPatchActivationCallbackResult(resultBuffer: SharedArrayBuffer): boolean {
   const header = getHeader(resultBuffer);
   Atomics.wait(header, 0, PatchActivationCallbackStatus.Pending);

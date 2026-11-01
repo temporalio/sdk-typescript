@@ -110,6 +110,16 @@ export enum SpanName {
   WORKFLOW_DESCRIBE = 'DescribeWorkflow',
 
   /**
+   * Workflow history is fetched
+   */
+  WORKFLOW_FETCH_HISTORY = 'FetchWorkflowHistory',
+
+  /**
+   * Workflows are listed
+   */
+  WORKFLOW_LIST = 'ListWorkflows',
+
+  /**
    * Workflow run is executing
    */
   WORKFLOW_EXECUTE = 'RunWorkflow',

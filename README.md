@@ -145,7 +145,8 @@ pnpm install --frozen-lockfile
 If `pnpm install` fails in `@temporalio/core-bridge` on the command `pnpm tsx ./scripts/build.ts`, you may
 need to do `rustup update`.
 
-To update to the latest version of the Core SDK, run `git submodule update` followed by `pnpm build` to recompile.
+To update to the latest version of the Core SDK and import its changelog entries, run `pnpm update-core`
+followed by `pnpm build` to recompile. See [Updating SDK Core](CONTRIBUTING.md#updating-sdk-core).
 
 ### Development commands
 
@@ -277,14 +278,32 @@ This monorepo contains the following packages:
 | [`packages/nyc-test-coverage/`](packages/nyc-test-coverage/)                       | [`@temporalio/nyc-test-coverage`](https://www.npmjs.com/package/@temporalio/nyc-test-coverage)                         |
 | [`packages/plugin/`](packages/plugin/)                                             | [`@temporalio/plugin`](https://www.npmjs.com/package/@temporalio/plugin)                                               |
 | [`packages/nexus/`](packages/nexus/)                                               | [`@temporalio/nexus`](https://www.npmjs.com/package/@temporalio/nexus)                                                 |
-| [`contrib/ai-sdk/`](contrib/ai-sdk/)                                               | [`@temporalio/ai-sdk`](https://www.npmjs.com/package/@temporalio/ai-sdk)                                               |
-| [`contrib/google-adk-agents/`](contrib/google-adk-agents/)                         | [`@temporalio/google-adk-agents`](https://www.npmjs.com/package/@temporalio/google-adk-agents)                         |
+| [`contrib/ai-sdk/`](contrib/ai-sdk/)                                               | [`@temporalio/ai-sdk`](https://www.npmjs.com/package/@temporalio/ai-sdk) (compatibility wrapper)                       |
+| [`contrib/google-adk-agents/`](contrib/google-adk-agents/)                         | [`@temporalio/google-adk-agents`](https://www.npmjs.com/package/@temporalio/google-adk-agents) (compatibility wrapper) |
 | [`contrib/interceptors-opentelemetry/`](contrib/interceptors-opentelemetry/)       | [`@temporalio/interceptors-opentelemetry`](https://www.npmjs.com/package/@temporalio/interceptors-opentelemetry)       |
 | [`contrib/interceptors-opentelemetry-v2/`](contrib/interceptors-opentelemetry-v2/) | [`@temporalio/interceptors-opentelemetry-v2`](https://www.npmjs.com/package/@temporalio/interceptors-opentelemetry-v2) |
-| [`contrib/langsmith/`](contrib/langsmith/)                                         | [`@temporalio/langsmith`](https://www.npmjs.com/package/@temporalio/langsmith)                                         |
-| [`contrib/openai-agents/`](contrib/openai-agents/)                                 | [`@temporalio/openai-agents`](https://www.npmjs.com/package/@temporalio/openai-agents)                                 |
-| [`contrib/strands/`](contrib/strands/)                                             | [`@temporalio/strands-agents`](https://www.npmjs.com/package/@temporalio/strands-agents)                               |
 | [`contrib/workflow-streams/`](contrib/workflow-streams/)                           | [`@temporalio/workflow-streams`](https://www.npmjs.com/package/@temporalio/workflow-streams)                           |
+
+### AI integrations
+
+AI integrations are maintained and released independently in
+[temporalio/ai-integrations](https://github.com/temporalio/ai-integrations/tree/main/typescript).
+
+| Integration    | Package                                                             |
+| -------------- | ------------------------------------------------------------------- |
+| Vercel AI SDK  | `@temporalio/vercel-ai-sdk` (formerly `@temporalio/ai-sdk`)         |
+| Google ADK     | `@temporalio/google-adk` (formerly `@temporalio/google-adk-agents`) |
+| LangSmith      | `@temporalio/langsmith`                                             |
+| OpenAI Agents  | `@temporalio/openai-agents`                                         |
+| Strands Agents | `@temporalio/strands-agents`                                        |
+
+Install these packages separately and follow the setup instructions in the integrations
+repository. The legacy `@temporalio/ai-sdk` and `@temporalio/google-adk-agents` packages
+remain here as small compatibility wrappers, forwarding their public entrypoints to
+the standalone packages. Existing imports can be retained with the wrapper releases;
+new applications should use the standalone names. Both wrappers require Node.js
+22.12.0 or later and the standalone packages' provider versions. The other three
+package names are unchanged.
 
 ## Contributing
 

@@ -500,6 +500,7 @@ function compileLoggerOptions(
 /**
  * @deprecated Use {@link CoreLogFilterOptions} instead.
  */
+/* @lintignore Retain the deprecated compatibility alias. */
 export type MakeTelemetryFilterStringOptions = CoreLogFilterOptions;
 
 /**

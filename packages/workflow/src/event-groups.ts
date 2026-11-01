@@ -1,7 +1,7 @@
 import type { AsyncLocalStorage as ALS } from 'node:async_hooks';
 import type Long from 'long';
 import type { temporal } from '@temporalio/proto';
-import { convertOptionalToPayload, defaultPayloadConverter } from '@temporalio/common/lib/converter/payload-converter';
+import { convertOptionalToPayload, defaultPayloadConverter } from '@temporalio/common';
 import { AsyncLocalStorage } from './cancellation-scope';
 import { assertInWorkflowContext } from './global-attributes';
 

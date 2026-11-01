@@ -255,6 +255,9 @@ export function tryUnblockConditions(): number {
     let numUnblocked = 0;
     for (;;) {
       activator.maybeRethrowWorkflowTaskError();
+      // Rejected updates leave nothing in history, so a condition they let through (e.g. one on a value
+      // refreshed every activation) could not unblock on replay.
+      if (!activator.checkConditions) break;
       const prevUnblocked = numUnblocked;
       for (const [seq, cond] of activator.blockedConditions.entries()) {
         if (cond.fn()) {

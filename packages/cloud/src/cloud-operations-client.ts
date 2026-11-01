@@ -1,9 +1,9 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import * as grpc from '@grpc/grpc-js';
 import type { RPCImpl } from 'protobufjs';
-import type { TLSConfig } from '@temporalio/common/lib/internal-non-workflow';
-import { normalizeTlsConfig, normalizeGrpcEndpointAddress } from '@temporalio/common/lib/internal-non-workflow';
-import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
+import type { TLSConfig } from '@temporalio/common/internal/internal-non-workflow';
+import { normalizeTlsConfig, normalizeGrpcEndpointAddress } from '@temporalio/common/internal/internal-non-workflow';
+import { filterNullAndUndefined } from '@temporalio/common/internal/internal-workflow';
 import type { Duration } from '@temporalio/common/lib/time';
 import { msOptionalToNumber } from '@temporalio/common/lib/time';
 import type { CallContext, Metadata } from '@temporalio/client';

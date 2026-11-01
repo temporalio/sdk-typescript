@@ -211,6 +211,7 @@ mod config {
         exe: EphemeralServerExecutableConfig,
         port: Option<u16>,
         extra_args: Vec<String>,
+        startup_timeout: Option<Duration>,
     }
 
     #[derive(Debug, Clone, TryFromJs)]
@@ -224,6 +225,7 @@ mod config {
         ui: bool,
         log: DevServerLogConfig,
         extra_args: Vec<String>,
+        startup_timeout: Option<Duration>,
     }
 
     #[derive(Debug, Clone, TryFromJs)]
@@ -274,6 +276,7 @@ mod config {
                 .exe(self.exe.into())
                 .maybe_port(self.port)
                 .extra_args(self.extra_args)
+                .maybe_startup_timeout(self.startup_timeout)
                 .build();
 
             Ok(config)
@@ -294,6 +297,7 @@ mod config {
                 .ui(self.ui)
                 .log((self.log.format, self.log.level))
                 .extra_args(self.extra_args)
+                .maybe_startup_timeout(self.startup_timeout)
                 .build();
 
             Ok(config)

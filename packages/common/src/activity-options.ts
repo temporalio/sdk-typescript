@@ -2,7 +2,7 @@ import type { coresdk } from '@temporalio/proto';
 import type { RetryPolicy } from './retry-policy';
 import type { Duration } from './time';
 import type { VersioningIntent } from './versioning-intent';
-import { makeProtoEnumConverters } from './internal-workflow';
+import { makeProtoEnumConverters } from './internal-workflow/enums-helpers';
 import type { Priority } from './priority';
 
 // Note: The types defined in this file are here for legacy reasons. They should have been defined
@@ -22,7 +22,7 @@ import type { Priority } from './priority';
  * always results in cancellation of its outstanding Activity executions, regardless of those
  * Activities' {@link ActivityCancellationType} settings.
  *
- * @default ActivityCancellationType.WAIT_CANCELLATION_COMPLETED
+ * @default ActivityCancellationType.TRY_CANCEL
  */
 // MAINTENANCE: Keep this typedoc in sync with the `ActivityOptions.cancellationType` and
 //              `LocalActivityOptions.cancellationType` fields later in this file.
@@ -61,6 +61,7 @@ export const ActivityCancellationType = {
 } as const;
 export type ActivityCancellationType = (typeof ActivityCancellationType)[keyof typeof ActivityCancellationType];
 
+/* @lintignore Keep both directions of the enum converter pair. */
 export const [encodeActivityCancellationType, decodeActivityCancellationType] = makeProtoEnumConverters<
   coresdk.workflow_commands.ActivityCancellationType,
   typeof coresdk.workflow_commands.ActivityCancellationType,
@@ -153,7 +154,11 @@ export interface ActivityOptions {
    * always results in cancellation of its outstanding Activity executions, regardless of those
    * Activities' {@link ActivityCancellationType} settings.
    *
-   * @default ActivityCancellationType.WAIT_CANCELLATION_COMPLETED
+   * Unlike Child Workflows and Nexus Operations, which wait for the cancellation to complete by
+   * default, an Activity call fails as soon as its cancellation is requested unless this is set to
+   * `WAIT_CANCELLATION_COMPLETED`.
+   *
+   * @default ActivityCancellationType.TRY_CANCEL
    */
   // MAINTENANCE: Keep this typedoc in sync with the `ActivityCancellationType` enum
   cancellationType?: ActivityCancellationType;
@@ -257,7 +262,11 @@ export interface LocalActivityOptions {
    * always results in cancellation of its outstanding Activity executions, regardless of those
    * Activities' {@link ActivityCancellationType} settings.
    *
-   * @default ActivityCancellationType.WAIT_CANCELLATION_COMPLETED
+   * Unlike Child Workflows and Nexus Operations, which wait for the cancellation to complete by
+   * default, an Activity call fails as soon as its cancellation is requested unless this is set to
+   * `WAIT_CANCELLATION_COMPLETED`.
+   *
+   * @default ActivityCancellationType.TRY_CANCEL
    */
   // MAINTENANCE: Keep this typedoc in sync with the `ActivityCancellationType` enum
   cancellationType?: ActivityCancellationType;

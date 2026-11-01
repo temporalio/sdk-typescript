@@ -3,6 +3,8 @@ import Long from 'long';
 import { temporal } from '@temporalio/proto';
 import {
   convertActivityLinkToNexusLink,
+  convertCallbackLinkToNexusLink,
+  convertNexusLinkToCallbackLink,
   convertNexusLinkToTemporalLink,
   convertNexusLinkToWorkflowEventLink,
   convertNexusLinkToWorkflowLink,
@@ -12,11 +14,12 @@ import {
   convertWorkflowLinkToNexusLink,
 } from '../link-converter';
 
-const { EventType } = temporal.api.enums.v1;
+const { EventType, ExecutionType } = temporal.api.enums.v1;
 const WORKFLOW_EVENT_TYPE = (temporal.api.common.v1.Link.WorkflowEvent as any).fullName.slice(1);
 const NEXUS_OPERATION_TYPE = (temporal.api.common.v1.Link.NexusOperation as any).fullName.slice(1);
 const WORKFLOW_TYPE = (temporal.api.common.v1.Link.Workflow as any).fullName.slice(1);
 const ACTIVITY_TYPE = (temporal.api.common.v1.Link.Activity as any).fullName.slice(1);
+const CALLBACK_TYPE = (temporal.api.common.v1.Link.Callback as any).fullName.slice(1);
 
 function makeEventRef(eventId: number, eventType: keyof typeof EventType) {
   return {
@@ -29,6 +32,15 @@ function makeRequestIdRef(requestId: string, eventType: keyof typeof EventType) 
   return {
     requestId,
     eventType: EventType[eventType],
+  };
+}
+
+function makeCallbackLink(type: keyof typeof ExecutionType, businessId: string, componentPath: string[] = []) {
+  return {
+    namespace: 'ns',
+    execution: { type: ExecutionType[type], businessId, runId: 'run-id' },
+    componentPath,
+    requestId: 'request-id',
   };
 }
 
@@ -501,12 +513,12 @@ test('Workflow link reason round trips a literal plus', (t) => {
 });
 
 test('every link type escapes its IDs and parses them back', (t) => {
-  // All four link types share one URL builder and one path parser, so each is checked against both:
-  // the exact path pins the encoding, and the round trip pins that the parser reads it back. A slash
-  // must stay inside its segment, and a space must be %20 rather than '+', which a path decoder
-  // reads as a literal plus.
-  const id = 'a/b c+d%e';
-  const escaped = 'a%2Fb%20c%2Bd%25e';
+  // Each link type is checked against both its URL builder and its path parser: the exact path pins
+  // the encoding, and the round trip pins that the parser reads it back. A slash must stay inside its
+  // segment, a '?' must stay in the path rather than starting the query string, and a space must be
+  // %20 rather than '+', which a path decoder reads as a literal plus.
+  const id = 'a/b c+d%e?f';
+  const escaped = 'a%2Fb%20c%2Bd%25e%3Ff';
   const cases = [
     {
       link: {
@@ -531,11 +543,70 @@ test('every link type escapes its IDs and parses them back', (t) => {
       link: { activity: { namespace: id, activityId: id, runId: id } },
       path: `/namespaces/${escaped}/activities/${escaped}/${escaped}/details`,
     },
+    {
+      link: {
+        callback: {
+          namespace: id,
+          execution: { type: ExecutionType.EXECUTION_TYPE_WORKFLOW, businessId: id, runId: id },
+          componentPath: [],
+          requestId: id,
+        },
+      },
+      path: `/namespaces/${escaped}/workflows/${escaped}/${escaped}/callbacks/${escaped}`,
+    },
   ];
 
   for (const { link, path } of cases) {
     const nexusLink = convertTemporalLinkToNexusLink(link);
     t.is(nexusLink.url.pathname, path);
     t.deepEqual(convertNexusLinkToTemporalLink(nexusLink), link);
+  }
+});
+
+test('Callback link converts to a Nexus link per execution type and back', (t) => {
+  const cases = [
+    { link: makeCallbackLink('EXECUTION_TYPE_WORKFLOW', 'wf-id'), collection: 'workflows/wf-id' },
+    { link: makeCallbackLink('EXECUTION_TYPE_ACTIVITY', 'act-id'), collection: 'activities/act-id' },
+    { link: makeCallbackLink('EXECUTION_TYPE_NEXUS_OPERATION', 'op-id'), collection: 'nexus-operations/op-id' },
+  ];
+  for (const { link, collection } of cases) {
+    const nexusLink = convertTemporalLinkToNexusLink({ callback: link });
+    t.is(nexusLink.type, CALLBACK_TYPE);
+    t.is(nexusLink.url.toString(), `temporal:///namespaces/ns/${collection}/run-id/callbacks/request-id`);
+    t.deepEqual(convertNexusLinkToTemporalLink(nexusLink), { callback: link });
+  }
+});
+
+test('Callback link component path keeps order and delimiters within segments', (t) => {
+  const link = makeCallbackLink('EXECUTION_TYPE_WORKFLOW', 'wf-id', ['zulu', 'A:B', 'C/D', 'id,with,commas', 'a b+c']);
+  const nexusLink = convertCallbackLinkToNexusLink(link);
+  t.is(
+    nexusLink.url.search,
+    '?componentPath=zulu&componentPath=A%3AB&componentPath=C%2FD&componentPath=id%2Cwith%2Ccommas&componentPath=a+b%2Bc'
+  );
+  t.deepEqual(convertNexusLinkToCallbackLink(nexusLink), link);
+});
+
+test('Callback link conversion rejects invalid input', (t) => {
+  t.throws(() => convertCallbackLinkToNexusLink(makeCallbackLink('EXECUTION_TYPE_UNSPECIFIED', 'wf-id')), {
+    instanceOf: TypeError,
+    message: /Unsupported execution type/,
+  });
+  t.throws(
+    () => convertCallbackLinkToNexusLink({ ...makeCallbackLink('EXECUTION_TYPE_WORKFLOW', 'wf-id'), requestId: '' }),
+    {
+      instanceOf: TypeError,
+    }
+  );
+  for (const path of [
+    '/namespaces/ns/schedules/id/run-id/callbacks/request-id',
+    '/namespaces/ns/workflows/wf-id/run-id/history',
+    '/namespaces/ns/workflows/wf-id/run-id/callbacks',
+    '/namespaces/ns/workflows/wf-id/run-id/callbacks/request-id/extra',
+    '/namespaces/ns/workflows/wf-id/run-id/callbacks/',
+  ]) {
+    t.throws(() => convertNexusLinkToTemporalLink({ url: new URL(`temporal://${path}`), type: CALLBACK_TYPE }), {
+      instanceOf: TypeError,
+    });
   }
 });

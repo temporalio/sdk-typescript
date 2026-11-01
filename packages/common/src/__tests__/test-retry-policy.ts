@@ -38,8 +38,12 @@ test('compileRetryPolicy validates backoffCoefficient is greater than 0', (t) =>
 test('compileRetryPolicy validates maximumAttempts is positive', (t) => {
   t.throws(() => compileRetryPolicy({ maximumAttempts: -1 }), {
     instanceOf: ValueError,
-    message: 'RetryPolicy.maximumAttempts must be a positive integer',
+    message: 'RetryPolicy.maximumAttempts must be a positive integer, 0 (unlimited), or Infinity (unlimited)',
   });
+});
+
+test('compileRetryPolicy treats zero maximumAttempts as unlimited', (t) => {
+  t.deepEqual(compileRetryPolicy({ maximumAttempts: 0 }), compileRetryPolicy({}));
 });
 
 test('compileRetryPolicy validates maximumAttempts is an integer', (t) => {

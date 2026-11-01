@@ -19,9 +19,7 @@ import {
   TimeoutType,
   WorkflowExecutionAlreadyStartedError,
 } from '@temporalio/common';
-import { tsToMs } from '@temporalio/common/lib/time';
-import type { UnsafeWorkflowInfo, WorkflowInfo } from '@temporalio/workflow/lib/interfaces';
-
+import { tsToMs } from '@temporalio/common/time';
 import {
   CancellationScope,
   condition,
@@ -32,6 +30,8 @@ import {
   setHandler,
   sleep,
   startChild,
+  type UnsafeWorkflowInfo,
+  type WorkflowInfo,
   workflowInfo,
 } from '@temporalio/workflow';
 import { configurableHelpers, createTestWorkflowBundle } from './helpers-integration';

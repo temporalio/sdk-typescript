@@ -6,26 +6,25 @@ import {
   defaultDataConverter,
   defaultPayloadConverter,
   ExternalStorageNotConfiguredError,
+  ExternalStorage,
   RawValue,
   rawValueTypeInfo,
 } from '@temporalio/common';
-import { ExternalStorage } from '@temporalio/common/lib/converter/extstore';
 import {
   ExternalStorageRunner,
-  extstoreInboundOptions,
+  externalStorageRetrieveVisitOptions,
   isReferencePayload,
-} from '@temporalio/common/lib/internal-non-workflow';
-import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/converter/protobuf-payload-converters';
+} from '@temporalio/common/internal/internal-non-workflow';
+import { ProtobufBinaryPayloadConverter } from '@temporalio/common/protobufs';
 import {
   SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE,
-} from '@temporalio/common/lib/internal-workflow';
+} from '@temporalio/common/internal/internal-workflow';
 import * as protoRoot from '@temporalio/proto';
 import type { coresdk, temporal } from '@temporalio/proto';
 import type { SignalWithStartWorkflowRequest } from '@temporalio/workflow';
-import { workflowService } from '@temporalio/workflow/lib/nexus/system/generated/services';
-import { decodePayload, PAYLOAD_VALIDATION_ERROR_TYPE } from '@temporalio/worker/lib/nexus/conversions';
-import { visitNexusTask } from '@temporalio/worker/lib/system-nexus-operations';
+import { workflowService } from '@temporalio/workflow/internal';
+import { decodePayload, PAYLOAD_VALIDATION_ERROR_TYPE, visitNexusTask } from '@temporalio/worker/internal';
 import { makeFakeDriver } from './extstore-fake-driver';
 
 const protobufPayloadConverter = new ProtobufBinaryPayloadConverter(protoRoot);
@@ -112,6 +111,19 @@ test('decodePayload uses the System Nexus converter for a marked input', async (
   t.is(result.taskQueue, 'target-task-queue');
   t.is(result.signal, 'test-signal');
   t.is(result.namespace, 'target-namespace');
+});
+
+test('decodePayload preserves a one-time versioning override in a System Nexus input', async (t) => {
+  const version = { deploymentName: 'deployment', buildId: 'build' };
+  const result = (await decodePayload(
+    defaultDataConverter,
+    systemNexusPayloadWith(defaultPayloadConverter.toPayload('input'), undefined, {
+      versioningOverride: { oneTime: { targetDeploymentVersion: version } },
+    }),
+    signalWithStartInputType
+  )) as SignalWithStartWorkflowRequest;
+
+  t.deepEqual(result.versioningOverride, { oneTimeTo: version });
 });
 
 interface TestSystemRequest {
@@ -385,14 +397,14 @@ function nestedPayloads(envelope: Payload): { input: Payload[]; signalInput: Pay
 test('visitNexusTask resolves External Storage references nested in a System Nexus input', async (t) => {
   const driver = makeFakeDriver();
   const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 });
-  const runner = new ExternalStorageRunner(externalStorage);
+  const runner = new ExternalStorageRunner(externalStorage, { payloadCache: false });
   const [inputReference, signalReference] = await runner.store([
     defaultPayloadConverter.toPayload('workflow-input'),
     defaultPayloadConverter.toPayload('signal-input'),
   ]);
   const task = nexusStartTask(systemNexusPayloadWith(inputReference!, signalReference!));
 
-  await visitNexusTask(task, extstoreInboundOptions(externalStorage));
+  await visitNexusTask(task, externalStorageRetrieveVisitOptions({ payloadCache: false, externalStorage }));
 
   const envelope = task.task!.request!.startOperation!.payload as Payload;
   t.deepEqual(envelope.metadata?.[SYSTEM_NEXUS_PAYLOAD_METADATA_KEY], SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE);
@@ -409,14 +421,18 @@ test('visitNexusTask resolves External Storage references nested in a System Nex
 
 test('visitNexusTask rejects a nested reference when External Storage is not configured', async (t) => {
   const externalStorage = new ExternalStorage({ drivers: [makeFakeDriver()], payloadSizeThreshold: 0 });
-  const [reference] = await new ExternalStorageRunner(externalStorage).store([
+  const [reference] = await new ExternalStorageRunner(externalStorage, { payloadCache: false }).store([
     defaultPayloadConverter.toPayload('workflow-input'),
   ]);
   const task = nexusStartTask(systemNexusPayloadWith(reference!));
 
-  await t.throwsAsync(() => visitNexusTask(task, extstoreInboundOptions(undefined)), {
-    instanceOf: ExternalStorageNotConfiguredError,
-  });
+  await t.throwsAsync(
+    () =>
+      visitNexusTask(task, externalStorageRetrieveVisitOptions({ payloadCache: false, externalStorage: undefined })),
+    {
+      instanceOf: ExternalStorageNotConfiguredError,
+    }
+  );
 });
 
 test('visitNexusTask leaves an unrecognized or corrupt marked input for decodePayload to reject', async (t) => {
@@ -426,7 +442,10 @@ test('visitNexusTask leaves an unrecognized or corrupt marked input for decodePa
   ] as const) {
     const task = nexusStartTask(payload);
 
-    await visitNexusTask(task, extstoreInboundOptions(undefined));
+    await visitNexusTask(
+      task,
+      externalStorageRetrieveVisitOptions({ payloadCache: false, externalStorage: undefined })
+    );
 
     t.is(task.task!.request!.startOperation!.payload, payload, name);
   }
@@ -438,10 +457,12 @@ test('visitNexusTask retrieves nested references before codecs decode them', asy
     defaultPayloadConverter.toPayload('workflow-input'),
     defaultPayloadConverter.toPayload('signal-input'),
   ]);
-  const [inputReference, signalReference] = await new ExternalStorageRunner(externalStorage).store(encoded);
+  const [inputReference, signalReference] = await new ExternalStorageRunner(externalStorage, {
+    payloadCache: false,
+  }).store(encoded);
   const task = nexusStartTask(systemNexusPayloadWith(inputReference!, signalReference!));
 
-  await visitNexusTask(task, extstoreInboundOptions(externalStorage));
+  await visitNexusTask(task, externalStorageRetrieveVisitOptions({ payloadCache: false, externalStorage }));
   const result = (await decodePayload(
     { ...defaultDataConverter, payloadCodecs: [shiftingCodec] },
     task.task!.request!.startOperation!.payload as Payload,

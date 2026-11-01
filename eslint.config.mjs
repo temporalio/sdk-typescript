@@ -1,7 +1,6 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import importPlugin from 'eslint-plugin-import';
-import { defaultConditionNames } from 'eslint-import-resolver-typescript';
 import prettierConfig from 'eslint-config-prettier';
 
 export default tseslint.config(
@@ -28,7 +27,18 @@ export default tseslint.config(
       eqeqeq: ['error', 'always', { null: 'ignore' }],
       'no-duplicate-imports': ['error', { allowSeparateTypeImports: true }],
       'object-shorthand': ['error', 'always'],
-      'no-restricted-imports': ['error', { patterns: ['@temporalio/*/src/*'] }],
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: ['@temporalio/*/src/*'], message: 'Import from the package root or a documented export.' },
+            {
+              regex: '^@temporalio/(?!common/lib/(?:encoding|protobufs|proto-utils|time)$)[^/]+/lib(?:/|$)',
+              message: 'Import from the package root or a documented export, not an undocumented lib path.',
+            },
+          ],
+        },
+      ],
       '@typescript-eslint/no-deprecated': [
         'warn',
         {
@@ -149,42 +159,6 @@ export default tseslint.config(
       'import/newline-after-import': 'error',
       'import/no-unassigned-import': 'error',
       'import/no-named-default': 'error',
-    },
-  },
-  {
-    files: ['contrib/ai-sdk/src/__tests__/**/*.ts'],
-    settings: {
-      'import/resolver': {
-        typescript: {
-          // MCP's wildcard types export maps `.js` imports to nonexistent `.js.d.ts` files.
-          // Resolve runtime exports instead; extension aliases still find their declarations.
-          conditionNames: defaultConditionNames.filter((condition) => condition !== 'types'),
-        },
-      },
-    },
-  },
-  {
-    files: ['contrib/openai-agents/src/**/*.ts'],
-    ignores: ['contrib/openai-agents/src/__tests__/**'],
-    rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          patterns: ['@temporalio/*/src/*', '**/__tests__/**', '**/*.test'],
-        },
-      ],
-    },
-  },
-  {
-    files: ['contrib/google-adk-agents/src/**/*.ts'],
-    ignores: ['contrib/google-adk-agents/src/__tests__/**'],
-    rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          patterns: ['@temporalio/*/src/*', '**/__tests__/**', '**/*.test'],
-        },
-      ],
     },
   }
 );

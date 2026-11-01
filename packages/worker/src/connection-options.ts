@@ -8,7 +8,7 @@ import {
   parseHttpConnectProxyAddress,
   ProxyConfig,
   TLSConfig,
-} from '@temporalio/common/lib/internal-non-workflow';
+} from '@temporalio/common/internal/internal-non-workflow';
 import type { Metadata } from '@temporalio/client';
 import pkg from './pkg';
 import type { NativeConnectionPlugin } from './connection';
