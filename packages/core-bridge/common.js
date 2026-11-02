@@ -50,4 +50,45 @@ function getPrebuiltPath() {
   }
 }
 
-module.exports = { targets, archAlias, platformMapping, PrebuildError, getPrebuiltPath, getPrebuiltTargetName };
+/**
+ * Load the prebuilt native module for the current platform.
+ *
+ * Each target is required through a literal path, so that bundlers that embed native modules
+ * (such as `bun build --compile`, or esbuild and webpack with a `.node` loader) can find it: a
+ * path computed at run time, as in {@link getPrebuiltPath}, is invisible to them. The platform and
+ * architecture checks are literal too, so a bundler that knows its target can drop the modules of
+ * the other platforms. Unsupported targets and missing modules fail with the same
+ * {@link PrebuildError} as before.
+ */
+function requirePrebuilt() {
+  try {
+    if (process.platform === 'darwin' && process.arch === 'arm64') {
+      return require('./releases/aarch64-apple-darwin/index.node');
+    }
+    if (process.platform === 'darwin' && process.arch === 'x64') {
+      return require('./releases/x86_64-apple-darwin/index.node');
+    }
+    if (process.platform === 'linux' && process.arch === 'arm64') {
+      return require('./releases/aarch64-unknown-linux-gnu/index.node');
+    }
+    if (process.platform === 'linux' && process.arch === 'x64') {
+      return require('./releases/x86_64-unknown-linux-gnu/index.node');
+    }
+    if (process.platform === 'win32' && process.arch === 'x64') {
+      return require('./releases/x86_64-pc-windows-msvc/index.node');
+    }
+  } catch (err) {
+    if (err?.code !== 'MODULE_NOT_FOUND') throw err;
+  }
+  return require(getPrebuiltPath());
+}
+
+module.exports = {
+  targets,
+  archAlias,
+  platformMapping,
+  PrebuildError,
+  getPrebuiltPath,
+  getPrebuiltTargetName,
+  requirePrebuilt,
+};
