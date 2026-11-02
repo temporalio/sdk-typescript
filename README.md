@@ -53,6 +53,10 @@ but it may sometime require extra cares in complex monorepos.
 > [!NOTE]
 > The following requirements apply to the current git branch, and not necessarily what's released on NPM.
 
+### TypeScript
+
+TypeScript 5.7 is the minimum supported compiler version for consuming the SDK, older versions will probably work, but aren't tested against.
+
 ### Node.js
 
 The Temporal TypeScript SDK is officially supported on Node 20, 22, and 24.
