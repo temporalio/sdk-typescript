@@ -49,8 +49,17 @@ export function updateTsconfigNodeVersion(contents: string, packageName: string)
   return undefined;
 }
 
-export async function updateNodeVersion({ root }: InstallArgs): Promise<void> {
-  const currentNodeVersion = +process.versions.node.split('.')[0]!;
+export async function updateNodeVersion(
+  { root }: InstallArgs,
+  currentNodeVersion = +process.versions.node.split('.')[0]!
+): Promise<void> {
+  await writeFile(`${root}/.nvmrc`, currentNodeVersion.toString());
+
+  // Newer @tsconfig/node packages can require a newer TypeScript compiler than the
+  // sample uses. Keep its configuration unless this Node base is known to work.
+  if (![20, 22, 24].includes(currentNodeVersion)) {
+    return;
+  }
 
   const packageName = `@tsconfig/node${currentNodeVersion}`;
 
@@ -82,8 +91,6 @@ export async function updateNodeVersion({ root }: InstallArgs): Promise<void> {
         await writeFile(fileName, updatedTsconfig);
       }
     }
-
-    await writeFile(`${root}/.nvmrc`, currentNodeVersion.toString());
   }
 }
 

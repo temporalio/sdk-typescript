@@ -1,10 +1,10 @@
-import { readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import dedent from 'dedent';
 import test from 'ava';
-import { replaceSdkVersion, updateTsconfigNodeVersion } from './install.js';
+import { replaceSdkVersion, updateNodeVersion, updateTsconfigNodeVersion } from './install.js';
 import { makeDir } from './make-dir.js';
 
 test('updateTsconfigNodeVersion supports comments and trailing commas', (t) => {
@@ -34,6 +34,39 @@ test('updateTsconfigNodeVersion supports comments and trailing commas', (t) => {
     `
   );
 });
+
+for (const nodeVersion of [26, 28]) {
+  test(`updateNodeVersion preserves the sample's TypeScript configuration on Node ${nodeVersion}`, async (t) => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'temporal-create-'));
+    t.teardown(() => rm(root, { recursive: true, force: true }));
+
+    const packageJson = JSON.stringify({
+      devDependencies: { '@tsconfig/node22': '^22.0.0', typescript: '^5.6.3' },
+    });
+    const tsconfig = dedent`
+      {
+        // Keep the configuration compatible with the sample's TypeScript version.
+        "extends": "@tsconfig/node22/tsconfig.json",
+        "compilerOptions": { "strict": true, },
+      }
+    `;
+    const nestedRoot = path.join(root, 'worker');
+    await makeDir(nestedRoot);
+    for (const directory of [root, nestedRoot]) {
+      await writeFile(path.join(directory, 'package.json'), packageJson);
+      await writeFile(path.join(directory, 'tsconfig.json'), tsconfig);
+    }
+    await writeFile(path.join(root, '.nvmrc'), '22');
+
+    await updateNodeVersion({ root }, nodeVersion);
+
+    for (const directory of [root, nestedRoot]) {
+      t.is(await readFile(path.join(directory, 'package.json'), 'utf8'), packageJson);
+      t.is(await readFile(path.join(directory, 'tsconfig.json'), 'utf8'), tsconfig);
+    }
+    t.is(await readFile(path.join(root, '.nvmrc'), 'utf8'), nodeVersion.toString());
+  });
+}
 
 test('replaceSdkVersion according to configured level', async (t) => {
   console.log('debug windows');
