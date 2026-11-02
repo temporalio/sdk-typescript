@@ -146,10 +146,7 @@ test('getHandle with operation definition infers correctly', async (t) => {
     void client.nexus.getHandle<string>('op-1', options);
 
     // @ts-expect-error Operation definitions and call-site TypeInfo are mutually exclusive.
-    void client.nexus.getHandle('op-1', {
-      operation: myService.operations.mySyncOp,
-      typeInfo: {},
-    });
+    void client.nexus.getHandle('op-1', { operation: myService.operations.mySyncOp, typeInfo: {} });
   }
   t.pass();
 });
@@ -285,14 +282,9 @@ test('Missing required id option produces type error', async (t) => {
       service: myService,
     });
 
+    const operation = myService.operations.mySyncOp;
     // @ts-expect-error - id is required
-    await nexusClient.executeOperation(
-      myService.operations.mySyncOp,
-      { value: 'hello' },
-      {
-        scheduleToCloseTimeout: '10s',
-      }
-    );
+    await nexusClient.executeOperation(operation, { value: 'hello' }, { scheduleToCloseTimeout: '10s' });
 
     // @ts-expect-error - id is required
     await nexusClient.executeOperation('mySyncOp', { value: 'hello' }, { scheduleToCloseTimeout: '10s' });

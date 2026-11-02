@@ -839,11 +839,9 @@ test('Detached Activity handle options infer results from Activity definitions',
     // @ts-expect-error Supplying an Activity definition selects definition-based result inference.
     void client.activity.getHandleWithOptions<string>('activity-id', options);
 
+    const conflictingActivityOptions = { activity: convertOrder, typeInfo: { outputType: receiptTypeInfo } };
     // @ts-expect-error Activity definitions and call-site TypeInfo are mutually exclusive.
-    void client.activity.getHandleWithOptions('activity-id', {
-      activity: convertOrder,
-      typeInfo: { outputType: receiptTypeInfo },
-    });
+    void client.activity.getHandleWithOptions('activity-id', conflictingActivityOptions);
 
     void client.activity.getHandleWithOptions<Receipt>('activity-id', {
       typeInfo: {
@@ -893,18 +891,13 @@ test('Detached Workflow handle options infer results from Workflow definitions',
     // @ts-expect-error Supplying a Workflow definition selects definition-based result inference.
     void client.workflow.getHandle<typeof signalTarget>('workflow-id', undefined, options);
 
+    const conflictingWorkflowOptions = { workflow: workflowWithTypeInfo, typeInfo: { outputType: receiptTypeInfo } };
     // @ts-expect-error Workflow definitions and call-site TypeInfo are mutually exclusive.
-    void client.workflow.getHandle('workflow-id', undefined, {
-      workflow: workflowWithTypeInfo,
-      typeInfo: { outputType: receiptTypeInfo },
-    });
+    void client.workflow.getHandle('workflow-id', undefined, conflictingWorkflowOptions);
 
+    const wrongResultTypeOptions = { typeInfo: { outputType: orderTypeInfo } };
     // @ts-expect-error Explicit TypeInfo must produce the Workflow result type.
-    void client.workflow.getHandle<typeof workflowWithTypeInfo>('workflow-id', undefined, {
-      typeInfo: {
-        outputType: orderTypeInfo,
-      },
-    });
+    void client.workflow.getHandle<typeof workflowWithTypeInfo>('workflow-id', undefined, wrongResultTypeOptions);
   }
 
   t.pass();
@@ -913,10 +906,7 @@ test('Detached Workflow handle options infer results from Workflow definitions',
 test('Child Workflow definitions reject call-site TypeInfo', (t) => {
   function _assertChildWorkflowTypeInfoTypes() {
     // @ts-expect-error TypeInfo must be defined on a referenced Workflow function.
-    void executeChild(workflowWithTypeInfo, {
-      args: [new Order('order-1', 12345n)],
-      typeInfo: workflowTypeInfo,
-    });
+    void executeChild(workflowWithTypeInfo, { args: [new Order('order-1', 12345n)], typeInfo: workflowTypeInfo });
   }
 
   t.pass();
