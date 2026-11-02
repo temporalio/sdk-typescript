@@ -39,7 +39,7 @@ function requireConverter<T>(
 ): T {
   let module;
   try {
-    module = require(path); // eslint-disable-line @typescript-eslint/no-require-imports
+    module = require(path); // oxlint-disable-line typescript/no-require-imports
   } catch (error) {
     if (errorCode(error) === 'MODULE_NOT_FOUND') {
       throw new ValueError(`Could not find a file at the specified ${type}Path: '${path}'.`);

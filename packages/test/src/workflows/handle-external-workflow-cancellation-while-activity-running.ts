@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
+/* oxlint-disable typescript/explicit-module-boundary-types */
 /**
  * Demonstrates how to clean up after cancellation.
  * Used in the documentation site.

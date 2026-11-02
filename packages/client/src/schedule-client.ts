@@ -302,7 +302,6 @@ export class ScheduleClient extends BaseClient {
         namespace: this.options.namespace,
         scheduleId,
       });
-      const externalStorage = this.dataConverter.externalStorage;
       await visit(
         response,
         walkDescribeScheduleResponse,

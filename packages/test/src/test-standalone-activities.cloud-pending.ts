@@ -56,7 +56,7 @@ const activities = {
     if (info.workflowExecution !== undefined) {
       throw ApplicationFailure.nonRetryable('Expected workflowExecution to be unset');
     }
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
+    // oxlint-disable-next-line typescript/no-deprecated
     if (info.workflowNamespace !== undefined) {
       throw ApplicationFailure.nonRetryable('Expected workflowNamespace to be unset');
     }
@@ -741,7 +741,7 @@ if (RUN_INTEGRATION_TESTS) {
 
     const desc = await handle.describe({ includeInput: true, includeOutcome: true });
     const input = await desc.getInput();
-    t.deepEqual(await desc.getInput(), [
+    t.deepEqual(input, [
       {
         label: 'input',
         trace: encdec('input', ctx),

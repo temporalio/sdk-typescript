@@ -1,5 +1,5 @@
 // Pasted with modifications from: https://raw.githubusercontent.com/anonyco/FastestSmallestTextEncoderDecoder/master/EncoderDecoderTogether.src.js
-/* eslint no-fallthrough: 0 */
+/* oxlint-disable no-fallthrough */
 
 const fromCharCode = String.fromCharCode;
 const encoderRegexp = /[\x80-\uD7ff\uDC00-\uFFFF]|[\uD800-\uDBFF][\uDC00-\uDFFF]?/g;

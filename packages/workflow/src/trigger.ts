@@ -30,10 +30,10 @@ import { untrackPromise } from './stack-helpers';
  */
 export class Trigger<T> implements PromiseLike<T> {
   // Typescript does not realize that the promise executor is run synchronously in the constructor
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // oxlint-disable-next-line typescript/ban-ts-comment
   // @ts-ignore
   public readonly resolve: (value: T | PromiseLike<T>) => void;
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // oxlint-disable-next-line typescript/ban-ts-comment
   // @ts-ignore
   public readonly reject: (reason?: any) => void;
   protected readonly promise: Promise<T>;
@@ -44,10 +44,10 @@ export class Trigger<T> implements PromiseLike<T> {
       if (scope.cancellable) {
         untrackPromise(scope.cancelRequested.catch(reject));
       }
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // oxlint-disable-next-line typescript/ban-ts-comment
       // @ts-ignore
       this.resolve = resolve;
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // oxlint-disable-next-line typescript/ban-ts-comment
       // @ts-ignore
       this.reject = reject;
     });

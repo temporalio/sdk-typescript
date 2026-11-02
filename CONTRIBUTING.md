@@ -190,7 +190,7 @@ After your environment is set up, you can run these commands:
 - `pnpm test` runs the test suite. Tests assume you have a [Temporal server running locally](https://docs.temporal.io/cli#start-dev-server).
 - `pnpm test:watch` runs the test suite on each change to Typescript files.
 - `pnpm format` formats code with oxfmt.
-- `pnpm lint` verifies code style with oxfmt and ESLint.
+- `pnpm lint` verifies code style with oxfmt and oxlint.
 - `pnpm lint:prune` checks unused exports and types with Knip.
 - `pnpm commitlint` validates [commit messages](#style-guide).
 
@@ -258,7 +258,7 @@ written to `.test-results/` (and the tail is dumped to the console on failure).
 
 ### Style Guide
 
-- Typescript code is linted with [eslint](https://eslint.org/)
+- Typescript code is linted with [oxlint](https://oxc.rs/docs/guide/usage/linter.html)
 - Files in this repo are formatted with [oxfmt](https://oxc.rs/docs/guide/usage/formatter)
 - Prefer explicit named re-exports and avoid wildcard re-exports where possible (`export * from ...`) in public entrypoint / barrel files.
 - Use `@experimental` and `@internal` to manage API stability and visibility. Mark new or work-in-progress exported APIs `@experimental` to signal their shape may still change. Mark a symbol `@internal` to keep it out of the generated public docs. The two are independent and may be combined. It is fine to ship something `@internal` now and promote it to public later, by removing `@internal` and adding a named re-export, once it is actually usable. The reverse is a breaking change, so prefer starting narrow.

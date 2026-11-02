@@ -1,4 +1,3 @@
-/* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import type { ExecutionContext, TestFn } from 'ava';
 import type { LoadedDataConverter } from '@temporalio/common';
 import { defaultFailureConverter, defaultPayloadConverter } from '@temporalio/common';
