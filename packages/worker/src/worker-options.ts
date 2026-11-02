@@ -197,7 +197,7 @@ export interface WorkerOptions {
    * Apply the configured payload codecs to headers at Worker boundaries: decode incoming
    * Workflow and Activity headers before interceptors run, and encode headers emitted by Workflows.
    *
-   * Client-supplied Payload headers remain wire-ready and are not processed by this option.
+   * This option does not encode user-provided Payload headers supplied through client APIs.
    * Use compatible codecs on receiving workers and when replaying histories with encoded headers.
    * This does not affect Nexus string headers or gRPC metadata.
    *

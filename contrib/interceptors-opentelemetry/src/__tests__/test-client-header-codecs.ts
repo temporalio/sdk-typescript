@@ -8,7 +8,7 @@ import { defaultPayloadConverter, type PayloadCodec, type SerializationContext }
 import type { temporal } from '@temporalio/proto';
 import { OpenTelemetryPlugin } from '../plugin';
 
-test.serial('client tracing codecs bind per client and never process wire-ready headers', async (t) => {
+test.serial('client tracing codecs bind per client and leave user-provided headers unchanged', async (t) => {
   const span = { traceId: '12345678901234567890123456789012', spanId: '1234567890123456', traceFlags: 1 };
   const active = otel.trace.setSpanContext(otel.ROOT_CONTEXT, span);
   otel.propagation.setGlobalPropagator(new W3CTraceContextPropagator());

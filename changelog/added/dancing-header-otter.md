@@ -1,2 +1,2 @@
-Add opt-in `WorkerOptions.codecHeaders` to decode incoming Workflow and Activity headers and encode headers emitted by Workflows, including tracing headers. Client-supplied Payload headers remain wire-ready and are not automatically encoded.
+Add opt-in `WorkerOptions.codecHeaders` to decode incoming Workflow and Activity headers and encode headers emitted by Workflows, including tracing headers. User-provided Payload headers supplied through client APIs are not automatically encoded.
 Both OpenTelemetry plugins can opt into encoding their own client tracing headers with `encodeClientHeaders: true`, using the configured client codecs without encoding other user-supplied headers.
