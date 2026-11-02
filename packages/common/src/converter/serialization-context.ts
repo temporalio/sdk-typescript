@@ -63,7 +63,7 @@ export interface ActivitySerializationContext {
  * context entirely. Contextual encodings must therefore be self-describing, and decoders must keep
  * accepting payloads encoded without context.
  *
- * @experimental Serialization context is an experimental feature and may change.
+ * @experimental Nexus serialization context is an experimental feature and may change.
  */
 export interface NexusSerializationContext {
   /** Always `'nexus'` for Nexus operation payloads. */

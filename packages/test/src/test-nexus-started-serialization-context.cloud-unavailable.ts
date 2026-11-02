@@ -202,7 +202,7 @@ for (const outcome of ['result', 'failure', 'continueAsNew', 'retry'] as const) 
         });
         const err = await t.throwsAsync(handle.result(), { instanceOf: WorkflowFailedError });
         t.true(err?.cause instanceof ApplicationFailure);
-        t.deepEqual((err?.cause as ApplicationFailure).details, ['failure-detail']);
+        t.deepEqual((err?.cause as ApplicationFailure | undefined)?.details, ['failure-detail']);
       } else {
         t.is(await nexusClient.executeOperation('startWorkflow', input, { id: randomUUID() }), 'nexus-value');
         t.is(await handle.result(), 'nexus-value');
@@ -289,7 +289,7 @@ test('standalone Activity started by a Nexus handler fails with the Nexus contex
     const handle = client.activity.getHandle(activityId);
     const err = await t.throwsAsync(handle.result(), { instanceOf: ActivityExecutionFailedError });
     t.true(err?.cause instanceof ApplicationFailure);
-    t.deepEqual((err?.cause as ApplicationFailure).details, ['failure-detail']);
+    t.deepEqual((err?.cause as ApplicationFailure | undefined)?.details, ['failure-detail']);
     const outcomeFailure = await (await handle.describe({ includeOutcome: true })).getOutcomeFailure();
     t.true(outcomeFailure instanceof ApplicationFailure);
     t.deepEqual((outcomeFailure as ApplicationFailure).details, ['failure-detail']);
