@@ -666,9 +666,6 @@ importers:
       istanbul-lib-instrument:
         specifier: ^6.0.1
         version: 6.0.1
-      ts-loader:
-        specifier: ^9.6.2
-        version: 9.6.2(typescript@5.9.3)(webpack@5.108.4)
     devDependencies:
       '@temporalio/common':
         specifier: workspace:*
@@ -688,6 +685,9 @@ importers:
       '@types/istanbul-lib-instrument':
         specifier: ^1.7.7
         version: 1.7.7
+      ts-loader:
+        specifier: ^9.6.2
+        version: 9.6.2(typescript@5.9.3)(webpack@5.108.4)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

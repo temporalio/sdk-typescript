@@ -1,0 +1,1 @@
+`@temporalio/nyc-test-coverage` now declares `ts-loader` as an optional peer dependency instead of installing it automatically. Coverage users running tests with ts-node must install a version of `ts-loader` compatible with their Node.js and TypeScript versions.
