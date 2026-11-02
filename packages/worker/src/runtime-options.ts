@@ -483,7 +483,7 @@ function compileLoggerOptions(options: RuntimeOptions): [Logger, native.LogExpor
       {
         type: 'console',
         filter: loggingFilter ?? defaultFilter,
-        format: logging && 'console' in logging ? logging.console?.format ?? null : null,
+        format: logging && 'console' in logging ? (logging.console?.format ?? null) : null,
       },
     ];
   }

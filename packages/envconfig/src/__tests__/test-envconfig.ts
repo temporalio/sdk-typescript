@@ -517,11 +517,7 @@ test('TLS conflict across sources: path in TOML, data in env should error', (t) 
   const env = { TEMPORAL_TLS_CLIENT_CERT_DATA: 'some-data' };
   const err = t.throws(() => loadClientConfigProfile({ configSource: dataSource(toml), overrideEnvVars: env }));
   t.truthy(err);
-  t.true(
-    String(err?.message)
-      .toLowerCase()
-      .includes('path')
-  );
+  t.true(String(err?.message).toLowerCase().includes('path'));
 });
 
 test('TLS conflict across sources: data in TOML, path in env should error', (t) => {
@@ -534,11 +530,7 @@ test('TLS conflict across sources: data in TOML, path in env should error', (t) 
   const env = { TEMPORAL_TLS_CLIENT_CERT_PATH: 'some-path' };
   const err = t.throws(() => loadClientConfigProfile({ configSource: dataSource(toml), overrideEnvVars: env }));
   t.truthy(err);
-  t.true(
-    String(err?.message)
-      .toLowerCase()
-      .includes('data')
-  );
+  t.true(String(err?.message).toLowerCase().includes('data'));
 });
 
 test('TLS disabled tri-state behavior', (t) => {
@@ -640,11 +632,7 @@ test('Load invalid profile with strict mode enabled', (t) => {
 test('Load profiles with malformed TOML', (t) => {
   const err = t.throws(() => loadClientConfig({ configSource: dataSource('this is not valid toml') }));
   t.truthy(err);
-  t.true(
-    String(err?.message)
-      .toLowerCase()
-      .includes('toml')
-  );
+  t.true(String(err?.message).toLowerCase().includes('toml'));
 });
 
 // =============================================================================

@@ -125,11 +125,8 @@ export function makeProtoEnumConverters<
     RemovePrefix<Prefix, ProtoEnumKey>,
     Unspecified
   >,
-  StringEnumType extends ProtoConstObjectOfStringsEnum<
-    ShortStringEnumKey,
-    Prefix,
-    Unspecified
-  > = ProtoConstObjectOfStringsEnum<ShortStringEnumKey, Prefix, Unspecified>,
+  StringEnumType extends ProtoConstObjectOfStringsEnum<ShortStringEnumKey, Prefix, Unspecified> =
+    ProtoConstObjectOfStringsEnum<ShortStringEnumKey, Prefix, Unspecified>,
   MapTable extends ProtoEnumToConstObjectOfStringMapTable<
     StringEnumType,
     ProtoEnumValue,

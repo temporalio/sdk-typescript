@@ -322,8 +322,9 @@ export interface WorkflowHandleWithFirstExecutionRunId<T extends Workflow = Work
  * This interface is exactly the same as {@link WorkflowHandleWithFirstExecutionRunId} except it
  * includes the `eagerlyStarted` returned from {@link WorkflowClient.start}.
  */
-export interface WorkflowHandleWithStartDetails<T extends Workflow = Workflow>
-  extends WorkflowHandleWithFirstExecutionRunId<T> {
+export interface WorkflowHandleWithStartDetails<
+  T extends Workflow = Workflow,
+> extends WorkflowHandleWithFirstExecutionRunId<T> {
   readonly eagerlyStarted: boolean;
 }
 

@@ -40,8 +40,7 @@ export interface ResourceBasedTuner extends ResourceBasedTunerSlotOptions, Resou
  * A resource-based tuner that uses a controller which may be shared by multiple Workers.
  */
 export interface ResourceBasedTunerWithController
-  extends ResourceBasedTunerSlotOptions,
-    ResourceBasedControllerConfig {}
+  extends ResourceBasedTunerSlotOptions, ResourceBasedControllerConfig {}
 
 interface ResourceBasedTunerSlotOptions {
   /**

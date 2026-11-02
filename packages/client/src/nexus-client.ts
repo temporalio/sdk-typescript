@@ -225,19 +225,15 @@ export class NexusClient extends BaseClient {
       | nexus.OperationKey<T['operations']>
       | T['operations'][nexus.OperationKey<T['operations']>];
 
-    type OperationInput<
-      T extends nexus.ServiceDefinition,
-      Op extends OperationReference<T>,
-    > = Op extends nexus.OperationKey<T['operations']>
-      ? nexus.OperationInput<T['operations'][Op]>
-      : nexus.OperationInput<Op>;
+    type OperationInput<T extends nexus.ServiceDefinition, Op extends OperationReference<T>> =
+      Op extends nexus.OperationKey<T['operations']>
+        ? nexus.OperationInput<T['operations'][Op]>
+        : nexus.OperationInput<Op>;
 
-    type OperationOutput<
-      T extends nexus.ServiceDefinition,
-      Op extends OperationReference<T>,
-    > = Op extends nexus.OperationKey<T['operations']>
-      ? nexus.OperationOutput<T['operations'][Op]>
-      : nexus.OperationOutput<Op>;
+    type OperationOutput<T extends nexus.ServiceDefinition, Op extends OperationReference<T>> =
+      Op extends nexus.OperationKey<T['operations']>
+        ? nexus.OperationOutput<T['operations'][Op]>
+        : nexus.OperationOutput<Op>;
 
     const startOperation = async <Op extends OperationReference<T>>(
       operation: Op,
