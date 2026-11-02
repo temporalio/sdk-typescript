@@ -9,6 +9,6 @@ import type { BundleOptions, WorkflowBundleWithSourceMap } from './bundler';
  */
 export async function bundleWorkflowCode(options: BundleOptions): Promise<WorkflowBundleWithSourceMap> {
   // The bundler is loaded on demand, so that importing `@temporalio/worker` does not load webpack.
-  const bundler = await import('./bundler');
+  const bundler = await import('./bundler.js');
   return await bundler.bundleWorkflowCode(options);
 }
