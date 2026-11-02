@@ -5,7 +5,6 @@ import { Resource } from '@opentelemetry/resources';
 import { InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { Client, type ConnectionLike, type WorkflowClientInterceptor } from '@temporalio/client';
 import { defaultPayloadConverter, type PayloadCodec, type SerializationContext } from '@temporalio/common';
-import type { temporal } from '@temporalio/proto';
 import { OpenTelemetryPlugin } from '../plugin';
 
 test.serial('client tracing codecs bind per client and leave user-provided headers unchanged', async (t) => {
@@ -25,7 +24,7 @@ test.serial('client tracing codecs bind per client and leave user-provided heade
   });
   try {
     for (const enabled of [false, true]) {
-      const requests: temporal.api.workflowservice.v1.IStartWorkflowExecutionRequest[] = [];
+      const requests: Parameters<ConnectionLike['workflowService']['startWorkflowExecution']>[0][] = [];
       const calls: SerializationContext[] = [];
       let invalid = false;
       const codec = (marker: string): PayloadCodec => ({
