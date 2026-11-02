@@ -16,9 +16,13 @@ emitted by Workflows are encoded before being sent to the server. This includes 
 headers and defaults to `false`.
 
 Client APIs continue to accept complete, wire-ready `Payload` headers, including any codec
-encoding. There is no client header-encoding option, so manually encoded client headers
+encoding. Client APIs do not apply codecs to these Payloads, so manually encoded client headers
 are not encoded a second time. Workflow interceptors should produce serialized, unencoded
 headers when enabling this worker option.
+
+TypeScript OpenTelemetry plugins (v1 and v2) can separately set `encodeClientHeaders: true`
+to encode only their own client tracing carrier using the configured client codecs.
+This does not affect other client headers or enable worker header processing.
 
 Use compatible codecs on receiving workers and replay workers. When replaying older
 histories with plaintext headers, codecs must be able to decode those headers too.
