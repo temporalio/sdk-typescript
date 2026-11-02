@@ -55,7 +55,7 @@ const MARKER = 'nexus';
 export interface NexusStartedInput {
   id: string;
   value: string;
-  outcome: 'result' | 'failure' | 'continueAsNew' | 'async';
+  outcome: 'result' | 'failure' | 'continueAsNew' | 'retry' | 'async';
 }
 
 export async function nexusStartedWorkflow(input: NexusStartedInput): Promise<string> {
@@ -68,6 +68,16 @@ export async function nexusStartedWorkflow(input: NexusStartedInput): Promise<st
       details: ['failure-detail'],
       nonRetryable: true,
     });
+  }
+  if (input.outcome === 'retry') {
+    const { attempt, lastFailure } = wf.workflowInfo();
+    if (attempt === 1) {
+      // The next run gets this failure as its last failure and decodes it with the same context
+      throw ApplicationFailure.create({ message: 'retry', details: ['retry-detail'] });
+    }
+    if (!(lastFailure instanceof ApplicationFailure) || lastFailure.details?.[0] !== 'retry-detail') {
+      throw ApplicationFailure.nonRetryable(`unexpected last failure: ${lastFailure}`);
+    }
   }
   return input.value;
 }
@@ -117,7 +127,11 @@ function nexusStartedServiceHandler() {
   return nexus.serviceHandler(nexusStartedService, {
     startWorkflow: new temporalnexus.TemporalOperationHandler<NexusStartedInput, string>({
       async start(_ctx, client, input) {
-        return await client.startWorkflow(nexusStartedWorkflow, { workflowId: input.id, args: [input] });
+        return await client.startWorkflow(nexusStartedWorkflow, {
+          workflowId: input.id,
+          args: [input],
+          retry: input.outcome === 'retry' ? { initialInterval: '100ms', maximumAttempts: 2 } : undefined,
+        });
       },
     }),
     startActivity: new temporalnexus.TemporalOperationHandler<NexusStartedInput, string>({
@@ -172,7 +186,7 @@ function marker(payload: Payload | null | undefined): string | undefined {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Tests
 
-for (const outcome of ['result', 'failure', 'continueAsNew'] as const) {
+for (const outcome of ['result', 'failure', 'continueAsNew', 'retry'] as const) {
   test(`Workflow started by a Nexus handler uses the Nexus context - ${outcome}`, async (t) => {
     const { client, worker, nexusClient, context } = await setup(t, 'startWorkflow');
     const workflowId = `nexus-started-workflow-${randomUUID()}`;
@@ -180,7 +194,7 @@ for (const outcome of ['result', 'failure', 'continueAsNew'] as const) {
 
     await worker.runUntil(async () => {
       // This handle never started the Workflow, so it relies on the context the server returns,
-      // including for the run after continue-as-new
+      // including for the run after continue-as-new or retry
       const handle = client.workflow.getHandle<typeof nexusStartedWorkflow>(workflowId);
       if (outcome === 'failure') {
         await t.throwsAsync(nexusClient.executeOperation('startWorkflow', input, { id: randomUUID() }), {

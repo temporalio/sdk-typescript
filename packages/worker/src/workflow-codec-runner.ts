@@ -11,6 +11,7 @@ import {
   encode,
   limit,
   visit,
+  walkInitializeWorkflow,
   walkWorkflowActivation,
   walkWorkflowActivationCompletion,
 } from '@temporalio/common/internal/internal-non-workflow';
@@ -141,8 +142,22 @@ export class WorkflowCodecRunner {
   ): Promise<Decoded<T>> {
     const decodedActivation = coresdk.workflow_activation.WorkflowActivation.fromObject(activation);
     const initializeWorkflow = decodedActivation.jobs?.find((job) => job.initializeWorkflow)?.initializeWorkflow;
+    // A retry or cron run gets the previous run's closing failure and result, which that run encoded
+    // with the Nexus context. They're split off here so they can be decoded with it.
+    let previousRunOutcome: coresdk.workflow_activation.InitializeWorkflow | undefined;
     if (initializeWorkflow != null) {
       this.nexusContext = nexusSerializationContextFromProto(initializeWorkflow.propagatedNexusSerializationContext);
+      if (
+        this.nexusContext != null &&
+        (initializeWorkflow.continuedFailure != null || initializeWorkflow.lastCompletionResult != null)
+      ) {
+        previousRunOutcome = coresdk.workflow_activation.InitializeWorkflow.create({
+          continuedFailure: initializeWorkflow.continuedFailure,
+          lastCompletionResult: initializeWorkflow.lastCompletionResult,
+        });
+        initializeWorkflow.continuedFailure = null;
+        initializeWorkflow.lastCompletionResult = null;
+      }
     }
     const systemOutputs: Array<{
       result: coresdk.nexus.INexusOperationResult;
@@ -231,6 +246,15 @@ export class WorkflowCodecRunner {
       walkWorkflowActivation,
       { ...visitorOptions, initialContext: this.workflowContext }
     );
+    if (initializeWorkflow != null && previousRunOutcome != null) {
+      await visit<coresdk.workflow_activation.IInitializeWorkflow, SerializationContext | undefined>(
+        previousRunOutcome,
+        walkInitializeWorkflow,
+        { ...visitorOptions, initialContext: this.nexusContext }
+      );
+      initializeWorkflow.continuedFailure = previousRunOutcome.continuedFailure;
+      initializeWorkflow.lastCompletionResult = previousRunOutcome.lastCompletionResult;
+    }
     for (const output of systemOutputs) {
       output.result.completed = await decodeSystemNexusOutput(
         output.info.service,

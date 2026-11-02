@@ -695,6 +695,8 @@ export class Activator implements ActivationHandler {
     const { continuedFailure, lastCompletionResult, memo, searchAttributes } = activation;
     const context = this.workflowSerializationContext();
     this.nexusSerializationContext = nexusSerializationContextFromProto(activation.propagatedNexusSerializationContext);
+    // The previous run of a retry or cron chain encoded these with the result context
+    const previousRunContext = this.resultSerializationContext();
 
     // Most things related to initialization have already been handled in the constructor
     this.mutateWorkflowInfo((info) => ({
@@ -704,10 +706,10 @@ export class Activator implements ActivationHandler {
       typedSearchAttributes: decodeTypedSearchAttributes(searchAttributes?.indexedFields),
 
       memo: mapFromPayloads(this.payloadConverter, memo?.fields, context) ?? {},
-      lastResult: fromPayloadsAtIndex(this.payloadConverter, 0, lastCompletionResult?.payloads, context),
+      lastResult: fromPayloadsAtIndex(this.payloadConverter, 0, lastCompletionResult?.payloads, previousRunContext),
       lastFailure:
         continuedFailure != null
-          ? this.failureConverter.failureToError(continuedFailure, this.payloadConverter, context)
+          ? this.failureConverter.failureToError(continuedFailure, this.payloadConverter, previousRunContext)
           : undefined,
     }));
     const workflowDefinitionOpts = this.workflowDefinitionOptionsGetter?.();
