@@ -299,7 +299,7 @@ export interface Info {
    * asynchronously, store this context with the task token and pass it as
    * `AsyncCompletionOperationOptions.serializationContext`.
    *
-   * @experimental Serialization context is an experimental feature and may change.
+   * @experimental Nexus serialization context is an experimental feature and may change.
    */
   readonly nexusSerializationContext?: NexusSerializationContext;
 }
