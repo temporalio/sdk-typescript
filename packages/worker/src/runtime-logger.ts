@@ -72,7 +72,6 @@ export class NativeLogCollector {
   constructor(downstream: Logger) {
     this.logger = new DefaultLogger('TRACE', this.appendOne.bind(this));
     (this.logger as FlushableLogger).flush = this.flush.bind(this);
-    (this.logger as FlushableLogger).close = this.close.bind(this);
 
     this.downstream = downstream;
     this.receive = this.receive.bind(this);

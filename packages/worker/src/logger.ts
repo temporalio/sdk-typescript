@@ -121,14 +121,6 @@ export interface FlushableLogger extends Logger {
    * Flush any buffered log entries.
    */
   flush(): void;
-
-  /**
-   * Optional close method.
-   *
-   * Note: The SDK runtime flushes loggers on shutdown but does not close user-provided loggers,
-   * so they remain valid across repeated runtime lifecycles.
-   */
-  close?(): void;
 }
 
 export function isFlushableLogger(logger: Logger): logger is FlushableLogger {
