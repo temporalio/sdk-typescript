@@ -53,7 +53,5 @@ test('MockActivityEnvironment return type is correctly inferred', async (t) => {
     return 'foo';
   }
   const result = await new MockActivityEnvironment().run(foo);
-  // There should be no compile time error on this line
-  result.startsWith('foo');
-  t.pass();
+  t.true(result.startsWith('foo'));
 });

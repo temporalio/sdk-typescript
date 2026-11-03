@@ -1,9 +1,5 @@
-import type { Info } from "@temporalio/activity";
-import {
-  asyncLocalStorage,
-  CompleteAsyncError,
-  Context,
-} from "@temporalio/activity";
+import type { Info } from '@temporalio/activity';
+import { asyncLocalStorage, CompleteAsyncError, Context } from '@temporalio/activity';
 import type {
   ActivityCancellationDetails,
   ActivityFunction,
@@ -13,7 +9,7 @@ import type {
   MetricMeter,
   MetricTags,
   TypeInfo,
-} from "@temporalio/common";
+} from '@temporalio/common';
 import {
   ApplicationFailure,
   ApplicationFailureCategory,
@@ -24,39 +20,30 @@ import {
   LoggerWithComposedMetadata,
   MetricMeterWithComposedTags,
   SdkComponent,
-} from "@temporalio/common";
-import {
-  encodeErrorToFailure,
-  encodeToPayload,
-} from "@temporalio/common/internal/internal-non-workflow";
-import {
-  composeInterceptors,
-  isAbortError,
-} from "@temporalio/common/internal/internal-workflow";
-import type { Client } from "@temporalio/client";
-import type { coresdk } from "@temporalio/proto";
+} from '@temporalio/common';
+import { encodeErrorToFailure, encodeToPayload } from '@temporalio/common/internal/internal-non-workflow';
+import { composeInterceptors, isAbortError } from '@temporalio/common/internal/internal-workflow';
+import type { Client } from '@temporalio/client';
+import type { coresdk } from '@temporalio/proto';
 import type {
   ActivityExecuteInput,
   ActivityInboundCallsInterceptor,
   ActivityInterceptorsFactory,
   ActivityOutboundCallsInterceptor,
-} from "./interceptors";
+} from './interceptors';
 
-const UNINITIALIZED = Symbol("UNINITIALIZED");
+const UNINITIALIZED = Symbol('UNINITIALIZED');
 
 export type CancelReason =
   | keyof typeof coresdk.activity_task.ActivityCancelReason
-  | "WORKER_SHUTDOWN"
-  | "HEARTBEAT_DETAILS_CONVERSION_FAILED";
+  | 'WORKER_SHUTDOWN'
+  | 'HEARTBEAT_DETAILS_CONVERSION_FAILED';
 
 export class Activity {
   protected cancelReason?: CancelReason;
   protected cancellationDetails: { details?: ActivityCancellationDetails };
   public readonly context: Context;
-  public cancel: (
-    reason: CancelReason,
-    details: ActivityCancellationDetails,
-  ) => void = () => undefined;
+  public cancel: (reason: CancelReason, details: ActivityCancellationDetails) => void = () => undefined;
   public readonly abortController: AbortController = new AbortController();
 
   /**
@@ -83,26 +70,17 @@ export class Activity {
     public readonly dataConverter: LoadedDataConverter,
     public readonly serializationContext: ActivitySerializationContext,
     public readonly outputTypeInfo: TypeInfo | undefined,
-    public readonly heartbeatCallback: Context["heartbeat"],
+    public readonly heartbeatCallback: Context['heartbeat'],
     private readonly _client: Client | undefined, // May be undefined in the case of MockActivityEnvironment
     workerLogger: Logger,
     workerMetricMeter: MetricMeter,
-    interceptors: ActivityInterceptorsFactory[],
+    interceptors: ActivityInterceptorsFactory[]
   ) {
-    this.workerLogger = LoggerWithComposedMetadata.compose(
-      workerLogger,
-      this.getLogAttributes.bind(this),
-    );
-    this.metricMeter = MetricMeterWithComposedTags.compose(
-      workerMetricMeter,
-      this.getMetricTags.bind(this),
-    );
+    this.workerLogger = LoggerWithComposedMetadata.compose(workerLogger, this.getLogAttributes.bind(this));
+    this.metricMeter = MetricMeterWithComposedTags.compose(workerMetricMeter, this.getMetricTags.bind(this));
     this.cancellationDetails = {};
     const promise = new Promise<never>((_, reject) => {
-      this.cancel = (
-        reason: CancelReason,
-        details: ActivityCancellationDetails,
-      ) => {
+      this.cancel = (reason: CancelReason, details: ActivityCancellationDetails) => {
         this.cancelReason = reason;
         this.cancellationDetails.details = details;
         const err = new CancelledFailure(reason);
@@ -121,7 +99,7 @@ export class Activity {
         sdkComponent: SdkComponent.activity,
       }),
       this.metricMeter,
-      this.cancellationDetails,
+      this.cancellationDetails
     );
     // Prevent unhandled rejection
     promise.catch(() => undefined);
@@ -138,11 +116,7 @@ export class Activity {
     const logAttributes = activityLogAttributes(this.info);
     // In case some interceptor uses the logger while initializing...
     if (this.interceptors == null) return logAttributes;
-    return composeInterceptors(
-      this.interceptors.outbound,
-      "getLogAttributes",
-      (a) => a,
-    )(logAttributes);
+    return composeInterceptors(this.interceptors.outbound, 'getLogAttributes', (a) => a)(logAttributes);
   }
 
   protected getMetricTags(): MetricTags {
@@ -153,11 +127,7 @@ export class Activity {
     };
     // In case some interceptors use the metric meter while initializing...
     if (this.interceptors == null) return baseTags;
-    return composeInterceptors(
-      this.interceptors.outbound,
-      "getMetricTags",
-      (a) => a,
-    )(baseTags);
+    return composeInterceptors(this.interceptors.outbound, 'getMetricTags', (a) => a)(baseTags);
   }
 
   /**
@@ -165,20 +135,13 @@ export class Activity {
    *
    * Any call up to this function and including this one will be trimmed out of stack traces.
    */
-  protected async execute(
-    fn: ActivityFunction<any[], any>,
-    input: ActivityExecuteInput,
-  ): Promise<unknown> {
+  protected async execute(fn: ActivityFunction<any[], any>, input: ActivityExecuteInput): Promise<unknown> {
     let error: any = UNINITIALIZED; // In case someone decides to throw undefined...
     const startTime = process.hrtime.bigint();
-    this.workerLogger.debug("Activity started");
+    this.workerLogger.debug('Activity started');
     try {
       const executeNextHandler = ({ args }: any) => fn(...args);
-      const executeWithInterceptors = composeInterceptors(
-        this.interceptors.inbound,
-        "execute",
-        executeNextHandler,
-      );
+      const executeWithInterceptors = composeInterceptors(this.interceptors.inbound, 'execute', executeNextHandler);
       return await executeWithInterceptors(input);
     } catch (err: any) {
       error = err;
@@ -188,38 +151,35 @@ export class Activity {
       const durationMs = Number(durationNanos / 1_000_000n);
 
       if (error === UNINITIALIZED) {
-        this.workerLogger.debug("Activity completed", { durationMs });
+        this.workerLogger.debug('Activity completed', { durationMs });
       } else if (
         (error instanceof CancelledFailure || isAbortError(error)) &&
         this.context.cancellationSignal.aborted
       ) {
         if (this.context.cancellationDetails?.cancelRequested) {
-          this.workerLogger.debug("Activity completed as cancelled", {
+          this.workerLogger.debug('Activity completed as cancelled', {
             durationMs,
           });
         } else if (this.context.cancellationDetails?.reset) {
-          this.workerLogger.debug("Activity reset", { durationMs });
+          this.workerLogger.debug('Activity reset', { durationMs });
         } else if (this.context.cancellationDetails?.paused) {
-          this.workerLogger.debug("Activity paused", { durationMs });
+          this.workerLogger.debug('Activity paused', { durationMs });
         } else {
           // Fallback log - completed as cancelled.
-          this.workerLogger.debug("Activity completed as cancelled", {
+          this.workerLogger.debug('Activity completed as cancelled', {
             durationMs,
           });
         }
       } else if (error instanceof CompleteAsyncError) {
-        this.workerLogger.debug("Activity will complete asynchronously", {
+        this.workerLogger.debug('Activity will complete asynchronously', {
           durationMs,
         });
       } else {
-        if (
-          error instanceof ApplicationFailure &&
-          error.category === ApplicationFailureCategory.BENIGN
-        ) {
+        if (error instanceof ApplicationFailure && error.category === ApplicationFailureCategory.BENIGN) {
           // Downgrade log level to DEBUG for benign application errors.
-          this.workerLogger.debug("Activity failed", { error, durationMs });
+          this.workerLogger.debug('Activity failed', { error, durationMs });
         } else {
-          this.workerLogger.warn("Activity failed", { error, durationMs });
+          this.workerLogger.warn('Activity failed', { error, durationMs });
         }
       }
     }
@@ -228,10 +188,7 @@ export class Activity {
   // Ensure that client calls made with the worker's client in this handler's context are tied
   // to the abort signal. The fact that client can be undefined (i.e. in a MockActivityEnvironment)
   // makes this a bit more complex.
-  private executeWithClient(
-    fn: ActivityFunction<any[], any>,
-    input: ActivityExecuteInput,
-  ): Promise<unknown> {
+  private executeWithClient(fn: ActivityFunction<any[], any>, input: ActivityExecuteInput): Promise<unknown> {
     if (this._client) {
       return this._client.withAbortSignal(this.abortController.signal, () => {
         return this.execute(fn, input);
@@ -241,112 +198,85 @@ export class Activity {
     }
   }
 
-  public run(
-    input: ActivityExecuteInput,
-  ): Promise<coresdk.activity_result.IActivityExecutionResult> {
-    return asyncLocalStorage.run(
-      this.context,
-      async (): Promise<coresdk.activity_result.IActivityExecutionResult> => {
-        try {
-          if (this.fn === undefined)
-            throw new IllegalStateError("Activity function is not defined");
-          const result = await this.executeWithClient(this.fn, input);
-          return {
-            completed: {
-              result: await encodeToPayload(
-                this.dataConverter,
-                result,
-                this.serializationContext,
-                this.outputTypeInfo,
-              ),
-            },
-          };
-        } catch (err) {
-          if (err instanceof CompleteAsyncError) {
-            return { willCompleteAsync: {} };
-          }
-          if (this.cancelReason === "HEARTBEAT_DETAILS_CONVERSION_FAILED") {
-            // Ignore actual failure, it is likely a CancelledFailure but server
-            // expects activity to only fail with ApplicationFailure
-            return {
-              failed: {
-                failure: await encodeErrorToFailure(
-                  this.dataConverter,
-                  ApplicationFailure.retryable(
-                    this.cancelReason,
-                    "CancelledFailure",
-                  ),
-                  this.serializationContext,
-                ),
-              },
-            };
-          } else if (this.cancelReason) {
-            // Either a CancelledFailure that we threw or AbortError from AbortController
-            if (err instanceof CancelledFailure) {
-              // If cancel due to activity pause or reset, emit an application failure.
-              if (this.context.cancellationDetails?.reset) {
-                return {
-                  failed: {
-                    failure: await encodeErrorToFailure(
-                      this.dataConverter,
-                      new ApplicationFailure("Activity reset", "ActivityReset"),
-                      this.serializationContext,
-                    ),
-                  },
-                };
-              } else if (this.context.cancellationDetails?.paused) {
-                return {
-                  failed: {
-                    failure: await encodeErrorToFailure(
-                      this.dataConverter,
-                      new ApplicationFailure(
-                        "Activity paused",
-                        "ActivityPause",
-                      ),
-                      this.serializationContext,
-                    ),
-                  },
-                };
-              } else {
-                const failure = await encodeErrorToFailure(
-                  this.dataConverter,
-                  err,
-                  this.serializationContext,
-                );
-                failure.stackTrace = undefined;
-                return { cancelled: { failure } };
-              }
-            } else if (isAbortError(err)) {
-              return {
-                cancelled: {
-                  failure: { source: FAILURE_SOURCE, canceledFailureInfo: {} },
-                },
-              };
-            }
-          }
+  public run(input: ActivityExecuteInput): Promise<coresdk.activity_result.IActivityExecutionResult> {
+    return asyncLocalStorage.run(this.context, async (): Promise<coresdk.activity_result.IActivityExecutionResult> => {
+      try {
+        if (this.fn === undefined) throw new IllegalStateError('Activity function is not defined');
+        const result = await this.executeWithClient(this.fn, input);
+        return {
+          completed: {
+            result: await encodeToPayload(this.dataConverter, result, this.serializationContext, this.outputTypeInfo),
+          },
+        };
+      } catch (err) {
+        if (err instanceof CompleteAsyncError) {
+          return { willCompleteAsync: {} };
+        }
+        if (this.cancelReason === 'HEARTBEAT_DETAILS_CONVERSION_FAILED') {
+          // Ignore actual failure, it is likely a CancelledFailure but server
+          // expects activity to only fail with ApplicationFailure
           return {
             failed: {
               failure: await encodeErrorToFailure(
                 this.dataConverter,
-                ensureApplicationFailure(err),
-                this.serializationContext,
+                ApplicationFailure.retryable(this.cancelReason, 'CancelledFailure'),
+                this.serializationContext
               ),
             },
           };
+        } else if (this.cancelReason) {
+          // Either a CancelledFailure that we threw or AbortError from AbortController
+          if (err instanceof CancelledFailure) {
+            // If cancel due to activity pause or reset, emit an application failure.
+            if (this.context.cancellationDetails?.reset) {
+              return {
+                failed: {
+                  failure: await encodeErrorToFailure(
+                    this.dataConverter,
+                    new ApplicationFailure('Activity reset', 'ActivityReset'),
+                    this.serializationContext
+                  ),
+                },
+              };
+            } else if (this.context.cancellationDetails?.paused) {
+              return {
+                failed: {
+                  failure: await encodeErrorToFailure(
+                    this.dataConverter,
+                    new ApplicationFailure('Activity paused', 'ActivityPause'),
+                    this.serializationContext
+                  ),
+                },
+              };
+            } else {
+              const failure = await encodeErrorToFailure(this.dataConverter, err, this.serializationContext);
+              failure.stackTrace = undefined;
+              return { cancelled: { failure } };
+            }
+          } else if (isAbortError(err)) {
+            return {
+              cancelled: {
+                failure: { source: FAILURE_SOURCE, canceledFailureInfo: {} },
+              },
+            };
+          }
         }
-      },
-    );
+        return {
+          failed: {
+            failure: await encodeErrorToFailure(
+              this.dataConverter,
+              ensureApplicationFailure(err),
+              this.serializationContext
+            ),
+          },
+        };
+      }
+    });
   }
 
-  public runNoEncoding<F extends ActivityFunction>(
-    fn: F,
-    input: ActivityExecuteInput,
-  ): ReturnType<F> {
-    if (this.fn !== undefined)
-      throw new IllegalStateError("Activity function is defined");
-    return asyncLocalStorage.run(this.context, () =>
-      this.executeWithClient(fn, input),
-    );
+  public runNoEncoding(fn: ActivityFunction<any[], any>, input: ActivityExecuteInput): Promise<unknown> {
+    if (this.fn !== undefined) throw new IllegalStateError('Activity function is defined');
+    return asyncLocalStorage.run(this.context, () => this.executeWithClient(fn, input));
   }
 }
 
