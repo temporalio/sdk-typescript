@@ -548,11 +548,17 @@ mod config {
         max_task_queue_activities_per_second: Option<f64>,
         max_eager_activity_reservations_per_workflow_task: usize,
         shutdown_grace_time: Option<Duration>,
-        plugins: Vec<String>,
+        plugins: Vec<WorkerPlugin>,
         storage_drivers: Vec<String>,
         workflow_failure_errors: HashSet<WorkflowErrorType>,
         workflow_types_to_failure_errors: HashMap<String, HashSet<WorkflowErrorType>>,
         disable_payload_error_limit: bool,
+    }
+
+    #[derive(TryFromJs)]
+    pub struct WorkerPlugin {
+        name: String,
+        version: String,
     }
 
     #[derive(TryFromJs)]
@@ -647,9 +653,9 @@ mod config {
                 .plugins(
                     self.plugins
                         .into_iter()
-                        .map(|name| PluginInfo {
-                            name,
-                            version: String::new(),
+                        .map(|plugin| PluginInfo {
+                            name: plugin.name,
+                            version: plugin.version,
                         })
                         .collect::<HashSet<_>>(),
                 )

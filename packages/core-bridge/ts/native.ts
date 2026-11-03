@@ -265,7 +265,7 @@ export interface WorkerOptions {
   maxActivitiesPerSecond: Option<number>;
   maxEagerActivityReservationsPerWorkflowTask: number;
   shutdownGraceTime: number;
-  plugins: string[];
+  plugins: { name: string; version: string }[];
   storageDrivers: string[];
   workflowFailureErrors: WorkflowErrorType[];
   workflowTypesToFailureErrors: Record<string, WorkflowErrorType[]>;
