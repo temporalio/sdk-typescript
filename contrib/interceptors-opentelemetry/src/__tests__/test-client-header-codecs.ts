@@ -55,7 +55,9 @@ test.serial('client tracing codecs bind per client and leave user-provided heade
       };
       const existing = {
         workflow: [
-          { start: (input, next) => next({ ...input, headers: { raw } }) } satisfies WorkflowClientInterceptor,
+          {
+            startWithDetails: (input, next) => next({ ...input, headers: { raw } }),
+          } satisfies WorkflowClientInterceptor,
         ],
       };
       const plugin = new OpenTelemetryPlugin({
