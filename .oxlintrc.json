@@ -11,7 +11,16 @@
   "env": {
     "builtin": true
   },
-  "ignorePatterns": ["**/node_modules/**", "**/lib/**", "**/*.js", "**/*.mjs", "**/*.cjs", "**/*.generated.ts"],
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/lib/**",
+    "**/*.js",
+    "**/*.mjs",
+    "**/*.cjs",
+    "**/*.generated.ts",
+    "packages/common/src/nexus/notifications/generated/**",
+    "packages/workflow/src/nexus/system/generated/**"
+  ],
   "overrides": [
     {
       "files": ["packages/*/src/**/*.ts", "contrib/*/src/**/*.ts"],
