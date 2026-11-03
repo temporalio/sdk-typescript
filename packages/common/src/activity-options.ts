@@ -251,6 +251,15 @@ export interface LocalActivityOptions {
   localRetryThreshold?: Duration;
 
   /**
+   * Whether to record the local Activity's serialized arguments in its marker.
+   * Enabling this makes the arguments visible in Workflow history and increases its size.
+   *
+   * @default false
+   * @experimental
+   */
+  includeArgumentsInMarker?: boolean;
+
+  /**
    * Determines:
    * - whether cancellation requests should be propagated from the current Workflow to the Activity; and
    * - when should the Activity cancellation be reported to Workflow (i.e. at which moment should the
