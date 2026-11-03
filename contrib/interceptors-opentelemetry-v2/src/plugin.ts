@@ -95,7 +95,7 @@ export class OpenTelemetryPlugin extends SimplePlugin {
     if (workflow !== undefined && !Array.isArray(workflow)) {
       throw new Error("Simple plugin doesn't support old style workflow client interceptors");
     }
-    const codecs = this.otelOptions.encodeClientHeaders ? options.dataConverter?.payloadCodecs ?? [] : [];
+    const codecs = this.otelOptions.encodeClientHeaders ? (options.dataConverter?.payloadCodecs ?? []) : [];
     const namespace = options.namespace ?? 'default';
     const interceptor = new (class extends OpenTelemetryWorkflowClientInterceptor {
       protected async headersWithContext(headers: Headers, workflowId: string): Promise<Headers> {
