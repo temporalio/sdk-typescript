@@ -1259,7 +1259,7 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
     maxActivitiesPerSecond: opts.maxActivitiesPerSecond ?? null,
     maxEagerActivityReservationsPerWorkflowTask: opts.maxEagerActivityReservationsPerWorkflowTask ?? 3,
     shutdownGraceTime: msToNumber(opts.shutdownGraceTime),
-    plugins: opts.plugins?.map((p) => p.name) ?? [],
+    plugins: opts.plugins?.map((p) => ({ name: p.name, version: p.version ?? '' })) ?? [],
     storageDrivers: [...new Set((opts.loadedDataConverter.externalStorage?.drivers ?? []).map((d) => d.type))],
     workflowFailureErrors,
     workflowTypesToFailureErrors,
@@ -1330,6 +1330,11 @@ export interface WorkerPlugin {
    * Gets the name of this plugin.
    */
   get name(): string;
+
+  /**
+   * The version of this plugin, reported in worker heartbeats. Empty when not set.
+   */
+  readonly version?: string;
 
   /**
    * Hook called when creating a worker to allow modification of configuration.
