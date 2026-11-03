@@ -424,6 +424,7 @@ test.serial(
         logger,
         telemetryOptions: {
           logging: {
+            // oxlint-disable-next-line typescript/no-deprecated
             forward: { level: 'INFO' },
           },
         },
