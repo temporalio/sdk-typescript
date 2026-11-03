@@ -134,8 +134,10 @@ type SignalWithStartTypeInfoOptions =
 export type WorkflowSignalWithStartOptions<SignalArgs extends any[] = []> =
   WorkflowSignalWithStartOptionsBase<SignalArgs> & SignalWithStartTypeInfoOptions;
 
-export interface WorkflowSignalWithStartOptionsWithoutArgs<SignalArgs extends any[]>
-  extends Omit<WorkflowOptions, 'requestEagerStart'> {
+export interface WorkflowSignalWithStartOptionsWithoutArgs<SignalArgs extends any[]> extends Omit<
+  WorkflowOptions,
+  'requestEagerStart'
+> {
   /**
    * SignalDefinition or name of signal
    */
@@ -147,8 +149,10 @@ export interface WorkflowSignalWithStartOptionsWithoutArgs<SignalArgs extends an
   signalArgs?: SignalArgs;
 }
 
-export interface WorkflowSignalWithStartOptionsWithArgs<SignalArgs extends any[]>
-  extends Omit<WorkflowOptions, 'requestEagerStart'> {
+export interface WorkflowSignalWithStartOptionsWithArgs<SignalArgs extends any[]> extends Omit<
+  WorkflowOptions,
+  'requestEagerStart'
+> {
   /**
    * SignalDefinition or name of signal
    */

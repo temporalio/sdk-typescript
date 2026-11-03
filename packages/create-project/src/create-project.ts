@@ -4,7 +4,7 @@ import { access, rm, readFile } from 'node:fs/promises';
 import retry from 'async-retry';
 import chalk from 'chalk';
 import chalkTemplate from 'chalk-template';
-// eslint-disable-next-line import/no-named-as-default
+// oxlint-disable-next-line import/no-named-as-default
 import prompts from 'prompts';
 
 import type { RepoInfo } from './helpers/samples.js';

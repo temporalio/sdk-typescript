@@ -3,7 +3,7 @@ import path from 'node:path';
 import chalk from 'chalk';
 import dedent from 'dedent';
 import { Command } from 'commander';
-// eslint-disable-next-line import/no-named-as-default
+// oxlint-disable-next-line import/no-named-as-default
 import prompts from 'prompts';
 
 import updateNotifier from 'update-notifier';

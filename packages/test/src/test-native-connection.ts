@@ -99,7 +99,7 @@ test('NativeConnection.connect() throws meaningful error when passed invalid cli
 if (RUN_INTEGRATION_TESTS) {
   test('NativeConnection errors have detail', async (t) => {
     await t.throwsAsync(() => NativeConnection.connect({ address: '127.0.0.1:1' }), {
-      instanceOf: TransportError, // eslint-disable-line @typescript-eslint/no-deprecated
+      instanceOf: TransportError, // oxlint-disable-line typescript/no-deprecated
       message: /.*Connection[ ]?refused.*/i,
     });
   });

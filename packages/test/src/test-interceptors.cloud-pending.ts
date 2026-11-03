@@ -1,4 +1,3 @@
-/* eslint @typescript-eslint/no-non-null-assertion: 0 */
 /**
  * E2E Tests for the various SDK interceptors.
  * Tests run serially to improve CI reliability..
@@ -57,7 +56,7 @@ if (RUN_INTEGRATION_TESTS) {
     const client = new WorkflowClient({
       interceptors: [
         {
-          async start(input, next) {
+          async startWithDetails(input, next) {
             return next({
               ...input,
               headers: {

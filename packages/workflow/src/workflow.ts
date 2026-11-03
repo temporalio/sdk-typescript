@@ -341,6 +341,7 @@ async function scheduleLocalActivityNextHandler({
         startToCloseTimeout: msOptionalToTs(options.startToCloseTimeout),
         scheduleToStartTimeout: msOptionalToTs(options.scheduleToStartTimeout),
         localRetryThreshold: msOptionalToTs(options.localRetryThreshold),
+        includeArgumentsInMarker: options.includeArgumentsInMarker,
         headers,
         cancellationType: encodeActivityCancellationType(options.cancellationType),
       },

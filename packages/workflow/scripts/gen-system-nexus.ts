@@ -31,7 +31,6 @@ async function main() {
       'typescript',
       '--native-api',
       '--system-nexus',
-      '--format',
       '--descriptors',
       descriptor,
       '--support-package',
@@ -44,7 +43,6 @@ async function main() {
     await promisify(execFile)(nexgen, [
       'typescript',
       '--system-nexus',
-      '--format',
       '--descriptors',
       descriptor,
       '--support-package',

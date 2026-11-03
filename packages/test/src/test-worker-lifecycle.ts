@@ -231,6 +231,7 @@ test('Worker closes an evicted Workflow when disposal fails', async (t) => {
 
     const error = await t.throwsAsync(run);
     if (error === undefined) return;
+    // oxlint-disable-next-line typescript/no-deprecated -- Assert the internal worker error type.
     t.assert(error instanceof UnexpectedError);
     t.is(error.cause, disposeFailure);
     t.is(worker.getState(), 'FAILED');

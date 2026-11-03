@@ -46,6 +46,32 @@ test('System Nexus envelope bytes use an explicit JSON representation', (t) => {
   t.deepEqual(decoded.numericObject, value.numericObject);
 });
 
+test('enabled header codecs traverse System Nexus envelopes exactly once', async (t) => {
+  const runner = new WorkflowCodecRunner([new FreePayloadCodec()], targetContext, true);
+  const encoded = await runner.encodeCompletion({
+    successful: {
+      commands: [
+        {
+          scheduleNexusOperation: {
+            seq: 1,
+            endpoint: '__temporal_system',
+            service: 'temporal.api.workflowservice.v1.WorkflowService',
+            operation: 'SignalWithStartWorkflowExecution',
+            nexusHeader: { transport: 'plaintext' },
+            input: systemNexusEnvelope({ header: { fields: { header: payload('header') } } }, targetContext),
+          },
+        },
+      ],
+    },
+  });
+  const operation = encoded.successful!.commands![0]!.scheduleNexusOperation!;
+  const request = new ProtobufBinaryPayloadConverter(protoRoot).fromPayload<any>(operation.input!);
+  t.deepEqual(traceFromPayload(request.header.fields.header), [
+    'codec.encode.bound|header|workflow.target-ns.target-id',
+  ]);
+  t.deepEqual(operation.nexusHeader, { transport: 'plaintext' });
+});
+
 test('signal-with-start uses the target context for codec encode and decode', async (t) => {
   const runner = new WorkflowCodecRunner([new FreePayloadCodec()], {
     type: 'workflow',

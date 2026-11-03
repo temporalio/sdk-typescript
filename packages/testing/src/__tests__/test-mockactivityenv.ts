@@ -47,3 +47,11 @@ test('MockActivityEnvironment injects provided info', async (t) => {
   }, 1);
   t.is(res, 4);
 });
+
+test('MockActivityEnvironment return type is correctly inferred', async (t) => {
+  async function foo(): Promise<string> {
+    return 'foo';
+  }
+  const result = await new MockActivityEnvironment().run(foo);
+  t.true(result.startsWith('foo'));
+});

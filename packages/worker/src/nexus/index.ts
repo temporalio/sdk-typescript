@@ -65,7 +65,8 @@ export class NexusHandler {
     public readonly dataConverter: LoadedDataConverter,
     workerLogger: Logger,
     workerMetricMeter: MetricMeter,
-    interceptors: NexusInterceptorsFactory[]
+    interceptors: NexusInterceptorsFactory[],
+    private readonly codecHeaders = false
   ) {
     this.logger = LoggerWithComposedMetadata.compose(workerLogger, this.getLogAttributes.bind(this));
     this.metricMeter = MetricMeterWithComposedTags.compose(workerMetricMeter, this.getMetricTags.bind(this));
@@ -118,7 +119,7 @@ export class NexusHandler {
   ): Promise<coresdk.nexus.INexusTaskCompletion> {
     try {
       const handler = this.getOperationHandler(ctx);
-      const input = await decodePayload(this.dataConverter, payload, handler.inputType, context);
+      const input = await decodePayload(this.dataConverter, payload, handler.inputType, context, this.codecHeaders);
 
       const executeNextHandler = async (interceptorInput: NexusStartOperationInput) => {
         const result = await this.invokeUserCode(

@@ -47,6 +47,52 @@ export async function runMyLocalActivityWithOption(
   return await workflow.proxyLocalActivities(opts).myLocalActivity();
 }
 
+export async function localActivityWithMarkerArguments(
+  options: LocalActivityOptions,
+  args: unknown[]
+): Promise<unknown[]> {
+  const { echoArguments } = workflow.proxyLocalActivities({ startToCloseTimeout: '1m', ...options });
+  return await echoArguments(...args);
+}
+
+for (const includeArgumentsInMarker of [undefined, false, true]) {
+  test.serial(`Local activity marker arguments: ${includeArgumentsInMarker ?? 'default'}`, async (t) => {
+    const { startWorkflow, createWorker } = helpers(t);
+    const worker = await createWorker({
+      activities: {
+        async echoArguments(...args: unknown[]): Promise<unknown[]> {
+          return args;
+        },
+      },
+    });
+    await worker.runUntil(async () => {
+      const args = ['hello', { count: 42 }];
+      const localActivityOptions = includeArgumentsInMarker === undefined ? {} : { includeArgumentsInMarker };
+      const handle = await startWorkflow(localActivityWithMarkerArguments, {
+        args: [localActivityOptions, args],
+      });
+      t.deepEqual(await handle.result(), args);
+
+      const history = await handle.fetchHistory();
+      const markers = history.events?.flatMap((event) =>
+        event.markerRecordedEventAttributes?.markerName === 'core_local_activity'
+          ? [event.markerRecordedEventAttributes]
+          : []
+      );
+      t.is(markers?.length, 1);
+      const input = markers?.[0].details?.input;
+      if (includeArgumentsInMarker) {
+        t.deepEqual(
+          input?.payloads?.map((payload) => defaultPayloadConverter.fromPayload(payload)),
+          args
+        );
+      } else {
+        t.is(input, undefined);
+      }
+    });
+  });
+}
+
 test.serial('Local activity with various timeouts', async (t) => {
   const { executeWorkflow, createWorker } = helpers(t);
   const worker = await createWorker({

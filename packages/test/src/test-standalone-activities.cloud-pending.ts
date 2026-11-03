@@ -56,7 +56,7 @@ const activities = {
     if (info.workflowExecution !== undefined) {
       throw ApplicationFailure.nonRetryable('Expected workflowExecution to be unset');
     }
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
+    // oxlint-disable-next-line typescript/no-deprecated
     if (info.workflowNamespace !== undefined) {
       throw ApplicationFailure.nonRetryable('Expected workflowNamespace to be unset');
     }
@@ -741,7 +741,7 @@ if (RUN_INTEGRATION_TESTS) {
 
     const desc = await handle.describe({ includeInput: true, includeOutcome: true });
     const input = await desc.getInput();
-    t.deepEqual(await desc.getInput(), [
+    t.deepEqual(input, [
       {
         label: 'input',
         trace: encdec('input', ctx),
@@ -814,11 +814,11 @@ if (RUN_INTEGRATION_TESTS) {
       }
       {
         const // @ts-expect-error TS2322
-          _handle // end error
+          _handle// end error
           : ActivityHandle<number> = await client.start('noArgsReturnsVoid', { ...options });
 
         const // @ts-expect-error TS2322
-          _result // end error
+          _result// end error
           : number = await client.execute('noArgsReturnsVoid', { ...options });
       }
       {
@@ -834,20 +834,20 @@ if (RUN_INTEGRATION_TESTS) {
       }
       {
         const // @ts-expect-error TS2322
-          _handle // end error
+          _handle// end error
           : ActivityHandle<void> = await client.start('noArgsReturnsNumber', { ...options });
 
         const // @ts-expect-error TS2322
-          _result // end error
+          _result// end error
           : void = await client.execute('noArgsReturnsNumber', { ...options });
       }
       {
         const // @ts-expect-error TS2322
-          _handle // end error
+          _handle// end error
           : ActivityHandle<string> = await client.start('noArgsReturnsNumber', { ...options });
 
         const // @ts-expect-error TS2322
-          _result // end error
+          _result// end error
           : string = await client.execute('noArgsReturnsNumber', { ...options });
       }
       {

@@ -13,7 +13,7 @@ import type { EventGroup } from './event-groups';
  *
  * @interface
  */
-// eslint-disable-next-line @typescript-eslint/no-deprecated
+// oxlint-disable-next-line typescript/no-deprecated
 export type ActivityOptions = ActivityOptionsCommon & {
   /**
    * Event Groups to attach to this activity. They will be reflected on the corresponding
@@ -30,7 +30,7 @@ export type ActivityOptions = ActivityOptionsCommon & {
  *
  * @interface
  */
-// eslint-disable-next-line @typescript-eslint/no-deprecated
+// oxlint-disable-next-line typescript/no-deprecated
 export type LocalActivityOptions = LocalActivityOptionsCommon & {
   /**
    * Event Groups to attach to this local activity. They will be reflected on the corresponding

@@ -204,38 +204,38 @@ and quality of the bridge layer.
 
   **TypeScript → Rust** (using `TryFromJs` trait):
 
-  | TypeScript Type                             | Rust Type                                                   |
+  | TypeScript Type | Rust Type |
   | ------------------------------------------- | ----------------------------------------------------------- | --- |
-  | `number`                                    | `u16`, `i32`, `f32`, `u64`, `f64`, `usize`                  | x   |
-  | `number`                                    | `Duration` (from ms as `u64`)                               | x   |
-  | `string`                                    | `String`                                                    | x   |
-  | `boolean`                                   | `bool`                                                      | x   |
-  | `T[]` or `Array<T>`                         | `Vec<T>`                                                    | x   |
-  | `Record<string, T>` or `{[key: string]: T}` | `HashMap<String, T>`                                        | x   |
-  | `string`                                    | `SocketAddr`                                                | x   |
-  | `string`                                    | `Url`                                                       | x   |
-  | `T \| null`                                 | `Option<T>`                                                 | x   |
-  | `Buffer`                                    | `Vec<u8>`                                                   | x   |
-  | `unknwon`                                   | `()` (empty tuple)                                          | x   |
-  | `[T1, T2, ...]` - to be confirmed           | `(T1, T2, ...)` (tuple)                                     |
-  | Function<Result, Args> - to be reworked     | `JsCallback<Args, Result>`, `JsAsyncCallback<Args, Result>` |
-  | `OpaqueHandle<T>` - to be reworked          | `OpaqueInboundHandle<T>`                                    |
+  | `number` | `u16`, `i32`, `f32`, `u64`, `f64`, `usize` | x |
+  | `number` | `Duration` (from ms as `u64`) | x |
+  | `string` | `String` | x |
+  | `boolean` | `bool` | x |
+  | `T[]` or `Array<T>` | `Vec<T>` | x |
+  | `Record<string, T>` or `{[key: string]: T}` | `HashMap<String, T>` | x |
+  | `string` | `SocketAddr` | x |
+  | `string` | `Url` | x |
+  | `T \| null` | `Option<T>` | x |
+  | `Buffer` | `Vec<u8>` | x |
+  | `unknwon` | `()` (empty tuple) | x |
+  | `[T1, T2, ...]` - to be confirmed | `(T1, T2, ...)` (tuple) |
+  | Function<Result, Args> - to be reworked | `JsCallback<Args, Result>`, `JsAsyncCallback<Args, Result>` |
+  | `OpaqueHandle<T>` - to be reworked | `OpaqueInboundHandle<T>` |
 
   **Rust → TypeScript** (using `TryIntoJs` trait):
 
-  | Rust Type                                  | TypeScript Type            |
+  | Rust Type | TypeScript Type |
   | ------------------------------------------ | -------------------------- | --- |
-  | `String`                                   | `string`                   | x   |
-  | `bool`                                     | `boolean`                  | x   |
-  | `Vec<T>`                                   | `T[]`                      | x   |
-  | `SystemTime`                               | `bigint` (as nano seconds) | x   |
-  | `()` (unit tuple)                          | `undefined`                | x   |
-  | `(T1, T2, ...)` (tuple) - to be confirmed  | `[T1, T2, ...]`            |
-  | `Option<T>`                                | `T \| null`                | x   |
-  | `Vec<u8>`                                  | `Buffer`                   | x   |
-  | `HashMap<String, T>` - to be confirmed     | `Record<string, T>`        |
-  | `BridgeFuture<T>` - to be reworked         | `Promise<T>`               |
-  | `OpaqueOutboundHandle<T>` - to be reworked | `OpaqueHandle<T>`          |
+  | `String` | `string` | x |
+  | `bool` | `boolean` | x |
+  | `Vec<T>` | `T[]` | x |
+  | `SystemTime` | `bigint` (as nano seconds) | x |
+  | `()` (unit tuple) | `undefined` | x |
+  | `(T1, T2, ...)` (tuple) - to be confirmed | `[T1, T2, ...]` |
+  | `Option<T>` | `T \| null` | x |
+  | `Vec<u8>` | `Buffer` | x |
+  | `HashMap<String, T>` - to be confirmed | `Record<string, T>` |
+  | `BridgeFuture<T>` - to be reworked | `Promise<T>` |
+  | `OpaqueOutboundHandle<T>` - to be reworked | `OpaqueHandle<T>` |
 
   These mappings form the foundation of the interoperability between TypeScript and Rust in the bridge.
 
