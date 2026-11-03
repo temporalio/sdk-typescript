@@ -10,24 +10,12 @@ Part of [Temporal](https://temporal.io)'s [TypeScript SDK](https://docs.temporal
 
 ## FIPS (experimental)
 
-The prebuilt binaries use [`ring`](https://github.com/briansmith/ring) for TLS, which is not FIPS-validated. Building with
-the `fips` Cargo feature restricts the bridge's TLS (`NativeConnection` and Core's HTTPS requests) to FIPS-approved
-algorithms from AWS-LC's FIPS module. The module version, and so its validation status, follows the
-[`aws-lc-rs`](https://github.com/aws/aws-lc-rs#fips) version in `Cargo.lock`. `Connection` from `@temporalio/client` uses
-Node's TLS and is not affected.
-
-The build needs Go, CMake, Perl and a C compiler, in addition to Rust and `protoc`.
-
-From this repository, pass `--fips` or set `TEMPORALIO_FIPS=1`:
+Prebuilt binaries are not FIPS-validated. To use [AWS-LC's FIPS module](https://github.com/aws/aws-lc-rs#fips)
+for bridge TLS, build from source with `--fips` or `TEMPORALIO_FIPS=1`:
 
 ```sh
 pnpm --filter @temporalio/core-bridge run build-rust-release --fips
 ```
 
-From an application's `node_modules` on Linux x64:
-
-```sh
-cd node_modules/@temporalio/core-bridge
-cargo build --release --no-default-features --features fips
-cp target/release/libtemporal_sdk_typescript_bridge.so releases/x86_64-unknown-linux-gnu/index.node
-```
+Requires Rust, `protoc`, Go, CMake, Perl, and a C compiler. This does not affect
+`Connection` from `@temporalio/client`, which uses Node's TLS.
