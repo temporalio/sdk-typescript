@@ -247,6 +247,24 @@ test('gRPC metadata normalization from TOML', (t) => {
   t.is(prof.grpcMeta?.['some-header-key'], 'some-value');
 });
 
+test('gRPC metadata normalization replaces every underscore', (t) => {
+  const toml = dedent`
+    [profile.default]
+    address = "addr"
+    [profile.default.grpc_meta]
+    x-my-custom-header = "toml-value"
+    other_multi_part_key = "other-value"
+  `;
+  const env = {
+    TEMPORAL_GRPC_META_X_MY_CUSTOM_HEADER: 'env-value',
+  };
+  const prof = loadClientConfigProfile({ configSource: dataSource(toml), overrideEnvVars: env });
+  t.deepEqual(prof.grpcMeta, {
+    'x-my-custom-header': 'env-value',
+    'other-multi-part-key': 'other-value',
+  });
+});
+
 test('gRPC metadata deletion via empty env value', (t) => {
   const toml = dedent`
     [profile.default]

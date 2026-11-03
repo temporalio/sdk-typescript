@@ -7,7 +7,7 @@ import { decode, encode, filterNullAndUndefined } from '@temporalio/common/inter
 import type { ConfigDataSource, LoadClientConfigOptions, LoadClientProfileOptions } from './types';
 
 export function normalizeGrpcMetaKey(key: string): string {
-  return key.toLocaleLowerCase().replace('_', '-');
+  return key.toLocaleLowerCase().replaceAll('_', '-');
 }
 
 /**
