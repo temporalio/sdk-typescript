@@ -617,9 +617,6 @@ mod config {
 
     impl BridgeWorkerOptions {
         pub(crate) fn into_core_config(self) -> Result<WorkerConfig, BridgeError> {
-            // Leave the poller behavior unset (None) when the worker is eligible for auto-enroll, so
-            // core resolves it from the namespace's poller_autoscaling_auto_enroll capability.
-            // Otherwise pass the explicitly-configured behavior through.
             let workflow_task_poller_behavior = (!self.workflow_task_poller_behavior_auto_enroll)
                 .then(|| self.workflow_task_poller_behavior.into());
             let activity_task_poller_behavior = (!self.activity_task_poller_behavior_auto_enroll)

@@ -956,9 +956,6 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
     workflowTaskPollerBehavior: Required<PollerBehavior>;
     activityTaskPollerBehavior: Required<PollerBehavior>;
     nexusTaskPollerBehavior: Required<PollerBehavior>;
-    // True when the user configured neither a fixed poll count nor an explicit poller behavior for
-    // the given poller type, making it eligible for automatic enrollment into poller autoscaling
-    // when the namespace advertises support for it.
     workflowTaskPollerBehaviorAutoEnroll: boolean;
     activityTaskPollerBehaviorAutoEnroll: boolean;
     nexusTaskPollerBehaviorAutoEnroll: boolean;
@@ -1087,8 +1084,6 @@ function addDefaultWorkerOptions(
   const atPollerBehavior = createPollerBehavior(maxATPolls, activityTaskPollerBehavior);
   const nexusPollerBehavior = createPollerBehavior(maxNexusTaskPolls, nexusTaskPollerBehavior);
 
-  // A poller is eligible for auto-enrollment into poller autoscaling when the user configured
-  // neither a fixed poll count nor an explicit poller behavior for it.
   const workflowTaskPollerBehaviorAutoEnroll =
     workflowTaskPollerBehavior === undefined && options.maxConcurrentWorkflowTaskPolls === undefined;
   const activityTaskPollerBehaviorAutoEnroll =
