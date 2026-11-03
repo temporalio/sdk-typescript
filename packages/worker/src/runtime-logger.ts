@@ -195,7 +195,10 @@ export class NativeLogCollector {
   }
 
   public close(): void {
-    this.flush();
-    clearInterval(this.flushIntervalTimer);
+    try {
+      this.flush();
+    } finally {
+      clearInterval(this.flushIntervalTimer);
+    }
   }
 }

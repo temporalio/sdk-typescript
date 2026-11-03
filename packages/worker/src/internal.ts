@@ -1,3 +1,4 @@
+export { NativeLogCollector } from './runtime-logger';
 export { Activity, type CancelReason } from './activity';
 export { toNativeClientOptions } from './connection-options';
 export {

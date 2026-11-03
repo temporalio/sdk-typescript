@@ -330,6 +330,7 @@ test('Worker.run propagates finalization failure on otherwise successful run', a
 
   const err = await t.throwsAsync(runPromise);
   t.is(err, cleanupError);
+});
 
 test.serial('Runtime preserves flushable logger across shutdown and re-instantiation', async (t) => {
   let closed = false;
