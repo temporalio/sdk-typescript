@@ -1,4 +1,3 @@
-/* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import { randomUUID } from 'crypto';
 import test from 'ava';
 import { Connection, WorkflowClient } from '@temporalio/client';

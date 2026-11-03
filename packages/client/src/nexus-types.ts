@@ -486,5 +486,5 @@ export type NexusOperationHandleDefinitionOptions<Op extends nexus.OperationDefi
 /**
  * Options for {@link NexusOperationHandle.describe}
  */
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+// oxlint-disable-next-line typescript/no-empty-object-type
 export interface DescribeNexusOperationOptions {}

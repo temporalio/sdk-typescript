@@ -131,8 +131,8 @@ export class TestWorkflowEnvironment {
           plugins: options.plugins,
           ...options.client,
         });
-    this.asyncCompletionClient = this.client.activity; // eslint-disable-line @typescript-eslint/no-deprecated
-    this.workflowClient = this.client.workflow; // eslint-disable-line @typescript-eslint/no-deprecated
+    this.asyncCompletionClient = this.client.activity; // oxlint-disable-line typescript/no-deprecated
+    this.workflowClient = this.client.workflow; // oxlint-disable-line typescript/no-deprecated
   }
 
   /**

@@ -1,4 +1,3 @@
-/* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import { randomUUID } from 'crypto';
 import asyncRetry from 'async-retry';
 import * as iface from '@temporalio/proto';
@@ -977,7 +976,7 @@ test('Activity Context exposes Client connection', configMacro, async (t, config
       client: {
         workflow: [
           {
-            async start(input, next) {
+            async startWithDetails(input, next) {
               input.options.args = ['native client intercepted'];
               return await next(input);
             },

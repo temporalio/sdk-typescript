@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
+/* oxlint-disable typescript/no-unused-vars */
 
 import test from 'ava';
 import type { ExternalWorkflowHandle, ChildWorkflowHandle, Workflow, ChildWorkflowOptions } from '@temporalio/workflow';
@@ -125,7 +125,7 @@ test('startUpdate and executeUpdate call signatures', async (t) => {
     });
     // @ts-expect-error: waitForStage must be ACCEPTED
     await handle.startUpdate(nullaryUpdate, {
-      waitForStage: WorkflowUpdateStage.UNSPECIFIED, // eslint-disable-line @typescript-eslint/no-deprecated
+      waitForStage: WorkflowUpdateStage.UNSPECIFIED, // oxlint-disable-line typescript/no-deprecated
     });
     // @ts-expect-error: args must be empty if present
     await handle.startUpdate(nullaryUpdate, {

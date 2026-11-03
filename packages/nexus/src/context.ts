@@ -85,7 +85,7 @@ export interface OperationInfo {
  *
  * @experimental Temporal Operation handlers are experimental.
  */
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+// oxlint-disable-next-line typescript/no-empty-object-type
 export interface TemporalStartOperationContext extends nexus.StartOperationContext {}
 
 /**
@@ -94,7 +94,7 @@ export interface TemporalStartOperationContext extends nexus.StartOperationConte
  *
  * @experimental Temporal Operation handlers are experimental.
  */
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+// oxlint-disable-next-line typescript/no-empty-object-type
 export interface TemporalCancelOperationContext extends nexus.CancelOperationContext {}
 
 // Basic APIs //////////////////////////////////////////////////////////////////////////////////////

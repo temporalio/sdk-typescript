@@ -40,7 +40,7 @@ export { defaultSAKeys, createLocalTestEnvironment };
  * Context interface for integration tests.
  * Extends BaseContext with TestWorkflowEnvironment.
  */
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+// oxlint-disable-next-line typescript/no-empty-object-type
 export interface Context extends BaseContext<TestWorkflowEnvironment> {}
 
 function setupRuntime(recordedLogs?: { [workflowId: string]: LogEntry[] }, runtimeOpts?: Partial<RuntimeOptions>) {
