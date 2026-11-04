@@ -41,7 +41,7 @@
     "@types/istanbul-lib-coverage": "^2.0.6",
     "@types/istanbul-lib-instrument": "^1.7.7",
     "ts-loader": "^10.0.0-beta.0",
-    "typescript": "7.1.0-beta",
+    "typescript": "^7.1.0-beta",
     "webpack": "^5.108.4"
   },
   "peerDependencies": {
