@@ -321,9 +321,6 @@ const GenericConfigs = {
         initial: 5,
         maximum: 100,
       },
-      workflowTaskPollerBehaviorAutoEnroll: false,
-      activityTaskPollerBehaviorAutoEnroll: false,
-      nexusTaskPollerBehaviorAutoEnroll: false,
       taskTypes: {
         enableWorkflows: true,
         enableLocalActivities: false,

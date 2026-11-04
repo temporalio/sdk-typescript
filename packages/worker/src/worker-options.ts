@@ -953,12 +953,9 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
      */
     isolateExecutionTimeout: Duration;
 
-    workflowTaskPollerBehavior: Required<PollerBehavior>;
-    activityTaskPollerBehavior: Required<PollerBehavior>;
-    nexusTaskPollerBehavior: Required<PollerBehavior>;
-    workflowTaskPollerBehaviorAutoEnroll: boolean;
-    activityTaskPollerBehaviorAutoEnroll: boolean;
-    nexusTaskPollerBehaviorAutoEnroll: boolean;
+    workflowTaskPollerBehavior?: Required<PollerBehavior>;
+    activityTaskPollerBehavior?: Required<PollerBehavior>;
+    nexusTaskPollerBehavior?: Required<PollerBehavior>;
   };
 
 /**
@@ -1080,16 +1077,18 @@ function addDefaultWorkerOptions(
             maximum: behavior.maximum ?? 100,
           };
 
-  const wftPollerBehavior = createPollerBehavior(maxWFTPolls, workflowTaskPollerBehavior);
-  const atPollerBehavior = createPollerBehavior(maxATPolls, activityTaskPollerBehavior);
-  const nexusPollerBehavior = createPollerBehavior(maxNexusTaskPolls, nexusTaskPollerBehavior);
-
-  const workflowTaskPollerBehaviorAutoEnroll =
-    workflowTaskPollerBehavior === undefined && options.maxConcurrentWorkflowTaskPolls === undefined;
-  const activityTaskPollerBehaviorAutoEnroll =
-    activityTaskPollerBehavior === undefined && options.maxConcurrentActivityTaskPolls === undefined;
-  const nexusTaskPollerBehaviorAutoEnroll =
-    nexusTaskPollerBehavior === undefined && options.maxConcurrentNexusTaskPolls === undefined;
+  const wftPollerBehavior =
+    workflowTaskPollerBehavior !== undefined || options.maxConcurrentWorkflowTaskPolls !== undefined
+      ? createPollerBehavior(maxWFTPolls, workflowTaskPollerBehavior)
+      : undefined;
+  const atPollerBehavior =
+    activityTaskPollerBehavior !== undefined || options.maxConcurrentActivityTaskPolls !== undefined
+      ? createPollerBehavior(maxATPolls, activityTaskPollerBehavior)
+      : undefined;
+  const nexusPollerBehavior =
+    nexusTaskPollerBehavior !== undefined || options.maxConcurrentNexusTaskPolls !== undefined
+      ? createPollerBehavior(maxNexusTaskPolls, nexusTaskPollerBehavior)
+      : undefined;
 
   return {
     namespace: namespace ?? 'default',
@@ -1101,9 +1100,6 @@ function addDefaultWorkerOptions(
     workflowTaskPollerBehavior: wftPollerBehavior,
     activityTaskPollerBehavior: atPollerBehavior,
     nexusTaskPollerBehavior: nexusPollerBehavior,
-    workflowTaskPollerBehaviorAutoEnroll,
-    activityTaskPollerBehaviorAutoEnroll,
-    nexusTaskPollerBehaviorAutoEnroll,
     stickyQueueScheduleToStartTimeout: '10s',
     maxHeartbeatThrottleInterval: '60s',
     defaultHeartbeatThrottleInterval: '30s',
@@ -1255,12 +1251,15 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
     namespace: opts.namespace,
     tuner: opts.tuner,
     nonStickyToStickyPollRatio: opts.nonStickyToStickyPollRatio,
-    workflowTaskPollerBehavior: toNativeTaskPollerBehavior(opts.workflowTaskPollerBehavior),
-    workflowTaskPollerBehaviorAutoEnroll: opts.workflowTaskPollerBehaviorAutoEnroll,
-    activityTaskPollerBehavior: toNativeTaskPollerBehavior(opts.activityTaskPollerBehavior),
-    activityTaskPollerBehaviorAutoEnroll: opts.activityTaskPollerBehaviorAutoEnroll,
-    nexusTaskPollerBehavior: toNativeTaskPollerBehavior(opts.nexusTaskPollerBehavior),
-    nexusTaskPollerBehaviorAutoEnroll: opts.nexusTaskPollerBehaviorAutoEnroll,
+    workflowTaskPollerBehavior: opts.workflowTaskPollerBehavior
+      ? toNativeTaskPollerBehavior(opts.workflowTaskPollerBehavior)
+      : null,
+    activityTaskPollerBehavior: opts.activityTaskPollerBehavior
+      ? toNativeTaskPollerBehavior(opts.activityTaskPollerBehavior)
+      : null,
+    nexusTaskPollerBehavior: opts.nexusTaskPollerBehavior
+      ? toNativeTaskPollerBehavior(opts.nexusTaskPollerBehavior)
+      : null,
     taskTypes: {
       enableWorkflows,
       enableLocalActivities,

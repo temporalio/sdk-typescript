@@ -527,7 +527,6 @@ mod config {
     use neon::types::JsObject;
 
     #[derive(TryFromJs)]
-    #[allow(clippy::struct_excessive_bools)]
     pub struct BridgeWorkerOptions {
         identity: String,
         build_id: String,
@@ -537,12 +536,9 @@ mod config {
         namespace: String,
         tuner: WorkerTuner,
         non_sticky_to_sticky_poll_ratio: f32,
-        workflow_task_poller_behavior: PollerBehavior,
-        workflow_task_poller_behavior_auto_enroll: bool,
-        activity_task_poller_behavior: PollerBehavior,
-        activity_task_poller_behavior_auto_enroll: bool,
-        nexus_task_poller_behavior: PollerBehavior,
-        nexus_task_poller_behavior_auto_enroll: bool,
+        workflow_task_poller_behavior: Option<PollerBehavior>,
+        activity_task_poller_behavior: Option<PollerBehavior>,
+        nexus_task_poller_behavior: Option<PollerBehavior>,
         task_types: WorkerTaskTypes,
         sticky_queue_schedule_to_start_timeout: Duration,
         max_cached_workflows: usize,
@@ -618,12 +614,6 @@ mod config {
 
     impl BridgeWorkerOptions {
         pub(crate) fn into_core_config(self) -> Result<WorkerConfig, BridgeError> {
-            let workflow_task_poller_behavior = (!self.workflow_task_poller_behavior_auto_enroll)
-                .then(|| self.workflow_task_poller_behavior.into());
-            let activity_task_poller_behavior = (!self.activity_task_poller_behavior_auto_enroll)
-                .then(|| self.activity_task_poller_behavior.into());
-            let nexus_task_poller_behavior = (!self.nexus_task_poller_behavior_auto_enroll)
-                .then(|| self.nexus_task_poller_behavior.into());
             // Set all other options
             WorkerConfig::builder()
                 .maybe_client_identity_override(Some(self.identity))
@@ -644,9 +634,13 @@ mod config {
                 .namespace(self.namespace)
                 .tuner(self.tuner.into_core_config()?)
                 .nonsticky_to_sticky_poll_ratio(self.non_sticky_to_sticky_poll_ratio)
-                .maybe_workflow_task_poller_behavior(workflow_task_poller_behavior)
-                .maybe_activity_task_poller_behavior(activity_task_poller_behavior)
-                .maybe_nexus_task_poller_behavior(nexus_task_poller_behavior)
+                .maybe_workflow_task_poller_behavior(
+                    self.workflow_task_poller_behavior.map(Into::into),
+                )
+                .maybe_activity_task_poller_behavior(
+                    self.activity_task_poller_behavior.map(Into::into),
+                )
+                .maybe_nexus_task_poller_behavior(self.nexus_task_poller_behavior.map(Into::into))
                 .task_types(self.task_types.into())
                 .sticky_queue_schedule_to_start_timeout(self.sticky_queue_schedule_to_start_timeout)
                 .max_cached_workflows(self.max_cached_workflows)
