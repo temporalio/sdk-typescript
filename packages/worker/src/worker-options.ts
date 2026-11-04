@@ -359,28 +359,28 @@ export interface WorkerOptions {
    * - Keep this value low for Task Queues which have very few concurrent Workflow Executions.
    *
    * Can't be higher than `maxConcurrentWorkflowTaskExecutions`, and can't be lower than 2.
-   * @default min(10, maxConcurrentWorkflowTaskExecutions)
+   * @default 5
    */
   maxConcurrentWorkflowTaskPolls?: number;
 
   /**
    * Specify the behavior of workflow task polling.
    *
-   * @default A fixed maximum whose value is min(10, maxConcurrentWorkflowTaskExecutions).
+   * @default A fixed maximum of 5 pollers.
    */
   workflowTaskPollerBehavior?: PollerBehavior;
 
   /**
    * Specify the behavior of activity task polling.
    *
-   * @default A fixed maximum whose value is min(10, maxConcurrentActivityTaskExecutions).
+   * @default A fixed maximum of 5 pollers.
    */
   activityTaskPollerBehavior?: PollerBehavior;
 
   /**
    * Specify the behavior of Nexus task polling.
    *
-   * @default A fixed maximum whose value is min(10, maxConcurrentNexusTaskExecutions).
+   * @default A fixed maximum of 5 pollers.
    *
    */
   nexusTaskPollerBehavior?: PollerBehavior;
@@ -392,7 +392,7 @@ export interface WorkerOptions {
    * `maxConcurrentActivityTaskExecutions` slots despite a backlog of Activity
    * Tasks in the Task Queue (ie. due to network latency). Can't be higher than
    * `maxConcurrentActivityTaskExecutions`.
-   * @default min(10, maxConcurrentActivityTaskExecutions)
+   * @default 5
    */
   maxConcurrentActivityTaskPolls?: number;
 
@@ -404,7 +404,7 @@ export interface WorkerOptions {
    * Tasks in the Task Queue (ie. due to network latency). Can't be higher than
    * `maxConcurrentNexusTaskExecutions`.
    *
-   * @default min(10, maxConcurrentNexusTaskExecutions)
+   * @default 5
    *
    */
   maxConcurrentNexusTaskPolls?: number;
