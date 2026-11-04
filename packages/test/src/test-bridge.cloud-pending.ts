@@ -270,6 +270,7 @@ const GenericConfigs = {
       httpConnectProxy: null,
       dnsLoadBalancingConfig: null,
       grpcCompression: { codec: 'gzip' },
+      keepAlive: { interval: 30_000, timeout: 15_000 },
       headers: null,
       apiKey: null,
       disableErrorCodeMetricTags: false,

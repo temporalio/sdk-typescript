@@ -39,6 +39,7 @@ export {
   DNSLoadBalancingConfig,
   GzipGrpcCompressionConfig,
   GrpcCompressionConfig,
+  KeepAliveConfig,
   NativeConnectionOptions,
   NoneGrpcCompressionConfig,
   PayloadLimitsConfig,

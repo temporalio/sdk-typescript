@@ -499,6 +499,22 @@ test('NativeConnection: gRPC compression defaults to gzip', (t) => {
   t.deepEqual(options.grpcCompression, { codec: 'gzip' });
 });
 
+test('NativeConnection: keepalive defaults to enabled', (t) => {
+  t.deepEqual(toNativeClientOptions({}).keepAlive, { interval: 30_000, timeout: 15_000 });
+  t.deepEqual(toNativeClientOptions({ keepAlive: undefined }).keepAlive, { interval: 30_000, timeout: 15_000 });
+});
+
+test('NativeConnection: keepalive can be disabled', (t) => {
+  t.is(toNativeClientOptions({ keepAlive: false }).keepAlive, null);
+});
+
+test('NativeConnection: keepalive durations are converted to native milliseconds', (t) => {
+  t.deepEqual(toNativeClientOptions({ keepAlive: { interval: '5s', timeout: 1234 } }).keepAlive, {
+    interval: 5000,
+    timeout: 1234,
+  });
+});
+
 test('NativeConnection: gRPC compression can be disabled', (t) => {
   const options = toNativeClientOptions({ grpcCompression: { codec: 'none' } });
   t.deepEqual(options.grpcCompression, { codec: 'none' });

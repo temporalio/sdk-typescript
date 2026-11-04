@@ -1,0 +1,1 @@
+Added `NativeConnectionOptions.keepAlive` to configure the HTTP/2 keepalive interval and response timeout, or disable keepalive with `false`. Defaults remain a 30-second interval and a 15-second timeout.
