@@ -527,6 +527,7 @@ mod config {
     use neon::types::JsObject;
 
     #[derive(TryFromJs)]
+    #[allow(clippy::struct_excessive_bools)]
     pub struct BridgeWorkerOptions {
         identity: String,
         build_id: String,
