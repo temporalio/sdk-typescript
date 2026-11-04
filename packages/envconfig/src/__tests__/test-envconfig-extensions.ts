@@ -11,7 +11,7 @@ import type {
   ClientConfigExtensionRequest,
   ConfigDataSource,
 } from '../index';
-import { loadClientConfig, loadClientConfigProfile, loadClientConnectConfig } from '../index';
+import { clientConfigToToml, loadClientConfig, loadClientConfigProfile, loadClientConnectConfig } from '../index';
 
 function dataSource(data: string): ConfigDataSource {
   return { data };
@@ -72,6 +72,15 @@ test('Strict mode still rejects unknown non-ext keys alongside ext', (t) => {
   t.true(String(err?.message).includes('unrecognized_field'));
 });
 
+test('ext round-trips through TOML', (t) => {
+  const config = loadClientConfig({ configSource: dataSource(TOML_CONFIG_EXT) });
+  const roundTripped = loadClientConfig({
+    configSource: dataSource(Buffer.from(clientConfigToToml(config)).toString()),
+  });
+  t.deepEqual(roundTripped, config);
+  t.is(roundTripped.profiles['other']?.ext, undefined);
+});
+
 // =============================================================================
 // 🧩 EXTENSIONS
 // =============================================================================
@@ -109,7 +118,10 @@ test('loadClientConnectConfig calls extensions in order and appends plugins', (t
     extensions: [second, first, noop],
   });
   t.deepEqual(calls, ['second', 'first', 'noop']); // extension order is respected
-  t.deepEqual(connectionOptions.plugins?.map((p) => p.name), ['second', 'first-env-value']);
+  t.deepEqual(
+    connectionOptions.plugins?.map((p) => p.name),
+    ['second', 'first-env-value']
+  );
   t.is(connectionOptions.address, 'env-address');
 });
 

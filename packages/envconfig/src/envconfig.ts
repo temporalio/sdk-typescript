@@ -52,7 +52,7 @@ export function loadClientConnectConfig(options: LoadClientConnectConfigOptions 
   if (extensions?.length) {
     const request: ClientConfigExtensionRequest = {
       profile,
-      env: options.disableEnv ? undefined : options.overrideEnvVars ?? process.env,
+      env: options.disableEnv ? undefined : (options.overrideEnvVars ?? process.env),
     };
     const plugins: ClientConfigExtensionPlugin[] = [];
     for (const extension of extensions) {
