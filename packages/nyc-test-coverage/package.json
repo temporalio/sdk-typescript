@@ -40,8 +40,8 @@
     "@types/convert-source-map": "^2.0.3",
     "@types/istanbul-lib-coverage": "^2.0.6",
     "@types/istanbul-lib-instrument": "^1.7.7",
-    "ts-loader": "^9.6.2",
-    "typescript": "^5.9.3",
+    "ts-loader": "^10.0.0-beta.0",
+    "typescript": "^7.1.0-beta",
     "webpack": "^5.108.4"
   },
   "peerDependencies": {

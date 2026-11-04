@@ -63,7 +63,7 @@ test(`${pkg.name} preserves types through legacy and modern TypeScript resolutio
     });
     const file = join(directory, 'consumer.ts');
     writeFileSync(file, declarations.join('\n'));
-    const compiler = require.resolve('typescript/bin/tsc');
+    const compiler = require.resolve('typescript-compat/bin/tsc');
     for (const [module, resolution] of [
       ['commonjs', 'node'],
       ['node16', 'node16'],
