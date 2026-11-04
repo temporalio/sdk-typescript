@@ -138,6 +138,7 @@ export interface ClientOptions {
   httpConnectProxy: Option<HttpConnectProxy>;
   dnsLoadBalancingConfig: Option<DnsLoadBalancingConfig>;
   grpcCompression: GrpcCompressionConfig;
+  keepAlive: Option<KeepAliveConfig>;
   headers: Option<Record<string, MetadataValue>>;
   apiKey: Option<string>;
   disableErrorCodeMetricTags: boolean;
@@ -171,6 +172,11 @@ export interface HttpConnectProxyBasicAuth {
 
 export interface DnsLoadBalancingConfig {
   resolutionIntervalMillis: number;
+}
+
+export interface KeepAliveConfig {
+  interval: number;
+  timeout: number;
 }
 
 export type GrpcCompressionConfig = GzipGrpcCompressionConfig | NoneGrpcCompressionConfig;

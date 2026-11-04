@@ -38,6 +38,19 @@ export interface DNSLoadBalancingConfig {
 }
 
 /**
+ * HTTP/2 keepalive configuration for a native connection.
+ *
+ * @experimental
+ */
+export interface KeepAliveConfig {
+  /** Interval between HTTP/2 keepalive pings. */
+  interval: Duration;
+
+  /** Time to wait for a ping response before closing the connection. */
+  timeout: Duration;
+}
+
+/**
  * Use gzip for transport-level gRPC compression.
  */
 export interface GzipGrpcCompressionConfig {
@@ -125,6 +138,15 @@ export interface NativeConnectionOptions {
    * gzip-compressed responses. Set to `{ codec: 'none' }` to opt out.
    */
   grpcCompression?: GrpcCompressionConfig;
+
+  /**
+   * HTTP/2 keepalive configuration. Set to `false` to disable keepalive.
+   *
+   * Defaults to a 30-second ping interval and a 15-second response timeout.
+   *
+   * @experimental
+   */
+  keepAlive?: KeepAliveConfig | false;
 
   /**
    * Optional mapping of gRPC metadata (HTTP headers) to send with each request to the server.
@@ -243,6 +265,13 @@ export function toNativeClientOptions(options: NativeConnectionOptions): native.
     httpConnectProxy,
     dnsLoadBalancingConfig,
     grpcCompression,
+    keepAlive:
+      options.keepAlive === false
+        ? null
+        : {
+            interval: msToNumber(options.keepAlive?.interval ?? '30s'),
+            timeout: msToNumber(options.keepAlive?.timeout ?? '15s'),
+          },
     headers,
     apiKey: options.apiKey ?? null,
     disableErrorCodeMetricTags: options.disableErrorCodeMetricTags ?? false,
