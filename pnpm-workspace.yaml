@@ -38,11 +38,6 @@ minimumReleaseAgeExclude:
   - '@temporalio/*'
   - nexus-rpc
 
-  # ts-loader 10 beta requires TypeScript 7.1's compiler API.
-  - ts-loader@10.0.0-beta.0
-  - typescript@7.1.0-beta
-  - '@typescript/typescript-*'
-
   # The Vercel compatibility package forwards to the standalone AI SDK integration.
   # Its provider family pins these versions to each other.
   - ai@7.0.124
