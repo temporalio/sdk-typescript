@@ -63,6 +63,7 @@ export class WorkflowCodeBundler {
   protected readonly preloadModules: string[];
   protected readonly webpackConfigHook: (config: Configuration) => Configuration;
   protected readonly plugins: BundlerPlugin[];
+  protected readonly workflowExecutionMode: 'vm' | 'vmless';
 
   constructor(options: BundleOptions) {
     this.plugins = options.plugins ?? [];
@@ -81,6 +82,13 @@ export class WorkflowCodeBundler {
       preloadModules,
       webpackConfigHook,
     } = options;
+    this.workflowExecutionMode = options.workflowExecutionMode ?? 'vm';
+    if (!['vm', 'vmless'].includes(this.workflowExecutionMode)) {
+      throw new TypeError(`Invalid workflowExecutionMode: ${this.workflowExecutionMode}`);
+    }
+    if (this.workflowExecutionMode === 'vmless' && (preloadModules?.length ?? 0) > 0) {
+      throw new TypeError('VM-less execution does not support preloadModules');
+    }
     const dedupedPreloadModules = [...new Set(preloadModules ?? [])];
     const ignoredPreloadModules = dedupedPreloadModules.filter((module) => moduleMatches(module, ignoreModules ?? []));
     if (ignoredPreloadModules.length > 0) {
@@ -177,11 +185,24 @@ export class WorkflowCodeBundler {
       .join('\n');
 
     const code = `
-const api = require('@temporalio/workflow/internal/worker-interface');
+const api = require('${this.workflowExecutionMode === 'vmless' ? '@temporalio/workflow/internal/vmless' : '@temporalio/workflow/internal/worker-interface'}');
 exports.api = api;
 
-const { overrideGlobals } = require('@temporalio/workflow/internal/global-overrides');
-overrideGlobals();
+const { overrideGlobals } = require('${this.workflowExecutionMode === 'vmless' ? '@temporalio/workflow/internal/vmless' : '@temporalio/workflow/internal/global-overrides'}');
+overrideGlobals();${
+      this.workflowExecutionMode === 'vmless'
+        ? `
+// Modules reached by the runtime and public workflow API enter the shared cache.
+// Keep application imports deferred below; sharing is based on reachability.
+require('@temporalio/workflow');
+exports.importConverters = function importConverters() {
+  const payloadConverter = require('__temporal_custom_payload_converter').payloadConverter;
+  const failureConverter = require('__temporal_custom_failure_converter').failureConverter;
+  return { payloadConverter, failureConverter };
+};
+`
+        : ''
+    }
 
 exports.preloadModules = function preloadModules() {
 ${preloadModuleImports}
@@ -227,6 +248,7 @@ exports.importInterceptors = function importInterceptors() {
       return undefined;
     };
 
+    const vmless = this.workflowExecutionMode === 'vmless';
     const options: Configuration = {
       resolve: {
         // https://webpack.js.org/configuration/resolve/#resolvemodules
@@ -241,7 +263,7 @@ exports.importInterceptors = function importInterceptors() {
       },
       plugins: [
         new BannerPlugin({
-          banner: makeWorkflowBundleVersionAnnotation(pkg.version),
+          banner: makeWorkflowBundleVersionAnnotation(pkg.version, this.workflowExecutionMode),
           raw: true,
           entryOnly: true,
           // Add the annotation after minimizers have run so it cannot be stripped, but before
@@ -260,8 +282,26 @@ exports.importInterceptors = function importInterceptors() {
           /[\\/](?:@temporalio|contrib)[\\/]interceptors-opentelemetry(?:-v2)?[\\/](?:src|lib)[\\/]workflow[\\/]workflow-imports\.[jt]s$/,
           './workflow-imports-impl.js'
         ),
+        ...(vmless
+          ? [
+              new NormalModuleReplacementPlugin(/^\.\/global-attributes(?:\.[jt]s)?$/, (resource) => {
+                const directory = path.dirname(require.resolve('@temporalio/workflow/internal/vmless'));
+                if (resource.context === directory) {
+                  resource.request = path.join(directory, 'vmless-context.js');
+                }
+              }),
+              new NormalModuleReplacementPlugin(/^\.\/async-local-storage(?:\.[jt]s)?$/, (resource) => {
+                const directory = path.dirname(require.resolve('@temporalio/workflow/internal/vmless'));
+                if (resource.context === directory) {
+                  resource.request = path.join(directory, 'vmless-async-local-storage.js');
+                }
+              }),
+            ]
+          : []),
       ],
-      externals: captureProblematicModules,
+      externals: vmless
+        ? [{ 'node:async_hooks': 'commonjs node:async_hooks' }, captureProblematicModules]
+        : captureProblematicModules,
       module: {
         parser: {
           javascript: {
@@ -395,6 +435,11 @@ export interface BundlerPlugin {
  * Options for bundling Workflow code using Webpack
  */
 export interface BundleOptions {
+  /**
+   * Execution environment for the generated artifact.
+   * @experimental VM-less execution does not provide VM isolation or interruption.
+   */
+  workflowExecutionMode?: 'vm' | 'vmless';
   /**
    * Path to look up workflows in, any function exported in this path will be registered as a Workflows when the bundle is loaded by a Worker.
    */

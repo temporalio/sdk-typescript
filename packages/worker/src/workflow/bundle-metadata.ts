@@ -12,8 +12,22 @@ function invalidWorkflowBundleVersionAnnotation(): TypeError {
   );
 }
 
-export function makeWorkflowBundleVersionAnnotation(sdkVersion: string): string {
-  return `${WORKFLOW_BUNDLE_ANNOTATION_PREFIX}${JSON.stringify({ sdkVersion })}${WORKFLOW_BUNDLE_ANNOTATION_SUFFIX}`;
+export function makeWorkflowBundleVersionAnnotation(sdkVersion: string, executionMode: 'vm' | 'vmless' = 'vm'): string {
+  const metadata = executionMode === 'vm' ? { sdkVersion } : { sdkVersion, executionMode };
+  return `${WORKFLOW_BUNDLE_ANNOTATION_PREFIX}${JSON.stringify(metadata)}${WORKFLOW_BUNDLE_ANNOTATION_SUFFIX}`;
+}
+
+export function assertWorkflowBundleExecutionMode(code: string, expected: 'vm' | 'vmless'): void {
+  // Validate the annotation before parsing its optional execution-mode field.
+  getWorkflowBundleSdkVersion(code);
+  const line = code.split('\n', 1)[0]!.replace(/\r$/, '');
+  const metadata = JSON.parse(
+    line.slice(WORKFLOW_BUNDLE_ANNOTATION_PREFIX.length, -WORKFLOW_BUNDLE_ANNOTATION_SUFFIX.length)
+  );
+  const actual = metadata.executionMode ?? 'vm';
+  if (actual !== expected) {
+    throw new TypeError(`Workflow bundle execution mode '${actual}' does not match Worker mode '${expected}'`);
+  }
 }
 
 export function getWorkflowBundleSdkVersion(code: string): string {

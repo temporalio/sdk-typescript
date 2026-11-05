@@ -3,6 +3,19 @@ import { Runtime } from '@temporalio/worker';
 import { compileWorkerOptions, toNativeWorkerOptions } from '@temporalio/worker/internal';
 import { defaultOptions } from './mock-native-worker';
 
+test('accepts VM-less options without restricting the runtime identity', (t) => {
+  const runtime = Runtime.instance();
+  const compiled = compileWorkerOptions(
+    { taskQueue: 'vmless-options', workflowExecutionMode: 'vmless' },
+    runtime.logger,
+    runtime.metricMeter
+  );
+
+  t.is(compiled.workflowExecutionMode, 'vmless');
+  t.false(compiled.debugMode);
+  t.is(compiled.workflowThreadPoolSize, 1);
+});
+
 test('forwards the eager activity reservation limit to Core', (t) => {
   const runtime = Runtime.instance();
   const compiled = compileWorkerOptions(

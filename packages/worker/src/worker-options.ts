@@ -42,6 +42,13 @@ import type { Worker } from './worker';
  */
 export interface WorkerOptions {
   /**
+   * Workflow execution environment. VM-less execution runs in a dedicated thread
+   * without VM isolation or synchronous execution interruption.
+   * @default 'vm'
+   * @experimental
+   */
+  workflowExecutionMode?: 'vm' | 'vmless';
+  /**
    * A connected {@link NativeConnection} instance.
    *
    * If not provided, the worker will default to connect insecurely to `localhost:7233`.
@@ -1139,6 +1146,24 @@ export function compileWorkerOptions(
   logger: Logger,
   metricMeter: MetricMeter
 ): CompiledWorkerOptions {
+  if (rawOpts.workflowExecutionMode !== undefined && !['vm', 'vmless'].includes(rawOpts.workflowExecutionMode)) {
+    throw new TypeError(`Invalid workflowExecutionMode: ${rawOpts.workflowExecutionMode}`);
+  }
+  if (rawOpts.workflowExecutionMode === 'vmless') {
+    if (rawOpts.debugMode || isSet(process.env.TEMPORAL_DEBUG)) {
+      throw new TypeError('VM-less execution requires a workflow thread and does not support debugMode');
+    }
+    if (rawOpts.workflowThreadPoolSize !== undefined && rawOpts.workflowThreadPoolSize !== 1) {
+      throw new TypeError('VM-less execution requires workflowThreadPoolSize: 1');
+    }
+    for (const key of ['reuseV8Context', 'isolateExecutionTimeout', 'showStackTraceSources'] as const) {
+      if ((rawOpts as Partial<WorkerOptionsWithDefaults>)[key] !== undefined)
+        throw new TypeError(`VM-less execution does not support ${key}`);
+    }
+    if (rawOpts.bundlerOptions?.preloadModules?.length) {
+      throw new TypeError('VM-less execution does not support preloadModules');
+    }
+  }
   // Validate sink names to ensure they don't use reserved prefixes/names
   if (rawOpts.sinks) {
     for (const sinkName of Object.keys(rawOpts.sinks)) {
