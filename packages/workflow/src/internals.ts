@@ -535,6 +535,12 @@ export class Activator implements ActivationHandler {
 
   protected readonly stackTracesEnabled: boolean;
 
+  /**
+   * Optional runtime policy for errors escaping SDK-owned async operations.
+   * Must not throw. VM execution retains its existing rejection handling when unset.
+   */
+  public onUnhandledSdkError?: (error: unknown) => void;
+
   private readonly patchActivationCallback?: (workflowInfo: WorkflowInfo, patchId: string) => boolean;
   public typeInfo?: PayloadTypeInfo;
 
@@ -674,13 +680,22 @@ export class Activator implements ActivationHandler {
     const context = this.workflowSerializationContext();
 
     untrackPromise(
-      executeWithLifecycleLogging(() =>
-        execute({
-          headers: activation.headers ?? {},
-          args: arrayFromPayloads(this.payloadConverter, activation.arguments, context, this.typeInfo?.inputTypes),
-        })
-      ).then(this.completeWorkflow.bind(this), this.handleWorkflowFailure.bind(this))
+      this.observeSdkPromise(
+        executeWithLifecycleLogging(() =>
+          execute({
+            headers: activation.headers ?? {},
+            args: arrayFromPayloads(this.payloadConverter, activation.arguments, context, this.typeInfo?.inputTypes),
+          })
+        ).then(this.completeWorkflow.bind(this), this.handleWorkflowFailure.bind(this))
+      )
     );
+  }
+
+  private observeSdkPromise<T>(promise: Promise<T>): Promise<T> {
+    if (this.onUnhandledSdkError) {
+      untrackPromise(promise.catch(this.onUnhandledSdkError));
+    }
+    return promise;
   }
 
   public initializeWorkflow(activation: coresdk.workflow_activation.IInitializeWorkflow): void {
@@ -1053,8 +1068,8 @@ export class Activator implements ActivationHandler {
     //    by promises that do not derive from user code. This implies that
     //    async/await syntax may not be used.
     //
-    // Note that there is a deliberately unhandled promise rejection below.
-    // These are caught elsewhere and fail the corresponding activation.
+    // Errors escaping the outer operation use the runtime's SDK-owned error
+    // observer when provided, otherwise the existing unhandled-rejection handler.
     const implicitMarker = createInboundUpdateMarker(updateId);
     const doUpdateImpl = async () => {
       let input: UpdateInput;
@@ -1108,7 +1123,7 @@ export class Activator implements ActivationHandler {
       untrackPromise(res);
       return res;
     };
-    untrackPromise(UpdateScope.updateWithInfo(updateId, name, doUpdateImpl));
+    untrackPromise(this.observeSdkPromise(UpdateScope.updateWithInfo(updateId, name, doUpdateImpl)));
   }
 
   protected async updateNextHandler(handler: WorkflowUpdateType, { args }: UpdateInput): Promise<unknown> {
@@ -1208,21 +1223,23 @@ export class Activator implements ActivationHandler {
     const execute = composeInterceptors(interceptors, 'handleSignal', this.signalWorkflowNextHandler.bind(this));
     const context = this.workflowSerializationContext();
     const implicitMarker = createInboundEventMarker(activation.originatingEventId);
-    implicitMarker
-      .withScope(() =>
-        execute({
-          args: arrayFromPayloads(
-            this.payloadConverter,
-            activation.input,
-            context,
-            signalHandler?.typeInfo?.inputTypes
-          ),
-          signalName,
-          headers: headers ?? {},
-        })
-      )
-      .catch(this.handleWorkflowFailure.bind(this))
-      .finally(() => this.inProgressSignals.delete(signalExecutionNum));
+    void this.observeSdkPromise(
+      implicitMarker
+        .withScope(() =>
+          execute({
+            args: arrayFromPayloads(
+              this.payloadConverter,
+              activation.input,
+              context,
+              signalHandler?.typeInfo?.inputTypes
+            ),
+            signalName,
+            headers: headers ?? {},
+          })
+        )
+        .catch(this.handleWorkflowFailure.bind(this))
+        .finally(() => this.inProgressSignals.delete(signalExecutionNum))
+    );
   }
 
   public dispatchBufferedSignals(): void {

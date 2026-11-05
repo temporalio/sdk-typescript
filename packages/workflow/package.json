@@ -36,6 +36,9 @@
       ],
       "internal/worker-interface": [
         "lib/worker-interface.d.ts"
+      ],
+      "internal/vmless": [
+        "lib/vmless-interface.d.ts"
       ]
     }
   },
@@ -64,6 +67,10 @@
     "./internal/worker-interface": {
       "types": "./lib/worker-interface.d.ts",
       "default": "./lib/worker-interface.js"
+    },
+    "./internal/vmless": {
+      "types": "./lib/vmless-interface.d.ts",
+      "default": "./lib/vmless-interface.js"
     },
     "./lib/*": {
       "types": "./lib/*.d.ts",
