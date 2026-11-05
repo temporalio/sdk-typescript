@@ -11,9 +11,11 @@ import {
   encode,
   limit,
   visit,
+  walkInitializeWorkflow,
   walkWorkflowActivation,
   walkWorkflowActivationCompletion,
 } from '@temporalio/common/internal/internal-non-workflow';
+import { nexusSerializationContextFromProto } from '@temporalio/common/internal/internal-workflow';
 import { coresdk } from '@temporalio/proto';
 import { decodeSystemNexusOutput, encodeSystemNexusInput, isSystemNexusEnvelope } from './system-nexus-operations';
 
@@ -44,6 +46,12 @@ export class WorkflowCodecRunner {
     cancelWorkflow: new Map<number, WorkflowSerializationContext>(),
     nexusOperation: new Map<number, PendingNexusContext>(),
   };
+
+  /**
+   * Serialization context of the Nexus operation handler that started this Workflow, if any. The
+   * Workflow's result and closing failure go back to the Nexus caller, which decodes them with it.
+   */
+  private nexusContext?: NexusSerializationContext;
 
   constructor(
     private readonly codecs: PayloadCodec[],
@@ -133,6 +141,24 @@ export class WorkflowCodecRunner {
     activation: T
   ): Promise<Decoded<T>> {
     const decodedActivation = coresdk.workflow_activation.WorkflowActivation.fromObject(activation);
+    const initializeWorkflow = decodedActivation.jobs?.find((job) => job.initializeWorkflow)?.initializeWorkflow;
+    // A retry or cron run gets the previous run's closing failure and result, which that run encoded
+    // with the Nexus context. They're split off here so they can be decoded with it.
+    let previousRunOutcome: coresdk.workflow_activation.InitializeWorkflow | undefined;
+    if (initializeWorkflow != null) {
+      this.nexusContext = nexusSerializationContextFromProto(initializeWorkflow.propagatedNexusSerializationContext);
+      if (
+        this.nexusContext != null &&
+        (initializeWorkflow.continuedFailure != null || initializeWorkflow.lastCompletionResult != null)
+      ) {
+        previousRunOutcome = coresdk.workflow_activation.InitializeWorkflow.create({
+          continuedFailure: initializeWorkflow.continuedFailure,
+          lastCompletionResult: initializeWorkflow.lastCompletionResult,
+        });
+        initializeWorkflow.continuedFailure = null;
+        initializeWorkflow.lastCompletionResult = null;
+      }
+    }
     const systemOutputs: Array<{
       result: coresdk.nexus.INexusOperationResult;
       payload: import('@temporalio/common').Payload;
@@ -220,6 +246,15 @@ export class WorkflowCodecRunner {
       walkWorkflowActivation,
       { ...visitorOptions, initialContext: this.workflowContext }
     );
+    if (initializeWorkflow != null && previousRunOutcome != null) {
+      await visit<coresdk.workflow_activation.IInitializeWorkflow, SerializationContext | undefined>(
+        previousRunOutcome,
+        walkInitializeWorkflow,
+        { ...visitorOptions, initialContext: this.nexusContext }
+      );
+      initializeWorkflow.continuedFailure = previousRunOutcome.continuedFailure;
+      initializeWorkflow.lastCompletionResult = previousRunOutcome.lastCompletionResult;
+    }
     for (const output of systemOutputs) {
       output.result.completed = await decodeSystemNexusOutput(
         output.info.service,
@@ -274,6 +309,12 @@ export class WorkflowCodecRunner {
           if (typeName === 'coresdk.workflow_commands.ScheduleNexusOperation') {
             const schedule = message as coresdk.workflow_commands.IScheduleNexusOperation;
             return this.nexusOperationContext(schedule, isSystemNexus(schedule)) ?? context;
+          }
+          if (
+            typeName === 'coresdk.workflow_commands.CompleteWorkflowExecution' ||
+            typeName === 'coresdk.workflow_commands.FailWorkflowExecution'
+          ) {
+            return this.nexusContext ?? context;
           }
           if (typeName === 'coresdk.workflow_commands.SignalExternalWorkflowExecution') {
             return (

@@ -15,6 +15,7 @@ import type {
   VersioningBehavior,
   WorkflowDefinitionOptions,
   WorkflowSerializationContext,
+  NexusSerializationContext,
   SerializationContext,
   PayloadTypeInfo,
   TypeInfo,
@@ -42,6 +43,7 @@ import {
   decodeTypedSearchAttributes,
   ENHANCED_STACK_TRACE_QUERY_NAME,
   makeProtoEnumConverters,
+  nexusSerializationContextFromProto,
   STACK_TRACE_QUERY_NAME,
   TEMPORAL_RESERVED_PREFIX,
 } from '@temporalio/common/internal/internal-workflow';
@@ -496,6 +498,12 @@ export class Activator implements ActivationHandler {
   public failureConverter: FailureConverter = defaultFailureConverter;
 
   /**
+   * Serialization context of the Nexus operation handler that started this Workflow, if any. The
+   * Workflow's result and closing failure go back to the Nexus caller, which decodes them with it.
+   */
+  private nexusSerializationContext?: NexusSerializationContext;
+
+  /**
    * Patches we know the status of for this workflow, as in {@link patched}
    */
   private readonly knownPresentPatches = new Set<string>();
@@ -686,6 +694,9 @@ export class Activator implements ActivationHandler {
   public initializeWorkflow(activation: coresdk.workflow_activation.IInitializeWorkflow): void {
     const { continuedFailure, lastCompletionResult, memo, searchAttributes } = activation;
     const context = this.workflowSerializationContext();
+    this.nexusSerializationContext = nexusSerializationContextFromProto(activation.propagatedNexusSerializationContext);
+    // The previous run of a retry or cron chain encoded these with the result context
+    const previousRunContext = this.resultSerializationContext();
 
     // Most things related to initialization have already been handled in the constructor
     this.mutateWorkflowInfo((info) => ({
@@ -695,10 +706,10 @@ export class Activator implements ActivationHandler {
       typedSearchAttributes: decodeTypedSearchAttributes(searchAttributes?.indexedFields),
 
       memo: mapFromPayloads(this.payloadConverter, memo?.fields, context) ?? {},
-      lastResult: fromPayloadsAtIndex(this.payloadConverter, 0, lastCompletionResult?.payloads, context),
+      lastResult: fromPayloadsAtIndex(this.payloadConverter, 0, lastCompletionResult?.payloads, previousRunContext),
       lastFailure:
         continuedFailure != null
-          ? this.failureConverter.failureToError(continuedFailure, this.payloadConverter, context)
+          ? this.failureConverter.failureToError(continuedFailure, this.payloadConverter, previousRunContext)
           : undefined,
     }));
     const workflowDefinitionOpts = this.workflowDefinitionOptionsGetter?.();
@@ -1412,7 +1423,7 @@ export class Activator implements ActivationHandler {
       this.pushCommand(
         {
           failWorkflowExecution: {
-            failure: this.errorToFailure(ensureTemporalFailure(error)),
+            failure: this.errorToFailure(ensureTemporalFailure(error), this.resultSerializationContext()),
           },
         },
         true
@@ -1544,7 +1555,7 @@ export class Activator implements ActivationHandler {
   }
 
   private completeWorkflow(result: unknown): void {
-    const context = this.workflowSerializationContext();
+    const context = this.resultSerializationContext();
     this.pushCommand(
       {
         completeWorkflowExecution: {
@@ -1555,8 +1566,7 @@ export class Activator implements ActivationHandler {
     );
   }
 
-  errorToFailure(err: unknown): ProtoFailure {
-    const context = this.workflowSerializationContext();
+  errorToFailure(err: unknown, context: SerializationContext = this.workflowSerializationContext()): ProtoFailure {
     return this.failureConverter.errorToFailure(err, this.payloadConverter, context);
   }
 
@@ -1570,6 +1580,11 @@ export class Activator implements ActivationHandler {
       namespace: this.info.namespace,
       workflowId: this.info.workflowId,
     };
+  }
+
+  /** Context for the Workflow's result and closing failure, which go back to a Nexus caller if a handler started it. */
+  private resultSerializationContext(): SerializationContext {
+    return this.nexusSerializationContext ?? this.workflowSerializationContext();
   }
 }
 
