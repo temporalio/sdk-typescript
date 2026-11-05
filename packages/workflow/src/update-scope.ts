@@ -1,4 +1,5 @@
 import type { AsyncLocalStorage as ALS } from 'node:async_hooks';
+import { AsyncLocalStorage } from './async-local-storage';
 
 /**
  * Option for constructing a UpdateScope
@@ -15,9 +16,7 @@ export interface UpdateScopeOptions {
   name: string;
 }
 
-// AsyncLocalStorage is injected via vm module into global scope.
-// In case Workflow code is imported in Node.js context, replace with an empty class.
-export const AsyncLocalStorage: new <T>() => ALS<T> = (globalThis as any).AsyncLocalStorage ?? class {};
+export { AsyncLocalStorage };
 
 export class UpdateScope {
   /**
