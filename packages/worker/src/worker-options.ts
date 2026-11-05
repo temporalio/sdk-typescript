@@ -887,7 +887,7 @@ export function appendDefaultInterceptors(
   interceptors: WorkerInterceptors,
   logger?: Logger | undefined
 ): WorkerInterceptors {
-  if (!logger || logger === Runtime.instance().logger) return interceptors;
+  if (!logger || Runtime.instance().isRuntimeLogger(logger)) return interceptors;
 
   return {
     activityInbound: [(ctx) => new ActivityInboundLogInterceptor(ctx, logger), ...(interceptors.activityInbound ?? [])],

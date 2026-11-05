@@ -36,11 +36,13 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test.serial('Runtime.install() remembers installed options after it has been shut down', async (t) => {
-    const logger = new DefaultLogger('DEBUG');
+    const messages: string[] = [];
+    const logger = new DefaultLogger('DEBUG', ({ message }) => messages.push(message));
     Runtime.install({ logger });
     {
       const runtime = Runtime.instance();
-      t.is(runtime.options.logger, logger);
+      runtime.logger.info('before shutdown');
+      t.true(messages.includes('before shutdown'));
     }
 
     const worker = await Worker.create({ ...defaultOptions, taskQueue: 'q1' });
@@ -50,7 +52,8 @@ if (RUN_INTEGRATION_TESTS) {
 
     {
       const runtime = Runtime.instance();
-      t.is(runtime.options.logger, logger);
+      runtime.logger.info('after shutdown');
+      t.true(messages.includes('after shutdown'));
       await runtime.shutdown();
     }
   });
