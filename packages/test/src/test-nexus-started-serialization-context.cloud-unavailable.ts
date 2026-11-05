@@ -425,7 +425,7 @@ for (const value of ['result', 'failure', 'rejection'] as const) {
         } else {
           const err = await t.throwsAsync(updateHandle.result(), { instanceOf: WorkflowUpdateFailedError });
           t.true(err?.cause instanceof ApplicationFailure);
-          t.deepEqual((err?.cause as ApplicationFailure).details, ['failure-detail']);
+          t.deepEqual((err?.cause as ApplicationFailure | undefined)?.details, ['failure-detail']);
         }
       }
 
@@ -436,8 +436,9 @@ for (const value of ['result', 'failure', 'rejection'] as const) {
 
     const events = history.events ?? [];
     if (value !== 'rejection') {
-      const accepted = events.find((e) => e.workflowExecutionUpdateAcceptedEventAttributes != null)
-        ?.workflowExecutionUpdateAcceptedEventAttributes;
+      const accepted = events.find(
+        (e) => e.workflowExecutionUpdateAcceptedEventAttributes != null
+      )?.workflowExecutionUpdateAcceptedEventAttributes;
       t.like(accepted?.acceptedRequest?.propagatedNexusSerializationContext, {
         endpoint: context.endpoint,
         service: context.service,
@@ -445,8 +446,9 @@ for (const value of ['result', 'failure', 'rejection'] as const) {
       });
       // The input keeps the Workflow context
       t.true((accepted?.acceptedRequest?.input?.args?.payloads ?? []).every((payload) => marker(payload) == null));
-      const completed = events.find((e) => e.workflowExecutionUpdateCompletedEventAttributes != null)
-        ?.workflowExecutionUpdateCompletedEventAttributes;
+      const completed = events.find(
+        (e) => e.workflowExecutionUpdateCompletedEventAttributes != null
+      )?.workflowExecutionUpdateCompletedEventAttributes;
       const outcomePayload =
         value === 'result'
           ? completed?.outcome?.success?.payloads?.[0]
