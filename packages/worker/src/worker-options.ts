@@ -359,28 +359,28 @@ export interface WorkerOptions {
    * - Keep this value low for Task Queues which have very few concurrent Workflow Executions.
    *
    * Can't be higher than `maxConcurrentWorkflowTaskExecutions`, and can't be lower than 2.
-   * @default min(10, maxConcurrentWorkflowTaskExecutions)
+   * @default 5
    */
   maxConcurrentWorkflowTaskPolls?: number;
 
   /**
    * Specify the behavior of workflow task polling.
    *
-   * @default A fixed maximum whose value is min(10, maxConcurrentWorkflowTaskExecutions).
+   * @default A fixed maximum of 5 pollers.
    */
   workflowTaskPollerBehavior?: PollerBehavior;
 
   /**
    * Specify the behavior of activity task polling.
    *
-   * @default A fixed maximum whose value is min(10, maxConcurrentActivityTaskExecutions).
+   * @default A fixed maximum of 5 pollers.
    */
   activityTaskPollerBehavior?: PollerBehavior;
 
   /**
    * Specify the behavior of Nexus task polling.
    *
-   * @default A fixed maximum whose value is min(10, maxConcurrentNexusTaskExecutions).
+   * @default A fixed maximum of 5 pollers.
    *
    */
   nexusTaskPollerBehavior?: PollerBehavior;
@@ -392,7 +392,7 @@ export interface WorkerOptions {
    * `maxConcurrentActivityTaskExecutions` slots despite a backlog of Activity
    * Tasks in the Task Queue (ie. due to network latency). Can't be higher than
    * `maxConcurrentActivityTaskExecutions`.
-   * @default min(10, maxConcurrentActivityTaskExecutions)
+   * @default 5
    */
   maxConcurrentActivityTaskPolls?: number;
 
@@ -404,7 +404,7 @@ export interface WorkerOptions {
    * Tasks in the Task Queue (ie. due to network latency). Can't be higher than
    * `maxConcurrentNexusTaskExecutions`.
    *
-   * @default min(10, maxConcurrentNexusTaskExecutions)
+   * @default 5
    *
    */
   maxConcurrentNexusTaskPolls?: number;
@@ -953,9 +953,9 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
      */
     isolateExecutionTimeout: Duration;
 
-    workflowTaskPollerBehavior: Required<PollerBehavior>;
-    activityTaskPollerBehavior: Required<PollerBehavior>;
-    nexusTaskPollerBehavior: Required<PollerBehavior>;
+    workflowTaskPollerBehavior?: Required<PollerBehavior>;
+    activityTaskPollerBehavior?: Required<PollerBehavior>;
+    nexusTaskPollerBehavior?: Required<PollerBehavior>;
   };
 
 /**
@@ -1077,9 +1077,18 @@ function addDefaultWorkerOptions(
             maximum: behavior.maximum ?? 100,
           };
 
-  const wftPollerBehavior = createPollerBehavior(maxWFTPolls, workflowTaskPollerBehavior);
-  const atPollerBehavior = createPollerBehavior(maxATPolls, activityTaskPollerBehavior);
-  const nexusPollerBehavior = createPollerBehavior(maxNexusTaskPolls, nexusTaskPollerBehavior);
+  const wftPollerBehavior =
+    workflowTaskPollerBehavior !== undefined || options.maxConcurrentWorkflowTaskPolls !== undefined
+      ? createPollerBehavior(maxWFTPolls, workflowTaskPollerBehavior)
+      : undefined;
+  const atPollerBehavior =
+    activityTaskPollerBehavior !== undefined || options.maxConcurrentActivityTaskPolls !== undefined
+      ? createPollerBehavior(maxATPolls, activityTaskPollerBehavior)
+      : undefined;
+  const nexusPollerBehavior =
+    nexusTaskPollerBehavior !== undefined || options.maxConcurrentNexusTaskPolls !== undefined
+      ? createPollerBehavior(maxNexusTaskPolls, nexusTaskPollerBehavior)
+      : undefined;
 
   return {
     namespace: namespace ?? 'default',
@@ -1242,9 +1251,15 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
     namespace: opts.namespace,
     tuner: opts.tuner,
     nonStickyToStickyPollRatio: opts.nonStickyToStickyPollRatio,
-    workflowTaskPollerBehavior: toNativeTaskPollerBehavior(opts.workflowTaskPollerBehavior),
-    activityTaskPollerBehavior: toNativeTaskPollerBehavior(opts.activityTaskPollerBehavior),
-    nexusTaskPollerBehavior: toNativeTaskPollerBehavior(opts.nexusTaskPollerBehavior),
+    workflowTaskPollerBehavior: opts.workflowTaskPollerBehavior
+      ? toNativeTaskPollerBehavior(opts.workflowTaskPollerBehavior)
+      : null,
+    activityTaskPollerBehavior: opts.activityTaskPollerBehavior
+      ? toNativeTaskPollerBehavior(opts.activityTaskPollerBehavior)
+      : null,
+    nexusTaskPollerBehavior: opts.nexusTaskPollerBehavior
+      ? toNativeTaskPollerBehavior(opts.nexusTaskPollerBehavior)
+      : null,
     taskTypes: {
       enableWorkflows,
       enableLocalActivities,

@@ -536,9 +536,9 @@ mod config {
         namespace: String,
         tuner: WorkerTuner,
         non_sticky_to_sticky_poll_ratio: f32,
-        workflow_task_poller_behavior: PollerBehavior,
-        activity_task_poller_behavior: PollerBehavior,
-        nexus_task_poller_behavior: PollerBehavior,
+        workflow_task_poller_behavior: Option<PollerBehavior>,
+        activity_task_poller_behavior: Option<PollerBehavior>,
+        nexus_task_poller_behavior: Option<PollerBehavior>,
         task_types: WorkerTaskTypes,
         sticky_queue_schedule_to_start_timeout: Duration,
         max_cached_workflows: usize,
@@ -634,9 +634,13 @@ mod config {
                 .namespace(self.namespace)
                 .tuner(self.tuner.into_core_config()?)
                 .nonsticky_to_sticky_poll_ratio(self.non_sticky_to_sticky_poll_ratio)
-                .workflow_task_poller_behavior(self.workflow_task_poller_behavior.into())
-                .activity_task_poller_behavior(self.activity_task_poller_behavior.into())
-                .nexus_task_poller_behavior(self.nexus_task_poller_behavior.into())
+                .maybe_workflow_task_poller_behavior(
+                    self.workflow_task_poller_behavior.map(Into::into),
+                )
+                .maybe_activity_task_poller_behavior(
+                    self.activity_task_poller_behavior.map(Into::into),
+                )
+                .maybe_nexus_task_poller_behavior(self.nexus_task_poller_behavior.map(Into::into))
                 .task_types(self.task_types.into())
                 .sticky_queue_schedule_to_start_timeout(self.sticky_queue_schedule_to_start_timeout)
                 .max_cached_workflows(self.max_cached_workflows)
