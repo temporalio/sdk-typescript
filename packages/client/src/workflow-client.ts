@@ -11,6 +11,7 @@ import type {
   Workflow,
   WorkflowResultType,
   WorkflowIdConflictPolicy,
+  NexusSerializationContext,
   SerializationContext,
   WorkflowSerializationContext,
   WorkflowTypeOptions,
@@ -379,6 +380,19 @@ function assertRequiredWorkflowOptions(opts: WorkflowOptions): asserts opts is W
   }
 }
 
+/**
+ * Serialization context the server returned with an Update outcome, if not the Workflow's. An
+ * Update sent by a Nexus operation handler encodes its outcome with the handler's Nexus context.
+ */
+function outcomeSerializationContext(response: {
+  outcome?: temporal.api.update.v1.IOutcome | null;
+  propagatedNexusSerializationContext?: temporal.api.nexus.v1.IPropagatedSerializationContext | null;
+}): NexusSerializationContext | undefined {
+  return response.outcome != null
+    ? nexusSerializationContextFromProto(response.propagatedNexusSerializationContext)
+    : undefined;
+}
+
 function ensureArgs<W extends Workflow, T extends WorkflowStartOptions<W>>(
   opts: T
 ): Omit<T, 'args'> & { args: unknown[] } {
@@ -590,13 +604,6 @@ export class WithStartWorkflowOperation<T extends Workflow> {
  */
 export class WorkflowClient extends BaseClient {
   public readonly options: LoadedWorkflowClientOptions;
-
-  /**
-   * Serialization context the server returned with an Update outcome. An Update sent by a Nexus
-   * operation handler encodes its outcome with the handler's Nexus context. Keyed by the outcome
-   * object, so an interceptor that replaces the outcome falls back to the Workflow context.
-   */
-  private readonly updateOutcomeContexts = new WeakMap<temporal.api.update.v1.IOutcome, SerializationContext>();
 
   constructor(options?: WorkflowClientOptions) {
     super(options);
@@ -907,11 +914,12 @@ export class WorkflowClient extends BaseClient {
     const updateOutput = await fn(startUpdateWithStartInput);
 
     let outcome = updateOutput.updateOutcome;
+    let outcomeContext = updateOutput.updateOutcomeSerializationContext;
     if (!outcome && waitForStage === WorkflowUpdateStage.COMPLETED) {
-      outcome = await this._pollForUpdateOutcome(updateOutput.updateId, {
+      ({ outcome, context: outcomeContext } = await this.pollForUpdateOutcomeWithContext(updateOutput.updateId, {
         workflowId,
         runId: updateOutput.workflowExecution.runId,
-      });
+      }));
     }
 
     return this.createWorkflowUpdateHandle(
@@ -919,7 +927,8 @@ export class WorkflowClient extends BaseClient {
       workflowId,
       updateOutput.workflowExecution.runId,
       outcome,
-      updateOutput.updateOutputTypeInfo
+      updateOutput.updateOutputTypeInfo,
+      outcomeContext
     );
   }
 
@@ -1239,16 +1248,6 @@ export class WorkflowClient extends BaseClient {
     };
   }
 
-  private rememberUpdateOutcomeContext(response: {
-    outcome?: temporal.api.update.v1.IOutcome | null;
-    propagatedNexusSerializationContext?: temporal.api.nexus.v1.IPropagatedSerializationContext | null;
-  }): void {
-    const context = nexusSerializationContextFromProto(response.propagatedNexusSerializationContext);
-    if (response.outcome != null && context != null) {
-      this.updateOutcomeContexts.set(response.outcome, context);
-    }
-  }
-
   /**
    * Start the Update.
    *
@@ -1302,7 +1301,6 @@ export class WorkflowClient extends BaseClient {
           payloadCache: this.payloadCache,
         })
       );
-      this.rememberUpdateOutcomeContext(response);
     } catch (err) {
       this.rethrowUpdateGrpcError(err, 'Workflow Update failed', input.workflowExecution);
     }
@@ -1320,6 +1318,7 @@ export class WorkflowClient extends BaseClient {
 
       workflowRunId: response.updateRef!.workflowExecution!.runId!,
       outcome: response.outcome ?? undefined,
+      outcomeSerializationContext: outcomeSerializationContext(response),
       outputTypeInfo: input.typeInfo?.outputType,
     };
   }
@@ -1410,7 +1409,6 @@ export class WorkflowClient extends BaseClient {
         }
         updateResp = multiOpResp.responses?.[1]
           ?.updateWorkflow as temporal.api.workflowservice.v1.IUpdateWorkflowExecutionResponse;
-        this.rememberUpdateOutcomeContext(updateResp);
         reachedStage =
           updateResp.stage ??
           UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_UNSPECIFIED;
@@ -1422,6 +1420,7 @@ export class WorkflowClient extends BaseClient {
         },
         updateId: updateRequest.request!.meta!.updateId!,
         updateOutcome: updateResp.outcome ?? undefined,
+        updateOutcomeSerializationContext: outcomeSerializationContext(updateResp),
         updateOutputTypeInfo: input.updateTypeInfo?.outputType,
       };
     } catch (thrownError) {
@@ -1449,22 +1448,27 @@ export class WorkflowClient extends BaseClient {
     workflowId: string,
     workflowRunId?: string,
     outcome?: temporal.api.update.v1.IOutcome,
-    outputTypeInfo?: TypeInfo
+    outputTypeInfo?: TypeInfo,
+    outcomeContext?: NexusSerializationContext
   ): WorkflowUpdateHandle<Ret> {
     const dataConverter = this.dataConverter;
-    const context = this.workflowSerializationContext(workflowId);
+    const workflowContext = this.workflowSerializationContext(workflowId);
     return {
       updateId,
       workflowId,
       workflowRunId,
       result: async () => {
-        const completedOutcome =
-          outcome ?? (await this._pollForUpdateOutcome(updateId, { workflowId, runId: workflowRunId }));
-        const outcomeContext = this.updateOutcomeContexts.get(completedOutcome) ?? context;
+        const completed =
+          outcome != null
+            ? { outcome, context: outcomeContext }
+            : await this.pollForUpdateOutcomeWithContext(updateId, { workflowId, runId: workflowRunId });
+        const completedOutcome = completed.outcome;
+        // An Update sent by a Nexus operation handler encodes its outcome with the handler's context
+        const context = completed.context ?? workflowContext;
         if (completedOutcome.failure) {
           throw new WorkflowUpdateFailedError(
             'Workflow Update failed',
-            await decodeOptionalFailureToOptionalError(dataConverter, completedOutcome.failure, outcomeContext)
+            await decodeOptionalFailureToOptionalError(dataConverter, completedOutcome.failure, context)
           );
         } else {
           // PayloadTypeInfo stores output metadata without its application type, so TypeScript cannot know that this
@@ -1473,7 +1477,7 @@ export class WorkflowClient extends BaseClient {
             dataConverter,
             0,
             completedOutcome.success?.payloads,
-            outcomeContext,
+            context,
             outputTypeInfo as TypeInfo<Ret, unknown> | undefined
           );
         }
@@ -1489,6 +1493,17 @@ export class WorkflowClient extends BaseClient {
     updateId: string,
     workflowExecution: temporal.api.common.v1.IWorkflowExecution
   ): Promise<temporal.api.update.v1.IOutcome> {
+    return (await this.pollForUpdateOutcomeWithContext(updateId, workflowExecution)).outcome;
+  }
+
+  /**
+   * Poll Update until a response with an outcome is received; return that outcome and the
+   * serialization context it was encoded with, if not the Workflow's.
+   */
+  private async pollForUpdateOutcomeWithContext(
+    updateId: string,
+    workflowExecution: temporal.api.common.v1.IWorkflowExecution
+  ): Promise<{ outcome: temporal.api.update.v1.IOutcome; context?: NexusSerializationContext }> {
     const req: temporal.api.workflowservice.v1.IPollWorkflowExecutionUpdateRequest = {
       namespace: this.options.namespace,
       updateRef: { workflowExecution, updateId },
@@ -1509,8 +1524,7 @@ export class WorkflowClient extends BaseClient {
           })
         );
         if (response.outcome) {
-          this.rememberUpdateOutcomeContext(response);
-          return response.outcome;
+          return { outcome: response.outcome, context: outcomeSerializationContext(response) };
         }
       } catch (err) {
         const wE = typeof workflowExecution.workflowId === 'string' ? workflowExecution : undefined;
@@ -1915,7 +1929,8 @@ export class WorkflowClient extends BaseClient {
         input.workflowExecution.workflowId,
         output.workflowRunId,
         output.outcome,
-        output.outputTypeInfo
+        output.outputTypeInfo,
+        output.outcomeSerializationContext
       );
       if (!output.outcome && waitForStage === WorkflowUpdateStage.COMPLETED) {
         await this._pollForUpdateOutcome(handle.updateId, input.workflowExecution);
