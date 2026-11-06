@@ -1,8 +1,9 @@
 import type { native } from '@temporalio/core-bridge';
-import type { Logger, LogLevel } from '@temporalio/common';
+import type { LogLevel } from '@temporalio/common';
 import type { Duration } from '@temporalio/common/lib/time';
 import { msToNumber } from '@temporalio/common/lib/time';
-import { DefaultLogger } from './logger';
+import type { FlushableLogger } from './logger';
+import { DefaultLogger, NonThrowingLogger } from './logger';
 import { NativeLogCollector } from './runtime-logger';
 import type { MetricsBuffer } from './runtime-metrics';
 
@@ -27,7 +28,7 @@ export interface RuntimeOptions {
    * to log messages emitted from the TS side of the SDK. See {@link TelemetryOptions.logging} on
    * how to turn on forwarding of native logs to the TS logger.
    */
-  logger?: Logger;
+  logger?: FlushableLogger;
 
   /**
    * Options for Core-side telemetry, including logs and metrics.
@@ -385,18 +386,23 @@ export interface BufferedMetricsExporter {
 export interface CompiledRuntimeOptions {
   shutdownSignals: NodeJS.Signals[];
   runtimeOptions: native.RuntimeOptions;
-  logger: Logger;
+  logger: FlushableLogger;
+  /** The logger provided in {@link RuntimeOptions.logger}, before it got wrapped by the SDK. */
+  userLogger?: FlushableLogger;
+  logCollector?: NativeLogCollector;
   metricsBuffer: MetricsBuffer | undefined;
 }
 
 export function compileOptions(options: RuntimeOptions): CompiledRuntimeOptions {
   const { metrics, noTemporalPrefixForMetrics } = options.telemetryOptions ?? {}; // oxlint-disable-line typescript/no-deprecated
-  const [logger, logExporter] = compileLoggerOptions(options);
+  const { logger, logExporter, logCollector } = compileLoggerOptions(options);
 
   const heartbeatMillis = msToNumber(options.workerHeartbeatInterval ?? '60s');
 
   return {
     logger,
+    userLogger: options.logger,
+    logCollector,
     shutdownSignals: options.shutdownSignals ?? ['SIGINT', 'SIGTERM', 'SIGQUIT', 'SIGUSR2'],
     runtimeOptions: {
       logExporter,
@@ -440,10 +446,14 @@ export function compileOptions(options: RuntimeOptions): CompiledRuntimeOptions 
   };
 }
 
-function compileLoggerOptions(options: RuntimeOptions): [Logger, native.LogExporterOptions] {
+function compileLoggerOptions(options: RuntimeOptions): {
+  logger: FlushableLogger;
+  logExporter: native.LogExporterOptions;
+  logCollector?: NativeLogCollector;
+} {
   const { logging, tracingFilter } = options.telemetryOptions ?? {}; // oxlint-disable-line typescript/no-deprecated
 
-  const logger = options.logger ?? new DefaultLogger('INFO');
+  const logger = new NonThrowingLogger(options.logger ?? new DefaultLogger('INFO'));
 
   // Unfortunately, "filter" has changed place and semantics a few times in the past, and we want to
   // do our best not to break existing users, so this gets a bit more complex than it should be.
@@ -469,23 +479,24 @@ function compileLoggerOptions(options: RuntimeOptions): [Logger, native.LogExpor
 
   if (logging && isForwardingLogger(logging)) {
     const collector = new NativeLogCollector(logger);
-    return [
-      collector.logger,
-      {
+    return {
+      logger: collector.logger,
+      logCollector: collector,
+      logExporter: {
         type: 'forward',
         filter: loggingFilter ?? forwardLevelFilter ?? defaultFilter,
         receiver: collector.receive,
       },
-    ];
+    };
   } else {
-    return [
+    return {
       logger,
-      {
+      logExporter: {
         type: 'console',
         filter: loggingFilter ?? defaultFilter,
         format: logging && 'console' in logging ? (logging.console?.format ?? null) : null,
       },
-    ];
+    };
   }
 }
 

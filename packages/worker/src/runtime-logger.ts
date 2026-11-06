@@ -1,7 +1,7 @@
 import { Heap } from 'heap-js';
 import { SdkComponent } from '@temporalio/common';
 import type { native } from '@temporalio/core-bridge';
-import type { FlushableLogger, LogEntry, Logger } from './logger';
+import type { FlushableLogger, LogEntry } from './logger';
 import { DefaultLogger, LogTimestamp } from './logger';
 
 /**
@@ -15,14 +15,14 @@ import { DefaultLogger, LogTimestamp } from './logger';
  */
 export class NativeLogCollector {
   /**
-   * The Logger instance ti be used to send logs to this collector
+   * The logger instance to be used to send logs to this collector.
    */
-  public readonly logger: Logger;
+  public readonly logger: FlushableLogger;
 
   /**
    * The downstream logger to which this collector reemits logs.
    */
-  protected readonly downstream: Logger;
+  protected readonly downstream: FlushableLogger;
 
   protected buffer = new Heap<LogEntry>((a, b) => Number(a.timestampNanos - b.timestampNanos));
 
@@ -69,10 +69,14 @@ export class NativeLogCollector {
    */
   protected readonly maxBufferSize = 2000;
 
-  constructor(downstream: Logger) {
+  /**
+   * Once closed, messages are no longer buffered, but forwarded to the downstream logger immediately.
+   */
+  protected closed = false;
+
+  constructor(downstream: FlushableLogger) {
     this.logger = new DefaultLogger('TRACE', this.appendOne.bind(this));
-    (this.logger as FlushableLogger).flush = this.flush.bind(this);
-    (this.logger as FlushableLogger).close = this.close.bind(this);
+    this.logger.flush = this.flush.bind(this);
 
     this.downstream = downstream;
     this.receive = this.receive.bind(this);
@@ -164,7 +168,7 @@ export class NativeLogCollector {
    * acceptable, and definitely better than a memory leak caused by unbounded growth of the buffer.
    */
   private flushExcess(): void {
-    let excess = this.buffer.size() - this.maxBufferSize;
+    let excess = this.buffer.size() - (this.closed ? 0 : this.maxBufferSize);
     while (excess-- > 0) {
       const entry = this.buffer.pop();
       if (!entry) break;
@@ -188,10 +192,19 @@ export class NativeLogCollector {
         ...entry.meta,
       });
     }
+    this.downstream.flush?.();
   }
 
+  /**
+   * Flush buffered messages and stop periodic flushing. Subsequent messages are
+   * forwarded without buffering.
+   */
   public close(): void {
-    this.flush();
-    clearInterval(this.flushIntervalTimer);
+    try {
+      this.flush();
+    } finally {
+      this.closed = true;
+      clearInterval(this.flushIntervalTimer);
+    }
   }
 }

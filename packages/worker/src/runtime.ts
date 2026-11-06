@@ -3,11 +3,11 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { native } from '@temporalio/core-bridge';
 import { filterNullAndUndefined } from '@temporalio/common/internal/internal-workflow';
-import type { Logger, MetricMeter } from '@temporalio/common';
+import type { MetricMeter } from '@temporalio/common';
 import { IllegalStateError, MetricMeterWithComposedTags, noopMetricMeter, SdkComponent } from '@temporalio/common';
 import { coresdk, temporal } from '@temporalio/proto';
 import type { History } from '@temporalio/common/lib/proto-utils';
-import { isFlushableLogger } from './logger';
+import type { FlushableLogger, Logger } from './logger';
 import type { MetricsBuffer } from './runtime-metrics';
 import { RuntimeMetricMeter } from './runtime-metrics';
 import type { NativeConnectionOptions } from './connection-options';
@@ -26,7 +26,7 @@ type TrackedNativeObject = native.Client | native.Worker | native.EphemeralServe
  * Use {@link install} in order to customize the server connection options or other global process options.
  */
 export class Runtime {
-  public readonly logger: Logger;
+  public readonly logger: FlushableLogger;
 
   /** The metric meter associated with this runtime. */
   public readonly metricMeter: MetricMeter;
@@ -118,12 +118,21 @@ export class Runtime {
   }
 
   /**
+   * Whether `logger` is this runtime's logger, either as exposed by {@link logger} or as provided
+   * by the user in {@link RuntimeOptions.logger}.
+   *
+   * @hidden
+   * @internal
+   */
+  public isRuntimeLogger(logger: Logger): boolean {
+    return logger === this.logger || logger === this.options.userLogger;
+  }
+
+  /**
    * Flush any buffered logs.
    */
   flushLogs(): void {
-    if (isFlushableLogger(this.logger)) {
-      this.logger.flush();
-    }
+    this.logger.flush?.();
   }
 
   /**
@@ -308,11 +317,10 @@ export class Runtime {
       this.teardownShutdownHook();
       // FIXME(JWH): I think we no longer need this, but will have to thoroughly validate.
       native.runtimeShutdown(this.native);
-      if (isFlushableLogger(this.logger)) {
-        this.logger.close?.();
-      }
     } finally {
       delete (this as any).native;
+      this.options.logCollector?.close();
+      this.flushLogs();
     }
   }
 
