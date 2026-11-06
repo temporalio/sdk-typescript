@@ -463,3 +463,52 @@ for (const value of ['result', 'failure', 'rejection'] as const) {
     );
   });
 }
+
+test('concurrent Updates on one Client each decode with their own context', async (t) => {
+  const { client, worker, nexusClient, taskQueue } = await setup(t, 'updateWorkflow');
+  const nexusUpdateId = randomUUID();
+  const directUpdateId = randomUUID();
+
+  const history = await worker.runUntil(async () => {
+    const handle = await client.workflow.start(nexusUpdatedWorkflow, {
+      workflowId: `nexus-updated-workflow-${randomUUID()}`,
+      taskQueue,
+    });
+
+    // One Update sent by a Nexus handler (Nexus context) and one sent directly by this Client
+    // (Workflow context), in flight at the same time
+    const [nexusResult, directResult] = await Promise.all([
+      nexusClient.executeOperation(
+        'updateWorkflow',
+        { workflowId: handle.workflowId, updateId: nexusUpdateId, value: 'result' },
+        { id: randomUUID() }
+      ),
+      handle.executeUpdate(nexusUpdate, { args: ['direct'], updateId: directUpdateId }),
+    ]);
+    t.is(nexusResult, 'result');
+    t.is(directResult, 'direct');
+
+    // Read both results again through the same Client at the same time. The marker codec throws if
+    // either outcome is decoded with the other's context.
+    const [nexusAgain, directAgain] = await Promise.all([
+      handle.getUpdateHandle<string>(nexusUpdateId).result(),
+      handle.getUpdateHandle<string>(directUpdateId).result(),
+    ]);
+    t.is(nexusAgain, 'result');
+    t.is(directAgain, 'direct');
+
+    await handle.signal(finishSignal);
+    await handle.result();
+    return await handle.fetchHistory();
+  });
+
+  // Only the Nexus-sent Update's outcome is encoded with the Nexus context
+  const outcomes = new Map(
+    (history.events ?? [])
+      .map((e) => e.workflowExecutionUpdateCompletedEventAttributes)
+      .filter((attrs) => attrs != null)
+      .map((attrs) => [attrs.meta?.updateId, marker(attrs.outcome?.success?.payloads?.[0])])
+  );
+  t.is(outcomes.get(nexusUpdateId), MARKER);
+  t.is(outcomes.get(directUpdateId), undefined);
+});

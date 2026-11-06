@@ -6,6 +6,7 @@
 
 import type {
   Duration,
+  NexusSerializationContext,
   PayloadTypeInfo,
   SearchAttributePair,
   SignalTypeInfo,
@@ -78,6 +79,14 @@ export interface WorkflowStartUpdateOutput {
   readonly updateId: string;
   readonly workflowRunId: string;
   readonly outcome?: temporal.api.update.v1.IOutcome;
+  /**
+   * Serialization context the Update's outcome is encoded with, if not the Workflow's. Set when a
+   * Nexus operation handler sent the Update, whose outcome is encoded with the handler's Nexus
+   * context. The Update handle decodes the outcome with it.
+   *
+   * @experimental Nexus serialization context is an experimental feature and may change.
+   */
+  readonly outcomeSerializationContext?: NexusSerializationContext;
   /** Type information used to decode the Update result. */
   readonly outputTypeInfo?: TypeInfo;
 }
@@ -104,6 +113,14 @@ export interface WorkflowStartUpdateWithStartOutput {
   readonly workflowExecution: WorkflowExecution;
   readonly updateId: string;
   readonly updateOutcome?: temporal.api.update.v1.IOutcome;
+  /**
+   * Serialization context the Update's outcome is encoded with, if not the Workflow's. Set when a
+   * Nexus operation handler sent the Update, whose outcome is encoded with the handler's Nexus
+   * context. The Update handle decodes the outcome with it.
+   *
+   * @experimental Nexus serialization context is an experimental feature and may change.
+   */
+  readonly updateOutcomeSerializationContext?: NexusSerializationContext;
   /** Type information used to decode the Update result. */
   readonly updateOutputTypeInfo?: TypeInfo;
 }
