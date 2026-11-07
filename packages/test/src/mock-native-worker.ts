@@ -178,6 +178,9 @@ export class MockNativeWorker implements NativeWorkerLike {
 export class Worker extends RealWorker {
   protected static nativeWorkerCtor = MockNativeWorker;
 
+  // Keep heartbeat-encode-timeout tests fast; normal encodes finish well within this.
+  protected readonly heartbeatEncodeTimeoutMs = 500;
+
   public get native(): MockNativeWorker {
     return this.nativeWorker as MockNativeWorker;
   }

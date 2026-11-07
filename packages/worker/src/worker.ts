@@ -1937,6 +1937,40 @@ export class Worker {
   }
 
   /**
+   * Maximum time to wait for heartbeat details to be encoded (and uploaded to external
+   * storage, if configured). A payload codec whose `encode` never resolves would
+   * otherwise keep a failed Activity's result from being sent and prevent
+   * `Worker.shutdown()` from finishing. Declared `protected` so tests can override it.
+   */
+  protected readonly heartbeatEncodeTimeoutMs: number = 10_000;
+
+  /**
+   * Race heartbeat encoding against {@link heartbeatEncodeTimeoutMs}; on timeout the
+   * returned promise rejects and the heartbeat is treated as failed to encode.
+   */
+  protected async withHeartbeatEncodeTimeout(
+    promise: Promise<coresdk.IActivityHeartbeat>
+  ): Promise<coresdk.IActivityHeartbeat> {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(
+            () => reject(new Error(`Encoding heartbeat details timed out after ${this.heartbeatEncodeTimeoutMs}ms`)),
+            this.heartbeatEncodeTimeoutMs
+          );
+          timer.unref?.();
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+      // Swallow late rejections from a promise that lost the race.
+      promise.catch(() => undefined);
+    }
+  }
+
+  /**
    * Listen on heartbeats emitted from activities and send them to core.
    * Errors from core responses are translated to cancellation requests and fed back via the activityFeedbackSubject.
    */
@@ -2055,21 +2089,27 @@ export class Worker {
             try {
               let heartbeat: coresdk.IActivityHeartbeat;
               try {
-                const payload = await encodeToPayload(this.options.loadedDataConverter, details, context);
-                heartbeat = { taskToken, details: [payload] };
-                const { externalStorage } = this.options.loadedDataConverter;
-                if (externalStorage) {
-                  await visit(
-                    heartbeat,
-                    walkActivityHeartbeat,
-                    externalStorageStoreVisitOptions({
-                      externalStorage,
-                      initialTarget: activityStorageTarget(info),
-                      payloadCache: this.options.payloadCache,
-                      logger: this.logger,
-                    })
-                  );
-                }
+                const encodeAndStore = async (): Promise<coresdk.IActivityHeartbeat> => {
+                  const payload = await encodeToPayload(this.options.loadedDataConverter, details, context);
+                  const heartbeat: coresdk.IActivityHeartbeat = { taskToken, details: [payload] };
+                  const { externalStorage } = this.options.loadedDataConverter;
+                  if (externalStorage) {
+                    await visit(
+                      heartbeat,
+                      walkActivityHeartbeat,
+                      externalStorageStoreVisitOptions({
+                        externalStorage,
+                        initialTarget: activityStorageTarget(info),
+                        payloadCache: this.options.payloadCache,
+                        logger: this.logger,
+                      })
+                    );
+                  }
+                  return heartbeat;
+                };
+                // Bound the wait: a payload codec or external storage upload that never
+                // resolves must not block the Activity result path or Worker.shutdown().
+                heartbeat = await this.withHeartbeatEncodeTimeout(encodeAndStore());
               } catch (error: any) {
                 this.logger.warn('Failed to encode heartbeat details, cancelling Activity', {
                   error,

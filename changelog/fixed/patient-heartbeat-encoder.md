@@ -1,0 +1,1 @@
+Heartbeat encoding is now bounded by a 10s timeout: a payload codec or external-storage upload that never finishes no longer blocks delivery of a failed Activity's result or `Worker.shutdown()`; the Activity is cancelled with `HEARTBEAT_DETAILS_CONVERSION_FAILED` instead, as with other heartbeat-encoding failures.
