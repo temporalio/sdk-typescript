@@ -1,0 +1,1 @@
+Workflow stack traces are mapped with `@jridgewell/trace-mapping`, and `@temporalio/worker` and `@temporalio/workflow` no longer depend on `source-map`. The Worker no longer reads `source-map`'s `mappings.wasm` from disk, so a Worker bundled into a single file does not need it shipped alongside.
