@@ -5,11 +5,10 @@ import { runActivityInDifferentTaskQueue } from './workflows';
 const test = makeTestFunction({ workflowsPath: require.resolve('./workflows') });
 
 test('Worker functions when asked not to run Workflows', async (t) => {
-  const { createWorker, executeWorkflow, taskQueue } = helpers(t);
+  const { createWorker, createWorkflowlessWorker, executeWorkflow, taskQueue } = helpers(t);
   const activitiesTaskQueue = `${taskQueue}-activities`;
   const { activities } = defaultOptions;
-  const workflowlessWorker = await createWorker({
-    workflowBundle: undefined,
+  const workflowlessWorker = await createWorkflowlessWorker({
     taskQueue: activitiesTaskQueue,
     activities,
   });
