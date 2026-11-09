@@ -221,6 +221,11 @@ The `...` suffix includes all dependencies of the specified package.
 
 ### Testing
 
+#### Generating workflow histories
+
+See [Generating workflow histories](docs/workflow-history-generation.md) for the
+ordered generation and replay procedure, version isolation, and fixture naming.
+
 #### Testing local changes to core
 
 Create a `.cargo/config.toml` file and override the path to sdk-core and/or sdk-core-protos as

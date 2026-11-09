@@ -1,0 +1,140 @@
+{
+  "events": [
+    {
+      "eventId": "1",
+      "eventTime": "2026-11-06T21:32:31.552895Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_STARTED",
+      "taskId": "1048587",
+      "workflowExecutionStartedEventAttributes": {
+        "workflowType": {
+          "name": "smorgasbord"
+        },
+        "taskQueue": {
+          "name": "smorgasbord-default-checkout-sdk-1.24.0-1156fea7-32fb-49b2-b6d8-1f09efc014db",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "input": {},
+        "workflowExecutionTimeout": "120s",
+        "workflowRunTimeout": "120s",
+        "workflowTaskTimeout": "10s",
+        "originalExecutionRunId": "01a1b2c7-0bc0-7da4-bae1-6df388eab22c",
+        "identity": "58778@Chriss-MacBook-Pro.local",
+        "firstExecutionRunId": "01a1b2c7-0bc0-7da4-bae1-6df388eab22c",
+        "attempt": 1,
+        "workflowExecutionExpirationTime": "2026-11-06T21:34:31.553Z",
+        "firstWorkflowTaskBackoff": "0s",
+        "header": {},
+        "workflowId": "b79ec3d0-623b-43f3-b5a2-1186a80df5e0"
+      }
+    },
+    {
+      "eventId": "2",
+      "eventTime": "2026-11-06T21:32:31.552944Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "taskId": "1048588",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "smorgasbord-default-checkout-sdk-1.24.0-1156fea7-32fb-49b2-b6d8-1f09efc014db",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "startToCloseTimeout": "10s",
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "3",
+      "eventTime": "2026-11-06T21:32:31.558881Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "taskId": "1048594",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "2",
+        "identity": "58778@Chriss-MacBook-Pro.local",
+        "requestId": "3754a642-5196-4f2a-a5d7-063da2b99e28",
+        "historySizeBytes": "425",
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.24.0+31248a4d1c9b2d5334e78a872718e852145c5c277f771744d426f9a20d91a307"
+        }
+      }
+    },
+    {
+      "eventId": "4",
+      "eventTime": "2026-11-06T21:32:31.599001Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "taskId": "1048598",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "2",
+        "startedEventId": "3",
+        "identity": "58778@Chriss-MacBook-Pro.local",
+        "workerVersion": {
+          "buildId": "@temporalio/worker@1.24.0+31248a4d1c9b2d5334e78a872718e852145c5c277f771744d426f9a20d91a307"
+        },
+        "sdkMetadata": {
+          "coreUsedFlags": [
+            2,
+            1,
+            3
+          ],
+          "sdkName": "temporal-typescript",
+          "sdkVersion": "1.24.0"
+        },
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "5",
+      "eventTime": "2026-11-06T21:32:31.599157Z",
+      "eventType": "EVENT_TYPE_MARKER_RECORDED",
+      "taskId": "1048599",
+      "markerRecordedEventAttributes": {
+        "markerName": "core_local_activity",
+        "details": {
+          "data": {
+            "payloads": [
+              {
+                "metadata": {
+                  "encoding": "anNvbi9wbGFpbg=="
+                },
+                "data": "eyJzZXEiOjMsImF0dGVtcHQiOjEsImFjdGl2aXR5X2lkIjoiMyIsImFjdGl2aXR5X3R5cGUiOiJlY2hvIiwiY29tcGxldGVfdGltZSI6eyJzZWNvbmRzIjoxNzk0MDAwNzUxLCJuYW5vcyI6NTU4ODgxMDAwfSwiYmFja29mZiI6bnVsbCwib3JpZ2luYWxfc2NoZWR1bGVfdGltZSI6eyJzZWNvbmRzIjoxNzk0MDAwNzUxLCJuYW5vcyI6NTkyMDcxMDAwfX0="
+              }
+            ]
+          }
+        },
+        "workflowTaskCompletedEventId": "4",
+        "failure": {
+          "message": "Activity cancelled",
+          "canceledFailureInfo": {}
+        }
+      }
+    },
+    {
+      "eventId": "6",
+      "eventTime": "2026-11-06T21:32:31.599397Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_CONTINUED_AS_NEW",
+      "taskId": "1048600",
+      "workflowExecutionContinuedAsNewEventAttributes": {
+        "newExecutionRunId": "2020921f-99af-4bae-aca5-e286a292f842",
+        "workflowType": {
+          "name": "smorgasbord"
+        },
+        "taskQueue": {
+          "name": "smorgasbord-default-checkout-sdk-1.24.0-1156fea7-32fb-49b2-b6d8-1f09efc014db",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "input": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "MQ=="
+            }
+          ]
+        },
+        "workflowRunTimeout": "120s",
+        "workflowTaskTimeout": "10s",
+        "workflowTaskCompletedEventId": "4",
+        "inheritBuildId": true
+      }
+    }
+  ]
+}
