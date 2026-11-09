@@ -150,6 +150,7 @@ export interface TlsOptions {
   domain: Option<string>;
   serverRootCaCert: Option<Buffer>;
   clientTlsOptions: Option<TlsOptionsClientCertPair>;
+  verificationServerNames: Option<string[]>;
 }
 
 export interface TlsOptionsClientCertPair {

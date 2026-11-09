@@ -8,6 +8,7 @@ import {
   parseHttpConnectProxyAddress,
   ProxyConfig,
   TLSConfig,
+  validateVerificationServerNames,
 } from '@temporalio/common/internal/internal-non-workflow';
 import type { Metadata } from '@temporalio/client';
 import pkg from './pkg';
@@ -205,6 +206,7 @@ export function toNativeClientOptions(options: NativeConnectionOptions): native.
               clientPrivateKey: tlsInput.clientCertPair.key && Buffer.from(tlsInput.clientCertPair.key),
             }
           : null,
+        verificationServerNames: validateVerificationServerNames(tlsInput) ?? null,
       }
     : null;
 

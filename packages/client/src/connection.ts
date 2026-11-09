@@ -1,8 +1,13 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { checkServerIdentity, type PeerCertificate } from 'node:tls';
 import * as grpc from '@grpc/grpc-js';
 import type * as proto from 'protobufjs';
 import type { TLSConfig } from '@temporalio/common/internal/internal-non-workflow';
-import { normalizeTlsConfig, normalizeGrpcEndpointAddress } from '@temporalio/common/internal/internal-non-workflow';
+import {
+  normalizeTlsConfig,
+  normalizeGrpcEndpointAddress,
+  validateVerificationServerNames,
+} from '@temporalio/common/internal/internal-non-workflow';
 import { filterNullAndUndefined } from '@temporalio/common/internal/internal-workflow';
 import type { Duration } from '@temporalio/common/lib/time';
 import { msOptionalToNumber } from '@temporalio/common/lib/time';
@@ -201,10 +206,16 @@ function normalizeGRPCConfig(options: ConnectionOptions): ConnectionOptions {
     const serverRootCert = tls.serverRootCACertificate && Buffer.from(tls.serverRootCACertificate);
     const clientCertKey = tls.clientCertPair?.key && Buffer.from(tls.clientCertPair?.key);
     const clientCertCrt = tls.clientCertPair?.crt && Buffer.from(tls.clientCertPair?.crt);
+    const verificationServerNames = validateVerificationServerNames(tls);
     return {
       ...rest,
       credentials: grpc.credentials.combineChannelCredentials(
-        grpc.credentials.createSsl(serverRootCert, clientCertKey, clientCertCrt),
+        grpc.credentials.createSsl(
+          serverRootCert,
+          clientCertKey,
+          clientCertCrt,
+          verificationServerNames ? { checkServerIdentity: anyServerNameIdentityCheck(verificationServerNames) } : {}
+        ),
         ...(callCredentials ?? [])
       ),
       channelArgs: {
@@ -226,6 +237,25 @@ function normalizeGRPCConfig(options: ConnectionOptions): ConnectionOptions {
       ),
     };
   }
+}
+
+/**
+ * Accept the peer certificate if it is valid for any of `names`. Node has already verified the
+ * certificate chain against the configured roots by the time this runs; only the name check is
+ * replaced.
+ */
+function anyServerNameIdentityCheck(names: string[]): (hostname: string, cert: PeerCertificate) => Error | undefined {
+  return (_hostname, cert) => {
+    let firstError: Error | undefined;
+    for (const name of names) {
+      const error = checkServerIdentity(name, cert);
+      if (error === undefined) {
+        return undefined;
+      }
+      firstError ??= error;
+    }
+    return firstError;
+  };
 }
 
 export interface RPCImplOptions {

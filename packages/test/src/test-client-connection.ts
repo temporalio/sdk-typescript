@@ -60,6 +60,67 @@ async function bindLocalhostTls(server: grpc.Server): Promise<number> {
   return await util.promisify(server.bindAsync.bind(server))('127.0.0.1:0', credentials);
 }
 
+async function connectWithVerificationServerNames(verificationServerNames: string[]) {
+  let requests = 0;
+  const server = new grpc.Server();
+  server.addService(workflowServiceProtoDescriptor.temporal.api.workflowservice.v1.WorkflowService.service, {
+    getSystemInfo(
+      _call: grpc.ServerUnaryCall<
+        temporal.api.workflowservice.v1.IGetSystemInfoRequest,
+        temporal.api.workflowservice.v1.IGetSystemInfoResponse
+      >,
+      callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IGetSystemInfoResponse>
+    ) {
+      requests++;
+      callback(null, {});
+    },
+  });
+  const port = await bindLocalhostTls(server);
+  const conn = Connection.lazy({
+    address: `127.0.0.1:${port}`,
+    tls: {
+      serverRootCACertificate: await fs.readFile(path.resolve(__dirname, `../tls_certs/test-ca.crt`)),
+      clientCertPair: {
+        crt: await fs.readFile(path.resolve(__dirname, `../tls_certs/test-client-chain.crt`)),
+        key: await fs.readFile(path.resolve(__dirname, `../tls_certs/test-client.key`)),
+      },
+      // The test server certificate does not carry this name, so default verification would fail.
+      serverNameOverride: 'unmatched.test',
+      verificationServerNames,
+    },
+  });
+  return { server, conn, requests: () => requests };
+}
+
+test('Client Connection: TLS verificationServerNames accepts a certificate valid for any listed name', async (t) => {
+  const { server, conn, requests } = await connectWithVerificationServerNames(['nope.test', 'server']);
+  try {
+    await conn.withDeadline(Date.now() + 10_000, () => conn.workflowService.getSystemInfo({}));
+    t.is(requests(), 1);
+  } finally {
+    await conn.close();
+    server.forceShutdown();
+  }
+});
+
+test('Client Connection: TLS verificationServerNames rejects a certificate valid for none of the names', async (t) => {
+  const { server, conn, requests } = await connectWithVerificationServerNames(['nope.test', 'other.test']);
+  try {
+    await t.throwsAsync(conn.withDeadline(Date.now() + 3_000, () => conn.workflowService.getSystemInfo({})));
+    t.is(requests(), 0);
+  } finally {
+    await conn.close();
+    server.forceShutdown();
+  }
+});
+
+test('Client Connection: TLS verificationServerNames requires a root CA', (t) => {
+  t.throws(() => Connection.lazy({ address: '127.0.0.1:1', tls: { verificationServerNames: ['server'] } }), {
+    instanceOf: TypeError,
+    message: /requires tls\.serverRootCACertificate/,
+  });
+});
+
 test('withMetadata / withDeadline / withAbortSignal set the CallContext for RPC call', async (t) => {
   let gotTestHeaders = false;
   let gotStaticBinValue;

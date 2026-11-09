@@ -2632,6 +2632,7 @@ dependencies = [
  "temporalio-sdk-core",
  "thiserror 2.0.18",
  "tokio",
+ "tokio-rustls",
  "tokio-stream",
  "tonic",
  "tracing",
