@@ -1,20 +1,16 @@
 /**
  * Worker lifecycle integration tests.
  *
- * Connections are explicitly closed after their Workers stop.
+ * Run against local servers or Cloud using explicitly supplied connections. Worker shutdown leaves
+ * these connections open; closing the last connection then shuts down the Runtime.
+ * Automatic closure of Worker-created connections is covered by test-worker-owned-connection.local.ts.
  */
 import { randomUUID } from 'crypto';
 import { setTimeout } from 'timers/promises';
 import test from 'ava';
 import { Client, Connection } from '@temporalio/client';
 import type { WorkerOptions } from '@temporalio/worker';
-import {
-  DefaultLogger,
-  PromiseCompletionTimeoutError,
-  Runtime,
-  TransportError,
-  UnexpectedError,
-} from '@temporalio/worker';
+import { PromiseCompletionTimeoutError, Runtime, TransportError, UnexpectedError } from '@temporalio/worker';
 import {
   createWorkerWithConnection,
   isBun,
@@ -33,40 +29,22 @@ function createWorker(options: Partial<WorkerOptions> & Pick<WorkerOptions, 'tas
 
 if (RUN_INTEGRATION_TESTS) {
   test.serial('Worker shuts down gracefully', async (t) => {
-    let flushCalls = 0;
-    Runtime.install({
-      logger: Object.assign(new DefaultLogger('ERROR', () => undefined), {
-        flush: () => {
-          flushCalls++;
-        },
-      }),
-    });
     const { worker, connection } = await createWorker({ taskQueue: uniqueTaskQueue(t.title) });
     t.is(worker.getState(), 'INITIALIZED');
     const workerRun = worker.run();
     t.is(worker.getState(), 'RUNNING');
-    const flushesBeforeShutdown = flushCalls;
     process.emit('SIGINT', 'SIGINT');
     await new Promise((resolve) => process.nextTick(resolve));
     t.is(worker.getState(), 'DRAINING');
     await workerRun;
     t.is(worker.getState(), 'STOPPED');
-    t.true(flushCalls > flushesBeforeShutdown);
     await t.throwsAsync(worker.run(), { message: 'Poller was already started' });
-    const flushesBeforeClose = flushCalls;
+    t.not(Runtime._instance, undefined, 'The supplied connection keeps the Runtime alive after Worker shutdown');
     await connection.close();
-    t.true(flushCalls > flushesBeforeClose);
+    t.is(Runtime._instance, undefined, 'Closing the last supplied connection shuts down the Runtime');
   });
 
   test.serial("Worker.runUntil doesn't hang if provided promise survives to Worker's shutdown", async (t) => {
-    let flushCalls = 0;
-    Runtime.install({
-      logger: Object.assign(new DefaultLogger('ERROR', () => undefined), {
-        flush: () => {
-          flushCalls++;
-        },
-      }),
-    });
     const { worker, connection } = await createWorker({ taskQueue: uniqueTaskQueue(t.title) });
     const p = worker.runUntil(
       new Promise(() => {
@@ -74,15 +52,13 @@ if (RUN_INTEGRATION_TESTS) {
       })
     );
     t.is(worker.getState(), 'RUNNING');
-    const flushesBeforeShutdown = flushCalls;
     worker.shutdown();
     t.is(worker.getState(), 'DRAINING');
     await t.throwsAsync(p, { instanceOf: PromiseCompletionTimeoutError });
     t.is(worker.getState(), 'STOPPED');
-    t.true(flushCalls > flushesBeforeShutdown);
-    const flushesBeforeClose = flushCalls;
+    t.not(Runtime._instance, undefined, 'The supplied connection keeps the Runtime alive after Worker shutdown');
     await connection.close();
-    t.true(flushCalls > flushesBeforeClose);
+    t.is(Runtime._instance, undefined, 'Closing the last supplied connection shuts down the Runtime');
   });
 
   test.serial('Worker shuts down gracefully if interrupted before running', async (t) => {
