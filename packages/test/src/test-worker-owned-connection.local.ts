@@ -1,14 +1,8 @@
-/**
- * Verify that Workers close connections they create themselves, shutting down the Runtime without
- * an explicit connection.close(). test-worker-lifecycle-integration.ts covers supplied connections,
- * which callers must close after Worker shutdown, against both local servers and Cloud.
- * These tests require the default local server because Worker.create() accepts connection settings
- * only through a supplied connection.
- */
 import { PromiseCompletionTimeoutError, Runtime } from '@temporalio/worker';
 import { RUN_INTEGRATION_TESTS, test, uniqueTaskQueue, Worker } from './helpers';
 import { defaultOptions } from './mock-native-worker';
 
+// These tests are local only as there is no way to provide options to the Worker created connection.
 if (RUN_INTEGRATION_TESTS) {
   test.serial('Worker closes its implicit connection and shuts down the Runtime', async (t) => {
     const worker = await Worker.create({ ...defaultOptions, taskQueue: uniqueTaskQueue(t.title) });
