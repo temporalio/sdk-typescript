@@ -1,71 +1,99 @@
 /**
  * Worker lifecycle integration tests.
  *
- * These tests deliberately avoid a shared test environment: each Worker owns its connection, so the
- * Runtime shuts down once the last Worker stops, exactly as it does for a Worker created without one.
+ * Connections are explicitly closed after their Workers stop.
  */
 import { randomUUID } from 'crypto';
 import { setTimeout } from 'timers/promises';
 import test from 'ava';
 import { Client, Connection } from '@temporalio/client';
 import type { WorkerOptions } from '@temporalio/worker';
-import { PromiseCompletionTimeoutError, Runtime, TransportError, UnexpectedError } from '@temporalio/worker';
 import {
-  createWorkerWithOwnConnection,
+  DefaultLogger,
+  PromiseCompletionTimeoutError,
+  Runtime,
+  TransportError,
+  UnexpectedError,
+} from '@temporalio/worker';
+import {
+  createWorkerWithConnection,
   isBun,
-  ownedConnectionConfig,
+  configuredConnectionOptions,
   RUN_INTEGRATION_TESTS,
   uniqueTaskQueue,
 } from './helpers';
 import { defaultOptions } from './mock-native-worker';
 import { fillMemory } from './workflows';
 
-const { namespace, connectionOptions } = ownedConnectionConfig();
+const { namespace, connectionOptions } = configuredConnectionOptions();
 
 function createWorker(options: Partial<WorkerOptions> & Pick<WorkerOptions, 'taskQueue'>) {
-  return createWorkerWithOwnConnection({ ...defaultOptions, ...options });
+  return createWorkerWithConnection({ ...defaultOptions, ...options });
 }
 
 if (RUN_INTEGRATION_TESTS) {
   test.serial('Worker shuts down gracefully', async (t) => {
-    const worker = await createWorker({ taskQueue: uniqueTaskQueue(t.title) });
+    let flushCalls = 0;
+    Runtime.install({
+      logger: Object.assign(new DefaultLogger('ERROR', () => undefined), {
+        flush: () => {
+          flushCalls++;
+        },
+      }),
+    });
+    const { worker, connection } = await createWorker({ taskQueue: uniqueTaskQueue(t.title) });
     t.is(worker.getState(), 'INITIALIZED');
-    t.not(Runtime._instance, undefined);
     const workerRun = worker.run();
     t.is(worker.getState(), 'RUNNING');
+    const flushesBeforeShutdown = flushCalls;
     process.emit('SIGINT', 'SIGINT');
     await new Promise((resolve) => process.nextTick(resolve));
     t.is(worker.getState(), 'DRAINING');
     await workerRun;
     t.is(worker.getState(), 'STOPPED');
+    t.true(flushCalls > flushesBeforeShutdown);
     await t.throwsAsync(worker.run(), { message: 'Poller was already started' });
-    t.is(Runtime._instance, undefined);
+    const flushesBeforeClose = flushCalls;
+    await connection.close();
+    t.true(flushCalls > flushesBeforeClose);
   });
 
   test.serial("Worker.runUntil doesn't hang if provided promise survives to Worker's shutdown", async (t) => {
-    const worker = await createWorker({ taskQueue: uniqueTaskQueue(t.title) });
-    t.not(Runtime._instance, undefined);
+    let flushCalls = 0;
+    Runtime.install({
+      logger: Object.assign(new DefaultLogger('ERROR', () => undefined), {
+        flush: () => {
+          flushCalls++;
+        },
+      }),
+    });
+    const { worker, connection } = await createWorker({ taskQueue: uniqueTaskQueue(t.title) });
     const p = worker.runUntil(
       new Promise(() => {
         // A promise that will never unblock.
       })
     );
     t.is(worker.getState(), 'RUNNING');
+    const flushesBeforeShutdown = flushCalls;
     worker.shutdown();
     t.is(worker.getState(), 'DRAINING');
     await t.throwsAsync(p, { instanceOf: PromiseCompletionTimeoutError });
     t.is(worker.getState(), 'STOPPED');
-    t.is(Runtime._instance, undefined);
+    t.true(flushCalls > flushesBeforeShutdown);
+    const flushesBeforeClose = flushCalls;
+    await connection.close();
+    t.true(flushCalls > flushesBeforeClose);
   });
 
   test.serial('Worker shuts down gracefully if interrupted before running', async (t) => {
-    const worker = await createWorker({ taskQueue: uniqueTaskQueue(t.title) });
+    const { worker, connection } = await createWorker({ taskQueue: uniqueTaskQueue(t.title) });
     t.is(worker.getState(), 'INITIALIZED');
     process.emit('SIGINT', 'SIGINT');
     const workerRun = worker.run();
     t.is(worker.getState(), 'RUNNING');
     await workerRun;
     t.is(worker.getState(), 'STOPPED');
+    await connection.close();
   });
 
   test.serial('Worker fails validation against unknown namespace', async (t) => {
@@ -86,9 +114,10 @@ if (RUN_INTEGRATION_TESTS) {
   (isBun ? test.skip : test.serial)('Threaded VM gracely stops and fails on ERR_WORKER_OUT_OF_MEMORY', async (t) => {
     t.timeout(30_000);
     const taskQueue = uniqueTaskQueue(t.title);
-    const connection = await Connection.connect(connectionOptions);
-    const client = new Client({ connection, namespace });
-    const worker = await createWorker({ taskQueue });
+    const clientConnection = await Connection.connect(connectionOptions);
+    t.teardown(() => clientConnection.close());
+    const client = new Client({ connection: clientConnection, namespace });
+    const { worker, connection } = await createWorker({ taskQueue });
 
     client.workflow
       .start(fillMemory, {
@@ -118,7 +147,6 @@ if (RUN_INTEGRATION_TESTS) {
       t.is(worker.getState(), 'FAILED');
     } finally {
       await connection.close();
-      if (Runtime._instance) await Runtime._instance.shutdown();
     }
   });
 }

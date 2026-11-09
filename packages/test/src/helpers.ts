@@ -6,7 +6,7 @@ import type { Connection } from '@temporalio/client';
 import { Client } from '@temporalio/client';
 import { loadClientConnectConfig } from '@temporalio/envconfig';
 import type { NativeConnectionOptions, WorkerOptions } from '@temporalio/worker';
-import { InternalNativeConnection } from '@temporalio/worker/lib/connection';
+import { NativeConnection } from '@temporalio/worker';
 import * as iface from '@temporalio/proto';
 import {
   createBaseBundlerOptions,
@@ -53,13 +53,13 @@ export const bundlerOptions = createBaseBundlerOptions([
 ]);
 
 /**
- * Server connection settings for tests that must own their connections instead of using a shared test environment.
+ * Server connection settings for tests that manage connections outside a shared test environment.
  *
  * Chosen like `createTestWorkflowEnvironment()`, but never starts a server: envconfig when
  * `TEMPORAL_TEST_ENV_CONFIG_SERVER` is set (e.g. on Cloud), otherwise `TEMPORAL_SERVICE_ADDRESS` or the default
  * local address, in the `default` namespace.
  */
-export function ownedConnectionConfig(): { namespace: string; connectionOptions: NativeConnectionOptions } {
+export function configuredConnectionOptions(): { namespace: string; connectionOptions: NativeConnectionOptions } {
   if (isSet(process.env.TEMPORAL_TEST_ENV_CONFIG_SERVER, false)) {
     const { namespace, connectionOptions } = loadClientConnectConfig();
     return { namespace: namespace ?? 'default', connectionOptions };
@@ -68,17 +68,16 @@ export function ownedConnectionConfig(): { namespace: string; connectionOptions:
 }
 
 /**
- * Create a Worker on a connection that the Worker owns and closes when it shuts down.
- *
- * Once the last such Worker stops, the Runtime shuts down too; a shared test environment would keep it alive.
+ * Create a Worker with a dedicated connection that the caller must close after the Worker stops.
  */
-export async function createWorkerWithOwnConnection(
+export async function createWorkerWithConnection(
   options: Omit<WorkerOptions, 'connection' | 'namespace'> & Partial<Pick<WorkerOptions, 'namespace'>>
-): ReturnType<typeof Worker.create> {
-  const { namespace, connectionOptions } = ownedConnectionConfig();
-  const connection = await InternalNativeConnection.connect(connectionOptions);
+): Promise<{ worker: Awaited<ReturnType<typeof Worker.create>>; connection: NativeConnection }> {
+  const { namespace, connectionOptions } = configuredConnectionOptions();
+  const connection = await NativeConnection.connect(connectionOptions);
   try {
-    return await Worker.create({ connection, namespace, ...options });
+    const worker = await Worker.create({ connection, namespace, ...options });
+    return { worker, connection };
   } catch (err) {
     await connection.close();
     throw err;
