@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import type { ExecutionContext, TestFn } from 'ava';
@@ -15,7 +16,7 @@ import {
 } from '@temporalio/common';
 import { msToTs } from '@temporalio/common/time';
 import { coresdk, temporal } from '@temporalio/proto';
-import { sleep as workflowSleep, type WorkflowInfo } from '@temporalio/workflow';
+import { sleep as workflowSleep, type EnhancedStackTrace, type WorkflowInfo } from '@temporalio/workflow';
 import { bundleWorkflowCode, DefaultLogger, LogTimestamp, type LogEntry } from '@temporalio/worker';
 import {
   invokePatchActivationCallback,
@@ -610,6 +611,43 @@ test('throwAsync', async (t) => {
     ])
   );
 });
+
+// Bun does not apply the bundle's source map to Workflow stack traces.
+(isBun ? test.skip : test)('stack trace paths preserve special characters: throwWithSpecialCharacters', async (t) => {
+  const completion = cleanWorkflowFailureStackTrace(await activate(t, makeStartWorkflow(t.context.workflowType)));
+  compareCompletion(
+    t,
+    completion,
+    makeSuccess([
+      makeFailWorkflowExecution(
+        'failure',
+        dedent`
+          ApplicationFailure: failure
+              at $CLASS.nonRetryable (common/src/failure.ts)
+              at throwWithSpecialCharacters (test/src/workflows/throw é %41.ts)
+        `
+      ),
+    ])
+  );
+});
+
+// Bun does not support the promise hooks used to capture Workflow stack traces.
+(isBun ? test.skip : test)(
+  'enhanced stack trace paths preserve special characters: sleepWithSpecialCharacters',
+  async (t) => {
+    await activate(t, makeStartWorkflow(t.context.workflowType));
+    const completion = await activate(t, makeQueryWorkflow('stack', '__enhanced_stack_trace', []));
+    const response = completion.successful!.commands![0].respondToQuery!.succeeded!.response!;
+    const { stacks, sources } = defaultPayloadConverter.fromPayload<EnhancedStackTrace>(response);
+    const sourcePath = path.resolve(__dirname, '../src/workflows/throw é %41.ts');
+
+    const location = stacks
+      .flatMap((stack) => stack.locations)
+      .find((location) => location.function_name === 'sleepWithSpecialCharacters');
+    t.is(location?.file_path, sourcePath);
+    t.deepEqual(sources[sourcePath], [{ line_offset: 0, content: readFileSync(sourcePath, 'utf8') }]);
+  }
+);
 
 test('date', async (t) => {
   const { startTime, logs, workflowType } = t.context;
