@@ -1,4 +1,3 @@
-/* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import type { SearchAttributes } from '@temporalio/common';
 import type { InjectedSinks } from '@temporalio/worker';
 import pkg from '@temporalio/worker/internal/pkg';

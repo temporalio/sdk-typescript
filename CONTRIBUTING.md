@@ -6,6 +6,9 @@ This guide describes expectations that apply across Temporal SDK repositories. E
 repository may have additional local conventions, but the guidance below should help
 you open issues and pull requests that maintainers can evaluate efficiently.
 
+> [!IMPORTANT]
+> Non-Temporal contributors must not solicit user or customer information, including but not limited to workload, use-case, or failure information. Doing so will result in a ban from all Temporal repositories at Temporal's sole discretion.
+
 ## Before You Open an Issue
 
 Search the existing issues first. If you find an issue that describes the same bug,
@@ -67,6 +70,56 @@ Good pull requests are focused and easy to review:
 
 Run the relevant local checks when practical. CI must pass before a pull request can
 be merged.
+
+## Development workflow
+
+### Changelog fragments
+
+For user-facing changes, add a concise fragment under `changelog/<category>/`
+instead of editing `CHANGELOG.md`. Use fun, whimsical lowercase kebab-case names,
+such as `tap-dancing-teapot.md`. Each nonempty line becomes a bullet; omit the
+leading `-`. See [the fragment convention](changelog/README.md). Run
+`pnpm changelog:check` to validate pending fragments.
+
+### Updating SDK Core
+
+Run `pnpm update-core` to update to Core's latest main commit, import its changelog
+entries with a `Core: ` prefix, and refresh the bridge `Cargo.lock`. Pass
+`--revision <ref>` to select another locally available commit. Review and commit
+the pin, imported fragments, and lockfile together. Rebuild with `pnpm build`,
+regenerate changed protobuf definitions with `pnpm gen:protos`, and check bridge
+API compatibility as needed. If Cargo resolution fails, the pin and fragments
+remain for inspection. Updating Core no longer waits until release preparation
+to record its user-facing changes.
+
+### Preparing and publishing a release
+
+From a release preparation branch, run:
+
+```bash
+pnpm release:prepare 1.25.0 --date 2026-10-08
+```
+
+The TypeScript adapter updates versioned package manifests under `packages/`,
+`contrib/`, and `scripts/`, refreshes `pnpm-lock.yaml`, then invokes Core's shared
+`prepare` command to write the dated changelog and consume fragments. The date
+defaults to today in UTC. Review and commit the versions, lockfile, changelog, and
+fragment deletions together. If preparation fails, inspect the version and
+lockfile changes before retrying. To assemble notes after updating versions and
+the lockfile manually, use `pnpm changelog:prepare --version 1.25.0 --date 2026-10-08`.
+
+Generate publishing notes with:
+
+```bash
+pnpm release:notes --version 1.25.0 --output release-notes.md
+```
+
+This reads the completed changelog and appends Core commit links; it does not
+import entries at publish time. The shared tool selects the greatest numeric
+release tag below the requested version, including `v`-prefixed tags; pass
+`--from <previous-tag>` to override it. Publishing remains a maintainer operation;
+use this output as the GitHub Release body. The release workflow also generates a
+`release-notes` artifact on release branches.
 
 ## Things to Avoid
 
@@ -136,15 +189,16 @@ After your environment is set up, you can run these commands:
 - `pnpm build:watch` watches filesystem for changes and incrementally compiles Typescript on change.
 - `pnpm test` runs the test suite. Tests assume you have a [Temporal server running locally](https://docs.temporal.io/cli#start-dev-server).
 - `pnpm test:watch` runs the test suite on each change to Typescript files.
-- `pnpm format` formats code with prettier.
-- `pnpm lint` verifies code style with prettier and ES lint.
+- `pnpm format` formats code with oxfmt.
+- `pnpm lint` verifies code style with oxfmt and oxlint.
+- `pnpm lint:prune` checks unused exports and types with Knip.
 - `pnpm commitlint` validates [commit messages](#style-guide).
 
 To regenerate System Nexus bindings from Core's upstream API WIT files, install the pinned nexgen
 release with its `advanced` feature and ensure `protoc` is on your `PATH`:
 
 ```sh
-cargo install nexgen --version '=0.2.6' --locked --features advanced
+cargo install nexgen --version '=0.2.11' --locked --features advanced
 pnpm --filter @temporalio/workflow run gen:system-nexus
 ```
 
@@ -204,8 +258,8 @@ written to `.test-results/` (and the tail is dumped to the console on failure).
 
 ### Style Guide
 
-- Typescript code is linted with [eslint](https://eslint.org/)
-- Files in this repo are formatted with [prettier](https://prettier.io/)
+- Typescript code is linted with [oxlint](https://oxc.rs/docs/guide/usage/linter.html)
+- Files in this repo are formatted with [oxfmt](https://oxc.rs/docs/guide/usage/formatter)
 - Prefer explicit named re-exports and avoid wildcard re-exports where possible (`export * from ...`) in public entrypoint / barrel files.
 - Use `@experimental` and `@internal` to manage API stability and visibility. Mark new or work-in-progress exported APIs `@experimental` to signal their shape may still change. Mark a symbol `@internal` to keep it out of the generated public docs. The two are independent and may be combined. It is fine to ship something `@internal` now and promote it to public later, by removing `@internal` and adding a named re-export, once it is actually usable. The reverse is a breaking change, so prefer starting narrow.
 - Pull request titles SHOULD adhere to the [Conventional Commits specification](https://conventionalcommits.org/), for example:

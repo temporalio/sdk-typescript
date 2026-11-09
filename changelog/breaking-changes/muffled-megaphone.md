@@ -1,0 +1,1 @@
+`Runtime.logger` and `Runtime.options.logger` now return an SDK wrapper around the logger passed to `Runtime.install()` rather than that logger itself. The SDK no longer calls a `close()` method on runtime loggers at shutdown, and `isFlushableLogger()` is no longer exported from `@temporalio/worker/lib/logger`.

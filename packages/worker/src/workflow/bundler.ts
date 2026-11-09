@@ -16,8 +16,6 @@ import {
   assertWorkflowModuleCacheGlobalApplied,
 } from './bundler/patch-module-cache';
 
-export const defaultWorkflowInterceptorModules = [require.resolve('../workflow-log-interceptor')];
-
 export const allowedBuiltinModules = ['assert', 'url', 'util'];
 export const disallowedBuiltinModules = builtinModules.filter((module) => !allowedBuiltinModules.includes(module));
 export const disallowedModules = [
@@ -220,7 +218,7 @@ exports.importInterceptors = function importInterceptors() {
       // Ignore the "node:" prefix if any.
       const module: string = data.request?.startsWith('node:')
         ? data.request.slice('node:'.length)
-        : data.request ?? '';
+        : (data.request ?? '');
 
       if (moduleMatches(module, disallowedModules) && !moduleMatches(module, this.ignoreModules)) {
         this.foundProblematicModules.add(module);

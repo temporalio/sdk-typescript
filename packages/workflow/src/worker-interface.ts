@@ -48,14 +48,14 @@ export function initRuntime(options: WorkflowCreateOptionsInternal): void {
   activator.rethrowSynchronously = true;
   try {
     // webpack alias to payloadConverterPath
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    // oxlint-disable-next-line typescript/no-require-imports
     const customPayloadConverter = require('__temporal_custom_payload_converter').payloadConverter;
     // The `payloadConverter` export is validated in the Worker
     if (customPayloadConverter != null) {
       activator.payloadConverter = customPayloadConverter;
     }
     // webpack alias to failureConverterPath
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    // oxlint-disable-next-line typescript/no-require-imports
     const customFailureConverter = require('__temporal_custom_failure_converter').failureConverter;
     // The `failureConverter` export is validated in the Worker
     if (customFailureConverter != null) {
@@ -255,6 +255,9 @@ export function tryUnblockConditions(): number {
     let numUnblocked = 0;
     for (;;) {
       activator.maybeRethrowWorkflowTaskError();
+      // Rejected updates leave nothing in history, so a condition they let through (e.g. one on a value
+      // refreshed every activation) could not unblock on replay.
+      if (!activator.checkConditions) break;
       const prevUnblocked = numUnblocked;
       for (const [seq, cond] of activator.blockedConditions.entries()) {
         if (cond.fn()) {

@@ -40,6 +40,8 @@ type PluginParameter<T> = T | ((p: T | undefined) => T);
 export interface SimplePluginOptions {
   /** The name of the plugin */
   readonly name: string;
+  /** The version of the plugin, reported in worker heartbeats */
+  readonly version?: string;
   /** TLS configuration for connections */
   readonly tls?: PluginParameter<TLSConfig | boolean | null>;
   /** API key for authentication */
@@ -78,6 +80,8 @@ export class SimplePlugin
 {
   /** The name of the plugin */
   readonly name: string;
+  /** The version of the plugin, reported in worker heartbeats */
+  readonly version?: string;
 
   /**
    * Creates a new SimplePlugin instance.
@@ -85,6 +89,7 @@ export class SimplePlugin
    */
   constructor(protected readonly options: SimplePluginOptions) {
     this.name = options.name;
+    this.version = options.version;
   }
 
   /**

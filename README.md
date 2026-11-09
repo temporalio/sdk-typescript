@@ -53,6 +53,10 @@ but it may sometime require extra cares in complex monorepos.
 > [!NOTE]
 > The following requirements apply to the current git branch, and not necessarily what's released on NPM.
 
+### TypeScript
+
+TypeScript 5.7 is the minimum supported compiler version for consuming the SDK, older versions will probably work, but aren't tested against.
+
 ### Node.js
 
 The Temporal TypeScript SDK is officially supported on Node 20, 22, and 24.
@@ -145,7 +149,8 @@ pnpm install --frozen-lockfile
 If `pnpm install` fails in `@temporalio/core-bridge` on the command `pnpm tsx ./scripts/build.ts`, you may
 need to do `rustup update`.
 
-To update to the latest version of the Core SDK, run `git submodule update` followed by `pnpm build` to recompile.
+To update to the latest version of the Core SDK and import its changelog entries, run `pnpm update-core`
+followed by `pnpm build` to recompile. See [Updating SDK Core](CONTRIBUTING.md#updating-sdk-core).
 
 ### Development commands
 
@@ -156,8 +161,8 @@ After your environment is set up, you can run these commands:
 - `pnpm build:watch` watches filesystem for changes and incrementally compiles TypeScript on change.
 - `pnpm test` runs the test suite. Tests assume you have a [Temporal server running locally](https://docs.temporal.io/cli#start-dev-server).
 - `pnpm test:watch` runs the test suite on each change to TypeScript files.
-- `pnpm format` formats code with prettier.
-- `pnpm lint` verifies code style with prettier and ESLint.
+- `pnpm format` formats code with oxfmt.
+- `pnpm lint` verifies code style with oxfmt and oxlint.
 - `pnpm commitlint` validates [commit messages](#style-guide).
 
 ### Working with Individual Packages
@@ -209,8 +214,8 @@ rm -rf ./example "$TMP_DIR"
 
 ### Style Guide
 
-- TypeScript code is linted with [ESLint](https://eslint.org/).
-- Files in this repo are formatted with [prettier](https://prettier.io/).
+- TypeScript code is linted with [oxlint](https://oxc.rs/docs/guide/usage/linter.html).
+- Files in this repo are formatted with [oxfmt](https://oxc.rs/docs/guide/usage/formatter).
 - Prefer explicit named re-exports and avoid wildcard re-exports where possible (`export * from ...`) in public entrypoint / barrel files.
 - Use `@experimental` and `@internal` to manage API stability and visibility. Mark new or work-in-progress exported APIs `@experimental` to signal their shape may still change. Mark a symbol `@internal` to keep it out of the generated public docs. The two are independent and may be combined. It is fine to ship something `@internal` now and promote it to public later, by removing `@internal` and adding a named re-export, once it is actually usable. The reverse is a breaking change, so prefer starting narrow.
 - Pull request titles SHOULD adhere to the [Conventional Commits specification](https://conventionalcommits.org/), for example:
@@ -277,14 +282,32 @@ This monorepo contains the following packages:
 | [`packages/nyc-test-coverage/`](packages/nyc-test-coverage/)                       | [`@temporalio/nyc-test-coverage`](https://www.npmjs.com/package/@temporalio/nyc-test-coverage)                         |
 | [`packages/plugin/`](packages/plugin/)                                             | [`@temporalio/plugin`](https://www.npmjs.com/package/@temporalio/plugin)                                               |
 | [`packages/nexus/`](packages/nexus/)                                               | [`@temporalio/nexus`](https://www.npmjs.com/package/@temporalio/nexus)                                                 |
-| [`contrib/ai-sdk/`](contrib/ai-sdk/)                                               | [`@temporalio/ai-sdk`](https://www.npmjs.com/package/@temporalio/ai-sdk)                                               |
-| [`contrib/google-adk-agents/`](contrib/google-adk-agents/)                         | [`@temporalio/google-adk-agents`](https://www.npmjs.com/package/@temporalio/google-adk-agents)                         |
+| [`contrib/ai-sdk/`](contrib/ai-sdk/)                                               | [`@temporalio/ai-sdk`](https://www.npmjs.com/package/@temporalio/ai-sdk) (compatibility wrapper)                       |
+| [`contrib/google-adk-agents/`](contrib/google-adk-agents/)                         | [`@temporalio/google-adk-agents`](https://www.npmjs.com/package/@temporalio/google-adk-agents) (compatibility wrapper) |
 | [`contrib/interceptors-opentelemetry/`](contrib/interceptors-opentelemetry/)       | [`@temporalio/interceptors-opentelemetry`](https://www.npmjs.com/package/@temporalio/interceptors-opentelemetry)       |
 | [`contrib/interceptors-opentelemetry-v2/`](contrib/interceptors-opentelemetry-v2/) | [`@temporalio/interceptors-opentelemetry-v2`](https://www.npmjs.com/package/@temporalio/interceptors-opentelemetry-v2) |
-| [`contrib/langsmith/`](contrib/langsmith/)                                         | [`@temporalio/langsmith`](https://www.npmjs.com/package/@temporalio/langsmith)                                         |
-| [`contrib/openai-agents/`](contrib/openai-agents/)                                 | [`@temporalio/openai-agents`](https://www.npmjs.com/package/@temporalio/openai-agents)                                 |
-| [`contrib/strands/`](contrib/strands/)                                             | [`@temporalio/strands-agents`](https://www.npmjs.com/package/@temporalio/strands-agents)                               |
 | [`contrib/workflow-streams/`](contrib/workflow-streams/)                           | [`@temporalio/workflow-streams`](https://www.npmjs.com/package/@temporalio/workflow-streams)                           |
+
+### AI integrations
+
+AI integrations are maintained and released independently in
+[temporalio/ai-integrations](https://github.com/temporalio/ai-integrations/tree/main/typescript).
+
+| Integration    | Package                                                             |
+| -------------- | ------------------------------------------------------------------- |
+| Vercel AI SDK  | `@temporalio/vercel-ai-sdk` (formerly `@temporalio/ai-sdk`)         |
+| Google ADK     | `@temporalio/google-adk` (formerly `@temporalio/google-adk-agents`) |
+| LangSmith      | `@temporalio/langsmith`                                             |
+| OpenAI Agents  | `@temporalio/openai-agents`                                         |
+| Strands Agents | `@temporalio/strands-agents`                                        |
+
+Install these packages separately and follow the setup instructions in the integrations
+repository. The legacy `@temporalio/ai-sdk` and `@temporalio/google-adk-agents` packages
+remain here as small compatibility wrappers, forwarding their public entrypoints to
+the standalone packages. Existing imports can be retained with the wrapper releases;
+new applications should use the standalone names. Both wrappers require Node.js
+22.12.0 or later and the standalone packages' provider versions. The other three
+package names are unchanged.
 
 ## Contributing
 

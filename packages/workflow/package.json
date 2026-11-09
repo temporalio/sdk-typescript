@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/workflow",
-  "version": "1.24.0",
+  "version": "1.25.0",
   "description": "Temporal.io SDK Workflow sub-package",
   "keywords": [
     "temporal",
@@ -72,7 +72,7 @@
   },
   "scripts": {
     "build": "tsc --build",
-    "gen:system-nexus": "tsx ./scripts/gen-system-nexus.ts",
+    "gen:system-nexus": "tsx ./scripts/gen-system-nexus.ts && cd ../.. && oxfmt --write packages/workflow/src/nexus/system/generated packages/common/src/nexus/notifications/generated",
     "test": "tsx ../../scripts/ava-ci.ts ./lib/__tests__/test-*.js"
   },
   "ava": {

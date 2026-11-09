@@ -7,7 +7,7 @@ import { decode, encode, filterNullAndUndefined } from '@temporalio/common/inter
 import type { ConfigDataSource, LoadClientConfigOptions, LoadClientProfileOptions } from './types';
 
 export function normalizeGrpcMetaKey(key: string): string {
-  return key.toLocaleLowerCase().replace('_', '-');
+  return key.toLocaleLowerCase().replaceAll('_', '-');
 }
 
 /**
@@ -32,6 +32,7 @@ export interface TomlClientConfigProfile {
   tls?: TomlClientConfigTLS;
   codec?: TomlClientConfigCodec;
   grpc_meta?: Record<string, string>;
+  ext?: Record<string, Record<string, unknown>>;
 }
 
 /**
@@ -110,7 +111,8 @@ export function configToTomlData(config: TomlClientConfig): Uint8Array {
 
 function strictValidateTomlStructure(parsed: TomlTable): void {
   const allowedTopLevel = new Set(['profile']);
-  const allowedProfile = new Set(['address', 'namespace', 'api_key', 'tls', 'codec', 'grpc_meta']);
+  // Contents of `ext` are never validated, even in strict mode
+  const allowedProfile = new Set(['address', 'namespace', 'api_key', 'tls', 'codec', 'grpc_meta', 'ext']);
   const allowedTLS = new Set([
     'disabled',
     'client_cert_path',

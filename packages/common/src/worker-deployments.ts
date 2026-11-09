@@ -48,7 +48,7 @@ export const [encodeVersioningBehavior, decodeVersioningBehavior] = makeProtoEnu
 /**
  * Represents versioning overrides. For example, when starting workflows.
  */
-export type VersioningOverride = PinnedVersioningOverride | 'AUTO_UPGRADE';
+export type VersioningOverride = PinnedVersioningOverride | AutoUpgradeVersioningOverride | OneTimeVersioningOverride;
 
 // Keep this helper usable in workflows without loading the protobuf runtime.
 const PINNED_OVERRIDE_BEHAVIOR_PINNED: temporal.api.workflow.v1.VersioningOverride.PinnedOverrideBehavior.PINNED_OVERRIDE_BEHAVIOR_PINNED = 1;
@@ -63,6 +63,13 @@ export function versioningOverrideToProto(
   if (versioningOverride === 'AUTO_UPGRADE') {
     return {
       autoUpgrade: true,
+    };
+  }
+  if ('oneTimeTo' in versioningOverride) {
+    return {
+      oneTime: {
+        targetDeploymentVersion: versioningOverride.oneTimeTo,
+      },
     };
   }
   return {
@@ -87,6 +94,19 @@ export interface PinnedVersioningOverride {
  * The workflow will auto-upgrade to the current deployment version on the next workflow task.
  */
 export type AutoUpgradeVersioningOverride = 'AUTO_UPGRADE';
+
+/**
+ * Routes the first Workflow Task to a specific deployment version. After that task completes,
+ * the Workflow uses the versioning behavior defined in its Workflow code.
+ *
+ * Requires Temporal Server 1.32.0 or later.
+ *
+ * @experimental
+ */
+export interface OneTimeVersioningOverride {
+  /** The worker deployment version to use for the first Workflow Task. */
+  oneTimeTo: WorkerDeploymentVersion;
+}
 
 /**
  * Defines the versioning behavior to be used by the first task of a new workflow run in a continue-as-new chain.

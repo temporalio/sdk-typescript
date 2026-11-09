@@ -10,10 +10,12 @@ import type {
   BundleOptions,
   NativeConnectionPlugin,
 } from '@temporalio/worker';
-import { Worker, bundleWorkflowCode } from '@temporalio/worker';
+import { Runtime, Worker, bundleWorkflowCode } from '@temporalio/worker';
+import { compileWorkerOptions, toNativeWorkerOptions } from '@temporalio/worker/internal';
 import { SimplePlugin } from '@temporalio/plugin';
 import { activityWorkflow, helloWorkflow } from './workflows/plugins';
 import { TestWorkflowEnvironment } from './helpers';
+import { defaultOptions } from './mock-native-worker';
 
 import * as activities from './activities';
 
@@ -220,6 +222,17 @@ test('SimplePlugin worker configurations', async (t) => {
 
     t.is(result, 'Hello');
   });
+});
+
+test('Worker reports plugin names and versions for heartbeats', (t) => {
+  const runtime = Runtime.instance();
+  const plugins = [new SimplePlugin({ name: 'versioned-plugin', version: '1.2.3' }), new ExamplePlugin()];
+  const compiled = compileWorkerOptions({ ...defaultOptions, plugins }, runtime.logger, runtime.metricMeter);
+  const native = toNativeWorkerOptions({ ...compiled, buildId: 'test-build-id' });
+  t.deepEqual(native.plugins, [
+    { name: 'versioned-plugin', version: '1.2.3' },
+    { name: 'example-plugin', version: '' },
+  ]);
 });
 
 test('SimplePlugin with activities merges them correctly', async (t) => {

@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { writeFileSync } from 'node:fs';
 import * as protobuf from 'protobufjs';
-import * as prettier from 'prettier';
+import { format } from 'oxfmt';
 
 // Generates `packages/proto/src/payload-visitor.generated.ts`: a synchronous walk of the worker
 // boundary message trees (WorkflowActivation, ActivityTask, NexusTaskCompletion, ...) that invokes a
@@ -14,7 +14,7 @@ const ANY = 'google.protobuf.Any';
 // Namespaces scanned for root messages. Every payload-bearing message declared under these gets an
 // exported entry point, so any message can be walked and new messages are covered automatically on
 // regen.
-const ROOT_NAMESPACES = ['coresdk', 'temporal.api.workflowservice.v1'] as const;
+const ROOT_NAMESPACES = ['coresdk', 'temporal.api.workflowservice.v1', 'temporal.api.notificationservice.v1'] as const;
 
 const jsonModule = require(resolve(__dirname, '../protos/json-module.js'));
 const root = protobuf.Root.fromJSON(jsonModule);
@@ -249,9 +249,10 @@ function emit(): string {
 const outPath = resolve(__dirname, '../src/payload-visitor.generated.ts');
 
 async function main(): Promise<void> {
-  const config = await prettier.resolveConfig(outPath);
-  const formatted = await prettier.format(emit(), { ...config, parser: 'typescript' });
-  writeFileSync(outPath, formatted);
+  const config = require('../../../.oxfmtrc.json');
+  const { code, errors } = await format(outPath, emit(), config);
+  if (errors.length > 0) throw new Error(errors.map((err) => err.message).join('\n'));
+  writeFileSync(outPath, code);
   console.log(`Wrote ${outPath}`);
 }
 

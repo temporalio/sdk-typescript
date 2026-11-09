@@ -1,4 +1,5 @@
 import * as otel from '@opentelemetry/api';
+import type { Headers } from '@temporalio/common';
 import type {
   Next,
   WorkflowSignalInput,
@@ -13,13 +14,18 @@ import type {
   WorkflowTerminateInput,
   WorkflowCancelInput,
   WorkflowDescribeInput,
+  WorkflowFetchHistoryInput,
+  WorkflowListInput,
   WorkflowClientInterceptor,
   TerminateWorkflowExecutionResponse,
   RequestCancelWorkflowExecutionResponse,
   DescribeWorkflowExecutionResponse,
+  WorkflowExecutionInfo,
 } from '@temporalio/client';
+import type { History } from '@temporalio/common/proto-utils';
 import {
   instrument,
+  instrumentAsyncIterable,
   headersWithContext,
   RUN_ID_ATTR_KEY,
   WORKFLOW_ID_ATTR_KEY,
@@ -46,12 +52,16 @@ export class OpenTelemetryWorkflowClientInterceptor implements WorkflowClientInt
     this.tracer = options?.tracer ?? otel.trace.getTracer('@temporalio/interceptor-client');
   }
 
+  protected async headersWithContext(headers: Headers, _workflowId: string): Promise<Headers> {
+    return headersWithContext(headers);
+  }
+
   async start(input: WorkflowStartInput, next: Next<WorkflowClientInterceptor, 'start'>): Promise<string> {
     return await instrument({
       tracer: this.tracer,
       spanName: `${SpanName.WORKFLOW_START}${SPAN_DELIMITER}${input.workflowType}`,
       fn: async (span) => {
-        const headers = headersWithContext(input.headers);
+        const headers = await this.headersWithContext(input.headers, input.options.workflowId);
         span.setAttribute(WORKFLOW_ID_ATTR_KEY, input.options.workflowId);
         const runId = await next({ ...input, headers });
         span.setAttribute(RUN_ID_ATTR_KEY, runId);
@@ -66,7 +76,7 @@ export class OpenTelemetryWorkflowClientInterceptor implements WorkflowClientInt
       spanName: `${SpanName.WORKFLOW_SIGNAL}${SPAN_DELIMITER}${input.signalName}`,
       fn: async (span) => {
         span.setAttribute(WORKFLOW_ID_ATTR_KEY, input.workflowExecution.workflowId);
-        const headers = headersWithContext(input.headers);
+        const headers = await this.headersWithContext(input.headers, input.workflowExecution.workflowId);
         await next({ ...input, headers });
       },
     });
@@ -80,7 +90,7 @@ export class OpenTelemetryWorkflowClientInterceptor implements WorkflowClientInt
       tracer: this.tracer,
       spanName: `${SpanName.WORKFLOW_START}${SPAN_DELIMITER}${input.workflowType}`,
       fn: async (span) => {
-        const headers = headersWithContext(input.headers);
+        const headers = await this.headersWithContext(input.headers, input.options.workflowId);
         span.setAttribute(WORKFLOW_ID_ATTR_KEY, input.options.workflowId);
         const output = await next({ ...input, headers });
         span.setAttribute(RUN_ID_ATTR_KEY, output.runId);
@@ -101,7 +111,7 @@ export class OpenTelemetryWorkflowClientInterceptor implements WorkflowClientInt
         if (input.options.updateId) {
           span.setAttribute(UPDATE_ID_ATTR_KEY, input.options.updateId);
         }
-        const headers = headersWithContext(input.headers);
+        const headers = await this.headersWithContext(input.headers, input.workflowExecution.workflowId);
         const output = await next({ ...input, headers });
         span.setAttribute(RUN_ID_ATTR_KEY, output.workflowRunId);
         return output;
@@ -121,8 +131,11 @@ export class OpenTelemetryWorkflowClientInterceptor implements WorkflowClientInt
         if (input.updateOptions.updateId) {
           span.setAttribute(UPDATE_ID_ATTR_KEY, input.updateOptions.updateId);
         }
-        const workflowStartHeaders = headersWithContext(input.workflowStartHeaders);
-        const updateHeaders = headersWithContext(input.updateHeaders);
+        const workflowStartHeaders = await this.headersWithContext(
+          input.workflowStartHeaders,
+          input.workflowStartOptions.workflowId
+        );
+        const updateHeaders = await this.headersWithContext(input.updateHeaders, input.workflowStartOptions.workflowId);
         const output = await next({ ...input, workflowStartHeaders, updateHeaders });
         if (output.workflowExecution.runId) {
           span.setAttribute(RUN_ID_ATTR_KEY, output.workflowExecution.runId);
@@ -141,7 +154,7 @@ export class OpenTelemetryWorkflowClientInterceptor implements WorkflowClientInt
       spanName: `${SpanName.WORKFLOW_SIGNAL_WITH_START}${SPAN_DELIMITER}${input.workflowType}`,
       fn: async (span) => {
         span.setAttribute(WORKFLOW_ID_ATTR_KEY, input.options.workflowId);
-        const headers = headersWithContext(input.headers);
+        const headers = await this.headersWithContext(input.headers, input.options.workflowId);
         const runId = await next({ ...input, headers });
         span.setAttribute(RUN_ID_ATTR_KEY, runId);
         return runId;
@@ -154,7 +167,7 @@ export class OpenTelemetryWorkflowClientInterceptor implements WorkflowClientInt
       tracer: this.tracer,
       spanName: `${SpanName.WORKFLOW_QUERY}${SPAN_DELIMITER}${input.queryType}`,
       fn: async (span) => {
-        const headers = headersWithContext(input.headers);
+        const headers = await this.headersWithContext(input.headers, input.workflowExecution.workflowId);
         span.setAttribute(WORKFLOW_ID_ATTR_KEY, input.workflowExecution.workflowId);
         if (input.workflowExecution.runId) {
           span.setAttribute(RUN_ID_ATTR_KEY, input.workflowExecution.runId);
@@ -215,6 +228,31 @@ export class OpenTelemetryWorkflowClientInterceptor implements WorkflowClientInt
         }
         return await next(input);
       },
+    });
+  }
+
+  async fetchHistory(
+    input: WorkflowFetchHistoryInput,
+    next: Next<WorkflowClientInterceptor, 'fetchHistory'>
+  ): Promise<History> {
+    return await instrument({
+      tracer: this.tracer,
+      spanName: SpanName.WORKFLOW_FETCH_HISTORY,
+      fn: async (span) => {
+        span.setAttribute(WORKFLOW_ID_ATTR_KEY, input.workflowExecution.workflowId);
+        if (input.workflowExecution.runId) {
+          span.setAttribute(RUN_ID_ATTR_KEY, input.workflowExecution.runId);
+        }
+        return await next(input);
+      },
+    });
+  }
+
+  list(input: WorkflowListInput, next: Next<WorkflowClientInterceptor, 'list'>): AsyncIterable<WorkflowExecutionInfo> {
+    return instrumentAsyncIterable({
+      tracer: this.tracer,
+      spanName: SpanName.WORKFLOW_LIST,
+      fn: () => next(input),
     });
   }
 }

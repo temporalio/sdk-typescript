@@ -24,7 +24,7 @@ import { heartbeatCancellationDetailsActivity } from './activities/heartbeat-can
 import { createTestWorkflowEnvironment } from './helpers-integration';
 import { convertOrder, createAsyncOrderActivities } from './workflows/type-info/activities';
 import { activityTypeInfo } from './workflows/type-info/activity-type-info';
-import { Order, Receipt } from './workflows/type-info/models';
+import { Order, Receipt, receiptTypeInfo } from './workflows/type-info/models';
 import { encdec, makeContextTrace, standaloneActivityCtx } from './payload-converters/serialization-context-converter';
 
 // Use a reduced server long-poll expiration timeout, in order to confirm that client
@@ -56,7 +56,7 @@ const activities = {
     if (info.workflowExecution !== undefined) {
       throw ApplicationFailure.nonRetryable('Expected workflowExecution to be unset');
     }
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
+    // oxlint-disable-next-line typescript/no-deprecated
     if (info.workflowNamespace !== undefined) {
       throw ApplicationFailure.nonRetryable('Expected workflowNamespace to be unset');
     }
@@ -277,7 +277,7 @@ if (RUN_INTEGRATION_TESTS) {
     assertReceipt(t, await handle.result());
   });
 
-  test('Detached Activity handle decodes its result with output TypeInfo', async (t) => {
+  test('Detached Activity handles decode results using explicit and definition TypeInfo', async (t) => {
     const client = t.context.env.client.activity;
     const activityId = randomUUID();
     const handle = await client.start<Receipt>('convertOrder', {
@@ -287,11 +287,17 @@ if (RUN_INTEGRATION_TESTS) {
       typeInfo: activityTypeInfo.convertOrder,
     });
 
-    const detachedHandle = client.getHandleWithOptions<Receipt>(activityId, {
+    const explicitHandle = client.getHandleWithOptions<Receipt>(activityId, {
       runId: handle.runId,
-      typeInfo: { outputType: activityTypeInfo.convertOrder.outputType },
+      typeInfo: { outputType: receiptTypeInfo },
     });
-    assertReceipt(t, await detachedHandle.result());
+    assertReceipt(t, await explicitHandle.result());
+
+    const definitionHandle = client.getHandleWithOptions(activityId, {
+      activity: convertOrder,
+      runId: handle.runId,
+    });
+    assertReceipt(t, await definitionHandle.result());
   });
 
   test('Activity interceptors can provide input and result TypeInfo', async (t) => {
@@ -735,7 +741,7 @@ if (RUN_INTEGRATION_TESTS) {
 
     const desc = await handle.describe({ includeInput: true, includeOutcome: true });
     const input = await desc.getInput();
-    t.deepEqual(await desc.getInput(), [
+    t.deepEqual(input, [
       {
         label: 'input',
         trace: encdec('input', ctx),
@@ -808,11 +814,11 @@ if (RUN_INTEGRATION_TESTS) {
       }
       {
         const // @ts-expect-error TS2322
-          _handle // end error
+          _handle// end error
           : ActivityHandle<number> = await client.start('noArgsReturnsVoid', { ...options });
 
         const // @ts-expect-error TS2322
-          _result // end error
+          _result// end error
           : number = await client.execute('noArgsReturnsVoid', { ...options });
       }
       {
@@ -828,20 +834,20 @@ if (RUN_INTEGRATION_TESTS) {
       }
       {
         const // @ts-expect-error TS2322
-          _handle // end error
+          _handle// end error
           : ActivityHandle<void> = await client.start('noArgsReturnsNumber', { ...options });
 
         const // @ts-expect-error TS2322
-          _result // end error
+          _result// end error
           : void = await client.execute('noArgsReturnsNumber', { ...options });
       }
       {
         const // @ts-expect-error TS2322
-          _handle // end error
+          _handle// end error
           : ActivityHandle<string> = await client.start('noArgsReturnsNumber', { ...options });
 
         const // @ts-expect-error TS2322
-          _result // end error
+          _result// end error
           : string = await client.execute('noArgsReturnsNumber', { ...options });
       }
       {

@@ -1,0 +1,1 @@
+Added support for an optional synchronous `flush()` hook on worker runtime loggers through the public `FlushableLogger` interface. The SDK flushes these loggers without closing them and isolates synchronous logger failures, with a stderr fallback for WARN/ERROR messages and flush-failure diagnostics.

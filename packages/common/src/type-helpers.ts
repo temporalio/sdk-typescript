@@ -57,9 +57,7 @@ export type UnionToIntersection<Union> =
         (distributedUnion: Union) => void
       : // This won't happen.
         never
-  ) extends // Infer the `Intersection` type since TypeScript represents the positional
-  // arguments of unions of functions as an intersection of the union.
-  (mergedIntersection: infer Intersection) => void
+  ) extends (mergedIntersection: infer Intersection) => void // Infer the `Intersection` type from the intersection of function arguments.
     ? // The `& Union` is to allow indexing by the resulting type
       Intersection & Union
     : never;
@@ -107,7 +105,7 @@ export type Exact<ParameterType, InputType> =
         IsUnknown<ParameterType> extends true
         ? unknown
         : // If the parameter is a Function, return it as is because this type is not capable of handling function, leave it to TypeScript
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+          // oxlint-disable-next-line typescript/no-unsafe-function-type
           ParameterType extends Function
           ? ParameterType
           : // Convert union of array to array of union: A[] & B[] => (A & B)[]
@@ -227,7 +225,7 @@ export function SymbolBasedInstanceOfError<E extends Error>(markerName: string):
     Object.defineProperty(clazz.prototype, 'name', { value: markerName, enumerable: true });
     Object.defineProperty(clazz.prototype, marker, { value: true, enumerable: false });
     Object.defineProperty(clazz, Symbol.hasInstance, {
-      // eslint-disable-next-line object-shorthand
+      // oxlint-disable-next-line object-shorthand
       value: function (this: any, error: object): boolean {
         if (this === clazz) {
           return isRecord(error) && (error as any)[marker] === true;
@@ -239,7 +237,7 @@ export function SymbolBasedInstanceOfError<E extends Error>(markerName: string):
           // Ideally, it'd be preferable to avoid this case entirely, by making sure that all subclasses of 'clazz'
           // redefine [Symbol.hasInstance], but we can't enforce that. We therefore fallback to the default instanceof
           // behavior (which is NOT cross-realm safe).
-          return this.prototype.isPrototypeOf(error); // eslint-disable-line no-prototype-builtins
+          return this.prototype.isPrototypeOf(error); // oxlint-disable-line no-prototype-builtins
         }
       },
     });

@@ -15,6 +15,7 @@ import type {
   VersioningBehavior,
   WorkflowDefinitionOptions,
   WorkflowSerializationContext,
+  NexusSerializationContext,
   SerializationContext,
   PayloadTypeInfo,
   TypeInfo,
@@ -28,6 +29,8 @@ import {
   IllegalStateError,
   TemporalFailure,
   WorkflowExecutionAlreadyStartedError,
+  NamespaceNotFoundError,
+  InvalidVersioningOverrideError,
   ApplicationFailure,
   mapFromPayloads,
   fromPayloadWithTypeInfo,
@@ -40,6 +43,7 @@ import {
   decodeTypedSearchAttributes,
   ENHANCED_STACK_TRACE_QUERY_NAME,
   makeProtoEnumConverters,
+  nexusSerializationContextFromProto,
   STACK_TRACE_QUERY_NAME,
   TEMPORAL_RESERVED_PREFIX,
 } from '@temporalio/common/internal/internal-workflow';
@@ -193,8 +197,8 @@ export class Activator implements ActivationHandler {
   readonly completions = {
     timer: new Map<number, Completion<void>>(),
     activity: new Map<number, Completion<unknown, ActivitySerializationContext>>(),
-    nexusOperationStart: new Map<number, Completion<StartNexusOperationOutput>>(),
-    nexusOperationComplete: new Map<number, Completion<unknown>>(),
+    nexusOperationStart: new Map<number, Completion<StartNexusOperationOutput, SerializationContext>>(),
+    nexusOperationComplete: new Map<number, Completion<unknown, SerializationContext>>(),
     childWorkflowStart: new Map<number, Completion<string, WorkflowSerializationContext>>(),
     childWorkflowComplete: new Map<number, Completion<unknown, WorkflowSerializationContext>>(),
     signalWorkflow: new Map<number, Completion<void, WorkflowSerializationContext>>(),
@@ -319,6 +323,13 @@ export class Activator implements ActivationHandler {
    * `tryUnblockConditions()`). While this flag is set, it is safe to let errors bubble up.
    */
   public rethrowSynchronously = false;
+
+  /**
+   * Whether conditions may be checked in the current activation, which requires that it may have
+   * changed workflow state. Set from the activation's jobs at the start of each activation, and when
+   * an update is accepted.
+   */
+  public checkConditions = false;
 
   public readonly rootScope = new RootCancellationScope();
 
@@ -485,6 +496,12 @@ export class Activator implements ActivationHandler {
 
   public payloadConverter: PayloadConverter = defaultPayloadConverter;
   public failureConverter: FailureConverter = defaultFailureConverter;
+
+  /**
+   * Serialization context of the Nexus operation handler that started this Workflow, if any. The
+   * Workflow's result and closing failure go back to the Nexus caller, which decodes them with it.
+   */
+  private nexusSerializationContext?: NexusSerializationContext;
 
   /**
    * Patches we know the status of for this workflow, as in {@link patched}
@@ -677,6 +694,9 @@ export class Activator implements ActivationHandler {
   public initializeWorkflow(activation: coresdk.workflow_activation.IInitializeWorkflow): void {
     const { continuedFailure, lastCompletionResult, memo, searchAttributes } = activation;
     const context = this.workflowSerializationContext();
+    this.nexusSerializationContext = nexusSerializationContextFromProto(activation.propagatedNexusSerializationContext);
+    // The previous run of a retry or cron chain encoded these with the result context
+    const previousRunContext = this.resultSerializationContext();
 
     // Most things related to initialization have already been handled in the constructor
     this.mutateWorkflowInfo((info) => ({
@@ -686,10 +706,10 @@ export class Activator implements ActivationHandler {
       typedSearchAttributes: decodeTypedSearchAttributes(searchAttributes?.indexedFields),
 
       memo: mapFromPayloads(this.payloadConverter, memo?.fields, context) ?? {},
-      lastResult: fromPayloadsAtIndex(this.payloadConverter, 0, lastCompletionResult?.payloads, context),
+      lastResult: fromPayloadsAtIndex(this.payloadConverter, 0, lastCompletionResult?.payloads, previousRunContext),
       lastFailure:
         continuedFailure != null
-          ? this.failureConverter.failureToError(continuedFailure, this.payloadConverter, context)
+          ? this.failureConverter.failureToError(continuedFailure, this.payloadConverter, previousRunContext)
           : undefined,
     }));
     const workflowDefinitionOpts = this.workflowDefinitionOptionsGetter?.();
@@ -750,19 +770,34 @@ export class Activator implements ActivationHandler {
       }
       resolve(activation.succeeded.runId);
     } else if (activation.failed) {
-      if (decodeStartChildWorkflowExecutionFailedCause(activation.failed.cause) !== 'WORKFLOW_ALREADY_EXISTS') {
-        throw new IllegalStateError('Got unknown StartChildWorkflowExecutionFailedCause');
-      }
       if (!(activation.seq && activation.failed.workflowId && activation.failed.workflowType)) {
         throw new TypeError('Missing attributes in activation job');
       }
-      reject(
-        new WorkflowExecutionAlreadyStartedError(
-          'Workflow execution already started',
-          activation.failed.workflowId,
-          activation.failed.workflowType
-        )
-      );
+      switch (decodeStartChildWorkflowExecutionFailedCause(activation.failed.cause)) {
+        case 'WORKFLOW_ALREADY_EXISTS':
+          reject(
+            new WorkflowExecutionAlreadyStartedError(
+              'Workflow execution already started',
+              activation.failed.workflowId,
+              activation.failed.workflowType
+            )
+          );
+          break;
+        case 'NAMESPACE_NOT_FOUND':
+          reject(new NamespaceNotFoundError(this.info.namespace));
+          break;
+        case 'INVALID_VERSIONING_OVERRIDE':
+          reject(
+            new InvalidVersioningOverrideError(
+              `Invalid versioning override for Child Workflow '${activation.failed.workflowId}' of type '${activation.failed.workflowType}'`,
+              activation.failed.workflowId,
+              activation.failed.workflowType
+            )
+          );
+          break;
+        default:
+          throw new IllegalStateError('Got unknown StartChildWorkflowExecutionFailedCause');
+      }
       this.completions.childWorkflowComplete.delete(seq);
     } else if (activation.cancelled) {
       if (!activation.cancelled.failure) {
@@ -806,13 +841,14 @@ export class Activator implements ActivationHandler {
 
   public resolveNexusOperationStart(activation: coresdk.workflow_activation.IResolveNexusOperationStart): void {
     const seq = getSeq(activation);
-    const { resolve, reject, outputTypeInfo } = this.consumeCompletion('nexusOperationStart', seq);
+    const { resolve, reject, context, outputTypeInfo } = this.consumeCompletion('nexusOperationStart', seq);
 
     if (!activation.failed) {
       const completePromise = new Promise((resolve, reject) => {
         this.completions.nexusOperationComplete.set(seq, {
           resolve,
           reject,
+          context,
           outputTypeInfo,
         });
       });
@@ -821,13 +857,12 @@ export class Activator implements ActivationHandler {
 
       resolve({ token: activation.operationToken!, result: completePromise });
     } else {
-      reject(this.failureToError(activation.failed));
+      reject(this.failureToError(activation.failed, context));
     }
   }
 
   public resolveNexusOperation(activation: coresdk.workflow_activation.IResolveNexusOperation): void {
     const seq = getSeq(activation);
-    const context = this.workflowSerializationContext();
     const systemNexus = this.systemNexusOperationContexts.get(seq);
     this.systemNexusOperationContexts.delete(seq);
 
@@ -836,13 +871,16 @@ export class Activator implements ActivationHandler {
       // e.g. because the handler completed the Operation synchronously.
       const startCompletion = this.maybeConsumeCompletion('nexusOperationStart', seq);
       let outputTypeInfo: TypeInfo | undefined;
+      let context: SerializationContext | undefined;
       let resolveResult: (result: unknown) => void;
       if (startCompletion) {
         outputTypeInfo = startCompletion.outputTypeInfo;
+        context = startCompletion.context;
         resolveResult = (result) => startCompletion.resolve({ result: Promise.resolve(result) });
       } else {
         const completion = this.consumeCompletion('nexusOperationComplete', seq);
         outputTypeInfo = completion.outputTypeInfo;
+        context = completion.context;
         resolveResult = completion.resolve;
       }
       const result =
@@ -850,24 +888,25 @@ export class Activator implements ActivationHandler {
           systemNexus?.service,
           systemNexus?.operation,
           activation.result.completed,
-          this.payloadConverter,
+          { payloadConverter: this.payloadConverter, failureConverter: this.failureConverter },
           systemNexus?.context,
           systemNexus?.outputType
         ) ?? fromPayloadWithTypeInfo(this.payloadConverter, activation.result.completed, context, outputTypeInfo);
       resolveResult(result);
     } else {
-      let err: Error;
-      if (activation.result?.failed) {
-        err = this.failureToError(activation.result.failed, systemNexus?.context);
-      } else if (activation.result?.cancelled) {
-        err = this.failureToError(activation.result.cancelled, systemNexus?.context);
-      } else if (activation.result?.timedOut) {
-        err = this.failureToError(activation.result.timedOut, systemNexus?.context);
-      }
-
       const completion =
         this.maybeConsumeCompletion('nexusOperationStart', seq) ??
         this.consumeCompletion('nexusOperationComplete', seq);
+      const { context } = completion;
+      let err: Error;
+      if (activation.result?.failed) {
+        err = this.failureToError(activation.result.failed, context);
+      } else if (activation.result?.cancelled) {
+        err = this.failureToError(activation.result.cancelled, context);
+      } else if (activation.result?.timedOut) {
+        err = this.failureToError(activation.result.timedOut, context);
+      }
+
       completion.reject(err!);
     }
   }
@@ -1384,7 +1423,7 @@ export class Activator implements ActivationHandler {
       this.pushCommand(
         {
           failWorkflowExecution: {
-            failure: this.errorToFailure(ensureTemporalFailure(error)),
+            failure: this.errorToFailure(ensureTemporalFailure(error), this.resultSerializationContext()),
           },
         },
         true
@@ -1468,6 +1507,7 @@ export class Activator implements ActivationHandler {
   }
 
   private acceptUpdate(protocolInstanceId: string): void {
+    this.checkConditions = true;
     this.pushCommand({ updateResponse: { protocolInstanceId, accepted: {} } });
   }
 
@@ -1515,7 +1555,7 @@ export class Activator implements ActivationHandler {
   }
 
   private completeWorkflow(result: unknown): void {
-    const context = this.workflowSerializationContext();
+    const context = this.resultSerializationContext();
     this.pushCommand(
       {
         completeWorkflowExecution: {
@@ -1526,8 +1566,7 @@ export class Activator implements ActivationHandler {
     );
   }
 
-  errorToFailure(err: unknown): ProtoFailure {
-    const context = this.workflowSerializationContext();
+  errorToFailure(err: unknown, context: SerializationContext = this.workflowSerializationContext()): ProtoFailure {
     return this.failureConverter.errorToFailure(err, this.payloadConverter, context);
   }
 
@@ -1541,6 +1580,11 @@ export class Activator implements ActivationHandler {
       namespace: this.info.namespace,
       workflowId: this.info.workflowId,
     };
+  }
+
+  /** Context for the Workflow's result and closing failure, which go back to a Nexus caller if a handler started it. */
+  private resultSerializationContext(): SerializationContext {
+    return this.nexusSerializationContext ?? this.workflowSerializationContext();
   }
 }
 

@@ -1,10 +1,15 @@
 import { status as grpcStatus } from '@grpc/grpc-js';
-import type { ActivitySerializationContext, PayloadTypeInfo, StorageDriverTargetInfo } from '@temporalio/common';
+import type {
+  ActivitySerializationContext,
+  NexusSerializationContext,
+  PayloadTypeInfo,
+  StorageDriverTargetInfo,
+} from '@temporalio/common';
 import { ensureTemporalFailure, ExternalStorageError } from '@temporalio/common';
 import {
   encodeErrorToFailure,
   encodeToPayloadsWithContext,
-  extstoreStoreOptions,
+  externalStorageStoreVisitOptions,
   visit,
   walkRecordActivityTaskHeartbeatByIdRequest,
   walkRecordActivityTaskHeartbeatRequest,
@@ -50,9 +55,13 @@ export interface AsyncCompletionOperationOptions {
    *
    * By-ID operations infer their Activity serialization context from the supplied IDs.
    *
+   * A standalone Activity started by a Nexus operation handler encodes its result, failure and
+   * heartbeat details with the handler's {@link NexusSerializationContext}. To complete or heartbeat
+   * such an Activity, pass `ActivityInfo.nexusSerializationContext`.
+   *
    * @experimental Serialization context is an experimental feature and may change.
    */
-  serializationContext?: ActivitySerializationContext;
+  serializationContext?: ActivitySerializationContext | NexusSerializationContext;
 }
 
 /**
@@ -126,6 +135,7 @@ export class AsyncCompletionClient extends BaseClient {
       ...defaultAsyncCompletionClientOptions(),
       ...filterNullAndUndefined(options ?? {}),
       loadedDataConverter: this.dataConverter,
+      payloadCache: this.payloadCache,
     };
   }
 
@@ -142,7 +152,7 @@ export class AsyncCompletionClient extends BaseClient {
   protected serializationContextFor(
     taskTokenOrFullActivityId: Uint8Array | FullActivityId,
     options?: AsyncCompletionOperationOptions
-  ): ActivitySerializationContext | undefined {
+  ): ActivitySerializationContext | NexusSerializationContext | undefined {
     return taskTokenOrFullActivityId instanceof Uint8Array
       ? options?.serializationContext
       : activityContextFromFullActivityId(this.options.namespace, taskTokenOrFullActivityId);
@@ -212,8 +222,8 @@ export class AsyncCompletionClient extends BaseClient {
       [result],
       outputType === undefined ? undefined : [outputType]
     );
-    const externalStorage = this.dataConverter.externalStorage;
     try {
+      const externalStorage = this.dataConverter.externalStorage;
       if (taskTokenOrFullActivityId instanceof Uint8Array) {
         const req: temporal.api.workflowservice.v1.IRespondActivityTaskCompletedRequest = {
           identity: this.options.identity,
@@ -225,7 +235,11 @@ export class AsyncCompletionClient extends BaseClient {
           await visit(
             req,
             walkRespondActivityTaskCompletedRequest,
-            extstoreStoreOptions(externalStorage, { initialTarget: this.storageTargetFor(taskTokenOrFullActivityId) })
+            externalStorageStoreVisitOptions({
+              externalStorage,
+              initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
+              payloadCache: this.payloadCache,
+            })
           );
         }
         await this.workflowService.respondActivityTaskCompleted(req);
@@ -240,7 +254,11 @@ export class AsyncCompletionClient extends BaseClient {
           await visit(
             req,
             walkRespondActivityTaskCompletedByIdRequest,
-            extstoreStoreOptions(externalStorage, { initialTarget: this.storageTargetFor(taskTokenOrFullActivityId) })
+            externalStorageStoreVisitOptions({
+              externalStorage,
+              initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
+              payloadCache: this.payloadCache,
+            })
           );
         }
         await this.workflowService.respondActivityTaskCompletedById(req);
@@ -269,8 +287,8 @@ export class AsyncCompletionClient extends BaseClient {
       ensureTemporalFailure(err),
       this.serializationContextFor(taskTokenOrFullActivityId, options)
     );
-    const externalStorage = this.dataConverter.externalStorage;
     try {
+      const externalStorage = this.dataConverter.externalStorage;
       if (taskTokenOrFullActivityId instanceof Uint8Array) {
         const req: temporal.api.workflowservice.v1.IRespondActivityTaskFailedRequest = {
           identity: this.options.identity,
@@ -282,7 +300,11 @@ export class AsyncCompletionClient extends BaseClient {
           await visit(
             req,
             walkRespondActivityTaskFailedRequest,
-            extstoreStoreOptions(externalStorage, { initialTarget: this.storageTargetFor(taskTokenOrFullActivityId) })
+            externalStorageStoreVisitOptions({
+              externalStorage,
+              initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
+              payloadCache: this.payloadCache,
+            })
           );
         }
         await this.workflowService.respondActivityTaskFailed(req);
@@ -297,7 +319,11 @@ export class AsyncCompletionClient extends BaseClient {
           await visit(
             req,
             walkRespondActivityTaskFailedByIdRequest,
-            extstoreStoreOptions(externalStorage, { initialTarget: this.storageTargetFor(taskTokenOrFullActivityId) })
+            externalStorageStoreVisitOptions({
+              externalStorage,
+              initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
+              payloadCache: this.payloadCache,
+            })
           );
         }
         await this.workflowService.respondActivityTaskFailedById(req);
@@ -330,8 +356,8 @@ export class AsyncCompletionClient extends BaseClient {
       this.serializationContextFor(taskTokenOrFullActivityId, options),
       [details]
     );
-    const externalStorage = this.dataConverter.externalStorage;
     try {
+      const externalStorage = this.dataConverter.externalStorage;
       if (taskTokenOrFullActivityId instanceof Uint8Array) {
         const req: temporal.api.workflowservice.v1.IRespondActivityTaskCanceledRequest = {
           identity: this.options.identity,
@@ -343,7 +369,11 @@ export class AsyncCompletionClient extends BaseClient {
           await visit(
             req,
             walkRespondActivityTaskCanceledRequest,
-            extstoreStoreOptions(externalStorage, { initialTarget: this.storageTargetFor(taskTokenOrFullActivityId) })
+            externalStorageStoreVisitOptions({
+              externalStorage,
+              initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
+              payloadCache: this.payloadCache,
+            })
           );
         }
         await this.workflowService.respondActivityTaskCanceled(req);
@@ -358,7 +388,11 @@ export class AsyncCompletionClient extends BaseClient {
           await visit(
             req,
             walkRespondActivityTaskCanceledByIdRequest,
-            extstoreStoreOptions(externalStorage, { initialTarget: this.storageTargetFor(taskTokenOrFullActivityId) })
+            externalStorageStoreVisitOptions({
+              externalStorage,
+              initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
+              payloadCache: this.payloadCache,
+            })
           );
         }
         await this.workflowService.respondActivityTaskCanceledById(req);
@@ -390,8 +424,8 @@ export class AsyncCompletionClient extends BaseClient {
     let cancelRequested = false;
     let paused = false;
     let reset = false;
-    const externalStorage = this.dataConverter.externalStorage;
     try {
+      const externalStorage = this.dataConverter.externalStorage;
       if (taskTokenOrFullActivityId instanceof Uint8Array) {
         const req: temporal.api.workflowservice.v1.IRecordActivityTaskHeartbeatRequest = {
           identity: this.options.identity,
@@ -403,7 +437,11 @@ export class AsyncCompletionClient extends BaseClient {
           await visit(
             req,
             walkRecordActivityTaskHeartbeatRequest,
-            extstoreStoreOptions(externalStorage, { initialTarget: this.storageTargetFor(taskTokenOrFullActivityId) })
+            externalStorageStoreVisitOptions({
+              externalStorage,
+              initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
+              payloadCache: this.payloadCache,
+            })
           );
         }
         const response = await this.workflowService.recordActivityTaskHeartbeat(req);
@@ -421,7 +459,11 @@ export class AsyncCompletionClient extends BaseClient {
           await visit(
             req,
             walkRecordActivityTaskHeartbeatByIdRequest,
-            extstoreStoreOptions(externalStorage, { initialTarget: this.storageTargetFor(taskTokenOrFullActivityId) })
+            externalStorageStoreVisitOptions({
+              externalStorage,
+              initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
+              payloadCache: this.payloadCache,
+            })
           );
         }
         const response = await this.workflowService.recordActivityTaskHeartbeatById(req);

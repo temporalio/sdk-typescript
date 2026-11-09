@@ -15,6 +15,7 @@ import type {
   WorkerDeploymentVersion,
   VersioningBehavior,
   InitialVersioningBehavior,
+  VersioningOverride,
   SuggestContinueAsNewReason,
   PayloadTypeInfo,
 } from '@temporalio/common';
@@ -255,8 +256,8 @@ export interface UnsafeWorkflowInfo {
   /**
    * Current system time in milliseconds
    *
-   * The safe version of time is `new Date()` and `Date.now()`, which are set on the first invocation of a Workflow
-   * Task and stay constant for the duration of the Task and during replay.
+   * `new Date()`, `Date.now()`, and `Temporal.Now` date/time methods use Workflow Task time, which stays constant
+   * for the duration of the Task and during replay. Temporal's default time zone remains the system time zone.
    */
   readonly now: () => number;
 
@@ -506,7 +507,7 @@ export const ChildWorkflowCancellationType = {
 export type ChildWorkflowCancellationType =
   (typeof ChildWorkflowCancellationType)[keyof typeof ChildWorkflowCancellationType];
 
-// ts-prune-ignore-next
+/* @lintignore Keep both directions of the enum converter pair. */
 export const [encodeChildWorkflowCancellationType, decodeChildWorkflowCancellationType] = makeProtoEnumConverters<
   coresdk.child_workflow.ChildWorkflowCancellationType,
   typeof coresdk.child_workflow.ChildWorkflowCancellationType,
@@ -578,7 +579,7 @@ export const ParentClosePolicy = {
 } as const;
 export type ParentClosePolicy = (typeof ParentClosePolicy)[keyof typeof ParentClosePolicy];
 
-// ts-prune-ignore-next
+/* @lintignore Keep both directions of the enum converter pair. */
 export const [encodeParentClosePolicy, decodeParentClosePolicy] = makeProtoEnumConverters<
   coresdk.child_workflow.ParentClosePolicy,
   typeof coresdk.child_workflow.ParentClosePolicy,
@@ -651,6 +652,19 @@ export interface ChildWorkflowOptions extends Omit<CommonWorkflowOptions, 'workf
    * @deprecated Worker Versioning is now deprecated. Please use the Worker Deployment API instead: https://docs.temporal.io/worker-deployments
    */
   versioningIntent?: VersioningIntent;
+
+  /**
+   * Explicit versioning configuration for the Child Workflow. Takes precedence over versioning
+   * inherited from the Parent Workflow. By default, no override is set.
+   *
+   * Supports pinning to a deployment version, auto-upgrading, or routing the first Workflow Task
+   * to a version once before adopting the versioning behavior defined in the Child Workflow's code.
+   *
+   * Requires Temporal Server 1.32.0 or later.
+   *
+   * @experimental
+   */
+  versioningOverride?: VersioningOverride;
 
   /**
    * Event Groups to attach to the child workflow start command. They will be reflected on the
@@ -758,13 +772,14 @@ export type Handler<
   Ret,
   Args extends any[],
   T extends UpdateDefinition<Ret, Args> | SignalDefinition<Args> | QueryDefinition<Ret, Args>,
-> = T extends UpdateDefinition<infer R, infer A>
-  ? (...args: A) => R | Promise<R>
-  : T extends SignalDefinition<infer A>
-    ? (...args: A) => void | Promise<void>
-    : T extends QueryDefinition<infer R, infer A>
-      ? (...args: A) => R
-      : never;
+> =
+  T extends UpdateDefinition<infer R, infer A>
+    ? (...args: A) => R | Promise<R>
+    : T extends SignalDefinition<infer A>
+      ? (...args: A) => void | Promise<void>
+      : T extends QueryDefinition<infer R, infer A>
+        ? (...args: A) => R
+        : never;
 
 /**
  * A handler function accepting signal calls for non-registered signal names.

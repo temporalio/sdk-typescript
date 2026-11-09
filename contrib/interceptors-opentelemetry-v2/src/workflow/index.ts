@@ -1,10 +1,10 @@
-// eslint-disable-next-line import/no-unassigned-import
+// oxlint-disable-next-line import/no-unassigned-import
 import './performance-polyfill'; // Zero-import polyfill; must run before OTel modules access `performance`
-// eslint-disable-next-line import/no-unassigned-import
+// oxlint-disable-next-line import/no-unassigned-import
 import './runtime'; // Patch the Workflow isolate runtime for opentelemetry
 import * as otel from '@opentelemetry/api';
 import * as tracing from '@opentelemetry/sdk-trace-base';
-import { W3CTraceContextPropagator } from '@opentelemetry/core';
+import { CompositePropagator, W3CBaggagePropagator, W3CTraceContextPropagator } from '@opentelemetry/core';
 import { extractWorkflowType } from '@temporalio/common';
 import type {
   ActivityInput,
@@ -61,7 +61,11 @@ function getTracer(): otel.Tracer {
       idGenerator: new DeterministicIdGenerator(),
       spanProcessors: [new tracing.SimpleSpanProcessor(new SpanExporter())],
     });
-    otel.propagation.setGlobalPropagator(new W3CTraceContextPropagator());
+    otel.propagation.setGlobalPropagator(
+      new CompositePropagator({
+        propagators: [new W3CTraceContextPropagator(), new W3CBaggagePropagator()],
+      })
+    );
     otel.trace.setGlobalTracerProvider(provider);
     otel.context.setGlobalContextManager(contextManager);
     tracer = provider.getTracer('@temporalio/interceptor-workflow');

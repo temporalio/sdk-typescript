@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import type * as nexus from 'nexus-rpc';
 import type { Logger, LogLevel, LogMetadata, MetricMeter } from '@temporalio/common';
 import type { Client } from '@temporalio/client';
+import type { temporal } from '@temporalio/proto';
 
 // Context Storage /////////////////////////////////////////////////////////////////////////////////
 
@@ -29,6 +30,25 @@ export function getHandlerContext(): HandlerContext {
  */
 export function getNexusStartOperationContext(): TemporalStartOperationContext | undefined {
   return asyncLocalStorage.getStore()?.nexusStartOperationContext;
+}
+
+/**
+ * The serialization context of the Nexus operation being started on this task, in the form sent
+ * with start and Update requests, or `undefined` outside a Nexus start operation handler.
+ *
+ * Workflows and standalone Activities started by the handler return their result and failure to
+ * the Nexus caller, so the server propagates this context to the Worker and to Clients reading them.
+ *
+ * @internal
+ * @hidden
+ */
+export function currentPropagatedNexusSerializationContext():
+  | temporal.api.nexus.v1.IPropagatedSerializationContext
+  | undefined {
+  const store = asyncLocalStorage.getStore();
+  const ctx = store?.nexusStartOperationContext;
+  if (store == null || ctx == null) return undefined;
+  return { endpoint: store.endpoint, service: ctx.service, operation: ctx.operation };
 }
 
 /**
@@ -85,7 +105,7 @@ export interface OperationInfo {
  *
  * @experimental Temporal Operation handlers are experimental.
  */
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+// oxlint-disable-next-line typescript/no-empty-object-type
 export interface TemporalStartOperationContext extends nexus.StartOperationContext {}
 
 /**
@@ -94,7 +114,7 @@ export interface TemporalStartOperationContext extends nexus.StartOperationConte
  *
  * @experimental Temporal Operation handlers are experimental.
  */
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+// oxlint-disable-next-line typescript/no-empty-object-type
 export interface TemporalCancelOperationContext extends nexus.CancelOperationContext {}
 
 // Basic APIs //////////////////////////////////////////////////////////////////////////////////////

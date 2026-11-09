@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
+/* oxlint-disable typescript/ban-ts-comment */
 
 /**
  * Test that we get meaningful errors when trying to use the non-deterministic
@@ -31,5 +31,21 @@ export async function globalOverrides(): Promise<void> {
     new WeakRef();
   } catch (err: any) {
     console.log(err.toString());
+  }
+
+  const Temporal = (globalThis as any).Temporal;
+  if (Temporal !== undefined) {
+    const temporalNow = Temporal.Now;
+    const { instant } = temporalNow;
+    console.log(instant().epochMilliseconds);
+    console.log(temporalNow.zonedDateTimeISO('UTC').epochMilliseconds);
+    console.log(temporalNow.plainDateTimeISO('UTC').toString());
+    console.log(temporalNow.plainDateISO('UTC').toString());
+    console.log(temporalNow.plainTimeISO('UTC').toString());
+    try {
+      temporalNow.unsupported();
+    } catch (err: any) {
+      console.log(err.toString());
+    }
   }
 }

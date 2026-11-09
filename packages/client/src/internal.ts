@@ -7,8 +7,6 @@ import type { WorkflowUpdateStage } from './workflow-update-stage';
 import type { WorkflowQueryInput, WorkflowSignalInput } from './interceptors';
 import type { ConnectionOptions } from './connection';
 
-export { mapAsyncIterable } from './iterators-utils';
-
 /**
  * A symbol used to attach extra, SDK-internal connection options.
  *
@@ -69,6 +67,13 @@ export interface InternalWorkflowStartOptions extends WorkflowOptions {
      * Used by the Nexus WorkflowRunOperations to attach to a callback to a running workflow.
      */
     onConflictOptions?: temporal.api.workflow.v1.IOnConflictOptions;
+
+    /**
+     * Serialization context of the Nexus operation handler starting this execution. The server
+     * propagates it to the worker, which encodes the result and failure returned to the Nexus caller
+     * with it.
+     */
+    propagatedNexusSerializationContext?: temporal.api.nexus.v1.IPropagatedSerializationContext;
   };
 }
 
@@ -129,6 +134,11 @@ export interface InternalWorkflowUpdateOptions {
 export const InternalWorkflowSignalOptionsSymbol = Symbol.for('__temporal_internal_client_workflow_signal_options');
 export interface InternalWorkflowSignalOptions {
   [InternalWorkflowSignalOptionsSymbol]?: {
+    /**
+     * Request ID used for server-side deduplication of the signal.
+     */
+    requestId?: string;
+
     /**
      * Links to be associated with the WorkflowExecutionSignaled event.
      */
@@ -254,5 +264,12 @@ export interface InternalActivityStartOptions extends ActivityOptions {
      * Used by the Nexus TemporalOperations to attach to a callback to a running activity.
      */
     onConflictOptions?: temporal.api.workflow.v1.IOnConflictOptions;
+
+    /**
+     * Serialization context of the Nexus operation handler starting this execution. The server
+     * propagates it to the worker, which encodes the result and failure returned to the Nexus caller
+     * with it.
+     */
+    propagatedNexusSerializationContext?: temporal.api.nexus.v1.IPropagatedSerializationContext;
   };
 }

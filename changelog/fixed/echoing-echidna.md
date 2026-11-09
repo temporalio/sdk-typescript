@@ -1,0 +1,1 @@
+**Experimental**: Signals sent through `TemporalNexusClient.signalWithStartWorkflow` and `TemporalNexusClient.getWorkflowHandle().signal` in a Temporal operation handler now reuse the operation's request ID, so a retried Nexus task no longer delivers the same signal twice.

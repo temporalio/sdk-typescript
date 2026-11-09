@@ -247,6 +247,24 @@ test('gRPC metadata normalization from TOML', (t) => {
   t.is(prof.grpcMeta?.['some-header-key'], 'some-value');
 });
 
+test('gRPC metadata normalization replaces every underscore', (t) => {
+  const toml = dedent`
+    [profile.default]
+    address = "addr"
+    [profile.default.grpc_meta]
+    x-my-custom-header = "toml-value"
+    other_multi_part_key = "other-value"
+  `;
+  const env = {
+    TEMPORAL_GRPC_META_X_MY_CUSTOM_HEADER: 'env-value',
+  };
+  const prof = loadClientConfigProfile({ configSource: dataSource(toml), overrideEnvVars: env });
+  t.deepEqual(prof.grpcMeta, {
+    'x-my-custom-header': 'env-value',
+    'other-multi-part-key': 'other-value',
+  });
+});
+
 test('gRPC metadata deletion via empty env value', (t) => {
   const toml = dedent`
     [profile.default]
@@ -517,11 +535,7 @@ test('TLS conflict across sources: path in TOML, data in env should error', (t) 
   const env = { TEMPORAL_TLS_CLIENT_CERT_DATA: 'some-data' };
   const err = t.throws(() => loadClientConfigProfile({ configSource: dataSource(toml), overrideEnvVars: env }));
   t.truthy(err);
-  t.true(
-    String(err?.message)
-      .toLowerCase()
-      .includes('path')
-  );
+  t.true(String(err?.message).toLowerCase().includes('path'));
 });
 
 test('TLS conflict across sources: data in TOML, path in env should error', (t) => {
@@ -534,11 +548,7 @@ test('TLS conflict across sources: data in TOML, path in env should error', (t) 
   const env = { TEMPORAL_TLS_CLIENT_CERT_PATH: 'some-path' };
   const err = t.throws(() => loadClientConfigProfile({ configSource: dataSource(toml), overrideEnvVars: env }));
   t.truthy(err);
-  t.true(
-    String(err?.message)
-      .toLowerCase()
-      .includes('data')
-  );
+  t.true(String(err?.message).toLowerCase().includes('data'));
 });
 
 test('TLS disabled tri-state behavior', (t) => {
@@ -640,11 +650,7 @@ test('Load invalid profile with strict mode enabled', (t) => {
 test('Load profiles with malformed TOML', (t) => {
   const err = t.throws(() => loadClientConfig({ configSource: dataSource('this is not valid toml') }));
   t.truthy(err);
-  t.true(
-    String(err?.message)
-      .toLowerCase()
-      .includes('toml')
-  );
+  t.true(String(err?.message).toLowerCase().includes('toml'));
 });
 
 // =============================================================================

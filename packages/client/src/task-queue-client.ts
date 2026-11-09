@@ -51,6 +51,7 @@ export class TaskQueueClient extends BaseClient {
       ...defaultBaseClientOptions(),
       ...filterNullAndUndefined(options ?? {}),
       loadedDataConverter: this.dataConverter,
+      payloadCache: this.payloadCache,
     };
   }
 

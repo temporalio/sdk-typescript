@@ -1,4 +1,3 @@
-/* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import { randomUUID } from 'crypto';
 import test from 'ava';
 import { WorkflowClient } from '@temporalio/client';
@@ -21,7 +20,7 @@ import {
   ProtobufJsonPayloadConverter,
 } from '@temporalio/common/protobufs';
 import { DefaultLogger, Runtime } from '@temporalio/worker';
-import root from '../protos/root'; // eslint-disable-line import/default
+import root from '../protos/root'; // oxlint-disable-line import/default
 import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
 import { createTestWorkflowEnvironment } from './helpers-integration';
 import { defaultOptions } from './mock-native-worker';

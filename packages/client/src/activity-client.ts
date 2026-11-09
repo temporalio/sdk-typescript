@@ -5,6 +5,7 @@ import type {
   ActivitySerializationContext,
   LoadedDataConverter,
   Next,
+  OutputTypeInfo,
   PayloadTypeInfo,
   Priority,
   RetryPolicy,
@@ -19,6 +20,7 @@ import {
   decodePriority,
   decompileRetryPolicy,
   ExternalStorageError,
+  isActivityFunctionWithOptions,
 } from '@temporalio/common';
 import type { Duration } from '@temporalio/common/lib/time';
 import { msOptionalToTs, msToNumber, optionalTsToDate, optionalTsToMs } from '@temporalio/common/lib/time';
@@ -26,6 +28,7 @@ import {
   composeInterceptors,
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
+  nexusSerializationContextFromProto,
   searchAttributePayloadConverter,
   type Replace,
 } from '@temporalio/common/internal/internal-workflow';
@@ -35,8 +38,8 @@ import {
   decodeOptionalFailureToOptionalError,
   encodeToPayloadsWithContext,
   encodeUserMetadata,
-  extstoreInboundOptions,
-  extstoreStoreOptions,
+  externalStorageRetrieveVisitOptions,
+  externalStorageStoreVisitOptions,
   visit,
   walkDescribeActivityExecutionResponse,
   walkListActivityExecutionsResponse,
@@ -183,14 +186,27 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
   }
 
   /**
-   * Creates an Activity handle using options that may include result TypeInfo.
+   * Creates an Activity handle using options that may include an Activity definition or result TypeInfo.
    *
    * @param activityId ID of the Activity.
    * @param options Options identifying the Activity run and describing its result type.
    * @returns Handle to the specified Activity execution.
    */
-  getHandleWithOptions<R = any>(activityId: string, options: GetActivityHandleOptions): ActivityHandle<R> {
-    return this.createHandle(activityId, options.runId, options.typeInfo?.outputType);
+  getHandleWithOptions<A extends ActivityFunction>(
+    activityId: string,
+    options: ActivityHandleDefinitionOptions<A>
+  ): ActivityHandle<Awaited<ReturnType<A>>>;
+  getHandleWithOptions<R = any>(activityId: string, options: GetActivityHandleOptions<R>): ActivityHandle<R>;
+  getHandleWithOptions(
+    activityId: string,
+    options: Replace<GetActivityHandleOptions, { activity?: ActivityFunction }>
+  ): ActivityHandle {
+    const outputType =
+      options.typeInfo?.outputType ??
+      (isActivityFunctionWithOptions(options.activity)
+        ? options.activity.activityDefinitionOptions.typeInfo?.outputType
+        : undefined);
+    return this.createHandle(activityId, options.runId, outputType);
   }
 
   /**
@@ -331,13 +347,15 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
         await visit(
           req,
           walkStartActivityExecutionRequest,
-          extstoreStoreOptions(externalStorage, {
+          externalStorageStoreVisitOptions({
+            externalStorage,
             initialTarget: {
               kind: 'activity',
               namespace: this.options.namespace,
               id: input.options.id,
               type: input.activityType,
             },
+            payloadCache: this.payloadCache,
           })
         );
       }
@@ -416,6 +434,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       completionCallbacks: internalOptions?.completionCallbacks,
       links: internalOptions?.links,
       onConflictOptions: internalOptions?.onConflictOptions,
+      propagatedNexusSerializationContext: internalOptions?.propagatedNexusSerializationContext,
     };
   }
 
@@ -441,14 +460,23 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
 
       try {
         const resp = await this.workflowService.pollActivityExecution(req);
-        const externalStorage = this.dataConverter.externalStorage;
-        await visit(resp, walkPollActivityExecutionResponse, extstoreInboundOptions(externalStorage));
+        await visit(
+          resp,
+          walkPollActivityExecutionResponse,
+          externalStorageRetrieveVisitOptions({
+            externalStorage: this.dataConverter.externalStorage,
+            payloadCache: this.payloadCache,
+          })
+        );
+        // An Activity started by a Nexus operation handler encodes its outcome with the handler's
+        // Nexus context, which the server returns with the outcome
+        const outcomeContext = nexusSerializationContextFromProto(resp.propagatedNexusSerializationContext) ?? context;
         if (resp.outcome?.result) {
           return await decodeFromPayloadsAtIndex(
             this.dataConverter,
             0,
             resp.outcome.result.payloads,
-            context,
+            outcomeContext,
             input.outputType
           );
         } else if (resp.outcome?.failure) {
@@ -456,7 +484,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
           // If it succeeds, we want to throw the ActivityExecutionFailedError directly, so outside of try/catch.
           failedErr = new ActivityExecutionFailedError(
             'Activity execution failed',
-            await decodeOptionalFailureToOptionalError(this.dataConverter, resp.outcome.failure, context),
+            await decodeOptionalFailureToOptionalError(this.dataConverter, resp.outcome.failure, outcomeContext),
             input.activityId,
             resp.runId || input.activityRunId || undefined
           );
@@ -494,8 +522,14 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       if (!hasInfo(resp)) {
         throw new ServiceError('Missing info in describeActivityExecution response');
       }
-      const externalStorage = this.dataConverter.externalStorage;
-      await visit(resp, walkDescribeActivityExecutionResponse, extstoreInboundOptions(externalStorage));
+      await visit(
+        resp,
+        walkDescribeActivityExecutionResponse,
+        externalStorageRetrieveVisitOptions({
+          externalStorage: this.dataConverter.externalStorage,
+          payloadCache: this.payloadCache,
+        })
+      );
       const context: ActivitySerializationContext = {
         type: 'activity',
         namespace,
@@ -557,8 +591,14 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
             nextPageToken,
           });
 
-        const externalStorage = this.dataConverter.externalStorage;
-        await visit(resp, walkListActivityExecutionsResponse, extstoreInboundOptions(externalStorage));
+        await visit(
+          resp,
+          walkListActivityExecutionsResponse,
+          externalStorageRetrieveVisitOptions({
+            externalStorage: this.dataConverter.externalStorage,
+            payloadCache: this.payloadCache,
+          })
+        );
 
         for (const info of resp.executions ?? []) {
           yield buildActivityExecutionInfo(info);
@@ -870,7 +910,12 @@ export interface ActivityOptions {
 /**
  * Options for {@link ActivityClient.getHandleWithOptions}.
  */
-export interface GetActivityHandleOptions {
+export interface GetActivityHandleOptions<R = any> {
+  /**
+   * Activity definitions are accepted through {@link ActivityHandleDefinitionOptions}.
+   */
+  activity?: never;
+
   /**
    * If provided, targets this specific Activity run. If absent, the handle targets the latest run.
    */
@@ -881,8 +926,18 @@ export interface GetActivityHandleOptions {
    *
    * @experimental
    */
-  typeInfo?: Pick<PayloadTypeInfo, 'outputType'>;
+  typeInfo?: OutputTypeInfo<R>;
 }
+
+/**
+ * Options for getting an Activity handle using an Activity definition.
+ *
+ * @experimental Standalone Activities are experimental. APIs may be subject to change.
+ */
+export type ActivityHandleDefinitionOptions<A extends ActivityFunction> = Replace<
+  GetActivityHandleOptions,
+  { activity: A; typeInfo?: never }
+>;
 
 /**
  * Options for {@link ActivityHandle.describe}.
@@ -1018,6 +1073,11 @@ function buildActivityDescription(
   dataConverter: LoadedDataConverter,
   serializationContext: ActivitySerializationContext
 ): ActivityExecutionDescription {
+  // An Activity started by a Nexus operation handler encodes its result, failures and heartbeat
+  // details with the handler's Nexus context, which the server returns with the Activity info. Its
+  // input keeps the Activity context.
+  const callerFacingContext =
+    nexusSerializationContextFromProto(resp.info.propagatedNexusSerializationContext) ?? serializationContext;
   return {
     ...buildActivityExecutionInfoCommonPart(resp.info),
     rawInfo: resp.info,
@@ -1049,15 +1109,15 @@ function buildActivityDescription(
     hasOutcomeFailure: !!resp.outcome?.failure,
 
     getHeartbeatDetails: async <T>() =>
-      await decodeFromPayloadsAtIndex<T>(dataConverter, 0, resp.info.heartbeatDetails?.payloads, serializationContext),
+      await decodeFromPayloadsAtIndex<T>(dataConverter, 0, resp.info.heartbeatDetails?.payloads, callerFacingContext),
     getLastFailure: async () =>
-      await decodeOptionalFailureToOptionalError(dataConverter, resp.info.lastFailure, serializationContext),
+      await decodeOptionalFailureToOptionalError(dataConverter, resp.info.lastFailure, callerFacingContext),
     getInput: async <T>() =>
       (await decodeArrayFromPayloads(dataConverter, resp.input?.payloads, serializationContext)) as T,
     getResult: async <T>() =>
-      await decodeFromPayloadsAtIndex<T>(dataConverter, 0, resp.outcome?.result?.payloads, serializationContext),
+      await decodeFromPayloadsAtIndex<T>(dataConverter, 0, resp.outcome?.result?.payloads, callerFacingContext),
     getOutcomeFailure: async () =>
-      await decodeOptionalFailureToOptionalError(dataConverter, resp.outcome?.failure, serializationContext),
+      await decodeOptionalFailureToOptionalError(dataConverter, resp.outcome?.failure, callerFacingContext),
   };
 }
 

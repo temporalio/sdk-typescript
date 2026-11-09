@@ -15,6 +15,7 @@ import type {
   Payload,
   MetricMeter,
   ActivitySerializationContext,
+  NexusSerializationContext,
   PayloadTypeInfo,
   StorageDriverTargetInfo,
 } from '@temporalio/common';
@@ -39,11 +40,12 @@ import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
+  decode,
   encodeErrorToFailure,
   encodeToPayload,
   ExternalStorageMetricsAccumulator,
-  extstoreInboundOptions,
-  extstoreStoreOptions,
+  externalStorageRetrieveVisitOptions,
+  externalStorageStoreVisitOptions,
   suggestContinueAsNewReasonsFromProto,
   visit,
   walkActivityHeartbeat,
@@ -64,6 +66,7 @@ import {
 } from '@temporalio/common/lib/time';
 import {
   errorMessage,
+  nexusSerializationContextFromProto,
   type NonNullableObject,
   type OmitFirstParam,
   throwIfReservedName,
@@ -100,7 +103,6 @@ import type {
 import { compileWorkerOptions, isCodeBundleOption, isPathBundleOption, toNativeWorkerOptions } from './worker-options';
 import { WorkflowCodecRunner } from './workflow-codec-runner';
 import { isSystemNexusEnvelope, transformEncodedSystemNexusEnvelope, visitNexusTask } from './system-nexus-operations';
-import { defaultWorkflowInterceptorModules, WorkflowCodeBundler } from './workflow/bundler';
 import { assertWorkflowBundleSdkVersion } from './workflow/bundle-metadata';
 import { isBunPre1_4 } from './workflow/bun';
 import type { Workflow, WorkflowCreator } from './workflow/interface';
@@ -120,6 +122,8 @@ import { constructNexusOperationContext, NexusHandler } from './nexus';
 import { handlerErrorToProto } from './nexus/conversions';
 
 export { DataConverter, defaultPayloadConverter };
+
+const defaultWorkflowInterceptorModules = [require.resolve('./workflow-log-interceptor')];
 
 /**
  * The worker's possible states
@@ -179,12 +183,20 @@ export interface NativeReplayHandle {
 }
 
 interface NativeWorkerConstructor {
-  create(
+  create<T extends { connection: NativeConnection; options: CompiledWorkerOptionsWithBuildId }>(
     runtime: Runtime,
-    connection: NativeConnection,
-    options: CompiledWorkerOptionsWithBuildId
-  ): Promise<NativeWorkerLike>;
-  createReplay(runtime: Runtime, options: CompiledWorkerOptionsWithBuildId): Promise<NativeReplayHandle>;
+    prepare: () => Promise<T>
+  ): Promise<[NativeWorkerLike, T]>;
+  createReplay<T extends { options: CompiledWorkerOptionsWithBuildId }>(
+    runtime: Runtime,
+    prepare: () => Promise<T>
+  ): Promise<[NativeReplayHandle, T]>;
+}
+
+interface PreparedWorker {
+  connection: NativeConnection;
+  options: CompiledWorkerOptionsWithBuildId;
+  workflowCreator: WorkflowCreator | undefined;
 }
 
 interface WorkflowWithLogAttributes {
@@ -217,24 +229,30 @@ export class NativeWorker implements NativeWorkerLike {
   public readonly recordActivityHeartbeat: OmitFirstParam<typeof native.workerRecordActivityHeartbeat>;
   public readonly initiateShutdown: OmitFirstParam<typeof native.workerInitiateShutdown>;
 
-  public static async create(
+  public static async create<T extends { connection: NativeConnection; options: CompiledWorkerOptionsWithBuildId }>(
     runtime: Runtime,
-    connection: NativeConnection,
-    options: CompiledWorkerOptionsWithBuildId
-  ): Promise<NativeWorkerLike> {
-    const nativeWorker = await runtime.registerWorker(extractNativeClient(connection), toNativeWorkerOptions(options));
-    return new NativeWorker(runtime, nativeWorker);
+    prepare: () => Promise<T>
+  ): Promise<[NativeWorkerLike, T]> {
+    const [nativeWorker, { prepared }] = await runtime.registerWorker(async () => {
+      const prepared = await prepare();
+      return {
+        client: extractNativeClient(prepared.connection),
+        options: toNativeWorkerOptions(prepared.options),
+        prepared,
+      };
+    });
+    return [new NativeWorker(runtime, nativeWorker), prepared];
   }
 
-  public static async createReplay(
+  public static async createReplay<T extends { options: CompiledWorkerOptionsWithBuildId }>(
     runtime: Runtime,
-    options: CompiledWorkerOptionsWithBuildId
-  ): Promise<NativeReplayHandle> {
-    const [worker, historyPusher] = await runtime.createReplayWorker(toNativeWorkerOptions(options));
-    return {
-      worker: new NativeWorker(runtime, worker),
-      historyPusher,
-    };
+    prepare: () => Promise<T>
+  ): Promise<[NativeReplayHandle, T]> {
+    const [worker, historyPusher, { prepared }] = await runtime.createReplayWorker(async () => {
+      const prepared = await prepare();
+      return { options: toNativeWorkerOptions(prepared.options), prepared };
+    });
+    return [{ worker: new NativeWorker(runtime, worker), historyPusher }, prepared];
   }
 
   protected constructor(
@@ -538,7 +556,6 @@ export class Worker {
       namespace: options.namespace ?? 'default',
       taskQueue: options.taskQueue ?? 'default',
     });
-    const nativeWorkerCtor: NativeWorkerConstructor = this.nativeWorkerCtor;
     const compiledOptions = compileWorkerOptions(options, logger, metricMeter);
     logger.debug('Creating worker', {
       options: {
@@ -559,35 +576,43 @@ export class Worker {
           : {}),
       },
     });
-    const bundle = await this.getOrCreateBundle(compiledOptions, logger);
-    let workflowCreator: WorkflowCreator | undefined = undefined;
-    if (bundle) {
-      workflowCreator = await this.createWorkflowCreator(bundle, compiledOptions, logger);
-    }
-    // Create a new connection if one is not provided with no CREATOR reference
-    // so it can be automatically closed when this Worker shuts down.
-    const connection = options.connection ?? (await InternalNativeConnection.connect());
+    const nativeWorkerCtor: NativeWorkerConstructor = this.nativeWorkerCtor;
+    let connection: NativeConnection | undefined;
     let nativeWorker: NativeWorkerLike;
-    const compiledOptionsWithBuildId = addBuildIdIfMissing(compiledOptions, bundle?.code);
+    let prepared: PreparedWorker;
     try {
-      nativeWorker = await nativeWorkerCtor.create(runtime, connection, compiledOptionsWithBuildId);
+      [nativeWorker, prepared] = await nativeWorkerCtor.create(runtime, async () => {
+        const bundle = await this.getOrCreateBundle(compiledOptions, logger);
+        let workflowCreator: WorkflowCreator | undefined = undefined;
+        if (bundle) {
+          workflowCreator = await this.createWorkflowCreator(bundle, compiledOptions, logger);
+        }
+        // Create a new connection if one is not provided with no CREATOR reference
+        // so it can be automatically closed when this Worker shuts down.
+        connection = options.connection ?? (await InternalNativeConnection.connect());
+        return {
+          connection,
+          options: addBuildIdIfMissing(compiledOptions, bundle?.code),
+          workflowCreator,
+        };
+      });
     } catch (err) {
       // We just created this connection, close it
       if (!options.connection) {
-        await connection.close();
+        await connection?.close();
       }
       throw err;
     }
-    extractReferenceHolders(connection).add(nativeWorker);
+    extractReferenceHolders(prepared.connection).add(nativeWorker);
     return new this(
       runtime,
       nativeWorker,
-      workflowCreator,
-      compiledOptionsWithBuildId,
+      prepared.workflowCreator,
+      prepared.options,
       logger,
       metricMeter,
       options.plugins ?? [],
-      connection
+      prepared.connection
     );
   }
 
@@ -708,7 +733,7 @@ export class Worker {
       try {
         await runPromise;
       } catch (err) {
-        /* eslint-disable no-unsafe-finally */
+        /* oxlint-disable no-unsafe-finally */
         if (err instanceof ShutdownError) {
           if (innerError !== undefined) throw innerError;
           return;
@@ -722,7 +747,7 @@ export class Worker {
             },
           });
         }
-        /* eslint-enable no-unsafe-finally */
+        /* oxlint-enable no-unsafe-finally */
       }
     }
   }
@@ -764,20 +789,22 @@ export class Worker {
       taskQueue: fixedUpOptions.taskQueue,
     });
     const compiledOptions = compileWorkerOptions(fixedUpOptions, logger, metricMeter);
-    const bundle = await this.getOrCreateBundle(compiledOptions, logger);
-    if (!bundle) {
-      throw new TypeError('ReplayWorkerOptions must contain workflowsPath or workflowBundle');
-    }
-    const workflowCreator = await this.createWorkflowCreator(bundle, compiledOptions, logger);
-    const replayHandle = await nativeWorkerCtor.createReplay(
-      runtime,
-      addBuildIdIfMissing(compiledOptions, bundle.code)
-    );
+    const [replayHandle, prepared] = await nativeWorkerCtor.createReplay(runtime, async () => {
+      const bundle = await this.getOrCreateBundle(compiledOptions, logger);
+      if (!bundle) {
+        throw new TypeError('ReplayWorkerOptions must contain workflowsPath or workflowBundle');
+      }
+      const workflowCreator = await this.createWorkflowCreator(bundle, compiledOptions, logger);
+      return {
+        options: addBuildIdIfMissing(compiledOptions, bundle.code),
+        workflowCreator,
+      };
+    });
     return [
       new this(
         runtime,
         replayHandle.worker,
-        workflowCreator,
+        prepared.workflowCreator,
         compiledOptions,
         logger,
         metricMeter,
@@ -802,15 +829,15 @@ export class Worker {
       }
       const modules = new Set(compiledOptions.interceptors.workflowModules);
       // Warn if user tries to customize the default set of workflow interceptor modules
-
-      if (
-        modules &&
-        new Set([...modules, ...defaultWorkflowInterceptorModules]).size !== defaultWorkflowInterceptorModules.length
-      ) {
-        logger.warn(
-          'Ignoring WorkerOptions.interceptors.workflowModules because WorkerOptions.workflowBundle is set.\n' +
-            'To use workflow interceptors with a workflowBundle, pass them in the call to bundleWorkflowCode.'
-        );
+      if (modules.size > 0) {
+        if (
+          new Set([...modules, ...defaultWorkflowInterceptorModules]).size !== defaultWorkflowInterceptorModules.length
+        ) {
+          logger.warn(
+            'Ignoring WorkerOptions.interceptors.workflowModules because WorkerOptions.workflowBundle is set.\n' +
+              'To use workflow interceptors with a workflowBundle, pass them in the call to bundleWorkflowCode.'
+          );
+        }
       }
 
       if (isCodeBundleOption(compiledOptions.workflowBundle)) {
@@ -822,6 +849,7 @@ export class Worker {
         throw new TypeError('Invalid WorkflowOptions.workflowBundle');
       }
     } else if (compiledOptions.workflowsPath) {
+      const { WorkflowCodeBundler } = await import('./workflow/bundler.js');
       const bundler = new WorkflowCodeBundler({
         logger,
         workflowsPath: compiledOptions.workflowsPath,
@@ -921,6 +949,7 @@ export class Worker {
         connection: this._connection,
         identity: this.options.identity,
         dataConverter: this.options.dataConverter,
+        payloadCache: this.options.payloadCache,
         interceptors: this.options.interceptors.client,
       });
     }
@@ -1100,6 +1129,11 @@ export class Worker {
                   let info: ActivityInfo | undefined = undefined;
                   const start = task.start as NonNullableObject<coresdk.activity_task.IStart>;
                   const context = activitySerializationContextFromTaskStart(start, this.options.namespace);
+                  // A standalone Activity started by a Nexus operation handler returns its result and
+                  // failure to the Nexus caller, which decodes them with the handler's Nexus context.
+                  // The input keeps the Activity context.
+                  const resultContext =
+                    nexusSerializationContextFromProto(start.propagatedNexusSerializationContext) ?? context;
                   const loadedDataConverter = this.options.loadedDataConverter;
                   try {
                     if (activity !== undefined) {
@@ -1110,14 +1144,18 @@ export class Worker {
                     await visit(
                       task,
                       walkActivityTask,
-                      extstoreInboundOptions(loadedDataConverter.externalStorage, { logger: this.logger })
+                      externalStorageRetrieveVisitOptions({
+                        externalStorage: loadedDataConverter.externalStorage,
+                        payloadCache: this.options.payloadCache,
+                        logger: this.logger,
+                      })
                     );
                     info = await extractActivityInfo({
                       task,
                       dataConverter: loadedDataConverter,
                       taskQueue: this.options.taskQueue,
                       activityNamespace: this.options.namespace,
-                      context,
+                      resultContext,
                     });
 
                     const { activityType } = info;
@@ -1150,7 +1188,17 @@ export class Worker {
                         nonRetryable: false,
                       });
                     }
-                    const headers = task.start?.headerFields ?? {};
+                    const wireHeaders = task.start?.headerFields ?? {};
+                    const headers = this.options.codecHeaders
+                      ? Object.fromEntries(
+                          await Promise.all(
+                            Object.entries(wireHeaders).map(async ([key, payload]) => [
+                              key,
+                              (await decode(loadedDataConverter.payloadCodecs, [payload], context))[0]!,
+                            ])
+                          )
+                        )
+                      : wireHeaders;
                     const input = {
                       args,
                       headers,
@@ -1162,7 +1210,7 @@ export class Worker {
                       info,
                       fn,
                       loadedDataConverter,
-                      context,
+                      resultContext,
                       outputTypeInfo,
                       (details) =>
                         this.activityHeartbeatSubject.next({
@@ -1199,7 +1247,7 @@ export class Worker {
                       type: 'result',
                       result: {
                         failed: {
-                          failure: await encodeErrorToFailure(loadedDataConverter, error, context),
+                          failure: await encodeErrorToFailure(loadedDataConverter, error, resultContext),
                         },
                       },
                     };
@@ -1303,7 +1351,12 @@ export class Worker {
                 await visit(
                   completion,
                   walkActivityTaskCompletion,
-                  extstoreStoreOptions(externalStorage, { initialTarget, logger: this.logger })
+                  externalStorageStoreVisitOptions({
+                    externalStorage,
+                    initialTarget,
+                    payloadCache: this.options.payloadCache,
+                    logger: this.logger,
+                  })
                 );
               } catch (e) {
                 const error = ensureApplicationFailure(e);
@@ -1359,7 +1412,11 @@ export class Worker {
               try {
                 await visitNexusTask(
                   task,
-                  extstoreInboundOptions(this.options.loadedDataConverter.externalStorage, { logger: this.logger })
+                  externalStorageRetrieveVisitOptions({
+                    externalStorage: this.options.loadedDataConverter.externalStorage,
+                    payloadCache: this.options.payloadCache,
+                    logger: this.logger,
+                  })
                 );
               } catch (e) {
                 this.logger.error(
@@ -1406,7 +1463,11 @@ export class Worker {
             await visit(
               completion,
               walkNexusTaskCompletion,
-              extstoreStoreOptions(externalStorage, { logger: this.logger })
+              externalStorageStoreVisitOptions({
+                externalStorage,
+                payloadCache: this.options.payloadCache,
+                logger: this.logger,
+              })
             );
           } catch (e) {
             this.logger.error(`Error while offloading Nexus task result to external storage: ${errorMessage(e)}`, {
@@ -1455,7 +1516,8 @@ export class Worker {
         this.options.loadedDataConverter,
         this.logger,
         this.metricMeter,
-        this.options.interceptors.nexus
+        this.options.interceptors.nexus,
+        this.options.codecHeaders
       );
       this.taskTokenToNexusHandler.set(base64TaskToken, nexusHandler);
       this.numInFlightNexusOperationsSubject.next(this.numInFlightNexusOperationsSubject.value + 1);
@@ -1570,11 +1632,15 @@ export class Worker {
           throw new IllegalStateError(
             'Received workflow activation for an untracked workflow with no init workflow job'
           );
-        workflowCodecRunner = new WorkflowCodecRunner(this.options.loadedDataConverter.payloadCodecs, {
-          type: 'workflow',
-          namespace: this.options.namespace,
-          workflowId,
-        });
+        workflowCodecRunner = new WorkflowCodecRunner(
+          this.options.loadedDataConverter.payloadCodecs,
+          {
+            type: 'workflow',
+            namespace: this.options.namespace,
+            workflowId,
+          },
+          this.options.codecHeaders
+        );
       }
       const { externalStorage } = this.options.loadedDataConverter;
       // Measure external-storage work so Core can include it in its workflow-task duration log;
@@ -1584,7 +1650,12 @@ export class Worker {
       await visit(
         activation,
         walkWorkflowActivation,
-        extstoreInboundOptions(externalStorage, { metrics: downloadMetrics, logger: this.logger })
+        externalStorageRetrieveVisitOptions({
+          externalStorage,
+          metrics: downloadMetrics,
+          payloadCache: this.options.payloadCache,
+          logger: this.logger,
+        })
       );
       const decodedActivation = await workflowCodecRunner.decodeActivation(activation);
 
@@ -1617,7 +1688,8 @@ export class Worker {
               schedule.input = undefined;
             }
           }
-          const visitorOptions = extstoreStoreOptions(externalStorage, {
+          const visitorOptions = externalStorageStoreVisitOptions({
+            externalStorage,
             initialTarget: {
               kind: 'workflow',
               namespace,
@@ -1627,6 +1699,7 @@ export class Worker {
             },
             deriveContext: workflowCommandStoreTarget(namespace, workflow.info),
             metrics: uploadMetrics,
+            payloadCache: this.options.payloadCache,
             logger: this.logger,
           });
           await visit(encodedCompletion, walkWorkflowActivationCompletion, visitorOptions);
@@ -1976,11 +2049,27 @@ export class Worker {
           }),
           takeWhile((out): out is HeartbeatSendRequest => out.type !== 'close'),
           mergeMap(async ({ heartbeat: { base64TaskToken, taskToken, details, onError, info } }) => {
-            let payload: Payload;
-            const context = activitySerializationContextFromInfo(info);
+            // The server puts a standalone Activity's last heartbeat details into its timeout failure,
+            // which goes back to the Nexus caller if a Nexus operation handler started it
+            const context = info.nexusSerializationContext ?? activitySerializationContextFromInfo(info);
             try {
+              let heartbeat: coresdk.IActivityHeartbeat;
               try {
-                payload = await encodeToPayload(this.options.loadedDataConverter, details, context);
+                const payload = await encodeToPayload(this.options.loadedDataConverter, details, context);
+                heartbeat = { taskToken, details: [payload] };
+                const { externalStorage } = this.options.loadedDataConverter;
+                if (externalStorage) {
+                  await visit(
+                    heartbeat,
+                    walkActivityHeartbeat,
+                    externalStorageStoreVisitOptions({
+                      externalStorage,
+                      initialTarget: activityStorageTarget(info),
+                      payloadCache: this.options.payloadCache,
+                      logger: this.logger,
+                    })
+                  );
+                }
               } catch (error: any) {
                 this.logger.warn('Failed to encode heartbeat details, cancelling Activity', {
                   error,
@@ -1988,18 +2077,6 @@ export class Worker {
                 });
                 onError();
                 return;
-              }
-              const heartbeat: coresdk.IActivityHeartbeat = { taskToken, details: [payload] };
-              const { externalStorage } = this.options.loadedDataConverter;
-              if (externalStorage) {
-                await visit(
-                  heartbeat,
-                  walkActivityHeartbeat,
-                  extstoreStoreOptions(externalStorage, {
-                    initialTarget: activityStorageTarget(info),
-                    logger: this.logger,
-                  })
-                );
               }
               const arr = coresdk.ActivityHeartbeat.encodeDelimited(heartbeat).finish();
               this.nativeWorker.recordActivityHeartbeat(byteArrayToBuffer(arr));
@@ -2309,6 +2386,7 @@ export class Worker {
       },
     });
 
+    let hasWorkerError = false;
     try {
       try {
         await lastValueFrom(
@@ -2346,10 +2424,16 @@ export class Worker {
           ),
           { defaultValue: undefined }
         );
+      } catch (err) {
+        hasWorkerError = true;
+        throw err;
       } finally {
         this.runtime.deregisterShutdownSignalCallback(shutdownCallback);
 
-        await this.nativeWorker.finalizeShutdown();
+        await this.nativeWorker.finalizeShutdown().catch((err) => {
+          if (!hasWorkerError) throw err;
+          this.logger.error('Failed to finalize shutdown', { error: err });
+        });
       }
     } finally {
       unexpectedErrorSubscription.unsubscribe();
@@ -2392,7 +2476,9 @@ export function parseWorkflowCode(code: string, codePath?: string): WorkflowBund
   let script: vm.Script | undefined = new vm.Script(code, { filename });
   let context: any = vm.createContext({});
   try {
-    script.runInContext(context);
+    // displayErrors: false keeps Node from formatting the stack of an error we ignore, which would parse and cache
+    // the bundle's source map.
+    script.runInContext(context, { displayErrors: false });
   } catch (_e) {
     // Context has not been properly configured, so eventual errors are possible. Just ignore at this point
   }
@@ -2455,13 +2541,14 @@ async function extractActivityInfo({
   dataConverter,
   taskQueue,
   activityNamespace,
-  context,
+  resultContext,
 }: {
   task: coresdk.activity_task.ActivityTask;
   dataConverter: LoadedDataConverter;
   taskQueue: string;
   activityNamespace: string;
-  context: ActivitySerializationContext;
+  /** Context the previous attempt encoded its heartbeat details with. */
+  resultContext: ActivitySerializationContext | NexusSerializationContext;
 }): Promise<ActivityInfo> {
   // NOTE: We trust core to supply all of these fields instead of checking for null and undefined everywhere
   const { taskToken } = task as NonNullableObject<coresdk.activity_task.IActivityTask>;
@@ -2469,7 +2556,7 @@ async function extractActivityInfo({
   const activityId = start.activityId;
   let heartbeatDetails = undefined;
   try {
-    heartbeatDetails = await decodeFromPayloadsAtIndex(dataConverter, 0, start.heartbeatDetails, context);
+    heartbeatDetails = await decodeFromPayloadsAtIndex(dataConverter, 0, start.heartbeatDetails, resultContext);
   } catch (e) {
     throw ApplicationFailure.fromError(e, {
       message: `Failed to parse heartbeat details for activity ${activityId}: ${errorMessage(e)}`,
@@ -2504,6 +2591,7 @@ async function extractActivityInfo({
     namespace: start.workflowNamespace || activityNamespace,
     activityRunId: !inWorkflow ? start.runId : undefined,
     inWorkflow,
+    nexusSerializationContext: resultContext.type === 'nexus' ? resultContext : undefined,
   };
 }
 
@@ -2558,7 +2646,7 @@ function workflowCommandStoreTarget(
 function activitySerializationContextFromInfo(info: ActivityInfo): ActivitySerializationContext {
   return {
     type: 'activity',
-    namespace: info.activityNamespace, // eslint-disable-line @typescript-eslint/no-deprecated
+    namespace: info.activityNamespace, // oxlint-disable-line typescript/no-deprecated
     activityId: info.activityId,
     workflowId: info.workflowExecution?.workflowId,
     isLocal: info.isLocal,

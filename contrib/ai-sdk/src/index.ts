@@ -1,4 +1,2 @@
-export * from './activities';
-export * from './mcp';
-export * from './plugin';
-export * from './provider';
+/** Compatibility exports for `@temporalio/vercel-ai-sdk`. */
+export * from '@temporalio/vercel-ai-sdk';

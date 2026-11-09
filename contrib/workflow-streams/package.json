@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/workflow-streams",
-  "version": "1.24.0",
+  "version": "1.25.0",
   "description": "Temporal.io SDK Workflow Streams contrib module",
   "exports": {
     "./workflow": {
@@ -43,7 +43,6 @@
     "@temporalio/activity": "workspace:*",
     "@temporalio/client": "workspace:*",
     "@temporalio/common": "workspace:*",
-    "@temporalio/proto": "workspace:*",
     "@temporalio/workflow": "workspace:*"
   },
   "peerDependencies": {

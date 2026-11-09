@@ -1,11 +1,17 @@
 {
   "name": "@temporalio/client",
-  "version": "1.24.0",
+  "version": "1.25.0",
   "description": "Temporal.io SDK Client sub-package",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
   "scripts": {
-    "build": "tsc --build"
+    "build": "tsc --build",
+    "test": "tsx ../../scripts/ava-ci.ts ./lib/__tests__/test-*.js"
+  },
+  "ava": {
+    "timeout": "60s",
+    "concurrency": 1,
+    "workerThreads": false
   },
   "keywords": [
     "temporal",
@@ -18,7 +24,6 @@
     "@grpc/grpc-js": "^1.13.6",
     "@temporalio/common": "workspace:*",
     "@temporalio/proto": "workspace:*",
-    "abort-controller": "^3.0.0",
     "nexus-rpc": "^0.0.3",
     "uuid": "^11.1.0"
   },
@@ -27,6 +32,7 @@
     "protobufjs": "^8.7.1"
   },
   "devDependencies": {
+    "ava": "^5.3.1",
     "long": "^5.3.2",
     "protobufjs": "^8.7.1"
   },
@@ -44,7 +50,9 @@
   },
   "files": [
     "src",
-    "lib"
+    "lib",
+    "!src/__tests__",
+    "!lib/__tests__"
   ],
   "engines": {
     "node": ">= 20.3.0"

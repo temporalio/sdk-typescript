@@ -10,6 +10,6 @@ export async function definedActivity(...args: unknown[]): Promise<NameAndArgs> 
   return { name: 'definedActivity', args };
 }
 
-export default async function (...args: unknown[]): Promise<NameAndArgs> {
+export async function defaultActivity(...args: unknown[]): Promise<NameAndArgs> {
   return { name: 'default', activityName: activityInfo().activityType, args };
 }

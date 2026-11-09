@@ -91,6 +91,7 @@ export {
   ChildWorkflowFailure,
   defaultPayloadConverter,
   PayloadConverter,
+  InvalidVersioningOverrideError,
   RetryPolicy,
   rootCause,
   SearchAttributes,
@@ -100,10 +101,17 @@ export {
   TerminatedFailure,
   TimeoutFailure,
 } from '@temporalio/common';
+export type {
+  AutoUpgradeVersioningOverride,
+  OneTimeVersioningOverride,
+  PinnedVersioningOverride,
+  VersioningOverride,
+  WorkerDeploymentVersion,
+} from '@temporalio/common';
 export * from '@temporalio/common/internal/errors';
 export {
   ActivityFunction,
-  ActivityInterface, // eslint-disable-line @typescript-eslint/no-deprecated
+  ActivityInterface, // oxlint-disable-line typescript/no-deprecated
   Payload,
   QueryDefinition,
   SignalDefinition,

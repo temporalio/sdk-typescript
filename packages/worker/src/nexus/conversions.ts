@@ -1,7 +1,13 @@
 import { status } from '@grpc/grpc-js';
 import * as nexus from 'nexus-rpc';
 import { ActivityExecutionAlreadyStartedError, isGrpcServiceError, ServiceError } from '@temporalio/client';
-import type { LoadedDataConverter, Payload, ProtoFailure, TypeInfo } from '@temporalio/common';
+import type {
+  LoadedDataConverter,
+  NexusSerializationContext,
+  Payload,
+  ProtoFailure,
+  TypeInfo,
+} from '@temporalio/common';
 import {
   ApplicationFailure,
   CancelledFailure,
@@ -50,14 +56,16 @@ function isPayloadValidationFailure(err: unknown): err is ApplicationFailure {
 export async function decodePayload(
   dataConverter: LoadedDataConverter,
   payload: temporal.api.common.v1.IPayload | undefined,
-  typeInfo?: TypeInfo
+  typeInfo?: TypeInfo,
+  context?: NexusSerializationContext,
+  codecHeaders = false
 ): Promise<unknown> {
   const isSystemPayload = payload != null && isSystemNexusEnvelope(payload);
   let decoded: Payload | undefined | null;
   try {
     decoded = isSystemPayload
-      ? await decodeSystemNexus(dataConverter, payload)
-      : await decodeOptionalSingle(dataConverter.payloadCodecs, payload);
+      ? await decodeSystemNexus(dataConverter, payload, codecHeaders)
+      : await decodeOptionalSingle(dataConverter.payloadCodecs, payload, context);
   } catch (err) {
     if (isPayloadValidationFailure(err)) {
       throw new nexus.HandlerError('BAD_REQUEST', `Invalid operation input`, {
@@ -76,8 +84,8 @@ export async function decodePayload(
 
   try {
     return isSystemPayload
-      ? fromSystemNexusPayload(decoded, dataConverter.payloadConverter, typeInfo)
-      : fromPayloadWithTypeInfo(dataConverter.payloadConverter, decoded, undefined, typeInfo);
+      ? fromSystemNexusPayload(decoded, dataConverter, typeInfo)
+      : fromPayloadWithTypeInfo(dataConverter.payloadConverter, decoded, context, typeInfo);
   } catch (err) {
     if (isPayloadValidationFailure(err)) {
       throw new nexus.HandlerError('BAD_REQUEST', `Invalid operation input`, {
@@ -93,7 +101,11 @@ export async function decodePayload(
   }
 }
 
-async function decodeSystemNexus(dataConverter: LoadedDataConverter, payload: Payload): Promise<Payload> {
+async function decodeSystemNexus(
+  dataConverter: LoadedDataConverter,
+  payload: Payload,
+  codecHeaders: boolean
+): Promise<Payload> {
   const messageType = systemNexusRequestType(payload);
   if (!isKnownSystemNexusRequestType(messageType)) {
     // Retryable: a newer server may send a request type this SDK version does not know yet.
@@ -115,7 +127,7 @@ async function decodeSystemNexus(dataConverter: LoadedDataConverter, payload: Pa
       (await decode(dataConverter.payloadCodecs, [nestedPayload], context))[0]!,
     transformPayloads: (nestedPayloads, context) => decode(dataConverter.payloadCodecs, nestedPayloads, context),
     initialContext: undefined,
-    skipHeaders: true,
+    skipHeaders: !codecHeaders,
     skipSearchAttributes: true,
   });
   return encodeSystemNexusEnvelope(payload, message);
@@ -127,7 +139,8 @@ async function decodeSystemNexus(dataConverter: LoadedDataConverter, payload: Pa
 
 export async function operationErrorToProto(
   dataConverter: LoadedDataConverter,
-  err: nexus.OperationError
+  err: nexus.OperationError,
+  context?: NexusSerializationContext
 ): Promise<ProtoFailure> {
   let newError: Error;
   if (err.state === 'canceled') {
@@ -141,14 +154,15 @@ export async function operationErrorToProto(
     });
   }
   newError.stack = err.stack;
-  return await encodeErrorToFailure(dataConverter, newError);
+  return await encodeErrorToFailure(dataConverter, newError, context);
 }
 
 export async function handlerErrorToProto(
   dataConverter: LoadedDataConverter,
-  err: nexus.HandlerError
+  err: nexus.HandlerError,
+  context?: NexusSerializationContext
 ): Promise<ProtoFailure> {
-  return await encodeErrorToFailure(dataConverter, err);
+  return await encodeErrorToFailure(dataConverter, err, context);
 }
 
 export function coerceToHandlerError(err: unknown): nexus.HandlerError {

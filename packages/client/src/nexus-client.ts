@@ -7,16 +7,18 @@ import {
   decodeTypedSearchAttributes,
   encodeUnifiedSearchAttributes,
   filterNullAndUndefined,
+  nexusSerializationContextFromProto,
   SymbolBasedInstanceOfError,
   typedSearchAttributePayloadConverter,
+  type Replace,
 } from '@temporalio/common/internal/internal-workflow';
 import {
   decodeFromPayloadsAtIndex,
   decodeOptionalFailureToOptionalError,
   decodeOptionalSinglePayload,
   encodeToPayload,
-  extstoreInboundOptions,
-  extstoreStoreOptions,
+  externalStorageRetrieveVisitOptions,
+  externalStorageStoreVisitOptions,
   visit,
   walkDescribeNexusOperationExecutionResponse,
   walkListNexusOperationExecutionsResponse,
@@ -25,7 +27,7 @@ import {
 } from '@temporalio/common/internal/internal-non-workflow';
 import { msOptionalToTs, optionalTsToDate, optionalTsToMs } from '@temporalio/common/lib/time';
 import { temporal } from '@temporalio/proto';
-import type { LoadedDataConverter, TypeInfo } from '@temporalio/common';
+import type { LoadedDataConverter, NexusSerializationContext, TypeInfo } from '@temporalio/common';
 import { ExternalStorageError } from '@temporalio/common';
 import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base-client';
 import { BaseClient, defaultBaseClientOptions } from './base-client';
@@ -52,6 +54,7 @@ import type {
   DescribeNexusOperationOptions,
   GetNexusOperationHandleOptions,
   ListNexusOperationsOptions,
+  NexusOperationHandleDefinitionOptions,
   NexusOperationExecutionCancellationInfo,
   NexusOperationExecutionCount,
   NexusOperationExecutionCountGroupValue,
@@ -203,6 +206,7 @@ export class NexusClient extends BaseClient {
       ...defaultNexusClientOptions(),
       ...filterNullAndUndefined(options ?? {}),
       loadedDataConverter: this.dataConverter,
+      payloadCache: this.payloadCache,
     };
     this.interceptors = this.options.interceptors;
   }
@@ -222,19 +226,15 @@ export class NexusClient extends BaseClient {
       | nexus.OperationKey<T['operations']>
       | T['operations'][nexus.OperationKey<T['operations']>];
 
-    type OperationInput<
-      T extends nexus.ServiceDefinition,
-      Op extends OperationReference<T>,
-    > = Op extends nexus.OperationKey<T['operations']>
-      ? nexus.OperationInput<T['operations'][Op]>
-      : nexus.OperationInput<Op>;
+    type OperationInput<T extends nexus.ServiceDefinition, Op extends OperationReference<T>> =
+      Op extends nexus.OperationKey<T['operations']>
+        ? nexus.OperationInput<T['operations'][Op]>
+        : nexus.OperationInput<Op>;
 
-    type OperationOutput<
-      T extends nexus.ServiceDefinition,
-      Op extends OperationReference<T>,
-    > = Op extends nexus.OperationKey<T['operations']>
-      ? nexus.OperationOutput<T['operations'][Op]>
-      : nexus.OperationOutput<Op>;
+    type OperationOutput<T extends nexus.ServiceDefinition, Op extends OperationReference<T>> =
+      Op extends nexus.OperationKey<T['operations']>
+        ? nexus.OperationOutput<T['operations'][Op]>
+        : nexus.OperationOutput<Op>;
 
     const startOperation = async <Op extends OperationReference<T>>(
       operation: Op,
@@ -311,15 +311,22 @@ export class NexusClient extends BaseClient {
    *
    * @experimental Nexus Standalone Operations are experimental.
    */
+  public getHandle<Op extends nexus.OperationDefinition<any, any>>(
+    operationId: string,
+    options: NexusOperationHandleDefinitionOptions<Op>
+  ): NexusOperationHandle<nexus.OperationOutput<Op>>;
   public getHandle<T>(
     operationId: string,
-    options?: GetNexusOperationHandleOptions
+    options?: GetNexusOperationHandleOptions<NexusOperationHandleResult<T>>
   ): NexusOperationHandle<NexusOperationHandleResult<T>>;
-  public getHandle(operationId: string, options?: GetNexusOperationHandleOptions): NexusOperationHandle {
+  public getHandle(
+    operationId: string,
+    options?: Replace<GetNexusOperationHandleOptions, { operation?: nexus.OperationDefinition<any, any> }>
+  ): NexusOperationHandle {
     return this.createNexusOperationHandle({
       operationId,
       runId: options?.runId,
-      outputType: options?.typeInfo?.outputType,
+      outputType: options?.typeInfo?.outputType ?? options?.operation?.outputType,
     });
   }
 
@@ -383,7 +390,13 @@ export class NexusClient extends BaseClient {
   }
 
   protected async startNexusOperationHandler(input: StartNexusOperationInput): Promise<NexusOperationHandle> {
-    const inputPayload = await encodeToPayload(this.dataConverter, input.arg, undefined, input.inputType);
+    const context: NexusSerializationContext = {
+      type: 'nexus',
+      endpoint: input.endpoint,
+      service: input.service,
+      operation: input.operation,
+    };
+    const inputPayload = await encodeToPayload(this.dataConverter, input.arg, context, input.inputType);
     const searchAttributes =
       input.searchAttributes != null
         ? { indexedFields: encodeUnifiedSearchAttributes(undefined, input.searchAttributes) }
@@ -391,6 +404,8 @@ export class NexusClient extends BaseClient {
     const userMetadata =
       input.summary != null
         ? {
+            // User metadata isn't in the Nexus StartOperationRequest, so it never reaches the
+            // handler and carries no operation context. Describe decodes it the same way.
             summary: await encodeToPayload(this.dataConverter, input.summary),
           }
         : undefined;
@@ -413,11 +428,15 @@ export class NexusClient extends BaseClient {
       nexusHeader: input.headers ?? {},
       userMetadata,
     };
-    const externalStorage = this.dataConverter.externalStorage;
     let res: temporal.api.workflowservice.v1.IStartNexusOperationExecutionResponse;
     try {
+      const externalStorage = this.dataConverter.externalStorage;
       if (externalStorage) {
-        await visit(req, walkStartNexusOperationExecutionRequest, extstoreStoreOptions(externalStorage));
+        await visit(
+          req,
+          walkStartNexusOperationExecutionRequest,
+          externalStorageStoreVisitOptions({ externalStorage, payloadCache: this.payloadCache })
+        );
       }
       res = await this.connection.workflowService.startNexusOperationExecution(req);
     } catch (err: unknown) {
@@ -427,6 +446,9 @@ export class NexusClient extends BaseClient {
       operationId: input.id,
       runId: res.runId ?? undefined,
       outputType: input.outputType,
+      endpoint: input.endpoint,
+      service: input.service,
+      operation: input.operation,
     });
   }
 
@@ -434,6 +456,9 @@ export class NexusClient extends BaseClient {
     operationId: string;
     runId?: string;
     outputType?: TypeInfo;
+    endpoint?: string;
+    service?: string;
+    operation?: string;
   }): NexusOperationHandle<O> {
     let cachedResult:
       | { state: 'not-requested' }
@@ -449,6 +474,9 @@ export class NexusClient extends BaseClient {
             const result = (await this.client.getNexusOperationResult({
               operationId: this.operationId,
               runId: this.runId,
+              endpoint: opts.endpoint,
+              service: opts.service,
+              operation: opts.operation,
               outputType: opts.outputType,
             })) as O;
             cachedResult = { state: 'success', value: result };
@@ -489,6 +517,12 @@ export class NexusClient extends BaseClient {
   }
 
   protected async getResultHandler(input: GetNexusOperationResultInput): Promise<unknown> {
+    // Fallback for older servers that don't return the context when polling. These three are set
+    // together or not at all: a handle obtained by operation ID alone has none of them.
+    const startContext: NexusSerializationContext | undefined =
+      input.endpoint && input.service && input.operation
+        ? { type: 'nexus', endpoint: input.endpoint, service: input.service, operation: input.operation }
+        : undefined;
     const req: temporal.api.workflowservice.v1.IPollNexusOperationExecutionRequest = {
       namespace: this.options.namespace,
       operationId: input.operationId,
@@ -497,20 +531,28 @@ export class NexusClient extends BaseClient {
     };
     for (;;) {
       let res: temporal.api.workflowservice.v1.IPollNexusOperationExecutionResponse;
-      const externalStorage = this.dataConverter.externalStorage;
       try {
         res = await this.connection.workflowService.pollNexusOperationExecution(req);
-        await visit(res, walkPollNexusOperationExecutionResponse, extstoreInboundOptions(externalStorage));
+        await visit(
+          res,
+          walkPollNexusOperationExecutionResponse,
+          externalStorageRetrieveVisitOptions({
+            externalStorage: this.dataConverter.externalStorage,
+            payloadCache: this.payloadCache,
+          })
+        );
       } catch (err: unknown) {
         this.rethrowGrpcError(err, 'Failed to poll Nexus operation result', input.operationId);
       }
-
+      // The context the server returns also identifies an operation whose handle was obtained by
+      // operation ID
+      const context = nexusSerializationContextFromProto(res.propagatedNexusSerializationContext) ?? startContext;
       // The operation is closed if we have a result or failure
       if (res.result) {
-        return await decodeFromPayloadsAtIndex(this.dataConverter, 0, [res.result], undefined, input.outputType);
+        return await decodeFromPayloadsAtIndex(this.dataConverter, 0, [res.result], context, input.outputType);
       }
       if (res.failure) {
-        const cause = await decodeOptionalFailureToOptionalError(this.dataConverter, res.failure);
+        const cause = await decodeOptionalFailureToOptionalError(this.dataConverter, res.failure, context);
         throw new NexusOperationFailureError(
           `Nexus operation failed: ${res.failure.message ?? 'unknown failure'}`,
           cause ?? new Error(res.failure.message ?? 'unknown failure')
@@ -526,10 +568,16 @@ export class NexusClient extends BaseClient {
       runId: input.runId ?? '',
     };
     let res: temporal.api.workflowservice.v1.IDescribeNexusOperationExecutionResponse;
-    const externalStorage = this.dataConverter.externalStorage;
     try {
       res = await this.connection.workflowService.describeNexusOperationExecution(req);
-      await visit(res, walkDescribeNexusOperationExecutionResponse, extstoreInboundOptions(externalStorage));
+      await visit(
+        res,
+        walkDescribeNexusOperationExecutionResponse,
+        externalStorageRetrieveVisitOptions({
+          externalStorage: this.dataConverter.externalStorage,
+          payloadCache: this.payloadCache,
+        })
+      );
     } catch (err: unknown) {
       this.rethrowGrpcError(err, 'Failed to describe Nexus operation', input.operationId);
     }
@@ -575,7 +623,6 @@ export class NexusClient extends BaseClient {
     let nextPageToken: Uint8Array | undefined = undefined;
     for (;;) {
       let response: temporal.api.workflowservice.v1.IListNexusOperationExecutionsResponse;
-      const externalStorage = this.dataConverter.externalStorage;
       try {
         response = await this.connection.workflowService.listNexusOperationExecutions({
           namespace: this.options.namespace,
@@ -583,7 +630,14 @@ export class NexusClient extends BaseClient {
           pageSize: input.pageSize,
           nextPageToken,
         });
-        await visit(response, walkListNexusOperationExecutionsResponse, extstoreInboundOptions(externalStorage));
+        await visit(
+          response,
+          walkListNexusOperationExecutionsResponse,
+          externalStorageRetrieveVisitOptions({
+            externalStorage: this.dataConverter.externalStorage,
+            payloadCache: this.payloadCache,
+          })
+        );
       } catch (err: unknown) {
         this.rethrowGrpcError(err, 'Failed to list Nexus operations', undefined);
       }
@@ -631,7 +685,8 @@ export class NexusClient extends BaseClient {
 
 async function cancellationInfoFromProto(
   raw: RawNexusOperationExecutionCancellationInfo,
-  dataConverter: LoadedDataConverter
+  dataConverter: LoadedDataConverter,
+  context: NexusSerializationContext
 ): Promise<NexusOperationExecutionCancellationInfo> {
   return {
     requestedTime: optionalTsToDate(raw.requestedTime),
@@ -639,7 +694,7 @@ async function cancellationInfoFromProto(
     attempt: raw.attempt ?? 0,
     lastAttemptCompleteTime: optionalTsToDate(raw.lastAttemptCompleteTime),
     nextAttemptScheduleTime: optionalTsToDate(raw.nextAttemptScheduleTime),
-    lastAttemptFailure: await decodeOptionalFailureToOptionalError(dataConverter, raw.lastAttemptFailure),
+    lastAttemptFailure: await decodeOptionalFailureToOptionalError(dataConverter, raw.lastAttemptFailure, context),
     blockedReason: raw.blockedReason ?? undefined,
     reason: raw.reason ?? '',
     raw,
@@ -650,6 +705,12 @@ async function nexusOperationExecutionDescriptionFromProto(
   raw: RawNexusOperationExecutionInfo,
   dataConverter: LoadedDataConverter
 ): Promise<NexusOperationExecutionDescription> {
+  const context: NexusSerializationContext = {
+    type: 'nexus',
+    endpoint: raw.endpoint ?? '',
+    service: raw.service ?? '',
+    operation: raw.operation ?? '',
+  };
   let decodedMetadata:
     | { state: 'pending' }
     | { state: 'requested'; value: Promise<{ summary: string | undefined; details: string | undefined }> } = {
@@ -689,11 +750,11 @@ async function nexusOperationExecutionDescriptionFromProto(
     expirationTime: optionalTsToDate(raw.expirationTime),
     closeTime: optionalTsToDate(raw.closeTime),
     lastAttemptCompleteTime: optionalTsToDate(raw.lastAttemptCompleteTime),
-    lastAttemptFailure: await decodeOptionalFailureToOptionalError(dataConverter, raw.lastAttemptFailure),
+    lastAttemptFailure: await decodeOptionalFailureToOptionalError(dataConverter, raw.lastAttemptFailure, context),
     nextAttemptScheduleTime: optionalTsToDate(raw.nextAttemptScheduleTime),
     executionDuration: optionalTsToMs(raw.executionDuration),
     cancellationInfo: raw.cancellationInfo
-      ? await cancellationInfoFromProto(raw.cancellationInfo, dataConverter)
+      ? await cancellationInfoFromProto(raw.cancellationInfo, dataConverter, context)
       : undefined,
     blockedReason: raw.blockedReason ?? undefined,
     requestId: raw.requestId ?? '',

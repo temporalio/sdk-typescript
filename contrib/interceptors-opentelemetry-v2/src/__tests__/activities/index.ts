@@ -1,3 +1,4 @@
+import * as otelApi from '@opentelemetry/api';
 import { activityInfo, Context } from '@temporalio/activity';
 import { ApplicationFailure, ApplicationFailureCategory, CancelledFailure } from '@temporalio/common';
 
@@ -27,6 +28,11 @@ async function signalSchedulingWorkflow(signalName: string): Promise<void> {
   const { workflowExecution } = info;
   const handle = client.workflow.getHandle(workflowExecution!.workflowId, workflowExecution!.runId);
   await handle.signal(signalName);
+}
+
+export async function observeBaggage(): Promise<Record<string, string>> {
+  const baggage = otelApi.propagation.getBaggage(otelApi.context.active());
+  return Object.fromEntries((baggage?.getAllEntries() ?? []).map(([key, entry]) => [key, entry.value]));
 }
 
 export async function throwMaybeBenign(): Promise<void> {

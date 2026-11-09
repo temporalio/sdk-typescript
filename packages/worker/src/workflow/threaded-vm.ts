@@ -78,7 +78,12 @@ export class WorkerThreadClient {
   ) {
     workerThread.on('message', (message: WorkerThreadResponse | PatchActivationCallbackRequest) => {
       if (!('requestId' in message)) {
-        this.handlePatchActivationCallback(message);
+        if ('type' in message && message.type === 'patch-activation-callback') {
+          this.handlePatchActivationCallback(message);
+          return;
+        }
+        // Ignore unknown messages.
+        this.logger.trace('Received unknown message type from worker thread, ignoring', { message });
         return;
       }
       const { requestId, result } = message;

@@ -4,7 +4,7 @@ import { ApplicationFailure, defaultFailureConverter, defaultPayloadConverter } 
 import { walkPayloadsInMessage } from '@temporalio/common/internal/internal-non-workflow';
 import { coresdk } from '@temporalio/proto';
 import { WorkflowCodecRunner } from '@temporalio/worker/internal';
-import { FreePayloadCodec, makeContextTrace } from './payload-converters/serialization-context-converter';
+import { FreePayloadCodec, makeContextTrace, nexusCtx } from './payload-converters/serialization-context-converter';
 
 function payload(label: string): Payload {
   return defaultPayloadConverter.toPayload(makeContextTrace(label));
@@ -383,62 +383,216 @@ test('signal and cancel external workflow paths use target workflow context', as
   );
 });
 
-test('nexus operation paths use workflow context', async (t) => {
+function nexusRunner(): WorkflowCodecRunner {
+  return new WorkflowCodecRunner([new FreePayloadCodec()], {
+    type: 'workflow',
+    namespace: 'default',
+    workflowId: 'wf-1',
+  });
+}
+
+function scheduleNexusOperation(seq: number) {
+  return {
+    successful: {
+      commands: [
+        {
+          scheduleNexusOperation: {
+            seq,
+            endpoint: 'my-endpoint',
+            service: 'my-service',
+            operation: 'my-operation',
+            input: payload('nexus-input'),
+          },
+          userMetadata: { summary: payload('nexus-summary') },
+        },
+      ],
+    },
+  };
+}
+
+const nexusOperationCtx = nexusCtx('my-endpoint', 'my-service', 'my-operation');
+
+test('nexus operation paths use the operation context', async (t) => {
+  const runner = nexusRunner();
+
+  const encoded = decodeCompletion(await runner.encodeCompletion(scheduleNexusOperation(6)));
+  t.deepEqual(traceFromPayload(encoded.successful?.commands?.[0]?.scheduleNexusOperation?.input as Payload), [
+    `codec.encode.bound|nexus-input|${nexusOperationCtx}`,
+  ]);
+  // User metadata is not part of the Nexus start request, so it stays on the caller's context.
+  t.deepEqual(traceFromPayload(encoded.successful?.commands?.[0]?.userMetadata?.summary as Payload), [
+    'codec.encode.bound|nexus-summary|workflow.default.wf-1',
+  ]);
+
+  // An asynchronous start is not terminal, so it must leave the context for the resolution below.
+  await runner.decodeActivation({
+    runId: 'run-1',
+    jobs: [{ resolveNexusOperationStart: { seq: 6, operationToken: 'token-1' } }],
+  });
+
+  const decodedCompleted = await runner.decodeActivation({
+    runId: 'run-1',
+    jobs: [{ resolveNexusOperation: { seq: 6, result: { completed: payload('nexus-output') } } }],
+  });
+  t.deepEqual(traceFromPayload(decodedCompleted.jobs?.[0]?.resolveNexusOperation?.result?.completed as Payload), [
+    `codec.decode.bound|nexus-output|${nexusOperationCtx}`,
+  ]);
+});
+
+test('a Workflow started by a Nexus handler encodes its result and failure with the Nexus context', async (t) => {
+  const runner = new WorkflowCodecRunner([new FreePayloadCodec()], {
+    type: 'workflow',
+    namespace: 'default',
+    workflowId: 'wf-1',
+  });
+  const handlerCtx = nexusCtx('handler-endpoint', 'handler-service', 'handler-operation');
+
+  const decoded = await runner.decodeActivation({
+    runId: 'run-1',
+    jobs: [
+      {
+        initializeWorkflow: {
+          workflowId: 'wf-1',
+          workflowType: 'test',
+          randomnessSeed: { toBytes: () => new Uint8Array([1]) } as any,
+          firstExecutionRunId: 'run-1',
+          attempt: 1,
+          startTime: {} as any,
+          arguments: [payload('wf-input')],
+          propagatedNexusSerializationContext: {
+            endpoint: 'handler-endpoint',
+            service: 'handler-service',
+            operation: 'handler-operation',
+          },
+        },
+      },
+    ],
+  });
+  // The input keeps the Workflow context
+  t.deepEqual(traceFromPayload(decoded.jobs?.[0]?.initializeWorkflow?.arguments?.[0] as Payload), [
+    'codec.decode.bound|wf-input|workflow.default.wf-1',
+  ]);
+
+  const completed = decodeCompletion(
+    await runner.encodeCompletion({
+      successful: {
+        commands: [
+          { scheduleActivity: { seq: 1, activityId: 'act-1', arguments: [payload('activity-input')] } },
+          { completeWorkflowExecution: { result: payload('wf-result') } },
+        ],
+      },
+    })
+  );
+  t.deepEqual(traceFromPayload(completed.successful?.commands?.[0]?.scheduleActivity?.arguments?.[0] as Payload), [
+    'codec.encode.bound|activity-input|activity.default.wf-1.act-1.false',
+  ]);
+  t.deepEqual(traceFromPayload(completed.successful?.commands?.[1]?.completeWorkflowExecution?.result as Payload), [
+    `codec.encode.bound|wf-result|${handlerCtx}`,
+  ]);
+
+  const failed = decodeCompletion(
+    await runner.encodeCompletion({
+      successful: { commands: [{ failWorkflowExecution: { failure: failureWithDetail('wf-failure') } }] },
+    })
+  );
+  t.deepEqual(
+    traceFromPayload(
+      failed.successful?.commands?.[0]?.failWorkflowExecution?.failure?.applicationFailureInfo?.details
+        ?.payloads?.[0] as Payload
+    ),
+    [`codec.encode.bound|wf-failure|${handlerCtx}`]
+  );
+});
+
+test("a retry of a Workflow started by a Nexus handler decodes the previous run's failure and result with the Nexus context", async (t) => {
+  const runner = new WorkflowCodecRunner([new FreePayloadCodec()], {
+    type: 'workflow',
+    namespace: 'default',
+    workflowId: 'wf-1',
+  });
+  const handlerCtx = nexusCtx('handler-endpoint', 'handler-service', 'handler-operation');
+
+  const decoded = await runner.decodeActivation({
+    runId: 'run-2',
+    jobs: [
+      {
+        initializeWorkflow: {
+          workflowId: 'wf-1',
+          workflowType: 'test',
+          randomnessSeed: { toBytes: () => new Uint8Array([1]) } as any,
+          firstExecutionRunId: 'run-1',
+          attempt: 2,
+          startTime: {} as any,
+          arguments: [payload('wf-input')],
+          memo: { fields: { key: payload('wf-memo') } },
+          continuedFailure: failureWithDetail('previous-failure'),
+          lastCompletionResult: { payloads: [payload('previous-result')] },
+          propagatedNexusSerializationContext: {
+            endpoint: 'handler-endpoint',
+            service: 'handler-service',
+            operation: 'handler-operation',
+          },
+        },
+      },
+    ],
+  });
+  const initialize = decoded.jobs?.[0]?.initializeWorkflow;
+  // The input and memo keep the Workflow context
+  t.deepEqual(traceFromPayload(initialize?.arguments?.[0] as Payload), [
+    'codec.decode.bound|wf-input|workflow.default.wf-1',
+  ]);
+  t.deepEqual(traceFromPayload(initialize?.memo?.fields?.key as Payload), [
+    'codec.decode.bound|wf-memo|workflow.default.wf-1',
+  ]);
+  t.deepEqual(
+    traceFromPayload(initialize?.continuedFailure?.applicationFailureInfo?.details?.payloads?.[0] as Payload),
+    [`codec.decode.bound|previous-failure|${handlerCtx}`]
+  );
+  t.deepEqual(traceFromPayload(initialize?.lastCompletionResult?.payloads?.[0] as Payload), [
+    `codec.decode.bound|previous-result|${handlerCtx}`,
+  ]);
+});
+
+test('a retry of a Workflow not started by a Nexus handler decodes the previous run with the Workflow context', async (t) => {
   const runner = new WorkflowCodecRunner([new FreePayloadCodec()], {
     type: 'workflow',
     namespace: 'default',
     workflowId: 'wf-1',
   });
 
-  const encoded = decodeCompletion(
-    await runner.encodeCompletion({
-      successful: {
-        commands: [
-          {
-            scheduleNexusOperation: {
-              seq: 6,
-              input: payload('nexus-input'),
-            },
-          },
-        ],
-      },
-    })
-  );
-
-  t.deepEqual(traceFromPayload(encoded.successful?.commands?.[0]?.scheduleNexusOperation?.input as Payload), [
-    'codec.encode.bound|nexus-input|workflow.default.wf-1',
-  ]);
-
-  const decodedCompleted = await runner.decodeActivation({
-    runId: 'run-1',
+  const decoded = await runner.decodeActivation({
+    runId: 'run-2',
     jobs: [
       {
-        resolveNexusOperation: {
-          seq: 6,
-          result: {
-            completed: payload('nexus-output'),
-          },
+        initializeWorkflow: {
+          workflowId: 'wf-1',
+          workflowType: 'test',
+          randomnessSeed: { toBytes: () => new Uint8Array([1]) } as any,
+          firstExecutionRunId: 'run-1',
+          attempt: 2,
+          startTime: {} as any,
+          continuedFailure: failureWithDetail('previous-failure'),
+          lastCompletionResult: { payloads: [payload('previous-result')] },
         },
       },
     ],
   });
-
-  t.deepEqual(traceFromPayload(decodedCompleted.jobs?.[0]?.resolveNexusOperation?.result?.completed as Payload), [
-    'codec.decode.bound|nexus-output|workflow.default.wf-1',
+  const initialize = decoded.jobs?.[0]?.initializeWorkflow;
+  t.deepEqual(
+    traceFromPayload(initialize?.continuedFailure?.applicationFailureInfo?.details?.payloads?.[0] as Payload),
+    ['codec.decode.bound|previous-failure|workflow.default.wf-1']
+  );
+  t.deepEqual(traceFromPayload(initialize?.lastCompletionResult?.payloads?.[0] as Payload), [
+    'codec.decode.bound|previous-result|workflow.default.wf-1',
   ]);
+});
+
+test('a resolution with no scheduled nexus operation falls back to workflow context', async (t) => {
+  const runner = nexusRunner();
 
   const decodedFailed = await runner.decodeActivation({
     runId: 'run-1',
-    jobs: [
-      {
-        resolveNexusOperation: {
-          seq: 7,
-          result: {
-            failed: failureWithDetail('nexus-failure'),
-          },
-        },
-      },
-    ],
+    jobs: [{ resolveNexusOperation: { seq: 7, result: { failed: failureWithDetail('nexus-failure') } } }],
   });
 
   t.deepEqual(
@@ -448,6 +602,34 @@ test('nexus operation paths use workflow context', async (t) => {
     ),
     ['codec.decode.bound|nexus-failure|workflow.default.wf-1']
   );
+});
+
+test('a failed nexus start uses the operation context and then releases it', async (t) => {
+  const runner = nexusRunner();
+  await runner.encodeCompletion(scheduleNexusOperation(8));
+
+  const decodedStartFailure = await runner.decodeActivation({
+    runId: 'run-1',
+    jobs: [{ resolveNexusOperationStart: { seq: 8, failed: failureWithDetail('nexus-start-failure') } }],
+  });
+  t.deepEqual(
+    traceFromPayload(
+      decodedStartFailure.jobs?.[0]?.resolveNexusOperationStart?.failed?.applicationFailureInfo?.details
+        ?.payloads?.[0] as Payload
+    ),
+    [`codec.decode.bound|nexus-start-failure|${nexusOperationCtx}`]
+  );
+
+  // White-box probe of the pending-context map, not a realistic history: Core never sends a
+  // ResolveNexusOperation after a failed start. Falling back to workflow context here is how an
+  // outside observer can tell the terminal start released its entry instead of retaining it.
+  const probe = await runner.decodeActivation({
+    runId: 'run-1',
+    jobs: [{ resolveNexusOperation: { seq: 8, result: { completed: payload('nexus-output') } } }],
+  });
+  t.deepEqual(traceFromPayload(probe.jobs?.[0]?.resolveNexusOperation?.result?.completed as Payload), [
+    'codec.decode.bound|nexus-output|workflow.default.wf-1',
+  ]);
 });
 
 test('runner remains compatible with codecs that ignore context', async (t) => {
@@ -525,5 +707,11 @@ test('ordinary Nexus calls with a System Nexus service name are not rewritten', 
   );
   const envelope = encoded.successful?.commands?.[0]?.scheduleNexusOperation?.input;
   t.not(envelope?.metadata?.encoding?.[0], 98);
-  t.deepEqual(traceFromPayload(envelope), ['codec.encode.bound|ordinary-nexus-input|workflow.caller-ns.caller-id']);
+  t.deepEqual(traceFromPayload(envelope), [
+    `codec.encode.bound|ordinary-nexus-input|${nexusCtx(
+      'ordinary-endpoint',
+      'temporal.api.workflowservice.v1.WorkflowService',
+      'SignalWithStartWorkflowExecution'
+    )}`,
+  ]);
 });

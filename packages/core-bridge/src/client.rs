@@ -624,9 +624,9 @@ mod config {
     use std::time::Duration;
 
     use temporalio_client::{
-        ClientTlsOptions as CoreClientTlsOptions, ConnectionOptions, DnsLoadBalancingOptions,
-        GrpcCompression as CoreGrpcCompression, HttpConnectProxyOptions, PayloadLimitsOptions,
-        TlsOptions as CoreTlsOptions,
+        ClientKeepAliveOptions, ClientTlsOptions as CoreClientTlsOptions, ConnectionOptions,
+        DnsLoadBalancingOptions, GrpcCompression as CoreGrpcCompression, HttpConnectProxyOptions,
+        PayloadLimitsOptions, TlsOptions as CoreTlsOptions,
     };
     use temporalio_common::telemetry::metrics::TemporalMeter;
     use temporalio_sdk_core::Url;
@@ -648,6 +648,7 @@ mod config {
         http_connect_proxy: Option<HttpConnectProxy>,
         dns_load_balancing_config: Option<DnsLoadBalancingConfig>,
         grpc_compression: Option<GrpcCompressionConfig>,
+        keep_alive: Option<KeepAliveConfig>,
         headers: Option<HashMap<String, MetadataValue>>,
         api_key: Option<String>,
         disable_error_code_metric_tags: bool,
@@ -691,6 +692,12 @@ mod config {
         codec: String,
     }
 
+    #[derive(Debug, Clone, TryFromJs)]
+    struct KeepAliveConfig {
+        interval: Duration,
+        timeout: Duration,
+    }
+
     impl ClientOptions {
         pub(super) fn into_connection_options(
             self,
@@ -721,6 +728,7 @@ mod config {
                 .maybe_http_connect_proxy(http_connect_proxy)
                 .dns_load_balancing(dns_load_balancing)
                 .grpc_compression(grpc_compression)
+                .keep_alive(self.keep_alive.map(Into::into))
                 .maybe_headers(ascii_headers)
                 .maybe_binary_headers(bin_headers)
                 .maybe_api_key(self.api_key)
@@ -735,9 +743,17 @@ mod config {
                 // identity -- skipped: will be set on worker
                 // retry_config -- skipped: worker overrides anyway
                 // override_origin -- skipped: will default to tls_cfg.domain
-                // keep_alive -- skipped: defaults to true; is there any reason to disable this?
                 // skip_get_system_info -- skipped: defaults to false; is there any reason to set this?
                 .build())
+        }
+    }
+
+    impl From<KeepAliveConfig> for ClientKeepAliveOptions {
+        fn from(val: KeepAliveConfig) -> Self {
+            Self::builder()
+                .interval(val.interval)
+                .timeout(val.timeout)
+                .build()
         }
     }
 

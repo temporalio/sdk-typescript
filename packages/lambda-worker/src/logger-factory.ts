@@ -11,7 +11,7 @@ import { PowertoolsLoggerAdapter } from './json-logger';
  */
 export function makePowertoolsLogger(): Logger | undefined {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    // oxlint-disable-next-line typescript/no-require-imports
     const { Logger: PtLogger } = require('@aws-lambda-powertools/logger');
     return new PowertoolsLoggerAdapter(
       new PtLogger({

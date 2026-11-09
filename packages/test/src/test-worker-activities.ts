@@ -11,6 +11,7 @@ import { cleanOptionalStackTrace, compareStackTrace, isBun } from './helpers';
 import type { Worker } from './mock-native-worker';
 import { defaultOptions, isolateFreeWorker } from './mock-native-worker';
 import { withZeroesHTTPServer } from './zeroes-http-server';
+import { FreePayloadCodec, makeContextTrace } from './payload-converters/serialization-context-converter';
 
 export interface Context {
   worker: Worker;
@@ -77,6 +78,56 @@ test('Worker runs an activity and reports completion', async (t) => {
   });
 });
 
+test('Worker decodes activity headers before inbound interceptors', async (t) => {
+  const codec = new FreePayloadCodec();
+  const context = {
+    type: 'activity' as const,
+    namespace: 'default',
+    workflowId: 'wfid',
+    activityId: 'activity',
+    isLocal: false,
+  };
+  const [header] = await codec.encode([defaultPayloadConverter.toPayload(makeContextTrace('header'))], context);
+  const worker = isolateFreeWorker({
+    ...defaultOptions,
+    namespace: 'default',
+    dataConverter: { payloadCodecs: [codec] },
+    codecHeaders: true,
+    activities: { echo: async () => undefined },
+    interceptors: {
+      activity: [
+        () => ({
+          inbound: {
+            execute: async (input, next) => {
+              t.deepEqual(defaultPayloadConverter.fromPayload(input.headers.custom!), {
+                label: 'header',
+                trace: [
+                  'codec.encode.bound|header|activity.default.wfid.activity.false',
+                  'codec.decode.bound|header|activity.default.wfid.activity.false',
+                ],
+              });
+              return next(input);
+            },
+          },
+        }),
+      ],
+    },
+  });
+  t.context.worker = worker;
+  await runWorker(t, async () => {
+    await worker.native.runActivityTask({
+      taskToken: Buffer.from(randomUUID()),
+      start: {
+        activityType: 'echo',
+        activityId: 'activity',
+        workflowNamespace: 'default',
+        workflowExecution: { workflowId: 'wfid', runId: 'runId' },
+        headerFields: { custom: header! },
+      },
+    });
+  });
+});
+
 test('Worker activity info does not confuse task queue and namespace', async (t) => {
   const worker = isolateFreeWorker({
     ...defaultOptions,
@@ -88,9 +139,9 @@ test('Worker activity info does not confuse task queue and namespace', async (t)
         return {
           taskQueue: info.taskQueue,
           namespace: info.namespace,
-          // eslint-disable-next-line @typescript-eslint/no-deprecated
+          // oxlint-disable-next-line typescript/no-deprecated
           activityNamespace: info.activityNamespace,
-          // eslint-disable-next-line @typescript-eslint/no-deprecated
+          // oxlint-disable-next-line typescript/no-deprecated
           workflowNamespace: info.workflowNamespace,
         };
       },

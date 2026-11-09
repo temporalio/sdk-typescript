@@ -50,7 +50,7 @@ export class MockActivityEnvironment extends events.EventEmitter {
       loadedDataConverter,
       {
         type: 'activity',
-        namespace: activityInfo.activityNamespace, // eslint-disable-line @typescript-eslint/no-deprecated
+        namespace: activityInfo.activityNamespace, // oxlint-disable-line typescript/no-deprecated
         activityId: activityInfo.activityId,
         workflowId: activityInfo.workflowExecution?.workflowId,
         isLocal: activityInfo.isLocal,
@@ -74,8 +74,8 @@ export class MockActivityEnvironment extends events.EventEmitter {
   /**
    * Run a function in Activity Context
    */
-  public async run<P extends any[], R, F extends ActivityFunction<P, R>>(fn: F, ...args: P): Promise<R> {
-    return this.activity.runNoEncoding(fn as ActivityFunction<any, any>, { args, headers: {} }) as Promise<R>;
+  public async run<F extends ActivityFunction>(fn: F, ...args: Parameters<F>): Promise<Awaited<ReturnType<F>>> {
+    return this.activity.runNoEncoding(fn, { args, headers: {} }) as Promise<Awaited<ReturnType<F>>>;
   }
 }
 
@@ -95,7 +95,9 @@ export const defaultActivityInfo: activity.Info = {
   base64TaskToken: Buffer.from('test').toString('base64'),
   heartbeatTimeoutMs: undefined,
   heartbeatDetails: undefined,
+  // oxlint-disable-next-line typescript/no-deprecated -- Preserve the legacy namespace alias.
   activityNamespace: 'default',
+  // oxlint-disable-next-line typescript/no-deprecated -- Preserve the legacy namespace alias.
   workflowNamespace: 'default',
   workflowExecution: { workflowId: 'test', runId: '00000000-0000-0000-0000-000000000000' },
   scheduledTimestampMs: 1,

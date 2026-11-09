@@ -1,5 +1,5 @@
 const { isPromise } = require('node:util/types');
-const { getPrebuiltPath } = require('./common');
+const { requirePrebuilt } = require('./common');
 const typescriptExports = require('./lib/index');
 const { convertFromNamedError } = require('./lib/errors');
 
@@ -84,8 +84,7 @@ if (process.env.TEMPORAL_TRACE_NATIVE_CALLS?.toLowerCase() === 'true') {
 }
 
 try {
-  const nativeLibPath = getPrebuiltPath();
-  const native = Object.fromEntries(Object.entries(require(nativeLibPath)).map(([name, fn]) => [name, wrapper(fn)]));
+  const native = Object.fromEntries(Object.entries(requirePrebuilt()).map(([name, fn]) => [name, wrapper(fn)]));
   module.exports = { ...typescriptExports, native };
 } catch (err) {
   throw err;

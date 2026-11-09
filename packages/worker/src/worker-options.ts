@@ -7,17 +7,18 @@ import type {
   DataConverter,
   LoadedDataConverter,
   MetricMeter,
+  PayloadCache,
   VersioningBehavior,
   WorkerDeploymentVersion,
 } from '@temporalio/common';
 import type { Duration } from '@temporalio/common/lib/time';
 import { msOptionalToNumber, msToNumber } from '@temporalio/common/lib/time';
-import { loadDataConverter } from '@temporalio/common/internal/internal-non-workflow';
+import { loadDataConverter, withPayloadCacheMetrics } from '@temporalio/common/internal/internal-non-workflow';
 import type { LoggerSinks, WorkflowInfo } from '@temporalio/workflow';
 import type { Context } from '@temporalio/activity';
 import type { native } from '@temporalio/core-bridge';
 import { throwIfReservedName } from '@temporalio/common/internal/internal-workflow';
-import { withNexusActivityLinking } from '@temporalio/nexus/internal';
+import { withNexusActivityLinking, withNexusWorkflowSerializationContext } from '@temporalio/nexus/internal';
 import { ActivityInboundLogInterceptor } from './activity-log-interceptor';
 import type { NativeConnection } from './connection';
 import type { CompiledWorkerInterceptors, WorkerInterceptors } from './interceptors';
@@ -193,6 +194,19 @@ export interface WorkerOptions {
   dataConverter?: DataConverter;
 
   /**
+   * Apply the configured payload codecs to headers at Worker boundaries: decode incoming
+   * Workflow and Activity headers before interceptors run, and encode headers emitted by Workflows.
+   *
+   * This option does not encode user-provided Payload headers supplied through client APIs.
+   * Use compatible codecs on receiving workers and when replaying histories with encoded headers.
+   * This does not affect Nexus string headers or gRPC metadata.
+   *
+   * @default false
+   * @experimental
+   */
+  codecHeaders?: boolean;
+
+  /**
    * Provide a custom {@link WorkerTuner}.
    *
    * Mutually exclusive with the {@link maxConcurrentWorkflowTaskExecutions}, {@link
@@ -345,28 +359,28 @@ export interface WorkerOptions {
    * - Keep this value low for Task Queues which have very few concurrent Workflow Executions.
    *
    * Can't be higher than `maxConcurrentWorkflowTaskExecutions`, and can't be lower than 2.
-   * @default min(10, maxConcurrentWorkflowTaskExecutions)
+   * @default 5
    */
   maxConcurrentWorkflowTaskPolls?: number;
 
   /**
    * Specify the behavior of workflow task polling.
    *
-   * @default A fixed maximum whose value is min(10, maxConcurrentWorkflowTaskExecutions).
+   * @default A fixed maximum of 5 pollers.
    */
   workflowTaskPollerBehavior?: PollerBehavior;
 
   /**
    * Specify the behavior of activity task polling.
    *
-   * @default A fixed maximum whose value is min(10, maxConcurrentActivityTaskExecutions).
+   * @default A fixed maximum of 5 pollers.
    */
   activityTaskPollerBehavior?: PollerBehavior;
 
   /**
    * Specify the behavior of Nexus task polling.
    *
-   * @default A fixed maximum whose value is min(10, maxConcurrentNexusTaskExecutions).
+   * @default A fixed maximum of 5 pollers.
    *
    */
   nexusTaskPollerBehavior?: PollerBehavior;
@@ -378,7 +392,7 @@ export interface WorkerOptions {
    * `maxConcurrentActivityTaskExecutions` slots despite a backlog of Activity
    * Tasks in the Task Queue (ie. due to network latency). Can't be higher than
    * `maxConcurrentActivityTaskExecutions`.
-   * @default min(10, maxConcurrentActivityTaskExecutions)
+   * @default 5
    */
   maxConcurrentActivityTaskPolls?: number;
 
@@ -390,7 +404,7 @@ export interface WorkerOptions {
    * Tasks in the Task Queue (ie. due to network latency). Can't be higher than
    * `maxConcurrentNexusTaskExecutions`.
    *
-   * @default min(10, maxConcurrentNexusTaskExecutions)
+   * @default 5
    *
    */
   maxConcurrentNexusTaskPolls?: number;
@@ -436,6 +450,14 @@ export interface WorkerOptions {
    *          Otherwise `max(floor(max(maxHeapMemory - 400MB, 0) * (250WF / 1024MB)), 10)`
    */
   maxCachedWorkflows?: number;
+
+  /**
+   * Payload cache shared by this Worker, or `false` to disable payload caching.
+   *
+   * @default `false`
+   * @experimental
+   */
+  payloadCache?: PayloadCache | false;
 
   /**
    * Controls the number of threads to be created for executing Workflow Tasks.
@@ -739,38 +761,37 @@ export type WorkerDeploymentOptions = {
 /**
  * {@link WorkerOptions} with inapplicable-to-replay fields removed.
  */
-export interface ReplayWorkerOptions
-  extends Omit<
-    WorkerOptions,
-    | 'connection'
-    | 'namespace'
-    | 'taskQueue'
-    | 'activities'
-    | 'nexusServices'
-    | 'tuner'
-    | 'maxConcurrentActivityTaskExecutions'
-    | 'maxConcurrentLocalActivityExecutions'
-    | 'maxConcurrentWorkflowTaskExecutions'
-    | 'maxConcurrentNexusTaskExecutions'
-    | 'maxConcurrentActivityTaskPolls'
-    | 'maxConcurrentWorkflowTaskPolls'
-    | 'maxConcurrentNexusTaskPolls'
-    | 'workflowTaskPollerBehavior'
-    | 'activityTaskPollerBehavior'
-    | 'nexusTaskPollerBehavior'
-    | 'nonStickyToStickyPollRatio'
-    | 'maxHeartbeatThrottleInterval'
-    | 'defaultHeartbeatThrottleInterval'
-    | 'debugMode'
-    | 'enableNonLocalActivities'
-    | 'maxActivitiesPerSecond'
-    | 'maxTaskQueueActivitiesPerSecond'
-    | 'maxEagerActivityReservationsPerWorkflowTask'
-    | 'stickyQueueScheduleToStartTimeout'
-    | 'maxCachedWorkflows'
-    | 'useVersioning'
-    | 'patchActivationCallback'
-  > {
+export interface ReplayWorkerOptions extends Omit<
+  WorkerOptions,
+  | 'connection'
+  | 'namespace'
+  | 'taskQueue'
+  | 'activities'
+  | 'nexusServices'
+  | 'tuner'
+  | 'maxConcurrentActivityTaskExecutions'
+  | 'maxConcurrentLocalActivityExecutions'
+  | 'maxConcurrentWorkflowTaskExecutions'
+  | 'maxConcurrentNexusTaskExecutions'
+  | 'maxConcurrentActivityTaskPolls'
+  | 'maxConcurrentWorkflowTaskPolls'
+  | 'maxConcurrentNexusTaskPolls'
+  | 'workflowTaskPollerBehavior'
+  | 'activityTaskPollerBehavior'
+  | 'nexusTaskPollerBehavior'
+  | 'nonStickyToStickyPollRatio'
+  | 'maxHeartbeatThrottleInterval'
+  | 'defaultHeartbeatThrottleInterval'
+  | 'debugMode'
+  | 'enableNonLocalActivities'
+  | 'maxActivitiesPerSecond'
+  | 'maxTaskQueueActivitiesPerSecond'
+  | 'maxEagerActivityReservationsPerWorkflowTask'
+  | 'stickyQueueScheduleToStartTimeout'
+  | 'maxCachedWorkflows'
+  | 'useVersioning'
+  | 'patchActivationCallback'
+> {
   /**
    *  A optional name for this replay worker. It will be combined with an incremental ID to form a unique
    *  task queue for the replay worker.
@@ -817,7 +838,7 @@ export type WorkflowBundleOption =
   | WorkflowBundle
   | WorkflowBundleWithSourceMap
   | WorkflowBundlePath
-  | WorkflowBundlePathWithSourceMap; // eslint-disable-line @typescript-eslint/no-deprecated
+  | WorkflowBundlePathWithSourceMap; // oxlint-disable-line typescript/no-deprecated
 
 export function isCodeBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt is WorkflowBundle {
   const opt = bundleOpt as any; // Cast to access properties without TS complaining
@@ -866,7 +887,7 @@ export function appendDefaultInterceptors(
   interceptors: WorkerInterceptors,
   logger?: Logger | undefined
 ): WorkerInterceptors {
-  if (!logger || logger === Runtime.instance().logger) return interceptors;
+  if (!logger || Runtime.instance().isRuntimeLogger(logger)) return interceptors;
 
   return {
     activityInbound: [(ctx) => new ActivityInboundLogInterceptor(ctx, logger), ...(interceptors.activityInbound ?? [])],
@@ -884,7 +905,7 @@ function compileWorkerInterceptors({
 }: Required<WorkerInterceptors>): CompiledWorkerInterceptors {
   return {
     client: {
-      workflow: client?.workflow ?? [],
+      workflow: withNexusWorkflowSerializationContext(client?.workflow ?? []),
       schedule: client?.schedule ?? [],
       activity: withNexusActivityLinking(client?.activity ?? []),
     },
@@ -932,17 +953,21 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
      */
     isolateExecutionTimeout: Duration;
 
-    workflowTaskPollerBehavior: Required<PollerBehavior>;
-    activityTaskPollerBehavior: Required<PollerBehavior>;
-    nexusTaskPollerBehavior: Required<PollerBehavior>;
+    workflowTaskPollerBehavior?: Required<PollerBehavior>;
+    activityTaskPollerBehavior?: Required<PollerBehavior>;
+    nexusTaskPollerBehavior?: Required<PollerBehavior>;
   };
 
 /**
  * {@link WorkerOptions} where the attributes the Worker requires are required and time units are converted from ms
  * formatted strings to numbers.
  */
-export interface CompiledWorkerOptions
-  extends Omit<WorkerOptionsWithDefaults, 'interceptors' | 'activities' | 'nexusServices' | 'tuner'> {
+export interface CompiledWorkerOptions extends Omit<
+  WorkerOptionsWithDefaults,
+  'interceptors' | 'activities' | 'nexusServices' | 'tuner' | 'payloadCache'
+> {
+  /** Shared payload cache for this Worker, or `false` when payload caching is disabled. */
+  payloadCache: PayloadCache | false;
   interceptors: CompiledWorkerInterceptors;
   shutdownGraceTimeMs: number;
   shutdownForceTimeMs?: number;
@@ -1052,9 +1077,18 @@ function addDefaultWorkerOptions(
             maximum: behavior.maximum ?? 100,
           };
 
-  const wftPollerBehavior = createPollerBehavior(maxWFTPolls, workflowTaskPollerBehavior);
-  const atPollerBehavior = createPollerBehavior(maxATPolls, activityTaskPollerBehavior);
-  const nexusPollerBehavior = createPollerBehavior(maxNexusTaskPolls, nexusTaskPollerBehavior);
+  const wftPollerBehavior =
+    workflowTaskPollerBehavior !== undefined || options.maxConcurrentWorkflowTaskPolls !== undefined
+      ? createPollerBehavior(maxWFTPolls, workflowTaskPollerBehavior)
+      : undefined;
+  const atPollerBehavior =
+    activityTaskPollerBehavior !== undefined || options.maxConcurrentActivityTaskPolls !== undefined
+      ? createPollerBehavior(maxATPolls, activityTaskPollerBehavior)
+      : undefined;
+  const nexusPollerBehavior =
+    nexusTaskPollerBehavior !== undefined || options.maxConcurrentNexusTaskPolls !== undefined
+      ? createPollerBehavior(maxNexusTaskPolls, nexusTaskPollerBehavior)
+      : undefined;
 
   return {
     namespace: namespace ?? 'default',
@@ -1147,8 +1181,12 @@ export function compileWorkerOptions(
 
   const tuner = asNativeTuner(opts.tuner, logger);
 
+  const payloadCache = opts.payloadCache ? withPayloadCacheMetrics(opts.payloadCache, metricMeter) : false;
+  const loadedDataConverter = loadDataConverter(opts.dataConverter);
+
   return {
     ...opts,
+    payloadCache,
     interceptors: compileWorkerInterceptors(opts.interceptors),
     shutdownGraceTimeMs: msToNumber(opts.shutdownGraceTime),
     shutdownForceTimeMs: msOptionalToNumber(opts.shutdownForceTime),
@@ -1156,7 +1194,7 @@ export function compileWorkerOptions(
     isolateExecutionTimeoutMs: msToNumber(opts.isolateExecutionTimeout),
     maxHeartbeatThrottleIntervalMs: msToNumber(opts.maxHeartbeatThrottleInterval),
     defaultHeartbeatThrottleIntervalMs: msToNumber(opts.defaultHeartbeatThrottleInterval),
-    loadedDataConverter: loadDataConverter(opts.dataConverter),
+    loadedDataConverter,
     activities,
     nexusServiceHandlers: nexusServiceHandlersFromOptions(opts),
     enableNonLocalActivities: opts.enableNonLocalActivities && activities.size > 0,
@@ -1213,9 +1251,15 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
     namespace: opts.namespace,
     tuner: opts.tuner,
     nonStickyToStickyPollRatio: opts.nonStickyToStickyPollRatio,
-    workflowTaskPollerBehavior: toNativeTaskPollerBehavior(opts.workflowTaskPollerBehavior),
-    activityTaskPollerBehavior: toNativeTaskPollerBehavior(opts.activityTaskPollerBehavior),
-    nexusTaskPollerBehavior: toNativeTaskPollerBehavior(opts.nexusTaskPollerBehavior),
+    workflowTaskPollerBehavior: opts.workflowTaskPollerBehavior
+      ? toNativeTaskPollerBehavior(opts.workflowTaskPollerBehavior)
+      : null,
+    activityTaskPollerBehavior: opts.activityTaskPollerBehavior
+      ? toNativeTaskPollerBehavior(opts.activityTaskPollerBehavior)
+      : null,
+    nexusTaskPollerBehavior: opts.nexusTaskPollerBehavior
+      ? toNativeTaskPollerBehavior(opts.nexusTaskPollerBehavior)
+      : null,
     taskTypes: {
       enableWorkflows,
       enableLocalActivities,
@@ -1230,7 +1274,7 @@ export function toNativeWorkerOptions(opts: CompiledWorkerOptionsWithBuildId): n
     maxActivitiesPerSecond: opts.maxActivitiesPerSecond ?? null,
     maxEagerActivityReservationsPerWorkflowTask: opts.maxEagerActivityReservationsPerWorkflowTask ?? 3,
     shutdownGraceTime: msToNumber(opts.shutdownGraceTime),
-    plugins: opts.plugins?.map((p) => p.name) ?? [],
+    plugins: opts.plugins?.map((p) => ({ name: p.name, version: p.version ?? '' })) ?? [],
     storageDrivers: [...new Set((opts.loadedDataConverter.externalStorage?.drivers ?? []).map((d) => d.type))],
     workflowFailureErrors,
     workflowTypesToFailureErrors,
@@ -1301,6 +1345,11 @@ export interface WorkerPlugin {
    * Gets the name of this plugin.
    */
   get name(): string;
+
+  /**
+   * The version of this plugin, reported in worker heartbeats. Empty when not set.
+   */
+  readonly version?: string;
 
   /**
    * Hook called when creating a worker to allow modification of configuration.

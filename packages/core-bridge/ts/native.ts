@@ -138,6 +138,7 @@ export interface ClientOptions {
   httpConnectProxy: Option<HttpConnectProxy>;
   dnsLoadBalancingConfig: Option<DnsLoadBalancingConfig>;
   grpcCompression: GrpcCompressionConfig;
+  keepAlive: Option<KeepAliveConfig>;
   headers: Option<Record<string, MetadataValue>>;
   apiKey: Option<string>;
   disableErrorCodeMetricTags: boolean;
@@ -171,6 +172,11 @@ export interface HttpConnectProxyBasicAuth {
 
 export interface DnsLoadBalancingConfig {
   resolutionIntervalMillis: number;
+}
+
+export interface KeepAliveConfig {
+  interval: number;
+  timeout: number;
 }
 
 export type GrpcCompressionConfig = GzipGrpcCompressionConfig | NoneGrpcCompressionConfig;
@@ -248,9 +254,9 @@ export interface WorkerOptions {
   namespace: string;
   tuner: WorkerTunerOptions;
   nonStickyToStickyPollRatio: number;
-  workflowTaskPollerBehavior: PollerBehavior;
-  activityTaskPollerBehavior: PollerBehavior;
-  nexusTaskPollerBehavior: PollerBehavior;
+  workflowTaskPollerBehavior: Option<PollerBehavior>;
+  activityTaskPollerBehavior: Option<PollerBehavior>;
+  nexusTaskPollerBehavior: Option<PollerBehavior>;
   taskTypes: {
     enableWorkflows: boolean;
     enableLocalActivities: boolean;
@@ -265,7 +271,7 @@ export interface WorkerOptions {
   maxActivitiesPerSecond: Option<number>;
   maxEagerActivityReservationsPerWorkflowTask: number;
   shutdownGraceTime: number;
-  plugins: string[];
+  plugins: { name: string; version: string }[];
   storageDrivers: string[];
   workflowFailureErrors: WorkflowErrorType[];
   workflowTypesToFailureErrors: Record<string, WorkflowErrorType[]>;
@@ -428,6 +434,7 @@ export interface TimeSkippingServerConfig {
   exe: EphemeralServerExecutableConfig;
   port: Option<number>;
   extraArgs: string[];
+  startupTimeout: Option<number>;
 }
 
 export interface DevServerConfig {
@@ -441,6 +448,7 @@ export interface DevServerConfig {
   ui: boolean;
   log: DevServerLogConfig;
   extraArgs: string[];
+  startupTimeout: Option<number>;
 }
 
 export interface DevServerLogConfig {

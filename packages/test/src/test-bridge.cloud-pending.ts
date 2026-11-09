@@ -1,5 +1,5 @@
 import { setTimeout } from 'node:timers/promises';
-import ms from 'ms';
+import { ms } from 'ms';
 import test from 'ava';
 import { native, errors } from '@temporalio/core-bridge';
 
@@ -270,6 +270,7 @@ const GenericConfigs = {
       httpConnectProxy: null,
       dnsLoadBalancingConfig: null,
       grpcCompression: { codec: 'gzip' },
+      keepAlive: { interval: 30_000, timeout: 15_000 },
       headers: null,
       apiKey: null,
       disableErrorCodeMetricTags: false,
@@ -361,6 +362,7 @@ const GenericConfigs = {
       dbFilename: null,
       log: { format: 'text', level: 'warn' },
       extraArgs: [],
+      startupTimeout: null,
     } satisfies native.EphemeralServerConfig,
   },
 } as const;

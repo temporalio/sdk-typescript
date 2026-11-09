@@ -1,9 +1,9 @@
-/* eslint-disable no-empty */
+/* oxlint-disable no-empty */
 // Modified from: https://github.com/vercel/next.js/blob/2425f4703c4c6164cecfdb6aa8f80046213f0cc6/packages/create-next-app/helpers/git.ts
 import { execSync } from 'node:child_process';
 import { rm } from 'node:fs/promises';
 import path from 'node:path';
-// eslint-disable-next-line import/no-named-as-default
+// oxlint-disable-next-line import/no-named-as-default
 import prompts from 'prompts';
 
 const NOT_A_GIT_REPOSITORY_STATUS_CODE = 128;

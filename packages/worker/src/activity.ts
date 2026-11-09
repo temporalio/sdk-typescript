@@ -5,6 +5,7 @@ import type {
   ActivityFunction,
   ActivitySerializationContext,
   LoadedDataConverter,
+  NexusSerializationContext,
   Logger,
   MetricMeter,
   MetricTags,
@@ -68,7 +69,11 @@ export class Activity {
     public readonly info: Info,
     public readonly fn: ActivityFunction<any[], any> | undefined,
     public readonly dataConverter: LoadedDataConverter,
-    public readonly serializationContext: ActivitySerializationContext,
+    /**
+     * Context for the Activity's result and failures. A standalone Activity started by a Nexus
+     * operation handler uses the handler's Nexus context, because these go back to the Nexus caller.
+     */
+    public readonly serializationContext: ActivitySerializationContext | NexusSerializationContext,
     public readonly outputTypeInfo: TypeInfo | undefined,
     public readonly heartbeatCallback: Context['heartbeat'],
     private readonly _client: Client | undefined, // May be undefined in the case of MockActivityEnvironment
@@ -95,7 +100,9 @@ export class Activity {
       this.heartbeatCallback,
       this._client,
       // This is the activity context logger, to be used exclusively from user code
-      LoggerWithComposedMetadata.compose(this.workerLogger, { sdkComponent: SdkComponent.activity }),
+      LoggerWithComposedMetadata.compose(this.workerLogger, {
+        sdkComponent: SdkComponent.activity,
+      }),
       this.metricMeter,
       this.cancellationDetails
     );
@@ -155,17 +162,23 @@ export class Activity {
         this.context.cancellationSignal.aborted
       ) {
         if (this.context.cancellationDetails?.cancelRequested) {
-          this.workerLogger.debug('Activity completed as cancelled', { durationMs });
+          this.workerLogger.debug('Activity completed as cancelled', {
+            durationMs,
+          });
         } else if (this.context.cancellationDetails?.reset) {
           this.workerLogger.debug('Activity reset', { durationMs });
         } else if (this.context.cancellationDetails?.paused) {
           this.workerLogger.debug('Activity paused', { durationMs });
         } else {
           // Fallback log - completed as cancelled.
-          this.workerLogger.debug('Activity completed as cancelled', { durationMs });
+          this.workerLogger.debug('Activity completed as cancelled', {
+            durationMs,
+          });
         }
       } else if (error instanceof CompleteAsyncError) {
-        this.workerLogger.debug('Activity will complete asynchronously', { durationMs });
+        this.workerLogger.debug('Activity will complete asynchronously', {
+          durationMs,
+        });
       } else {
         if (error instanceof ApplicationFailure && error.category === ApplicationFailureCategory.BENIGN) {
           // Downgrade log level to DEBUG for benign application errors.
@@ -246,7 +259,11 @@ export class Activity {
               return { cancelled: { failure } };
             }
           } else if (isAbortError(err)) {
-            return { cancelled: { failure: { source: FAILURE_SOURCE, canceledFailureInfo: {} } } };
+            return {
+              cancelled: {
+                failure: { source: FAILURE_SOURCE, canceledFailureInfo: {} },
+              },
+            };
           }
         }
         return {

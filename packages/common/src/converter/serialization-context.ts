@@ -45,6 +45,38 @@ export interface ActivitySerializationContext {
 }
 
 /**
+ * Context provided to data converters for payloads of a Nexus operation.
+ *
+ * Callers receive this context when encoding inputs and decoding results or failures. Handlers
+ * receive it when decoding inputs, encoding synchronous results, and encoding failures raised
+ * while handling a Nexus task.
+ *
+ * Workflows and standalone Activities started by a handler receive this context through the
+ * server and use it for the payloads returned to the caller: results, failures, and standalone
+ * Activity heartbeat details. Clients decode these with the context the server returns. See
+ * `ActivityInfo.nexusSerializationContext` for asynchronous Activity completion.
+ *
+ * A standalone operation handle decodes with the context the server returns, falling back to the
+ * context of its start request on older servers.
+ *
+ * A failure encoded by a handler is later decoded by a caller, and some operation paths lack this
+ * context entirely. Contextual encodings must therefore be self-describing, and decoders must keep
+ * accepting payloads encoded without context.
+ *
+ * @experimental Nexus serialization context is an experimental feature and may change.
+ */
+export interface NexusSerializationContext {
+  /** Always `'nexus'` for Nexus operation payloads. */
+  type: 'nexus';
+  /** Nexus endpoint name. */
+  endpoint: string;
+  /** Nexus service name. */
+  service: string;
+  /** Nexus operation name. */
+  operation: string;
+}
+
+/**
  * Context passed to payload and failure converters.
  *
  * The context describes the workflow or activity whose payload is being converted.
@@ -55,14 +87,23 @@ export interface ActivitySerializationContext {
  *
  * @experimental Serialization context is an experimental feature and may change.
  */
-export type SerializationContext = WorkflowSerializationContext | ActivitySerializationContext;
+export type SerializationContext =
+  | WorkflowSerializationContext
+  | ActivitySerializationContext
+  | NexusSerializationContext;
 
 /** @internal */
 // Consumed through the internal-non-workflow package entry point.
-// ts-prune-ignore-next
 export function isSerializationContext(value: unknown): value is SerializationContext {
   if (value == null || typeof value !== 'object') return false;
   const context = value as Record<string, unknown>;
+  if (context.type === 'nexus') {
+    return (
+      typeof context.endpoint === 'string' &&
+      typeof context.service === 'string' &&
+      typeof context.operation === 'string'
+    );
+  }
   if (typeof context.namespace !== 'string') return false;
   if (context.type === 'workflow') return typeof context.workflowId === 'string';
   return (
@@ -71,4 +112,23 @@ export function isSerializationContext(value: unknown): value is SerializationCo
     (context.activityId == null || typeof context.activityId === 'string') &&
     (context.workflowId == null || typeof context.workflowId === 'string')
   );
+}
+
+/**
+ * Converts the Nexus serialization context the server propagates on executions started by a Nexus
+ * operation handler.
+ *
+ * @internal
+ */
+// Consumed through the internal-workflow package entry point.
+export function nexusSerializationContextFromProto(
+  context: { endpoint?: string | null; service?: string | null; operation?: string | null } | null | undefined
+): NexusSerializationContext | undefined {
+  if (context == null) return undefined;
+  return {
+    type: 'nexus',
+    endpoint: context.endpoint ?? '',
+    service: context.service ?? '',
+    operation: context.operation ?? '',
+  };
 }

@@ -11,9 +11,11 @@ import type {
   Workflow,
   WorkflowResultType,
   WorkflowIdConflictPolicy,
+  SerializationContext,
   WorkflowSerializationContext,
   WorkflowTypeOptions,
   PayloadTypeInfo,
+  OutputTypeInfo,
   TypeInfo,
   WorkflowQueryOptions,
   WorkflowSignalOptions,
@@ -42,8 +44,8 @@ import {
   encodeMapToPayloads,
   encodeToPayloadsWithContext,
   encodeUserMetadata,
-  extstoreInboundOptions,
-  extstoreStoreOptions,
+  externalStorageRetrieveVisitOptions,
+  externalStorageStoreVisitOptions,
   visit,
   walkDescribeWorkflowExecutionResponse,
   walkExecuteMultiOperationRequest,
@@ -60,12 +62,14 @@ import {
   walkUpdateWorkflowExecutionRequest,
   walkUpdateWorkflowExecutionResponse,
 } from '@temporalio/common/internal/internal-non-workflow';
-import type { History } from '@temporalio/common/lib/proto-utils';
+import type { History } from '@temporalio/common/proto-utils';
 import {
   composeInterceptors,
   encodeUnifiedSearchAttributes,
   filterNullAndUndefined,
+  nexusSerializationContextFromProto,
   SymbolBasedInstanceOfError,
+  type Replace,
 } from '@temporalio/common/internal/internal-workflow';
 import { temporal } from '@temporalio/proto';
 import {
@@ -81,6 +85,8 @@ import type {
   WorkflowClientInterceptor,
   WorkflowClientInterceptors,
   WorkflowDescribeInput,
+  WorkflowFetchHistoryInput,
+  WorkflowListInput,
   WorkflowQueryInput,
   WorkflowSignalInput,
   WorkflowSignalWithStartInput,
@@ -318,8 +324,9 @@ export interface WorkflowHandleWithFirstExecutionRunId<T extends Workflow = Work
  * This interface is exactly the same as {@link WorkflowHandleWithFirstExecutionRunId} except it
  * includes the `eagerlyStarted` returned from {@link WorkflowClient.start}.
  */
-export interface WorkflowHandleWithStartDetails<T extends Workflow = Workflow>
-  extends WorkflowHandleWithFirstExecutionRunId<T> {
+export interface WorkflowHandleWithStartDetails<
+  T extends Workflow = Workflow,
+> extends WorkflowHandleWithFirstExecutionRunId<T> {
   readonly eagerlyStarted: boolean;
 }
 
@@ -382,7 +389,7 @@ function ensureArgs<W extends Workflow, T extends WorkflowStartOptions<W>>(
 /**
  * Options for getting a result of a Workflow execution.
  */
-export interface WorkflowResultOptions {
+export interface WorkflowResultOptions<R = any> {
   /**
    * If set to true, instructs the client to follow the chain of execution before returning a Workflow's result.
    *
@@ -401,13 +408,18 @@ export interface WorkflowResultOptions {
    *
    * @experimental
    */
-  typeInfo?: PayloadTypeInfo;
+  typeInfo?: Replace<PayloadTypeInfo, OutputTypeInfo<R>>;
 }
 
 /**
  * Options for {@link WorkflowClient.getHandle}
  */
-export interface GetWorkflowHandleOptions extends WorkflowResultOptions {
+export interface GetWorkflowHandleOptions<R = any> extends WorkflowResultOptions<R> {
+  /**
+   * Workflow definitions are accepted through {@link WorkflowHandleDefinitionOptions}.
+   */
+  workflow?: never;
+
   /**
    * ID of the first execution in the Workflow execution chain.
    *
@@ -417,6 +429,14 @@ export interface GetWorkflowHandleOptions extends WorkflowResultOptions {
    */
   firstExecutionRunId?: string;
 }
+
+/**
+ * Options for getting a Workflow handle using a Workflow definition.
+ */
+export type WorkflowHandleDefinitionOptions<T extends Workflow> = Replace<
+  GetWorkflowHandleOptions<WorkflowResultType<T>>,
+  { workflow: T; typeInfo?: never }
+>;
 
 interface WorkflowHandleOptions extends GetWorkflowHandleOptions {
   workflowId: string;
@@ -577,6 +597,7 @@ export class WorkflowClient extends BaseClient {
       ...defaultWorkflowClientOptions(),
       ...filterNullAndUndefined(options ?? {}),
       loadedDataConverter: this.dataConverter,
+      payloadCache: this.payloadCache,
     };
   }
 
@@ -937,15 +958,31 @@ export class WorkflowClient extends BaseClient {
       historyEventFilterType: temporal.api.enums.v1.HistoryEventFilterType.HISTORY_EVENT_FILTER_TYPE_CLOSE_EVENT,
     };
     let ev: temporal.api.history.v1.IHistoryEvent;
+    // A Workflow started by a Nexus operation handler encodes its result and closing failure with the
+    // handler's Nexus context. The server returns it with the first page of each run's history, and
+    // may omit it from later pages.
+    let closeEventContext: SerializationContext = context;
 
     for (;;) {
       let res: temporal.api.workflowservice.v1.GetWorkflowExecutionHistoryResponse;
-      const externalStorage = this.dataConverter.externalStorage;
       try {
         res = await this.workflowService.getWorkflowExecutionHistory(req);
-        await visit(res, walkGetWorkflowExecutionHistoryResponse, extstoreInboundOptions(externalStorage));
+        await visit(
+          res,
+          walkGetWorkflowExecutionHistoryResponse,
+          externalStorageRetrieveVisitOptions({
+            externalStorage: this.dataConverter.externalStorage,
+            payloadCache: this.payloadCache,
+          })
+        );
       } catch (err) {
         this.rethrowGrpcError(err, 'Failed to get Workflow execution history', { workflowId, runId });
+      }
+      const serverContext = nexusSerializationContextFromProto(res.propagatedNexusSerializationContext);
+      if (serverContext != null) {
+        closeEventContext = serverContext;
+      } else if (!req.nextPageToken?.length) {
+        closeEventContext = context;
       }
       const events = res.history?.events;
 
@@ -971,7 +1008,7 @@ export class WorkflowClient extends BaseClient {
           dataConverter,
           0,
           ev.workflowExecutionCompletedEventAttributes.result?.payloads,
-          context,
+          closeEventContext,
           opts?.typeInfo?.outputType as TypeInfo<WorkflowResultType<T>, unknown> | undefined
         );
         return result;
@@ -984,7 +1021,7 @@ export class WorkflowClient extends BaseClient {
         const { failure, retryState } = ev.workflowExecutionFailedEventAttributes;
         throw new WorkflowFailedError(
           'Workflow execution failed',
-          await decodeOptionalFailureToOptionalError(dataConverter, failure, context),
+          await decodeOptionalFailureToOptionalError(dataConverter, failure, closeEventContext),
           decodeRetryState(retryState)
         );
       } else if (ev.workflowExecutionCanceledEventAttributes) {
@@ -993,7 +1030,7 @@ export class WorkflowClient extends BaseClient {
           await decodeArrayFromPayloads(
             dataConverter,
             ev.workflowExecutionCanceledEventAttributes.details?.payloads,
-            context
+            closeEventContext
           )
         );
         failure.stack = '';
@@ -1099,24 +1136,33 @@ export class WorkflowClient extends BaseClient {
         header: { fields: input.headers },
       },
     };
-    const externalStorage = this.dataConverter.externalStorage;
     let response: temporal.api.workflowservice.v1.QueryWorkflowResponse;
     try {
+      const externalStorage = this.dataConverter.externalStorage;
       if (externalStorage) {
         await visit(
           req,
           walkQueryWorkflowRequest,
-          extstoreStoreOptions(externalStorage, {
+          externalStorageStoreVisitOptions({
+            externalStorage,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
               id: input.workflowExecution.workflowId ?? undefined,
             },
+            payloadCache: this.payloadCache,
           })
         );
       }
       response = await this.workflowService.queryWorkflow(req);
-      await visit(response, walkQueryWorkflowResponse, extstoreInboundOptions(externalStorage));
+      await visit(
+        response,
+        walkQueryWorkflowResponse,
+        externalStorageRetrieveVisitOptions({
+          externalStorage: this.dataConverter.externalStorage,
+          payloadCache: this.payloadCache,
+        })
+      );
     } catch (err) {
       if (isGrpcServiceError(err)) {
         rethrowKnownErrorTypes(err);
@@ -1204,23 +1250,24 @@ export class WorkflowClient extends BaseClient {
         : UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED;
 
     const request = await this._createUpdateWorkflowRequest(waitForStageProto, input);
-    const externalStorage = this.dataConverter.externalStorage;
-
     // Repeatedly send UpdateWorkflowExecution until update is durable (if the server receives a request with
     // an update ID that already exists, it responds with information for the existing update). If the
     // requested wait stage is COMPLETED, further polling is done before returning the UpdateHandle.
     let response: temporal.api.workflowservice.v1.UpdateWorkflowExecutionResponse;
     try {
+      const externalStorage = this.dataConverter.externalStorage;
       if (externalStorage) {
         await visit(
           request,
           walkUpdateWorkflowExecutionRequest,
-          extstoreStoreOptions(externalStorage, {
+          externalStorageStoreVisitOptions({
+            externalStorage,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
               id: input.workflowExecution.workflowId ?? undefined,
             },
+            payloadCache: this.payloadCache,
           })
         );
       }
@@ -1229,7 +1276,14 @@ export class WorkflowClient extends BaseClient {
       } while (
         response.stage < UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED
       );
-      await visit(response, walkUpdateWorkflowExecutionResponse, extstoreInboundOptions(externalStorage));
+      await visit(
+        response,
+        walkUpdateWorkflowExecutionResponse,
+        externalStorageRetrieveVisitOptions({
+          externalStorage: this.dataConverter.externalStorage,
+          payloadCache: this.payloadCache,
+        })
+      );
     } catch (err) {
       this.rethrowUpdateGrpcError(err, 'Workflow Update failed', input.workflowExecution);
     }
@@ -1307,19 +1361,28 @@ export class WorkflowClient extends BaseClient {
         await visit(
           multiOpReq,
           walkExecuteMultiOperationRequest,
-          extstoreStoreOptions(externalStorage, {
+          externalStorageStoreVisitOptions({
+            externalStorage,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
               id: input.workflowStartOptions.workflowId,
               type: input.workflowType,
             },
+            payloadCache: this.payloadCache,
           })
         );
       }
       do {
         multiOpResp = await this.workflowService.executeMultiOperation(multiOpReq);
-        await visit(multiOpResp, walkExecuteMultiOperationResponse, extstoreInboundOptions(externalStorage));
+        await visit(
+          multiOpResp,
+          walkExecuteMultiOperationResponse,
+          externalStorageRetrieveVisitOptions({
+            externalStorage: this.dataConverter.externalStorage,
+            payloadCache: this.payloadCache,
+          })
+        );
         startResp = multiOpResp.responses?.[0]
           ?.startWorkflow as temporal.api.workflowservice.v1.IStartWorkflowExecutionResponse;
         if (!seenStart) {
@@ -1416,8 +1479,14 @@ export class WorkflowClient extends BaseClient {
     for (;;) {
       try {
         const response = await this.workflowService.pollWorkflowExecutionUpdate(req);
-        const externalStorage = this.dataConverter.externalStorage;
-        await visit(response, walkPollWorkflowExecutionUpdateResponse, extstoreInboundOptions(externalStorage));
+        await visit(
+          response,
+          walkPollWorkflowExecutionUpdateResponse,
+          externalStorageRetrieveVisitOptions({
+            externalStorage: this.dataConverter.externalStorage,
+            payloadCache: this.payloadCache,
+          })
+        );
         if (response.outcome) {
           return response.outcome;
         }
@@ -1441,7 +1510,7 @@ export class WorkflowClient extends BaseClient {
       identity: this.options.identity,
       namespace: this.options.namespace,
       workflowExecution: input.workflowExecution,
-      requestId: randomUUID(),
+      requestId: internalOptions?.requestId ?? randomUUID(),
       // control is unused,
       signalName: input.signalName,
       header: { fields: input.headers },
@@ -1456,12 +1525,14 @@ export class WorkflowClient extends BaseClient {
         await visit(
           req,
           walkSignalWorkflowExecutionRequest,
-          extstoreStoreOptions(externalStorage, {
+          externalStorageStoreVisitOptions({
+            externalStorage,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
               id: input.workflowExecution.workflowId,
             },
+            payloadCache: this.payloadCache,
           })
         );
       }
@@ -1490,7 +1561,7 @@ export class WorkflowClient extends BaseClient {
     const req: temporal.api.workflowservice.v1.ISignalWithStartWorkflowExecutionRequest = {
       namespace: this.options.namespace,
       identity,
-      requestId: randomUUID(),
+      requestId: internalOptions?.requestId ?? randomUUID(),
       workflowId: options.workflowId,
       workflowIdReusePolicy: encodeWorkflowIdReusePolicy(options.workflowIdReusePolicy),
       workflowIdConflictPolicy: encodeWorkflowIdConflictPolicy(options.workflowIdConflictPolicy),
@@ -1531,13 +1602,15 @@ export class WorkflowClient extends BaseClient {
         await visit(
           req,
           walkSignalWithStartWorkflowExecutionRequest,
-          extstoreStoreOptions(externalStorage, {
+          externalStorageStoreVisitOptions({
+            externalStorage,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
               id: req.workflowId ?? undefined,
               type: workflowType,
             },
+            payloadCache: this.payloadCache,
           })
         );
       }
@@ -1576,13 +1649,15 @@ export class WorkflowClient extends BaseClient {
         await visit(
           req,
           walkStartWorkflowExecutionRequest,
-          extstoreStoreOptions(externalStorage, {
+          externalStorageStoreVisitOptions({
+            externalStorage,
             initialTarget: {
               kind: 'workflow',
               namespace: req.namespace ?? this.options.namespace,
               id: req.workflowId ?? undefined,
               type: workflowType,
             },
+            payloadCache: this.payloadCache,
           })
         );
       }
@@ -1685,12 +1760,14 @@ export class WorkflowClient extends BaseClient {
         await visit(
           req,
           walkTerminateWorkflowExecutionRequest,
-          extstoreStoreOptions(externalStorage, {
+          externalStorageStoreVisitOptions({
+            externalStorage,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
               id: input.workflowExecution.workflowId ?? undefined,
             },
+            payloadCache: this.payloadCache,
           })
         );
       }
@@ -1730,12 +1807,40 @@ export class WorkflowClient extends BaseClient {
         namespace: this.options.namespace,
         execution: input.workflowExecution,
       });
-      const externalStorage = this.dataConverter.externalStorage;
-      await visit(response, walkDescribeWorkflowExecutionResponse, extstoreInboundOptions(externalStorage));
+      await visit(
+        response,
+        walkDescribeWorkflowExecutionResponse,
+        externalStorageRetrieveVisitOptions({
+          externalStorage: this.dataConverter.externalStorage,
+          payloadCache: this.payloadCache,
+        })
+      );
       return response;
     } catch (err) {
       this.rethrowGrpcError(err, 'Failed to describe workflow', input.workflowExecution);
     }
+  }
+
+  /**
+   * Uses given input to make getWorkflowExecutionHistory call(s) to the service
+   *
+   * Used as the final function of the fetchHistory interceptor chain
+   */
+  protected async _fetchHistoryHandler(input: WorkflowFetchHistoryInput): Promise<History> {
+    let nextPageToken: Uint8Array | undefined = undefined;
+    const events = Array<temporal.api.history.v1.IHistoryEvent>();
+    for (;;) {
+      const response: temporal.api.workflowservice.v1.GetWorkflowExecutionHistoryResponse =
+        await this.workflowService.getWorkflowExecutionHistory({
+          nextPageToken,
+          namespace: this.options.namespace,
+          execution: input.workflowExecution,
+        });
+      events.push(...(response.history?.events ?? []));
+      nextPageToken = response.nextPageToken;
+      if (nextPageToken == null || nextPageToken.length === 0) break;
+    }
+    return temporal.api.history.v1.History.create({ events });
   }
 
   /**
@@ -1887,20 +1992,11 @@ export class WorkflowClient extends BaseClient {
         };
       },
       async fetchHistory() {
-        let nextPageToken: Uint8Array | undefined = undefined;
-        const events = Array<temporal.api.history.v1.IHistoryEvent>();
-        for (;;) {
-          const response: temporal.api.workflowservice.v1.GetWorkflowExecutionHistoryResponse =
-            await this.client.workflowService.getWorkflowExecutionHistory({
-              nextPageToken,
-              namespace: this.client.options.namespace,
-              execution: { workflowId, runId },
-            });
-          events.push(...(response.history?.events ?? []));
-          nextPageToken = response.nextPageToken;
-          if (nextPageToken == null || nextPageToken.length === 0) break;
-        }
-        return temporal.api.history.v1.History.create({ events });
+        const next = this.client._fetchHistoryHandler.bind(this.client);
+        const fn = composeInterceptors(interceptors, 'fetchHistory', next);
+        return await fn({
+          workflowExecution: { workflowId, runId },
+        });
       },
       async startUpdate<Ret, Args extends any[]>(
         def: UpdateDefinition<Ret, Args> | string,
@@ -1976,9 +2072,21 @@ export class WorkflowClient extends BaseClient {
    */
   public getHandle<T extends Workflow>(
     workflowId: string,
+    runId: string | undefined,
+    options: WorkflowHandleDefinitionOptions<T>
+  ): WorkflowHandle<T>;
+  public getHandle<T extends Workflow>(
+    workflowId: string,
     runId?: string,
-    options?: GetWorkflowHandleOptions
+    options?: GetWorkflowHandleOptions<WorkflowResultType<T>>
+  ): WorkflowHandle<T>;
+  public getHandle<T extends Workflow>(
+    workflowId: string,
+    runId?: string,
+    options?: Replace<GetWorkflowHandleOptions, { workflow?: Workflow }>
   ): WorkflowHandle<T> {
+    const typeInfo =
+      options?.typeInfo ?? (options?.workflow ? extractWorkflowTypeAndConfig(options.workflow).typeInfo : undefined);
     const interceptors = this.getOrMakeInterceptors(workflowId, runId);
 
     return this._createWorkflowHandle({
@@ -1988,23 +2096,29 @@ export class WorkflowClient extends BaseClient {
       runIdForResult: runId ?? options?.firstExecutionRunId,
       interceptors,
       followRuns: options?.followRuns ?? true,
-      typeInfo: options?.typeInfo,
+      typeInfo,
     });
   }
 
-  protected async *_list(options?: ListOptions): AsyncIterable<WorkflowExecutionInfo> {
+  protected async *_list(input: WorkflowListInput): AsyncIterable<WorkflowExecutionInfo> {
     let nextPageToken: Uint8Array = Buffer.alloc(0);
     for (;;) {
       let response: temporal.api.workflowservice.v1.ListWorkflowExecutionsResponse;
-      const externalStorage = this.dataConverter.externalStorage;
       try {
         response = await this.workflowService.listWorkflowExecutions({
           namespace: this.options.namespace,
-          query: options?.query,
+          query: input.query,
           nextPageToken,
-          pageSize: options?.pageSize,
+          pageSize: input.pageSize,
         });
-        await visit(response, walkListWorkflowExecutionsResponse, extstoreInboundOptions(externalStorage));
+        await visit(
+          response,
+          walkListWorkflowExecutionsResponse,
+          externalStorageRetrieveVisitOptions({
+            externalStorage: this.dataConverter.externalStorage,
+            payloadCache: this.payloadCache,
+          })
+        );
       } catch (e) {
         this.rethrowGrpcError(e, 'Failed to list workflows', undefined);
       }
@@ -2028,16 +2142,29 @@ export class WorkflowClient extends BaseClient {
    * https://docs.temporal.io/visibility
    */
   public list(options?: ListOptions): AsyncWorkflowListIterable {
+    const input: WorkflowListInput = {
+      query: options?.query,
+      pageSize: options?.pageSize,
+    };
+    // Deprecated interceptor factories require a workflowId and are skipped for client-level list.
+    const interceptors = Array.isArray(this.options.interceptors) ? this.options.interceptors : [];
+    const list = composeInterceptors(interceptors, 'list', this._list.bind(this));
+    const interceptedList: AsyncIterable<WorkflowExecutionInfo> = {
+      [Symbol.asyncIterator]: () => list(input)[Symbol.asyncIterator](),
+    };
     return {
-      [Symbol.asyncIterator]: () => this._list(options)[Symbol.asyncIterator](),
+      [Symbol.asyncIterator]: () => interceptedList[Symbol.asyncIterator](),
       intoHistories: (intoHistoriesOptions?: IntoHistoriesOptions) => {
         return mapAsyncIterable(
-          this._list(options),
+          interceptedList,
           async ({ workflowId, runId }) => ({
             workflowId,
             history: await this.getHandle(workflowId, runId).fetchHistory(),
           }),
-          { concurrency: intoHistoriesOptions?.concurrency ?? 5 }
+          {
+            concurrency: intoHistoriesOptions?.concurrency ?? 5,
+            bufferLimit: intoHistoriesOptions?.bufferLimit,
+          }
         );
       },
     };
@@ -2068,7 +2195,7 @@ export class WorkflowClient extends BaseClient {
 
   protected getOrMakeInterceptors(workflowId: string, runId?: string): WorkflowClientInterceptor[] {
     if (typeof this.options.interceptors === 'object' && 'calls' in this.options.interceptors) {
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      // oxlint-disable-next-line typescript/no-deprecated
       const factories = (this.options.interceptors as WorkflowClientInterceptors).calls ?? [];
       return factories.map((ctor) => ctor({ workflowId, runId }));
     }

@@ -99,7 +99,7 @@ test('NativeConnection.connect() throws meaningful error when passed invalid cli
 if (RUN_INTEGRATION_TESTS) {
   test('NativeConnection errors have detail', async (t) => {
     await t.throwsAsync(() => NativeConnection.connect({ address: '127.0.0.1:1' }), {
-      instanceOf: TransportError, // eslint-disable-line @typescript-eslint/no-deprecated
+      instanceOf: TransportError, // oxlint-disable-line typescript/no-deprecated
       message: /.*Connection[ ]?refused.*/i,
     });
   });
@@ -497,6 +497,22 @@ test('NativeConnection: DNS load balancing config is converted to native millise
 test('NativeConnection: gRPC compression defaults to gzip', (t) => {
   const options = toNativeClientOptions({});
   t.deepEqual(options.grpcCompression, { codec: 'gzip' });
+});
+
+test('NativeConnection: keepalive defaults to enabled', (t) => {
+  t.deepEqual(toNativeClientOptions({}).keepAlive, { interval: 30_000, timeout: 15_000 });
+  t.deepEqual(toNativeClientOptions({ keepAlive: undefined }).keepAlive, { interval: 30_000, timeout: 15_000 });
+});
+
+test('NativeConnection: keepalive can be disabled', (t) => {
+  t.is(toNativeClientOptions({ keepAlive: false }).keepAlive, null);
+});
+
+test('NativeConnection: keepalive durations are converted to native milliseconds', (t) => {
+  t.deepEqual(toNativeClientOptions({ keepAlive: { interval: '5s', timeout: 1234 } }).keepAlive, {
+    interval: 5000,
+    timeout: 1234,
+  });
 });
 
 test('NativeConnection: gRPC compression can be disabled', (t) => {

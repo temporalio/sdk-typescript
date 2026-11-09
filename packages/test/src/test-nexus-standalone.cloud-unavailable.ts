@@ -280,7 +280,9 @@ test('standalone Nexus worker retrieves External Storage references nested in a 
   // Store the small nested payloads through a zero-threshold storage sharing the worker's driver, so the
   // worker itself does not offload its (empty) operation result.
   const offloadEverything = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 });
-  const [inputReference, signalReference] = await new ExternalStorageRunner(offloadEverything).store([
+  const [inputReference, signalReference] = await new ExternalStorageRunner(offloadEverything, {
+    payloadCache: false,
+  }).store([
     stringManglingPayloadConverter.toPayload('workflow-input'),
     stringManglingPayloadConverter.toPayload('signal-input'),
   ]);
@@ -359,7 +361,7 @@ test('TypeInfo hydrates standalone start input and retained handle result', asyn
   });
 });
 
-test('Detached standalone Nexus handle hydrates result using output TypeInfo', async (t) => {
+test('Detached standalone Nexus handles hydrate results using explicit and definition TypeInfo', async (t) => {
   const { createWorker, registerNexusEndpoint } = helpers(t);
   const { endpointName } = await registerNexusEndpoint();
   const worker = await createWorker({ nexusServices: [makeStandaloneTypeInfoHandler()] });
@@ -374,13 +376,19 @@ test('Detached standalone Nexus handle hydrates result using output TypeInfo', a
       { id, scheduleToCloseTimeout: '10s' }
     );
 
-    const detached = client.nexus.getHandle<Receipt>(id, {
+    const explicitHandle = client.nexus.getHandle<Receipt>(id, {
       runId: handle.runId,
       typeInfo: { outputType: receiptTypeInfo },
     });
-    const result = await detached.result();
-    assertReceipt(result);
-    t.is(result.summary(), 'order-1:42');
+    assertReceipt(await explicitHandle.result());
+
+    const definitionHandle = client.nexus.getHandle(id, {
+      operation: standaloneTypeInfoService.operations.convert,
+      runId: handle.runId,
+    });
+    const definitionResult = await definitionHandle.result();
+    assertReceipt(definitionResult);
+    t.is(definitionResult.summary(), 'order-1:42');
   });
 });
 

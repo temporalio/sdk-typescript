@@ -1,10 +1,11 @@
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import type vm from 'node:vm';
+import vm from 'node:vm';
 import type { ExecutionContext, TestFn } from 'ava';
 import anyTest from 'ava';
 import dedent from 'dedent';
 import Long from 'long';
-import type { Logger, Payload } from '@temporalio/common';
+import type { Logger, Payload, VersioningOverride } from '@temporalio/common';
 import {
   ApplicationFailure,
   defaultFailureConverter,
@@ -15,7 +16,7 @@ import {
 } from '@temporalio/common';
 import { msToTs } from '@temporalio/common/time';
 import { coresdk, temporal } from '@temporalio/proto';
-import { sleep as workflowSleep, type WorkflowInfo } from '@temporalio/workflow';
+import { sleep as workflowSleep, type EnhancedStackTrace, type WorkflowInfo } from '@temporalio/workflow';
 import { bundleWorkflowCode, DefaultLogger, LogTimestamp, type LogEntry } from '@temporalio/worker';
 import {
   invokePatchActivationCallback,
@@ -47,6 +48,7 @@ export interface Context {
 const test = anyTest as TestFn<Context>;
 
 function injectCustomConsole(logsGetter: (runId: string) => unknown[][], context: vm.Context) {
+  vm.runInContext('if (typeof Temporal !== "undefined") Temporal.Now.unsupported = () => 0;', context);
   context.console = {
     log(...args: unknown[]) {
       const { runId } = context.__TEMPORAL_ACTIVATOR__.info;
@@ -609,6 +611,43 @@ test('throwAsync', async (t) => {
     ])
   );
 });
+
+// Bun does not apply the bundle's source map to Workflow stack traces.
+(isBun ? test.skip : test)('stack trace paths preserve special characters: throwWithSpecialCharacters', async (t) => {
+  const completion = cleanWorkflowFailureStackTrace(await activate(t, makeStartWorkflow(t.context.workflowType)));
+  compareCompletion(
+    t,
+    completion,
+    makeSuccess([
+      makeFailWorkflowExecution(
+        'failure',
+        dedent`
+          ApplicationFailure: failure
+              at $CLASS.nonRetryable (common/src/failure.ts)
+              at throwWithSpecialCharacters (test/src/workflows/throw é %41.ts)
+        `
+      ),
+    ])
+  );
+});
+
+// Bun does not support the promise hooks used to capture Workflow stack traces.
+(isBun ? test.skip : test)(
+  'enhanced stack trace paths preserve special characters: sleepWithSpecialCharacters',
+  async (t) => {
+    await activate(t, makeStartWorkflow(t.context.workflowType));
+    const completion = await activate(t, makeQueryWorkflow('stack', '__enhanced_stack_trace', []));
+    const response = completion.successful!.commands![0].respondToQuery!.succeeded!.response!;
+    const { stacks, sources } = defaultPayloadConverter.fromPayload<EnhancedStackTrace>(response);
+    const sourcePath = path.resolve(__dirname, '../src/workflows/throw é %41.ts');
+
+    const location = stacks
+      .flatMap((stack) => stack.locations)
+      .find((location) => location.function_name === 'sleepWithSpecialCharacters');
+    t.is(location?.file_path, sourcePath);
+    t.deepEqual(sources[sourcePath], [{ line_offset: 0, content: readFileSync(sourcePath, 'utf8') }]);
+  }
+);
 
 test('date', async (t) => {
   const { startTime, logs, workflowType } = t.context;
@@ -1527,6 +1566,77 @@ test('childAndNonCancellable', async (t) => {
   }
 });
 
+const childDeploymentVersion = { deploymentName: 'deployment', buildId: 'build' };
+const childVersioningOverrides: {
+  name: string;
+  override: VersioningOverride | undefined;
+  proto: temporal.api.workflow.v1.IVersioningOverride | undefined;
+}[] = [
+  { name: 'none', override: undefined, proto: undefined },
+  {
+    name: 'pinned',
+    override: { pinnedTo: childDeploymentVersion },
+    proto: { pinned: { version: childDeploymentVersion, behavior: 1 } },
+  },
+  { name: 'auto-upgrade', override: 'AUTO_UPGRADE', proto: { autoUpgrade: true } },
+  {
+    name: 'one-time',
+    override: { oneTimeTo: childDeploymentVersion },
+    proto: { oneTime: { targetDeploymentVersion: childDeploymentVersion } },
+  },
+];
+
+for (const useStartChild of [false, true]) {
+  const api = useStartChild ? 'startChild' : 'executeChild';
+  for (const { name, override, proto } of childVersioningOverrides) {
+    test(`${api} encodes ${name} childWorkflowVersioningOverride`, async (t) => {
+      const completion = await activate(
+        t,
+        makeStartWorkflow(t.context.workflowType, toPayloads(defaultPayloadConverter, override, useStartChild))
+      );
+      t.is(completion.successful?.commands?.length, 1);
+      const command = completion.successful!.commands![0].startChildWorkflowExecution!;
+      t.is(command.workflowId, 'child-workflow');
+      t.is(command.workflowType, 'successString');
+      const encoded = command.versioningOverride
+        ? temporal.api.workflow.v1.VersioningOverride.create(command.versioningOverride).toJSON()
+        : undefined;
+      const expected = proto ? temporal.api.workflow.v1.VersioningOverride.create(proto).toJSON() : undefined;
+      t.deepEqual(encoded, expected);
+    });
+  }
+
+  test(`${api} rejects invalid override with a typed error childWorkflowVersioningOverride`, async (t) => {
+    await activate(
+      t,
+      makeStartWorkflow(
+        t.context.workflowType,
+        toPayloads(defaultPayloadConverter, { pinnedTo: childDeploymentVersion }, useStartChild)
+      )
+    );
+    const completion = await activate(
+      t,
+      makeActivation(Date.now(), {
+        resolveChildWorkflowExecutionStart: {
+          seq: 1,
+          failed: {
+            cause:
+              coresdk.child_workflow.StartChildWorkflowExecutionFailedCause
+                .START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_INVALID_VERSIONING_OVERRIDE,
+            workflowId: 'child-workflow',
+            workflowType: 'successString',
+          },
+        },
+      })
+    );
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload('invalid versioning override'))])
+    );
+  });
+}
+
 test('partialNonCancellable', async (t) => {
   const { workflowType, logs } = t.context;
   {
@@ -1824,16 +1934,23 @@ test('resolve activity with failure - http', async (t) => {
 
 test('globalOverrides', async (t) => {
   const { workflowType, logs } = t.context;
+  const now = 12345;
   {
-    const completion = await activate(t, makeStartWorkflow(workflowType));
+    const completion = await activate(t, makeStartWorkflow(workflowType, undefined, now));
     compareCompletion(t, completion, makeSuccess());
   }
-  t.deepEqual(
-    logs,
-    ['WeakRef' /* First error happens on startup */, 'FinalizationRegistry', 'WeakRef'].map((type) => [
-      `DeterminismViolationError: ${type} cannot be used in Workflows because v8 GC is non-deterministic`,
-    ])
-  );
+  const expectedLogs: unknown[][] = [
+    'WeakRef' /* First error happens on startup */,
+    'FinalizationRegistry',
+    'WeakRef',
+  ].map((type) => [
+    `DeterminismViolationError: ${type} cannot be used in Workflows because v8 GC is non-deterministic`,
+  ]);
+  if ((globalThis as any).Temporal !== undefined) {
+    expectedLogs.push([now], [now], ['1970-01-01T00:00:12.345'], ['1970-01-01'], ['00:00:12.345']);
+    expectedLogs.push(['DeterminismViolationError: Temporal.Now.unsupported is not supported in Workflows']);
+  }
+  t.deepEqual(logs, expectedLogs);
 });
 
 test('logAndTimeout', async (t) => {

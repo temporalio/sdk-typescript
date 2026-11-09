@@ -1,0 +1,1 @@
+Workflow stack traces no longer percent-encode source paths that contain spaces or non-ASCII characters. `source-map` 0.7.5 and later encode the paths they return, so the Worker now escapes `%` in source names and decodes what comes back.

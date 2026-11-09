@@ -596,15 +596,18 @@ test('TemporalOperationHandler default cancelWorkflowRun cancels backing workflo
   const { createWorker, startWorkflow, registerNexusEndpoint } = helpers(t);
   const { endpointName } = await registerNexusEndpoint();
   const targetWorkflowId = randomUUID();
+  const [targetWorkflowStarted, markTargetWorkflowStarted] = createDeferred();
 
   const worker = await createWorker({
     nexusServices: [
       makeTemporalCancelOpServiceHandler({
         blockingOp: new temporalnexus.TemporalOperationHandler<string, void>({
           async start(_ctx, client, workflowId) {
-            return await client.startWorkflow(blockingTargetWorkflow, {
+            const handle = await client.startWorkflow(blockingTargetWorkflow, {
               workflowId,
             });
+            markTargetWorkflowStarted();
+            return handle;
           },
         }),
       }),
@@ -616,10 +619,7 @@ test('TemporalOperationHandler default cancelWorkflowRun cancels backing workflo
       args: [endpointName, targetWorkflowId],
     });
 
-    await waitUntil(
-      async () => !!(await callerHandle.fetchHistory()).events?.some((ev) => ev.nexusOperationStartedEventAttributes),
-      4000
-    );
+    await targetWorkflowStarted;
 
     const targetHandle = t.context.env.client.workflow.getHandle(targetWorkflowId);
     t.is((await targetHandle.describe()).status.name, 'RUNNING');
