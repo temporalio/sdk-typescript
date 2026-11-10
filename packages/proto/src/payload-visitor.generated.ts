@@ -1836,6 +1836,8 @@ export function walkPayloadsInMessage<Ctx>(root: object, env: WalkEnv<Ctx>, cont
       return [];
     case 'coresdk.activity_task.Cancel':
       return [];
+    case 'coresdk.activity_task.WorkflowTaskAttempt':
+      return [];
     case 'coresdk.ActivitySlotInfo':
       return [];
     case 'coresdk.common.ExternalStorageMetrics':
