@@ -2,11 +2,14 @@ import type * as nexus from 'nexus-rpc';
 import type {
   Duration,
   OutputTypeInfo,
+  RawValue,
   SearchAttributePair,
   SearchAttributeType,
+  TypeInfo,
   TypedSearchAttributes,
 } from '@temporalio/common';
 import { makeProtoEnumConverters, type Replace } from '@temporalio/common/internal/internal-workflow';
+import type { OnCompleteRequest, OnCompleteResponse } from '@temporalio/common/nexus';
 import type { temporal } from '@temporalio/proto';
 
 /**
@@ -389,7 +392,7 @@ export interface NexusOperationExecutionCountGroup {
  * Options for starting a standalone Nexus operation via
  * {@link NexusServiceClient.startOperation} or {@link NexusServiceClient.executeOperation}.
  */
-export interface StartNexusOperationOptions {
+export interface StartNexusOperationOptions<O = any> {
   /**
    * Caller-side identifier for this operation. Must be unique among operations in the
    * same namespace, subject to {@link idReusePolicy} and {@link idConflictPolicy}.
@@ -438,6 +441,101 @@ export interface StartNexusOperationOptions {
    * Useful for propagating tracing information.
    */
   headers?: Record<string, string>;
+
+  /**
+   * Callbacks that report the outcome of the operation. Create them with {@link createCompletionCallback}.
+   * Each callback must accept the output type of the operation.
+   *
+   * @experimental Nexus Handler Callbacks are experimental.
+   */
+  completionCallbacks?: readonly CompletionCallback<O>[];
+}
+
+declare const completionCallbackOutput: unique symbol;
+
+/**
+ * Callback that reports the outcome of a standalone Nexus operation to an on-complete operation.
+ * Create callbacks with {@link createCompletionCallback}.
+ *
+ * `O` is the source operation output type that the callback accepts.
+ *
+ * @experimental Nexus Handler Callbacks are experimental.
+ */
+export interface CompletionCallback<in O = unknown> {
+  /** Name of the on-complete service. */
+  readonly service: string;
+  /** Name of the on-complete operation. */
+  readonly operation: string;
+  /** Task queue of the Worker that runs the on-complete operation. */
+  readonly taskQueue: string;
+  /**
+   * Value that the on-complete operation receives with the outcome.
+   * The client encodes it with the serialization context of the source operation.
+   */
+  readonly sourceContext: unknown;
+  /** Type information for converting {@link sourceContext}. */
+  readonly sourceContextType?: TypeInfo<any, any>;
+  // Type-only member so callbacks for different output types are not interchangeable.
+  readonly [completionCallbackOutput]?: (output: O) => void;
+}
+
+/**
+ * Create a callback that reports the outcome of a standalone Nexus operation.
+ *
+ * When the source operation finishes, the server calls the on-complete operation on a Worker for `taskQueue` with
+ * the result or failure and `sourceContext`. Delivery can repeat, so make the on-complete operation idempotent.
+ *
+ * The on-complete operation must take {@link OnCompleteRequest} and return {@link OnCompleteResponse}, with
+ * `inputType` set to `createOnCompleteRequestTransferTypeConverter()` and `outputType` to
+ * `onCompleteResponseTransferTypeConverter` from `@temporalio/nexus/notifications`. Pass the input converter's
+ * `sourceContextT`, if any, as `sourceContextType`.
+ *
+ * Pass definitions to check the source operation's output type, or names to skip the check. An on-complete
+ * operation that receives `RawValue` accepts any output; its converter needs `outputT: rawValueTypeInfo`.
+ *
+ * @experimental Nexus Handler Callbacks are experimental.
+ */
+export function createCompletionCallback<C>(options: {
+  service: nexus.ServiceDefinition;
+  operation: nexus.OperationDefinition<OnCompleteRequest<RawValue, C>, OnCompleteResponse>;
+  taskQueue: string;
+  sourceContext: NoInfer<C>;
+  sourceContextType?: TypeInfo<NoInfer<C>, any>;
+}): CompletionCallback;
+export function createCompletionCallback<O, C>(options: {
+  service: nexus.ServiceDefinition;
+  operation: nexus.OperationDefinition<OnCompleteRequest<O, C>, OnCompleteResponse>;
+  taskQueue: string;
+  sourceContext: NoInfer<C>;
+  sourceContextType?: TypeInfo<NoInfer<C>, any>;
+}): CompletionCallback<O>;
+export function createCompletionCallback(options: {
+  service: string;
+  operation: string;
+  taskQueue: string;
+  sourceContext: unknown;
+  sourceContextType?: TypeInfo<any, any>;
+}): CompletionCallback;
+export function createCompletionCallback(options: {
+  service: string | nexus.ServiceDefinition;
+  operation: string | nexus.OperationDefinition<any, any>;
+  taskQueue: string;
+  sourceContext: unknown;
+  sourceContextType?: TypeInfo<any, any>;
+}): CompletionCallback {
+  const { service, operation, taskQueue, sourceContext, sourceContextType } = options;
+  const serviceName = typeof service === 'string' ? service : service.name;
+  const operationName = typeof operation === 'string' ? operation : operation.name;
+  if (
+    typeof service !== 'string' &&
+    !Object.values(service.operations).includes(operation as nexus.OperationDefinition<any, any>)
+  ) {
+    throw new TypeError(`Operation ${operationName} is not an operation of service ${service.name}`);
+  }
+  if (!serviceName || !operationName || !taskQueue) {
+    throw new TypeError('Service, operation, and task queue must not be empty');
+  }
+  return { service: serviceName, operation: operationName, taskQueue, sourceContext, sourceContextType };
 }
 
 /**
