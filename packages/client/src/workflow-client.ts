@@ -11,6 +11,7 @@ import type {
   Workflow,
   WorkflowResultType,
   WorkflowIdConflictPolicy,
+  NexusSerializationContext,
   SerializationContext,
   WorkflowSerializationContext,
   WorkflowTypeOptions,
@@ -377,6 +378,19 @@ function assertRequiredWorkflowOptions(opts: WorkflowOptions): asserts opts is W
   if (!opts.workflowId) {
     throw new TypeError('Missing WorkflowOptions.workflowId');
   }
+}
+
+/**
+ * Serialization context the server returned with an Update outcome, if not the Workflow's. An
+ * Update sent by a Nexus operation handler encodes its outcome with the handler's Nexus context.
+ */
+function outcomeSerializationContext(response: {
+  outcome?: temporal.api.update.v1.IOutcome | null;
+  propagatedNexusSerializationContext?: temporal.api.nexus.v1.IPropagatedSerializationContext | null;
+}): NexusSerializationContext | undefined {
+  return response.outcome != null
+    ? nexusSerializationContextFromProto(response.propagatedNexusSerializationContext)
+    : undefined;
 }
 
 function ensureArgs<W extends Workflow, T extends WorkflowStartOptions<W>>(
@@ -900,11 +914,12 @@ export class WorkflowClient extends BaseClient {
     const updateOutput = await fn(startUpdateWithStartInput);
 
     let outcome = updateOutput.updateOutcome;
+    let outcomeContext = updateOutput.updateOutcomeSerializationContext;
     if (!outcome && waitForStage === WorkflowUpdateStage.COMPLETED) {
-      outcome = await this._pollForUpdateOutcome(updateOutput.updateId, {
+      ({ outcome, context: outcomeContext } = await this.pollForUpdateOutcomeWithContext(updateOutput.updateId, {
         workflowId,
         runId: updateOutput.workflowExecution.runId,
-      });
+      }));
     }
 
     return this.createWorkflowUpdateHandle(
@@ -912,7 +927,8 @@ export class WorkflowClient extends BaseClient {
       workflowId,
       updateOutput.workflowExecution.runId,
       outcome,
-      updateOutput.updateOutputTypeInfo
+      updateOutput.updateOutputTypeInfo,
+      outcomeContext
     );
   }
 
@@ -1227,6 +1243,7 @@ export class WorkflowClient extends BaseClient {
         requestId: internalOptions?.requestId,
         completionCallbacks: internalOptions?.completionCallbacks,
         links: internalOptions?.links,
+        propagatedNexusSerializationContext: internalOptions?.propagatedNexusSerializationContext,
       },
     };
   }
@@ -1301,6 +1318,7 @@ export class WorkflowClient extends BaseClient {
 
       workflowRunId: response.updateRef!.workflowExecution!.runId!,
       outcome: response.outcome ?? undefined,
+      outcomeSerializationContext: outcomeSerializationContext(response),
       outputTypeInfo: input.typeInfo?.outputType,
     };
   }
@@ -1402,6 +1420,7 @@ export class WorkflowClient extends BaseClient {
         },
         updateId: updateRequest.request!.meta!.updateId!,
         updateOutcome: updateResp.outcome ?? undefined,
+        updateOutcomeSerializationContext: outcomeSerializationContext(updateResp),
         updateOutputTypeInfo: input.updateTypeInfo?.outputType,
       };
     } catch (thrownError) {
@@ -1429,17 +1448,23 @@ export class WorkflowClient extends BaseClient {
     workflowId: string,
     workflowRunId?: string,
     outcome?: temporal.api.update.v1.IOutcome,
-    outputTypeInfo?: TypeInfo
+    outputTypeInfo?: TypeInfo,
+    outcomeContext?: NexusSerializationContext
   ): WorkflowUpdateHandle<Ret> {
     const dataConverter = this.dataConverter;
-    const context = this.workflowSerializationContext(workflowId);
+    const workflowContext = this.workflowSerializationContext(workflowId);
     return {
       updateId,
       workflowId,
       workflowRunId,
       result: async () => {
-        const completedOutcome =
-          outcome ?? (await this._pollForUpdateOutcome(updateId, { workflowId, runId: workflowRunId }));
+        const completed =
+          outcome != null
+            ? { outcome, context: outcomeContext }
+            : await this.pollForUpdateOutcomeWithContext(updateId, { workflowId, runId: workflowRunId });
+        const completedOutcome = completed.outcome;
+        // An Update sent by a Nexus operation handler encodes its outcome with the handler's context
+        const context = completed.context ?? workflowContext;
         if (completedOutcome.failure) {
           throw new WorkflowUpdateFailedError(
             'Workflow Update failed',
@@ -1468,6 +1493,17 @@ export class WorkflowClient extends BaseClient {
     updateId: string,
     workflowExecution: temporal.api.common.v1.IWorkflowExecution
   ): Promise<temporal.api.update.v1.IOutcome> {
+    return (await this.pollForUpdateOutcomeWithContext(updateId, workflowExecution)).outcome;
+  }
+
+  /**
+   * Poll Update until a response with an outcome is received; return that outcome and the
+   * serialization context it was encoded with, if not the Workflow's.
+   */
+  private async pollForUpdateOutcomeWithContext(
+    updateId: string,
+    workflowExecution: temporal.api.common.v1.IWorkflowExecution
+  ): Promise<{ outcome: temporal.api.update.v1.IOutcome; context?: NexusSerializationContext }> {
     const req: temporal.api.workflowservice.v1.IPollWorkflowExecutionUpdateRequest = {
       namespace: this.options.namespace,
       updateRef: { workflowExecution, updateId },
@@ -1488,7 +1524,7 @@ export class WorkflowClient extends BaseClient {
           })
         );
         if (response.outcome) {
-          return response.outcome;
+          return { outcome: response.outcome, context: outcomeSerializationContext(response) };
         }
       } catch (err) {
         const wE = typeof workflowExecution.workflowId === 'string' ? workflowExecution : undefined;
@@ -1893,7 +1929,8 @@ export class WorkflowClient extends BaseClient {
         input.workflowExecution.workflowId,
         output.workflowRunId,
         output.outcome,
-        output.outputTypeInfo
+        output.outputTypeInfo,
+        output.outcomeSerializationContext
       );
       if (!output.outcome && waitForStage === WorkflowUpdateStage.COMPLETED) {
         await this._pollForUpdateOutcome(handle.updateId, input.workflowExecution);
