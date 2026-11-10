@@ -1,0 +1,92 @@
+name: Release Publish
+
+# Runs when a person publishes the draft GitHub Release. Downloads the tarballs
+# attached to that release and publishes any that are not already on npm.
+#
+# The filename of this workflow is part of the npm trusted-publisher identity.
+# npm matches `release-publish.yml` exactly. Do not rename it, and do not move
+# `npm publish` into a reusable workflow.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-publish-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout the release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+
+      - name: Fetch release branches
+        run: git fetch origin main 'refs/heads/releases/*:refs/remotes/origin/releases/*'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+        with:
+          version: '10'
+          run_install: false
+
+      - name: Set up Node
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Upgrade npm
+        run: npm install -g npm@11
+
+      - name: Download release tarballs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "${{ github.event.release.tag_name }}" --dir dist --pattern '*.tgz'
+
+      - name: Publish missing packages
+        run: pnpm tsx scripts/release-publish.ts --tag "${{ github.event.release.tag_name }}" --tarballs dist --sha "${{ github.sha }}"
+
+  smoke:
+    name: Install from npm
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout the release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+        with:
+          version: '10'
+          run_install: false
+
+      - name: Set up Node
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Install and load the published packages
+        run: pnpm tsx scripts/release-smoke.ts --version "${{ github.event.release.tag_name }}"
