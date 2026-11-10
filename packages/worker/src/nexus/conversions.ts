@@ -64,7 +64,7 @@ export async function decodePayload(
   let decoded: Payload | undefined | null;
   try {
     decoded = isSystemPayload
-      ? await decodeSystemNexus(dataConverter, payload, codecHeaders)
+      ? await decodeSystemNexus(dataConverter, payload, context, codecHeaders)
       : await decodeOptionalSingle(dataConverter.payloadCodecs, payload, context);
   } catch (err) {
     if (isPayloadValidationFailure(err)) {
@@ -84,7 +84,7 @@ export async function decodePayload(
 
   try {
     return isSystemPayload
-      ? fromSystemNexusPayload(decoded, dataConverter, typeInfo)
+      ? fromSystemNexusPayload(decoded, dataConverter, typeInfo, context)
       : fromPayloadWithTypeInfo(dataConverter.payloadConverter, decoded, context, typeInfo);
   } catch (err) {
     if (isPayloadValidationFailure(err)) {
@@ -104,6 +104,7 @@ export async function decodePayload(
 async function decodeSystemNexus(
   dataConverter: LoadedDataConverter,
   payload: Payload,
+  context: NexusSerializationContext | undefined,
   codecHeaders: boolean
 ): Promise<Payload> {
   const messageType = systemNexusRequestType(payload);
@@ -123,10 +124,12 @@ async function decodeSystemNexus(
 
   if (dataConverter.payloadCodecs.length === 0) return payload;
   await visit(message, walkPayloadsInMessage, {
-    transformPayload: async (nestedPayload, context) =>
-      (await decode(dataConverter.payloadCodecs, [nestedPayload], context))[0]!,
-    transformPayloads: (nestedPayloads, context) => decode(dataConverter.payloadCodecs, nestedPayloads, context),
-    initialContext: undefined,
+    transformPayload: async (nestedPayload, nestedContext) =>
+      (await decode(dataConverter.payloadCodecs, [nestedPayload], nestedContext))[0]!,
+    transformPayloads: (nestedPayloads, nestedContext) =>
+      decode(dataConverter.payloadCodecs, nestedPayloads, nestedContext),
+    // The request doesn't identify the source operation, so nested payloads use the handler operation's context.
+    initialContext: context,
     skipHeaders: !codecHeaders,
     skipSearchAttributes: true,
   });
