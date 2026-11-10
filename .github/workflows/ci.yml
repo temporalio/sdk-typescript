@@ -529,6 +529,7 @@ jobs:
     needs:
       - compile-native-binaries-debug
       - integration-tests
+      - cloud-integration-tests
       - typescript-compatibility
       - conventions
       - features-tests
