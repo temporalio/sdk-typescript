@@ -34,7 +34,7 @@ test('store leaves payloads inline when below the threshold', async (t) => {
   });
   const smallPayload = makePayload(8);
 
-  const result = await runner.store([smallPayload]);
+  const result = await runner.store([smallPayload], { namespace: 'ns' });
 
   t.is(driver.storeCalls.length, 0);
   t.deepEqual(result, [smallPayload]);
@@ -47,7 +47,7 @@ test('store offloads payloads above the threshold', async (t) => {
   });
   const bigPayload = makePayload(128);
 
-  const result = await runner.store([bigPayload]);
+  const result = await runner.store([bigPayload], { namespace: 'ns' });
 
   t.is(driver.storeCalls.length, 1);
   t.is(driver.storeCalls[0]!.payloads.length, 1);
@@ -61,7 +61,7 @@ test('store with payloadSizeThreshold=0 stores every payload', async (t) => {
   });
   const tinyPayload = makePayload(0);
 
-  const result = await runner.store([tinyPayload, tinyPayload]);
+  const result = await runner.store([tinyPayload, tinyPayload], { namespace: 'ns' });
 
   t.is(driver.storeCalls.length, 1);
   t.is(driver.storeCalls[0]!.payloads.length, 2);
@@ -78,10 +78,10 @@ test('store batches all payloads in a single store request', async (t) => {
   const payloadA = makePayload(2);
   const payloadB = makePayload(3);
 
-  await runner.store([payloadA, payloadB]);
+  await runner.store([payloadA, payloadB], { namespace: 'ns' });
   t.is(driver.storeCalls.length, 1);
-  await runner.store([payloadA]);
-  await runner.store([payloadB]);
+  await runner.store([payloadA], { namespace: 'ns' });
+  await runner.store([payloadB], { namespace: 'ns' });
   t.is(driver.storeCalls.length, 3);
 });
 
@@ -100,7 +100,7 @@ test('store selector routes to the chosen driver and groups by name', async (t) 
   const oddPayload = makePayload(3);
   const evenPayloadB = makePayload(4);
 
-  await runner.store([evenPayloadA, oddPayload, evenPayloadB]);
+  await runner.store([evenPayloadA, oddPayload, evenPayloadB], { namespace: 'ns' });
 
   t.is(driverA.storeCalls[0]!.payloads.length, 2); // evenPayloadA, evenPayloadB
   t.is(driverB.storeCalls[0]!.payloads.length, 1); // oddPayload
@@ -118,7 +118,7 @@ test('store selector returning null leaves the payload inline', async (t) => {
   );
 
   const originalPayload = makePayload(64);
-  const result = await runner.store([originalPayload]);
+  const result = await runner.store([originalPayload], { namespace: 'ns' });
 
   t.is(driver.storeCalls.length, 0);
   t.deepEqual(result, [originalPayload]);
@@ -136,7 +136,7 @@ test('store throws ExternalStorageUnregisteredDriverError when selector returns 
     { payloadCache: false }
   );
 
-  await t.throwsAsync(() => runner.store([makePayload(1)]), {
+  await t.throwsAsync(() => runner.store([makePayload(1)], { namespace: 'ns' }), {
     instanceOf: ExternalStorageUnregisteredDriverError,
   });
 });
@@ -148,7 +148,7 @@ test('store wraps driver errors in ExternalStorageDriverError', async (t) => {
     payloadCache: false,
   });
 
-  const err = await t.throwsAsync(() => runner.store([makePayload(1)]), {
+  const err = await t.throwsAsync(() => runner.store([makePayload(1)], { namespace: 'ns' }), {
     instanceOf: ExternalStorageDriverError,
   });
   t.is(err?.cause, boom);
@@ -160,7 +160,7 @@ test('store raises ExternalStorageReferenceError on claim arity mismatch', async
     payloadCache: false,
   });
 
-  await t.throwsAsync(() => runner.store([makePayload(1)]), {
+  await t.throwsAsync(() => runner.store([makePayload(1)], { namespace: 'ns' }), {
     instanceOf: ExternalStorageReferenceError,
   });
 });
@@ -191,11 +191,11 @@ test('store aborts sibling drivers on first failure', async (t) => {
     { payloadCache: false }
   );
 
-  await t.throwsAsync(() => runner.store([makePayload(1), makePayload(2)]));
+  await t.throwsAsync(() => runner.store([makePayload(1), makePayload(2)], { namespace: 'ns' }));
   t.true(driverBAborted);
 });
 
-test('selector receives a select context carrying the store target', async (t) => {
+test('selector and driver receive the store target and the ambient namespace', async (t) => {
   const driver = makeFakeDriver({ name: 's3' });
   const seen: StorageDriverSelectContext[] = [];
   const target: StorageDriverTargetInfo = { kind: 'workflow', namespace: 'ns', id: 'wf-id', type: 'MyWorkflow' };
@@ -211,11 +211,13 @@ test('selector receives a select context carrying the store target', async (t) =
     { payloadCache: false }
   );
 
-  await runner.store([makePayload(8)], { target });
+  await runner.store([makePayload(8)], { namespace: 'worker-ns', target });
 
   t.is(seen.length, 1);
   t.deepEqual(seen[0]!.target, target);
+  t.is(seen[0]!.namespace, 'worker-ns');
   t.deepEqual(driver.storeCalls[0]!.context.target, target);
+  t.is(driver.storeCalls[0]!.context.namespace, 'worker-ns');
   t.not(seen[0] as unknown, driver.storeCalls[0]!.context as unknown);
 });
 
@@ -232,7 +234,7 @@ test('store/retrieve round-trip preserves order across drivers', async (t) => {
   );
 
   const inputPayloads = [makePayload(2), makePayload(3), makePayload(4), makePayload(5)];
-  const storedPayloads = await runner.store(inputPayloads);
+  const storedPayloads = await runner.store(inputPayloads, { namespace: 'ns' });
   t.true(storedPayloads.every(isReferencePayload));
 
   const retrievedPayloads = await runner.retrieve(storedPayloads);
@@ -247,6 +249,7 @@ test('store and retrieve report the same total size', async (t) => {
   const storedPayloads = await new ExternalStorageRunner(storage, { payloadCache: false }).store(
     [makePayload(64), makePayload(128)],
     {
+      namespace: 'ns',
       metrics: uploadMetrics,
     }
   );
@@ -270,7 +273,7 @@ test('retrieve raises ExternalStorageUnregisteredDriverError when the driver nam
     new ExternalStorage({ drivers: [writerDriver], payloadSizeThreshold: 0 }),
     { payloadCache: false }
   );
-  const storedPayloads = await writerRunner.store([makePayload(1)]);
+  const storedPayloads = await writerRunner.store([makePayload(1)], { namespace: 'ns' });
 
   const readerDriver = makeFakeDriver({ name: 'different-name' });
   const readerRunner = new ExternalStorageRunner(new ExternalStorage({ drivers: [readerDriver] }), {
@@ -291,7 +294,7 @@ test('retrieve raises ExternalStorageReferenceError on payload arity mismatch', 
     new ExternalStorage({ drivers: [writerDriver], payloadSizeThreshold: 0 }),
     { payloadCache: false }
   );
-  const storedPayloads = await writerRunner.store(payloadsToStore);
+  const storedPayloads = await writerRunner.store(payloadsToStore, { namespace: 'ns' });
 
   const readerDriver = makeFakeDriver({ name: 's3', onRetrieve: () => payloadsToRetrieve });
   const readerRunner = new ExternalStorageRunner(
@@ -311,7 +314,7 @@ test('retrieve wraps driver errors in ExternalStorageDriverError', async (t) => 
     new ExternalStorage({ drivers: [writerDriver], payloadSizeThreshold: 0 }),
     { payloadCache: false }
   );
-  const storedPayloads = await writerRunner.store([makePayload(1)]);
+  const storedPayloads = await writerRunner.store([makePayload(1)], { namespace: 'ns' });
 
   const readerDriver = makeFakeDriver({ name: 's3', onRetrieve: () => Promise.reject(boom) });
   const readerRunner = new ExternalStorageRunner(
@@ -334,7 +337,7 @@ test('retrieve only resolves reference payloads, passing others through', async 
   const offloaded = makePayload(1024);
   const inlineAfter = makePayload(8);
 
-  const storedPayloads = await runner.store([inlineBefore, offloaded, inlineAfter]);
+  const storedPayloads = await runner.store([inlineBefore, offloaded, inlineAfter], { namespace: 'ns' });
   t.false(isReferencePayload(storedPayloads[0]!));
   t.true(isReferencePayload(storedPayloads[1]!));
   t.false(isReferencePayload(storedPayloads[2]!));
@@ -364,7 +367,7 @@ test('retrieve batches multiple references to the same driver into one call', as
     payloadCache: false,
   });
 
-  const storedPayloads = await runner.store([makePayload(1), makePayload(2), makePayload(3)]);
+  const storedPayloads = await runner.store([makePayload(1), makePayload(2), makePayload(3)], { namespace: 'ns' });
   t.true(storedPayloads.every(isReferencePayload));
 
   const retrievedPayloads = await runner.retrieve(storedPayloads);
@@ -386,7 +389,7 @@ test('retrieve aborts sibling drivers on first failure', async (t) => {
     }),
     { payloadCache: false }
   );
-  const storedPayloads = await writerRunner.store([makePayload(2), makePayload(3)]);
+  const storedPayloads = await writerRunner.store([makePayload(2), makePayload(3)], { namespace: 'ns' });
 
   // Attempt to retrieve payloads. Reader A fails on retrieve.
   // Reader B just "waits" until it sees abort event.
@@ -485,8 +488,8 @@ test('maxDriverOperations is shared by every message using the same ExternalStor
   const firstMessage = new ExternalStorageRunner(externalStorage, { payloadCache: false });
   const secondMessage = new ExternalStorageRunner(externalStorage, { payloadCache: false });
   const stores = [
-    firstMessage.store([makePayload(8), makePayload(8), makePayload(8)]),
-    secondMessage.store([makePayload(8), makePayload(8), makePayload(8)]),
+    firstMessage.store([makePayload(8), makePayload(8), makePayload(8)], { namespace: 'ns' }),
+    secondMessage.store([makePayload(8), makePayload(8), makePayload(8)], { namespace: 'ns' }),
   ];
   await flush();
   t.is(gate.peak(), 3);
@@ -503,7 +506,7 @@ test('warns when a driver completes a store without taking a permit', async (t) 
     { payloadCache: false, logger }
   );
 
-  await runner.store([makePayload(8)]);
+  await runner.store([makePayload(8)], { namespace: 'ns' });
 
   t.is(warnings.length, 1);
   t.regex(warnings[0]!, /'s3' completed a store without taking a permit/);
@@ -515,7 +518,9 @@ test('warns when a driver completes a retrieve without taking a permit', async (
     drivers: [makeFakeDriver({ name: 's3' })],
     payloadSizeThreshold: 0,
   });
-  const references = await new ExternalStorageRunner(externalStorage, { payloadCache: false }).store([makePayload(8)]);
+  const references = await new ExternalStorageRunner(externalStorage, { payloadCache: false }).store([makePayload(8)], {
+    namespace: 'ns',
+  });
 
   await new ExternalStorageRunner(externalStorage, { payloadCache: false, logger }).retrieve(references);
 
@@ -539,7 +544,7 @@ test('does not warn when a driver takes a permit', async (t) => {
     logger,
   });
 
-  await runner.store([makePayload(8)]);
+  await runner.store([makePayload(8)], { namespace: 'ns' });
 
   t.deepEqual(warnings, []);
 });
@@ -570,7 +575,9 @@ test('maxOperationsPerMessage bounds concurrent operations within one message', 
     { payloadCache: false }
   );
 
-  const payloadSites = Array.from({ length: 4 }, () => runner.store([makePayload(8), makePayload(8), makePayload(8)]));
+  const payloadSites = Array.from({ length: 4 }, () =>
+    runner.store([makePayload(8), makePayload(8), makePayload(8)], { namespace: 'ns' })
+  );
   await flush();
   t.is(gate.peak(), 3);
 
@@ -588,7 +595,8 @@ test('maxOperationsPerMessage bounds concurrent operations on the retrieve path'
   });
   gate.release();
   const references = await new ExternalStorageRunner(externalStorage, { payloadCache: false }).store(
-    Array.from({ length: 6 }, () => makePayload(8))
+    Array.from({ length: 6 }, () => makePayload(8)),
+    { namespace: 'ns' }
   );
 
   const slowGate = makeGate();
@@ -620,8 +628,8 @@ test('each message gets its own maxOperationsPerMessage budget', async (t) => {
   const firstMessage = new ExternalStorageRunner(externalStorage, { payloadCache: false });
   const secondMessage = new ExternalStorageRunner(externalStorage, { payloadCache: false });
   const stores = [
-    firstMessage.store([makePayload(8), makePayload(8), makePayload(8)]),
-    secondMessage.store([makePayload(8), makePayload(8), makePayload(8)]),
+    firstMessage.store([makePayload(8), makePayload(8), makePayload(8)], { namespace: 'ns' }),
+    secondMessage.store([makePayload(8), makePayload(8), makePayload(8)], { namespace: 'ns' }),
   ];
   await flush();
   t.is(gate.peak(), 4);

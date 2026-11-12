@@ -407,10 +407,10 @@ test('visitNexusTask resolves External Storage references nested in a System Nex
   const driver = makeFakeDriver();
   const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 });
   const runner = new ExternalStorageRunner(externalStorage, { payloadCache: false });
-  const [inputReference, signalReference] = await runner.store([
-    defaultPayloadConverter.toPayload('workflow-input'),
-    defaultPayloadConverter.toPayload('signal-input'),
-  ]);
+  const [inputReference, signalReference] = await runner.store(
+    [defaultPayloadConverter.toPayload('workflow-input'), defaultPayloadConverter.toPayload('signal-input')],
+    { namespace: 'ns' }
+  );
   const task = nexusStartTask(systemNexusPayloadWith(inputReference!, signalReference!));
 
   await visitNexusTask(task, externalStorageRetrieveVisitOptions({ payloadCache: false, externalStorage }));
@@ -430,9 +430,10 @@ test('visitNexusTask resolves External Storage references nested in a System Nex
 
 test('visitNexusTask rejects a nested reference when External Storage is not configured', async (t) => {
   const externalStorage = new ExternalStorage({ drivers: [makeFakeDriver()], payloadSizeThreshold: 0 });
-  const [reference] = await new ExternalStorageRunner(externalStorage, { payloadCache: false }).store([
-    defaultPayloadConverter.toPayload('workflow-input'),
-  ]);
+  const [reference] = await new ExternalStorageRunner(externalStorage, { payloadCache: false }).store(
+    [defaultPayloadConverter.toPayload('workflow-input')],
+    { namespace: 'ns' }
+  );
   const task = nexusStartTask(systemNexusPayloadWith(reference!));
 
   await t.throwsAsync(
@@ -468,7 +469,7 @@ test('visitNexusTask retrieves nested references before codecs decode them', asy
   ]);
   const [inputReference, signalReference] = await new ExternalStorageRunner(externalStorage, {
     payloadCache: false,
-  }).store(encoded);
+  }).store(encoded, { namespace: 'ns' });
   const task = nexusStartTask(systemNexusPayloadWith(inputReference!, signalReference!));
 
   await visitNexusTask(task, externalStorageRetrieveVisitOptions({ payloadCache: false, externalStorage }));

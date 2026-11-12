@@ -349,6 +349,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
           walkStartActivityExecutionRequest,
           externalStorageStoreVisitOptions({
             externalStorage,
+            namespace: this.options.namespace,
             initialTarget: {
               kind: 'activity',
               namespace: this.options.namespace,

@@ -282,10 +282,13 @@ test('standalone Nexus worker retrieves External Storage references nested in a 
   const offloadEverything = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 });
   const [inputReference, signalReference] = await new ExternalStorageRunner(offloadEverything, {
     payloadCache: false,
-  }).store([
-    stringManglingPayloadConverter.toPayload('workflow-input'),
-    stringManglingPayloadConverter.toPayload('signal-input'),
-  ]);
+  }).store(
+    [
+      stringManglingPayloadConverter.toPayload('workflow-input'),
+      stringManglingPayloadConverter.toPayload('signal-input'),
+    ],
+    { namespace: 'ns' }
+  );
   const request = temporal.api.workflowservice.v1.SignalWithStartWorkflowExecutionRequest.create({
     workflowType: { name: 'test-workflow' },
     input: { payloads: [inputReference!] },

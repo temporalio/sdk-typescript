@@ -152,13 +152,52 @@ test('key segments percent-encode anything outside the S3 safe set', async (t) =
   );
 });
 
-test('a target with no identity falls back to a bare digest key', async (t) => {
+test('with no target and no namespace, the key uses a null namespace', async (t) => {
   const driver = new S3StorageDriver({ client: new FakeS3Client(), bucket: 'b' });
 
   const [claim] = await driver.store({ limiter: passthroughLimiter() }, [makePayload('"x"')]);
   assert(claim?.claimData.key);
 
-  t.regex(claim.claimData.key, /^v0\/d\/sha256\/[0-9a-f]{64}$/);
+  t.regex(claim.claimData.key, /^v0\/ns\/null\/d\/sha256\/[0-9a-f]{64}$/);
+});
+
+test('with no target and an empty namespace, the key uses a null namespace', async (t) => {
+  const driver = new S3StorageDriver({ client: new FakeS3Client(), bucket: 'b' });
+
+  const [claim] = await driver.store({ namespace: '', limiter: passthroughLimiter() }, [makePayload('"x"')]);
+  assert(claim?.claimData.key);
+
+  t.regex(claim.claimData.key, /^v0\/ns\/null\/d\/sha256\/[0-9a-f]{64}$/);
+});
+
+test('with no target, the namespace of the storing client or worker scopes the key', async (t) => {
+  const driver = new S3StorageDriver({ client: new FakeS3Client(), bucket: 'b' });
+
+  const [claim] = await driver.store({ namespace: 'team/a', limiter: passthroughLimiter() }, [makePayload('"x"')]);
+  assert(claim?.claimData.key);
+
+  t.regex(claim.claimData.key, /^v0\/ns\/team%2Fa\/d\/sha256\/[0-9a-f]{64}$/);
+});
+
+test('an unrecognized target kind falls back to the namespace of the storing client or worker', async (t) => {
+  const driver = new S3StorageDriver({ client: new FakeS3Client(), bucket: 'b' });
+  const target = { kind: 'future-kind' } as unknown as StorageDriverStoreContext['target'];
+
+  const [claim] = await driver.store({ target, namespace: 'team-a', limiter: passthroughLimiter() }, [
+    makePayload('"x"'),
+  ]);
+  assert(claim?.claimData.key);
+
+  t.regex(claim.claimData.key, /^v0\/ns\/team-a\/d\/sha256\/[0-9a-f]{64}$/);
+});
+
+test('a target namespace takes precedence over the namespace of the storing client or worker', async (t) => {
+  const driver = new S3StorageDriver({ client: new FakeS3Client(), bucket: 'b' });
+
+  const [claim] = await driver.store({ ...workflowContext, namespace: 'other-ns' }, [makePayload('"x"')]);
+  assert(claim?.claimData.key);
+
+  t.true(claim.claimData.key.startsWith('v0/ns/my-ns/wt/MyWorkflow/wi/wf-1/ri/run-1/d/sha256/'));
 });
 
 test('missing context segments are encoded as the literal "null"', async (t) => {

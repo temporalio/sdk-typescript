@@ -212,6 +212,7 @@ test('separate visits share a payload cache without sharing a runner', async (t)
   const original = makePayload(256, 7);
 
   const reference = await externalStorageStoreVisitOptions({
+    namespace: 'ns',
     externalStorage,
     payloadCache,
   }).transformPayload(original, undefined);
@@ -233,7 +234,7 @@ function runnerWith(payloadCache: PayloadCache | false) {
 test('store populates the cache so a later retrieve skips the driver', async (t) => {
   const { driver, runner } = runnerWith(new InMemoryPayloadCache());
   const original = makePayload(256, 7);
-  const [reference] = await runner.store([original]);
+  const [reference] = await runner.store([original], { namespace: 'ns' });
 
   const [restored] = await runner.retrieve([reference]);
   assertPayloadEqual(t, restored, original);
@@ -242,7 +243,7 @@ test('store populates the cache so a later retrieve skips the driver', async (t)
 
 test('a cold-cache retrieve falls back to the driver, then warms the cache', async (t) => {
   const { driver, runner } = runnerWith(new InMemoryPayloadCache());
-  const [reference] = await runner.store([makePayload(256, 3)]);
+  const [reference] = await runner.store([makePayload(256, 3)], { namespace: 'ns' });
 
   // Fresh runner with an empty cache: the store-side population did not reach it.
   const cold = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 96 }), {
@@ -259,7 +260,7 @@ test('a mixed-cache retrieve only sends misses to the driver', async (t) => {
   const { driver, externalStorage } = runnerWith(false);
   const writer = new ExternalStorageRunner(externalStorage, { payloadCache: false });
   const originalPayloads = [makePayload(256, 3), makePayload(256, 7)];
-  const references = await writer.store(originalPayloads);
+  const references = await writer.store(originalPayloads, { namespace: 'ns' });
 
   const cache = new InMemoryPayloadCache();
   const cachedReference = decodeReferencePayload(references[0]!);
@@ -280,7 +281,7 @@ test('a mixed-cache retrieve only sends misses to the driver', async (t) => {
 
 test('with no cache, every retrieve queries the driver', async (t) => {
   const { driver, runner } = runnerWith(false);
-  const [reference] = await runner.store([makePayload(256)]);
+  const [reference] = await runner.store([makePayload(256)], { namespace: 'ns' });
 
   await runner.retrieve([reference]);
   await runner.retrieve([reference]);
@@ -293,7 +294,7 @@ test('a cache that fails on get is treated as a miss', async (t) => {
     set: () => Promise.resolve(true),
   };
   const { driver, runner } = runnerWith(failing);
-  const [reference] = await runner.store([makePayload(256, 5)]);
+  const [reference] = await runner.store([makePayload(256, 5)], { namespace: 'ns' });
 
   const [restored] = await runner.retrieve([reference]);
   t.deepEqual(restored, makePayload(256, 5)); // fell through to the driver, correct bytes
@@ -307,7 +308,7 @@ test('a cache that fails on set neither blocks nor fails the store', async (t) =
   };
   const { runner } = runnerWith(failing);
 
-  const stored = await runner.store([makePayload(256)]);
+  const stored = await runner.store([makePayload(256)], { namespace: 'ns' });
   t.truthy(stored[0]);
 });
 
@@ -319,7 +320,7 @@ test('a cache that never settles on set does not delay the store', async (t) => 
   const { runner } = runnerWith(neverSettles);
 
   // Populating the cache is an optimization for later reads; awaiting it here would hang the store.
-  const [reference] = await runner.store([makePayload(256)]);
+  const [reference] = await runner.store([makePayload(256)], { namespace: 'ns' });
   t.truthy(reference);
 });
 

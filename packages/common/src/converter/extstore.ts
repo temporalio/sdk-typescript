@@ -80,6 +80,11 @@ export interface StorageDriverStoreContext {
   abortSignal?: AbortSignal;
   /** Identity of the workflow / activity that produced the payloads. */
   target?: StorageDriverTargetInfo;
+  /**
+   * Namespace of the client or worker performing the operation, or undefined when unknown.
+   * Drivers should prefer the target's namespace when a target is present.
+   */
+  namespace?: string;
   /** Drivers should wrap each store request in {@link StorageDriverLimiter.permit}. */
   limiter: StorageDriverLimiter<Payload>;
 }
@@ -94,6 +99,11 @@ export interface StorageDriverSelectContext {
   abortSignal?: AbortSignal;
   /** Identity of the workflow / activity that produced the payloads. */
   target?: StorageDriverTargetInfo;
+  /**
+   * Namespace of the client or worker performing the operation, or undefined when unknown.
+   * Drivers should prefer the target's namespace when a target is present.
+   */
+  namespace?: string;
 }
 
 /**

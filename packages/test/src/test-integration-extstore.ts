@@ -117,12 +117,14 @@ test('driverSelector routes offloaded payloads to the chosen driver', async (t) 
   const driverB = makeFakeDriver({ name: 'b' });
   const payloadSize = 4096;
   let observedTarget: StorageDriverTargetInfo | undefined;
+  let observedNamespace: string | undefined;
   const externalStorage = new ExternalStorage({
     drivers: [driverA, driverB],
     // Route on the store target. produceLargePayload runs inside a workflow, so its result carries
     // the owning workflow execution as the target.
     driverSelector: (context) => {
       observedTarget = context.target;
+      observedNamespace = context.namespace;
       return context.target?.type === 'externalStorageOffload' ? driverB : driverA;
     },
     payloadSizeThreshold: 1024,
@@ -135,8 +137,10 @@ test('driverSelector routes offloaded payloads to the chosen driver', async (t) 
   t.is(len, payloadSize);
   t.is(observedTarget?.kind, 'workflow');
   t.is(observedTarget?.type, 'externalStorageOffload');
+  t.is(observedNamespace, t.context.env.client.options.namespace);
   t.is(driverA.storeCalls.length, 0);
   t.is(driverB.storeCalls.length, 1);
+  t.is(driverB.storeCalls[0]?.context.namespace, t.context.env.client.options.namespace);
   t.is(driverB.retrieveCalls.length, 1);
 
   const { events } = await handle.fetchHistory();

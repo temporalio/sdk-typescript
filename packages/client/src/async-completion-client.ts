@@ -237,6 +237,7 @@ export class AsyncCompletionClient extends BaseClient {
             walkRespondActivityTaskCompletedRequest,
             externalStorageStoreVisitOptions({
               externalStorage,
+              namespace: this.options.namespace,
               initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
               payloadCache: this.payloadCache,
             })
@@ -256,6 +257,7 @@ export class AsyncCompletionClient extends BaseClient {
             walkRespondActivityTaskCompletedByIdRequest,
             externalStorageStoreVisitOptions({
               externalStorage,
+              namespace: this.options.namespace,
               initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
               payloadCache: this.payloadCache,
             })
@@ -302,6 +304,7 @@ export class AsyncCompletionClient extends BaseClient {
             walkRespondActivityTaskFailedRequest,
             externalStorageStoreVisitOptions({
               externalStorage,
+              namespace: this.options.namespace,
               initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
               payloadCache: this.payloadCache,
             })
@@ -321,6 +324,7 @@ export class AsyncCompletionClient extends BaseClient {
             walkRespondActivityTaskFailedByIdRequest,
             externalStorageStoreVisitOptions({
               externalStorage,
+              namespace: this.options.namespace,
               initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
               payloadCache: this.payloadCache,
             })
@@ -371,6 +375,7 @@ export class AsyncCompletionClient extends BaseClient {
             walkRespondActivityTaskCanceledRequest,
             externalStorageStoreVisitOptions({
               externalStorage,
+              namespace: this.options.namespace,
               initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
               payloadCache: this.payloadCache,
             })
@@ -390,6 +395,7 @@ export class AsyncCompletionClient extends BaseClient {
             walkRespondActivityTaskCanceledByIdRequest,
             externalStorageStoreVisitOptions({
               externalStorage,
+              namespace: this.options.namespace,
               initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
               payloadCache: this.payloadCache,
             })
@@ -439,6 +445,7 @@ export class AsyncCompletionClient extends BaseClient {
             walkRecordActivityTaskHeartbeatRequest,
             externalStorageStoreVisitOptions({
               externalStorage,
+              namespace: this.options.namespace,
               initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
               payloadCache: this.payloadCache,
             })
@@ -461,6 +468,7 @@ export class AsyncCompletionClient extends BaseClient {
             walkRecordActivityTaskHeartbeatByIdRequest,
             externalStorageStoreVisitOptions({
               externalStorage,
+              namespace: this.options.namespace,
               initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
               payloadCache: this.payloadCache,
             })

@@ -155,13 +155,52 @@ test('reserved and empty segments are encoded', async (t) => {
   t.true(claim.claimData.object_name.startsWith('v0/ns/%2E/wt/%2E%2E/wi/null/ri/null/d/sha256/'));
 });
 
-test('a target with no identity falls back to a bare digest object name', async (t) => {
+test('with no target and no namespace, the object name uses a null namespace', async (t) => {
   const driver = new GcsStorageDriver({ client: new FakeGcsClient(), bucket: 'b' });
 
   const [claim] = await driver.store({ limiter: passthroughLimiter() }, [makePayload('"x"')]);
   assert(claim?.claimData.object_name);
 
-  t.regex(claim.claimData.object_name, /^v0\/d\/sha256\/[0-9a-f]{64}$/);
+  t.regex(claim.claimData.object_name, /^v0\/ns\/null\/d\/sha256\/[0-9a-f]{64}$/);
+});
+
+test('with no target and an empty namespace, the object name uses a null namespace', async (t) => {
+  const driver = new GcsStorageDriver({ client: new FakeGcsClient(), bucket: 'b' });
+
+  const [claim] = await driver.store({ namespace: '', limiter: passthroughLimiter() }, [makePayload('"x"')]);
+  assert(claim?.claimData.object_name);
+
+  t.regex(claim.claimData.object_name, /^v0\/ns\/null\/d\/sha256\/[0-9a-f]{64}$/);
+});
+
+test('with no target, the namespace of the storing client or worker scopes the object name', async (t) => {
+  const driver = new GcsStorageDriver({ client: new FakeGcsClient(), bucket: 'b' });
+
+  const [claim] = await driver.store({ namespace: 'team/a', limiter: passthroughLimiter() }, [makePayload('"x"')]);
+  assert(claim?.claimData.object_name);
+
+  t.regex(claim.claimData.object_name, /^v0\/ns\/team%2Fa\/d\/sha256\/[0-9a-f]{64}$/);
+});
+
+test('an unrecognized target kind falls back to the namespace of the storing client or worker', async (t) => {
+  const driver = new GcsStorageDriver({ client: new FakeGcsClient(), bucket: 'b' });
+  const target = { kind: 'future-kind' } as unknown as StorageDriverStoreContext['target'];
+
+  const [claim] = await driver.store({ target, namespace: 'team-a', limiter: passthroughLimiter() }, [
+    makePayload('"x"'),
+  ]);
+  assert(claim?.claimData.object_name);
+
+  t.regex(claim.claimData.object_name, /^v0\/ns\/team-a\/d\/sha256\/[0-9a-f]{64}$/);
+});
+
+test('a target namespace takes precedence over the namespace of the storing client or worker', async (t) => {
+  const driver = new GcsStorageDriver({ client: new FakeGcsClient(), bucket: 'b' });
+
+  const [claim] = await driver.store({ ...workflowContext, namespace: 'other-ns' }, [makePayload('"x"')]);
+  assert(claim?.claimData.object_name);
+
+  t.true(claim.claimData.object_name.startsWith('v0/ns/my-ns/wt/MyWorkflow/wi/wf-1/ri/run-1/d/sha256/'));
 });
 
 test('identical payloads in the same scope deduplicate to one stored object', async (t) => {

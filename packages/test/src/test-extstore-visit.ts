@@ -39,7 +39,9 @@ function externalStorageWith(driver = makeFakeDriver({ name: 's3' }), payloadSiz
 
 /** Offload a payload through the runner and return the resulting reference payload. */
 async function toReference(externalStorage: ExternalStorage, payload: Payload): Promise<Payload> {
-  const [reference] = await new ExternalStorageRunner(externalStorage, { payloadCache: false }).store([payload]);
+  const [reference] = await new ExternalStorageRunner(externalStorage, { payloadCache: false }).store([payload], {
+    namespace: 'ns',
+  });
   return reference!;
 }
 
@@ -54,7 +56,12 @@ test('workflow store offloads a large payload and threads the target to the driv
   await visit(
     completion,
     walkWorkflowActivationCompletion,
-    externalStorageStoreVisitOptions({ payloadCache: false, externalStorage, initialTarget: WORKFLOW_TARGET })
+    externalStorageStoreVisitOptions({
+      namespace: 'ns',
+      payloadCache: false,
+      externalStorage,
+      initialTarget: WORKFLOW_TARGET,
+    })
   );
 
   const result = completion.successful!.commands![0]!.completeWorkflowExecution!.result!;
@@ -73,7 +80,12 @@ test('workflow store offloads only above-threshold payloads at a repeated site',
   await visit(
     completion,
     walkWorkflowActivationCompletion,
-    externalStorageStoreVisitOptions({ payloadCache: false, externalStorage, initialTarget: WORKFLOW_TARGET })
+    externalStorageStoreVisitOptions({
+      namespace: 'ns',
+      payloadCache: false,
+      externalStorage,
+      initialTarget: WORKFLOW_TARGET,
+    })
   );
 
   const args = completion.successful!.commands![0]!.scheduleActivity!.arguments!;
@@ -97,6 +109,7 @@ test('workflow store applies a per-command derived target', async (t) => {
     completion,
     walkWorkflowActivationCompletion,
     externalStorageStoreVisitOptions({
+      namespace: 'ns',
       payloadCache: false,
       externalStorage,
       initialTarget: WORKFLOW_TARGET,
@@ -131,7 +144,12 @@ test('workflow store leaves search attributes inline while offloading siblings',
   await visit(
     completion,
     walkWorkflowActivationCompletion,
-    externalStorageStoreVisitOptions({ payloadCache: false, externalStorage, initialTarget: WORKFLOW_TARGET })
+    externalStorageStoreVisitOptions({
+      namespace: 'ns',
+      payloadCache: false,
+      externalStorage,
+      initialTarget: WORKFLOW_TARGET,
+    })
   );
 
   const command = completion.successful!.commands![0]!.startChildWorkflowExecution!;
@@ -149,7 +167,12 @@ test('workflow store then retrieve round-trips the original payload bytes', asyn
   await visit(
     completion,
     walkWorkflowActivationCompletion,
-    externalStorageStoreVisitOptions({ payloadCache: false, externalStorage, initialTarget: WORKFLOW_TARGET })
+    externalStorageStoreVisitOptions({
+      namespace: 'ns',
+      payloadCache: false,
+      externalStorage,
+      initialTarget: WORKFLOW_TARGET,
+    })
   );
   const reference = completion.successful!.commands![0]!.completeWorkflowExecution!.result!;
   t.true(isReferencePayload(reference));
@@ -178,7 +201,7 @@ test('activity task completion store offloads the result payload', async (t) => 
   await visit(
     completion,
     walkActivityTaskCompletion,
-    externalStorageStoreVisitOptions({ payloadCache: false, externalStorage })
+    externalStorageStoreVisitOptions({ namespace: 'ns', payloadCache: false, externalStorage })
   );
 
   t.true(isReferencePayload(completion.result!.completed!.result!));
@@ -192,7 +215,7 @@ test('activity heartbeat store offloads the details payload', async (t) => {
   await visit(
     heartbeat,
     walkActivityHeartbeat,
-    externalStorageStoreVisitOptions({ payloadCache: false, externalStorage })
+    externalStorageStoreVisitOptions({ namespace: 'ns', payloadCache: false, externalStorage })
   );
 
   t.true(isReferencePayload(heartbeat.details![0]!));
@@ -219,7 +242,7 @@ test('nexus task completion store offloads the sync result payload', async (t) =
   await visit(
     completion,
     walkNexusTaskCompletion,
-    externalStorageStoreVisitOptions({ payloadCache: false, externalStorage })
+    externalStorageStoreVisitOptions({ namespace: 'ns', payloadCache: false, externalStorage })
   );
 
   t.true(isReferencePayload(completion.completed!.startOperation!.syncSuccess!.payload!));
@@ -247,7 +270,12 @@ test('client request store offloads the workflow input (via generic visit)', asy
   await visit(
     request,
     walkStartWorkflowExecutionRequest,
-    externalStorageStoreVisitOptions({ payloadCache: false, externalStorage, initialTarget: WORKFLOW_TARGET })
+    externalStorageStoreVisitOptions({
+      namespace: 'ns',
+      payloadCache: false,
+      externalStorage,
+      initialTarget: WORKFLOW_TARGET,
+    })
   );
 
   t.true(isReferencePayload(request.input!.payloads![0]!));

@@ -1,0 +1,1 @@
+**Experimental**: The S3 and GCS storage drivers now key payloads stored without a target under `v0/ns/{namespace}/d/sha256/...`, using the namespace of the storing client or worker (`null` when it is unknown). Previously these payloads used `v0/d/sha256/...`.

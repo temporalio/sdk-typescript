@@ -56,6 +56,8 @@ function driverOperationLimitFor(externalStorage: ExternalStorage): ConcurrencyL
 export interface ExternalStorageStoreOptions {
   /** Identity of the workflow or activity that produced the payloads. */
   target?: StorageDriverTargetInfo;
+  /** Namespace of the client or worker performing the store. */
+  namespace: string;
   /** Aborts the in-flight store operation. */
   abortSignal?: AbortSignal;
   /** Collects metrics for this store operation. */
@@ -186,12 +188,16 @@ export class ExternalStorageRunner {
    * Payloads below the threshold (or that the selector keeps inline) pass through
    * unchanged. Order is preserved.
    */
-  async store(payloads: Payload[], options: ExternalStorageStoreOptions = {}): Promise<Payload[]> {
+  async store(payloads: Payload[], options: ExternalStorageStoreOptions): Promise<Payload[]> {
     if (payloads.length === 0) return payloads;
 
     const { driverSelector, payloadSizeThreshold } = this.externalStorage;
     const { batchSignal, batchController } = makeBatchSignal(options.abortSignal);
-    const selectCtx: StorageDriverSelectContext = { abortSignal: batchSignal, target: options.target };
+    const selectCtx: StorageDriverSelectContext = {
+      abortSignal: batchSignal,
+      target: options.target,
+      namespace: options.namespace,
+    };
 
     interface StoreItem {
       index: number;
@@ -227,7 +233,12 @@ export class ExternalStorageRunner {
     await runWithAbortOnFirstError(batchController, [...driverGroups.values()], async (group) => {
       const startMs = metrics ? performance.now() : 0;
       const { limiter, used } = this.makeLimiter<Payload>(batchSignal);
-      const storeCtx: StorageDriverStoreContext = { abortSignal: batchSignal, target: options.target, limiter };
+      const storeCtx: StorageDriverStoreContext = {
+        abortSignal: batchSignal,
+        target: options.target,
+        namespace: options.namespace,
+        limiter,
+      };
       let claims: StorageDriverClaim[];
       try {
         claims = await group.driver.store(
