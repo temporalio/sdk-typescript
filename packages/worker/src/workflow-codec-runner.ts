@@ -286,7 +286,10 @@ export class WorkflowCodecRunner {
   public async encodeCompletion(
     completion: coresdk.workflow_completion.IWorkflowActivationCompletion
   ): Promise<Encoded<coresdk.workflow_completion.IWorkflowActivationCompletion>> {
-    const encodedCompletion = coresdk.workflow_completion.WorkflowActivationCompletion.fromObject(completion);
+    const encodedCompletion: coresdk.workflow_completion.IWorkflowActivationCompletion =
+      coresdk.workflow_completion.WorkflowActivationCompletion.toObject(
+        coresdk.workflow_completion.WorkflowActivationCompletion.create(completion)
+      );
     const systemInputs: Array<{
       command: coresdk.workflow_commands.IScheduleNexusOperation;
       payload: import('@temporalio/common').Payload;
@@ -423,6 +426,6 @@ export class WorkflowCodecRunner {
         });
       }
     }
-    return encodedCompletion as unknown as Encoded<coresdk.workflow_completion.IWorkflowActivationCompletion>;
+    return encodedCompletion as Encoded<coresdk.workflow_completion.IWorkflowActivationCompletion>;
   }
 }
