@@ -31,6 +31,7 @@ import {
 import type { Duration } from '@temporalio/common/lib/time';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { decodePayloadWire, encodePayloadWire } from './codec';
+import { isPayload } from './is-payload';
 import type { PollInput, PollResult, WorkflowStreamItem, PublishEntry, PublishInput } from './types';
 import { TopicHandle } from './topic-handle';
 
@@ -99,22 +100,6 @@ class ResolvableEvent {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/** Type guard for a Payload (as opposed to an arbitrary user value). */
-function isPayload(value: unknown): value is Payload {
-  if (value === null || typeof value !== 'object') return false;
-  const v = value as { metadata?: unknown; data?: unknown };
-  // Metadata must exist (at minimum with an encoding key) to be a Payload.
-  return (
-    'metadata' in v &&
-    v.metadata != null &&
-    typeof v.metadata === 'object' &&
-    !Array.isArray(v.metadata) &&
-    // Distinguish from plain `{ metadata, data }` user objects by requiring
-    // that values in the metadata map look like Uint8Array instances.
-    Object.values(v.metadata).every((x) => x instanceof Uint8Array)
-  );
 }
 
 export class WorkflowStreamClient {
