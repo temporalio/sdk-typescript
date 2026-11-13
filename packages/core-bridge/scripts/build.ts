@@ -2,10 +2,12 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 import arg from 'arg';
 import cargoCpArtifact from 'cargo-cp-artifact';
-import { version } from '../package.json';
-import { targets, getPrebuiltPath, getPrebuiltTargetName, PrebuildError } from '../common';
+import bridgePackage from '../package.json' with { type: 'json' };
+import { targets, getPrebuiltPath, getPrebuiltTargetName, PrebuildError } from '../common.js';
 
-process.chdir(path.resolve(__dirname, '..'));
+const { version } = bridgePackage;
+
+process.chdir(path.resolve(import.meta.dirname, '..'));
 
 const args = arg({
   '--help': Boolean,

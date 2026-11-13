@@ -1,10 +1,11 @@
 import { basename, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { tarballsIn } from './pack-packages';
-import { createTempRegistryDir, withRegistry } from './registry';
-import { ciLogPath, spawnNpxLogged } from './utils';
+import { pathToFileURL } from 'node:url';
+import { tarballsIn } from './pack-packages.ts';
+import { createTempRegistryDir, withRegistry } from './registry.ts';
+import { ciLogPath, spawnNpxLogged } from './utils.ts';
 
-const repoRoot = resolve(__dirname, '..');
+const repoRoot = resolve(import.meta.dirname, '..');
 
 async function main(): Promise<void> {
   const { tarballDir, registryDir } = parseArguments();
@@ -74,7 +75,7 @@ async function publishTarballs(tarballs: string[]): Promise<void> {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-if (require.main === module) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main()
     .then(() => process.exit(0))
     .catch((err) => {

@@ -1,12 +1,14 @@
 import { basename, dirname } from 'node:path';
-import { getArgs, withRegistry } from './registry';
-import { ciLogPath, spawnNpxLogged } from './utils';
+import { getArgs, withRegistry } from './registry.ts';
+import { ciLogPath, spawnNpxLogged } from './utils.ts';
 
 // Force samples to use the same version of @temporalio/* packages as the one
 // we are testing. This is required when testing against a pre-release version,
 // which would not be otherwise matched by specifier like ^1.8.0.
 // eslint-disable-next-line import/order
-import { version } from '../packages/client/package.json';
+import clientPackage from '../packages/client/package.json' with { type: 'json' };
+
+const { version } = clientPackage;
 
 async function main() {
   const { registryDir, targetDir, initArgs } = await getArgs();

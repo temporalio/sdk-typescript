@@ -1,6 +1,6 @@
 import { ChildProcess, spawn, spawnSync } from 'node:child_process';
 import arg from 'arg';
-import { shell, kill, sleep, waitOnChild } from './utils';
+import { shell, kill, sleep, waitOnChild } from './utils.ts';
 
 const npm = /^win/.test(process.platform) ? 'npm.cmd' : 'npm';
 

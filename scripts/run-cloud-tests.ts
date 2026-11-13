@@ -6,9 +6,9 @@
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { join } from 'node:path';
-import { findCloudTestFiles } from './cloud-test-inventory';
+import { findCloudTestFiles } from './cloud-test-inventory.ts';
 
-const workspaceRoot = join(__dirname, '..');
+const workspaceRoot = join(import.meta.dirname, '..');
 const testPackage = join(workspaceRoot, 'packages', 'test');
 const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 
