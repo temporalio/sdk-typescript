@@ -39,9 +39,6 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Attach the release branch
-        run: git checkout -B "${{ github.ref_name }}"
-
       - uses: ./.github/actions/setup-node-deps
         with:
           platform: linux-x64
