@@ -5,7 +5,7 @@
   "main": "index.js",
   "types": "lib/index.d.ts",
   "scripts": {
-    "build-rust": "node ./scripts/build.ts --force",
+    "build-rust": "node ./scripts/build.mts --force",
     "build": "pnpm run build-rust",
     "build-rust-release": "pnpm run build-rust --release",
     "format": "cargo fmt",
