@@ -33,6 +33,9 @@ importers:
       '@types/node':
         specifier: ^20.19.39
         version: 20.19.41
+      '@types/semver':
+        specifier: ^7.8.0
+        version: 7.8.0
       arg:
         specifier: ^5.0.2
         version: 5.0.2
@@ -60,6 +63,9 @@ importers:
       oxlint-tsgolint:
         specifier: 7.0.2004
         version: 7.0.2004
+      semver:
+        specifier: ^7.8.5
+        version: 7.8.5
       tsx:
         specifier: ^4.20.6
         version: 4.20.6
@@ -1007,7 +1013,11 @@ importers:
         specifier: ^0.7.4
         version: 0.7.4
 
-  scripts: {}
+  scripts:
+    dependencies:
+      glob:
+        specifier: ^14.0.2
+        version: 14.0.2
 
 packages:
 
@@ -3071,6 +3081,9 @@ packages:
 
   '@types/retry@0.12.5':
     resolution: {integrity: sha512-3xSjTp3v03X/lSQLkczaN9UIEwJMoMCA1+Nb5HfbJEQWogdeQIyVtTvxPXDQjZ5zws8rFQfVfRdz03ARihPJgw==}
+
+  '@types/semver@7.8.0':
+    resolution: {integrity: sha512-1mAINjtQCXXeLkJ9ehXkwOcBpqtLxiVtKhpUf83DdRNdQKV0iXZpaHYqRr7nj+wvxuJzoAmAwXI+sCNMv1CzLQ==}
 
   '@types/shimmer@1.0.5':
     resolution: {integrity: sha512-9Hp0ObzwwO57DpLFF0InUjUm/II8GmKAvzbefxQTihCb7KI6yc9yzf0nLc4mVdby5N4DRCgQM2wCup9KTieeww==}
@@ -9020,6 +9033,8 @@ snapshots:
   '@types/retry@0.12.0': {}
 
   '@types/retry@0.12.5': {}
+
+  '@types/semver@7.8.0': {}
 
   '@types/shimmer@1.0.5': {}
 

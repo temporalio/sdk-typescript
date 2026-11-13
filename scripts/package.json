@@ -1,7 +1,6 @@
 {
   "name": "scripts",
   "private": true,
-  "version": "1.25.0",
   "description": "Internal scripts for TS SDK repository",
   "scripts": {
     "build": "tsc --noEmit"
@@ -13,5 +12,8 @@
     "worker"
   ],
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "glob": "^14.0.2"
+  }
 }

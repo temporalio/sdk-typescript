@@ -4,7 +4,13 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import test from 'node:test';
 import { corePath, repoRoot } from './changelog';
-import { prepareRelease } from './prepare-release';
+import {
+  bumpPackageVersions,
+  packageJsonsWithVersion,
+  rollChangelog,
+  unexpectedReleasePaths,
+  updateLockfile,
+} from './prepare-release';
 
 function fixture(): string {
   const root = mkdtempSync(resolve(tmpdir(), 'sdk-typescript-release-'));
@@ -31,10 +37,14 @@ test('release preparation updates versions and lockfile, then consumes fragments
   const root = fixture();
   try {
     const history = readFileSync(resolve(root, 'CHANGELOG.md'), 'utf8');
-    prepareRelease('1.25.0', '2026-10-08', root);
-    for (const path of ['packages/common', 'contrib/example', 'scripts']) {
+    bumpPackageVersions('1.25.0', packageJsonsWithVersion(root));
+    updateLockfile(root);
+    const notes = rollChangelog('1.25.0', '2026-10-08', root);
+    assert.equal(notes, '### Stabilized\n\n- Feature is stable.\n- Another feature is stable.');
+    for (const path of ['packages/common', 'contrib/example']) {
       assert.equal(JSON.parse(readFileSync(resolve(root, path, 'package.json'), 'utf8')).version, '1.25.0');
     }
+    assert.equal(JSON.parse(readFileSync(resolve(root, 'scripts/package.json'), 'utf8')).version, '1.24.0');
     assert.equal(JSON.parse(readFileSync(resolve(root, 'packages/docs/package.json'), 'utf8')).version, undefined);
     assert.ok(existsSync(resolve(root, 'pnpm-lock.yaml')));
     const changelog = readFileSync(resolve(root, 'CHANGELOG.md'), 'utf8');
@@ -45,7 +55,7 @@ test('release preparation updates versions and lockfile, then consumes fragments
     );
     assert.ok(!existsSync(resolve(root, 'changelog/stabilized/dancing-teapot.md')));
     writeFileSync(resolve(root, 'changelog/stabilized/late-marshmallow.md'), 'Keep for the next release.\n');
-    assert.throws(() => prepareRelease('1.25.0', '2026-10-08', root));
+    assert.throws(() => rollChangelog('1.25.0', '2026-10-08', root));
     assert.equal(readFileSync(resolve(root, 'CHANGELOG.md'), 'utf8'), changelog);
     assert.ok(existsSync(resolve(root, 'changelog/stabilized/late-marshmallow.md')));
   } finally {
@@ -53,16 +63,26 @@ test('release preparation updates versions and lockfile, then consumes fragments
   }
 });
 
-test('invalid version or date leaves release files untouched', () => {
-  const root = fixture();
-  try {
-    const manifest = readFileSync(resolve(root, 'packages/common/package.json'), 'utf8');
-    assert.throws(() => prepareRelease('v1.25.0', '2026-10-08', root));
-    assert.throws(() => prepareRelease('1.25.0', '2026-02-30', root));
-    assert.equal(readFileSync(resolve(root, 'packages/common/package.json'), 'utf8'), manifest);
-    assert.ok(!existsSync(resolve(root, 'pnpm-lock.yaml')));
-    assert.ok(existsSync(resolve(root, 'changelog/stabilized/dancing-teapot.md')));
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
+test('changed paths guard accepts only release files', () => {
+  const allowed = [
+    ' M CHANGELOG.md',
+    ' M pnpm-lock.yaml',
+    ' M packages/common/package.json',
+    ' M contrib/ai-sdk/package.json',
+    ' D changelog/added/tap-dancing-teapot.md',
+    '',
+  ];
+  assert.deepEqual(unexpectedReleasePaths(allowed.join('\n')), []);
+  const rejected = [
+    ' M README.md',
+    '?? packages/common/notes.md',
+    '?? changelog/fixed/late-marshmallow.md',
+    ' M changelog/fixed/sleepy-starfruit.md',
+    ' D changelog/README.md',
+    ' D packages/common/package.json',
+    ' M packages/core-bridge/sdk-core',
+    ' M scripts/package.json',
+    'R  CHANGELOG.md -> HISTORY.md',
+  ];
+  assert.deepEqual(unexpectedReleasePaths(rejected.join('\n')), rejected);
 });

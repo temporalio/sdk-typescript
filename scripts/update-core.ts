@@ -1,13 +1,21 @@
-import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
-import { corePath, repoRoot, runTool } from './changelog';
+import { changelogTool, corePath, repoRoot } from './changelog';
+import { ChildProcessError, run } from './utils';
 
 const args = process.argv.slice(2);
+const cwd = resolve(repoRoot, 'packages/core-bridge');
+const cargo = run({ command: 'cargo', cwd, stdio: 'inherit' });
+
 if (args.includes('--help') || args.includes('-h')) {
-  runTool(['update-core', '--help']);
+  changelogTool`update-core --help`;
 } else {
-  runTool(['update-core', '--submodule', corePath, ...args]);
-  const result = spawnSync('cargo', ['fetch'], { cwd: resolve(repoRoot, 'packages/core-bridge'), stdio: 'inherit' });
-  if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error(`Bridge lockfile refresh failed (${result.status ?? result.signal})`);
+  changelogTool`update-core --submodule ${corePath} ${args}`;
+  try {
+    cargo`fetch`;
+  } catch (error) {
+    if (error instanceof ChildProcessError) {
+      throw new Error(`Bridge lockfile refresh failed (${error.code ?? error.signal})`);
+    }
+    throw error;
+  }
 }
