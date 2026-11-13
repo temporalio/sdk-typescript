@@ -1,5 +1,98 @@
 # Changelog
 
+## [1.99.0] - 2026-11-13
+
+### Added
+
+- **Experimental**: Added Nexus completion notification bindings in `@temporalio/nexus/notifications`.
+
+- Add `LocalActivityOptions.includeArgumentsInMarker` to optionally record serialized local Activity arguments in Workflow history. Defaults to `false`.
+
+- Add opt-in `WorkerOptions.codecHeaders` to decode incoming Workflow and Activity headers and encode headers emitted by Workflows, including tracing headers. User-provided Payload headers supplied through client APIs are not automatically encoded.
+- Both OpenTelemetry plugins can opt into encoding their own client tracing headers with `encodeClientHeaders: true`, using the configured client codecs without encoding other user-supplied headers.
+
+- Workers that don't configure poller behavior now auto-enroll in poller autoscaling when the server enables it (`frontend.pollerAutoscalingAutoEnroll`); otherwise they keep using a fixed 5-poller maximum.
+
+- `@temporalio/envconfig` adds experimental client config extensions: `loadClientConnectConfig` accepts `extensions` that read their own config from `profile.<profile>.ext.<name>` TOML tables (never rejected by strict mode) and env vars, and contribute plugins to `connectionOptions.plugins`.
+
+- **Experimental**: `@temporalio/core-bridge` can be built from source with `--fips` or `TEMPORALIO_FIPS=1` to use FIPS-approved TLS algorithms from AWS-LC's FIPS module. See the package README.
+
+- Nexus operation handlers now propagate their `NexusSerializationContext` to the Workflows and standalone Activities they start, which encode their results and failures (and a standalone Activity's heartbeat details) with it because these are returned to the Nexus caller. Clients decode them with the context the server returns, including handles obtained by ID and standalone Nexus operation handles. Requires a server that propagates the context.
+- Added `ActivityInfo.nexusSerializationContext`. To complete a Nexus-started standalone Activity asynchronously, pass it as the `serializationContext` option of the task-token `complete`, `fail`, `reportCancellation` and `heartbeat` calls.
+
+- Worker plugins can report a version in worker heartbeats, with the new optional `version` property on `WorkerPlugin` or the `version` option of `SimplePlugin`.
+
+- Added `NativeConnectionOptions.keepAlive` to configure the HTTP/2 keepalive interval and response timeout, or disable keepalive with `false`. Defaults remain a 30-second interval and a 15-second timeout.
+
+- Core: A local activity's `ActivityTask.Start` has `workflow_task` (field 21), with the started event id, attempt and start time of the workflow task in which Core dispatched it. `workflow_task` also has `previous_started_event_id`, `previous_attempt` and `previous_started_time`, which name the run's last completed workflow task, and `failed_tasks`, the started event ids of the run's last 100 failed or timed out workflow tasks. Retries that Core runs locally keep the value. Core leaves it unset for other activities.
+- Core: Client environment config profiles include the raw TOML tables under `profile.<name>.ext`, keyed by extension name, for SDK envconfig extensions. Strict mode accepts any content under `ext`. The C bridge's profile JSON includes them as an `ext` object, with TOML datetimes as strings.
+
+- Added support for an optional synchronous `flush()` hook on worker runtime loggers through the public `FlushableLogger` interface. The SDK flushes these loggers without closing them and isolates synchronous logger failures, with a stderr fallback for WARN/ERROR messages and flush-failure diagnostics.
+
+- `@temporalio/testing` adds `DevServerConfig.startupTimeout` and `TimeSkippingServerConfig.startupTimeout`
+-   to configure how long to wait for dev and time-skipping test servers to become ready.
+
+- Nexus operation handlers now propagate their `NexusSerializationContext` to the Workflow Updates they send, which encode their result, failure and rejection with it. Update handles decode them with the context the server returns. Requires a server that propagates the context.
+
+### Changed
+
+- Workers that set no poller options and aren't auto-enrolled now default to a 5-poller maximum instead of `min(10, maxConcurrent*Executions)`, matching the other SDKs.
+
+- `@temporalio/worker` now loads the Workflow bundler, including webpack, only when Workflow code is first bundled. Workers using a prebuilt `workflowBundle` no longer load the bundler on import (#1718).
+
+- Core: Poller pools now report their poller target to the server on each poll and in the worker heartbeat: the current target for autoscaling pools, the configured maximum for fixed-size pools. (We'll use this count on the server side for now for load balancing pollers between workers, and for creating a per-worker poller count metric.)
+
+- Document TypeScript 5.7 as the minimum supported consumer compiler
+
+### :boom: Breaking Changes
+
+- `Runtime.logger` and `Runtime.options.logger` now return an SDK wrapper around the logger passed to `Runtime.install()` rather than that logger itself. The SDK no longer calls a `close()` method on runtime loggers at shutdown, and `isFlushableLogger()` is no longer exported from `@temporalio/worker/lib/logger`.
+
+- Core: Core now rejects activation responses with a nondeterminism error if the activation contained only updates and the response rejects every update but also includes another workflow command. SDKs must return only update rejections when all validators reject an update-only activation.
+
+- **Experimental**: A Temporal operation handler can now send only one signal per invocation through `TemporalNexusClient.signalWithStartWorkflow` and `TemporalNexusClient.getWorkflowHandle().signal`; a second one throws a `BAD_REQUEST` handler error unless the first failed. Use `TemporalNexusClient.client` for additional signals, which are not deduplicated.
+
+- `@temporalio/nyc-test-coverage` now declares `ts-loader` as an optional peer dependency instead of installing it automatically. Coverage users running tests with ts-node must install a version of `ts-loader` compatible with their Node.js and TypeScript versions.
+
+- `MockActivityEnvironment.run` now accepts one generic type parameter for the Activity function instead of three; callers supplying explicit type arguments must update their calls.
+
+### Fixed
+
+- `defaultGrpcRetryOptions` now respects a custom `maxIntervalMs` callback instead of always using the default 5-second maximum backoff interval.
+
+- Fix `OpenTelemetryPlugin` (`@temporalio/interceptors-opentelemetry-v2`) dropping OpenTelemetry baggage across the client-to-Workflow and Workflow-to-Activity boundaries: the Workflow sandbox's propagator was hardcoded to trace-context-only, silently discarding the `baggage` header the client already sent. Trace ID and span parenting were unaffected.
+
+- Make native `Temporal.Now` date/time methods use deterministic Workflow time and reject unsupported clock methods.
+
+- **Experimental**: Signals sent through `TemporalNexusClient.signalWithStartWorkflow` and `TemporalNexusClient.getWorkflowHandle().signal` in a Temporal operation handler now reuse the operation's request ID, so a retried Nexus task no longer delivers the same signal twice.
+
+- Loading a Workflow bundle no longer makes `source-map-support` retain the bundle's source map in the main thread's heap, which raised memory use and slowed `Worker.create()` when `source-map-support/register` was loaded.
+
+- Cancel the Activity when storing heartbeat details in external storage fails, allowing it to report the failure instead of hanging.
+
+- `@temporalio/envconfig` now converts every underscore in gRPC metadata keys to a hyphen, so keys such as `TEMPORAL_GRPC_META_X_MY_HEADER` map to `x-my-header` instead of `x-my_header`.
+
+- Core: Preserve queued queries across workflow eviction so requests for the same run are answered instead of silently dropped.
+- Core: Rejection-only update tasks no longer dispatch local activities resumed from replay before validation, allowing those tasks to remain unrecorded in workflow history.
+- Core: Preparing a legacy query now remains in replay mode, preventing unrecorded local activity attempts that could execute twice or leave the workflow stuck.
+
+- Workflow stack traces no longer percent-encode source paths that contain spaces or non-ASCII characters. `source-map` 0.7.5 and later encode the paths they return, so the Worker now escapes `%` in source names and decodes what comes back.
+
+- Core: A workflow task failure reported with the cause `WORKFLOW_TASK_FAILED_CAUSE_EXTERNAL_STORAGE_FAILURE` is now counted on `workflow_task_execution_failed` with `failure_reason="ExternalStorageError"`, matching activity failures with the storage cause. It was previously counted as `WorkflowError`.
+- Core: Ephemeral dev and test servers now complete the automatic port reservation handshake on Linux and macOS before starting, preventing intermittent address-in-use errors during TCP teardown.
+- Core: Downloading an ephemeral dev or test server binary now retries transient HTTP failures, such as a `503` returned while a release is rolling out, with backoff instead of failing on the first attempt.
+- Core: Resource-based worker tuners now read CPU usage and quotas from standard cgroup v1 mounts. Workers on cgroup v1 systems no longer fall back to host CPU usage and admit work based on understated container load.
+
+- Preserve the primary error that terminated `Worker.run()` when shutdown finalization fails, logging the cleanup error instead of masking the root cause with `IllegalStateError`.
+
+- `@temporalio/core-bridge` now loads its prebuilt native module through a literal path for each supported platform, so bundlers that embed native modules (such as `bun build --compile`) include it, and a compiled worker no longer fails at startup with `PrebuildError: No prebuilt module found at /$bunfs/...`.
+
+- Fix return type inference for `MockActivityEnvironment.run`.
+
+### Security
+
+- Bump `rustls` in the core bridge to 0.23.46 to address [GHSA-2mjx-qc3c-rqvc](https://github.com/advisories/GHSA-2mjx-qc3c-rqvc), [GHSA-c8m5-c952-6cm4](https://github.com/advisories/GHSA-c8m5-c952-6cm4), [GHSA-h2v8-394m-p7vv](https://github.com/advisories/GHSA-h2v8-394m-p7vv), and [GHSA-w44r-93j7-qv28](https://github.com/advisories/GHSA-w44r-93j7-qv28).
+
 ## [1.25.0] - 2026-10-27
 
 ### Added
