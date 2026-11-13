@@ -392,13 +392,13 @@ jobs:
 
       - name: Create Cloud mTLS namespace
         id: create-cloud-namespace
-        run: pnpm exec tsx .github/scripts/cloud-namespace.ts create mtls
+        run: pnpm exec tsx scripts/cloud-namespace.ts create mtls
         env:
           TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
 
       - name: Create Cloud API key namespace
         id: create-cloud-api-key-namespace
-        run: pnpm exec tsx .github/scripts/cloud-namespace.ts create api-key
+        run: pnpm exec tsx scripts/cloud-namespace.ts create api-key
         env:
           TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
 
@@ -432,13 +432,13 @@ jobs:
 
       - name: Delete Cloud mTLS namespace
         if: ${{ always() && steps.create-cloud-namespace.outputs.namespace != '' }}
-        run: pnpm exec tsx .github/scripts/cloud-namespace.ts delete "${{ steps.create-cloud-namespace.outputs.namespace }}"
+        run: pnpm exec tsx scripts/cloud-namespace.ts delete "${{ steps.create-cloud-namespace.outputs.namespace }}"
         env:
           TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
 
       - name: Delete Cloud API key namespace
         if: ${{ always() && steps.create-cloud-api-key-namespace.outputs.namespace != '' }}
-        run: pnpm exec tsx .github/scripts/cloud-namespace.ts delete "${{ steps.create-cloud-api-key-namespace.outputs.namespace }}"
+        run: pnpm exec tsx scripts/cloud-namespace.ts delete "${{ steps.create-cloud-api-key-namespace.outputs.namespace }}"
         env:
           TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
 

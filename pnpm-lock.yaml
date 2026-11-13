@@ -1018,6 +1018,12 @@ importers:
 
   scripts:
     dependencies:
+      '@temporalio/cloud':
+        specifier: workspace:*
+        version: link:../packages/cloud
+      '@temporalio/proto':
+        specifier: workspace:*
+        version: link:../packages/proto
       glob:
         specifier: ^14.0.2
         version: 14.0.2
