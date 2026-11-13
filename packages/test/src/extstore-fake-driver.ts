@@ -15,6 +15,7 @@ import {
   type StorageDriverRetrieveContext,
   type StorageDriverStoreContext,
 } from '@temporalio/common';
+import { limit, type ConcurrencyLimit } from '@temporalio/common/internal/internal-non-workflow';
 
 export interface FakeDriver extends StorageDriver {
   storeCalls: { context: StorageDriverStoreContext; payloads: Payload[] }[];
@@ -64,4 +65,9 @@ export function makeFakeDriver(opts: FakeDriverOptions = {}): FakeDriver {
     },
   };
   return driver;
+}
+
+/** A fresh driver operation limit for tests that do not exercise `maxDriverOperations`. */
+export function testDriverOperationLimit(): ConcurrencyLimit {
+  return limit(64);
 }

@@ -18,7 +18,7 @@ import {
   newDriverOperationLimit,
 } from '@temporalio/common/internal/internal-non-workflow';
 import { encode } from '@temporalio/common/encoding';
-import { makeFakeDriver, type FakeDriver } from './extstore-fake-driver';
+import { testDriverOperationLimit, makeFakeDriver, type FakeDriver } from './extstore-fake-driver';
 
 /** Build a Payload whose proto-encoded size is at least `bodyBytes`. */
 function makePayload(bodyBytes: number): Payload {
@@ -32,6 +32,7 @@ test('store leaves payloads inline when below the threshold', async (t) => {
   const driver = makeFakeDriver({ name: 's3' });
   const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 1024 }), {
     payloadCache: false,
+    driverOperationLimit: testDriverOperationLimit(),
   });
   const smallPayload = makePayload(8);
 
@@ -45,6 +46,7 @@ test('store offloads payloads above the threshold', async (t) => {
   const driver = makeFakeDriver({ name: 's3' });
   const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 32 }), {
     payloadCache: false,
+    driverOperationLimit: testDriverOperationLimit(),
   });
   const bigPayload = makePayload(128);
 
@@ -59,6 +61,7 @@ test('store with payloadSizeThreshold=0 stores every payload', async (t) => {
   const driver = makeFakeDriver({ name: 's3' });
   const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }), {
     payloadCache: false,
+    driverOperationLimit: testDriverOperationLimit(),
   });
   const tinyPayload = makePayload(0);
 
@@ -75,6 +78,7 @@ test('store batches all payloads in a single store request', async (t) => {
   const driver = makeFakeDriver({ name: 's3' });
   const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }), {
     payloadCache: false,
+    driverOperationLimit: testDriverOperationLimit(),
   });
   const payloadA = makePayload(2);
   const payloadB = makePayload(3);
@@ -95,7 +99,7 @@ test('store selector routes to the chosen driver and groups by name', async (t) 
       payloadSizeThreshold: 0,
       driverSelector: (_, p) => (p.data!.length % 2 === 0 ? driverA : driverB),
     }),
-    { payloadCache: false }
+    { payloadCache: false, driverOperationLimit: testDriverOperationLimit() }
   );
   const evenPayloadA = makePayload(2);
   const oddPayload = makePayload(3);
@@ -115,7 +119,7 @@ test('store selector returning null leaves the payload inline', async (t) => {
       payloadSizeThreshold: 0,
       driverSelector: () => null,
     }),
-    { payloadCache: false }
+    { payloadCache: false, driverOperationLimit: testDriverOperationLimit() }
   );
 
   const originalPayload = makePayload(64);
@@ -134,7 +138,7 @@ test('store throws ExternalStorageUnregisteredDriverError when selector returns 
       payloadSizeThreshold: 0,
       driverSelector: () => strangerDriver,
     }),
-    { payloadCache: false }
+    { payloadCache: false, driverOperationLimit: testDriverOperationLimit() }
   );
 
   await t.throwsAsync(() => runner.store([makePayload(1)], { namespace: 'ns' }), {
@@ -147,6 +151,7 @@ test('store wraps driver errors in ExternalStorageDriverError', async (t) => {
   const driver = makeFakeDriver({ name: 's3', onStore: () => Promise.reject(boom) });
   const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }), {
     payloadCache: false,
+    driverOperationLimit: testDriverOperationLimit(),
   });
 
   const err = await t.throwsAsync(() => runner.store([makePayload(1)], { namespace: 'ns' }), {
@@ -159,6 +164,7 @@ test('store raises ExternalStorageReferenceError on claim arity mismatch', async
   const driver = makeFakeDriver({ name: 's3', onStore: () => [] });
   const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }), {
     payloadCache: false,
+    driverOperationLimit: testDriverOperationLimit(),
   });
 
   await t.throwsAsync(() => runner.store([makePayload(1)], { namespace: 'ns' }), {
@@ -189,7 +195,7 @@ test('store aborts sibling drivers on first failure', async (t) => {
       payloadSizeThreshold: 0,
       driverSelector: (_ctx, p) => (p.data!.length === 1 ? driverA : driverB),
     }),
-    { payloadCache: false }
+    { payloadCache: false, driverOperationLimit: testDriverOperationLimit() }
   );
 
   await t.throwsAsync(() => runner.store([makePayload(1), makePayload(2)], { namespace: 'ns' }));
@@ -209,7 +215,7 @@ test('selector and driver receive the store target and the ambient namespace', a
         return driver;
       },
     }),
-    { payloadCache: false }
+    { payloadCache: false, driverOperationLimit: testDriverOperationLimit() }
   );
 
   await runner.store([makePayload(8)], { namespace: 'worker-ns', target });
@@ -231,7 +237,7 @@ test('store/retrieve round-trip preserves order across drivers', async (t) => {
       payloadSizeThreshold: 0,
       driverSelector: (_, p) => (p.data!.length % 2 === 0 ? driverA : driverB),
     }),
-    { payloadCache: false }
+    { payloadCache: false, driverOperationLimit: testDriverOperationLimit() }
   );
 
   const inputPayloads = [makePayload(2), makePayload(3), makePayload(4), makePayload(5)];
@@ -247,16 +253,19 @@ test('store and retrieve report the same total size', async (t) => {
   const storage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 });
 
   const uploadMetrics = new ExternalStorageMetricsAccumulator();
-  const storedPayloads = await new ExternalStorageRunner(storage, { payloadCache: false }).store(
-    [makePayload(64), makePayload(128)],
-    {
-      namespace: 'ns',
-      metrics: uploadMetrics,
-    }
-  );
+  const storedPayloads = await new ExternalStorageRunner(storage, {
+    payloadCache: false,
+    driverOperationLimit: testDriverOperationLimit(),
+  }).store([makePayload(64), makePayload(128)], {
+    namespace: 'ns',
+    metrics: uploadMetrics,
+  });
 
   const downloadMetrics = new ExternalStorageMetricsAccumulator();
-  await new ExternalStorageRunner(storage, { payloadCache: false }).retrieve(storedPayloads, {
+  await new ExternalStorageRunner(storage, {
+    payloadCache: false,
+    driverOperationLimit: testDriverOperationLimit(),
+  }).retrieve(storedPayloads, {
     metrics: downloadMetrics,
   });
 
@@ -272,13 +281,14 @@ test('retrieve raises ExternalStorageUnregisteredDriverError when the driver nam
   const writerDriver = makeFakeDriver({ name: 'writer' });
   const writerRunner = new ExternalStorageRunner(
     new ExternalStorage({ drivers: [writerDriver], payloadSizeThreshold: 0 }),
-    { payloadCache: false }
+    { payloadCache: false, driverOperationLimit: testDriverOperationLimit() }
   );
   const storedPayloads = await writerRunner.store([makePayload(1)], { namespace: 'ns' });
 
   const readerDriver = makeFakeDriver({ name: 'different-name' });
   const readerRunner = new ExternalStorageRunner(new ExternalStorage({ drivers: [readerDriver] }), {
     payloadCache: false,
+    driverOperationLimit: testDriverOperationLimit(),
   });
 
   await t.throwsAsync(() => readerRunner.retrieve(storedPayloads), {
@@ -293,14 +303,14 @@ test('retrieve raises ExternalStorageReferenceError on payload arity mismatch', 
   const writerDriver = makeFakeDriver({ name: 's3' });
   const writerRunner = new ExternalStorageRunner(
     new ExternalStorage({ drivers: [writerDriver], payloadSizeThreshold: 0 }),
-    { payloadCache: false }
+    { payloadCache: false, driverOperationLimit: testDriverOperationLimit() }
   );
   const storedPayloads = await writerRunner.store(payloadsToStore, { namespace: 'ns' });
 
   const readerDriver = makeFakeDriver({ name: 's3', onRetrieve: () => payloadsToRetrieve });
   const readerRunner = new ExternalStorageRunner(
     new ExternalStorage({ drivers: [readerDriver], payloadSizeThreshold: 0 }),
-    { payloadCache: false }
+    { payloadCache: false, driverOperationLimit: testDriverOperationLimit() }
   );
 
   await t.throwsAsync(() => readerRunner.retrieve(storedPayloads), {
@@ -313,14 +323,14 @@ test('retrieve wraps driver errors in ExternalStorageDriverError', async (t) => 
   const writerDriver = makeFakeDriver({ name: 's3' });
   const writerRunner = new ExternalStorageRunner(
     new ExternalStorage({ drivers: [writerDriver], payloadSizeThreshold: 0 }),
-    { payloadCache: false }
+    { payloadCache: false, driverOperationLimit: testDriverOperationLimit() }
   );
   const storedPayloads = await writerRunner.store([makePayload(1)], { namespace: 'ns' });
 
   const readerDriver = makeFakeDriver({ name: 's3', onRetrieve: () => Promise.reject(boom) });
   const readerRunner = new ExternalStorageRunner(
     new ExternalStorage({ drivers: [readerDriver], payloadSizeThreshold: 0 }),
-    { payloadCache: false }
+    { payloadCache: false, driverOperationLimit: testDriverOperationLimit() }
   );
 
   const err = await t.throwsAsync(() => readerRunner.retrieve(storedPayloads), {
@@ -333,6 +343,7 @@ test('retrieve only resolves reference payloads, passing others through', async 
   const driver = makeFakeDriver({ name: 's3' });
   const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 256 }), {
     payloadCache: false,
+    driverOperationLimit: testDriverOperationLimit(),
   });
   const inlineBefore = makePayload(8);
   const offloaded = makePayload(1024);
@@ -353,6 +364,7 @@ test('retrieve returns payloads unchanged when none are references', async (t) =
   const driver = makeFakeDriver({ name: 's3' });
   const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }), {
     payloadCache: false,
+    driverOperationLimit: testDriverOperationLimit(),
   });
   const inlinePayloads = [makePayload(8), makePayload(16)];
 
@@ -366,6 +378,7 @@ test('retrieve batches multiple references to the same driver into one call', as
   const driver = makeFakeDriver({ name: 's3' });
   const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }), {
     payloadCache: false,
+    driverOperationLimit: testDriverOperationLimit(),
   });
 
   const storedPayloads = await runner.store([makePayload(1), makePayload(2), makePayload(3)], { namespace: 'ns' });
@@ -388,7 +401,7 @@ test('retrieve aborts sibling drivers on first failure', async (t) => {
       payloadSizeThreshold: 0,
       driverSelector: (_ctx, p) => (p.data!.length % 2 === 0 ? writerA : writerB),
     }),
-    { payloadCache: false }
+    { payloadCache: false, driverOperationLimit: testDriverOperationLimit() }
   );
   const storedPayloads = await writerRunner.store([makePayload(2), makePayload(3)], { namespace: 'ns' });
 
@@ -414,7 +427,7 @@ test('retrieve aborts sibling drivers on first failure', async (t) => {
       payloadSizeThreshold: 0,
       driverSelector: () => readerA,
     }),
-    { payloadCache: false }
+    { payloadCache: false, driverOperationLimit: testDriverOperationLimit() }
   );
 
   await t.throwsAsync(() => readerRunner.retrieve(storedPayloads));
@@ -511,7 +524,7 @@ test('warns when a driver completes a store without taking a permit', async (t) 
   const { logger, warnings } = makeRecordingLogger();
   const runner = new ExternalStorageRunner(
     new ExternalStorage({ drivers: [makeFakeDriver({ name: 's3' })], payloadSizeThreshold: 0 }),
-    { payloadCache: false, logger }
+    { payloadCache: false, driverOperationLimit: testDriverOperationLimit(), logger }
   );
 
   await runner.store([makePayload(8)], { namespace: 'ns' });
@@ -526,11 +539,18 @@ test('warns when a driver completes a retrieve without taking a permit', async (
     drivers: [makeFakeDriver({ name: 's3' })],
     payloadSizeThreshold: 0,
   });
-  const references = await new ExternalStorageRunner(externalStorage, { payloadCache: false }).store([makePayload(8)], {
+  const references = await new ExternalStorageRunner(externalStorage, {
+    payloadCache: false,
+    driverOperationLimit: testDriverOperationLimit(),
+  }).store([makePayload(8)], {
     namespace: 'ns',
   });
 
-  await new ExternalStorageRunner(externalStorage, { payloadCache: false, logger }).retrieve(references);
+  await new ExternalStorageRunner(externalStorage, {
+    payloadCache: false,
+    driverOperationLimit: testDriverOperationLimit(),
+    logger,
+  }).retrieve(references);
 
   t.is(warnings.length, 1);
   t.regex(warnings[0]!, /'s3' completed a retrieve without taking a permit/);
@@ -549,6 +569,7 @@ test('does not warn when a driver takes a permit', async (t) => {
   });
   const runner = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 }), {
     payloadCache: false,
+    driverOperationLimit: testDriverOperationLimit(),
     logger,
   });
 
@@ -580,7 +601,7 @@ test('maxOperationsPerMessage bounds concurrent operations within one message', 
       payloadSizeThreshold: 0,
       concurrency: { maxDriverOperations: 100, maxOperationsPerMessage: 3 },
     }),
-    { payloadCache: false }
+    { payloadCache: false, driverOperationLimit: testDriverOperationLimit() }
   );
 
   const payloadSites = Array.from({ length: 4 }, () =>
@@ -602,7 +623,10 @@ test('maxOperationsPerMessage bounds concurrent operations on the retrieve path'
     concurrency: { maxDriverOperations: 100, maxOperationsPerMessage: 3 },
   });
   gate.release();
-  const references = await new ExternalStorageRunner(externalStorage, { payloadCache: false }).store(
+  const references = await new ExternalStorageRunner(externalStorage, {
+    payloadCache: false,
+    driverOperationLimit: testDriverOperationLimit(),
+  }).store(
     Array.from({ length: 6 }, () => makePayload(8)),
     { namespace: 'ns' }
   );
@@ -614,7 +638,7 @@ test('maxOperationsPerMessage bounds concurrent operations on the retrieve path'
       payloadSizeThreshold: 0,
       concurrency: { maxDriverOperations: 100, maxOperationsPerMessage: 3 },
     }),
-    { payloadCache: false }
+    { payloadCache: false, driverOperationLimit: testDriverOperationLimit() }
   );
   const payloadSites = references.map((reference) => retrieving.retrieve([reference]));
   await flush();
@@ -633,8 +657,14 @@ test('each message gets its own maxOperationsPerMessage limit', async (t) => {
     concurrency: { maxDriverOperations: 100, maxOperationsPerMessage: 2 },
   });
 
-  const firstMessage = new ExternalStorageRunner(externalStorage, { payloadCache: false });
-  const secondMessage = new ExternalStorageRunner(externalStorage, { payloadCache: false });
+  const firstMessage = new ExternalStorageRunner(externalStorage, {
+    payloadCache: false,
+    driverOperationLimit: testDriverOperationLimit(),
+  });
+  const secondMessage = new ExternalStorageRunner(externalStorage, {
+    payloadCache: false,
+    driverOperationLimit: testDriverOperationLimit(),
+  });
   const stores = [
     firstMessage.store([makePayload(8), makePayload(8), makePayload(8)], { namespace: 'ns' }),
     secondMessage.store([makePayload(8), makePayload(8), makePayload(8)], { namespace: 'ns' }),
@@ -664,8 +694,8 @@ test('separate owners do not share maxDriverOperations', async (t) => {
     driverOperationLimit: newDriverOperationLimit(externalStorage),
   });
   const stores = [
-    clientRunner.store([makePayload(8), makePayload(8), makePayload(8)]),
-    workerRunner.store([makePayload(8), makePayload(8), makePayload(8)]),
+    clientRunner.store([makePayload(8), makePayload(8), makePayload(8)], { namespace: 'ns' }),
+    workerRunner.store([makePayload(8), makePayload(8), makePayload(8)], { namespace: 'ns' }),
   ];
   await flush();
   t.is(gate.peak(), 4, 'each owner allows 2, so two owners allow 4');

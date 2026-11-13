@@ -310,6 +310,7 @@ export class ScheduleClient extends BaseClient {
         externalStorageRetrieveVisitOptions({
           externalStorage: this.dataConverter.externalStorage,
           payloadCache: this.payloadCache,
+          driverOperationLimit: this.driverOperationLimit,
         })
       );
       return response;
@@ -441,6 +442,7 @@ export class ScheduleClient extends BaseClient {
           externalStorageRetrieveVisitOptions({
             externalStorage: this.dataConverter.externalStorage,
             payloadCache: this.payloadCache,
+            driverOperationLimit: this.driverOperationLimit,
           })
         );
       } catch (e) {

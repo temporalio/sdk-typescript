@@ -889,12 +889,11 @@ export class Worker {
     protected readonly isReplayWorker: boolean = false
   ) {
     // A worker does not share its client's limit, even when built from that client.
-    const externalStorage = options.loadedDataConverter?.externalStorage;
-    this.driverOperationLimit = externalStorage ? newDriverOperationLimit(externalStorage) : undefined;
+    this.driverOperationLimit = newDriverOperationLimit(options.loadedDataConverter?.externalStorage);
   }
 
   /** Limits the external storage operations this worker's drivers run at once. */
-  protected readonly driverOperationLimit: ConcurrencyLimit | undefined;
+  protected readonly driverOperationLimit: ConcurrencyLimit;
 
   /**
    * An Observable which emits each time the number of in flight activations changes
@@ -1156,6 +1155,7 @@ export class Worker {
                       externalStorageRetrieveVisitOptions({
                         externalStorage: loadedDataConverter.externalStorage,
                         payloadCache: this.options.payloadCache,
+                        driverOperationLimit: this.driverOperationLimit,
                         logger: this.logger,
                       })
                     );
@@ -1426,6 +1426,7 @@ export class Worker {
                   externalStorageRetrieveVisitOptions({
                     externalStorage: this.options.loadedDataConverter.externalStorage,
                     payloadCache: this.options.payloadCache,
+                    driverOperationLimit: this.driverOperationLimit,
                     logger: this.logger,
                   })
                 );
@@ -1667,6 +1668,7 @@ export class Worker {
           externalStorage,
           metrics: downloadMetrics,
           payloadCache: this.options.payloadCache,
+          driverOperationLimit: this.driverOperationLimit,
           logger: this.logger,
         })
       );

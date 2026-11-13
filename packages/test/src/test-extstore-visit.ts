@@ -23,7 +23,7 @@ import {
 } from '@temporalio/common/internal/internal-non-workflow';
 import { encode } from '@temporalio/common/encoding';
 import type { coresdk, temporal } from '@temporalio/proto';
-import { makeFakeDriver } from './extstore-fake-driver';
+import { testDriverOperationLimit, makeFakeDriver } from './extstore-fake-driver';
 
 /** Build a Payload whose proto-encoded size is at least `bodyBytes`, filled with `fill`. */
 function makePayload(bodyBytes: number, fill = 0): Payload {
@@ -39,7 +39,10 @@ function externalStorageWith(driver = makeFakeDriver({ name: 's3' }), payloadSiz
 
 /** Offload a payload through the runner and return the resulting reference payload. */
 async function toReference(externalStorage: ExternalStorage, payload: Payload): Promise<Payload> {
-  const [reference] = await new ExternalStorageRunner(externalStorage, { payloadCache: false }).store([payload], {
+  const [reference] = await new ExternalStorageRunner(externalStorage, {
+    payloadCache: false,
+    driverOperationLimit: testDriverOperationLimit(),
+  }).store([payload], {
     namespace: 'ns',
   });
   return reference!;
@@ -59,6 +62,7 @@ test('workflow store offloads a large payload and threads the target to the driv
     externalStorageStoreVisitOptions({
       namespace: 'ns',
       payloadCache: false,
+      driverOperationLimit: testDriverOperationLimit(),
       externalStorage,
       initialTarget: WORKFLOW_TARGET,
     })
@@ -83,6 +87,7 @@ test('workflow store offloads only above-threshold payloads at a repeated site',
     externalStorageStoreVisitOptions({
       namespace: 'ns',
       payloadCache: false,
+      driverOperationLimit: testDriverOperationLimit(),
       externalStorage,
       initialTarget: WORKFLOW_TARGET,
     })
@@ -111,6 +116,7 @@ test('workflow store applies a per-command derived target', async (t) => {
     externalStorageStoreVisitOptions({
       namespace: 'ns',
       payloadCache: false,
+      driverOperationLimit: testDriverOperationLimit(),
       externalStorage,
       initialTarget: WORKFLOW_TARGET,
       // Stand-in for the worker's command→target mapping: the child command retargets its payloads.
@@ -147,6 +153,7 @@ test('workflow store leaves search attributes inline while offloading siblings',
     externalStorageStoreVisitOptions({
       namespace: 'ns',
       payloadCache: false,
+      driverOperationLimit: testDriverOperationLimit(),
       externalStorage,
       initialTarget: WORKFLOW_TARGET,
     })
@@ -170,6 +177,7 @@ test('workflow store then retrieve round-trips the original payload bytes', asyn
     externalStorageStoreVisitOptions({
       namespace: 'ns',
       payloadCache: false,
+      driverOperationLimit: testDriverOperationLimit(),
       externalStorage,
       initialTarget: WORKFLOW_TARGET,
     })
@@ -183,7 +191,11 @@ test('workflow store then retrieve round-trips the original payload bytes', asyn
   await visit(
     activation,
     walkWorkflowActivation,
-    externalStorageRetrieveVisitOptions({ payloadCache: false, externalStorage })
+    externalStorageRetrieveVisitOptions({
+      payloadCache: false,
+      driverOperationLimit: testDriverOperationLimit(),
+      externalStorage,
+    })
   );
 
   const retrieved = activation.jobs![0]!.resolveActivity!.result!.completed!.result!;
@@ -201,7 +213,12 @@ test('activity task completion store offloads the result payload', async (t) => 
   await visit(
     completion,
     walkActivityTaskCompletion,
-    externalStorageStoreVisitOptions({ namespace: 'ns', payloadCache: false, externalStorage })
+    externalStorageStoreVisitOptions({
+      namespace: 'ns',
+      payloadCache: false,
+      driverOperationLimit: testDriverOperationLimit(),
+      externalStorage,
+    })
   );
 
   t.true(isReferencePayload(completion.result!.completed!.result!));
@@ -215,7 +232,12 @@ test('activity heartbeat store offloads the details payload', async (t) => {
   await visit(
     heartbeat,
     walkActivityHeartbeat,
-    externalStorageStoreVisitOptions({ namespace: 'ns', payloadCache: false, externalStorage })
+    externalStorageStoreVisitOptions({
+      namespace: 'ns',
+      payloadCache: false,
+      driverOperationLimit: testDriverOperationLimit(),
+      externalStorage,
+    })
   );
 
   t.true(isReferencePayload(heartbeat.details![0]!));
@@ -228,7 +250,15 @@ test('activity task retrieve resolves the activity input', async (t) => {
     start: { input: [await toReference(externalStorage, input)] },
   };
 
-  await visit(task, walkActivityTask, externalStorageRetrieveVisitOptions({ payloadCache: false, externalStorage }));
+  await visit(
+    task,
+    walkActivityTask,
+    externalStorageRetrieveVisitOptions({
+      payloadCache: false,
+      driverOperationLimit: testDriverOperationLimit(),
+      externalStorage,
+    })
+  );
 
   t.deepEqual(task.start!.input![0], input);
 });
@@ -242,7 +272,12 @@ test('nexus task completion store offloads the sync result payload', async (t) =
   await visit(
     completion,
     walkNexusTaskCompletion,
-    externalStorageStoreVisitOptions({ namespace: 'ns', payloadCache: false, externalStorage })
+    externalStorageStoreVisitOptions({
+      namespace: 'ns',
+      payloadCache: false,
+      driverOperationLimit: testDriverOperationLimit(),
+      externalStorage,
+    })
   );
 
   t.true(isReferencePayload(completion.completed!.startOperation!.syncSuccess!.payload!));
@@ -255,7 +290,15 @@ test('nexus task retrieve resolves the request payload', async (t) => {
     task: { request: { startOperation: { payload: await toReference(externalStorage, requestPayload) } } },
   };
 
-  await visit(task, walkNexusTask, externalStorageRetrieveVisitOptions({ payloadCache: false, externalStorage }));
+  await visit(
+    task,
+    walkNexusTask,
+    externalStorageRetrieveVisitOptions({
+      payloadCache: false,
+      driverOperationLimit: testDriverOperationLimit(),
+      externalStorage,
+    })
+  );
 
   t.deepEqual(task.task!.request!.startOperation!.payload, requestPayload);
 });
@@ -273,6 +316,7 @@ test('client request store offloads the workflow input (via generic visit)', asy
     externalStorageStoreVisitOptions({
       namespace: 'ns',
       payloadCache: false,
+      driverOperationLimit: testDriverOperationLimit(),
       externalStorage,
       initialTarget: WORKFLOW_TARGET,
     })
@@ -291,7 +335,11 @@ test('client response retrieve resolves the query result (via generic visit)', a
   await visit(
     response,
     walkQueryWorkflowResponse,
-    externalStorageRetrieveVisitOptions({ payloadCache: false, externalStorage })
+    externalStorageRetrieveVisitOptions({
+      payloadCache: false,
+      driverOperationLimit: testDriverOperationLimit(),
+      externalStorage,
+    })
   );
 
   t.deepEqual(response.queryResult!.payloads![0], queryResult);
@@ -308,7 +356,11 @@ test('inbound options raise TMPRL1105 on a reference when storage is not configu
       visit(
         task,
         walkActivityTask,
-        externalStorageRetrieveVisitOptions({ payloadCache: false, externalStorage: undefined })
+        externalStorageRetrieveVisitOptions({
+          payloadCache: false,
+          driverOperationLimit: testDriverOperationLimit(),
+          externalStorage: undefined,
+        })
       ),
     {
       instanceOf: ExternalStorageNotConfiguredError,
@@ -325,7 +377,11 @@ test('inbound options leave a reference-free message untouched when storage is n
     visit(
       task,
       walkActivityTask,
-      externalStorageRetrieveVisitOptions({ payloadCache: false, externalStorage: undefined })
+      externalStorageRetrieveVisitOptions({
+        payloadCache: false,
+        driverOperationLimit: testDriverOperationLimit(),
+        externalStorage: undefined,
+      })
     )
   );
   t.deepEqual(task.start!.input![0], input, 'payload passes through unchanged');

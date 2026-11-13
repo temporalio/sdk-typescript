@@ -468,6 +468,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
           externalStorageRetrieveVisitOptions({
             externalStorage: this.dataConverter.externalStorage,
             payloadCache: this.payloadCache,
+            driverOperationLimit: this.driverOperationLimit,
           })
         );
         // An Activity started by a Nexus operation handler encodes its outcome with the handler's
@@ -530,6 +531,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
         externalStorageRetrieveVisitOptions({
           externalStorage: this.dataConverter.externalStorage,
           payloadCache: this.payloadCache,
+          driverOperationLimit: this.driverOperationLimit,
         })
       );
       const context: ActivitySerializationContext = {
@@ -599,6 +601,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
           externalStorageRetrieveVisitOptions({
             externalStorage: this.dataConverter.externalStorage,
             payloadCache: this.payloadCache,
+            driverOperationLimit: this.driverOperationLimit,
           })
         );
 

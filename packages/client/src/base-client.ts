@@ -79,15 +79,14 @@ export class BaseClient {
   protected readonly payloadCache: PayloadCache | false;
 
   /** Limits the external storage operations this client's drivers run at once. */
-  protected readonly driverOperationLimit: ConcurrencyLimit | undefined;
+  protected readonly driverOperationLimit: ConcurrencyLimit;
 
   protected constructor(options?: BaseClientOptions) {
     this.connection = options?.connection ?? Connection.lazy();
     const dataConverter = options?.dataConverter ?? {};
     this.loadedDataConverter = isLoadedDataConverter(dataConverter) ? dataConverter : loadDataConverter(dataConverter);
     this.payloadCache = options?.payloadCache ?? false;
-    const externalStorage = this.loadedDataConverter.externalStorage;
-    this.driverOperationLimit = externalStorage ? newDriverOperationLimit(externalStorage) : undefined;
+    this.driverOperationLimit = newDriverOperationLimit(this.loadedDataConverter.externalStorage);
   }
 
   /**

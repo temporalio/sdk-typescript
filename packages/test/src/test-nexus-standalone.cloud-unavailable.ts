@@ -43,7 +43,7 @@ import { generateWorkflowRunOperationToken } from '@temporalio/nexus/internal';
 import type { Context } from './helpers-integration';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { waitUntil } from './helpers';
-import { makeFakeDriver } from './extstore-fake-driver';
+import { testDriverOperationLimit, makeFakeDriver } from './extstore-fake-driver';
 import { payloadConverter as stringManglingPayloadConverter } from './payload-converters/string-mangling-payload-converter';
 import {
   assertOrder,
@@ -282,6 +282,7 @@ test('standalone Nexus worker retrieves External Storage references nested in a 
   const offloadEverything = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 });
   const [inputReference, signalReference] = await new ExternalStorageRunner(offloadEverything, {
     payloadCache: false,
+    driverOperationLimit: testDriverOperationLimit(),
   }).store(
     [
       stringManglingPayloadConverter.toPayload('workflow-input'),

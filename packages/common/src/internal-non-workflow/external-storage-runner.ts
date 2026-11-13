@@ -42,8 +42,9 @@ const PayloadProto = temporal.api.common.v1.Payload;
  * @internal
  * @experimental
  */
-export function newDriverOperationLimit(externalStorage: ExternalStorage): ConcurrencyLimit {
-  return limit(externalStorage.concurrency.maxDriverOperations);
+export function newDriverOperationLimit(externalStorage: ExternalStorage | undefined): ConcurrencyLimit {
+  // Without External Storage nothing runs through this limit, so its size does not matter.
+  return limit(externalStorage?.concurrency.maxDriverOperations ?? 1);
 }
 
 /** @internal @experimental */
@@ -83,7 +84,7 @@ export interface ExternalStorageRunnerOptions {
   payloadCache: PayloadCache | false;
   logger?: Logger;
   /** The driver operation limit of the client or worker running this runner. */
-  driverOperationLimit?: ConcurrencyLimit;
+  driverOperationLimit: ConcurrencyLimit;
 }
 
 /**
@@ -103,7 +104,7 @@ export class ExternalStorageRunner {
     { payloadCache, logger, driverOperationLimit }: ExternalStorageRunnerOptions
   ) {
     this.messageLimit = limit(externalStorage.concurrency.maxOperationsPerMessage);
-    this.driverOperationLimit = driverOperationLimit ?? newDriverOperationLimit(externalStorage);
+    this.driverOperationLimit = driverOperationLimit;
     this.payloadCache = payloadCache;
     this.logger = logger;
   }

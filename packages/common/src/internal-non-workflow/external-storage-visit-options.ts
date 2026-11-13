@@ -35,7 +35,7 @@ export interface ExternalStorageStoreVisitOptions {
   payloadCache: PayloadCache | false;
   logger?: Logger;
   /** The driver operation limit of the client or worker running the walk. */
-  driverOperationLimit?: ConcurrencyLimit;
+  driverOperationLimit: ConcurrencyLimit;
 }
 
 /**
@@ -82,7 +82,7 @@ export interface ExternalStorageRetrieveVisitOptions {
   payloadCache: PayloadCache | false;
   logger?: Logger;
   /** The driver operation limit of the client or worker running the walk. */
-  driverOperationLimit?: ConcurrencyLimit;
+  driverOperationLimit: ConcurrencyLimit;
 }
 
 /**
