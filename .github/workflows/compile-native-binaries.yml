@@ -25,6 +25,8 @@ jobs:
   # Compile native bridge code for each target platform.
   # Uploads the native library for each target as a build artifact.
   compile-native-binaries:
+    env:
+      PROFILE: ${{ inputs.profile }}
     timeout-minutes: ${{ inputs.profile == 'debug' && 20 || 360 }}
     strategy:
       fail-fast: true
@@ -89,13 +91,17 @@ jobs:
         if: steps.cached-artifact.outputs.cache-hit != 'true' && !matrix.container
         working-directory: ./packages/core-bridge
         run: |
-          cargo build ${{ inputs.profile == 'release' && '--release' || '' }} --target ${{ matrix.target }}
+          if [ "$PROFILE" = release ]; then
+            cargo build --release --target ${{ matrix.target }}
+          else
+            cargo build --target ${{ matrix.target }}
+          fi
 
       - name: Compile rust code (Docker)
         if: steps.cached-artifact.outputs.cache-hit != 'true' && matrix.container
         working-directory: ./packages/core-bridge
         run: |
-          docker run --rm -v "$(pwd):/workspace" -w /workspace \
+          docker run --rm -e PROFILE -v "$(pwd):/workspace" -w /workspace \
             ${{ matrix.container }} \
             sh -c '
                 curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
@@ -103,7 +109,11 @@ jobs:
                 unzip /tmp/protoc.zip -d $HOME/.protobuf
                 export PATH="$PATH:$HOME/.cargo/bin:$HOME/.protobuf/bin"
 
-                cargo build ${{ inputs.profile == 'release' && '--release' || '' }} --target ${{ matrix.target }}
+                if [ "$PROFILE" = release ]; then
+                  cargo build --release --target ${{ matrix.target }}
+                else
+                  cargo build --target ${{ matrix.target }}
+                fi
             '
 
       - name: Move built artifacts in place
@@ -111,7 +121,7 @@ jobs:
         working-directory: ./packages/core-bridge
         run: |
           mkdir -p ./releases/${{ matrix.target }}
-          cp target/${{ matrix.target }}/${{ inputs.profile }}/${{ matrix.out-file }} ./releases/${{ matrix.target }}/index.node
+          cp "target/${{ matrix.target }}/$PROFILE/${{ matrix.out-file }}" "./releases/${{ matrix.target }}/index.node"
 
       - name: Print required GLIBC version
         if: inputs.profile == 'release' && startsWith(matrix.platform, 'linux')
