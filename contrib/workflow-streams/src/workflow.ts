@@ -40,6 +40,7 @@ import { ApplicationFailure, type Payload, type Workflow } from '@temporalio/com
 import type { Duration } from '@temporalio/common/lib/time';
 import { msToNumber } from '@temporalio/common/lib/time';
 import { decodePayloadWire, encodePayloadProto, encodePayloadWire, encodeBase64 } from './codec';
+import { isPayload, isUint8ArrayLike } from './is-payload';
 import type { PollInput, PollResult, WorkflowStreamState, PublishInput, WorkflowStreamWireItem } from './types';
 import { WorkflowTopicHandle } from './topic-handle';
 
@@ -63,18 +64,6 @@ export { WorkflowTopicHandle } from './topic-handle';
 
 const BINARY_PLAIN_ENCODING = new TextEncoder().encode('binary/plain');
 
-/**
- * Cross-realm-safe Uint8Array check.
- *
- * The workflow sandbox gets its `TextEncoder` from `node:util`, which
- * returns a `Uint8Array` tagged to the host realm — so `value instanceof
- * Uint8Array` is false against the sandbox's own `Uint8Array` global.
- * `Object.prototype.toString` crosses realm boundaries reliably.
- */
-function isUint8ArrayLike(value: unknown): value is ArrayLike<number> {
-  return value != null && typeof value === 'object' && Object.prototype.toString.call(value) === '[object Uint8Array]';
-}
-
 // Fixed handler names for cross-language interop
 export const workflowStreamPublishSignal = defineSignal<[PublishInput]>('__temporal_workflow_stream_publish');
 export const workflowStreamPollUpdate = defineUpdate<PollResult, [PollInput]>('__temporal_workflow_stream_poll');
@@ -92,19 +81,6 @@ function payloadWireSize(encoded: string, topic: string): number {
 interface InternalLogEntry {
   topic: string;
   payload: Payload;
-}
-
-/** Type guard for Payload — same logic as client.ts's isPayload. */
-function isPayload(value: unknown): value is Payload {
-  if (value === null || typeof value !== 'object') return false;
-  const v = value as { metadata?: unknown };
-  return (
-    'metadata' in v &&
-    v.metadata != null &&
-    typeof v.metadata === 'object' &&
-    !Array.isArray(v.metadata) &&
-    Object.values(v.metadata).every((x) => isUint8ArrayLike(x))
-  );
 }
 
 /**
