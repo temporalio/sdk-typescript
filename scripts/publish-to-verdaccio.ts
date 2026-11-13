@@ -17,7 +17,7 @@ async function main(): Promise<void> {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-const help = `Usage: pnpm tsx scripts/publish-to-verdaccio.ts --tarball-dir <dir> [options]
+const help = `Usage: node scripts/publish-to-verdaccio.ts --tarball-dir <dir> [options]
 
 Publish the tarballs written by \`pnpm packages:pack\` to a local Verdaccio registry.
 
