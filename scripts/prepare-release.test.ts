@@ -3,14 +3,14 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, 
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import test from 'node:test';
-import { corePath, repoRoot } from './changelog';
+import { corePath, repoRoot } from './changelog.ts';
 import {
   bumpPackageVersions,
   packageJsonsWithVersion,
   rollChangelog,
   unexpectedReleasePaths,
   updateLockfile,
-} from './prepare-release';
+} from './prepare-release.ts';
 
 function fixture(): string {
   const root = mkdtempSync(resolve(tmpdir(), 'sdk-typescript-release-'));
