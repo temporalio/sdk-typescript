@@ -1,6 +1,13 @@
 import test from 'ava';
 import * as nexus from 'nexus-rpc';
-import type { LoadedDataConverter, Payload, PayloadCodec, TypeInfo } from '@temporalio/common';
+import type {
+  LoadedDataConverter,
+  NexusSerializationContext,
+  Payload,
+  PayloadCodec,
+  SerializationContext,
+  TypeInfo,
+} from '@temporalio/common';
 import {
   ApplicationFailure,
   defaultDataConverter,
@@ -25,6 +32,7 @@ import type { coresdk, temporal } from '@temporalio/proto';
 import type { SignalWithStartWorkflowRequest } from '@temporalio/workflow';
 import { workflowService } from '@temporalio/workflow/internal';
 import { decodePayload, PAYLOAD_VALIDATION_ERROR_TYPE, visitNexusTask } from '@temporalio/worker/internal';
+import { createOnCompleteRequestTransferTypeConverter, type OnCompleteRequest } from '@temporalio/nexus/notifications';
 import { makeFakeDriver } from './extstore-fake-driver';
 
 const protobufPayloadConverter = new ProtobufBinaryPayloadConverter(protoRoot);
@@ -364,6 +372,57 @@ test('decodePayload applies the configured converter to nested System Nexus payl
   t.deepEqual(result.signalArgs, ['converted-signal-input']);
   t.deepEqual(result.headers, { custom: 'converted-header' });
   t.deepEqual(decoded.sort(), ['header', 'signal-input', 'workflow-input']);
+});
+
+test('decodePayload decodes an OnCompleteRequest with the handler operation context', async (t) => {
+  const context: NexusSerializationContext = {
+    type: 'nexus',
+    endpoint: 'my-endpoint',
+    service: 'NotificationService',
+    operation: 'OnComplete',
+  };
+  const codecContexts: (SerializationContext | undefined)[] = [];
+  const converterContexts: (SerializationContext | undefined)[] = [];
+  const dataConverter: LoadedDataConverter = {
+    ...defaultDataConverter,
+    payloadCodecs: [
+      {
+        async encode(payloads) {
+          return payloads;
+        },
+        async decode(payloads, codecContext) {
+          codecContexts.push(codecContext);
+          return payloads;
+        },
+      },
+    ],
+    payloadConverter: {
+      toPayload(value) {
+        return defaultPayloadConverter.toPayload(value);
+      },
+      fromPayload<T>(payload: Payload, converterContext?: SerializationContext) {
+        converterContexts.push(converterContext);
+        return defaultPayloadConverter.fromPayload<T>(payload);
+      },
+    },
+  };
+  const request = protoRoot.temporal.api.notificationservice.v1.OnCompleteRequest.create({
+    success: defaultPayloadConverter.toPayload('result'),
+    sourceContext: defaultPayloadConverter.toPayload('source'),
+  });
+  const payload = protobufPayloadConverter.toPayload(request)!;
+  payload.metadata![SYSTEM_NEXUS_PAYLOAD_METADATA_KEY] = SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE;
+
+  const result = (await decodePayload(
+    dataConverter,
+    payload,
+    { transferTypeConverter: createOnCompleteRequestTransferTypeConverter() },
+    context
+  )) as OnCompleteRequest<string, string>;
+
+  t.deepEqual(result, { result: { tag: 'success', value: 'result' }, sourceContext: 'source' });
+  t.deepEqual(codecContexts, [context, context]);
+  t.deepEqual(converterContexts, [context, context]);
 });
 
 test('decodePayload uses the configured converter for an unmarked input', async (t) => {

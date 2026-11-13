@@ -18,6 +18,7 @@ import type { History } from '@temporalio/common/proto-utils';
 import type { temporal } from '@temporalio/proto';
 import type { NexusOperationHandle } from './nexus-client';
 import type {
+  CompletionCallback,
   NexusOperationExecutionCount,
   NexusOperationExecutionDescription,
   NexusOperationExecution,
@@ -374,6 +375,7 @@ export interface StartNexusOperationInput {
   readonly idConflictPolicy?: NexusOperationIdConflictPolicy;
   readonly searchAttributes?: SearchAttributePair[] | TypedSearchAttributes;
   readonly headers?: Record<string, string>;
+  readonly completionCallbacks?: readonly CompletionCallback<any>[];
   readonly inputType?: TypeInfo;
   readonly outputType?: TypeInfo;
 }
