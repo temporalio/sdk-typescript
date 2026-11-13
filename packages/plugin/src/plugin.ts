@@ -269,6 +269,8 @@ function resolveClientInterceptors(
       modernWorkflowInterceptors(parameter?.workflow)
     ),
     schedule: tryConcat(existing?.schedule, parameter?.schedule),
+    activity: tryConcat(existing?.activity, parameter?.activity),
+    nexus: tryConcat(existing?.nexus, parameter?.nexus),
   }));
 }
 
