@@ -38,6 +38,7 @@ import {
   decodeOptionalFailureToOptionalError,
   encodeToPayloadsWithContext,
   encodeUserMetadata,
+  externalStorageReferenceDecodeVisitOptions,
   externalStorageRetrieveVisitOptions,
   externalStorageStoreVisitOptions,
   visit,
@@ -463,6 +464,15 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
         await visit(
           resp,
           walkPollActivityExecutionResponse,
+          externalStorageReferenceDecodeVisitOptions({
+            externalStorage: this.dataConverter.externalStorage,
+            codecs: this.dataConverter.payloadCodecs,
+            initialContext: nexusSerializationContextFromProto(resp.propagatedNexusSerializationContext) ?? context,
+          })
+        );
+        await visit(
+          resp,
+          walkPollActivityExecutionResponse,
           externalStorageRetrieveVisitOptions({
             externalStorage: this.dataConverter.externalStorage,
             payloadCache: this.payloadCache,
@@ -522,6 +532,29 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       if (!hasInfo(resp)) {
         throw new ServiceError('Missing info in describeActivityExecution response');
       }
+      const context: ActivitySerializationContext = {
+        type: 'activity',
+        namespace,
+        activityId: input.activityId,
+        isLocal: false,
+      };
+      // Input keeps the Activity context; the info and outcome use the caller-facing context.
+      const callerFacingContext =
+        nexusSerializationContextFromProto(resp.info.propagatedNexusSerializationContext) ?? context;
+      await visit(
+        resp,
+        walkDescribeActivityExecutionResponse,
+        externalStorageReferenceDecodeVisitOptions({
+          externalStorage: this.dataConverter.externalStorage,
+          codecs: this.dataConverter.payloadCodecs,
+          initialContext: context,
+          deriveContext: (_message, typeName, current) =>
+            typeName === 'temporal.api.activity.v1.ActivityExecutionInfo' ||
+            typeName === 'temporal.api.activity.v1.ActivityExecutionOutcome'
+              ? callerFacingContext
+              : current,
+        })
+      );
       await visit(
         resp,
         walkDescribeActivityExecutionResponse,
@@ -530,12 +563,6 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
           payloadCache: this.payloadCache,
         })
       );
-      const context: ActivitySerializationContext = {
-        type: 'activity',
-        namespace,
-        activityId: input.activityId,
-        isLocal: false,
-      };
       return buildActivityDescription(resp, this.dataConverter, context);
     } catch (err) {
       this.rethrowGrpcError(err, 'Failed to describe activity');
@@ -591,6 +618,14 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
             nextPageToken,
           });
 
+        await visit(
+          resp,
+          walkListActivityExecutionsResponse,
+          externalStorageReferenceDecodeVisitOptions({
+            externalStorage: this.dataConverter.externalStorage,
+            codecs: this.dataConverter.payloadCodecs,
+          })
+        );
         await visit(
           resp,
           walkListActivityExecutionsResponse,

@@ -1,13 +1,16 @@
 /** Builds payload visitor options backed by one {@link ExternalStorageRunner} per visit. @module */
-import { unbounded } from '../concurrency/limit';
+import { unbounded, type ConcurrencyLimit } from '../concurrency/limit';
 import type { ExternalStorage, StorageDriverTargetInfo } from '../converter/extstore';
-import { ExternalStorageNotConfiguredError } from '../errors';
+import type { PayloadCodec } from '../converter/payload-codec';
+import type { SerializationContext } from '../converter/serialization-context';
+import { ExternalStorageNotConfiguredError, ExternalStorageReferenceError } from '../errors';
 import type { Payload } from '../interfaces';
 import type { Logger } from '../logger';
 import type { PayloadCache } from '../payload-cache';
+import { decode } from './codec-helpers';
 import type { ExternalStorageMetricsAccumulator } from './external-storage-metrics';
 import { ExternalStorageRunner } from './external-storage-runner';
-import { isReferencePayload } from './extstore-helpers';
+import { hasReferenceMarker, isReferencePayload } from './extstore-helpers';
 import type { ContextDeriver, VisitOptions } from './payload-visitor';
 
 /**
@@ -118,4 +121,77 @@ export function externalStorageRetrieveVisitOptions({
     limit: unbounded(),
     abortSignal,
   };
+}
+
+/** @internal @experimental */
+export interface ExternalStorageReferenceDecodeVisitOptions {
+  /** External Storage configuration, or `undefined` to reject marked reference payloads. */
+  externalStorage: ExternalStorage | undefined;
+  /** Payload codecs that encoded the references. */
+  codecs: PayloadCodec[];
+  /** Serialization context before any message is entered. */
+  initialContext?: SerializationContext;
+  /** Derives the serialization context the SDK decodes each message's payloads with. */
+  deriveContext?: ContextDeriver<SerializationContext | undefined>;
+  /** Matches the codec walk on this path: headers are skipped unless the codecs decode them. Defaults to `true`. */
+  skipHeaders?: boolean;
+  /** Caps concurrent codec calls, matching the codec walk on this path. Defaults to unbounded. */
+  limit?: ConcurrencyLimit;
+}
+
+/**
+ * Must run before {@link externalStorageRetrieveVisitOptions}, which can only read decoded references.
+ *
+ * @internal
+ * @experimental
+ */
+export function externalStorageReferenceDecodeVisitOptions({
+  externalStorage,
+  codecs,
+  initialContext,
+  deriveContext,
+  skipHeaders = true,
+  limit = unbounded(),
+}: ExternalStorageReferenceDecodeVisitOptions): VisitOptions<SerializationContext | undefined> {
+  const decodeReferences = (payloads: Payload[], context: SerializationContext | undefined) =>
+    decodeReferencePayloads(payloads, codecs, context, externalStorage !== undefined);
+  return {
+    transformPayloads: decodeReferences,
+    transformPayload: (payload, context) => decodeReferences([payload], context).then((decoded) => decoded[0]!),
+    deriveContext,
+    initialContext,
+    skipHeaders,
+    skipSearchAttributes: true,
+    limit,
+  };
+}
+
+async function decodeReferencePayloads(
+  payloads: Payload[],
+  codecs: PayloadCodec[],
+  context: SerializationContext | undefined,
+  storageConfigured: boolean
+): Promise<Payload[]> {
+  if (!payloads.some(hasReferenceMarker)) return payloads;
+  // Nothing could retrieve the references, so fail before decoding anything.
+  if (!storageConfigured) throw new ExternalStorageNotConfiguredError();
+
+  return await Promise.all(
+    payloads.map(async (payload) => {
+      if (!hasReferenceMarker(payload)) return payload;
+      // The marker and externalPayloads stay on the payload the codec decodes. A codec must tolerate
+      // them, because codec servers receive payloads exactly as they appear in history.
+      const [reference] = await decode(codecs, [payload], context);
+      if (reference === undefined || !isReferencePayload(reference)) {
+        throw new ExternalStorageReferenceError(
+          '[TMPRL1106] Encountered an encoded external storage reference that could not be decoded. ' +
+            'Check that the payload codec used to write it is configured.'
+        );
+      }
+      if (!reference.externalPayloads?.length) {
+        return { ...reference, externalPayloads: payload.externalPayloads };
+      }
+      return reference;
+    })
+  );
 }

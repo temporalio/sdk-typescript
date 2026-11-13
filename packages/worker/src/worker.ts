@@ -44,6 +44,7 @@ import {
   encodeErrorToFailure,
   encodeToPayload,
   ExternalStorageMetricsAccumulator,
+  externalStorageReferenceDecodeVisitOptions,
   externalStorageRetrieveVisitOptions,
   externalStorageStoreVisitOptions,
   suggestContinueAsNewReasonsFromProto,
@@ -1141,6 +1142,12 @@ export class Worker {
                         `Got start event for an already running activity: ${base64TaskToken}`
                       );
                     }
+                    await decodeActivityTaskReferences(task, {
+                      dataConverter: loadedDataConverter,
+                      context,
+                      resultContext,
+                      skipHeaders: !this.options.codecHeaders,
+                    });
                     await visit(
                       task,
                       walkActivityTask,
@@ -1410,6 +1417,16 @@ export class Worker {
                 throw new IllegalStateError(`Got empty task for task variant with token: ${base64TaskToken}`);
               }
               try {
+                const { externalStorage, payloadCodecs } = this.options.loadedDataConverter;
+                await visitNexusTask(
+                  task,
+                  externalStorageReferenceDecodeVisitOptions({
+                    externalStorage,
+                    codecs: payloadCodecs,
+                    initialContext: nexusTaskSerializationContext(task),
+                    skipHeaders: !this.options.codecHeaders,
+                  })
+                );
                 await visitNexusTask(
                   task,
                   externalStorageRetrieveVisitOptions({
@@ -1647,6 +1664,7 @@ export class Worker {
       // Core measures the duration itself.
       const downloadMetrics = externalStorage ? new ExternalStorageMetricsAccumulator() : undefined;
       let uploadMetrics: ExternalStorageMetricsAccumulator | undefined;
+      await workflowCodecRunner.decodeActivationReferences(activation, externalStorage);
       await visit(
         activation,
         walkWorkflowActivation,
@@ -2663,6 +2681,57 @@ function activitySerializationContextFromTaskStart(
     activityId: start.activityId || undefined,
     workflowId: start.workflowExecution?.workflowId ?? undefined,
     isLocal: start.isLocal,
+  };
+}
+
+/**
+ * Decodes an activity task's marked External Storage references. Heartbeat details are decoded with
+ * the context the previous attempt encoded them with, the rest of the task with the activity context.
+ */
+async function decodeActivityTaskReferences(
+  task: coresdk.activity_task.IActivityTask,
+  {
+    dataConverter,
+    context,
+    resultContext,
+    skipHeaders,
+  }: {
+    dataConverter: LoadedDataConverter;
+    context: ActivitySerializationContext;
+    resultContext: ActivitySerializationContext | NexusSerializationContext;
+    skipHeaders: boolean;
+  }
+): Promise<void> {
+  const options = { externalStorage: dataConverter.externalStorage, codecs: dataConverter.payloadCodecs, skipHeaders };
+  const start = task.start;
+  const heartbeat: coresdk.activity_task.IActivityTask = { start: { heartbeatDetails: start?.heartbeatDetails } };
+  if (start != null) start.heartbeatDetails = null;
+  await visit(
+    task,
+    walkActivityTask,
+    externalStorageReferenceDecodeVisitOptions({ ...options, initialContext: context })
+  );
+  await visit(
+    heartbeat,
+    walkActivityTask,
+    externalStorageReferenceDecodeVisitOptions({ ...options, initialContext: resultContext })
+  );
+  if (start != null) start.heartbeatDetails = heartbeat.start!.heartbeatDetails;
+}
+
+/**
+ * The serialization context the Nexus handler decodes a task's operation input with. Payloads inside
+ * a System Nexus envelope are decoded without one.
+ */
+function nexusTaskSerializationContext(task: coresdk.nexus.INexusTask): NexusSerializationContext | undefined {
+  const request = task.task?.request;
+  const start = request?.startOperation;
+  if (start == null || (start.payload != null && isSystemNexusEnvelope(start.payload))) return undefined;
+  return {
+    type: 'nexus',
+    endpoint: request?.endpoint ?? '',
+    service: start.service ?? '',
+    operation: start.operation ?? '',
   };
 }
 

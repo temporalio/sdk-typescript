@@ -16,6 +16,24 @@ const EXTSTORE_REFERENCE_ENCODING = encodingTypes.METADATA_ENCODING_PROTOBUF_JSO
 const EXTSTORE_CACHE_KEY_PREFIX = 'v0/temporal/extstore/';
 
 /**
+ * Metadata that marks a payload as an External Storage reference, so a reference can be recognized
+ * even after a payload codec has encoded it.
+ */
+const EXTSTORE_REFERENCE_MARKER_KEY = '__temporal_external_storage_reference';
+const EXTSTORE_REFERENCE_MARKER_VALUE = 'true';
+
+/**
+ * A marked payload may be encoded by a payload codec and must be decoded before it is read as a
+ * reference.
+ *
+ * @internal
+ * @experimental
+ */
+export function hasReferenceMarker(payload: Payload): boolean {
+  return readMetadataString(payload, EXTSTORE_REFERENCE_MARKER_KEY) === EXTSTORE_REFERENCE_MARKER_VALUE;
+}
+
+/**
  * True if the payload is an External Storage reference:
  * `temporal.api.sdk.v1.ExternalStorageReference`.
  *
