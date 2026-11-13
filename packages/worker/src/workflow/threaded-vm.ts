@@ -225,6 +225,8 @@ export interface ThreadedVMWorkflowCreatorOptions {
   registeredActivityNames: Set<string>;
   logger: Logger;
   patchActivationCallback?: PatchActivationCallback;
+  /** @default true */
+  enableStackTraceQueries?: boolean;
 }
 
 /**
@@ -244,6 +246,7 @@ export class ThreadedVMWorkflowCreator implements WorkflowCreator {
     registeredActivityNames,
     logger,
     patchActivationCallback,
+    enableStackTraceQueries = true,
   }: ThreadedVMWorkflowCreatorOptions): Promise<ThreadedVMWorkflowCreator> {
     const workerThreadClients = Array(threadPoolSize)
       .fill(0)
@@ -264,6 +267,7 @@ export class ThreadedVMWorkflowCreator implements WorkflowCreator {
           reuseV8Context,
           registeredActivityNames,
           hasPatchActivationCallback: patchActivationCallback !== undefined,
+          enableStackTraceQueries,
         })
       )
     );

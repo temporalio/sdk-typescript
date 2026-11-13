@@ -197,6 +197,7 @@ export class GlobalHandlers {
   bundleFilenameToSourceMapConsumer = new Map<string, SourceMapConsumer>();
   origPrepareStackTrace = Error.prepareStackTrace;
   private stopPromiseHook = () => {};
+  private promiseHookAttempted = false;
   promiseHookInstalled = false;
   installed = false;
 
@@ -216,13 +217,20 @@ export class GlobalHandlers {
   }
 
   /**
-   * Set the global hooks, this method is idempotent
+   * Set the global hooks, this method is idempotent.
+   *
+   * The promise hook that tracks stack traces for the stack trace queries is only installed if
+   * `enableStackTraceQueries` is `true`. Hooks are global to the current thread and are never removed, so once any
+   * caller on this thread has enabled stack trace queries, they remain enabled for all Workflows on that thread.
    */
-  install(): void {
+  install({ enableStackTraceQueries = true }: { enableStackTraceQueries?: boolean } = {}): void {
     if (!this.installed) {
       this.overridePrepareStackTrace();
-      this.setPromiseHook();
       this.installed = true;
+    }
+    if (enableStackTraceQueries && !this.promiseHookAttempted) {
+      this.promiseHookAttempted = true;
+      this.setPromiseHook();
     }
   }
 
@@ -234,6 +242,9 @@ export class GlobalHandlers {
    */
   uninstall(): void {
     this.stopPromiseHook();
+    this.stopPromiseHook = () => {};
+    this.promiseHookAttempted = false;
+    this.promiseHookInstalled = false;
     Error.prepareStackTrace = this.origPrepareStackTrace;
     this.installed = false;
   }

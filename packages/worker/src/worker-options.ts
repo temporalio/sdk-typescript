@@ -626,6 +626,23 @@ export interface WorkerOptions {
   showStackTraceSources?: boolean;
 
   /**
+   * Whether to collect the data needed to answer the built-in `__stack_trace` and `__enhanced_stack_trace` Workflow
+   * queries, which back the Stack Trace view of the Temporal UI.
+   *
+   * Collecting this data requires capturing a stack trace every time a Promise is created in Workflow code, which can
+   * account for a significant share of Workflow execution time, notably in Workflows that heavily rely on async code.
+   * Setting this option to `false` removes that overhead; stack trace queries sent to Workflows running on this
+   * Worker will then fail with an error stating that stack traces are not enabled.
+   *
+   * This setting applies to each Workflow thread. Each Worker normally runs Workflows on its own threads, but in
+   * `debugMode` Workflows run on the main thread, which is shared by all Workers in the process; in that case,
+   * stack trace queries are enabled for all of them as soon as any Worker in the process has this option enabled.
+   *
+   * @default true
+   */
+  enableStackTraceQueries?: boolean;
+
+  /**
    * If `true` Worker runs Workflows in the same thread allowing debugger to
    * attach to Workflow instances.
    *
@@ -936,6 +953,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
       | 'maxHeartbeatThrottleInterval'
       | 'defaultHeartbeatThrottleInterval'
       | 'showStackTraceSources'
+      | 'enableStackTraceQueries'
       | 'debugMode'
       | 'reuseV8Context'
       | 'tuner'
@@ -995,6 +1013,7 @@ function addDefaultWorkerOptions(
     useVersioning,
     maxCachedWorkflows,
     showStackTraceSources,
+    enableStackTraceQueries,
     namespace,
     sinks,
     nonStickyToStickyPollRatio,
@@ -1108,6 +1127,7 @@ function addDefaultWorkerOptions(
     workflowThreadPoolSize: reuseV8Context ? 1 : 2,
     maxCachedWorkflows: maxCachedWorkflows ?? defaultMaxCachedWorkflows,
     showStackTraceSources: showStackTraceSources ?? false,
+    enableStackTraceQueries: enableStackTraceQueries ?? true,
     debugMode: debugMode ?? false,
     interceptors: {
       client: {

@@ -19,6 +19,7 @@ export interface Init {
   registeredActivityNames: Set<string>;
   reuseV8Context: boolean;
   hasPatchActivationCallback: boolean;
+  enableStackTraceQueries: boolean;
 }
 
 /**

@@ -146,6 +146,23 @@ if ('promiseHooks' in v8 && !isBun) {
     ]);
     t.deepEqual(Object.entries(enhancedStack.sources), expectedSources);
   });
+
+  test('Stack trace queries throw when disabled by enableStackTraceQueries', configMacro, async (t, config) => {
+    const { env, createWorkerWithDefaults } = config;
+    const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
+    const worker = await createWorkerWithDefaults(t, { enableStackTraceQueries: false });
+    const handle = await startWorkflow(workflows.unblockOrCancel);
+    await worker.runUntil(async () => {
+      for (const queryType of ['__stack_trace', '__enhanced_stack_trace']) {
+        await t.throwsAsync(handle.query(queryType), {
+          instanceOf: QueryNotRegisteredError,
+          message: /Workflow stack traces are not enabled on this worker/,
+        });
+      }
+      await handle.signal(workflows.unblockSignal);
+      await handle.result();
+    });
+  });
 } else {
   test('Stack trace query throws when not enabled', configMacro, async (t, config) => {
     const { env, createWorkerWithDefaults } = config;

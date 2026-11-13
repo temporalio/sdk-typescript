@@ -55,7 +55,8 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
           input.workflowBundle,
           input.isolateExecutionTimeoutMs,
           input.registeredActivityNames,
-          input.hasPatchActivationCallback ? requestPatchActivation : undefined
+          input.hasPatchActivationCallback ? requestPatchActivation : undefined,
+          input.enableStackTraceQueries
         );
         workflowGetter = (runId) => ReusableVMWorkflowCreator.workflowByRunId.get(runId);
       } else {
@@ -63,7 +64,8 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
           input.workflowBundle,
           input.isolateExecutionTimeoutMs,
           input.registeredActivityNames,
-          input.hasPatchActivationCallback ? requestPatchActivation : undefined
+          input.hasPatchActivationCallback ? requestPatchActivation : undefined,
+          input.enableStackTraceQueries
         );
         workflowGetter = (runId) => VMWorkflowCreator.workflowByRunId.get(runId);
       }

@@ -635,14 +635,16 @@ export class Worker {
           workflowBundle,
           compiledOptions.isolateExecutionTimeoutMs,
           registeredActivityNames,
-          patchActivationCallback
+          patchActivationCallback,
+          compiledOptions.enableStackTraceQueries
         );
       }
       return await VMWorkflowCreator.create(
         workflowBundle,
         compiledOptions.isolateExecutionTimeoutMs,
         registeredActivityNames,
-        patchActivationCallback
+        patchActivationCallback,
+        compiledOptions.enableStackTraceQueries
       );
     } else {
       return await ThreadedVMWorkflowCreator.create({
@@ -653,6 +655,7 @@ export class Worker {
         registeredActivityNames,
         logger,
         patchActivationCallback: compiledOptions.patchActivationCallback,
+        enableStackTraceQueries: compiledOptions.enableStackTraceQueries,
       });
     }
   }

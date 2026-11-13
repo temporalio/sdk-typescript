@@ -1,0 +1,1 @@
+Added the `enableStackTraceQueries` Worker option. Setting it to `false` skips the per-Promise stack trace capture behind the `__stack_trace` and `__enhanced_stack_trace` queries, which can significantly reduce Workflow execution time for async-heavy Workflows ([#1587](https://github.com/temporalio/sdk-typescript/issues/1587)).

@@ -275,10 +275,11 @@ export class ReusableVMWorkflowCreator implements WorkflowCreator {
     workflowBundle: WorkflowBundleWithSourceMapAndFilename,
     isolateExecutionTimeoutMs: number,
     registeredActivityNames: Set<string>,
-    patchActivationCallback?: WorkflowPatchActivationCallback
+    patchActivationCallback?: WorkflowPatchActivationCallback,
+    enableStackTraceQueries = true
   ): Promise<InstanceType<T>> {
     const script = new vm.Script(workflowBundle.code, { filename: workflowBundle.filename });
-    globalHandlers.install(); // Call is idempotent
+    globalHandlers.install({ enableStackTraceQueries }); // Call is idempotent
     await globalHandlers.addWorkflowBundle(workflowBundle);
     return new this(
       script,

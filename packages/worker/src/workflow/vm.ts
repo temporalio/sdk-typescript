@@ -115,9 +115,10 @@ export class VMWorkflowCreator implements WorkflowCreator {
     workflowBundle: WorkflowBundleWithSourceMapAndFilename,
     isolateExecutionTimeoutMs: number,
     registeredActivityNames: Set<string>,
-    patchActivationCallback?: WorkflowPatchActivationCallback
+    patchActivationCallback?: WorkflowPatchActivationCallback,
+    enableStackTraceQueries = true
   ): Promise<InstanceType<T>> {
-    globalHandlers.install();
+    globalHandlers.install({ enableStackTraceQueries });
     await globalHandlers.addWorkflowBundle(workflowBundle);
     const script = new vm.Script(workflowBundle.code, { filename: workflowBundle.filename });
     return new this(
