@@ -192,6 +192,12 @@
       "rules": {
         "import/unambiguous": "off"
       }
+    },
+    {
+      "files": ["scripts/**/*.ts"],
+      "rules": {
+        "no-unused-expressions": ["error", { "allowTaggedTemplates": true }]
+      }
     }
   ],
   "settings": {

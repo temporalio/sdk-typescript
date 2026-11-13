@@ -1,28 +1,32 @@
-import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
+import { CommandRunner, run } from './utils';
 
 export const repoRoot = resolve(__dirname, '..');
 export const corePath = 'packages/core-bridge/sdk-core';
 
-export function runTool(args: string[], root = repoRoot): void {
+/** `changelog-tool` against `root`. Its output is inherited, so build progress stays visible. */
+export function changelogToolFor(root: string): CommandRunner {
   const core = resolve(root, corePath);
-  const result = spawnSync(
-    'cargo',
-    [
+  return run({
+    command: 'cargo',
+    cwd: core,
+    stdio: 'inherit',
+    args: [
       'run',
       '--manifest-path',
       resolve(core, 'crates/changelog-release-notes/Cargo.toml'),
       '--bin',
       'changelog-tool',
       '--',
-      ...args,
       '--repo',
       root,
     ],
-    { cwd: core, stdio: 'inherit' }
-  );
-  if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error(`Changelog tool failed (${result.status ?? result.signal})`);
+  });
 }
 
-if (require.main === module) runTool(process.argv.slice(2));
+/** `changelog-tool` against this repository. */
+export const changelogTool = changelogToolFor(repoRoot);
+
+if (require.main === module) {
+  changelogTool`${process.argv.slice(2)}`;
+}
