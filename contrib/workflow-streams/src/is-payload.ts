@@ -7,20 +7,18 @@ import type { Payload } from '@temporalio/common';
  * returns a `Uint8Array` tagged to the host realm — so `value instanceof
  * Uint8Array` is false against the sandbox's own `Uint8Array` global.
  * `Object.prototype.toString` crosses realm boundaries reliably.
- * Also matches Node `Buffer` (a Uint8Array subclass).
  */
 export function isUint8ArrayLike(value: unknown): value is ArrayLike<number> {
   return value != null && typeof value === 'object' && Object.prototype.toString.call(value) === '[object Uint8Array]';
 }
 
 /**
- * Type guard for a Payload (as opposed to an arbitrary user value).
+ * Type guard for identifying a Payload.
  *
  * Built-in converters always set `metadata.encoding` to a Uint8Array. Requiring
  * that key (and that every metadata value / optional `data` look like
- * Uint8Array) avoids treating plain application objects with `metadata: {}` —
- * common for OpenAI / Stripe shapes — as raw Payloads. Empty metadata made
- * `Object.values({}).every(...)` vacuously true before this check.
+ * Uint8Array) avoids treating plain application objects with `metadata: {}`
+ * as raw Payloads.
  */
 export function isPayload(value: unknown): value is Payload {
   if (value === null || typeof value !== 'object') return false;
@@ -29,7 +27,6 @@ export function isPayload(value: unknown): value is Payload {
     return false;
   }
   const metadata = v.metadata as Record<string, unknown>;
-  // Require encoding — distinguishes real Payloads from `{ metadata: {} }`.
   if (!isUint8ArrayLike(metadata['encoding'])) return false;
   if (!Object.values(metadata).every((x) => isUint8ArrayLike(x))) return false;
   if ('data' in v && v.data != null && !isUint8ArrayLike(v.data)) return false;
