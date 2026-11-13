@@ -164,7 +164,7 @@ interface PullRequest {
  */
 function planPullRequest(version: string): Omit<PullRequest, 'body'> {
   const { major, minor } = parseVersion(version);
-  const expectedReleaseBranch = `releases/${major}.${minor}.x`;
+  const expectedReleaseBranch = `rehearsal/releases/${major}.${minor}.x`;
 
   // 1) Working tree is clean
   if (git`status --porcelain`) {
@@ -175,9 +175,9 @@ function planPullRequest(version: string): Omit<PullRequest, 'body'> {
   // FIXME: ATM, we allow any version from the main branch which is not necessarily correct.
   //        We'll narrow this down in the future.
   const currentBranch = git`branch --show-current`;
-  if (currentBranch !== 'main' && currentBranch !== expectedReleaseBranch) {
+  if (currentBranch !== 'rehearsal/main' && currentBranch !== expectedReleaseBranch) {
     throw new Error(
-      `Prepare ${version} from main or ${expectedReleaseBranch}, not ${currentBranch || 'a detached HEAD'}`
+      `Prepare ${version} from rehearsal/main or ${expectedReleaseBranch}, not ${currentBranch || 'a detached HEAD'}`
     );
   }
 
@@ -189,7 +189,7 @@ function planPullRequest(version: string): Omit<PullRequest, 'body'> {
 
   const head = `release-${version}-bump`;
   return {
-    title: `chore: prepare for ${version} release`,
+    title: `[rehearsal] chore: prepare for ${version} release`,
     base: currentBranch,
     head,
     remote,
@@ -218,7 +218,7 @@ function openPullRequest(pullRequest: PullRequest): void {
   if (existing) {
     ghWithBody`pr edit ${existing} --add-label skip-changelog --body-file -`;
   } else {
-    ghWithBody`pr create --base ${base} --head ${head} --title ${title} --label skip-changelog --body-file -`;
+    ghWithBody`pr create --draft --base ${base} --head ${head} --title ${title} --label skip-changelog --body-file -`;
   }
 
   // Return to the branch the pull request targets, which is where preparation started.
