@@ -271,6 +271,7 @@ export class ScheduleClient extends BaseClient {
           walkCreateScheduleRequest,
           externalStorageStoreVisitOptions({
             externalStorage,
+            namespace: this.options.namespace,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
@@ -351,6 +352,7 @@ export class ScheduleClient extends BaseClient {
           walkUpdateScheduleRequest,
           externalStorageStoreVisitOptions({
             externalStorage,
+            namespace: this.options.namespace,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,

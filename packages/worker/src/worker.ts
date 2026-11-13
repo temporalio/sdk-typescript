@@ -1353,6 +1353,7 @@ export class Worker {
                   walkActivityTaskCompletion,
                   externalStorageStoreVisitOptions({
                     externalStorage,
+                    namespace: this.options.namespace,
                     initialTarget,
                     payloadCache: this.options.payloadCache,
                     logger: this.logger,
@@ -1465,6 +1466,7 @@ export class Worker {
               walkNexusTaskCompletion,
               externalStorageStoreVisitOptions({
                 externalStorage,
+                namespace: this.options.namespace,
                 payloadCache: this.options.payloadCache,
                 logger: this.logger,
               })
@@ -1690,6 +1692,7 @@ export class Worker {
           }
           const visitorOptions = externalStorageStoreVisitOptions({
             externalStorage,
+            namespace: this.options.namespace,
             initialTarget: {
               kind: 'workflow',
               namespace,
@@ -2064,6 +2067,7 @@ export class Worker {
                     walkActivityHeartbeat,
                     externalStorageStoreVisitOptions({
                       externalStorage,
+                      namespace: this.options.namespace,
                       initialTarget: activityStorageTarget(info),
                       payloadCache: this.options.payloadCache,
                       logger: this.logger,

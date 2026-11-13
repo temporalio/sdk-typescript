@@ -7,7 +7,6 @@ import {
   type StorageDriver,
   type StorageDriverStoreContext,
   type StorageDriverRetrieveContext,
-  type StorageDriverTargetInfo,
 } from '@temporalio/common';
 import type { GcsStorageDriverClient } from './client';
 
@@ -74,7 +73,7 @@ function encodeObjectNameSegment(value: string | undefined): string {
   return encoded;
 }
 
-function buildContextSegments(target: StorageDriverTargetInfo | undefined): string {
+function buildContextSegments({ target, namespace }: StorageDriverStoreContext): string {
   if (target?.kind === 'workflow') {
     return (
       `/ns/${encodeObjectNameSegment(target.namespace)}` +
@@ -91,7 +90,7 @@ function buildContextSegments(target: StorageDriverTargetInfo | undefined): stri
       `/ri/${encodeObjectNameSegment(target.runId)}`
     );
   }
-  return '';
+  return `/ns/${encodeObjectNameSegment(namespace)}`;
 }
 
 /**
@@ -158,7 +157,7 @@ export class GcsStorageDriver implements StorageDriver {
   }
 
   async store(context: StorageDriverStoreContext, payloads: Payload[]): Promise<StorageDriverClaim[]> {
-    const contextSegments = buildContextSegments(context.target);
+    const contextSegments = buildContextSegments(context);
     return runAllWithAbortOnError(context.abortSignal, (signal) => {
       const uploads = new Map<string, Promise<void>>();
       return payloads.map((payload) => this.storePayload(context, payload, contextSegments, signal, uploads));

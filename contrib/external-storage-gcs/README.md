@@ -83,15 +83,15 @@ Activity object name:
 v0/ns/{namespace}/at/{activity-type}/ai/{activity-id}/ri/{run-id}/d/{hash-algorithm}/{hex-digest}
 ```
 
-Fallback object name (unknown target):
+Namespace-only object name (no target, or a target kind without a namespace; `namespace` is the namespace of the storing client or worker, or the string `"null"` when it is unknown):
 
 ```text
-v0/d/{hash-algorithm}/{hex-digest}
+v0/ns/{namespace}/d/{hash-algorithm}/{hex-digest}
 ```
 
-- If no namespace, workflow, or activity information is available, the fallback is used.
+- When a workflow or activity target is present, its namespace is used, even if it differs from the namespace of the storing client or worker.
 - Dynamic path segments are encoded per the rules below.
-- Missing values (including a missing `run-id`) are encoded as `null`.
+- Missing values (including a missing `run-id`) are encoded as the string `"null"`.
 - `hex-digest` is lower-case SHA-256 hex (64 characters).
 
 ### Encoding rules

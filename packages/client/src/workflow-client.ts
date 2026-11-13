@@ -1161,6 +1161,7 @@ export class WorkflowClient extends BaseClient {
           walkQueryWorkflowRequest,
           externalStorageStoreVisitOptions({
             externalStorage,
+            namespace: this.options.namespace,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
@@ -1279,6 +1280,7 @@ export class WorkflowClient extends BaseClient {
           walkUpdateWorkflowExecutionRequest,
           externalStorageStoreVisitOptions({
             externalStorage,
+            namespace: this.options.namespace,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
@@ -1381,6 +1383,7 @@ export class WorkflowClient extends BaseClient {
           walkExecuteMultiOperationRequest,
           externalStorageStoreVisitOptions({
             externalStorage,
+            namespace: this.options.namespace,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
@@ -1563,6 +1566,7 @@ export class WorkflowClient extends BaseClient {
           walkSignalWorkflowExecutionRequest,
           externalStorageStoreVisitOptions({
             externalStorage,
+            namespace: this.options.namespace,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
@@ -1640,6 +1644,7 @@ export class WorkflowClient extends BaseClient {
           walkSignalWithStartWorkflowExecutionRequest,
           externalStorageStoreVisitOptions({
             externalStorage,
+            namespace: this.options.namespace,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
@@ -1687,6 +1692,7 @@ export class WorkflowClient extends BaseClient {
           walkStartWorkflowExecutionRequest,
           externalStorageStoreVisitOptions({
             externalStorage,
+            namespace: this.options.namespace,
             initialTarget: {
               kind: 'workflow',
               namespace: req.namespace ?? this.options.namespace,
@@ -1798,6 +1804,7 @@ export class WorkflowClient extends BaseClient {
           walkTerminateWorkflowExecutionRequest,
           externalStorageStoreVisitOptions({
             externalStorage,
+            namespace: this.options.namespace,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,

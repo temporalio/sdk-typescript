@@ -21,6 +21,8 @@ type StoreTarget = StorageDriverTargetInfo | undefined;
 export interface ExternalStorageStoreVisitOptions {
   /** External Storage configuration used to create the runner for this visit. */
   externalStorage: ExternalStorage;
+  /** Namespace of the client or worker performing the store. */
+  namespace: string;
   /** Storage target before any message is entered (the initial enclosing workflow / activity). */
   initialTarget?: StorageDriverTargetInfo;
   /** Derives new storage target from the current message. */
@@ -42,6 +44,7 @@ export interface ExternalStorageStoreVisitOptions {
  */
 export function externalStorageStoreVisitOptions({
   externalStorage,
+  namespace,
   initialTarget,
   deriveContext,
   abortSignal,
@@ -51,9 +54,10 @@ export function externalStorageStoreVisitOptions({
 }: ExternalStorageStoreVisitOptions): VisitOptions<StoreTarget> {
   const runner = new ExternalStorageRunner(externalStorage, { payloadCache, logger });
   return {
-    transformPayloads: (payloads, target, signal) => runner.store(payloads, { target, abortSignal: signal, metrics }),
+    transformPayloads: (payloads, target, signal) =>
+      runner.store(payloads, { target, namespace, abortSignal: signal, metrics }),
     transformPayload: (payload, target, signal) =>
-      runner.store([payload], { target, abortSignal: signal, metrics }).then((stored) => stored[0]!),
+      runner.store([payload], { target, namespace, abortSignal: signal, metrics }).then((stored) => stored[0]!),
     deriveContext,
     initialContext: initialTarget,
     // Search attributes must keep their literal values so the server can index/search on them.
