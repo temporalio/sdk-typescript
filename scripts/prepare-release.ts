@@ -78,7 +78,7 @@ function parseArguments(args = process.argv.slice(2)) {
   }
 }
 
-function parseVersion(version: string): semver.SemVer {
+export function parseVersion(version: string): semver.SemVer {
   const parsed = semver.parse(version);
   if (!parsed || parsed.version !== version) {
     throw new Error('Expected a release version such as 1.25.0 or 1.25.0-rc.1');

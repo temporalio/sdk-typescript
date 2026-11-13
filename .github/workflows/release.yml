@@ -185,13 +185,7 @@ jobs:
       - name: Download core-bridge native libraries
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
-          path: ./packages/core-bridge/releases/tmp
-
-      - name: Put native files into place
-        working-directory: ./packages/core-bridge/releases
-        run: |
-          mv tmp/corebridge-*/* ./
-          rm -rf tmp
+          path: ./tmp/corebridge
 
       - name: Setup Node and Install Dependencies
         id: setup-node
@@ -201,11 +195,17 @@ jobs:
           platform: ${{ matrix.platform }}
           save-cache: ${{ env.IS_MAIN_OR_RELEASE }}
 
+      - name: Put native files into place
+        run: pnpm bridge:collect --from ./tmp/corebridge
+
       - name: Compile code
         run: pnpm --recursive --stream --filter '!@temporalio/core-bridge' --filter '!typescript-sdk' run build
 
+      - name: Pack packages
+        run: pnpm packages:pack --tarball-dir ./tmp/tarballs
+
       - name: Publish to Verdaccio
-        run: pnpm tsx scripts/publish-to-verdaccio.ts --registry-dir ./tmp/registry
+        run: pnpm tsx scripts/publish-to-verdaccio.ts --tarball-dir ./tmp/tarballs --registry-dir ./tmp/registry
 
       - name: Save Verdaccio repo artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
