@@ -245,7 +245,9 @@ pnpm run rebuild
 
 TMP_DIR=$( mktemp -d )
 
-pnpm tsx scripts/publish-to-verdaccio.ts --registry-dir "$TMP_DIR"
+pnpm bridge:collect
+pnpm packages:pack --tarball-dir "$TMP_DIR/tarballs"
+pnpm tsx scripts/publish-to-verdaccio.ts --tarball-dir "$TMP_DIR/tarballs" --registry-dir "$TMP_DIR"
 pnpm tsx scripts/test-protobufjs-install.ts --registry-dir "$TMP_DIR" --target-dir "$TMP_DIR/protobufjs-install"
 pnpm tsx scripts/init-from-verdaccio.ts --registry-dir "$TMP_DIR" --target-dir "./example" --sample hello-world
 pnpm tsx scripts/test-example.ts --work-dir "./example"

@@ -189,8 +189,13 @@ jobs:
       - name: Compile code
         run: pnpm --recursive --stream --filter '!@temporalio/core-bridge' --filter '!typescript-sdk' run build
 
+      - name: Pack packages
+        run: |
+          pnpm bridge:collect
+          pnpm packages:pack --tarball-dir ${{ steps.tmp-dir.outputs.dir }}/tarballs
+
       - name: Publish to Verdaccio
-        run: pnpm tsx scripts/publish-to-verdaccio.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry
+        run: pnpm tsx scripts/publish-to-verdaccio.ts --tarball-dir ${{ steps.tmp-dir.outputs.dir }}/tarballs --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry
 
       - name: Test npm protobufjs peer resolution
         if: matrix.platform == 'linux-x64' && matrix.node == 26

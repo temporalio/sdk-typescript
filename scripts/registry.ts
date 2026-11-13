@@ -106,7 +106,7 @@ export async function withRegistry(
   }
 }
 
-async function createTempRegistryDir() {
+export async function createTempRegistryDir(): Promise<string> {
   const dir = await mkdtemp(path.resolve(tmpdir(), 'registry'), { encoding: 'utf8' });
   console.log('Created registry dir', dir);
   return dir;
