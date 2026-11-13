@@ -146,7 +146,7 @@ pnpm clean
 pnpm install --frozen-lockfile
 ```
 
-If `pnpm install` fails in `@temporalio/core-bridge` on the command `node ./scripts/build.ts`, you may
+If `pnpm install` fails in `@temporalio/core-bridge` on the command `node ./scripts/build.mts`, you may
 need to do `rustup update`.
 
 To update to the latest version of the Core SDK and import its changelog entries, run `pnpm update-core`
