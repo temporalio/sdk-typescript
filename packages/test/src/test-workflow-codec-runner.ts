@@ -28,6 +28,65 @@ function decodeCompletion(
   return coresdk.workflow_completion.WorkflowActivationCompletion.decodeDelimited(bytes);
 }
 
+test('encodeCompletion preserves absent and explicitly empty payload data for codecs', async (t) => {
+  const payloads = [undefined, new Uint8Array(), new Uint8Array([1, 2, 3])].map((value) =>
+    defaultPayloadConverter.toPayload(value)
+  );
+  const seen: Payload[][] = [];
+  const codec: PayloadCodec = {
+    async encode(payloads) {
+      seen.push(payloads);
+      return payloads;
+    },
+    async decode(payloads) {
+      return payloads;
+    },
+  };
+  const runner = new WorkflowCodecRunner([codec], {
+    type: 'workflow',
+    namespace: 'default',
+    workflowId: 'wf-1',
+  });
+  const completion = {
+    successful: {
+      commands: [
+        { scheduleActivity: { seq: 1, activityId: 'act-1', arguments: payloads } },
+        { completeWorkflowExecution: { result: payloads[0] } },
+        {
+          modifyWorkflowProperties: {
+            upsertedMemo: { fields: { absent: payloads[0], empty: payloads[1], data: payloads[2] } },
+          },
+        },
+        {
+          failWorkflowExecution: {
+            failure: {
+              applicationFailureInfo: { details: { payloads } },
+              cause: { applicationFailureInfo: { details: { payloads } } },
+            },
+          },
+        },
+      ],
+    },
+  };
+
+  const encoded = await runner.encodeCompletion(completion);
+
+  const expectedBatches = [payloads, [payloads[0]], ...payloads.map((payload) => [payload]), payloads, payloads];
+  t.is(seen.length, expectedBatches.length);
+  t.deepEqual(
+    seen.map((batch) => batch.map((payload) => payload.data)),
+    expectedBatches.map((batch) => batch.map((payload) => payload.data))
+  );
+  t.deepEqual(
+    seen.map((batch) => batch.map((payload) => payload.metadata)),
+    expectedBatches.map((batch) => batch.map((payload) => payload.metadata))
+  );
+  t.not(encoded, completion);
+  t.deepEqual(completion.successful.commands[0].scheduleActivity?.arguments, payloads);
+  // Removing protobuf defaults must not change the serialized completion.
+  t.deepEqual(decodeCompletion(encoded), decodeCompletion(completion));
+});
+
 test('decodeActivation binds workflow codec context for initializeWorkflow payloads', async (t) => {
   const runner = new WorkflowCodecRunner([new FreePayloadCodec()], {
     type: 'workflow',
