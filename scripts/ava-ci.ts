@@ -8,7 +8,7 @@
 // It also writes a machine-readable `<pkg>.json` that scripts/ci-run-summary.ts
 // aggregates (across all matrix cells) into the single GitHub Actions job summary.
 //
-// Usage (from a package's `test` script): tsx ../../scripts/ava-ci.ts <ava args>
+// Usage (from a package's `test` script): node ../../scripts/ava-ci.ts <ava args>
 
 import { spawn } from 'node:child_process';
 import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';

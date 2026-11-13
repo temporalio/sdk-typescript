@@ -182,6 +182,12 @@ specific examples, and patience with review feedback help everyone move faster.
 
 ## Development
 
+Repository tooling requires Node.js 22.18.0 or newer and runs TypeScript scripts
+directly with Node's built-in type stripping. This tooling requirement is separate
+from the runtime requirements declared by the published SDK packages. Keep scripts
+compatible with type stripping: use explicit file extensions in relative imports,
+`import type` for types, and erasable TypeScript syntax.
+
 After your environment is set up, you can run these commands:
 
 - `pnpm build` compiles protobuf definitions, Rust bridge, C++ isolate extension, and Typescript.
