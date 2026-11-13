@@ -2394,14 +2394,16 @@ function walk_coresdk_activity_task_Start<Ctx>(
 ): void {
   const ctx = env.deriveContext ? env.deriveContext(o, 'coresdk.activity_task.Start', context) : context;
   {
-    const m = o.headerFields;
-    if (m)
-      for (const [k, v] of Object.entries(m))
-        pending.push(
-          env.transformPayload(v, ctx).then((r) => {
-            m[k] = r;
-          })
-        );
+    if (!env.skipHeaders) {
+      const m = o.headerFields;
+      if (m)
+        for (const [k, v] of Object.entries(m))
+          pending.push(
+            env.transformPayload(v, ctx).then((r) => {
+              m[k] = r;
+            })
+          );
+    }
   }
   {
     const a = o.input;

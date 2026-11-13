@@ -1,6 +1,6 @@
 import type { ServiceError as GrpcServiceError } from '@grpc/grpc-js';
 import { status as grpcStatus } from '@grpc/grpc-js';
-import type { LoadedDataConverter } from '@temporalio/common';
+import type { LoadedDataConverter, SerializationContext } from '@temporalio/common';
 import { decodePriority, NamespaceNotFoundError } from '@temporalio/common';
 import {
   decodeSearchAttributes,
@@ -9,6 +9,7 @@ import {
   type Replace,
 } from '@temporalio/common/internal/internal-workflow';
 import { optionalTsToDate, requiredTsToDate } from '@temporalio/common/lib/time';
+import type { ContextDeriver } from '@temporalio/common/internal/internal-non-workflow';
 import { decodeMapFromPayloads } from '@temporalio/common/internal/internal-non-workflow';
 import { temporal, google } from '@temporalio/proto';
 import type {
@@ -215,4 +216,20 @@ export function extractWorkflowExecutionAlreadyStartedRunId(err: GrpcServiceErro
 
 export function trimGrpcTypeUrl(type_url: string | null | undefined): string {
   return type_url?.replace(/^type.googleapis.com\//, '') || '';
+}
+
+/** @internal */
+export function workflowContextDeriver(namespace: string): ContextDeriver<SerializationContext | undefined> {
+  return (message, typeName, context) => {
+    let workflowId: string | null | undefined;
+    switch (typeName) {
+      case 'temporal.api.workflow.v1.WorkflowExecutionInfo':
+        workflowId = (message as temporal.api.workflow.v1.IWorkflowExecutionInfo).execution?.workflowId;
+        break;
+      case 'temporal.api.workflow.v1.NewWorkflowExecutionInfo':
+        workflowId = (message as temporal.api.workflow.v1.INewWorkflowExecutionInfo).workflowId;
+        break;
+    }
+    return workflowId ? { type: 'workflow', namespace, workflowId } : context;
+  };
 }
