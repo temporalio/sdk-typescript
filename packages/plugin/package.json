@@ -13,12 +13,19 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "scripts": {
-    "build": "tsc --build"
+    "build": "tsc --build",
+    "test": "tsx ../../scripts/ava-ci.ts ./lib/__tests__/test-*.js"
+  },
+  "ava": {
+    "timeout": "60s",
+    "concurrency": 1,
+    "workerThreads": false
   },
   "devDependencies": {
     "@temporalio/client": "workspace:*",
     "@temporalio/common": "workspace:*",
     "@temporalio/worker": "workspace:*",
+    "ava": "^5.3.1",
     "nexus-rpc": "^0.0.3"
   },
   "bugs": {
@@ -38,6 +45,8 @@
   },
   "files": [
     "src",
-    "lib"
+    "lib",
+    "!src/__tests__",
+    "!lib/__tests__"
   ]
 }

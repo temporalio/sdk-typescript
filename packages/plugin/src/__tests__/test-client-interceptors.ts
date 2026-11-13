@@ -1,6 +1,6 @@
 import test from 'ava';
 import type { ClientInterceptors } from '@temporalio/client';
-import { SimplePlugin } from '@temporalio/plugin';
+import { SimplePlugin } from '../plugin';
 
 const first = { start: async () => undefined };
 const second = { start: async () => undefined };
