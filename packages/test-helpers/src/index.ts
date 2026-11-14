@@ -38,6 +38,8 @@ export {
   BaseContext,
   BaseHelpers,
   helpers,
+  TestWorkerOptions,
+  WorkflowlessWorkerOptions,
   defaultTaskQueueTransform,
   isBun,
 } from './helpers';

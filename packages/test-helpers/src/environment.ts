@@ -2,10 +2,10 @@ import type { LocalTestWorkflowEnvironmentOptions } from '@temporalio/testing';
 import { workflowInterceptorModules as defaultWorkflowInterceptorModules } from '@temporalio/testing';
 import type { BundlerPlugin, WorkflowBundleWithSourceMap, BundleOptions } from '@temporalio/worker';
 import { bundleWorkflowCode, DefaultLogger } from '@temporalio/worker';
-import { defineSearchAttributeKey, SearchAttributeType } from '@temporalio/common';
 import { TestWorkflowEnvironment } from './wrappers';
 import { baseBundlerIgnoreModules } from './bundler';
 import { isSet } from './flags';
+import { defaultSAKeys } from './search-attributes';
 
 export const defaultDynamicConfigOptions = [
   'system.enableActivityEagerExecution=true',
@@ -18,14 +18,7 @@ export const defaultDynamicConfigOptions = [
   'frontend.enableCancelWorkerPollsOnShutdown=false',
 ];
 
-export const defaultSAKeys = {
-  CustomIntField: defineSearchAttributeKey('CustomIntField', SearchAttributeType.INT),
-  CustomBoolField: defineSearchAttributeKey('CustomBoolField', SearchAttributeType.BOOL),
-  CustomKeywordField: defineSearchAttributeKey('CustomKeywordField', SearchAttributeType.KEYWORD),
-  CustomTextField: defineSearchAttributeKey('CustomTextField', SearchAttributeType.TEXT),
-  CustomDatetimeField: defineSearchAttributeKey('CustomDatetimeField', SearchAttributeType.DATETIME),
-  CustomDoubleField: defineSearchAttributeKey('CustomDoubleField', SearchAttributeType.DOUBLE),
-};
+export { defaultSAKeys };
 
 /**
  * Options for creating test workflow bundles.
