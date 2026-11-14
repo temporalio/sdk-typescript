@@ -1,4 +1,5 @@
 /** Bundler generation and validation tests that do not require a server. */
+import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'crypto';
 import test from 'ava';
 import { moduleMatches, parseWorkflowCode } from '@temporalio/worker/internal';
@@ -31,6 +32,24 @@ test('Workflow bundle contains the SDK version annotation after minification', a
   const annotation = `/* @temporalio/workflow-bundle ${JSON.stringify({ sdkVersion: pkg.version })} */\n`;
   t.true(code.startsWith(annotation));
   t.notThrows(() => parseWorkflowCode(code));
+});
+
+// Regression test for https://github.com/temporalio/sdk-typescript/issues/1578:
+// V8 can't tell that an error thrown inside a vm context gets caught outside of it, so
+// evaluating the bundle in an unconfigured context was fatal under this flag.
+test('parseWorkflowCode does not abort a process started with --abort-on-uncaught-exception (#1578)', async (t) => {
+  const { code } = await bundleWorkflowCode({
+    workflowsPath: require.resolve('./workflows/preload-shared-counter'),
+  });
+
+  const script = `require('@temporalio/worker/internal').parseWorkflowCode(require('node:fs').readFileSync(0, 'utf8'))`;
+  const { status, signal, stderr } = spawnSync(process.execPath, ['--abort-on-uncaught-exception', '-e', script], {
+    cwd: __dirname,
+    input: code,
+    encoding: 'utf8',
+  });
+
+  t.deepEqual({ status, signal }, { status: 0, signal: null }, stderr);
 });
 
 test('Workflow bundle from a different SDK version is rejected', async (t) => {
