@@ -1,5 +1,5 @@
 import test from 'ava';
-import { Runtime } from '@temporalio/worker';
+import { Runtime, type WorkerOptions } from '@temporalio/worker';
 import { compileWorkerOptions, toNativeWorkerOptions } from '@temporalio/worker/internal';
 import { defaultOptions } from './mock-native-worker';
 
@@ -40,5 +40,33 @@ for (const value of [-1, 1.5, Number.NaN]) {
         message: 'maxEagerActivityReservationsPerWorkflowTask must be a non-negative integer',
       }
     );
+  });
+}
+
+for (const [pollsOption, behaviorOption] of [
+  ['maxConcurrentWorkflowTaskPolls', 'workflowTaskPollerBehavior'],
+  ['maxConcurrentActivityTaskPolls', 'activityTaskPollerBehavior'],
+  ['maxConcurrentNexusTaskPolls', 'nexusTaskPollerBehavior'],
+] as const) {
+  const toNative = (options: Partial<WorkerOptions>) => {
+    const runtime = Runtime.instance();
+    const compiled = compileWorkerOptions({ ...defaultOptions, ...options }, runtime.logger, runtime.metricMeter);
+    return toNativeWorkerOptions({ ...compiled, buildId: 'test-build-id' })[behaviorOption];
+  };
+
+  test(`${pollsOption} sets the simple maximum of ${behaviorOption}`, (t) => {
+    t.deepEqual(toNative({ [pollsOption]: 2 }), { type: 'simple-maximum', maximum: 2 });
+    t.deepEqual(toNative({ [pollsOption]: 20 }), { type: 'simple-maximum', maximum: 20 });
+  });
+
+  test(`${pollsOption} is the default maximum of a simple-maximum ${behaviorOption}`, (t) => {
+    t.deepEqual(toNative({ [pollsOption]: 2, [behaviorOption]: { type: 'simple-maximum' } }), {
+      type: 'simple-maximum',
+      maximum: 2,
+    });
+    t.deepEqual(toNative({ [pollsOption]: 2, [behaviorOption]: { type: 'simple-maximum', maximum: 3 } }), {
+      type: 'simple-maximum',
+      maximum: 3,
+    });
   });
 }
