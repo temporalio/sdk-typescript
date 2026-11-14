@@ -1079,15 +1079,15 @@ function addDefaultWorkerOptions(
 
   const wftPollerBehavior =
     workflowTaskPollerBehavior !== undefined || options.maxConcurrentWorkflowTaskPolls !== undefined
-      ? createPollerBehavior(maxWFTPolls, workflowTaskPollerBehavior)
+      ? createPollerBehavior(options.maxConcurrentWorkflowTaskPolls ?? maxWFTPolls, workflowTaskPollerBehavior)
       : undefined;
   const atPollerBehavior =
     activityTaskPollerBehavior !== undefined || options.maxConcurrentActivityTaskPolls !== undefined
-      ? createPollerBehavior(maxATPolls, activityTaskPollerBehavior)
+      ? createPollerBehavior(options.maxConcurrentActivityTaskPolls ?? maxATPolls, activityTaskPollerBehavior)
       : undefined;
   const nexusPollerBehavior =
     nexusTaskPollerBehavior !== undefined || options.maxConcurrentNexusTaskPolls !== undefined
-      ? createPollerBehavior(maxNexusTaskPolls, nexusTaskPollerBehavior)
+      ? createPollerBehavior(options.maxConcurrentNexusTaskPolls ?? maxNexusTaskPolls, nexusTaskPollerBehavior)
       : undefined;
 
   return {
