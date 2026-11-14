@@ -103,7 +103,7 @@ import type {
 import { compileWorkerOptions, isCodeBundleOption, isPathBundleOption, toNativeWorkerOptions } from './worker-options';
 import { WorkflowCodecRunner } from './workflow-codec-runner';
 import { isSystemNexusEnvelope, transformEncodedSystemNexusEnvelope, visitNexusTask } from './system-nexus-operations';
-import { assertWorkflowBundleSdkVersion } from './workflow/bundle-metadata';
+import { assertWorkflowBundleSdkVersion, assertWorkflowBundleExecutionMode } from './workflow/bundle-metadata';
 import { isBunPre1_4 } from './workflow/bun';
 import type { Workflow, WorkflowCreator } from './workflow/interface';
 import { ReusableVMWorkflowCreator } from './workflow/reusable-vm';
@@ -621,7 +621,17 @@ export class Worker {
     compiledOptions: CompiledWorkerOptions,
     logger: Logger
   ): Promise<WorkflowCreator> {
+    assertWorkflowBundleExecutionMode(workflowBundle.code, compiledOptions.workflowExecutionMode ?? 'vm');
     const registeredActivityNames = new Set(compiledOptions.activities.keys());
+    if (compiledOptions.workflowExecutionMode === 'vmless') {
+      const { createThreadedVmlessWorkflowCreator } = await import('./workflow/threaded-vmless.js');
+      return await createThreadedVmlessWorkflowCreator({
+        workflowBundle,
+        registeredActivityNames,
+        logger,
+        patchActivationCallback: compiledOptions.patchActivationCallback,
+      });
+    }
     const patchActivationCallback =
       compiledOptions.patchActivationCallback === undefined
         ? undefined
@@ -775,7 +785,7 @@ export class Worker {
     const nativeWorkerCtor: NativeWorkerConstructor = this.nativeWorkerCtor;
     const fixedUpOptions: WorkerOptions = {
       taskQueue: (options.replayName ?? 'fake_replay_queue') + '-' + this.replayWorkerCount,
-      debugMode: true,
+      debugMode: options.workflowExecutionMode !== 'vmless',
       ...options,
     };
     this.replayWorkerCount++;
@@ -852,6 +862,7 @@ export class Worker {
       const { WorkflowCodeBundler } = await import('./workflow/bundler.js');
       const bundler = new WorkflowCodeBundler({
         logger,
+        workflowExecutionMode: compiledOptions.workflowExecutionMode,
         workflowsPath: compiledOptions.workflowsPath,
         workflowInterceptorModules: compiledOptions.interceptors.workflowModules,
         failureConverterPath: compiledOptions.dataConverter?.failureConverterPath,

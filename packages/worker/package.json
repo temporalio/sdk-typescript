@@ -83,6 +83,10 @@
       "types": "./lib/internal.d.ts",
       "default": "./lib/internal.js"
     },
+    "./internal/vmless": {
+      "types": "./lib/workflow/vmless-internal.d.ts",
+      "default": "./lib/workflow/vmless-internal.js"
+    },
     "./internal/pkg": {
       "types": "./lib/pkg.d.ts",
       "default": "./lib/pkg.js"
@@ -96,6 +100,9 @@
     "*": {
       "internal": [
         "lib/internal.d.ts"
+      ],
+      "internal/vmless": [
+        "lib/workflow/vmless-internal.d.ts"
       ],
       "internal/pkg": [
         "lib/pkg.d.ts"

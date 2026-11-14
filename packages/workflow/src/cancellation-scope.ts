@@ -3,12 +3,11 @@ import type { Duration } from '@temporalio/common';
 import { CancelledFailure, IllegalStateError } from '@temporalio/common';
 import { msOptionalToNumber } from '@temporalio/common/lib/time';
 import { untrackPromise } from './stack-helpers';
-import { getActivator } from './global-attributes';
+import { getActivator, maybeGetActivator } from './global-attributes';
 import { SdkFlags } from './flags';
+import { AsyncLocalStorage } from './async-local-storage';
 
-// AsyncLocalStorage is injected via vm module into global scope.
-// In case Workflow code is imported in Node.js context, replace with an empty class.
-export const AsyncLocalStorage: new <T>() => ALS<T> = (globalThis as any).AsyncLocalStorage ?? class {};
+export { AsyncLocalStorage };
 
 /** Magic symbol used to create the root scope - intentionally not exported */
 const NO_PARENT = Symbol('NO_PARENT');
@@ -227,8 +226,7 @@ export class CancellationScope {
    * Get the current "active" scope
    */
   static current(): CancellationScope {
-    // Using globals directly instead of a helper function to avoid circular import
-    return storage.getStore() ?? (globalThis as any).__TEMPORAL_ACTIVATOR__.rootScope;
+    return storage.getStore() ?? maybeGetActivator()!.rootScope;
   }
 
   /** Alias to `new CancellationScope({ cancellable: true }).run(fn)` */
