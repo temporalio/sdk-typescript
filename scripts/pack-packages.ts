@@ -1,11 +1,12 @@
 import { mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { pathToFileURL } from 'node:url';
 import { globSync } from 'glob';
-import { parseVersion } from './prepare-release';
-import { pnpm } from './utils';
+import { parseVersion } from './prepare-release.ts';
+import { pnpm } from './utils.ts';
 
-const repoRoot = resolve(__dirname, '..');
+const repoRoot = resolve(import.meta.dirname, '..');
 
 function main(): void {
   const { tarballDir, version } = parseArguments();
@@ -110,6 +111,6 @@ export function tarballsIn(dir: string): string[] {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-if (require.main === module) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main();
 }

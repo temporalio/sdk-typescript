@@ -1,12 +1,13 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { pathToFileURL } from 'node:url';
 import { globSync } from 'glob';
 import semver from 'semver';
-import { changelogToolFor } from './changelog';
-import { pnpm, run } from './utils';
+import { changelogToolFor } from './changelog.ts';
+import { pnpm, run } from './utils.ts';
 
-const repoRoot = resolve(__dirname, '..');
+const repoRoot = resolve(import.meta.dirname, '..');
 const git = run({ cwd: repoRoot, command: 'git' });
 const gh = run({ cwd: repoRoot, command: 'gh' });
 
@@ -273,6 +274,6 @@ function isReleaseChange(code: string, path: string): boolean {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-if (require.main === module) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main();
 }

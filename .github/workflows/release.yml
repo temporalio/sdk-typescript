@@ -205,7 +205,7 @@ jobs:
         run: pnpm packages:pack --tarball-dir ./tmp/tarballs
 
       - name: Publish to Verdaccio
-        run: pnpm tsx scripts/publish-to-verdaccio.ts --tarball-dir ./tmp/tarballs --registry-dir ./tmp/registry
+        run: node scripts/publish-to-verdaccio.ts --tarball-dir ./tmp/tarballs --registry-dir ./tmp/registry
 
       - name: Save Verdaccio repo artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -274,7 +274,7 @@ jobs:
 
       # Note: here, `npx create` fails on windows if shell is bash.
       - name: Instantiate sample project using verdaccio artifacts
-        run: pnpm tsx scripts/init-from-verdaccio.ts --registry-dir ./tmp/registry --sample ${{ matrix.sample }} --target-dir ${{ runner.temp }}/example
+        run: node scripts/init-from-verdaccio.ts --registry-dir ./tmp/registry --sample ${{ matrix.sample }} --target-dir ${{ runner.temp }}/example
 
       - name: Install Temporal CLI
         if: matrix.server == 'cli'
@@ -293,7 +293,7 @@ jobs:
         # We write the certs to disk because it serves the sample. Written into /tmp/temporal-certs
       - name: Create certs dir
         shell: bash
-        run: pnpm tsx scripts/create-certs-dir.ts "${{ runner.temp }}/certs"
+        run: node scripts/create-certs-dir.ts "${{ runner.temp }}/certs"
         if: matrix.server == 'cloud'
         env:
           # These env vars are used by the hello-world-mtls sample
@@ -303,14 +303,14 @@ jobs:
           TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
 
       - name: Test run a workflow (non-cloud)
-        run: pnpm tsx scripts/test-example.ts --work-dir "${{ runner.temp }}/example"
+        run: node scripts/test-example.ts --work-dir "${{ runner.temp }}/example"
         shell: bash
         if: matrix.server == 'cli'
 
       - name: Test run a workflow (cloud)
         if: matrix.server == 'cloud'
         # The required environment variables must be present for releases (this must be run from the official repo)
-        run: pnpm tsx scripts/test-example.ts --work-dir "${{ runner.temp }}/example"
+        run: node scripts/test-example.ts --work-dir "${{ runner.temp }}/example"
         shell: bash
         env:
           # These env vars are used by the hello-world-mtls sample

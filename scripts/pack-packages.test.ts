@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import test from 'node:test';
-import { checkVersions, publishablePackages } from './pack-packages';
+import { checkVersions, publishablePackages } from './pack-packages.ts';
 
 function fixture(): string {
   const root = mkdtempSync(resolve(tmpdir(), 'sdk-typescript-pack-'));

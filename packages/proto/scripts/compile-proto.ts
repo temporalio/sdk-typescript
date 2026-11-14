@@ -3,13 +3,13 @@ import { statSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import * as glob from 'glob';
-import * as pbjs from 'protobufjs-cli/pbjs';
-import * as pbts from 'protobufjs-cli/pbts';
+import pbjs from 'protobufjs-cli/pbjs.js';
+import pbts from 'protobufjs-cli/pbts.js';
 
-const outputDir = resolve(__dirname, '../protos');
+const outputDir = resolve(import.meta.dirname, '../protos');
 const jsOutputFile = resolve(outputDir, 'json-module.js');
 const tempFile = resolve(outputDir, 'temp.js');
-const protoBaseDir = resolve(__dirname, '../../core-bridge/sdk-core/crates/protos/protos');
+const protoBaseDir = resolve(import.meta.dirname, '../../core-bridge/sdk-core/crates/protos/protos');
 
 function mtime(path: string) {
   try {
@@ -129,7 +129,7 @@ async function main() {
 
   const protoFiles = glob.sync('**/*.proto', { cwd: protoBaseDir, absolute: true, root: '' });
   const protosMTime = Math.max(...protoFiles.map(mtime));
-  const compileScriptMTime = mtime(resolve(__dirname, __filename));
+  const compileScriptMTime = mtime(import.meta.filename);
   const genMTime = mtime(jsOutputFile);
 
   if (protosMTime < genMTime && compileScriptMTime < genMTime) {

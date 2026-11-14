@@ -1,7 +1,7 @@
 import path, { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
-import { mkdtemp } from 'fs-extra';
+import { mkdtemp } from 'node:fs/promises';
 import arg from 'arg';
 import { runServer } from 'verdaccio';
 
@@ -12,10 +12,13 @@ interface VerdaccioServer {
 }
 
 class Registry {
-  constructor(
-    public readonly app: VerdaccioServer,
-    public readonly workdir: string
-  ) {}
+  public readonly app: VerdaccioServer;
+  public readonly workdir: string;
+
+  constructor(app: VerdaccioServer, workdir: string) {
+    this.app = app;
+    this.workdir = workdir;
+  }
 
   static async create(workdir: string): Promise<Registry> {
     mkdirSync(workdir, { recursive: true });

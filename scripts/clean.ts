@@ -2,10 +2,10 @@ import { resolve } from 'node:path';
 import { readdirSync, readFileSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import arg from 'arg';
-import { parse as parseJson5 } from 'json5';
+import JSON5 from 'json5';
 
-const packagesPath = resolve(__dirname, '../packages');
-const contribPath = resolve(__dirname, '../contrib');
+const packagesPath = resolve(import.meta.dirname, '../packages');
+const contribPath = resolve(import.meta.dirname, '../contrib');
 
 function cleanTsGeneratedFiles() {
   for (const root of [packagesPath, contribPath]) {
@@ -27,7 +27,7 @@ function cleanTsGeneratedFiles() {
       for (const file of files) {
         if (/^tsconfig(.*).json$/.test(file)) {
           const filePath = resolve(packagePath, file);
-          const tsconfig = parseJson5(readFileSync(filePath, 'utf8'));
+          const tsconfig = JSON5.parse(readFileSync(filePath, 'utf8'));
           const { outDir } = tsconfig.compilerOptions;
           if (outDir) {
             const outPath = resolve(packagePath, outDir);

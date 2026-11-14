@@ -1,15 +1,16 @@
-import { ChildProcess, spawn, spawnSync, SpawnOptions, SpawnSyncOptions } from 'node:child_process';
+import { ChildProcess, spawn, spawnSync, type SpawnOptions, type SpawnSyncOptions } from 'node:child_process';
 import { createWriteStream, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 export class ChildProcessError extends Error {
-  constructor(
-    message: string,
-    public readonly code: number | null,
-    public readonly signal: NodeJS.Signals | null
-  ) {
+  public readonly code: number | null;
+  public readonly signal: NodeJS.Signals | null;
+
+  constructor(message: string, code: number | null, signal: NodeJS.Signals | null) {
     super(message);
     this.name = 'ChildProcessError';
+    this.code = code;
+    this.signal = signal;
   }
 }
 

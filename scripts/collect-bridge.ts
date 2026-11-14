@@ -1,10 +1,11 @@
 import { copyFileSync, mkdirSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { pathToFileURL } from 'node:url';
 import { globSync } from 'glob';
-import { targets } from '../packages/core-bridge/common';
+import { targets } from '../packages/core-bridge/common.js';
 
-const repoRoot = resolve(__dirname, '..');
+const repoRoot = resolve(import.meta.dirname, '..');
 const releasesDir = resolve(repoRoot, 'packages/core-bridge/releases');
 
 function main(): void {
@@ -79,6 +80,6 @@ export function binaryTargets(releases: string): string[] {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-if (require.main === module) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main();
 }

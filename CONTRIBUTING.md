@@ -182,6 +182,12 @@ specific examples, and patience with review feedback help everyone move faster.
 
 ## Development
 
+Repository tooling requires Node.js 22.18.0 or newer and runs TypeScript scripts
+directly with Node's built-in type stripping. This tooling requirement is separate
+from the runtime requirements declared by the published SDK packages. Keep scripts
+compatible with type stripping: use explicit file extensions in relative imports,
+`import type` for types, and erasable TypeScript syntax.
+
 After your environment is set up, you can run these commands:
 
 - `pnpm build` compiles protobuf definitions, Rust bridge, C++ isolate extension, and Typescript.
@@ -247,10 +253,10 @@ TMP_DIR=$( mktemp -d )
 
 pnpm bridge:collect
 pnpm packages:pack --tarball-dir "$TMP_DIR/tarballs"
-pnpm tsx scripts/publish-to-verdaccio.ts --tarball-dir "$TMP_DIR/tarballs" --registry-dir "$TMP_DIR"
-pnpm tsx scripts/test-protobufjs-install.ts --registry-dir "$TMP_DIR" --target-dir "$TMP_DIR/protobufjs-install"
-pnpm tsx scripts/init-from-verdaccio.ts --registry-dir "$TMP_DIR" --target-dir "./example" --sample hello-world
-pnpm tsx scripts/test-example.ts --work-dir "./example"
+node scripts/publish-to-verdaccio.ts --tarball-dir "$TMP_DIR/tarballs" --registry-dir "$TMP_DIR"
+node scripts/test-protobufjs-install.ts --registry-dir "$TMP_DIR" --target-dir "$TMP_DIR/protobufjs-install"
+node scripts/init-from-verdaccio.ts --registry-dir "$TMP_DIR" --target-dir "./example" --sample hello-world
+node scripts/test-example.ts --work-dir "./example"
 
 rm -rf ./example "$TMP_DIR"
 ```

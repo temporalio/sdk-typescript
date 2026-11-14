@@ -146,7 +146,7 @@ pnpm clean
 pnpm install --frozen-lockfile
 ```
 
-If `pnpm install` fails in `@temporalio/core-bridge` on the command `pnpm tsx ./scripts/build.ts`, you may
+If `pnpm install` fails in `@temporalio/core-bridge` on the command `node ./scripts/build.mts`, you may
 need to do `rustup update`.
 
 To update to the latest version of the Core SDK and import its changelog entries, run `pnpm update-core`
@@ -205,9 +205,9 @@ pnpm run rebuild
 
 TMP_DIR=$(mktemp -d)
 
-pnpm tsx scripts/publish-to-verdaccio.ts --registry-dir "$TMP_DIR"
-pnpm tsx scripts/init-from-verdaccio.ts --registry-dir "$TMP_DIR" --target-dir "./example" --sample hello-world
-pnpm tsx scripts/test-example.ts --work-dir "./example"
+node scripts/publish-to-verdaccio.ts --registry-dir "$TMP_DIR"
+node scripts/init-from-verdaccio.ts --registry-dir "$TMP_DIR" --target-dir "./example" --sample hello-world
+node scripts/test-example.ts --work-dir "./example"
 
 rm -rf ./example "$TMP_DIR"
 ```

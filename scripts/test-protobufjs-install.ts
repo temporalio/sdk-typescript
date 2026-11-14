@@ -3,10 +3,12 @@ import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
-import { getArgs, withRegistry } from './registry';
-import { shell, waitOnChild } from './utils';
+import { getArgs, withRegistry } from './registry.ts';
+import { shell, waitOnChild } from './utils.ts';
 // eslint-disable-next-line import/order
-import { version } from '../packages/client/package.json';
+import clientPackage from '../packages/client/package.json' with { type: 'json' };
+
+const { version } = clientPackage;
 
 const packages = ['common', 'proto', 'client', 'cloud', 'worker', 'nexus', 'workflow'];
 const exporter = '@opentelemetry/exporter-trace-otlp-http';

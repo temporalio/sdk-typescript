@@ -195,11 +195,11 @@ jobs:
           pnpm packages:pack --tarball-dir ${{ steps.tmp-dir.outputs.dir }}/tarballs
 
       - name: Publish to Verdaccio
-        run: pnpm tsx scripts/publish-to-verdaccio.ts --tarball-dir ${{ steps.tmp-dir.outputs.dir }}/tarballs --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry
+        run: node scripts/publish-to-verdaccio.ts --tarball-dir ${{ steps.tmp-dir.outputs.dir }}/tarballs --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry
 
       - name: Test npm protobufjs peer resolution
         if: matrix.platform == 'linux-x64' && matrix.node == 26
-        run: pnpm tsx scripts/test-protobufjs-install.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --target-dir ${{ steps.tmp-dir.outputs.dir }}/protobufjs-install
+        run: node scripts/test-protobufjs-install.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --target-dir ${{ steps.tmp-dir.outputs.dir }}/protobufjs-install
 
       - name: Install Temporal CLI
         uses: temporalio/setup-temporal@8bde337644eaaa6644b8b527d9a8406c2207de5b # v0
@@ -268,8 +268,8 @@ jobs:
       - name: Instantiate sample project using verdaccio artifacts - Hello World
         if: matrix.node != 'bun'
         run: |
-          pnpm tsx scripts/init-from-verdaccio.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-hello-world
-          pnpm tsx scripts/test-example.ts --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-hello-world"
+          node scripts/init-from-verdaccio.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-hello-world
+          node scripts/test-example.ts --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-hello-world"
 
       # Sample 2: hello-world-mtls to cloud server
       - name: Instantiate sample project using verdaccio artifacts - Hello World MTLS
@@ -280,9 +280,9 @@ jobs:
             exit 0
           fi
 
-          pnpm tsx scripts/create-certs-dir.ts ${{ steps.tmp-dir.outputs.dir }}/certs
-          pnpm tsx scripts/init-from-verdaccio.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world-mtls --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-hello-world-mtls
-          pnpm tsx scripts/test-example.ts --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-hello-world-mtls"
+          node scripts/create-certs-dir.ts ${{ steps.tmp-dir.outputs.dir }}/certs
+          node scripts/init-from-verdaccio.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world-mtls --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-hello-world-mtls
+          node scripts/test-example.ts --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-hello-world-mtls"
         env:
           # These env vars are used by the hello-world-mtls sample
           TEMPORAL_ADDRESS: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud:7233
@@ -303,8 +303,8 @@ jobs:
       - name: Instantiate sample project using verdaccio artifacts - Fetch ESM
         if: matrix.node != 'bun'
         run: |
-          pnpm tsx scripts/init-from-verdaccio.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/fetch-esm --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm
-          pnpm tsx scripts/test-example.ts --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm" --script-name workflow-local --expected-output "Hello World And Hello Wonderful Temporal!"
+          node scripts/init-from-verdaccio.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/fetch-esm --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm
+          node scripts/test-example.ts --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm" --script-name workflow-local --expected-output "Hello World And Hello Wonderful Temporal!"
 
       # End samples
 
@@ -392,13 +392,13 @@ jobs:
 
       - name: Create Cloud mTLS namespace
         id: create-cloud-namespace
-        run: pnpm exec tsx .github/scripts/cloud-namespace.ts create mtls
+        run: node scripts/cloud-namespace.ts create mtls
         env:
           TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
 
       - name: Create Cloud API key namespace
         id: create-cloud-api-key-namespace
-        run: pnpm exec tsx .github/scripts/cloud-namespace.ts create api-key
+        run: node scripts/cloud-namespace.ts create api-key
         env:
           TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
 
@@ -432,13 +432,13 @@ jobs:
 
       - name: Delete Cloud mTLS namespace
         if: ${{ always() && steps.create-cloud-namespace.outputs.namespace != '' }}
-        run: pnpm exec tsx .github/scripts/cloud-namespace.ts delete "${{ steps.create-cloud-namespace.outputs.namespace }}"
+        run: node scripts/cloud-namespace.ts delete "${{ steps.create-cloud-namespace.outputs.namespace }}"
         env:
           TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
 
       - name: Delete Cloud API key namespace
         if: ${{ always() && steps.create-cloud-api-key-namespace.outputs.namespace != '' }}
-        run: pnpm exec tsx .github/scripts/cloud-namespace.ts delete "${{ steps.create-cloud-api-key-namespace.outputs.namespace }}"
+        run: node scripts/cloud-namespace.ts delete "${{ steps.create-cloud-api-key-namespace.outputs.namespace }}"
         env:
           TEMPORAL_CLIENT_CLOUD_API_KEY: ${{ secrets.TEMPORAL_CLIENT_CLOUD_API_KEY }}
 
@@ -568,8 +568,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          # This job installs no dependencies, so it runs ci-run-summary.ts through
-          # Node's native type stripping rather than tsx. That needs Node >= 23.6.
+          # This job installs no dependencies; native type stripping needs Node >= 22.18.
           node-version: '24'
 
       - name: Download test result artifacts

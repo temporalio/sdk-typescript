@@ -3,10 +3,13 @@
   "compilerOptions": {
     "module": "node20",
     "moduleResolution": "node16",
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
     "types": ["node"],
     "rootDir": "../",
     "noEmit": true,
     "resolveJsonModule": true
   },
-  "include": ["./*.ts", "../packages/*/scripts/*.ts", "../contrib/*/scripts/*.ts"]
+  "include": ["./*.ts", "../packages/*/scripts/*.ts", "../packages/*/scripts/*.mts", "../contrib/*/scripts/*.ts"]
 }
