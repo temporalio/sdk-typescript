@@ -3,6 +3,16 @@
 Use the commands in `CONTRIBUTING.md` for building and testing. Keep changes focused,
 run targeted tests for changed behavior, and run relevant formatting and type checks.
 
+For generating workflow histories or adding replay fixtures, follow
+`docs/workflow-history-generation.md` before running commands. Write a capture test
+in `packages/test`, copy/cherry-pick it and its workflow to a checkout of the
+requested SDK tag, build with pnpm and that tag's pinned dependencies, then run the
+capture test. Bring the JSON back and replay it with the current SDK. Keep the
+workflow-driving code in an explicit opt-in capture path; normal tests replay only.
+Use `testWorkflowHistory` from `packages/test/src/helpers-history.ts` to capture history. Register separate tests for scenarios.
+Do not create a standalone project or substitute a current-version history.
+Name fixtures by workflow, scenario, and SDK version.
+
 For user-facing changes, add a Markdown fragment under `changelog/<category>/`.
 Categories are `added`, `stabilized`, `changed`, `deprecated`, `breaking-changes`,
 `fixed`, and `security`. Use `stabilized` when a feature is no longer experimental.

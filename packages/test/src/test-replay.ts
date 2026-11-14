@@ -1,10 +1,16 @@
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
+import type { Client } from '@temporalio/client';
 import type { temporal } from '@temporalio/proto';
 import type { WorkflowBundle } from '@temporalio/worker';
 import { bundleWorkflowCode, ReplayError, Runtime } from '@temporalio/worker';
 import { DeterminismViolationError } from '@temporalio/workflow';
+import { echo, fakeProgress, queryOwnWf } from './activities';
 import { loadHistory, Worker } from './helpers';
+import { testWorkflowHistory } from './helpers-history';
+import { smorgasbord } from './workflows/smorgasbord';
 
 async function gen2array<T>(gen: AsyncIterable<T>): Promise<T[]> {
   const out: T[] = [];
@@ -216,4 +222,51 @@ test('empty-histories-replay-returns-empty-result', async (t) => {
     )
   );
   t.is(res.length, 0);
+});
+
+const smorgasbordHistoryOptions = {
+  sdkVersion: '1.24.0',
+  workflowsPath: require.resolve('./workflows'),
+  workerOptions: { activities: { echo, fakeProgress, queryOwnWf } },
+};
+
+// Each capture starts a fresh workflow at iteration 0, then selects just the run
+// for its scenario. Continue-As-New is specific to smorgasbord, not the helper.
+async function captureSmorgasbordRun(client: Client, taskQueue: string, continueAsNewCount: number) {
+  const handle = await client.workflow.start(smorgasbord, {
+    taskQueue,
+    workflowId: randomUUID(),
+    workflowExecutionTimeout: '2m',
+    args: [],
+  });
+  await handle.result();
+
+  let history = await client.workflow.getHandle(handle.workflowId, handle.firstExecutionRunId).fetchHistory();
+  for (let count = 0; count < continueAsNewCount; count++) {
+    const runId = history.events?.at(-1)?.workflowExecutionContinuedAsNewEventAttributes?.newExecutionRunId;
+    assert(runId, 'Expected smorgasbord to Continue-As-New');
+    history = await client.workflow.getHandle(handle.workflowId, runId).fetchHistory();
+  }
+  return history;
+}
+
+testWorkflowHistory({
+  ...smorgasbordHistoryOptions,
+  title: 'smorgasbord run 1',
+  filename: 'smorgasbord-cancellation-sdk-1.24.0.json',
+  generate: (client, taskQueue) => captureSmorgasbordRun(client, taskQueue, 0),
+});
+
+testWorkflowHistory({
+  ...smorgasbordHistoryOptions,
+  title: 'smorgasbord run 2',
+  filename: 'smorgasbord-activities-continue-as-new-sdk-1.24.0.json',
+  generate: (client, taskQueue) => captureSmorgasbordRun(client, taskQueue, 1),
+});
+
+testWorkflowHistory({
+  ...smorgasbordHistoryOptions,
+  title: 'smorgasbord run 3',
+  filename: 'smorgasbord-activities-completion-sdk-1.24.0.json',
+  generate: (client, taskQueue) => captureSmorgasbordRun(client, taskQueue, 2),
 });
