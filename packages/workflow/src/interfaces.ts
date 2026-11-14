@@ -1,4 +1,4 @@
-import type { RawSourceMap } from 'source-map';
+import type { EncodedSourceMap } from '@jridgewell/trace-mapping';
 import type {
   RetryPolicy,
   CommonWorkflowOptions,
@@ -758,7 +758,7 @@ export interface WorkflowCreateOptions {
 }
 
 export interface WorkflowCreateOptionsInternal extends WorkflowCreateOptions {
-  sourceMap: RawSourceMap;
+  sourceMap: EncodedSourceMap;
   registeredActivityNames: Set<string>;
   getTimeOfDay(): bigint;
   stackTracesEnabled: boolean;

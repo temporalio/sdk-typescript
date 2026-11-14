@@ -6,7 +6,7 @@ import { atob, btoa } from 'node:buffer';
 import * as nodeUrl from 'node:url';
 import { URL, URLSearchParams } from 'node:url';
 import { TextDecoder, TextEncoder } from 'node:util';
-import { SourceMapConsumer } from 'source-map';
+import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import { cutoffStackTrace, IllegalStateError, convertDeploymentVersion } from '@temporalio/common';
 import { suggestContinueAsNewReasonsFromProto } from '@temporalio/common/internal/internal-non-workflow';
 import { tsToMs } from '@temporalio/common/lib/time';
@@ -194,20 +194,14 @@ export function injectGlobals(context: vm.Context): void {
  */
 export class GlobalHandlers {
   currentStackTrace: StackTraceFileLocation[] | undefined = undefined;
-  bundleFilenameToSourceMapConsumer = new Map<string, SourceMapConsumer>();
+  bundleFilenameToSourceMapConsumer = new Map<string, TraceMap>();
   origPrepareStackTrace = Error.prepareStackTrace;
   private stopPromiseHook = () => {};
   promiseHookInstalled = false;
   installed = false;
 
   async addWorkflowBundle(workflowBundle: WorkflowBundleWithSourceMapAndFilename): Promise<void> {
-    const { sourceMap } = workflowBundle;
-    // source-map >= 0.7.5 percent-encodes the source paths it returns. Escaping `%` first makes
-    // `decodeURIComponent` an exact inverse, so a path is reported as written on every version.
-    const sourceMapConsumer = await new SourceMapConsumer({
-      ...sourceMap,
-      sources: sourceMap.sources.map((source) => source.replaceAll('%', '%25')),
-    });
+    const sourceMapConsumer = new TraceMap(workflowBundle.sourceMap);
     this.bundleFilenameToSourceMapConsumer.set(workflowBundle.filename, sourceMapConsumer);
   }
 
@@ -259,12 +253,11 @@ export class GlobalHandlers {
         const filename = callsite.getFileName();
         const sourceMapConsumer = filename && this.bundleFilenameToSourceMapConsumer.get(filename);
         if (sourceMapConsumer && line && column) {
-          const pos = sourceMapConsumer.originalPositionFor({ line, column });
-          const source = pos.source === null ? null : decodeURIComponent(pos.source);
+          const pos = originalPositionFor(sourceMapConsumer, { line, column });
 
           const name = pos.name || formatCallsiteName(callsite);
           this.currentStackTrace?.push({
-            file_path: source ?? undefined,
+            file_path: pos.source ?? undefined,
             function_name: name ?? undefined,
             line: pos.line ?? undefined,
             column: pos.column ?? undefined,
@@ -272,8 +265,8 @@ export class GlobalHandlers {
           });
 
           return name
-            ? `    at ${name} (${source}:${pos.line}:${pos.column})`
-            : `    at ${source}:${pos.line}:${pos.column}`;
+            ? `    at ${name} (${pos.source}:${pos.line}:${pos.column})`
+            : `    at ${pos.source}:${pos.line}:${pos.column}`;
         } else {
           const name = formatCallsiteName(callsite);
 
