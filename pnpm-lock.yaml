@@ -767,6 +767,9 @@ importers:
       '@temporalio/core-bridge':
         specifier: workspace:*
         version: link:../core-bridge
+      '@temporalio/envconfig':
+        specifier: workspace:*
+        version: link:../envconfig
       '@temporalio/interceptors-opentelemetry':
         specifier: workspace:*
         version: link:../../contrib/interceptors-opentelemetry
