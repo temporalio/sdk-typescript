@@ -5,6 +5,7 @@
     "rootDir": "./src"
   },
   "references": [
+    { "path": "../../contrib/aws-secrets-manager" },
     { "path": "../common" },
     { "path": "../envconfig" },
     { "path": "../../contrib/interceptors-opentelemetry" },
