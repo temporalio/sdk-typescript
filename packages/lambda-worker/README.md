@@ -38,6 +38,35 @@ The configure callback receives a `LambdaWorkerConfig` object with fields pre-po
 Lambda-appropriate defaults. Override any field directly in the callback. The `taskQueue` in
 `workerOptions` is pre-populated from the `TEMPORAL_TASK_QUEUE` environment variable if set.
 
+### Credentials from AWS Secrets Manager
+
+To keep credentials out of env vars and the Lambda package, store them in AWS Secrets Manager and configure only the
+secret IDs (names or ARNs). The [`@temporalio/aws-secrets-manager`](../../contrib/aws-secrets-manager) envconfig
+extension is always enabled, so no code changes are needed:
+
+| Env var                                                  | TOML (under `profile.<profile>.ext.aws_secrets_manager`) |
+| -------------------------------------------------------- | -------------------------------------------------------- |
+| `TEMPORAL_EXT_AWS_SECRETS_MANAGER_API_KEY_ID`            | `api_key_id`                                             |
+| `TEMPORAL_EXT_AWS_SECRETS_MANAGER_TLS_CLIENT_CERT_ID`    | `tls.client_cert_id`                                     |
+| `TEMPORAL_EXT_AWS_SECRETS_MANAGER_TLS_CLIENT_KEY_ID`     | `tls.client_key_id`                                      |
+| `TEMPORAL_EXT_AWS_SECRETS_MANAGER_TLS_SERVER_CA_CERT_ID` | `tls.server_ca_cert_id`                                  |
+
+Secrets are fetched through the
+[AWS Parameters and Secrets Lambda Extension](https://docs.aws.amazon.com/secretsmanager/latest/userguide/retrieving-secrets_lambda.html)
+if the function has it. Otherwise they are fetched directly with the AWS SDK for JavaScript. Add
+`@aws-sdk/client-secrets-manager` to your function's dependencies to control its version; without it, the unpinned copy
+included in the Lambda Node.js runtime is used (see [Install](../../contrib/aws-secrets-manager#install) for bundling).
+Either way, secrets are cached across warm invocations. The Lambda execution role needs `secretsmanager:GetSecretValue`
+on the configured secrets. See the [`@temporalio/aws-secrets-manager` README](../../contrib/aws-secrets-manager) for the
+full set of options, validation rules, caching behavior, and observability metrics.
+
+When secret IDs are configured, the extension adds a plugin to `config.connectionOptions.plugins`. To add your own
+connection plugins in the configure callback, keep the existing ones rather than replacing them:
+
+```typescript
+config.connectionOptions!.plugins = [...(config.connectionOptions!.plugins ?? []), myPlugin];
+```
+
 ## Lambda-tuned worker defaults
 
 The package applies conservative concurrency limits suited to Lambda's resource constraints:

@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { SecretsManagerExtension } from '@temporalio/aws-secrets-manager';
 import {
   type ClientConnectConfig,
   type LoadClientProfileOptions,
@@ -15,6 +16,9 @@ import {
  * 3. `$LAMBDA_TASK_ROOT/temporal.toml`
  * 4. `process.cwd()/temporal.toml`
  * 5. Envconfig default (XDG paths / env-only)
+ *
+ * Credentials may be loaded from AWS Secrets Manager with {@link SecretsManagerExtension}, which
+ * adds a plugin to the returned connection options when any secret IDs are configured.
  */
 export function loadLambdaClientConnectConfig(options?: Partial<LoadClientProfileOptions>): ClientConnectConfig {
   const resolvedOptions: LoadClientProfileOptions = { ...options };
@@ -27,7 +31,7 @@ export function loadLambdaClientConnectConfig(options?: Partial<LoadClientProfil
     }
   }
 
-  return loadClientConnectConfig(resolvedOptions);
+  return loadClientConnectConfig({ ...resolvedOptions, extensions: [new SecretsManagerExtension()] });
 }
 
 function findLambdaConfigFile(): string | undefined {

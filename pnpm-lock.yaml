@@ -578,6 +578,9 @@ importers:
       '@opentelemetry/sdk-trace-base':
         specifier: ^1.25.1
         version: 1.25.1(@opentelemetry/api@1.9.1)
+      '@temporalio/aws-secrets-manager':
+        specifier: workspace:*
+        version: link:../../contrib/aws-secrets-manager
       '@temporalio/common':
         specifier: workspace:*
         version: link:../common
