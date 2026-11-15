@@ -4,6 +4,7 @@ import type {
   ClientInterceptors,
   ClientOptions,
   ClientPlugin,
+  Connection,
   ConnectionPlugin,
   ConnectionOptions,
   WorkflowClientInterceptors,
@@ -19,6 +20,7 @@ import type {
   ReplayWorkerOptions,
   Worker,
   BundleOptions,
+  NativeConnection,
   NativeConnectionOptions,
   TLSConfig,
 } from '@temporalio/worker';
@@ -191,6 +193,29 @@ export class SimplePlugin
       tls: resolveParameter(options.tls, this.options.tls),
       apiKey: apiKey ?? resolveParameter(options.apiKey as string | undefined, this.options.apiKey),
     };
+  }
+
+  /**
+   * Connects with `Connection.connect`. Override to wrap connecting.
+   * @param options The connection options
+   * @param next Function to continue connecting
+   * @returns Promise that resolves to the connection
+   */
+  connect(options: ConnectionOptions, next: (options: ConnectionOptions) => Promise<Connection>): Promise<Connection> {
+    return next(options);
+  }
+
+  /**
+   * Connects with `NativeConnection.connect`. Override to wrap connecting.
+   * @param options The native connection options
+   * @param next Function to continue connecting
+   * @returns Promise that resolves to the native connection
+   */
+  connectNative(
+    options: NativeConnectionOptions,
+    next: (options: NativeConnectionOptions) => Promise<NativeConnection>
+  ): Promise<NativeConnection> {
+    return next(options);
   }
 
   /**
