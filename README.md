@@ -193,11 +193,10 @@ In order to run integration tests:
 1. Run the Temporal server, such as the [Temporal CLI's integrated dev server](https://github.com/temporalio/cli#start-the-server).
 2. Export `RUN_INTEGRATION_TESTS=true`.
 
-#### test-npm-init
+#### End-to-end tests
 
-To replicate the `test-npm-init` CI test locally, you can start with the below steps:
-
-> If you've run `npx @temporalio/create` before, you may need to delete the version of the package that's stored in `~/.npm/_npx/`.
+The end-to-end tests install the packed `@temporalio/*` packages into fresh projects and run sample projects
+against the Temporal server already listening on `localhost:7233`. To run them locally:
 
 ```sh
 pnpm install --frozen-lockfile
@@ -205,12 +204,15 @@ pnpm run rebuild
 
 TMP_DIR=$(mktemp -d)
 
-pnpm tsx scripts/publish-to-verdaccio.ts --registry-dir "$TMP_DIR"
-pnpm tsx scripts/init-from-verdaccio.ts --registry-dir "$TMP_DIR" --target-dir "./example" --sample hello-world
-pnpm tsx scripts/test-example.ts --work-dir "./example"
+pnpm bridge:collect
+pnpm packages:pack --tarball-dir "$TMP_DIR"
+pnpm --filter @temporalio/test-e2e run test:e2e --tarball-dir "$TMP_DIR"
 
-rm -rf ./example "$TMP_DIR"
+rm -rf "$TMP_DIR"
 ```
+
+Without `--tarball-dir`, the tests install the packages from the npm registry, at the version or dist-tag
+given by `--sdk-version`. See `pnpm --filter @temporalio/test-e2e run test:e2e --help` for all options.
 
 ### Style Guide
 

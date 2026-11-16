@@ -13,6 +13,7 @@ packages:
   - packages/plugin
   - packages/proto
   - packages/test
+  - packages/test-e2e
   - packages/test-helpers
   - packages/testing
   - packages/worker

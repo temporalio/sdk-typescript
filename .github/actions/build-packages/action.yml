@@ -1,5 +1,5 @@
 name: 'Build packages'
-description: 'Collect native bridge binaries, compile the @temporalio/* packages, pack them, and publish to a local Verdaccio registry'
+description: 'Collect native bridge binaries, compile the @temporalio/* packages, and pack them into tarballs'
 
 inputs:
   platform:
@@ -22,19 +22,10 @@ outputs:
   tarball-dir:
     description: 'Directory containing the packed tarballs'
     value: ${{ steps.tmp.outputs.tarball-dir }}
-  registry-dir:
-    description: 'Directory of the local Verdaccio registry (storage is under <registry-dir>/storage)'
-    value: ${{ steps.tmp.outputs.registry-dir }}
 
 runs:
   using: 'composite'
   steps:
-    # TSC can introduce CRLF/LF mismatches on preserved JS files, which later breaks
-    # `pnpm publish` to Verdaccio because it requires a clean Git tree.
-    - name: Set git config
-      shell: bash
-      run: git config --global core.autocrlf false
-
     - name: Download core-bridge native libraries
       uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
@@ -64,19 +55,12 @@ runs:
       run: pnpm --recursive --stream --filter '!@temporalio/core-bridge' --filter '!typescript-sdk' run build
 
     # Normalize runner.temp on Windows (backslashes break bash path joins).
-    - name: Resolve temp directories
+    - name: Resolve temp directory
       id: tmp
       shell: bash
       working-directory: ${{ runner.temp }}
-      run: |
-        dir="$(pwd)"
-        echo "tarball-dir=$dir/tarballs" >> $GITHUB_OUTPUT
-        echo "registry-dir=$dir/npm-registry" >> $GITHUB_OUTPUT
+      run: echo "tarball-dir=$(pwd)/tarballs" >> $GITHUB_OUTPUT
 
     - name: Pack packages
       shell: bash
       run: pnpm packages:pack --tarball-dir ${{ steps.tmp.outputs.tarball-dir }}
-
-    - name: Publish to Verdaccio
-      shell: bash
-      run: pnpm tsx scripts/publish-to-verdaccio.ts --tarball-dir ${{ steps.tmp.outputs.tarball-dir }} --registry-dir ${{ steps.tmp.outputs.registry-dir }}
