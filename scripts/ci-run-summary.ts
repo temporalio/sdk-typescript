@@ -35,6 +35,8 @@ interface Row {
 
 const JOB_LABELS: Record<string, string> = {
   'compile-native-binaries-debug': 'Compile Native Binaries',
+  'build-packages': 'Build Packages',
+  'end-to-end-tests': 'End-to-end Tests',
   'integration-tests': 'Integration Tests',
   conventions: 'Lint & Prune',
   'features-tests': 'Features Tests',

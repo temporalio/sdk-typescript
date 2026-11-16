@@ -1,0 +1,82 @@
+name: 'Build packages'
+description: 'Collect native bridge binaries, compile the @temporalio/* packages, pack them, and publish to a local Verdaccio registry'
+
+inputs:
+  platform:
+    description: 'Platform identifier for the dependency cache key (e.g. linux-x64)'
+    required: true
+  pattern:
+    description: 'Artifact name pattern for the core-bridge binaries to collect'
+    required: false
+    default: 'corebridge-native-*'
+  require-all:
+    description: 'Whether to require every release target to be present after collecting'
+    required: false
+    default: 'false'
+  save-cache:
+    description: 'Whether to save the NPM cache (passed through to setup-node-deps)'
+    required: false
+    default: 'false'
+
+outputs:
+  tarball-dir:
+    description: 'Directory containing the packed tarballs'
+    value: ${{ steps.tmp.outputs.tarball-dir }}
+  registry-dir:
+    description: 'Directory of the local Verdaccio registry (storage is under <registry-dir>/storage)'
+    value: ${{ steps.tmp.outputs.registry-dir }}
+
+runs:
+  using: 'composite'
+  steps:
+    # TSC can introduce CRLF/LF mismatches on preserved JS files, which later breaks
+    # `pnpm publish` to Verdaccio because it requires a clean Git tree.
+    - name: Set git config
+      shell: bash
+      run: git config --global core.autocrlf false
+
+    - name: Download core-bridge native libraries
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+      with:
+        pattern: ${{ inputs.pattern }}
+        path: ./tmp/corebridge
+
+    - name: Setup Node and Install Dependencies
+      uses: ./.github/actions/setup-node-deps
+      with:
+        node-version: '22'
+        platform: ${{ inputs.platform }}
+        save-cache: ${{ inputs.save-cache }}
+
+    - name: Put native files into place
+      shell: bash
+      env:
+        REQUIRE_ALL: ${{ inputs.require-all }}
+      run: |
+        if [ "$REQUIRE_ALL" = true ]; then
+          pnpm bridge:collect --from ./tmp/corebridge --require-all
+        else
+          pnpm bridge:collect --from ./tmp/corebridge
+        fi
+
+    - name: Compile code
+      shell: bash
+      run: pnpm --recursive --stream --filter '!@temporalio/core-bridge' --filter '!typescript-sdk' run build
+
+    # Normalize runner.temp on Windows (backslashes break bash path joins).
+    - name: Resolve temp directories
+      id: tmp
+      shell: bash
+      working-directory: ${{ runner.temp }}
+      run: |
+        dir="$(pwd)"
+        echo "tarball-dir=$dir/tarballs" >> $GITHUB_OUTPUT
+        echo "registry-dir=$dir/npm-registry" >> $GITHUB_OUTPUT
+
+    - name: Pack packages
+      shell: bash
+      run: pnpm packages:pack --tarball-dir ${{ steps.tmp.outputs.tarball-dir }}
+
+    - name: Publish to Verdaccio
+      shell: bash
+      run: pnpm tsx scripts/publish-to-verdaccio.ts --tarball-dir ${{ steps.tmp.outputs.tarball-dir }} --registry-dir ${{ steps.tmp.outputs.registry-dir }}

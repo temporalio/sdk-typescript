@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import test from 'node:test';
-import { binaryTargets, collectBinaries } from './collect-bridge';
+import { binaryTargets, collectBinaries, missingTargets } from './collect-bridge';
 
 function fixture(): string {
   const root = mkdtempSync(resolve(tmpdir(), 'sdk-typescript-collect-'));
@@ -28,6 +28,27 @@ test('bridge binaries are collected from downloaded artifacts', () => {
 
     writeFileSync(resolve(root, 'artifacts/index.node'), 'stray');
     assert.throws(() => collectBinaries(resolve(root, 'artifacts'), releases), /known target/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('targets shipped by releases without a binary are reported missing', () => {
+  const root = fixture();
+  const releases = resolve(root, 'releases');
+  try {
+    collectBinaries(resolve(root, 'artifacts'), releases);
+    assert.deepEqual(missingTargets(releases), [
+      'aarch64-unknown-linux-gnu',
+      'x86_64-apple-darwin',
+      'x86_64-pc-windows-msvc',
+    ]);
+
+    for (const target of ['aarch64-unknown-linux-gnu', 'x86_64-apple-darwin', 'x86_64-pc-windows-msvc']) {
+      mkdirSync(resolve(releases, target), { recursive: true });
+      writeFileSync(resolve(releases, target, 'index.node'), target);
+    }
+    assert.deepEqual(missingTargets(releases), []);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
