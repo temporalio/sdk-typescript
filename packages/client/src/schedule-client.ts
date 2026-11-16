@@ -27,7 +27,7 @@ import {
   optionalTsToMs,
   requiredTsToDate,
   tsToDate,
-} from '@temporalio/common/lib/time';
+} from '@temporalio/common/time';
 import type { CreateScheduleInput, CreateScheduleOutput, ScheduleClientInterceptor } from './interceptors';
 import type { WorkflowService } from './types';
 import { isGrpcServiceError, ServiceError } from './errors';

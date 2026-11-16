@@ -70,10 +70,6 @@
     "./internal": {
       "types": "./lib/internal.d.ts",
       "default": "./lib/internal.js"
-    },
-    "./lib/*": {
-      "types": "./lib/*.d.ts",
-      "default": "./lib/*.js"
     }
   },
   "typesVersions": {

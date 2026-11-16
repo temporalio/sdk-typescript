@@ -9,7 +9,7 @@ import { TextDecoder, TextEncoder } from 'node:util';
 import { SourceMapConsumer } from 'source-map';
 import { cutoffStackTrace, IllegalStateError, convertDeploymentVersion } from '@temporalio/common';
 import { suggestContinueAsNewReasonsFromProto } from '@temporalio/common/internal/internal-non-workflow';
-import { tsToMs } from '@temporalio/common/lib/time';
+import { tsToMs } from '@temporalio/common/time';
 import { coresdk } from '@temporalio/proto';
 import type { SinkCall, StackTraceFileLocation } from '@temporalio/workflow';
 import type * as internals from '@temporalio/workflow/internal/worker-interface';
