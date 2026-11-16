@@ -1,7 +1,7 @@
 import type { native } from '@temporalio/core-bridge';
 import type { LogLevel } from '@temporalio/common';
-import type { Duration } from '@temporalio/common/lib/time';
-import { msToNumber } from '@temporalio/common/lib/time';
+import type { Duration } from '@temporalio/common/time';
+import { msToNumber } from '@temporalio/common/time';
 import type { FlushableLogger } from './logger';
 import { DefaultLogger, NonThrowingLogger } from './logger';
 import { NativeLogCollector } from './runtime-logger';

@@ -36,7 +36,7 @@ import {
   isActivityFunctionWithOptions,
 } from '@temporalio/common';
 import type { Decoded } from '@temporalio/common/internal/internal-non-workflow';
-import { historyFromJSON } from '@temporalio/common/lib/proto-utils';
+import { historyFromJSON } from '@temporalio/common/proto-utils';
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
@@ -55,7 +55,7 @@ import {
   walkWorkflowActivation,
   walkWorkflowActivationCompletion,
 } from '@temporalio/common/internal/internal-non-workflow';
-import type { Duration } from '@temporalio/common/lib/time';
+import type { Duration } from '@temporalio/common/time';
 import {
   msToNumber,
   optionalTsToDate,
@@ -63,7 +63,7 @@ import {
   requiredTsToMs,
   tsToDate,
   tsToMs,
-} from '@temporalio/common/lib/time';
+} from '@temporalio/common/time';
 import {
   errorMessage,
   nexusSerializationContextFromProto,

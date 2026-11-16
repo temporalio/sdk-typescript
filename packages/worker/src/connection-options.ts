@@ -1,6 +1,6 @@
 import type { native } from '@temporalio/core-bridge';
-import type { Duration } from '@temporalio/common/lib/time';
-import { msToNumber } from '@temporalio/common/lib/time';
+import type { Duration } from '@temporalio/common/time';
+import { msToNumber } from '@temporalio/common/time';
 import {
   joinProtoHostPort,
   normalizeGrpcEndpointAddress,

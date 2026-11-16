@@ -4,5 +4,7 @@
  *
  * @module
  */
+/** @lintignore These exports replace the stub's exports at bundle time; Knip cannot follow the webpack alias. */
 export { inWorkflowContext, proxySinks, workflowInfo, AsyncLocalStorage, ContinueAsNew } from '@temporalio/workflow';
+/** @lintignore These exports replace the stub's exports at bundle time; Knip cannot follow the webpack alias. */
 export { getActivator, SdkFlags } from '@temporalio/workflow/internal';

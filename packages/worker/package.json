@@ -86,10 +86,6 @@
     "./internal/pkg": {
       "types": "./lib/pkg.d.ts",
       "default": "./lib/pkg.js"
-    },
-    "./lib/*": {
-      "types": "./lib/*.d.ts",
-      "default": "./lib/*.js"
     }
   },
   "typesVersions": {

@@ -28,6 +28,7 @@ export const workflowInfo: typeof workflowInfoT = () => {
 
 export const ContinueAsNew = class ContinueAsNew {} as unknown as typeof ContinueAsNewT;
 
+/** @lintignore Keep the stub's exports aligned with the implementation swapped in by the workflow bundler. */
 export const AsyncLocalStorage = class AsyncLocalStorage {} as unknown as typeof AsyncLocalStorageT;
 
 export const getActivator: typeof getActivatorT = () => {

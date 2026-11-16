@@ -29,10 +29,6 @@
     "./lib/*.js": {
       "types": "./lib/*.d.ts",
       "default": "./lib/*.js"
-    },
-    "./lib/*": {
-      "types": "./lib/*.d.ts",
-      "default": "./lib/*.js"
     }
   },
   "typesVersions": {

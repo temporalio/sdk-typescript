@@ -4,6 +4,7 @@
  *
  * @module
  */
+/** @lintignore These exports replace the stub's exports at bundle time; Knip cannot follow the webpack alias. */
 export {
   inWorkflowContext,
   proxySinks,

@@ -130,7 +130,7 @@ import type {
   RetryPolicy,
 } from '@temporalio/common';
 import { IllegalStateError } from '@temporalio/common';
-import { msToNumber } from '@temporalio/common/lib/time';
+import { msToNumber } from '@temporalio/common/time';
 
 import type { Client } from '@temporalio/client';
 
