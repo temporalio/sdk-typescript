@@ -1,1 +1,0 @@
-Fix `OpenTelemetryPlugin` (`@temporalio/interceptors-opentelemetry-v2`) dropping OpenTelemetry baggage across the client-to-Workflow and Workflow-to-Activity boundaries: the Workflow sandbox's propagator was hardcoded to trace-context-only, silently discarding the `baggage` header the client already sent. Trace ID and span parenting were unaffected.
