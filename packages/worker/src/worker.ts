@@ -104,7 +104,7 @@ import { compileWorkerOptions, isCodeBundleOption, isPathBundleOption, toNativeW
 import { WorkflowCodecRunner } from './workflow-codec-runner';
 import { isSystemNexusEnvelope, transformEncodedSystemNexusEnvelope, visitNexusTask } from './system-nexus-operations';
 import { assertWorkflowBundleSdkVersion } from './workflow/bundle-metadata';
-import { isBunPre1_4 } from './workflow/bun';
+import { assertSupportedBunVersion } from './workflow/bun';
 import type { Workflow, WorkflowCreator } from './workflow/interface';
 import { ReusableVMWorkflowCreator } from './workflow/reusable-vm';
 import { ThreadedVMWorkflowCreator } from './workflow/threaded-vm';
@@ -532,6 +532,7 @@ export class Worker {
    * This method initiates a connection to the server and will throw (asynchronously) on connection failure.
    */
   public static async create(options: WorkerOptions): Promise<Worker> {
+    assertSupportedBunVersion();
     options.plugins = (options.plugins ?? []).concat(options.connection?.plugins ?? []);
     for (const plugin of options.plugins) {
       if (plugin.configureWorker !== undefined) {
@@ -547,11 +548,6 @@ export class Worker {
       sdkComponent: SdkComponent.worker,
       taskQueue: options.taskQueue ?? 'default',
     });
-    if (isBunPre1_4) {
-      logger.warn(
-        'Bun versions older than 1.4.0 are deprecated and will not be supported in a future release. Please upgrade to Bun 1.4.0 or later.'
-      );
-    }
     const metricMeter = runtime.metricMeter.withTags({
       namespace: options.namespace ?? 'default',
       taskQueue: options.taskQueue ?? 'default',

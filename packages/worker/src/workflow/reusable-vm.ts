@@ -11,7 +11,7 @@ import {
   setUnhandledRejectionHandler,
   toDeadlockErrorIfVmTimeout,
 } from './vm-shared';
-import { isBun, isBunPre1_4 } from './bun';
+import { isBun } from './bun';
 import type { WorkflowPatchActivationCallback } from './patch-activation-callback';
 
 interface BagHolder {
@@ -57,10 +57,8 @@ function generateCallIntoScopeScript(): string {
 }
 
 /**
- * Bun has inconsistent handling of numeric properties on the VM-context. In
- * Bun 1.3.x, reads from the global in the VM may not see numeric properties present on the VM context
- * object. Bun 1.4.0 fixes those reads, but writes and deletes from inside the VM
- * global still do not update the VM context.
+ * Bun has inconsistent handling of numeric properties on the VM-context.
+ * Writes and deletes from inside the VM global do not update the VM context.
  *
  * To work around this we replace the `globalThis` value exposed inside the VM with a proxy.
  * For numeric keys, route Object field operations to a special "numeric" properties object.
@@ -310,11 +308,6 @@ type WorkflowModule = typeof internals;
 export class ReusableVMWorkflow extends BaseVMWorkflow {
   public async dispose(): Promise<void> {
     this.workflowModule.dispose();
-    // Before Bun 1.4.0, microtasks scheduled inside the VM context may not be processed
-    // automatically due to lack of proper microtaskMode: 'afterEvaluate' support.
-    // Drain the microtask queue to prevent state leakage to the next workflow
-    // that will reuse this VM context.
-    if (isBunPre1_4) await new Promise(setImmediate);
     ReusableVMWorkflowCreator.workflowByRunId.delete(this.runId);
   }
 }
