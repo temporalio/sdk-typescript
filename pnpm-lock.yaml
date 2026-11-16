@@ -75,9 +75,6 @@ importers:
       typescript-compat:
         specifier: npm:typescript@5.7.3
         version: typescript@5.7.3
-      verdaccio:
-        specifier: ^6.5.0
-        version: 6.5.0(encoding@0.1.13)(typanion@3.14.0)
 
   contrib/ai-sdk:
     dependencies:
@@ -855,6 +852,9 @@ importers:
       ava:
         specifier: ^5.3.1
         version: 5.3.1
+      verdaccio:
+        specifier: ^6.5.0
+        version: 6.5.0(encoding@0.1.13)(typanion@3.14.0)
 
   packages/test-helpers:
     dependencies:

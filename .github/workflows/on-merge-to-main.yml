@@ -69,8 +69,7 @@ jobs:
           save-cache: ${{ env.IS_MAIN_OR_RELEASE }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-  # Gather native binaries for all platforms and build TypeScript @temporalio/* packages.
-  # Upload the built packages as a Verdaccio repository.
+  # Gather native binaries for all platforms, pack the @temporalio/* packages, and upload the tarballs.
   build-packages:
     needs:
       - compile-native-binaries-release
@@ -149,7 +148,13 @@ jobs:
       # Normalize runner.temp on Windows (backslashes break bash path joins).
       - name: Get normalized path to temp directory
         id: tmp-dir
-        run: echo "dir=$(pwd)" >> ${GITHUB_OUTPUT}
+        run: |
+          if command -v cygpath >/dev/null 2>&1; then
+            dir=$(cygpath -m "$(pwd)")
+          else
+            dir=$(pwd)
+          fi
+          echo "dir=${dir}" >> "$GITHUB_OUTPUT"
         working-directory: ${{ runner.temp }}
 
       - name: Restore package tarballs artifact
@@ -184,6 +189,7 @@ jobs:
       - name: Run end-to-end tests
         run: pnpm --filter @temporalio/test-e2e run test:e2e --tarball-dir ${{ steps.tmp-dir.outputs.dir }}/tarballs
         env:
+          NODE_OPTIONS: --max-old-space-size=4096
           TEST_RESULTS_DIR: ${{ runner.temp }}/e2e-results
           # Used by the hello-world-mtls sample, which is skipped when they are not set. They must be set for
           # releases (i.e. this must be run from the official repo).

@@ -21,7 +21,8 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
-    "ava": "^5.3.1"
+    "ava": "^5.3.1",
+    "verdaccio": "^6.5.0"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"

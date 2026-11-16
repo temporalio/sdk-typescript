@@ -26,12 +26,6 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    # TSC can introduce CRLF/LF mismatches on preserved JS files, which later breaks
-    # `pnpm publish` to Verdaccio because it requires a clean Git tree.
-    - name: Set git config
-      shell: bash
-      run: git config --global core.autocrlf false
-
     - name: Download core-bridge native libraries
       uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:

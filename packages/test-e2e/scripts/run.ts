@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { publishablePackages, tarballsIn } from '../../../scripts/pack-packages';
-import { ciLogPath, shell, sleep, spawnNpxLogged, waitOnChild } from '../../../scripts/utils';
 import { withRegistry } from './registry';
+import { ciLogPath, shell, sleep, spawnNpxLogged, waitOnChild } from './utils';
 
 const packageRoot = resolve(__dirname, '..');
 const repoRoot = resolve(packageRoot, '..', '..');

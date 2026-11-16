@@ -415,16 +415,16 @@ jobs:
           node-version: ${{ matrix.node }}
           platform: ${{ matrix.platform }}
 
-      # On Windows, the 'runner.temp' variable uses backslashes as path separators, but
-      # that may pose problems in later steps when we try to join that with subpaths;
-      # e.g. '${{ runner.temp }}/npm-registry' would get interpolated to 'd:\a\_temp/npm-registry',
-      # which may effectively get interpreted as by bash as 'd:a_temp/npm-registry', resulting in
-      # the apparition of an unwanted 'a_temp' directory.
-      #
-      # This step ensures that the 'runner.temp' variable is normalized to use forward slashes.
+      # Normalize runner.temp on Windows (backslashes break bash path joins).
       - name: Get normalized path to temp directory
         id: tmp-dir
-        run: echo "dir=$(pwd)" >> ${GITHUB_OUTPUT}
+        run: |
+          if command -v cygpath >/dev/null 2>&1; then
+            dir=$(cygpath -m "$(pwd)")
+          else
+            dir=$(pwd)
+          fi
+          echo "dir=${dir}" >> "$GITHUB_OUTPUT"
         working-directory: ${{ runner.temp }}
 
       - name: Restore package tarballs artifact
@@ -461,6 +461,7 @@ jobs:
       - name: Run end-to-end tests
         run: pnpm --filter @temporalio/test-e2e run test:e2e --tarball-dir ${{ steps.tmp-dir.outputs.dir }}/tarballs
         env:
+          NODE_OPTIONS: --max-old-space-size=4096
           TEST_RESULTS_DIR: ${{ runner.temp }}/e2e-results
           # Used by the hello-world-mtls sample, which is skipped when they are not set
           TEMPORAL_ADDRESS: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud:7233
