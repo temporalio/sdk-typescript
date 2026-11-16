@@ -55,7 +55,14 @@ runs:
 
     - name: Put native files into place
       shell: bash
-      run: pnpm bridge:collect --from ./tmp/corebridge ${{ inputs.require-all == 'true' && '--require-all' || '' }}
+      env:
+        REQUIRE_ALL: ${{ inputs.require-all }}
+      run: |
+        if [ "$REQUIRE_ALL" = true ]; then
+          pnpm bridge:collect --from ./tmp/corebridge --require-all
+        else
+          pnpm bridge:collect --from ./tmp/corebridge
+        fi
 
     - name: Compile code
       shell: bash
