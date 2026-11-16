@@ -1,1 +1,0 @@
-Bump `rustls` in the core bridge to 0.23.46 to address [GHSA-2mjx-qc3c-rqvc](https://github.com/advisories/GHSA-2mjx-qc3c-rqvc), [GHSA-c8m5-c952-6cm4](https://github.com/advisories/GHSA-c8m5-c952-6cm4), [GHSA-h2v8-394m-p7vv](https://github.com/advisories/GHSA-h2v8-394m-p7vv), and [GHSA-w44r-93j7-qv28](https://github.com/advisories/GHSA-w44r-93j7-qv28).
