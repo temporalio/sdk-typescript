@@ -850,6 +850,12 @@ importers:
         specifier: ^11.2.0
         version: 11.2.0
 
+  packages/test-e2e:
+    dependencies:
+      ava:
+        specifier: ^5.3.1
+        version: 5.3.1
+
   packages/test-helpers:
     dependencies:
       '@temporalio/common':

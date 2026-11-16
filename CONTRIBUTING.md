@@ -233,11 +233,11 @@ In order to run integration tests:
 1. Run the Temporal server, e.g. using the [Temporal CLI's integrated dev server](https://github.com/temporalio/cli#start-the-server)
 1. Export `RUN_INTEGRATION_TESTS=true`
 
-#### test-npm-init
+#### End-to-end tests
 
-To replicate the `test-npm-init` CI test locally, you can start with the below steps:
-
-> If you've run `npx @temporalio/create` before, you may need to delete the version of the package that's stored in `~/.npm/_npx/`.
+The end-to-end tests (`packages/test-e2e`) install the packed `@temporalio/*` packages into fresh
+projects, check how npm resolves their dependencies, and run sample projects against the Temporal
+server already listening on `localhost:7233`. To run them locally:
 
 ```
 pnpm install --frozen-lockfile
@@ -246,17 +246,20 @@ pnpm run rebuild
 TMP_DIR=$( mktemp -d )
 
 pnpm bridge:collect
-pnpm packages:pack --tarball-dir "$TMP_DIR/tarballs"
-pnpm tsx scripts/publish-to-verdaccio.ts --tarball-dir "$TMP_DIR/tarballs" --registry-dir "$TMP_DIR"
-pnpm tsx scripts/test-protobufjs-install.ts --registry-dir "$TMP_DIR" --target-dir "$TMP_DIR/protobufjs-install"
-pnpm tsx scripts/init-from-verdaccio.ts --registry-dir "$TMP_DIR" --target-dir "./example" --sample hello-world
-pnpm tsx scripts/test-example.ts --work-dir "./example"
+pnpm packages:pack --tarball-dir "$TMP_DIR"
+pnpm --filter @temporalio/test-e2e run test:e2e --tarball-dir "$TMP_DIR"
 
-rm -rf ./example "$TMP_DIR"
+rm -rf "$TMP_DIR"
 ```
 
-The publish and init steps print only a one-line summary; their full output is
-written to `.test-results/` (and the tail is dumped to the console on failure).
+With `--tarball-dir`, the tarballs are published to a local Verdaccio registry for the duration of
+the run. Without it, the packages come from the npm registry, at the version or dist-tag given by
+`--sdk-version`, which confirms that a published (or staged) release works. The `hello-world-mtls`
+sample runs against Temporal Cloud when `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`,
+`TEMPORAL_CLIENT_CERT` and `TEMPORAL_CLIENT_KEY` are set. See `--help` for all options.
+
+The noisy output of publishing, sample creation and workers is written to `.test-results/` (or
+`$TEST_RESULTS_DIR`), and its tail is printed on failure.
 
 ### Style Guide
 

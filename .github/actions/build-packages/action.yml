@@ -1,5 +1,5 @@
 name: 'Build packages'
-description: 'Collect native bridge binaries, compile the @temporalio/* packages, pack them, and publish to a local Verdaccio registry'
+description: 'Collect native bridge binaries, compile the @temporalio/* packages, and pack them into tarballs'
 
 inputs:
   platform:
@@ -22,9 +22,6 @@ outputs:
   tarball-dir:
     description: 'Directory containing the packed tarballs'
     value: ${{ steps.tmp.outputs.tarball-dir }}
-  registry-dir:
-    description: 'Directory of the local Verdaccio registry (storage is under <registry-dir>/storage)'
-    value: ${{ steps.tmp.outputs.registry-dir }}
 
 runs:
   using: 'composite'
@@ -64,19 +61,12 @@ runs:
       run: pnpm --recursive --stream --filter '!@temporalio/core-bridge' --filter '!typescript-sdk' run build
 
     # Normalize runner.temp on Windows (backslashes break bash path joins).
-    - name: Resolve temp directories
+    - name: Resolve temp directory
       id: tmp
       shell: bash
       working-directory: ${{ runner.temp }}
-      run: |
-        dir="$(pwd)"
-        echo "tarball-dir=$dir/tarballs" >> $GITHUB_OUTPUT
-        echo "registry-dir=$dir/npm-registry" >> $GITHUB_OUTPUT
+      run: echo "tarball-dir=$(pwd)/tarballs" >> $GITHUB_OUTPUT
 
     - name: Pack packages
       shell: bash
       run: pnpm packages:pack --tarball-dir ${{ steps.tmp.outputs.tarball-dir }}
-
-    - name: Publish to Verdaccio
-      shell: bash
-      run: pnpm tsx scripts/publish-to-verdaccio.ts --tarball-dir ${{ steps.tmp.outputs.tarball-dir }} --registry-dir ${{ steps.tmp.outputs.registry-dir }}
