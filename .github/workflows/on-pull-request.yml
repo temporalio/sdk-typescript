@@ -61,8 +61,27 @@ jobs:
           save-cache: ${{ env.WARM_CACHE_ONLY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-  # Run integration tests.
-  # Uses the native binaries built in compile-native-binaries, but build `@temporalio/*` packages locally.
+  # Pack the @temporalio/* packages once, from the debug binaries, for the end-to-end tests.
+  build-packages:
+    name: Build Packages
+    if: github.event_name == 'pull_request'
+    needs:
+      - compile-native-binaries-debug
+    runs-on: ubuntu-latest
+    steps:
+      - id: build
+        uses: ./.github/actions/build-packages
+        with:
+          platform: linux-x64
+          pattern: corebridge-native-debug-*
+
+      - name: Save Verdaccio repo artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: verdaccio-repo
+          path: ${{ steps.build.outputs.registry-dir }}/storage
+
+  # Compile the workspace against this platform's debug binary and run the test suite.
   integration-tests:
     if: github.event_name == 'pull_request'
     timeout-minutes: 30
@@ -100,13 +119,7 @@ jobs:
       run:
         shell: bash
     steps:
-      # For some unknown reason, execution of TSC may sometime introduce a CRLF/LF mismatch on some
-      # pure JS files that are preserved in the repo, which would later cause a failure when trying
-      # to publish packages to Verdaccio, as `pnpm publish` requires that the Git repo be clean.
-      - name: Set git config
-        run: git config --global core.autocrlf false
-
-      - name: 'Checkout code'
+      - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
@@ -145,18 +158,6 @@ jobs:
 
       - name: Compile code
         run: pnpm --recursive --stream --filter '!@temporalio/core-bridge' --filter '!typescript-sdk' run build
-
-      - name: Pack packages
-        run: |
-          pnpm bridge:collect
-          pnpm packages:pack --tarball-dir ${{ steps.tmp-dir.outputs.dir }}/tarballs
-
-      - name: Publish to Verdaccio
-        run: pnpm tsx scripts/publish-to-verdaccio.ts --tarball-dir ${{ steps.tmp-dir.outputs.dir }}/tarballs --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry
-
-      - name: Test npm protobufjs peer resolution
-        if: matrix.platform == 'linux-x64' && matrix.node == 26
-        run: pnpm tsx scripts/test-protobufjs-install.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --target-dir ${{ steps.tmp-dir.outputs.dir }}/protobufjs-install
 
       - name: Install Temporal CLI
         uses: temporalio/setup-temporal@8bde337644eaaa6644b8b527d9a8406c2207de5b # v0
@@ -220,54 +221,6 @@ jobs:
       # (Per-package results are printed by the wrapper into the "Run Tests" log
       # above, and aggregated across all jobs by the `ci-summary` job below.)
 
-      # FIXME: Move samples tests to a custom activity
-      # Sample 1: hello-world to local server
-      - name: Instantiate sample project using verdaccio artifacts - Hello World
-        if: matrix.node != 'bun'
-        run: |
-          pnpm tsx scripts/init-from-verdaccio.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-hello-world
-          pnpm tsx scripts/test-example.ts --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-hello-world"
-
-      # Sample 2: hello-world-mtls to cloud server
-      - name: Instantiate sample project using verdaccio artifacts - Hello World MTLS
-        if: matrix.node != 'bun'
-        run: |
-          if [ -z "$TEMPORAL_ADDRESS" ] || [ -z "$TEMPORAL_NAMESPACE" ] || [ -z "$TEMPORAL_CLIENT_CERT" ] || [ -z "$TEMPORAL_CLIENT_KEY" ]; then
-            echo "Skipping hello-world-mtls sample test as required environment variables are not set"
-            exit 0
-          fi
-
-          pnpm tsx scripts/create-certs-dir.ts ${{ steps.tmp-dir.outputs.dir }}/certs
-          pnpm tsx scripts/init-from-verdaccio.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world-mtls --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-hello-world-mtls
-          pnpm tsx scripts/test-example.ts --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-hello-world-mtls"
-        env:
-          # These env vars are used by the hello-world-mtls sample
-          TEMPORAL_ADDRESS: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud:7233
-          TEMPORAL_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
-          TEMPORAL_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
-          TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
-          TEMPORAL_TASK_QUEUE: ${{ format('tssdk-ci-{0}-{1}-sample-hello-world-mtls-{2}-{3}', matrix.platform, matrix.node, github.run_id, github.run_attempt) }}
-
-          TEMPORAL_CLIENT_CERT_PATH: ${{ steps.tmp-dir.outputs.dir }}/certs/client.pem
-          TEMPORAL_CLIENT_KEY_PATH: ${{ steps.tmp-dir.outputs.dir }}/certs/client.key
-
-      - name: Destroy certs dir
-        if: always() && matrix.node != 'bun'
-        run: rm -rf ${{ steps.tmp-dir.outputs.dir }}/certs
-        continue-on-error: true
-
-      # Sample 3: fetch-esm to local server
-      - name: Instantiate sample project using verdaccio artifacts - Fetch ESM
-        if: matrix.node != 'bun'
-        run: |
-          pnpm tsx scripts/init-from-verdaccio.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/npm-registry --sample https://github.com/temporalio/samples-typescript/tree/main/fetch-esm --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm
-          pnpm tsx scripts/test-example.ts --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm" --script-name workflow-local --expected-output "Hello World And Hello Wonderful Temporal!"
-
-      # End samples
-
-      # Archive the full per-package test logs plus the redirected Verdaccio-publish
-      # and sample-init logs (the firehose we keep off the console). Placed at the end
-      # so it captures logs written by the sample steps above too.
       - name: Upload test logs
         id: upload-test-logs
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -414,6 +367,131 @@ jobs:
         run: |
           echo "- CI artifact: $CLOUD_TEST_OUTPUT_ARTIFACT_NAME"
 
+  # Install the packed packages from the Verdaccio registry and run the sample projects.
+  end-to-end-tests:
+    name: End-to-end Tests (${{ matrix.platform }}, Node ${{ matrix.node }})
+    if: github.event_name == 'pull_request'
+    needs:
+      - build-packages
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 26]
+        platform: [linux-x64, linux-arm, macos-arm, windows-x64]
+        include:
+          - platform: linux-x64
+            runner: ubuntu-latest
+          - platform: linux-arm
+            runner: ubuntu-24.04-arm64-2-core
+          - platform: macos-arm
+            runner: macos-15
+          - platform: windows-x64
+            runner: windows-latest
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+
+      - name: Setup Node and Install Dependencies
+        uses: ./.github/actions/setup-node-deps
+        with:
+          node-version: ${{ matrix.node }}
+          platform: ${{ matrix.platform }}
+
+      # On Windows, the 'runner.temp' variable uses backslashes as path separators, but
+      # that may pose problems in later steps when we try to join that with subpaths;
+      # e.g. '${{ runner.temp }}/npm-registry' would get interpolated to 'd:\a\_temp/npm-registry',
+      # which may effectively get interpreted as by bash as 'd:a_temp/npm-registry', resulting in
+      # the apparition of an unwanted 'a_temp' directory.
+      #
+      # This step ensures that the 'runner.temp' variable is normalized to use forward slashes.
+      - name: Get normalized path to temp directory
+        id: tmp-dir
+        run: echo "dir=$(pwd)" >> ${GITHUB_OUTPUT}
+        working-directory: ${{ runner.temp }}
+
+      - name: Restore Verdaccio repo artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: verdaccio-repo
+          path: ${{ steps.tmp-dir.outputs.dir }}/registry/storage
+
+      - name: Test npm protobufjs peer resolution
+        if: matrix.platform == 'linux-x64' && matrix.node == 26
+        run: pnpm tsx scripts/test-protobufjs-install.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/registry --target-dir ${{ steps.tmp-dir.outputs.dir }}/protobufjs-install
+
+      - name: Install Temporal CLI
+        uses: temporalio/setup-temporal@8bde337644eaaa6644b8b527d9a8406c2207de5b # v0
+        with:
+          version: ${{ env.TESTS_CLI_VERSION }}
+
+      - name: Run Temporal CLI
+        working-directory: ${{ runner.temp }}
+        run: |
+          temporal server start-dev \
+            --db-filename temporal.sqlite \
+            --sqlite-pragma journal_mode=WAL \
+            --sqlite-pragma synchronous=OFF \
+            --headless &> ./devserver.log \
+            --dynamic-config-value system.enableActivityEagerExecution=true \
+            --dynamic-config-value history.enableRequestIdRefLinks=true \
+            --dynamic-config-value frontend.activityAPIsEnabled=true \
+            --dynamic-config-value activity.enableStandalone=true \
+            --dynamic-config-value activity.startDelayEnabled=true \
+            --dynamic-config-value 'activity.longPollTimeout="5000ms"' \
+            --dynamic-config-value history.enableChasm=true \
+            --dynamic-config-value history.enableTransitionHistory=true \
+            --dynamic-config-value frontend.enableCancelWorkerPollsOnShutdown=false &
+
+      - name: Instantiate sample project using verdaccio artifacts - Hello World
+        run: |
+          pnpm tsx scripts/init-from-verdaccio.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-hello-world
+          pnpm tsx scripts/test-example.ts --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-hello-world"
+
+      - name: Instantiate sample project using verdaccio artifacts - Hello World MTLS
+        run: |
+          if [ -z "$TEMPORAL_ADDRESS" ] || [ -z "$TEMPORAL_NAMESPACE" ] || [ -z "$TEMPORAL_CLIENT_CERT" ] || [ -z "$TEMPORAL_CLIENT_KEY" ]; then
+            echo "Skipping hello-world-mtls sample test as required environment variables are not set"
+            exit 0
+          fi
+
+          pnpm tsx scripts/create-certs-dir.ts ${{ steps.tmp-dir.outputs.dir }}/certs
+          pnpm tsx scripts/init-from-verdaccio.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/registry --sample https://github.com/temporalio/samples-typescript/tree/main/hello-world-mtls --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-hello-world-mtls
+          pnpm tsx scripts/test-example.ts --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-hello-world-mtls"
+        env:
+          # These env vars are used by the hello-world-mtls sample
+          TEMPORAL_ADDRESS: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud:7233
+          TEMPORAL_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
+          TEMPORAL_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
+          TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
+          TEMPORAL_TASK_QUEUE: ${{ format('tssdk-ci-{0}-{1}-sample-hello-world-mtls-{2}-{3}', matrix.platform, matrix.node, github.run_id, github.run_attempt) }}
+
+          TEMPORAL_CLIENT_CERT_PATH: ${{ steps.tmp-dir.outputs.dir }}/certs/client.pem
+          TEMPORAL_CLIENT_KEY_PATH: ${{ steps.tmp-dir.outputs.dir }}/certs/client.key
+
+      - name: Destroy certs dir
+        if: always()
+        run: rm -rf ${{ steps.tmp-dir.outputs.dir }}/certs
+        continue-on-error: true
+
+      - name: Instantiate sample project using verdaccio artifacts - Fetch ESM
+        run: |
+          pnpm tsx scripts/init-from-verdaccio.ts --registry-dir ${{ steps.tmp-dir.outputs.dir }}/registry --sample https://github.com/temporalio/samples-typescript/tree/main/fetch-esm --target-dir ${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm
+          pnpm tsx scripts/test-example.ts --work-dir "${{ steps.tmp-dir.outputs.dir }}/sample-fetch-esm" --script-name workflow-local --expected-output "Hello World And Hello Wonderful Temporal!"
+
+      - name: Upload Dev Server logs
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: failure() || cancelled()
+        with:
+          name: end-to-end-tests-${{ matrix.platform }}-${{ matrix.node }}-devserver-logs
+          path: ${{ steps.tmp-dir.outputs.dir }}/devserver.log
+
   typescript-compatibility:
     name: TypeScript 5.7 Consumer Compatibility
     if: github.event_name == 'pull_request'
@@ -496,6 +574,8 @@ jobs:
     if: ${{ always() && github.event_name == 'pull_request' }}
     needs:
       - compile-native-binaries-debug
+      - build-packages
+      - end-to-end-tests
       - integration-tests
       - cloud-integration-tests
       - typescript-compatibility
@@ -515,6 +595,8 @@ jobs:
     if: ${{ always() && github.event_name == 'pull_request' }}
     needs:
       - compile-native-binaries-debug
+      - build-packages
+      - end-to-end-tests
       - integration-tests
       - cloud-integration-tests
       - typescript-compatibility
