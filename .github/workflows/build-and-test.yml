@@ -24,10 +24,47 @@ jobs:
   # Compile native bridge code for each target platform.
   # Uploads the native library for each target as a build artifact.
   compile-native-binaries-release:
-    name: Compile Native Binaries
-    uses: ./.github/workflows/compile-native-binaries.yml
-    with:
-      profile: release
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - platform: linux-x64
+            runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            container: quay.io/pypa/manylinux_2_24_x86_64
+            out-file: libtemporal_sdk_typescript_bridge.so
+            protobuf-url: https://github.com/protocolbuffers/protobuf/releases/download/v22.3/protoc-22.3-linux-x86_64.zip
+          - platform: linux-arm
+            runner: ubuntu-24.04-arm64-2-core
+            target: aarch64-unknown-linux-gnu
+            container: quay.io/pypa/manylinux_2_24_aarch64
+            out-file: libtemporal_sdk_typescript_bridge.so
+            protobuf-url: https://github.com/protocolbuffers/protobuf/releases/download/v22.3/protoc-22.3-linux-aarch_64.zip
+          - platform: macos-x64
+            runner: macos-15-intel
+            target: x86_64-apple-darwin
+            out-file: libtemporal_sdk_typescript_bridge.dylib
+          - platform: macos-arm
+            runner: macos-15
+            target: aarch64-apple-darwin
+            out-file: libtemporal_sdk_typescript_bridge.dylib
+          - platform: windows-x64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            out-file: temporal_sdk_typescript_bridge.dll
+    name: Compile Native Binaries (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: ./.github/actions/compile-native-binary
+        with:
+          profile: release
+          platform: ${{ matrix.platform }}
+          target: ${{ matrix.target }}
+          out-file: ${{ matrix.out-file }}
+          container: ${{ matrix.container }}
+          protobuf-url: ${{ matrix.protobuf-url }}
+          save-cache: ${{ env.IS_MAIN_OR_RELEASE }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
   # Gather native binaries for all platforms and build TypeScript @temporalio/* packages.
   # Upload the built packages as a Verdaccio repository.

@@ -1,7 +1,8 @@
-name: Build Package
+name: On merge to main
 
 on:
   push:
+    # releases/* branches are main-like: they only change by merge
     branches:
       - main
       - 'releases/*'

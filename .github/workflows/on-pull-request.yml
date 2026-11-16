@@ -1,7 +1,8 @@
-name: Continuous Integration
+name: On pull request
 
 on:
   pull_request:
+  # releases/* branches are main-like. A push runs only the debug compile, to warm that cache.
   push:
     branches:
       - main
@@ -13,13 +14,10 @@ permissions:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  # Is it the official main branch, or an official release branches?
-  #
-  # Variable IS_TEMPORALIO_SDK_TYPESCRIPT_REPO is configured to true on the official repo.
-  # It can be used to determine if the present execution has access to secrets or not.
-  #
-  # AFAIK there's no way to break that line w/o introducing a trailing LF that breaks usage. Sorry.
-  IS_MAIN_OR_RELEASE: ${{ vars.IS_TEMPORALIO_SDK_TYPESCRIPT_REPO == 'true' && github.event_name != 'pull_request' && ( github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/heads/releases')) }}
+  # Push runs only warm the debug compile cache, and only the official repo should write it.
+  # IS_TEMPORALIO_SDK_TYPESCRIPT_REPO is set on the official repo.
+  # The push trigger above is already limited to main and releases/*.
+  WARM_CACHE_ONLY: ${{ vars.IS_TEMPORALIO_SDK_TYPESCRIPT_REPO == 'true' && github.event_name == 'push' }}
 
   # Use these variables to force specific version of CLI/Time Skipping Server for SDK tests
   TESTS_CLI_VERSION: 'v1.9.3-nexus-serialization-context'
@@ -29,14 +27,44 @@ jobs:
   # Compile native bridge code for each target platform.
   # Uploads the native library for each target as a build artifact.
   compile-native-binaries-debug:
-    name: Compile Native Binaries
-    uses: ./.github/workflows/compile-native-binaries.yml
-    with:
-      profile: debug
+    timeout-minutes: 20
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - platform: linux-x64
+            runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            out-file: libtemporal_sdk_typescript_bridge.so
+          - platform: linux-arm
+            runner: ubuntu-24.04-arm64-2-core
+            target: aarch64-unknown-linux-gnu
+            out-file: libtemporal_sdk_typescript_bridge.so
+          - platform: macos-arm
+            runner: macos-15
+            target: aarch64-apple-darwin
+            out-file: libtemporal_sdk_typescript_bridge.dylib
+          - platform: windows-x64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            out-file: temporal_sdk_typescript_bridge.dll
+    name: Compile Native Binaries (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: ./.github/actions/compile-native-binary
+        with:
+          profile: debug
+          platform: ${{ matrix.platform }}
+          target: ${{ matrix.target }}
+          out-file: ${{ matrix.out-file }}
+          cache-suffix: -debug
+          save-cache: ${{ env.WARM_CACHE_ONLY }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
   # Run integration tests.
   # Uses the native binaries built in compile-native-binaries, but build `@temporalio/*` packages locally.
   integration-tests:
+    if: github.event_name == 'pull_request'
     timeout-minutes: 30
     needs:
       - compile-native-binaries-debug
@@ -268,7 +296,7 @@ jobs:
 
   cloud-integration-tests:
     name: Cloud Integration Tests
-    if: ${{ vars.IS_TEMPORALIO_SDK_TYPESCRIPT_REPO == 'true' && github.actor != 'dependabot[bot]' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    if: ${{ github.event_name == 'pull_request' && vars.IS_TEMPORALIO_SDK_TYPESCRIPT_REPO == 'true' && github.actor != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository }}
     timeout-minutes: 40
     needs:
       - compile-native-binaries-debug
@@ -388,6 +416,7 @@ jobs:
 
   typescript-compatibility:
     name: TypeScript 5.7 Consumer Compatibility
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -410,12 +439,14 @@ jobs:
 
   conventions:
     name: Lint and Prune
+    if: github.event_name == 'pull_request'
     uses: ./.github/workflows/conventions.yml
 
   # Runs the features repo tests with this repo's current SDK code
   # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
   features-tests:
     name: Features Tests
+    if: github.event_name == 'pull_request'
     uses: temporalio/features/.github/workflows/typescript.yaml@main
     with:
       typescript-repo-path: ${{github.event.pull_request.head.repo.full_name}}
@@ -424,6 +455,7 @@ jobs:
 
   stress-tests-no-reuse-context:
     name: Stress Tests (No Reuse V8 Context)
+    if: github.event_name == 'pull_request'
     # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
     uses: ./.github/workflows/stress.yml
     with:
@@ -433,6 +465,7 @@ jobs:
 
   stress-tests-reuse-context:
     name: Stress Tests (Reuse V8 Context)
+    if: github.event_name == 'pull_request'
     # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
     uses: ./.github/workflows/stress.yml
     with:
@@ -442,6 +475,7 @@ jobs:
 
   docs:
     name: Build Docs
+    if: github.event_name == 'pull_request'
     uses: ./.github/workflows/docs.yml
     with:
       # Can't publish from forks, as secrets won't be available
@@ -478,7 +512,7 @@ jobs:
 
   ci-summary:
     name: CI
-    if: always()
+    if: ${{ always() && github.event_name == 'pull_request' }}
     needs:
       - compile-native-binaries-debug
       - integration-tests
