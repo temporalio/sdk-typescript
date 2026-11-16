@@ -39,17 +39,22 @@ export function ciLogPath(name: string): string {
   return join(dir, name);
 }
 
-/** Runs a command through npx and keeps its (typically very noisy) output off the console. */
+/**
+ * Runs a command already on PATH and keeps its output in `logPath`.
+ *
+ * On Windows Node wraps `.cmd` shims itself. `shell: true` quotes the command a second time,
+ * which is how `npx -- pnpm` produced a path cmd.exe could not run.
+ */
 const FAILURE_TAIL_LINES = 60;
-export async function spawnNpxLogged(
+export async function spawnLogged(
+  command: string,
   args: string[],
   opts: SpawnOptions,
   logPath: string,
   label: string
 ): Promise<void> {
-  const npx = /^win/.test(process.platform) ? 'npx.cmd' : 'npx';
-  const npxArgs = ['--prefer-offline', '--timing=true', '--yes', '--', ...args];
-  const child = spawn(npx, npxArgs, { ...opts, stdio: ['inherit', 'pipe', 'pipe'], shell });
+  const executable = shell && !/\.(cmd|exe)$/i.test(command) ? `${command}.cmd` : command;
+  const child = spawn(executable, args, { ...opts, stdio: ['inherit', 'pipe', 'pipe'], shell: false });
 
   const out = createWriteStream(logPath);
   const tail: string[] = [];

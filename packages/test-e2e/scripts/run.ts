@@ -5,7 +5,7 @@ import { basename, join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { publishablePackages, tarballsIn } from '../../../scripts/pack-packages';
 import { withRegistry } from './registry';
-import { ciLogPath, shell, sleep, spawnNpxLogged, waitOnChild } from './utils';
+import { ciLogPath, shell, sleep, spawnLogged, waitOnChild } from './utils';
 
 const packageRoot = resolve(__dirname, '..');
 const repoRoot = resolve(packageRoot, '..', '..');
@@ -120,8 +120,9 @@ async function publishTarballs(tarballDir: string, npmConfig: string): Promise<v
   try {
     for (const tarball of tarballs) {
       const name = basename(tarball, '.tgz');
-      await spawnNpxLogged(
-        ['pnpm', 'publish', tarball, '--no-git-checks', '--force'],
+      await spawnLogged(
+        'pnpm',
+        ['publish', tarball, '--no-git-checks', '--force'],
         { cwd: repoRoot },
         ciLogPath(`verdaccio-publish-${name}.log`),
         `Published ${name} to Verdaccio`
