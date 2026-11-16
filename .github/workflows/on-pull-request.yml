@@ -388,7 +388,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [22, 26]
+        # FIXME: Node 26 OOMs in Verdaccio while publishing the debug @temporalio/core-bridge
+        # tarball. JSON.stringify of the base64 attachment dies with "Zone Allocation failed".
+        node: [22]
         platform: [linux-x64, linux-arm, macos-arm, windows-x64]
         include:
           - platform: linux-x64
