@@ -430,7 +430,7 @@ jobs:
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: verdaccio-repo
-          path: ${{ steps.tmp-dir.outputs.dir }}/registry/storage
+          path: ${{ runner.temp }}/registry/storage
 
       - name: Test npm protobufjs peer resolution
         if: matrix.platform == 'linux-x64' && matrix.node == 26
