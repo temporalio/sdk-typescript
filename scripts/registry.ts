@@ -41,7 +41,9 @@ class Registry {
         keepAliveTimeout: 60,
       },
 
-      max_body_size: '200mb',
+      // As of November 2026, the @temporalio/core-bridge tarball in debug mode
+      // (i.e. part of the on-pull-request GHA workflow) is ~214MB compressed.
+      max_body_size: '1gb',
     });
 
     await new Promise<void>((resolve, reject) => {
