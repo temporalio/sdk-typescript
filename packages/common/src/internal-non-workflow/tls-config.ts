@@ -13,6 +13,20 @@ export interface TLSConfig {
    * cert is issued by someone the operating system trusts, verification will still work (ex: Cloud offering).
    */
   serverRootCACertificate?: Uint8Array;
+  /**
+   * Names to verify the server certificate against, instead of {@link serverNameOverride} or the
+   * host from the connection address. The certificate is accepted if it is valid for any one of
+   * these names.
+   *
+   * Use this when one address can route to servers that present different certificate names, for
+   * example regional servers behind a global address, where each server's certificate names only
+   * its own region. Unlike {@link serverNameOverride}, this does not change the SNI or HTTP/2
+   * authority values.
+   *
+   * Requires {@link serverRootCACertificate}; the system root store is not consulted when this is
+   * set. Must not be empty.
+   */
+  verificationServerNames?: string[];
   /** Sets the client certificate and key for connecting with mTLS */
   clientCertPair?: {
     /** The certificate for this client */
@@ -20,6 +34,28 @@ export interface TLSConfig {
     /** The private key for this client */
     key: Uint8Array;
   };
+}
+
+/**
+ * Validate {@link TLSConfig.verificationServerNames} and return them, or `undefined` when unset.
+ *
+ * @internal
+ */
+export function validateVerificationServerNames(tls: TLSConfig): string[] | undefined {
+  const names = tls.verificationServerNames;
+  if (names === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(names) || names.some((name) => typeof name !== 'string')) {
+    throw new TypeError('tls.verificationServerNames must be an array of strings');
+  }
+  if (names.length === 0) {
+    throw new TypeError('tls.verificationServerNames must not be empty');
+  }
+  if (!tls.serverRootCACertificate) {
+    throw new TypeError('tls.verificationServerNames requires tls.serverRootCACertificate to be set');
+  }
+  return [...names];
 }
 
 /**
