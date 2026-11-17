@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { appendFile, readFile } from 'node:fs/promises';
-import { CloudOperationsClient, CloudOperationsConnection } from '../../packages/cloud';
-import { temporal } from '../../packages/proto';
+import { CloudOperationsClient, CloudOperationsConnection } from '@temporalio/cloud';
+import proto from '@temporalio/proto';
+import type { temporal } from '@temporalio/proto';
 
 const OPERATION_TIMEOUT_MS = 10 * 60 * 1_000;
-const OperationState = temporal.api.cloud.operation.v1.AsyncOperation.State;
+const OperationState = proto.temporal.api.cloud.operation.v1.AsyncOperation.State;
 
 function requiredEnv(name: string): string {
   const value = process.env[name];

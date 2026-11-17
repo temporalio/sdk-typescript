@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
-import { changelogTool, corePath, repoRoot } from './changelog';
-import { ChildProcessError, run } from './utils';
+import { changelogTool, corePath, repoRoot } from './changelog.ts';
+import { ChildProcessError, run } from './utils.ts';
 
 const args = process.argv.slice(2);
 const cwd = resolve(repoRoot, 'packages/core-bridge');

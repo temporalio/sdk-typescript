@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { writeFileSync } from 'node:fs';
-import * as protobuf from 'protobufjs';
+import { createRequire } from 'node:module';
+import protobuf from 'protobufjs';
 import { format } from 'oxfmt';
 
 // Generates `packages/proto/src/payload-visitor.generated.ts`: a synchronous walk of the worker
@@ -16,7 +17,8 @@ const ANY = 'google.protobuf.Any';
 // regen.
 const ROOT_NAMESPACES = ['coresdk', 'temporal.api.workflowservice.v1', 'temporal.api.notificationservice.v1'] as const;
 
-const jsonModule = require(resolve(__dirname, '../protos/json-module.js'));
+const require = createRequire(import.meta.url);
+const jsonModule = require('../protos/json-module.js');
 const root = protobuf.Root.fromJSON(jsonModule);
 root.resolveAll();
 
@@ -246,7 +248,7 @@ function emit(): string {
   ].join('\n');
 }
 
-const outPath = resolve(__dirname, '../src/payload-visitor.generated.ts');
+const outPath = resolve(import.meta.dirname, '../src/payload-visitor.generated.ts');
 
 async function main(): Promise<void> {
   const config = require('../../../.oxfmtrc.json');

@@ -5,15 +5,15 @@ import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { rm } from 'node:fs/promises';
 import * as glob from 'glob';
-import { statSync, mkdirsSync } from 'fs-extra';
-import * as pbjs from 'protobufjs-cli/pbjs';
-import * as pbts from 'protobufjs-cli/pbts';
+import { statSync, mkdirSync } from 'node:fs';
+import pbjs from 'protobufjs-cli/pbjs.js';
+import pbts from 'protobufjs-cli/pbts.js';
 
-const outputDir = resolve(__dirname, '../protos');
+const outputDir = resolve(import.meta.dirname, '../protos');
 const moduleOutputFile = resolve(outputDir, 'json-module.js');
 const typesOutputFile = resolve(outputDir, 'root.d.ts');
 const tempFile = resolve(outputDir, 'temp.js');
-const protoBaseDir = resolve(__dirname, '../protos');
+const protoBaseDir = resolve(import.meta.dirname, '../protos');
 const protoFiles = glob.sync('*.proto', { cwd: protoBaseDir, absolute: true, root: '' });
 
 function mtime(path: string) {
@@ -43,7 +43,7 @@ async function compileProtos(outputFile: string, ...args: string[]) {
 }
 
 async function main() {
-  mkdirsSync(outputDir);
+  mkdirSync(outputDir, { recursive: true });
 
   const protosMTime = Math.max(...protoFiles.map(mtime));
   const genMTime = Math.min(mtime(moduleOutputFile), mtime(typesOutputFile));

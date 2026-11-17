@@ -7,8 +7,9 @@
  */
 import { readdir } from 'node:fs/promises';
 import { join, relative } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
-const testRoot = join(__dirname, '..', 'packages', 'test', 'src');
+const testRoot = join(import.meta.dirname, '..', 'packages', 'test', 'src');
 
 interface CloudExclusion {
   reason: string;
@@ -87,7 +88,7 @@ async function main(): Promise<void> {
   }
 }
 
-if (require.main === module) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((error) => {
     console.error(error);
     process.exitCode = 1;

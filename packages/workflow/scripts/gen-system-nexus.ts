@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
-const workflowDir = resolve(__dirname, '..');
+const workflowDir = resolve(import.meta.dirname, '..');
 const repoRoot = resolve(workflowDir, '../..');
 const output = resolve(workflowDir, 'src/nexus/system/generated');
 const nexgen = process.env.NEXGEN_BIN ?? 'nexgen';

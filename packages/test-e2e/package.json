@@ -5,7 +5,7 @@
   "description": "Temporal.io SDK end-to-end tests against published packages",
   "scripts": {
     "build": "tsc --build",
-    "test:e2e": "pnpm run build && tsx ./scripts/run.ts"
+    "test:e2e": "pnpm run build && node ./scripts/run.ts"
   },
   "ava": {
     "timeout": "5m",
