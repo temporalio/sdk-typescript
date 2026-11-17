@@ -7,13 +7,21 @@ import { targets } from '../packages/core-bridge/common';
 const repoRoot = resolve(__dirname, '..');
 const releasesDir = resolve(repoRoot, 'packages/core-bridge/releases');
 
+// Releases don't ship x86_64-pc-windows-gnu
+const releaseTargets = targets.filter((target) => target !== 'x86_64-pc-windows-gnu');
+
 function main(): void {
-  const { from } = parseArguments();
+  const { from, requireAll } = parseArguments();
   if (from) collectBinaries(from, releasesDir);
 
   const collected = binaryTargets(releasesDir);
   if (collected.length === 0) throw new Error(`No native bridge binary in ${releasesDir}`);
   console.log(`Native bridge binaries: ${collected.join(', ')}`);
+
+  if (requireAll) {
+    const missing = missingTargets(releasesDir);
+    if (missing.length > 0) throw new Error(`Missing native bridge binaries: ${missing.join(', ')}`);
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -27,6 +35,7 @@ Without --from, only lists the binaries already there, such as the one built by
 Options:
   --from <dir>  Copy every <target>/index.node found under <dir>, at any depth,
                 such as the artifacts downloaded by \`actions/download-artifact\`
+  --require-all Fail if any target shipped by releases has no binary
   -h, --help    Show this help
 `;
 
@@ -36,6 +45,7 @@ function parseArguments(args = process.argv.slice(2)) {
       args,
       options: {
         from: { type: 'string' },
+        'require-all': { type: 'boolean' },
         help: { type: 'boolean', short: 'h' },
       },
     });
@@ -43,7 +53,7 @@ function parseArguments(args = process.argv.slice(2)) {
       console.log(help);
       process.exit(0);
     }
-    return { from: values.from && resolve(values.from) };
+    return { from: values.from && resolve(values.from), requireAll: values['require-all'] ?? false };
   } catch (e) {
     console.error(`Error: ${(e as Error).message}`);
     process.exit(1);
@@ -75,6 +85,14 @@ export function binaryTargets(releases: string): string[] {
   return globSync('*/index.node', { cwd: releases })
     .map((binary) => basename(dirname(binary)))
     .sort();
+}
+
+/**
+ * Targets shipped by releases that have no binary in `releases`.
+ */
+export function missingTargets(releases: string): string[] {
+  const collected = binaryTargets(releases);
+  return releaseTargets.filter((target) => !collected.includes(target)).sort();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

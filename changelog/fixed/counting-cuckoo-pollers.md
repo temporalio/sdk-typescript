@@ -1,0 +1,1 @@
+Apply `maxConcurrentWorkflowTaskPolls`, `maxConcurrentActivityTaskPolls` and `maxConcurrentNexusTaskPolls`: each was accepted but ignored, so the worker polled with `min(10, maxConcurrent*Executions)` pollers whatever value was set.

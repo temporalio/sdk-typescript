@@ -1,0 +1,36 @@
+{
+  "private": true,
+  "name": "@temporalio/test-e2e",
+  "version": "1.26.0",
+  "description": "Temporal.io SDK end-to-end tests against published packages",
+  "scripts": {
+    "build": "tsc --build",
+    "test:e2e": "pnpm run build && tsx ./scripts/run.ts"
+  },
+  "ava": {
+    "timeout": "5m",
+    "concurrency": 1,
+    "workerThreads": false
+  },
+  "keywords": [
+    "temporal",
+    "workflow",
+    "worker",
+    "isolate"
+  ],
+  "author": "Temporal Technologies Inc. <sdk@temporal.io>",
+  "license": "MIT",
+  "dependencies": {
+    "ava": "^5.3.1",
+    "verdaccio": "^6.5.0"
+  },
+  "bugs": {
+    "url": "https://github.com/temporalio/sdk-typescript/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/temporalio/sdk-typescript.git",
+    "directory": "packages/test-e2e"
+  },
+  "homepage": "https://github.com/temporalio/sdk-typescript#readme"
+}

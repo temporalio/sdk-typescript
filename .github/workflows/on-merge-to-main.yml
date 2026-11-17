@@ -1,0 +1,220 @@
+name: On merge to main
+
+on:
+  push:
+    # releases/* branches are main-like: they only change by merge
+    branches:
+      - main
+      - 'releases/*'
+
+permissions:
+  contents: read
+  actions: write
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Is it the official main branch, or an official release branches?
+  # AFAIK there's no way to break that line w/o introducing a trailing LF that breaks usage. Sorry.
+  IS_MAIN_OR_RELEASE: ${{ vars.IS_TEMPORALIO_SDK_TYPESCRIPT_REPO == 'true' && github.event_name != 'pull_request' && ( github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/heads/releases')) }}
+
+jobs:
+  # Compile native bridge code for each target platform.
+  # Uploads the native library for each target as a build artifact.
+  compile-native-binaries-release:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - platform: linux-x64
+            runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            container: quay.io/pypa/manylinux_2_24_x86_64
+            out-file: libtemporal_sdk_typescript_bridge.so
+            protobuf-url: https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip
+          - platform: linux-arm
+            runner: ubuntu-24.04-arm64-2-core
+            target: aarch64-unknown-linux-gnu
+            container: quay.io/pypa/manylinux_2_24_aarch64
+            out-file: libtemporal_sdk_typescript_bridge.so
+            protobuf-url: https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-aarch_64.zip
+          - platform: macos-x64
+            runner: macos-15-intel
+            target: x86_64-apple-darwin
+            out-file: libtemporal_sdk_typescript_bridge.dylib
+          - platform: macos-arm
+            runner: macos-15
+            target: aarch64-apple-darwin
+            out-file: libtemporal_sdk_typescript_bridge.dylib
+          - platform: windows-x64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            out-file: temporal_sdk_typescript_bridge.dll
+    name: Compile Native Binaries (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - uses: ./.github/actions/compile-native-binary
+        with:
+          profile: release
+          platform: ${{ matrix.platform }}
+          target: ${{ matrix.target }}
+          out-file: ${{ matrix.out-file }}
+          container: ${{ matrix.container }}
+          protobuf-url: ${{ matrix.protobuf-url }}
+          save-cache: ${{ env.IS_MAIN_OR_RELEASE }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Gather native binaries for all platforms, pack the @temporalio/* packages, and upload the tarballs.
+  build-packages:
+    needs:
+      - compile-native-binaries-release
+    name: Build Packages
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - id: build
+        uses: ./.github/actions/build-packages
+        with:
+          platform: linux-x64
+          require-all: true
+          save-cache: ${{ env.IS_MAIN_OR_RELEASE }}
+
+      - name: Save package tarballs artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: package-tarballs
+          path: ${{ steps.build.outputs.tarball-dir }}
+          if-no-files-found: error
+
+      # Release tarballs are only needed on release branches
+      - name: Save release tarballs artifact
+        if: startsWith(github.ref, 'refs/heads/releases/')
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: release-tarballs
+          path: ${{ steps.build.outputs.tarball-dir }}
+          if-no-files-found: error
+          retention-days: 14
+
+  # Publish the packed packages to a local Verdaccio registry, then run the end-to-end tests against them.
+  end-to-end-tests:
+    needs: build-packages
+    strategy:
+      fail-fast: false
+      matrix:
+        # FIXME: Node 26 OOMs in Verdaccio while publishing the debug @temporalio/core-bridge
+        # tarball. JSON.stringify of the base64 attachment dies with "Zone Allocation failed".
+        node: [22, 24] # Min and max officially supported Node versions
+        platform: [linux-x64, linux-arm, macos-x64, macos-arm, windows-x64]
+        include:
+          - platform: linux-x64
+            runner: ubuntu-latest
+          - platform: linux-arm
+            runner: ubuntu-24.04-arm64-2-core
+          - platform: macos-x64
+            runner: macos-15-intel
+          - platform: macos-arm
+            runner: macos-15
+          - platform: windows-x64
+            runner: windows-latest
+    runs-on: ${{ matrix.runner }}
+    name: End-to-end Tests (${{ matrix.platform }}, Node ${{ matrix.node }})
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: 'Checkout code'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # We don't need the core submodule here since won't build the project
+          submodules: false
+
+      - name: Setup Node and Install Dependencies
+        uses: ./.github/actions/setup-node-deps
+        with:
+          node-version: ${{ matrix.node }}
+          platform: ${{ matrix.platform }}
+
+      # Normalize runner.temp on Windows (backslashes break bash path joins).
+      - name: Get normalized path to temp directory
+        id: tmp-dir
+        run: |
+          if command -v cygpath >/dev/null 2>&1; then
+            dir=$(cygpath -m "$(pwd)")
+          else
+            dir=$(pwd)
+          fi
+          echo "dir=${dir}" >> "$GITHUB_OUTPUT"
+        working-directory: ${{ runner.temp }}
+
+      - name: Restore package tarballs artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: package-tarballs
+          path: ${{ runner.temp }}/tarballs
+
+      - name: Install Temporal CLI
+        uses: temporalio/setup-temporal@1059a504f87e7fa2f385e3fa40d1aa7e62f1c6ca # v0
+
+      - name: Run Temporal CLI
+        working-directory: ${{ steps.tmp-dir.outputs.dir }}
+        # Graceful poll shutdown can make Core panic on Worker shutdown, so the last flag disables it
+        run: |
+          mkdir -p e2e-results
+          temporal server start-dev \
+            --db-filename temporal.sqlite \
+            --sqlite-pragma journal_mode=WAL \
+            --sqlite-pragma synchronous=OFF \
+            --headless &> ./e2e-results/devserver.log \
+            --dynamic-config-value system.enableActivityEagerExecution=true \
+            --dynamic-config-value history.enableRequestIdRefLinks=true \
+            --dynamic-config-value frontend.activityAPIsEnabled=true \
+            --dynamic-config-value activity.enableStandalone=true \
+            --dynamic-config-value activity.startDelayEnabled=true \
+            --dynamic-config-value 'activity.longPollTimeout="5000ms"' \
+            --dynamic-config-value history.enableChasm=true \
+            --dynamic-config-value history.enableTransitionHistory=true \
+            --dynamic-config-value frontend.enableCancelWorkerPollsOnShutdown=false &
+
+      - name: Run end-to-end tests
+        run: pnpm --filter @temporalio/test-e2e run test:e2e --tarball-dir ${{ steps.tmp-dir.outputs.dir }}/tarballs
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+          TEST_RESULTS_DIR: ${{ runner.temp }}/e2e-results
+          # Used by the hello-world-mtls sample, which is skipped when they are not set. They must be set for
+          # releases (i.e. this must be run from the official repo).
+          TEMPORAL_ADDRESS: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud:7233
+          TEMPORAL_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
+          TEMPORAL_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
+          TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
+          TEMPORAL_TASK_QUEUE: ${{ format('tssdk-ci-{0}-{1}-sample-hello-world-mtls-{2}-{3}', matrix.platform, matrix.node, github.run_id, github.run_attempt) }}
+
+      - name: Upload end-to-end test logs
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: failure() || cancelled()
+        with:
+          name: end-to-end-tests-${{ matrix.platform }}-${{ matrix.node }}-logs
+          path: ${{ runner.temp }}/e2e-results
+
+  docs:
+    name: Build Docs
+    uses: ./.github/workflows/docs.yml
+    with:
+      publish_target: prod
+    secrets:
+      ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

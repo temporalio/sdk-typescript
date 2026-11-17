@@ -662,6 +662,7 @@ mod config {
         domain: Option<String>,
         server_root_ca_cert: Option<Vec<u8>>,
         client_tls_options: Option<TlsOptionsClientCertPair>,
+        verification_server_names: Option<Vec<String>>,
     }
 
     #[derive(Debug, Clone, TryFromJs)]
@@ -724,7 +725,7 @@ mod config {
             Ok(ConnectionOptions::new(self.target_url)
                 .client_name(self.client_name)
                 .client_version(self.client_version)
-                .maybe_tls_options(self.tls.map(Into::into))
+                .maybe_tls_options(self.tls.map(TryInto::try_into).transpose()?)
                 .maybe_http_connect_proxy(http_connect_proxy)
                 .dns_load_balancing(dns_load_balancing)
                 .grpc_compression(grpc_compression)
@@ -772,18 +773,39 @@ mod config {
         }
     }
 
-    impl From<TlsOptions> for CoreTlsOptions {
-        fn from(val: TlsOptions) -> Self {
-            Self::builder()
+    impl TryFrom<TlsOptions> for CoreTlsOptions {
+        type Error = BridgeError;
+
+        fn try_from(val: TlsOptions) -> Result<Self, Self::Error> {
+            let mut server_root_ca_cert = val.server_root_ca_cert;
+            let server_cert_verifier = match val.verification_server_names {
+                None => None,
+                Some(names) => {
+                    // The verifier owns the root store; Core ignores `server_root_ca_cert`
+                    // when a custom verifier is set.
+                    let ca_cert =
+                        server_root_ca_cert
+                            .take()
+                            .ok_or_else(|| BridgeError::TypeError {
+                                field: Some("verificationServerNames".to_string()),
+                                message: "requires serverRootCACertificate to be set".to_string(),
+                            })?;
+                    Some(super::tls_verifier::fixed_server_names_verifier(
+                        &names, &ca_cert,
+                    )?)
+                }
+            };
+            Ok(Self::builder()
                 .maybe_domain(val.domain)
-                .maybe_server_root_ca_cert(val.server_root_ca_cert)
+                .maybe_server_root_ca_cert(server_root_ca_cert)
                 .maybe_client_tls_options(val.client_tls_options.map(|pair| {
                     CoreClientTlsOptions::builder()
                         .client_cert(pair.client_cert)
                         .client_private_key(pair.client_private_key)
                         .build()
                 }))
-                .build()
+                .maybe_server_cert_verifier(server_cert_verifier)
+                .build())
         }
     }
 
@@ -829,5 +851,135 @@ mod config {
             (!ascii_headers.is_empty()).then_some(ascii_headers),
             (!bin_headers.is_empty()).then_some(bin_headers),
         )
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+mod tls_verifier {
+    use std::sync::Arc;
+
+    use temporalio_client::danger::ServerCertVerifier;
+    use tokio_rustls::rustls::{
+        self, DigitallySignedStruct, RootCertStore, SignatureScheme,
+        client::{
+            WebPkiServerVerifier,
+            danger::{HandshakeSignatureValid, ServerCertVerified},
+        },
+        crypto::CryptoProvider,
+        pki_types::{CertificateDer, ServerName, UnixTime, pem::PemObject},
+    };
+
+    use crate::helpers::BridgeError;
+
+    fn type_error(message: String) -> BridgeError {
+        BridgeError::TypeError {
+            field: Some("verificationServerNames".to_string()),
+            message,
+        }
+    }
+
+    /// Builds a standard `WebPKI` verifier over the given root CA bundle that accepts the
+    /// certificate if it is valid for any of `names`, rather than for the connection's
+    /// server name. SNI and `:authority` keep following the connected host (or `domain`).
+    pub(super) fn fixed_server_names_verifier(
+        names: &[String],
+        ca_cert_pem: &[u8],
+    ) -> Result<Arc<dyn ServerCertVerifier>, BridgeError> {
+        if names.is_empty() {
+            return Err(type_error("must not be empty".to_string()));
+        }
+        let server_names = names
+            .iter()
+            .map(|name| {
+                ServerName::try_from(name.to_owned())
+                    .map_err(|err| type_error(format!("invalid server name '{name}': {err}")))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let certs = CertificateDer::pem_slice_iter(ca_cert_pem)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|err| type_error(format!("invalid serverRootCACertificate PEM: {err:?}")))?;
+        // Mirrors tonic's default (no custom verifier) path: unparsable certificates in
+        // the bundle are skipped, and the process default provider wins when installed.
+        let mut roots = RootCertStore::empty();
+        roots.add_parsable_certificates(certs);
+        let provider = CryptoProvider::get_default().cloned().unwrap_or_else(|| {
+            #[cfg(feature = "fips")]
+            {
+                Arc::new(rustls::crypto::aws_lc_rs::default_provider())
+            }
+            #[cfg(not(feature = "fips"))]
+            {
+                Arc::new(rustls::crypto::ring::default_provider())
+            }
+        });
+        let inner = WebPkiServerVerifier::builder_with_provider(roots.into(), provider)
+            .build()
+            .map_err(|err| type_error(format!("failed building certificate verifier: {err}")))?;
+        Ok(Arc::new(FixedServerNamesVerifier {
+            inner,
+            server_names,
+        }))
+    }
+
+    /// Delegates to the standard `WebPKI` verifier, but verifies the certificate against
+    /// fixed server names instead of the connection's server name. The first match wins.
+    #[derive(Debug)]
+    struct FixedServerNamesVerifier {
+        inner: Arc<WebPkiServerVerifier>,
+        server_names: Vec<ServerName<'static>>,
+    }
+
+    impl ServerCertVerifier for FixedServerNamesVerifier {
+        fn verify_server_cert(
+            &self,
+            end_entity: &CertificateDer<'_>,
+            intermediates: &[CertificateDer<'_>],
+            _server_name: &ServerName<'_>,
+            ocsp_response: &[u8],
+            now: UnixTime,
+        ) -> Result<ServerCertVerified, rustls::Error> {
+            let mut first_err = None;
+            for server_name in &self.server_names {
+                match self.inner.verify_server_cert(
+                    end_entity,
+                    intermediates,
+                    server_name,
+                    ocsp_response,
+                    now,
+                ) {
+                    Ok(verified) => return Ok(verified),
+                    Err(err) => {
+                        first_err.get_or_insert(err);
+                    }
+                }
+            }
+            Err(first_err.unwrap_or_else(|| {
+                rustls::Error::General("no verification server names configured".to_string())
+            }))
+        }
+
+        fn verify_tls12_signature(
+            &self,
+            message: &[u8],
+            cert: &CertificateDer<'_>,
+            dss: &DigitallySignedStruct,
+        ) -> Result<HandshakeSignatureValid, rustls::Error> {
+            self.inner.verify_tls12_signature(message, cert, dss)
+        }
+
+        fn verify_tls13_signature(
+            &self,
+            message: &[u8],
+            cert: &CertificateDer<'_>,
+            dss: &DigitallySignedStruct,
+        ) -> Result<HandshakeSignatureValid, rustls::Error> {
+            self.inner.verify_tls13_signature(message, cert, dss)
+        }
+
+        fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+            self.inner.supported_verify_schemes()
+        }
     }
 }

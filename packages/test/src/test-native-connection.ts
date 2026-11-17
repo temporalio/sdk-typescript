@@ -163,6 +163,79 @@ test('Can configure TLS + call credentials', async (t) => {
   server.forceShutdown();
 });
 
+async function startTlsGetSystemInfoServer(): Promise<{ server: grpc.Server; port: number; requests: () => number }> {
+  let requests = 0;
+  const server = new grpc.Server();
+  server.addService(workflowServiceProtoDescriptor.temporal.api.workflowservice.v1.WorkflowService.service, {
+    getSystemInfo(
+      _call: grpc.ServerUnaryCall<
+        temporal.api.workflowservice.v1.IGetSystemInfoRequest,
+        temporal.api.workflowservice.v1.IGetSystemInfoResponse
+      >,
+      callback: grpc.sendUnaryData<temporal.api.workflowservice.v1.IGetSystemInfoResponse>
+    ) {
+      requests++;
+      callback(null, {});
+    },
+  });
+  const port = await bindLocalhostTls(server);
+  return { server, port, requests: () => requests };
+}
+
+async function verificationTlsConfig(verificationServerNames: string[]) {
+  return {
+    serverRootCACertificate: await fs.readFile(path.resolve(__dirname, `../tls_certs/test-ca.crt`)),
+    clientCertPair: {
+      crt: await fs.readFile(path.resolve(__dirname, `../tls_certs/test-client-chain.crt`)),
+      key: await fs.readFile(path.resolve(__dirname, `../tls_certs/test-client.key`)),
+    },
+    // The test server certificate does not carry this name, so default verification would fail.
+    serverNameOverride: 'unmatched.test',
+    verificationServerNames,
+  };
+}
+
+test('TLS verificationServerNames accepts a certificate valid for any listed name', async (t) => {
+  const { server, port, requests } = await startTlsGetSystemInfoServer();
+  try {
+    const connection = await NativeConnection.connect({
+      address: `127.0.0.1:${port}`,
+      tls: await verificationTlsConfig(['nope.test', 'server']),
+    });
+    t.is(requests(), 1);
+    await connection.close();
+  } finally {
+    server.forceShutdown();
+  }
+});
+
+test('TLS verificationServerNames rejects a certificate valid for none of the names', async (t) => {
+  const { server, port, requests } = await startTlsGetSystemInfoServer();
+  try {
+    await t.throwsAsync(
+      NativeConnection.connect({
+        address: `127.0.0.1:${port}`,
+        tls: await verificationTlsConfig(['nope.test', 'other.test']),
+      })
+    );
+    t.is(requests(), 0);
+  } finally {
+    server.forceShutdown();
+  }
+});
+
+test('TLS verificationServerNames requires a root CA and at least one name', async (t) => {
+  const { serverRootCACertificate: _, ...withoutRootCa } = await verificationTlsConfig(['server']);
+  await t.throwsAsync(NativeConnection.connect({ address: '127.0.0.1:1', tls: withoutRootCa }), {
+    instanceOf: TypeError,
+    message: /requires tls\.serverRootCACertificate/,
+  });
+  await t.throwsAsync(NativeConnection.connect({ address: '127.0.0.1:1', tls: await verificationTlsConfig([]) }), {
+    instanceOf: TypeError,
+    message: /must not be empty/,
+  });
+});
+
 test('withMetadata and withDeadline propagate metadata and deadline', async (t) => {
   const requests = new Array<{ metadata: grpc.Metadata; deadline: grpc.Deadline }>();
   const server = new grpc.Server();

@@ -19,6 +19,7 @@
     "typedoc-sidebar.js",
     "pnpm-lock.yaml",
     "changelog/**/*.md",
+    "/CHANGELOG.md",
     "packages/proto/protos/root.d.ts",
     "packages/proto/protos/json-module.js",
     "packages/test/protos/root.d.ts",
