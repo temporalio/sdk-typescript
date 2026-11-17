@@ -2701,7 +2701,6 @@ dependencies = [
  "tracing-core",
  "tracing-subscriber",
  "url",
- "uuid",
 ]
 
 [[package]]
@@ -2725,8 +2724,6 @@ dependencies = [
  "thiserror 2.0.18",
  "tracing",
  "tracing-core",
- "tracing-subscriber",
- "url",
 ]
 
 [[package]]

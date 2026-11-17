@@ -38,10 +38,6 @@ export function interceptors(): WorkflowInterceptors {
           interceptorCalls.push('ordinary');
           return next(input);
         },
-        startSystemNexusOperation(input, next) {
-          interceptorCalls.push('generic');
-          return next(input);
-        },
         signalWithStartWorkflow(input, next) {
           interceptorCalls.push('specific');
           interceptedNamespace = input.namespace;
@@ -169,7 +165,7 @@ test('signal-with-start invokes the generated public API from a workflow', async
   const targetHandle = t.context.env.client.workflow.getHandle(target.workflowId, target.runId);
   t.deepEqual(await targetHandle.result(), ['context-workflow-arg', 'context-signal-arg']);
   const expectedContext = { type: 'workflow' as const, namespace: 'default', workflowId: targetWorkflowId };
-  t.deepEqual(target.calls, ['specific', 'generic']);
+  t.deepEqual(target.calls, ['specific']);
   t.is(target.namespace, 'default');
   for (const value of [
     'context-workflow-arg',

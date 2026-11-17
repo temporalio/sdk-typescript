@@ -11,7 +11,7 @@ import type { SignalWithStartWorkflowRequest } from './generated/models';
 
 export { valueToPayload, payloadToValue } from '@temporalio/common/internal/nexus';
 /** @lintignore Nexgen support hooks not used by the current Workflow service models. */
-export { failureFromProto, failureToProto } from '@temporalio/common/internal/nexus';
+export { errorFromFailure, errorToFailure } from '@temporalio/common/internal/nexus';
 
 export function retryPolicyFromProto(proto: temporal.api.common.v1.IRetryPolicy): common.RetryPolicy {
   return common.decompileRetryPolicy(proto)!;
