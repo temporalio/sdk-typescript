@@ -100,7 +100,7 @@ importers:
     devDependencies:
       ava:
         specifier: ^5.3.1
-        version: 5.3.1(supports-color@8.1.1)
+        version: 5.3.1
       long:
         specifier: ^5.3.2
         version: 5.3.2
@@ -119,7 +119,7 @@ importers:
         version: 7.21.0(encoding@0.1.13)
       ava:
         specifier: ^5.3.1
-        version: 5.3.1(supports-color@8.1.1)
+        version: 5.3.1
       long:
         specifier: ^5.3.2
         version: 5.3.2
@@ -138,7 +138,7 @@ importers:
     devDependencies:
       ava:
         specifier: ^5.3.1
-        version: 5.3.1(supports-color@8.1.1)
+        version: 5.3.1
       long:
         specifier: ^5.3.2
         version: 5.3.2
@@ -157,7 +157,7 @@ importers:
         version: 3.1060.0
       ava:
         specifier: ^5.3.1
-        version: 5.3.1(supports-color@8.1.1)
+        version: 5.3.1
       long:
         specifier: ^5.3.2
         version: 5.3.2
@@ -231,7 +231,7 @@ importers:
         version: link:../../packages/workflow
       ava:
         specifier: ^5.3.1
-        version: 5.3.1(supports-color@8.1.1)
+        version: 5.3.1
       nexus-rpc:
         specifier: ^0.0.3
         version: 0.0.3
@@ -289,7 +289,7 @@ importers:
         version: link:../../packages/workflow
       ava:
         specifier: ^5.3.1
-        version: 5.3.1(supports-color@8.1.1)
+        version: 5.3.1
       nexus-rpc:
         specifier: ^0.0.3
         version: 0.0.3
@@ -326,7 +326,7 @@ importers:
         version: link:../../packages/worker
       ava:
         specifier: ^5.3.1
-        version: 5.3.1(supports-color@8.1.1)
+        version: 5.3.1
       long:
         specifier: ^5.3.2
         version: 5.3.2
@@ -370,7 +370,7 @@ importers:
     devDependencies:
       ava:
         specifier: ^5.3.1
-        version: 5.3.1(supports-color@8.1.1)
+        version: 5.3.1
       long:
         specifier: ^5.3.2
         version: 5.3.2
@@ -414,7 +414,7 @@ importers:
     devDependencies:
       ava:
         specifier: ^5.3.1
-        version: 5.3.1(supports-color@8.1.1)
+        version: 5.3.1
       long:
         specifier: ^5.3.2
         version: 5.3.2
@@ -500,7 +500,7 @@ importers:
         version: 4.0.2
       ava:
         specifier: ^5.3.1
-        version: 5.3.1(supports-color@8.1.1)
+        version: 5.3.1
 
   packages/envconfig:
     dependencies:
@@ -522,7 +522,7 @@ importers:
         version: link:../worker
       ava:
         specifier: ^5.3.1
-        version: 5.3.1(supports-color@8.1.1)
+        version: 5.3.1
       dedent:
         specifier: ^1.5.1
         version: 1.5.3
@@ -565,7 +565,7 @@ importers:
         version: 8.10.161
       ava:
         specifier: ^5.3.1
-        version: 5.3.1(supports-color@8.1.1)
+        version: 5.3.1
       long:
         specifier: ^5.3.2
         version: 5.3.2
@@ -635,7 +635,7 @@ importers:
     devDependencies:
       ava:
         specifier: ^5.3.1
-        version: 5.3.1(supports-color@8.1.1)
+        version: 5.3.1
       long:
         specifier: ^5.3.2
         version: 5.3.2
@@ -696,7 +696,7 @@ importers:
         version: link:../worker
       ava:
         specifier: ^5.3.1
-        version: 5.3.1(supports-color@8.1.1)
+        version: 5.3.1
       nexus-rpc:
         specifier: ^0.0.3
         version: 0.0.3
@@ -793,7 +793,7 @@ importers:
         version: 1.3.3
       ava:
         specifier: ^5.3.1
-        version: 5.3.1(supports-color@8.1.1)
+        version: 5.3.1
       dedent:
         specifier: ^1.5.1
         version: 1.5.3
@@ -872,7 +872,7 @@ importers:
         version: link:../workflow
       ava:
         specifier: ^5.3.1
-        version: 5.3.1(supports-color@8.1.1)
+        version: 5.3.1
       stack-utils:
         specifier: ^2.0.6
         version: 2.0.6
@@ -910,7 +910,7 @@ importers:
     devDependencies:
       ava:
         specifier: ^5.3.1
-        version: 5.3.1(supports-color@8.1.1)
+        version: 5.3.1
       long:
         specifier: ^5.3.2
         version: 5.3.2
@@ -983,7 +983,7 @@ importers:
         version: 8.1.3
       ava:
         specifier: ^5.3.1
-        version: 5.3.1(supports-color@8.1.1)
+        version: 5.3.1
       long:
         specifier: ^5.3.2
         version: 5.3.2
@@ -1005,7 +1005,7 @@ importers:
     devDependencies:
       ava:
         specifier: ^5.3.1
-        version: 5.3.1(supports-color@8.1.1)
+        version: 5.3.1
       long:
         specifier: ^5.3.2
         version: 5.3.2
@@ -7032,7 +7032,7 @@ snapshots:
       '@babel/traverse': 7.23.7
       '@babel/types': 7.27.1
       convert-source-map: 2.0.0
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3
       gensync: 1.0.0-beta.2
       json5: 2.2.3
       semver: 6.3.1
@@ -7125,7 +7125,7 @@ snapshots:
       '@babel/helper-split-export-declaration': 7.24.5
       '@babel/parser': 7.27.2
       '@babel/types': 7.27.1
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3
       globals: 11.12.0
     transitivePeerDependencies:
       - supports-color
@@ -7319,7 +7319,7 @@ snapshots:
   '@eslint/config-array@0.21.1':
     dependencies:
       '@eslint/object-schema': 2.1.7
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3
       minimatch: 3.1.5
     transitivePeerDependencies:
       - supports-color
@@ -7335,7 +7335,7 @@ snapshots:
   '@eslint/eslintrc@3.3.3':
     dependencies:
       ajv: 6.14.0
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3
       espree: 10.4.0
       globals: 14.0.0
       ignore: 5.3.2
@@ -8888,7 +8888,7 @@ snapshots:
       '@verdaccio/core': 8.0.0-next-8.37
       '@verdaccio/loaders': 8.0.0-next-8.27
       '@verdaccio/signature': 8.0.0-next-8.29
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3
       lodash: 4.18.1
       verdaccio-htpasswd: 13.0.0-next-8.37
     transitivePeerDependencies:
@@ -8897,7 +8897,7 @@ snapshots:
   '@verdaccio/config@8.0.0-next-8.37':
     dependencies:
       '@verdaccio/core': 8.0.0-next-8.37
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3
       js-yaml: 4.1.1
       lodash: 4.18.1
     transitivePeerDependencies:
@@ -8933,7 +8933,7 @@ snapshots:
     dependencies:
       '@verdaccio/core': 8.0.0-next-8.37
       '@verdaccio/logger': 8.0.0-next-8.37
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3
       got-cjs: 12.5.4
       handlebars: 4.7.9
     transitivePeerDependencies:
@@ -8942,7 +8942,7 @@ snapshots:
   '@verdaccio/loaders@8.0.0-next-8.27':
     dependencies:
       '@verdaccio/core': 8.0.0-next-8.37
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3
       lodash: 4.18.1
     transitivePeerDependencies:
       - supports-color
@@ -8965,7 +8965,7 @@ snapshots:
       '@verdaccio/core': 8.0.0-next-8.37
       '@verdaccio/logger-prettify': 8.0.0-next-8.5
       colorette: 2.0.20
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
 
@@ -8990,7 +8990,7 @@ snapshots:
       '@verdaccio/config': 8.0.0-next-8.37
       '@verdaccio/core': 8.0.0-next-8.37
       '@verdaccio/url': 13.0.0-next-8.37
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3
       express: 4.22.1
       express-rate-limit: 5.5.1
       lodash: 4.18.1
@@ -9001,7 +9001,7 @@ snapshots:
   '@verdaccio/package-filter@13.0.0-next-8.5':
     dependencies:
       '@verdaccio/core': 8.0.0-next-8.37
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3
       semver: 7.7.4
     transitivePeerDependencies:
       - supports-color
@@ -9012,7 +9012,7 @@ snapshots:
     dependencies:
       '@verdaccio/config': 8.0.0-next-8.37
       '@verdaccio/core': 8.0.0-next-8.37
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3
       jsonwebtoken: 9.0.3
     transitivePeerDependencies:
       - supports-color
@@ -9023,7 +9023,7 @@ snapshots:
     dependencies:
       '@verdaccio/core': 8.0.0-next-8.37
       '@verdaccio/url': 13.0.0-next-8.37
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3
       gunzip-maybe: 1.4.2
       tar-stream: 3.1.7
     transitivePeerDependencies:
@@ -9036,7 +9036,7 @@ snapshots:
   '@verdaccio/url@13.0.0-next-8.37':
     dependencies:
       '@verdaccio/core': 8.0.0-next-8.37
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3
       validator: 13.15.26
     transitivePeerDependencies:
       - supports-color
@@ -9165,7 +9165,7 @@ snapshots:
 
   agent-base@6.0.2:
     dependencies:
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
 
@@ -9338,7 +9338,7 @@ snapshots:
       stubborn-fs: 2.0.0
       when-exit: 2.1.5
 
-  ava@5.3.1(supports-color@8.1.1):
+  ava@5.3.1:
     dependencies:
       acorn: 8.16.0
       acorn-walk: 8.3.1
@@ -9358,7 +9358,7 @@ snapshots:
       common-path-prefix: 3.0.0
       concordance: 5.0.4
       currently-unhandled: 0.4.1
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3
       emittery: 1.0.3
       figures: 5.0.0
       globby: 13.2.2
@@ -9825,11 +9825,9 @@ snapshots:
     dependencies:
       ms: 2.1.3
 
-  debug@4.4.3(supports-color@8.1.1):
+  debug@4.4.3:
     dependencies:
       ms: 2.1.3
-    optionalDependencies:
-      supports-color: 8.1.1
 
   decompress-response@6.0.0:
     dependencies:
@@ -10167,7 +10165,7 @@ snapshots:
       ajv: 6.14.0
       chalk: 4.1.2
       cross-spawn: 7.0.6
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3
       escape-string-regexp: 4.0.0
       eslint-scope: 8.4.0
       eslint-visitor-keys: 4.2.1
@@ -10740,7 +10738,7 @@ snapshots:
     dependencies:
       '@tootallnate/once': 2.0.1
       agent-base: 6.0.2
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
 
@@ -10760,14 +10758,14 @@ snapshots:
   https-proxy-agent@5.0.1:
     dependencies:
       agent-base: 6.0.2
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
 
   https-proxy-agent@7.0.6:
     dependencies:
       agent-base: 7.1.4
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
 
@@ -11982,7 +11980,7 @@ snapshots:
 
   require-in-the-middle@7.2.0:
     dependencies:
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3
       module-details-from-path: 1.0.3
       resolve: 1.22.8
     transitivePeerDependencies:
@@ -11990,7 +11988,7 @@ snapshots:
 
   require-in-the-middle@8.0.1:
     dependencies:
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3
       module-details-from-path: 1.0.4
     transitivePeerDependencies:
       - supports-color
@@ -12686,7 +12684,7 @@ snapshots:
       '@verdaccio/file-locking': 13.0.0-next-8.7
       apache-md5: 1.1.8
       bcryptjs: 2.4.3
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3
       http-errors: 2.0.1
       unix-crypt-td-js: 1.1.4
     transitivePeerDependencies:
@@ -12716,7 +12714,7 @@ snapshots:
       clipanion: 4.0.0-rc.4(typanion@3.14.0)
       compression: 1.8.1
       cors: 2.8.6
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3
       envinfo: 7.21.0
       express: 4.22.1
       lodash: 4.18.1

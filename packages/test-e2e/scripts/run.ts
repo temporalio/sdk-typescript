@@ -3,11 +3,12 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { publishablePackages, tarballsIn } from '../../../scripts/pack-packages';
-import { withRegistry } from './registry';
-import { ciLogPath, shell, sleep, spawnLogged, waitOnChild } from './utils';
+import { pathToFileURL } from 'node:url';
+import { publishablePackages, tarballsIn } from '../../../scripts/pack-packages.ts';
+import { withRegistry } from './registry.ts';
+import { ciLogPath, shell, sleep, spawnLogged, waitOnChild } from './utils.ts';
 
-const packageRoot = resolve(__dirname, '..');
+const packageRoot = resolve(import.meta.dirname, '..');
 const repoRoot = resolve(packageRoot, '..', '..');
 const npm = shell ? 'npm.cmd' : 'npm';
 
@@ -170,7 +171,7 @@ function npmViewVersion(spec: string): string | undefined {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-if (require.main === module) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main()
     .then(() => process.exit(0))
     .catch((err) => {
