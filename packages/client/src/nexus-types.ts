@@ -479,6 +479,35 @@ export interface CompletionCallback<in O = unknown> {
   readonly [completionCallbackOutput]?: (output: O) => void;
 }
 
+type OnCompleteOperationKey<S extends nexus.ServiceDefinition> = {
+  [K in nexus.OperationKey<S['operations']>]: S['operations'][K] extends nexus.OperationDefinition<
+    OnCompleteRequest<any, any>,
+    OnCompleteResponse
+  >
+    ? K
+    : never;
+}[nexus.OperationKey<S['operations']>];
+
+type OnCompleteOperationReference<S extends nexus.ServiceDefinition> =
+  | OnCompleteOperationKey<S>
+  | S['operations'][OnCompleteOperationKey<S>];
+
+type ResolveOperation<S extends nexus.ServiceDefinition, R> =
+  R extends nexus.OperationKey<S['operations']> ? S['operations'][R] : R;
+
+// A union of operations yields a union of callbacks, each attachable only where its operation accepts the output.
+type OnCompleteCallback<Op> =
+  Op extends nexus.OperationDefinition<OnCompleteRequest<infer O, any>, any>
+    ? CompletionCallback<[O] extends [RawValue] ? unknown : O>
+    : never;
+
+// A union of operations needs a source context that every one of them accepts, so intersect their contexts.
+type OnCompleteSourceContext<Op> = (
+  Op extends nexus.OperationDefinition<OnCompleteRequest<any, infer C>, any> ? (context: C) => void : never
+) extends (context: infer C) => void
+  ? C
+  : never;
+
 /**
  * Create a callback that reports the outcome of a standalone Nexus operation.
  *
@@ -490,25 +519,22 @@ export interface CompletionCallback<in O = unknown> {
  * `onCompleteResponseTransferTypeConverter` from `@temporalio/nexus/notifications`. Pass the input converter's
  * `sourceContextT`, if any, as `sourceContextType`.
  *
- * Pass definitions to check the source operation's output type, or names to skip the check. An on-complete
- * operation that receives `RawValue` accepts any output; its converter needs `outputT: rawValueTypeInfo`.
+ * Pass the service definition with an operation key or definition to check the source operation's output type, or
+ * names to skip the check. An on-complete operation that receives `RawValue` accepts any output; its converter needs
+ * `outputT: rawValueTypeInfo`.
  *
  * @experimental Nexus Handler Callbacks are experimental.
  */
-export function createCompletionCallback<C>(options: {
-  service: nexus.ServiceDefinition;
-  operation: nexus.OperationDefinition<OnCompleteRequest<RawValue, C>, OnCompleteResponse>;
+export function createCompletionCallback<
+  S extends nexus.ServiceDefinition,
+  R extends OnCompleteOperationReference<S>,
+>(options: {
+  service: S;
+  operation: R;
   taskQueue: string;
-  sourceContext: NoInfer<C>;
-  sourceContextType?: TypeInfo<NoInfer<C>, any>;
-}): CompletionCallback;
-export function createCompletionCallback<O, C>(options: {
-  service: nexus.ServiceDefinition;
-  operation: nexus.OperationDefinition<OnCompleteRequest<O, C>, OnCompleteResponse>;
-  taskQueue: string;
-  sourceContext: NoInfer<C>;
-  sourceContextType?: TypeInfo<NoInfer<C>, any>;
-}): CompletionCallback<O>;
+  sourceContext: OnCompleteSourceContext<ResolveOperation<S, R>>;
+  sourceContextType?: TypeInfo<OnCompleteSourceContext<ResolveOperation<S, R>>, any>;
+}): OnCompleteCallback<ResolveOperation<S, R>>;
 export function createCompletionCallback(options: {
   service: string;
   operation: string;
@@ -524,13 +550,21 @@ export function createCompletionCallback(options: {
   sourceContextType?: TypeInfo<any, any>;
 }): CompletionCallback {
   const { service, operation, taskQueue, sourceContext, sourceContextType } = options;
-  const serviceName = typeof service === 'string' ? service : service.name;
-  const operationName = typeof operation === 'string' ? operation : operation.name;
-  if (
-    typeof service !== 'string' &&
-    !Object.values(service.operations).includes(operation as nexus.OperationDefinition<any, any>)
-  ) {
-    throw new TypeError(`Operation ${operationName} is not an operation of service ${service.name}`);
+  let serviceName: string;
+  let operationName: string;
+  if (typeof service === 'string') {
+    serviceName = service;
+    operationName = typeof operation === 'string' ? operation : operation.name;
+  } else {
+    // A key or definition must resolve to one of the service's own operations, which also rejects inherited keys
+    // such as `constructor`
+    const definition = typeof operation === 'string' ? service.operations[operation] : operation;
+    if (definition == null || !Object.values(service.operations).includes(definition)) {
+      const name = typeof operation === 'string' ? operation : operation.name;
+      throw new TypeError(`Operation ${name} is not an operation of service ${service.name}`);
+    }
+    serviceName = service.name;
+    operationName = definition.name;
   }
   if (!serviceName || !operationName || !taskQueue) {
     throw new TypeError('Service, operation, and task queue must not be empty');

@@ -331,13 +331,19 @@ test('completion callbacks must accept the operation output type', async (t) => 
       sourceContext: { label: 'a' },
     });
     const byName = createCompletionCallback({ service: 's', operation: 'o', taskQueue: 'tq', sourceContext: 1 });
+    const byKey: CompletionCallback<MyOutput> = createCompletionCallback({
+      service: notificationService,
+      operation: 'onMyOutput',
+      taskQueue: 'tq',
+      sourceContext: { label: 'a' },
+    });
 
     await nexusClient.startOperation(
       myService.operations.mySyncOp,
       { value: 'v' },
       {
         id: 'op-1',
-        completionCallbacks: [onMyOutput, onAnything, onRawValue, byName],
+        completionCallbacks: [onMyOutput, onAnything, onRawValue, byName, byKey],
       }
     );
     await nexusClient.executeOperation('mySyncOp', { value: 'v' }, { id: 'op-1', completionCallbacks: [onMyOutput] });
@@ -360,6 +366,56 @@ test('completion callbacks must accept the operation output type', async (t) => 
     const notOnComplete = { service, operation: service.operations.notOnComplete, taskQueue: 'tq', sourceContext: {} };
     // @ts-expect-error operation must be an on-complete operation
     createCompletionCallback(notOnComplete);
+    // @ts-expect-error source context must match the on-complete operation
+    createCompletionCallback({ service, operation: 'onMyOutput', taskQueue: 'tq', sourceContext: 'x' });
+    // @ts-expect-error operation key must name an on-complete operation
+    createCompletionCallback({ service, operation: 'notOnComplete', taskQueue: 'tq', sourceContext: {} });
+    // @ts-expect-error operation key must exist on the service
+    createCompletionCallback({ service, operation: 'missing', taskQueue: 'tq', sourceContext: { label: 'a' } });
+    // @ts-expect-error callback accepts MyOutput but operation returns number
+    await nexusClient.executeOperation('myOtherOp', 'v', { id: 'op-1', completionCallbacks: [byKey] });
+  }
+
+  t.pass();
+});
+
+test('completion callbacks for a union of operations must suit every operation', async (t) => {
+  const unionService = nexus.service('unionService', {
+    onString: nexus.operation<OnCompleteRequest<string, { a: string }>, OnCompleteResponse>(),
+    onNumber: nexus.operation<OnCompleteRequest<number, { b: number }>, OnCompleteResponse>(),
+    onAnyString: nexus.operation<OnCompleteRequest<RawValue, { a: string }>, OnCompleteResponse>(),
+    onBoolean: nexus.operation<OnCompleteRequest<MyOutput, boolean>, OnCompleteResponse>(),
+  });
+
+  async function _assertion(key: 'onString' | 'onNumber', stringKey: 'onString' | 'onAnyString') {
+    const service = unionService;
+    const contextForOne = { service, operation: key, taskQueue: 'tq', sourceContext: { a: 'x' } };
+    // @ts-expect-error source context must suit every operation in the union
+    createCompletionCallback(contextForOne);
+    const either = createCompletionCallback({
+      service,
+      operation: key,
+      taskQueue: 'tq',
+      sourceContext: { a: 'x', b: 1 },
+    });
+    // @ts-expect-error the callback may belong to the operation that accepts strings
+    const _number: CompletionCallback<number> = either;
+    // @ts-expect-error the callback may belong to the operation that accepts numbers
+    const _string: CompletionCallback<string> = either;
+    // A RawValue operation accepts any output, so only the other operation constrains the union
+    const _stringOnly: CompletionCallback<string> = createCompletionCallback({
+      service,
+      operation: stringKey,
+      taskQueue: 'tq',
+      sourceContext: { a: 'x' },
+    });
+    // A single operation keeps a union context such as boolean intact
+    const _boolean: CompletionCallback<MyOutput> = createCompletionCallback({
+      service,
+      operation: 'onBoolean',
+      taskQueue: 'tq',
+      sourceContext: true,
+    });
   }
 
   t.pass();
@@ -381,6 +437,22 @@ test('createCompletionCallback resolves names from definitions', (t) => {
       sourceContextType: undefined,
     }
   );
+  // Keys resolve to the operation name, which can differ from the key
+  t.deepEqual(
+    createCompletionCallback({
+      service: notificationService,
+      operation: 'onMyOutput',
+      taskQueue: 'tq',
+      sourceContext: { label: 'a' },
+    }),
+    {
+      service: 'notificationService',
+      operation: 'OnMyOutput',
+      taskQueue: 'tq',
+      sourceContext: { label: 'a' },
+      sourceContextType: undefined,
+    }
+  );
   t.deepEqual(createCompletionCallback({ service: 's', operation: 'o', taskQueue: 'tq', sourceContext: null }), {
     service: 's',
     operation: 'o',
@@ -391,16 +463,6 @@ test('createCompletionCallback resolves names from definitions', (t) => {
 });
 
 test('createCompletionCallback rejects invalid arguments', (t) => {
-  t.throws(
-    () =>
-      createCompletionCallback({
-        service: otherService,
-        operation: notificationService.operations.onMyOutput,
-        taskQueue: 'tq',
-        sourceContext: { label: 'a' },
-      }),
-    { instanceOf: TypeError, message: /not an operation of service otherService/ }
-  );
   // An operation from another service fails even when the names match
   const lookalikeService = nexus.service('lookalikeService', {
     onMyOutput: nexus.operation<OnCompleteRequest<MyOutput, CallbackContext>, OnCompleteResponse>({
@@ -417,6 +479,19 @@ test('createCompletionCallback rejects invalid arguments', (t) => {
       }),
     { instanceOf: TypeError, message: /not an operation of service lookalikeService/ }
   );
+  // Inherited properties such as `constructor` are not operations
+  for (const operation of ['missing', 'constructor']) {
+    t.throws(
+      () =>
+        createCompletionCallback({
+          service: notificationService,
+          operation: operation as 'onMyOutput',
+          taskQueue: 'tq',
+          sourceContext: { label: 'a' },
+        }),
+      { instanceOf: TypeError, message: `Operation ${operation} is not an operation of service notificationService` }
+    );
+  }
   for (const [service, operation, taskQueue] of [
     ['', 'o', 'tq'],
     ['s', '', 'tq'],
