@@ -71,7 +71,9 @@ function makeExternalStorage(driver: FakeDriver = makeFakeDriver({ name: 's3' })
 }
 
 async function toReference(externalStorage: ExternalStorage, payload: Payload): Promise<Payload> {
-  const [reference] = await new ExternalStorageRunner(externalStorage, { payloadCache: false }).store([payload]);
+  const [reference] = await new ExternalStorageRunner(externalStorage, { payloadCache: false }).store([payload], {
+    namespace: 'ns',
+  });
   return reference!;
 }
 
