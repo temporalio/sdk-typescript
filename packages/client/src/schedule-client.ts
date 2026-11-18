@@ -10,8 +10,8 @@ import {
   SymbolBasedInstanceOfError,
 } from '@temporalio/common/internal/internal-workflow';
 import {
+  decodeExternalStorageReferences,
   encodeMapToPayloads,
-  externalStorageReferenceDecodeVisitOptions,
   externalStorageRetrieveVisitOptions,
   externalStorageStoreVisitOptions,
   decodeMapFromPayloads,
@@ -304,16 +304,10 @@ export class ScheduleClient extends BaseClient {
         namespace: this.options.namespace,
         scheduleId,
       });
-      await visit(
-        response,
-        walkDescribeScheduleResponse,
-        externalStorageReferenceDecodeVisitOptions({
-          externalStorage: this.dataConverter.externalStorage,
-          codecs: this.dataConverter.payloadCodecs,
-          // The schedule's workflow action is decoded with that workflow's context.
-          deriveContext: workflowContextDeriver(this.options.namespace),
-        })
-      );
+      await decodeExternalStorageReferences(response, walkDescribeScheduleResponse, this.dataConverter, {
+        // The schedule's workflow action is decoded with that workflow's context.
+        deriveContext: workflowContextDeriver(this.options.namespace),
+      });
       await visit(
         response,
         walkDescribeScheduleResponse,
@@ -444,14 +438,7 @@ export class ScheduleClient extends BaseClient {
           maximumPageSize: options?.pageSize,
           query: options?.query,
         });
-        await visit(
-          response,
-          walkListSchedulesResponse,
-          externalStorageReferenceDecodeVisitOptions({
-            externalStorage: this.dataConverter.externalStorage,
-            codecs: this.dataConverter.payloadCodecs,
-          })
-        );
+        await decodeExternalStorageReferences(response, walkListSchedulesResponse, this.dataConverter);
         await visit(
           response,
           walkListSchedulesResponse,

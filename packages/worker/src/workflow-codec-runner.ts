@@ -13,7 +13,6 @@ import {
   externalStorageReferenceDecodeVisitOptions,
   limit,
   visit,
-  walkInitializeWorkflow,
   walkWorkflowActivation,
   walkWorkflowActivationCompletion,
 } from '@temporalio/common/internal/internal-non-workflow';
@@ -99,8 +98,19 @@ export class WorkflowCodecRunner {
     take: boolean,
     systemResultContexts: Map<number, SerializationContext>
   ): ContextDeriver<SerializationContext | undefined> {
+    let previousRun: { outcome: Set<object>; context: NexusSerializationContext } | undefined;
     return (message, typeName, context) => {
+      if (previousRun?.outcome.has(message)) return previousRun.context;
       switch (typeName) {
+        case 'coresdk.workflow_activation.InitializeWorkflow': {
+          const init = message as coresdk.workflow_activation.IInitializeWorkflow;
+          const nexusContext = nexusSerializationContextFromProto(init.propagatedNexusSerializationContext);
+          if (nexusContext != null) {
+            const outcome = [init.continuedFailure, init.lastCompletionResult].filter((m) => m != null);
+            previousRun = { outcome: new Set<object>(outcome), context: nexusContext };
+          }
+          return context;
+        }
         case 'coresdk.workflow_activation.ResolveActivity':
           return this.pendingContext(
             this.pendingCompletionContexts.activity,
@@ -160,29 +170,6 @@ export class WorkflowCodecRunner {
   }
 
   /**
-   * Splits off a retry or cron run's previous-run outcome, which that run encoded with the Nexus
-   * context of the handler that started it, so it can be decoded with that context.
-   */
-  private static splitPreviousRunOutcome(
-    initializeWorkflow: coresdk.workflow_activation.IInitializeWorkflow
-  ): { outcome: coresdk.workflow_activation.InitializeWorkflow; context: NexusSerializationContext } | undefined {
-    const context = nexusSerializationContextFromProto(initializeWorkflow.propagatedNexusSerializationContext);
-    if (
-      context == null ||
-      (initializeWorkflow.continuedFailure == null && initializeWorkflow.lastCompletionResult == null)
-    ) {
-      return undefined;
-    }
-    const outcome = coresdk.workflow_activation.InitializeWorkflow.create({
-      continuedFailure: initializeWorkflow.continuedFailure,
-      lastCompletionResult: initializeWorkflow.lastCompletionResult,
-    });
-    initializeWorkflow.continuedFailure = null;
-    initializeWorkflow.lastCompletionResult = null;
-    return { outcome, context };
-  }
-
-  /**
    * Decodes the activation's marked External Storage references in place, each with the context
    * {@link decodeActivation} decodes that payload with, without consuming any pending context.
    */
@@ -190,31 +177,18 @@ export class WorkflowCodecRunner {
     activation: coresdk.workflow_activation.IWorkflowActivation,
     externalStorage: ExternalStorage | undefined
   ): Promise<void> {
-    const options = {
-      externalStorage,
-      codecs: this.codecs,
-      skipHeaders: !this.codecHeaders,
-      deriveContext: this.activationContextDeriver(false, new Map()),
-      limit: this.codecOperationLimit,
-    };
-    const initializeWorkflow = activation.jobs?.find((job) => job.initializeWorkflow)?.initializeWorkflow;
-    const previousRun = initializeWorkflow
-      ? WorkflowCodecRunner.splitPreviousRunOutcome(initializeWorkflow)
-      : undefined;
+    if (this.codecs.length === 0) return;
     await visit(
       activation,
       walkWorkflowActivation,
-      externalStorageReferenceDecodeVisitOptions({ ...options, initialContext: this.workflowContext })
+      externalStorageReferenceDecodeVisitOptions({
+        externalStorage,
+        codecs: this.codecs,
+        skipHeaders: !this.codecHeaders,
+        deriveContext: this.activationContextDeriver(false, new Map()),
+        initialContext: this.workflowContext,
+      })
     );
-    if (initializeWorkflow != null && previousRun != null) {
-      await visit(
-        previousRun.outcome,
-        walkInitializeWorkflow,
-        externalStorageReferenceDecodeVisitOptions({ ...options, initialContext: previousRun.context })
-      );
-      initializeWorkflow.continuedFailure = previousRun.outcome.continuedFailure;
-      initializeWorkflow.lastCompletionResult = previousRun.outcome.lastCompletionResult;
-    }
   }
 
   private activityContext(
@@ -282,12 +256,8 @@ export class WorkflowCodecRunner {
   ): Promise<Decoded<T>> {
     const decodedActivation = coresdk.workflow_activation.WorkflowActivation.fromObject(activation);
     const initializeWorkflow = decodedActivation.jobs?.find((job) => job.initializeWorkflow)?.initializeWorkflow;
-    // A retry or cron run gets the previous run's closing failure and result, which that run encoded
-    // with the Nexus context. They're split off here so they can be decoded with it.
-    let previousRun: ReturnType<typeof WorkflowCodecRunner.splitPreviousRunOutcome>;
     if (initializeWorkflow != null) {
       this.nexusContext = nexusSerializationContextFromProto(initializeWorkflow.propagatedNexusSerializationContext);
-      previousRun = WorkflowCodecRunner.splitPreviousRunOutcome(initializeWorkflow);
     }
     for (const job of decodedActivation.jobs ?? []) {
       const context = nexusSerializationContextFromProto(job.doUpdate?.propagatedNexusSerializationContext);
@@ -330,15 +300,6 @@ export class WorkflowCodecRunner {
       walkWorkflowActivation,
       { ...visitorOptions, initialContext: this.workflowContext }
     );
-    if (initializeWorkflow != null && previousRun != null) {
-      await visit<coresdk.workflow_activation.IInitializeWorkflow, SerializationContext | undefined>(
-        previousRun.outcome,
-        walkInitializeWorkflow,
-        { ...visitorOptions, initialContext: previousRun.context }
-      );
-      initializeWorkflow.continuedFailure = previousRun.outcome.continuedFailure;
-      initializeWorkflow.lastCompletionResult = previousRun.outcome.lastCompletionResult;
-    }
     for (const output of systemOutputs) {
       output.result.completed = await decodeSystemNexusOutput(
         output.info.service,

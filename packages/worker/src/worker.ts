@@ -1419,15 +1419,17 @@ export class Worker {
               }
               try {
                 const { externalStorage, payloadCodecs } = this.options.loadedDataConverter;
-                await visitNexusTask(
-                  task,
-                  externalStorageReferenceDecodeVisitOptions({
-                    externalStorage,
-                    codecs: payloadCodecs,
-                    initialContext: nexusTaskSerializationContext(task),
-                    skipHeaders: !this.options.codecHeaders,
-                  })
-                );
+                if (payloadCodecs.length > 0) {
+                  await visitNexusTask(
+                    task,
+                    externalStorageReferenceDecodeVisitOptions({
+                      externalStorage,
+                      codecs: payloadCodecs,
+                      initialContext: nexusTaskSerializationContext(task),
+                      skipHeaders: !this.options.codecHeaders,
+                    })
+                  );
+                }
                 await visitNexusTask(
                   task,
                   externalStorageRetrieveVisitOptions({
@@ -2706,21 +2708,25 @@ async function decodeActivityTaskReferences(
     skipHeaders: boolean;
   }
 ): Promise<void> {
+  if (dataConverter.payloadCodecs.length === 0) return;
   const options = { externalStorage: dataConverter.externalStorage, codecs: dataConverter.payloadCodecs, skipHeaders };
   const start = task.start;
   const heartbeat: coresdk.activity_task.IActivityTask = { start: { heartbeatDetails: start?.heartbeatDetails } };
   if (start != null) start.heartbeatDetails = null;
-  await visit(
-    task,
-    walkActivityTask,
-    externalStorageReferenceDecodeVisitOptions({ ...options, initialContext: context })
-  );
-  await visit(
-    heartbeat,
-    walkActivityTask,
-    externalStorageReferenceDecodeVisitOptions({ ...options, initialContext: resultContext })
-  );
-  if (start != null) start.heartbeatDetails = heartbeat.start!.heartbeatDetails;
+  try {
+    await visit(
+      task,
+      walkActivityTask,
+      externalStorageReferenceDecodeVisitOptions({ ...options, initialContext: context })
+    );
+    await visit(
+      heartbeat,
+      walkActivityTask,
+      externalStorageReferenceDecodeVisitOptions({ ...options, initialContext: resultContext })
+    );
+  } finally {
+    if (start != null) start.heartbeatDetails = heartbeat.start!.heartbeatDetails;
+  }
 }
 
 /**

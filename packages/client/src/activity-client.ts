@@ -35,10 +35,10 @@ import {
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
+  decodeExternalStorageReferences,
   decodeOptionalFailureToOptionalError,
   encodeToPayloadsWithContext,
   encodeUserMetadata,
-  externalStorageReferenceDecodeVisitOptions,
   externalStorageRetrieveVisitOptions,
   externalStorageStoreVisitOptions,
   visit,
@@ -462,15 +462,9 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
 
       try {
         const resp = await this.workflowService.pollActivityExecution(req);
-        await visit(
-          resp,
-          walkPollActivityExecutionResponse,
-          externalStorageReferenceDecodeVisitOptions({
-            externalStorage: this.dataConverter.externalStorage,
-            codecs: this.dataConverter.payloadCodecs,
-            initialContext: nexusSerializationContextFromProto(resp.propagatedNexusSerializationContext) ?? context,
-          })
-        );
+        await decodeExternalStorageReferences(resp, walkPollActivityExecutionResponse, this.dataConverter, {
+          initialContext: nexusSerializationContextFromProto(resp.propagatedNexusSerializationContext) ?? context,
+        });
         await visit(
           resp,
           walkPollActivityExecutionResponse,
@@ -542,20 +536,14 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       // Input keeps the Activity context; the info and outcome use the caller-facing context.
       const callerFacingContext =
         nexusSerializationContextFromProto(resp.info.propagatedNexusSerializationContext) ?? context;
-      await visit(
-        resp,
-        walkDescribeActivityExecutionResponse,
-        externalStorageReferenceDecodeVisitOptions({
-          externalStorage: this.dataConverter.externalStorage,
-          codecs: this.dataConverter.payloadCodecs,
-          initialContext: context,
-          deriveContext: (_message, typeName, current) =>
-            typeName === 'temporal.api.activity.v1.ActivityExecutionInfo' ||
-            typeName === 'temporal.api.activity.v1.ActivityExecutionOutcome'
-              ? callerFacingContext
-              : current,
-        })
-      );
+      await decodeExternalStorageReferences(resp, walkDescribeActivityExecutionResponse, this.dataConverter, {
+        initialContext: context,
+        deriveContext: (_message, typeName, current) =>
+          typeName === 'temporal.api.activity.v1.ActivityExecutionInfo' ||
+          typeName === 'temporal.api.activity.v1.ActivityExecutionOutcome'
+            ? callerFacingContext
+            : current,
+      });
       await visit(
         resp,
         walkDescribeActivityExecutionResponse,
@@ -619,14 +607,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
             nextPageToken,
           });
 
-        await visit(
-          resp,
-          walkListActivityExecutionsResponse,
-          externalStorageReferenceDecodeVisitOptions({
-            externalStorage: this.dataConverter.externalStorage,
-            codecs: this.dataConverter.payloadCodecs,
-          })
-        );
+        await decodeExternalStorageReferences(resp, walkListActivityExecutionsResponse, this.dataConverter);
         await visit(
           resp,
           walkListActivityExecutionsResponse,

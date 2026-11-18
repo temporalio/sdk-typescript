@@ -40,12 +40,12 @@ import {
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
+  decodeExternalStorageReferences,
   decodeOptionalFailureToOptionalError,
   decodeOptionalSinglePayload,
   encodeMapToPayloads,
   encodeToPayloadsWithContext,
   encodeUserMetadata,
-  externalStorageReferenceDecodeVisitOptions,
   externalStorageRetrieveVisitOptions,
   externalStorageStoreVisitOptions,
   visit,
@@ -991,15 +991,9 @@ export class WorkflowClient extends BaseClient {
         } else if (!req.nextPageToken?.length) {
           closeEventContext = context;
         }
-        await visit(
-          res,
-          walkGetWorkflowExecutionHistoryResponse,
-          externalStorageReferenceDecodeVisitOptions({
-            externalStorage: this.dataConverter.externalStorage,
-            codecs: this.dataConverter.payloadCodecs,
-            initialContext: closeEventContext,
-          })
-        );
+        await decodeExternalStorageReferences(res, walkGetWorkflowExecutionHistoryResponse, this.dataConverter, {
+          initialContext: closeEventContext,
+        });
         await visit(
           res,
           walkGetWorkflowExecutionHistoryResponse,
@@ -1183,15 +1177,9 @@ export class WorkflowClient extends BaseClient {
         );
       }
       response = await this.workflowService.queryWorkflow(req);
-      await visit(
-        response,
-        walkQueryWorkflowResponse,
-        externalStorageReferenceDecodeVisitOptions({
-          externalStorage: this.dataConverter.externalStorage,
-          codecs: this.dataConverter.payloadCodecs,
-          initialContext: context,
-        })
-      );
+      await decodeExternalStorageReferences(response, walkQueryWorkflowResponse, this.dataConverter, {
+        initialContext: context,
+      });
       await visit(
         response,
         walkQueryWorkflowResponse,
@@ -1315,17 +1303,11 @@ export class WorkflowClient extends BaseClient {
       } while (
         response.stage < UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED
       );
-      await visit(
-        response,
-        walkUpdateWorkflowExecutionResponse,
-        externalStorageReferenceDecodeVisitOptions({
-          externalStorage: this.dataConverter.externalStorage,
-          codecs: this.dataConverter.payloadCodecs,
-          initialContext:
-            outcomeSerializationContext(response) ??
-            this.workflowSerializationContext(input.workflowExecution.workflowId!),
-        })
-      );
+      await decodeExternalStorageReferences(response, walkUpdateWorkflowExecutionResponse, this.dataConverter, {
+        initialContext:
+          outcomeSerializationContext(response) ??
+          this.workflowSerializationContext(input.workflowExecution.workflowId!),
+      });
       await visit(
         response,
         walkUpdateWorkflowExecutionResponse,
@@ -1428,17 +1410,11 @@ export class WorkflowClient extends BaseClient {
       do {
         multiOpResp = await this.workflowService.executeMultiOperation(multiOpReq);
         const multiOpUpdateResp = multiOpResp.responses?.[1]?.updateWorkflow;
-        await visit(
-          multiOpResp,
-          walkExecuteMultiOperationResponse,
-          externalStorageReferenceDecodeVisitOptions({
-            externalStorage: this.dataConverter.externalStorage,
-            codecs: this.dataConverter.payloadCodecs,
-            initialContext:
-              (multiOpUpdateResp != null ? outcomeSerializationContext(multiOpUpdateResp) : undefined) ??
-              this.workflowSerializationContext(input.workflowStartOptions.workflowId),
-          })
-        );
+        await decodeExternalStorageReferences(multiOpResp, walkExecuteMultiOperationResponse, this.dataConverter, {
+          initialContext:
+            (multiOpUpdateResp != null ? outcomeSerializationContext(multiOpUpdateResp) : undefined) ??
+            this.workflowSerializationContext(input.workflowStartOptions.workflowId),
+        });
         await visit(
           multiOpResp,
           walkExecuteMultiOperationResponse,
@@ -1561,19 +1537,13 @@ export class WorkflowClient extends BaseClient {
     for (;;) {
       try {
         const response = await this.workflowService.pollWorkflowExecutionUpdate(req);
-        await visit(
-          response,
-          walkPollWorkflowExecutionUpdateResponse,
-          externalStorageReferenceDecodeVisitOptions({
-            externalStorage: this.dataConverter.externalStorage,
-            codecs: this.dataConverter.payloadCodecs,
-            initialContext:
-              outcomeSerializationContext(response) ??
-              (workflowExecution.workflowId
-                ? this.workflowSerializationContext(workflowExecution.workflowId)
-                : undefined),
-          })
-        );
+        await decodeExternalStorageReferences(response, walkPollWorkflowExecutionUpdateResponse, this.dataConverter, {
+          initialContext:
+            outcomeSerializationContext(response) ??
+            (workflowExecution.workflowId
+              ? this.workflowSerializationContext(workflowExecution.workflowId)
+              : undefined),
+        });
         await visit(
           response,
           walkPollWorkflowExecutionUpdateResponse,
@@ -1906,15 +1876,9 @@ export class WorkflowClient extends BaseClient {
         namespace: this.options.namespace,
         execution: input.workflowExecution,
       });
-      await visit(
-        response,
-        walkDescribeWorkflowExecutionResponse,
-        externalStorageReferenceDecodeVisitOptions({
-          externalStorage: this.dataConverter.externalStorage,
-          codecs: this.dataConverter.payloadCodecs,
-          initialContext: this.workflowSerializationContext(input.workflowExecution.workflowId!),
-        })
-      );
+      await decodeExternalStorageReferences(response, walkDescribeWorkflowExecutionResponse, this.dataConverter, {
+        initialContext: this.workflowSerializationContext(input.workflowExecution.workflowId!),
+      });
       await visit(
         response,
         walkDescribeWorkflowExecutionResponse,
@@ -2220,15 +2184,9 @@ export class WorkflowClient extends BaseClient {
           nextPageToken,
           pageSize: input.pageSize,
         });
-        await visit(
-          response,
-          walkListWorkflowExecutionsResponse,
-          externalStorageReferenceDecodeVisitOptions({
-            externalStorage: this.dataConverter.externalStorage,
-            codecs: this.dataConverter.payloadCodecs,
-            deriveContext: workflowContextDeriver(this.options.namespace),
-          })
-        );
+        await decodeExternalStorageReferences(response, walkListWorkflowExecutionsResponse, this.dataConverter, {
+          deriveContext: workflowContextDeriver(this.options.namespace),
+        });
         await visit(
           response,
           walkListWorkflowExecutionsResponse,

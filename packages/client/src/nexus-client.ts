@@ -14,10 +14,10 @@ import {
 } from '@temporalio/common/internal/internal-workflow';
 import {
   decodeFromPayloadsAtIndex,
+  decodeExternalStorageReferences,
   decodeOptionalFailureToOptionalError,
   decodeOptionalSinglePayload,
   encodeToPayload,
-  externalStorageReferenceDecodeVisitOptions,
   externalStorageRetrieveVisitOptions,
   externalStorageStoreVisitOptions,
   visit,
@@ -538,15 +538,9 @@ export class NexusClient extends BaseClient {
       let res: temporal.api.workflowservice.v1.IPollNexusOperationExecutionResponse;
       try {
         res = await this.connection.workflowService.pollNexusOperationExecution(req);
-        await visit(
-          res,
-          walkPollNexusOperationExecutionResponse,
-          externalStorageReferenceDecodeVisitOptions({
-            externalStorage: this.dataConverter.externalStorage,
-            codecs: this.dataConverter.payloadCodecs,
-            initialContext: nexusSerializationContextFromProto(res.propagatedNexusSerializationContext) ?? startContext,
-          })
-        );
+        await decodeExternalStorageReferences(res, walkPollNexusOperationExecutionResponse, this.dataConverter, {
+          initialContext: nexusSerializationContextFromProto(res.propagatedNexusSerializationContext) ?? startContext,
+        });
         await visit(
           res,
           walkPollNexusOperationExecutionResponse,
@@ -584,26 +578,20 @@ export class NexusClient extends BaseClient {
     let res: temporal.api.workflowservice.v1.IDescribeNexusOperationExecutionResponse;
     try {
       res = await this.connection.workflowService.describeNexusOperationExecution(req);
-      await visit(
-        res,
-        walkDescribeNexusOperationExecutionResponse,
-        externalStorageReferenceDecodeVisitOptions({
-          externalStorage: this.dataConverter.externalStorage,
-          codecs: this.dataConverter.payloadCodecs,
-          // Failures use the operation's context; user metadata carries none.
-          deriveContext: (message, typeName, current) => {
-            if (typeName === 'temporal.api.sdk.v1.UserMetadata') return undefined;
-            if (typeName !== 'temporal.api.nexus.v1.NexusOperationExecutionInfo') return current;
-            const info = message as temporal.api.nexus.v1.INexusOperationExecutionInfo;
-            return {
-              type: 'nexus',
-              endpoint: info.endpoint ?? '',
-              service: info.service ?? '',
-              operation: info.operation ?? '',
-            };
-          },
-        })
-      );
+      await decodeExternalStorageReferences(res, walkDescribeNexusOperationExecutionResponse, this.dataConverter, {
+        // Failures use the operation's context; user metadata carries none.
+        deriveContext: (message, typeName, current) => {
+          if (typeName === 'temporal.api.sdk.v1.UserMetadata') return undefined;
+          if (typeName !== 'temporal.api.nexus.v1.NexusOperationExecutionInfo') return current;
+          const info = message as temporal.api.nexus.v1.INexusOperationExecutionInfo;
+          return {
+            type: 'nexus',
+            endpoint: info.endpoint ?? '',
+            service: info.service ?? '',
+            operation: info.operation ?? '',
+          };
+        },
+      });
       await visit(
         res,
         walkDescribeNexusOperationExecutionResponse,
@@ -664,14 +652,7 @@ export class NexusClient extends BaseClient {
           pageSize: input.pageSize,
           nextPageToken,
         });
-        await visit(
-          response,
-          walkListNexusOperationExecutionsResponse,
-          externalStorageReferenceDecodeVisitOptions({
-            externalStorage: this.dataConverter.externalStorage,
-            codecs: this.dataConverter.payloadCodecs,
-          })
-        );
+        await decodeExternalStorageReferences(response, walkListNexusOperationExecutionsResponse, this.dataConverter);
         await visit(
           response,
           walkListNexusOperationExecutionsResponse,

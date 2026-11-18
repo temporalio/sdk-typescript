@@ -151,15 +151,29 @@ test('unmarked payloads are not decoded', async (t) => {
   t.is(codec.decodedInputs.length, 0);
 });
 
-test('a marked reference written with no codec is already the reference', async (t) => {
+test('a marked reference the codec passes through is already the reference', async (t) => {
   const externalStorage = makeExternalStorage();
+  const codec = new RecordingCodec();
   const reference = await toReference(externalStorage, makePayload(256, 3));
   const marked = { ...reference, metadata: { ...reference.metadata, [MARKER_KEY]: encode('true') } };
   const task: coresdk.activity_task.IActivityTask = { start: { input: [marked] } };
 
-  await visit(task, walkActivityTask, externalStorageReferenceDecodeVisitOptions({ externalStorage, codecs: [] }));
+  await visit(task, walkActivityTask, externalStorageReferenceDecodeVisitOptions({ externalStorage, codecs: [codec] }));
 
   t.deepEqual(task.start!.input![0], marked);
+});
+
+test('with no codecs, a marked reference that was not encoded is retrieved', async (t) => {
+  const externalStorage = makeExternalStorage();
+  const payload = makePayload(256, 3);
+  const reference = await toReference(externalStorage, payload);
+  const marked = { ...reference, metadata: { ...reference.metadata, [MARKER_KEY]: encode('true') } };
+  const task: coresdk.activity_task.IActivityTask = { start: { input: [marked] } };
+
+  // Callers skip the reference decode visit when there are no codecs.
+  await visit(task, walkActivityTask, retrieveOptions(externalStorage));
+
+  t.deepEqual(task.start!.input![0], payload);
 });
 
 test('TMPRL1105 is raised before decoding when storage is not configured', async (t) => {
@@ -180,7 +194,7 @@ test('TMPRL1105 is raised before decoding when storage is not configured', async
   t.is(codec.decodedInputs.length, 0);
 });
 
-test('TMPRL1106 is raised when a marked payload does not decode to a reference', async (t) => {
+test('with no codecs, an encoded reference raises TMPRL1106 on retrieval', async (t) => {
   const externalStorage = makeExternalStorage();
   const encoded = await toEncodedReference(
     new RecordingCodec(),
@@ -188,12 +202,47 @@ test('TMPRL1106 is raised when a marked payload does not decode to a reference',
   );
   const task: coresdk.activity_task.IActivityTask = { start: { input: [encoded] } };
 
-  // Read without the codec that wrote the reference.
+  // Read without the codec that wrote the reference: the decode visit is skipped, so retrieval rejects it.
+  const err = await t.throwsAsync(() => visit(task, walkActivityTask, retrieveOptions(externalStorage)), {
+    instanceOf: ExternalStorageReferenceError,
+  });
+  t.regex(err!.message, /TMPRL1106/);
+});
+
+test('TMPRL1106 is raised when the codec decodes a marked payload to something else', async (t) => {
+  const externalStorage = makeExternalStorage();
+  const encoded = await toEncodedReference(new RecordingCodec(), makePayload(8));
+  const task: coresdk.activity_task.IActivityTask = { start: { input: [encoded] } };
+
   const err = await t.throwsAsync(
-    () => visit(task, walkActivityTask, externalStorageReferenceDecodeVisitOptions({ externalStorage, codecs: [] })),
+    () =>
+      visit(
+        task,
+        walkActivityTask,
+        externalStorageReferenceDecodeVisitOptions({ externalStorage, codecs: [new RecordingCodec()] })
+      ),
     { instanceOf: ExternalStorageReferenceError }
   );
   t.regex(err!.message, /TMPRL1106/);
+});
+
+test('with no codecs and no storage, an encoded reference raises TMPRL1105', async (t) => {
+  const encoded = await toEncodedReference(
+    new RecordingCodec(),
+    await toReference(makeExternalStorage(), makePayload(256, 3))
+  );
+  const task: coresdk.activity_task.IActivityTask = { start: { input: [encoded] } };
+
+  const err = await t.throwsAsync(
+    () =>
+      visit(
+        task,
+        walkActivityTask,
+        externalStorageRetrieveVisitOptions({ externalStorage: undefined, payloadCache: false })
+      ),
+    { instanceOf: ExternalStorageNotConfiguredError }
+  );
+  t.regex(err!.message, /TMPRL1105/);
 });
 
 test('externalPayloads is restored when the codec drops it', async (t) => {
@@ -373,7 +422,7 @@ test("a previous run's outcome reference uses the propagated Nexus context", asy
   t.deepEqual(decoded.jobs![0]!.initializeWorkflow!.lastCompletionResult!.payloads![0], lastCompletionResult);
 });
 
-test('activation references are decoded with the codec concurrency limit', async (t) => {
+test('activation references are decoded one at a time', async (t) => {
   const externalStorage = makeExternalStorage();
   const recording = new RecordingCodec();
   let inFlight = 0;
@@ -397,6 +446,5 @@ test('activation references are decoded with the codec concurrency limit', async
   await runner.decodeActivationReferences(activation, externalStorage);
 
   t.is(recording.decodedInputs.length, 30);
-  t.true(maxInFlight > 1);
-  t.true(maxInFlight <= 20);
+  t.is(maxInFlight, 1);
 });
