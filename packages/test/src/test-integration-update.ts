@@ -996,7 +996,8 @@ test('Signals/Updates/Activities/Timers have coherent promise completion orderin
       workflowsPath: undefined,
     });
     await activityWorker.runUntil(async () => {
-      const handle = await startWorkflow(signalsActivitiesTimersPromiseOrdering);
+      // Give the activity worker time to receive its task and stop the workflow worker before the timer fires on Cloud.
+      const handle = await startWorkflow(signalsActivitiesTimersPromiseOrdering, { args: [5_000] });
 
       // The workflow will schedule the activity, which will shutdown the worker.
       // Then this promise will resolves.

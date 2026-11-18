@@ -24,7 +24,7 @@ const aaUpdate = wf.defineUpdate<void, [string?]>('aaUpdate');
  * Note that there is no safe and easy way for users to resolve this issue by themselves in pre-1.11.0,
  * and neither would calling `wf.allHandlersFinished()` help.
  */
-export async function signalsActivitiesTimersPromiseOrdering(): Promise<boolean[]> {
+export async function signalsActivitiesTimersPromiseOrdering(timerDurationMs = 100): Promise<boolean[]> {
   let activityCompleted = false;
   let timerCompleted = false;
   let gotSignal = false;
@@ -39,7 +39,7 @@ export async function signalsActivitiesTimersPromiseOrdering(): Promise<boolean[
   });
 
   (async () => {
-    await wf.sleep(100);
+    await wf.sleep(timerDurationMs);
     timerCompleted = true;
   })().catch((_err) => {
     /* ignore */
