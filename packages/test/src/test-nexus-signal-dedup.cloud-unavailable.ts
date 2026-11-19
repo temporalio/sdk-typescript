@@ -48,7 +48,7 @@ export async function doubleSignalCaller(endpoint: string, calleeWorkflowIds: [s
 function doubleSignalServiceHandler(taskQueue: string) {
   const handlers: nexus.ServiceHandlerFor<typeof doubleSignalService.operations> = {
     signalTwice: new temporalnexus.TemporalOperationHandler<{ workflowIds: [string, string] }, string>({
-      async start(_ctx, client, input) {
+      async start(client, input) {
         const [first, second] = input.workflowIds;
         await client.signalWithStartWorkflow<typeof callee, [string]>(callee, {
           workflowId: first,
@@ -123,17 +123,17 @@ export async function retrySignalCaller(endpoint: string, calleeWorkflowId: stri
  * Fails its first attempt after signaling, forcing the Nexus task to be redelivered. Both attempts
  * signal with the operation's request ID, so the server must dedupe the second one.
  */
-function retrySignalServiceHandler(taskQueue: string, requestIds: string[]) {
+function retrySignalServiceHandler(taskQueue: string, requestIds: (string | undefined)[]) {
   const handlers: nexus.ServiceHandlerFor<typeof retrySignalService.operations> = {
     signalWithStart: new temporalnexus.TemporalOperationHandler<{ workflowId: string }, string>({
-      async start(ctx, client, input) {
+      async start(client, input) {
         await client.signalWithStartWorkflow<typeof countPings, [string]>(countPings, {
           workflowId: input.workflowId,
           taskQueue,
           signal: pingSignal,
           signalArgs: ['ping'],
         });
-        requestIds.push(ctx.requestId);
+        requestIds.push(temporalnexus.operationInfo().requestId);
         if (requestIds.length === 1) {
           throw new nexus.HandlerError('INTERNAL', 'force handler redelivery after signaling', {
             retryableOverride: true,
@@ -151,7 +151,7 @@ test('a signal from a Nexus operation is deduped across handler retries', async 
   const { client } = t.context.env;
   const { endpointName } = await registerNexusEndpoint();
   const calleeId = `retry-callee-${randomUUID()}`;
-  const requestIds: string[] = [];
+  const requestIds: (string | undefined)[] = [];
 
   const worker = await createWorker({
     nexusServices: [retrySignalServiceHandler(taskQueue, requestIds)],
@@ -163,6 +163,7 @@ test('a signal from a Nexus operation is deduped across handler retries', async 
     });
     t.is(await callerHandle.result(), 'ok');
     t.is(requestIds.length, 2, 'handler should fail once and then be redelivered once');
+    t.truthy(requestIds[0], 'a start handler must receive a Nexus request ID');
     t.is(requestIds[0], requestIds[1], 'Nexus request ID must remain stable across handler redelivery');
 
     const calleeHandle = client.workflow.getHandle(calleeId);

@@ -22,13 +22,13 @@ export function getHandlerContext(): HandlerContext {
 }
 
 /**
- * The {@link TemporalStartOperationContext} of the {@link TemporalOperationHandler} start invocation
- * currently in flight on this Nexus task, if any. Read by {@link nexusActivityStartInterceptor}.
+ * The raw start operation context for the current Nexus task, if any.
+ * Read by {@link nexusActivityStartInterceptor}.
  *
  * @internal
  * @hidden
  */
-export function getNexusStartOperationContext(): TemporalStartOperationContext | undefined {
+export function getNexusStartOperationContext(): nexus.StartOperationContext | undefined {
   return asyncLocalStorage.getStore()?.nexusStartOperationContext;
 }
 
@@ -57,7 +57,7 @@ export function currentPropagatedNexusSerializationContext():
  * @internal
  * @hidden
  */
-export function runWithNexusStartOperationContext<T>(ctx: TemporalStartOperationContext, fn: () => T): T {
+export function runWithNexusStartOperationContext<T>(ctx: nexus.StartOperationContext, fn: () => T): T {
   return asyncLocalStorage.run({ ...getHandlerContext(), nexusStartOperationContext: ctx }, fn);
 }
 
@@ -67,14 +67,11 @@ export function runWithNexusStartOperationContext<T>(ctx: TemporalStartOperation
  * @internal
  * @hidden
  */
-export interface HandlerContext {
+export interface HandlerContext extends OperationInfo {
   log: Logger;
   metrics: MetricMeter;
   client: Client;
-  namespace: string;
-  taskQueue: string;
-  endpoint: string;
-  nexusStartOperationContext?: TemporalStartOperationContext;
+  nexusStartOperationContext?: nexus.StartOperationContext;
 }
 
 /**
@@ -97,25 +94,28 @@ export interface OperationInfo {
    * Only available with server version 1.30.0 or later.
    */
   readonly endpoint: string;
+
+  /** Service name for the current Nexus request. */
+  readonly service: string;
+
+  /** Operation name for the current Nexus request. */
+  readonly operation: string;
+
+  /**
+   * Opaque ID of the current start request. Retries of the same request carry the same ID.
+   * It is undefined in a cancel handler.
+   */
+  readonly requestId: string | undefined;
+
+  /**
+   * Observes cancellation of the current handler invocation. A request to cancel the Nexus
+   * Operation itself invokes the cancel handler separately.
+   *
+   * Cancellation listeners run inline and must return promptly. Check `aborted` and `reason`
+   * or use `throwIfAborted()` if the invocation may already have been canceled.
+   */
+  readonly cancellationSignal: AbortSignal;
 }
-
-/**
- * Context received by a {@link TemporalOperationHandler}'s start handler when a Nexus Operation is
- * started.
- *
- * @experimental Temporal Operation handlers are experimental.
- */
-// oxlint-disable-next-line typescript/no-empty-object-type
-export interface TemporalStartOperationContext extends nexus.StartOperationContext {}
-
-/**
- * Context received by a {@link TemporalOperationHandler}'s cancel handler when a Nexus Operation is
- * canceled.
- *
- * @experimental Temporal Operation handlers are experimental.
- */
-// oxlint-disable-next-line typescript/no-empty-object-type
-export interface TemporalCancelOperationContext extends nexus.CancelOperationContext {}
 
 // Basic APIs //////////////////////////////////////////////////////////////////////////////////////
 
@@ -190,10 +190,6 @@ export function getClient(): Client {
  *
  */
 export function operationInfo(): OperationInfo {
-  const ctx = getHandlerContext();
-  return {
-    namespace: ctx.namespace,
-    taskQueue: ctx.taskQueue,
-    endpoint: ctx.endpoint,
-  };
+  const { namespace, taskQueue, endpoint, service, operation, requestId, cancellationSignal } = getHandlerContext();
+  return { namespace, taskQueue, endpoint, service, operation, requestId, cancellationSignal };
 }

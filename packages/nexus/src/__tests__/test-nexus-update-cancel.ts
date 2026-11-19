@@ -30,7 +30,7 @@ test('cancel of an UpdateWorkflow operation routes to the custom cancelWorkflowU
     async start() {
       return TemporalOperationResult.sync(undefined);
     },
-    async cancelWorkflowUpdate(_ctx, options) {
+    async cancelWorkflowUpdate(options) {
       received = options;
     },
     async cancelWorkflowRun() {

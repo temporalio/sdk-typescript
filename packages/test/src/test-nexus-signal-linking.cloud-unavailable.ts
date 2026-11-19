@@ -128,7 +128,7 @@ export async function twoSyncCaller(endpoint: string, calleeWorkflowId: string):
 function twoSyncServiceHandler(taskQueue: string) {
   const handlers: nexus.ServiceHandlerFor<typeof twoSyncService.operations> = {
     signalWithStart: new temporalnexus.TemporalOperationHandler<{ workflowId: string }, string>({
-      async start(ctx, client, input) {
+      async start(client, input) {
         await client.signalWithStartWorkflow<typeof callee, [string]>(callee, {
           workflowId: input.workflowId,
           taskQueue,
@@ -140,7 +140,7 @@ function twoSyncServiceHandler(taskQueue: string) {
       },
     }),
     signal: new temporalnexus.TemporalOperationHandler<{ workflowId: string }, string>({
-      async start(ctx, client, input) {
+      async start(client, input) {
         await client.getWorkflowHandle(input.workflowId).signal(pingSignal, 'second');
         return temporalnexus.TemporalOperationResult.sync('ok:signal');
       },
@@ -201,7 +201,7 @@ export async function asyncCaller(endpoint: string, calleeWorkflowId: string): P
 function asyncSignalServiceHandler(taskQueue: string) {
   const handlers: nexus.ServiceHandlerFor<typeof asyncSignalService.operations> = {
     signalWithStart: new temporalnexus.TemporalOperationHandler<{ workflowId: string }, string>({
-      async start(ctx, client, input) {
+      async start(client, input) {
         await client.signalWithStartWorkflow<typeof callee, [string]>(callee, {
           workflowId: input.workflowId,
           taskQueue,
