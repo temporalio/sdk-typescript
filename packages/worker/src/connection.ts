@@ -226,7 +226,7 @@ export class NativeConnection implements ConnectionLike {
   }
 
   /**
-   * Eagerly connect to the Temporal server and return a NativeConnection instance
+   * Eagerly connect to the Temporal server and return a NativeConnection instance.
    */
   static async connect(options?: NativeConnectionOptions): Promise<NativeConnection> {
     options = options ?? {};
@@ -235,6 +235,27 @@ export class NativeConnection implements ConnectionLike {
         options = plugin.configureNativeConnection(options);
       }
     }
+    let connect = (opts: NativeConnectionOptions): Promise<NativeConnection> => this.connectConfigured(opts);
+    const plugins = options.plugins ?? [];
+    for (let i = plugins.length - 1; i >= 0; --i) {
+      const plugin = plugins[i]!;
+      const next = connect;
+      if (plugin.connectNative !== undefined) {
+        connect = async (opts) => {
+          const conn = await plugin.connectNative!(opts, next);
+          if (!(conn instanceof NativeConnection)) {
+            throw new TypeError(
+              `Plugin "${plugin.name}" connectNative hook must return a NativeConnection, but returned ${conn === null ? 'null' : typeof conn}`
+            );
+          }
+          return conn;
+        };
+      }
+    }
+    return connect(options);
+  }
+
+  private static async connectConfigured(options: NativeConnectionOptions): Promise<NativeConnection> {
     const internalOptions = (options as InternalConnectionOptions)?.[InternalConnectionOptionsSymbol] ?? {};
     const enableTestService = internalOptions.supportsTestService ?? false;
 
@@ -371,4 +392,16 @@ export interface NativeConnectionPlugin {
    * Hook called when creating a native connection to allow modification of configuration.
    */
   configureNativeConnection?(options: NativeConnectionOptions): NativeConnectionOptions;
+
+  /**
+   * Hook that wraps {@link NativeConnection.connect}, e.g. to asynchronously modify the options
+   * before connecting or to use the connection afterward. Must call `next` to continue the
+   * connection process, and return the connection it returns.
+   *
+   * Hooks are called in plugin order, after all {@link configureNativeConnection} hooks.
+   */
+  connectNative?(
+    options: NativeConnectionOptions,
+    next: (options: NativeConnectionOptions) => Promise<NativeConnection>
+  ): Promise<NativeConnection>;
 }

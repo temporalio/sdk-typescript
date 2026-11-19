@@ -468,15 +468,21 @@ export class Connection {
    * Create a lazy `Connection` instance.
    *
    * This method does not verify connectivity with the server. We recommend using {@link connect} instead.
+   *
+   * Plugins' {@link ConnectionPlugin.configureConnection} hooks are applied, but their asynchronous
+   * {@link ConnectionPlugin.connect} hooks are not.
    */
   static lazy(options?: ConnectionOptions): Connection {
-    options = options ?? {};
+    return new this(this.createCtorOptions(this.applyConfigureHooks(options ?? {})));
+  }
+
+  private static applyConfigureHooks(options: ConnectionOptions): ConnectionOptions {
     for (const plugin of options.plugins ?? []) {
       if (plugin.configureConnection !== undefined) {
         options = plugin.configureConnection(options);
       }
     }
-    return new this(this.createCtorOptions(options));
+    return options;
   }
 
   /**
@@ -486,9 +492,29 @@ export class Connection {
    * {@link ensureConnected}.
    */
   static async connect(options?: ConnectionOptions): Promise<Connection> {
-    const conn = this.lazy(options);
-    await conn.ensureConnected();
-    return conn;
+    options = this.applyConfigureHooks(options ?? {});
+    let connect = async (opts: ConnectionOptions): Promise<Connection> => {
+      const conn = new this(this.createCtorOptions(opts));
+      await conn.ensureConnected();
+      return conn;
+    };
+    const plugins = options.plugins ?? [];
+    for (let i = plugins.length - 1; i >= 0; --i) {
+      const plugin = plugins[i]!;
+      const next = connect;
+      if (plugin.connect !== undefined) {
+        connect = async (opts) => {
+          const conn = await plugin.connect!(opts, next);
+          if (!(conn instanceof Connection)) {
+            throw new TypeError(
+              `Plugin "${plugin.name}" connect hook must return a Connection, but returned ${conn === null ? 'null' : typeof conn}`
+            );
+          }
+          return conn;
+        };
+      }
+    }
+    return connect(options);
   }
 
   protected constructor({
@@ -737,4 +763,14 @@ export interface ConnectionPlugin {
    * Hook called when creating a connection to allow modification of configuration.
    */
   configureConnection?(options: ConnectionOptions): ConnectionOptions;
+
+  /**
+   * Hook that wraps {@link Connection.connect}, e.g. to asynchronously modify the options before
+   * connecting or to use the connection afterward. Must call `next` to continue the connection
+   * process, and return the connection it returns.
+   *
+   * Hooks are called in plugin order, after all {@link configureConnection} hooks. Not called by
+   * {@link Connection.lazy}.
+   */
+  connect?(options: ConnectionOptions, next: (options: ConnectionOptions) => Promise<Connection>): Promise<Connection>;
 }

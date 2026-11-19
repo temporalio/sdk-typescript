@@ -1,16 +1,22 @@
 import { randomUUID } from 'crypto';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
-import type { ClientOptions, ConnectionPlugin, ClientPlugin as ClientPlugin } from '@temporalio/client';
-import { Client } from '@temporalio/client';
+import type {
+  ClientOptions,
+  ConnectionOptions,
+  ConnectionPlugin,
+  ClientPlugin as ClientPlugin,
+} from '@temporalio/client';
+import { Client, Connection } from '@temporalio/client';
 import type {
   WorkerOptions,
   WorkerPlugin as WorkerPlugin,
   BundlerPlugin,
   BundleOptions,
   NativeConnectionPlugin,
+  NativeConnectionOptions,
 } from '@temporalio/worker';
-import { Runtime, Worker, bundleWorkflowCode } from '@temporalio/worker';
+import { NativeConnection, Runtime, Worker, bundleWorkflowCode } from '@temporalio/worker';
 import { compileWorkerOptions, toNativeWorkerOptions } from '@temporalio/worker/internal';
 import { SimplePlugin } from '@temporalio/plugin';
 import { activityWorkflow, helloWorkflow } from './workflows/plugins';
@@ -380,4 +386,151 @@ test('Bundler plugins are passed from worker with async hooks', async (t) => {
 
     t.is(result, 'Hello');
   });
+});
+
+/**
+ * Records the order of its connection hooks in `events`. Its configure hooks add `name` to the
+ * `x-configured` metadata, which the connect hooks record to check that they see the configured
+ * options. Its connect hooks add `name` to the `x-plugins` metadata, to check that the connection
+ * uses the connect hooks' options.
+ */
+class ConnectRecordingPlugin implements ConnectionPlugin, NativeConnectionPlugin {
+  constructor(
+    readonly name: string,
+    private readonly events: string[]
+  ) {}
+
+  async connect(
+    options: ConnectionOptions,
+    next: (options: ConnectionOptions) => Promise<Connection>
+  ): Promise<Connection> {
+    this.events.push(`${this.name}:connect(${options.metadata?.['x-configured']})`);
+    await Promise.resolve();
+    const conn = await next(withPlugin(options, 'x-plugins', this.name));
+    this.events.push(`${this.name}:connected`);
+    return conn;
+  }
+
+  configureConnection(options: ConnectionOptions): ConnectionOptions {
+    this.events.push(`${this.name}:configure`);
+    return withPlugin(options, 'x-configured', this.name);
+  }
+
+  async connectNative(
+    options: NativeConnectionOptions,
+    next: (options: NativeConnectionOptions) => Promise<NativeConnection>
+  ): Promise<NativeConnection> {
+    this.events.push(`${this.name}:connect(${options.metadata?.['x-configured']})`);
+    await Promise.resolve();
+    const conn = await next(withPlugin(options, 'x-plugins', this.name));
+    this.events.push(`${this.name}:connected`);
+    return conn;
+  }
+
+  configureNativeConnection(options: NativeConnectionOptions): NativeConnectionOptions {
+    this.events.push(`${this.name}:configure`);
+    return withPlugin(options, 'x-configured', this.name);
+  }
+}
+
+function withPlugin<T extends { metadata?: Record<string, any> }>(options: T, key: string, name: string): T {
+  const prev = options.metadata?.[key];
+  return { ...options, metadata: { ...options.metadata, [key]: prev ? `${prev},${name}` : name } };
+}
+
+const expectedConnectEvents = [
+  'a:configure',
+  'b:configure',
+  'a:connect(a,b)',
+  'b:connect(a,b)',
+  'b:connected',
+  'a:connected',
+];
+
+test('Connection plugin connect hooks wrap connecting', async (t) => {
+  const events: string[] = [];
+  const conn = await Connection.connect({
+    address: t.context.testEnv.address,
+    plugins: [new ConnectRecordingPlugin('a', events), new ConnectRecordingPlugin('b', events)],
+  });
+  try {
+    t.deepEqual(events, expectedConnectEvents);
+    t.is(conn.options.metadata['x-plugins'], 'a,b');
+  } finally {
+    await conn.close();
+  }
+});
+
+test('NativeConnection plugin connectNative hooks wrap connecting', async (t) => {
+  const events: string[] = [];
+  const conn = await NativeConnection.connect({
+    address: t.context.testEnv.address,
+    plugins: [new ConnectRecordingPlugin('a', events), new ConnectRecordingPlugin('b', events)],
+  });
+  try {
+    t.deepEqual(events, expectedConnectEvents);
+  } finally {
+    await conn.close();
+  }
+});
+
+test('Connection.lazy does not call plugin connect hooks', async (t) => {
+  const events: string[] = [];
+  const conn = Connection.lazy({
+    address: t.context.testEnv.address,
+    plugins: [new ConnectRecordingPlugin('a', events)],
+  });
+  try {
+    t.deepEqual(events, ['a:configure']);
+  } finally {
+    await conn.close();
+  }
+});
+
+test('Plugin connect hooks that do not return a connection are rejected', async (t) => {
+  // e.g. a plugin with an unrelated method of the same name
+  const plugin = {
+    name: 'unrelated-connect',
+    async connect() {},
+    async connectNative() {},
+  } as unknown as ConnectionPlugin & NativeConnectionPlugin;
+
+  await t.throwsAsync(Connection.connect({ address: t.context.testEnv.address, plugins: [plugin] }), {
+    instanceOf: TypeError,
+    message: 'Plugin "unrelated-connect" connect hook must return a Connection, but returned undefined',
+  });
+  await t.throwsAsync(NativeConnection.connect({ address: t.context.testEnv.address, plugins: [plugin] }), {
+    instanceOf: TypeError,
+    message: 'Plugin "unrelated-connect" connectNative hook must return a NativeConnection, but returned undefined',
+  });
+});
+
+test('SimplePlugin connect hooks can be overridden', async (t) => {
+  const events: string[] = [];
+  class ConnectingPlugin extends SimplePlugin {
+    override async connect(
+      options: ConnectionOptions,
+      next: (options: ConnectionOptions) => Promise<Connection>
+    ): Promise<Connection> {
+      events.push('connect');
+      return super.connect(options, next);
+    }
+
+    override async connectNative(
+      options: NativeConnectionOptions,
+      next: (options: NativeConnectionOptions) => Promise<NativeConnection>
+    ): Promise<NativeConnection> {
+      events.push('connectNative');
+      return super.connectNative(options, next);
+    }
+  }
+  const plugin = new ConnectingPlugin({ name: 'test-simple-plugin' });
+  const conn = await Connection.connect({ address: t.context.testEnv.address, plugins: [plugin] });
+  const nativeConn = await NativeConnection.connect({ address: t.context.testEnv.address, plugins: [plugin] });
+  try {
+    t.deepEqual(events, ['connect', 'connectNative']);
+  } finally {
+    await conn.close();
+    await nativeConn.close();
+  }
 });
