@@ -27,9 +27,9 @@ const protoRootWithLookup = protoRoot as typeof protoRoot & {
   lookupService(name: string): ProtobufService;
 };
 type SystemOperation = (typeof operationRegistry)[number];
-const onCompleteRequestType: string = (
-  protoRoot.temporal.api.notificationservice.v1.OnCompleteRequest as any
-).fullName.slice(1);
+const onCompleteRequestType: string = protoRootWithLookup
+  .lookupType('temporal.api.notificationservice.v1.OnCompleteRequest')
+  .fullName.slice(1);
 
 function operationDefinition(
   service: string | null | undefined,

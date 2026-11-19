@@ -392,7 +392,7 @@ export interface NexusOperationExecutionCountGroup {
  * Options for starting a standalone Nexus operation via
  * {@link NexusServiceClient.startOperation} or {@link NexusServiceClient.executeOperation}.
  */
-export interface StartNexusOperationOptions<O = any> {
+export interface StartNexusOperationOptions<O = unknown> {
   /**
    * Caller-side identifier for this operation. Must be unique among operations in the
    * same namespace, subject to {@link idReusePolicy} and {@link idConflictPolicy}.
@@ -474,7 +474,7 @@ export interface CompletionCallback<in O = unknown> {
    */
   readonly sourceContext: unknown;
   /** Type information for converting {@link sourceContext}. */
-  readonly sourceContextType?: TypeInfo<any, any>;
+  readonly sourceContextType?: TypeInfo<unknown, unknown>;
   // Type-only member so callbacks for different output types are not interchangeable.
   readonly [completionCallbackOutput]?: (output: O) => void;
 }
@@ -535,19 +535,19 @@ export function createCompletionCallback<
   sourceContext: OnCompleteSourceContext<ResolveOperation<S, R>>;
   sourceContextType?: TypeInfo<OnCompleteSourceContext<ResolveOperation<S, R>>, any>;
 }): OnCompleteCallback<ResolveOperation<S, R>>;
-export function createCompletionCallback(options: {
+export function createCompletionCallback<C>(options: {
   service: string;
   operation: string;
   taskQueue: string;
-  sourceContext: unknown;
-  sourceContextType?: TypeInfo<any, any>;
+  sourceContext: C;
+  sourceContextType?: TypeInfo<NoInfer<C>, unknown>;
 }): CompletionCallback;
 export function createCompletionCallback(options: {
   service: string | nexus.ServiceDefinition;
-  operation: string | nexus.OperationDefinition<any, any>;
+  operation: string | nexus.OperationDefinition<unknown, unknown>;
   taskQueue: string;
   sourceContext: unknown;
-  sourceContextType?: TypeInfo<any, any>;
+  sourceContextType?: TypeInfo<unknown, unknown>;
 }): CompletionCallback {
   const { service, operation, taskQueue, sourceContext, sourceContextType } = options;
   let serviceName: string;
