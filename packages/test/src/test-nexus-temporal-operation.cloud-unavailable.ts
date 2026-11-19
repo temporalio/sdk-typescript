@@ -285,7 +285,7 @@ test('TemporalOperationHandler async and sync happy paths - caller workflow', as
             t.is(info.service, temporalOpService.name);
             t.is(info.operation, 'syncOp');
             requestIds.add(info.requestId);
-            return temporalnexus.TemporalOperationResult.sync(input);
+            return input === 'wrapped' ? temporalnexus.TemporalOperationResult.sync(input) : input;
           },
         }),
       }),
@@ -298,7 +298,7 @@ test('TemporalOperationHandler async and sync happy paths - caller workflow', as
     });
     t.is(asyncResult, 'hello');
 
-    for (const input of ['one', 'two']) {
+    for (const input of ['direct', 'wrapped']) {
       const syncResult = await executeWorkflow(temporalSyncOpCallerWithInput, { args: [endpointName, input] });
       t.is(syncResult, input);
     }

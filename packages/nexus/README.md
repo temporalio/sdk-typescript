@@ -9,12 +9,13 @@ Part of [Temporal](https://temporal.io)'s [TypeScript SDK](https://docs.temporal
 
 ## Implementing a Temporal-backed operation
 
-Pass a `start(client, input)` function to `TemporalOperationHandler`. Use
-`TemporalOperationResult.sync(output)` to complete synchronously, or return the result of a
-Temporal Client helper such as `client.startWorkflow(...)` to complete asynchronously.
+Pass a `start(client, input)` function to `TemporalOperationHandler`. Return the output directly to
+complete the Nexus Operation synchronously, even if your function awaits other work. A Temporal
+client helper such as `client.startWorkflow(...)` returns the explicit result that the SDK uses to
+complete the operation asynchronously.
 
 ```ts
-import { operationInfo, TemporalOperationHandler, TemporalOperationResult } from '@temporalio/nexus';
+import { operationInfo, TemporalOperationHandler } from '@temporalio/nexus';
 import { operation, service, serviceHandler } from 'nexus-rpc';
 
 const greetings = service('greetings', { greet: operation<string, string>() });
@@ -23,7 +24,7 @@ export const greetingsHandler = serviceHandler(greetings, {
   greet: new TemporalOperationHandler({
     async start(_client, name) {
       operationInfo().cancellationSignal.throwIfAborted();
-      return TemporalOperationResult.sync(`Hello, ${name}!`);
+      return `Hello, ${name}!`;
     },
   }),
 });

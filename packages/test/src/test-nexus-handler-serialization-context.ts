@@ -236,7 +236,7 @@ for (const method of ['start', 'cancel'] as const) {
 }
 
 test('concurrent Nexus handlers receive only their own invocation information', async (t) => {
-  const output = makeContextTrace('wrapped');
+  const output = { ...makeContextTrace('direct'), isAsync: true, token: 'just a payload field' };
   const service = nexus.service(SERVICE, { [OPERATION]: nexus.operation<void, typeof output>() });
   const firstRequestId = 'opaque/request-1';
   const secondRequestId = 'opaque/request-2';
@@ -275,7 +275,7 @@ test('concurrent Nexus handlers receive only their own invocation information', 
           t.is(info.cancellationSignal, secondController.signal);
           t.false(info.cancellationSignal.aborted);
         }
-        return TemporalOperationResult.sync({ ...output, trace: [] });
+        return { ...output, trace: [] };
       },
     }),
   });
@@ -309,7 +309,7 @@ test('concurrent Nexus handlers receive only their own invocation information', 
     const result = completion.completed?.startOperation;
     t.is(result?.asyncSuccess, undefined);
     const payload = result?.syncSuccess?.payload;
-    t.truthy(payload, 'the worker must encode the result in a synchronous response');
+    t.truthy(payload, 'the worker must encode the direct result in a synchronous response');
     if (payload == null) continue;
     t.deepEqual(defaultPayloadConverter.fromPayload(payload), {
       ...output,
