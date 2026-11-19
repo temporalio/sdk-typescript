@@ -240,6 +240,7 @@ export class AsyncCompletionClient extends BaseClient {
               namespace: this.options.namespace,
               initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
               payloadCache: this.payloadCache,
+              driverOperationLimit: this.driverOperationLimit,
             })
           );
         }
@@ -260,6 +261,7 @@ export class AsyncCompletionClient extends BaseClient {
               namespace: this.options.namespace,
               initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
               payloadCache: this.payloadCache,
+              driverOperationLimit: this.driverOperationLimit,
             })
           );
         }
@@ -307,6 +309,7 @@ export class AsyncCompletionClient extends BaseClient {
               namespace: this.options.namespace,
               initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
               payloadCache: this.payloadCache,
+              driverOperationLimit: this.driverOperationLimit,
             })
           );
         }
@@ -327,6 +330,7 @@ export class AsyncCompletionClient extends BaseClient {
               namespace: this.options.namespace,
               initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
               payloadCache: this.payloadCache,
+              driverOperationLimit: this.driverOperationLimit,
             })
           );
         }
@@ -378,6 +382,7 @@ export class AsyncCompletionClient extends BaseClient {
               namespace: this.options.namespace,
               initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
               payloadCache: this.payloadCache,
+              driverOperationLimit: this.driverOperationLimit,
             })
           );
         }
@@ -398,6 +403,7 @@ export class AsyncCompletionClient extends BaseClient {
               namespace: this.options.namespace,
               initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
               payloadCache: this.payloadCache,
+              driverOperationLimit: this.driverOperationLimit,
             })
           );
         }
@@ -448,6 +454,7 @@ export class AsyncCompletionClient extends BaseClient {
               namespace: this.options.namespace,
               initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
               payloadCache: this.payloadCache,
+              driverOperationLimit: this.driverOperationLimit,
             })
           );
         }
@@ -471,6 +478,7 @@ export class AsyncCompletionClient extends BaseClient {
               namespace: this.options.namespace,
               initialTarget: this.storageTargetFor(taskTokenOrFullActivityId),
               payloadCache: this.payloadCache,
+              driverOperationLimit: this.driverOperationLimit,
             })
           );
         }

@@ -272,6 +272,7 @@ export class ScheduleClient extends BaseClient {
           externalStorageStoreVisitOptions({
             externalStorage,
             namespace: this.options.namespace,
+            driverOperationLimit: this.driverOperationLimit,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
@@ -309,6 +310,7 @@ export class ScheduleClient extends BaseClient {
         externalStorageRetrieveVisitOptions({
           externalStorage: this.dataConverter.externalStorage,
           payloadCache: this.payloadCache,
+          driverOperationLimit: this.driverOperationLimit,
         })
       );
       return response;
@@ -353,6 +355,7 @@ export class ScheduleClient extends BaseClient {
           externalStorageStoreVisitOptions({
             externalStorage,
             namespace: this.options.namespace,
+            driverOperationLimit: this.driverOperationLimit,
             initialTarget: {
               kind: 'workflow',
               namespace: this.options.namespace,
@@ -439,6 +442,7 @@ export class ScheduleClient extends BaseClient {
           externalStorageRetrieveVisitOptions({
             externalStorage: this.dataConverter.externalStorage,
             payloadCache: this.payloadCache,
+            driverOperationLimit: this.driverOperationLimit,
           })
         );
       } catch (e) {

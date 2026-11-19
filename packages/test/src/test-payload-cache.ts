@@ -14,7 +14,7 @@ import {
 } from '@temporalio/common/internal/internal-non-workflow';
 import { encode } from '@temporalio/common/encoding';
 import { temporal } from '@temporalio/proto';
-import { makeFakeDriver } from './extstore-fake-driver';
+import { testDriverOperationLimit, makeFakeDriver } from './extstore-fake-driver';
 
 const PayloadProto = temporal.api.common.v1.Payload;
 
@@ -215,10 +215,12 @@ test('separate visits share a payload cache without sharing a runner', async (t)
     namespace: 'ns',
     externalStorage,
     payloadCache,
+    driverOperationLimit: testDriverOperationLimit(),
   }).transformPayload(original, undefined);
   const restored = await externalStorageRetrieveVisitOptions({
     externalStorage,
     payloadCache,
+    driverOperationLimit: testDriverOperationLimit(),
   }).transformPayload(reference, undefined);
 
   assertPayloadEqual(t, restored, original);
@@ -228,7 +230,14 @@ test('separate visits share a payload cache without sharing a runner', async (t)
 function runnerWith(payloadCache: PayloadCache | false) {
   const driver = makeFakeDriver({ name: 's3' });
   const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 96 });
-  return { driver, externalStorage, runner: new ExternalStorageRunner(externalStorage, { payloadCache }) };
+  return {
+    driver,
+    externalStorage,
+    runner: new ExternalStorageRunner(externalStorage, {
+      payloadCache,
+      driverOperationLimit: testDriverOperationLimit(),
+    }),
+  };
 }
 
 test('store populates the cache so a later retrieve skips the driver', async (t) => {
@@ -248,6 +257,7 @@ test('a cold-cache retrieve falls back to the driver, then warms the cache', asy
   // Fresh runner with an empty cache: the store-side population did not reach it.
   const cold = new ExternalStorageRunner(new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 96 }), {
     payloadCache: new InMemoryPayloadCache(),
+    driverOperationLimit: testDriverOperationLimit(),
   });
   await cold.retrieve([reference]);
   t.is(driver.retrieveCalls.length, 1); // miss -> one driver fetch
@@ -258,7 +268,10 @@ test('a cold-cache retrieve falls back to the driver, then warms the cache', asy
 
 test('a mixed-cache retrieve only sends misses to the driver', async (t) => {
   const { driver, externalStorage } = runnerWith(false);
-  const writer = new ExternalStorageRunner(externalStorage, { payloadCache: false });
+  const writer = new ExternalStorageRunner(externalStorage, {
+    payloadCache: false,
+    driverOperationLimit: testDriverOperationLimit(),
+  });
   const originalPayloads = [makePayload(256, 3), makePayload(256, 7)];
   const references = await writer.store(originalPayloads, { namespace: 'ns' });
 
@@ -269,7 +282,10 @@ test('a mixed-cache retrieve only sends misses to the driver', async (t) => {
     originalPayloads[0]!
   );
 
-  const reader = new ExternalStorageRunner(externalStorage, { payloadCache: cache });
+  const reader = new ExternalStorageRunner(externalStorage, {
+    payloadCache: cache,
+    driverOperationLimit: testDriverOperationLimit(),
+  });
   const restoredPayloads = await reader.retrieve(references);
 
   for (const [index, payload] of restoredPayloads.entries()) {

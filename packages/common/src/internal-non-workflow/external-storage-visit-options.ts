@@ -1,5 +1,5 @@
 /** Builds payload visitor options backed by one {@link ExternalStorageRunner} per visit. @module */
-import { unbounded } from '../concurrency/limit';
+import { limit, type ConcurrencyLimit } from '../concurrency/limit';
 import type { ExternalStorage, StorageDriverTargetInfo } from '../converter/extstore';
 import { ExternalStorageNotConfiguredError } from '../errors';
 import type { Payload } from '../interfaces';
@@ -34,6 +34,8 @@ export interface ExternalStorageStoreVisitOptions {
   /** Cache shared across visits, or `false` to disable caching. */
   payloadCache: PayloadCache | false;
   logger?: Logger;
+  /** The driver operation limit of the client or worker running the walk. */
+  driverOperationLimit: ConcurrencyLimit;
 }
 
 /**
@@ -51,8 +53,9 @@ export function externalStorageStoreVisitOptions({
   metrics,
   payloadCache,
   logger,
+  driverOperationLimit,
 }: ExternalStorageStoreVisitOptions): VisitOptions<StoreTarget> {
-  const runner = new ExternalStorageRunner(externalStorage, { payloadCache, logger });
+  const runner = new ExternalStorageRunner(externalStorage, { payloadCache, logger, driverOperationLimit });
   return {
     transformPayloads: (payloads, target, signal) =>
       runner.store(payloads, { target, namespace, abortSignal: signal, metrics }),
@@ -62,7 +65,7 @@ export function externalStorageStoreVisitOptions({
     initialContext: initialTarget,
     // Search attributes must keep their literal values so the server can index/search on them.
     skipSearchAttributes: true,
-    limit: unbounded(),
+    limit: limit(externalStorage.concurrency.maxOperationsPerMessage),
     abortSignal,
   };
 }
@@ -78,6 +81,8 @@ export interface ExternalStorageRetrieveVisitOptions {
   /** Cache shared across visits, or `false` to disable caching. */
   payloadCache: PayloadCache | false;
   logger?: Logger;
+  /** The driver operation limit of the client or worker running the walk. */
+  driverOperationLimit: ConcurrencyLimit;
 }
 
 /**
@@ -111,15 +116,16 @@ export function externalStorageRetrieveVisitOptions({
   metrics,
   payloadCache,
   logger,
+  driverOperationLimit,
 }: ExternalStorageRetrieveVisitOptions): VisitOptions<void> {
   if (externalStorage === undefined) return externalStorageReferenceDetectionVisitOptions();
-  const runner = new ExternalStorageRunner(externalStorage, { payloadCache, logger });
+  const runner = new ExternalStorageRunner(externalStorage, { payloadCache, logger, driverOperationLimit });
   return {
     transformPayloads: (payloads, _context, signal) => runner.retrieve(payloads, { abortSignal: signal, metrics }),
     transformPayload: (payload, _context, signal) =>
       runner.retrieve([payload], { abortSignal: signal, metrics }).then((retrieved) => retrieved[0]!),
     skipSearchAttributes: true,
-    limit: unbounded(),
+    limit: limit(externalStorage.concurrency.maxOperationsPerMessage),
     abortSignal,
   };
 }

@@ -439,6 +439,7 @@ export class NexusClient extends BaseClient {
             externalStorage,
             namespace: this.options.namespace,
             payloadCache: this.payloadCache,
+            driverOperationLimit: this.driverOperationLimit,
           })
         );
       }
@@ -543,6 +544,7 @@ export class NexusClient extends BaseClient {
           externalStorageRetrieveVisitOptions({
             externalStorage: this.dataConverter.externalStorage,
             payloadCache: this.payloadCache,
+            driverOperationLimit: this.driverOperationLimit,
           })
         );
       } catch (err: unknown) {
@@ -580,6 +582,7 @@ export class NexusClient extends BaseClient {
         externalStorageRetrieveVisitOptions({
           externalStorage: this.dataConverter.externalStorage,
           payloadCache: this.payloadCache,
+          driverOperationLimit: this.driverOperationLimit,
         })
       );
     } catch (err: unknown) {
@@ -640,6 +643,7 @@ export class NexusClient extends BaseClient {
           externalStorageRetrieveVisitOptions({
             externalStorage: this.dataConverter.externalStorage,
             payloadCache: this.payloadCache,
+            driverOperationLimit: this.driverOperationLimit,
           })
         );
       } catch (err: unknown) {

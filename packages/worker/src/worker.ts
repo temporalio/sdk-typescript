@@ -46,6 +46,7 @@ import {
   ExternalStorageMetricsAccumulator,
   externalStorageRetrieveVisitOptions,
   externalStorageStoreVisitOptions,
+  newDriverOperationLimit,
   suggestContinueAsNewReasonsFromProto,
   visit,
   walkActivityHeartbeat,
@@ -54,6 +55,7 @@ import {
   walkNexusTaskCompletion,
   walkWorkflowActivation,
   walkWorkflowActivationCompletion,
+  type ConcurrencyLimit,
 } from '@temporalio/common/internal/internal-non-workflow';
 import type { Duration } from '@temporalio/common/lib/time';
 import {
@@ -885,7 +887,13 @@ export class Worker {
     protected readonly plugins: WorkerPlugin[],
     protected _connection?: NativeConnection,
     protected readonly isReplayWorker: boolean = false
-  ) {}
+  ) {
+    // A worker does not share its client's limit, even when built from that client.
+    this.driverOperationLimit = newDriverOperationLimit(options.loadedDataConverter?.externalStorage);
+  }
+
+  /** Limits the external storage operations this worker's drivers run at once. */
+  protected readonly driverOperationLimit: ConcurrencyLimit;
 
   /**
    * An Observable which emits each time the number of in flight activations changes
@@ -1147,6 +1155,7 @@ export class Worker {
                       externalStorageRetrieveVisitOptions({
                         externalStorage: loadedDataConverter.externalStorage,
                         payloadCache: this.options.payloadCache,
+                        driverOperationLimit: this.driverOperationLimit,
                         logger: this.logger,
                       })
                     );
@@ -1357,6 +1366,7 @@ export class Worker {
                     initialTarget,
                     payloadCache: this.options.payloadCache,
                     logger: this.logger,
+                    driverOperationLimit: this.driverOperationLimit,
                   })
                 );
               } catch (e) {
@@ -1416,6 +1426,7 @@ export class Worker {
                   externalStorageRetrieveVisitOptions({
                     externalStorage: this.options.loadedDataConverter.externalStorage,
                     payloadCache: this.options.payloadCache,
+                    driverOperationLimit: this.driverOperationLimit,
                     logger: this.logger,
                   })
                 );
@@ -1469,6 +1480,7 @@ export class Worker {
                 namespace: this.options.namespace,
                 payloadCache: this.options.payloadCache,
                 logger: this.logger,
+                driverOperationLimit: this.driverOperationLimit,
               })
             );
           } catch (e) {
@@ -1656,6 +1668,7 @@ export class Worker {
           externalStorage,
           metrics: downloadMetrics,
           payloadCache: this.options.payloadCache,
+          driverOperationLimit: this.driverOperationLimit,
           logger: this.logger,
         })
       );
@@ -1704,6 +1717,7 @@ export class Worker {
             metrics: uploadMetrics,
             payloadCache: this.options.payloadCache,
             logger: this.logger,
+            driverOperationLimit: this.driverOperationLimit,
           });
           await visit(encodedCompletion, walkWorkflowActivationCompletion, visitorOptions);
           for (const { command, payload } of systemNexusInputs) {
@@ -2071,6 +2085,7 @@ export class Worker {
                       initialTarget: activityStorageTarget(info),
                       payloadCache: this.options.payloadCache,
                       logger: this.logger,
+                      driverOperationLimit: this.driverOperationLimit,
                     })
                   );
                 }

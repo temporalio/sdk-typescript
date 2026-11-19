@@ -25,7 +25,7 @@ import type { coresdk, temporal } from '@temporalio/proto';
 import type { SignalWithStartWorkflowRequest } from '@temporalio/workflow';
 import { workflowService } from '@temporalio/workflow/internal';
 import { decodePayload, PAYLOAD_VALIDATION_ERROR_TYPE, visitNexusTask } from '@temporalio/worker/internal';
-import { makeFakeDriver } from './extstore-fake-driver';
+import { testDriverOperationLimit, makeFakeDriver } from './extstore-fake-driver';
 
 const protobufPayloadConverter = new ProtobufBinaryPayloadConverter(protoRoot);
 const signalWithStartInputType = workflowService.operations.signalWithStartWorkflow.inputType;
@@ -406,14 +406,24 @@ function nestedPayloads(envelope: Payload): { input: Payload[]; signalInput: Pay
 test('visitNexusTask resolves External Storage references nested in a System Nexus input', async (t) => {
   const driver = makeFakeDriver();
   const externalStorage = new ExternalStorage({ drivers: [driver], payloadSizeThreshold: 0 });
-  const runner = new ExternalStorageRunner(externalStorage, { payloadCache: false });
+  const runner = new ExternalStorageRunner(externalStorage, {
+    payloadCache: false,
+    driverOperationLimit: testDriverOperationLimit(),
+  });
   const [inputReference, signalReference] = await runner.store(
     [defaultPayloadConverter.toPayload('workflow-input'), defaultPayloadConverter.toPayload('signal-input')],
     { namespace: 'ns' }
   );
   const task = nexusStartTask(systemNexusPayloadWith(inputReference!, signalReference!));
 
-  await visitNexusTask(task, externalStorageRetrieveVisitOptions({ payloadCache: false, externalStorage }));
+  await visitNexusTask(
+    task,
+    externalStorageRetrieveVisitOptions({
+      payloadCache: false,
+      driverOperationLimit: testDriverOperationLimit(),
+      externalStorage,
+    })
+  );
 
   const envelope = task.task!.request!.startOperation!.payload as Payload;
   t.deepEqual(envelope.metadata?.[SYSTEM_NEXUS_PAYLOAD_METADATA_KEY], SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE);
@@ -430,15 +440,22 @@ test('visitNexusTask resolves External Storage references nested in a System Nex
 
 test('visitNexusTask rejects a nested reference when External Storage is not configured', async (t) => {
   const externalStorage = new ExternalStorage({ drivers: [makeFakeDriver()], payloadSizeThreshold: 0 });
-  const [reference] = await new ExternalStorageRunner(externalStorage, { payloadCache: false }).store(
-    [defaultPayloadConverter.toPayload('workflow-input')],
-    { namespace: 'ns' }
-  );
+  const [reference] = await new ExternalStorageRunner(externalStorage, {
+    payloadCache: false,
+    driverOperationLimit: testDriverOperationLimit(),
+  }).store([defaultPayloadConverter.toPayload('workflow-input')], { namespace: 'ns' });
   const task = nexusStartTask(systemNexusPayloadWith(reference!));
 
   await t.throwsAsync(
     () =>
-      visitNexusTask(task, externalStorageRetrieveVisitOptions({ payloadCache: false, externalStorage: undefined })),
+      visitNexusTask(
+        task,
+        externalStorageRetrieveVisitOptions({
+          payloadCache: false,
+          driverOperationLimit: testDriverOperationLimit(),
+          externalStorage: undefined,
+        })
+      ),
     {
       instanceOf: ExternalStorageNotConfiguredError,
     }
@@ -454,7 +471,11 @@ test('visitNexusTask leaves an unrecognized or corrupt marked input for decodePa
 
     await visitNexusTask(
       task,
-      externalStorageRetrieveVisitOptions({ payloadCache: false, externalStorage: undefined })
+      externalStorageRetrieveVisitOptions({
+        payloadCache: false,
+        driverOperationLimit: testDriverOperationLimit(),
+        externalStorage: undefined,
+      })
     );
 
     t.is(task.task!.request!.startOperation!.payload, payload, name);
@@ -469,10 +490,18 @@ test('visitNexusTask retrieves nested references before codecs decode them', asy
   ]);
   const [inputReference, signalReference] = await new ExternalStorageRunner(externalStorage, {
     payloadCache: false,
+    driverOperationLimit: testDriverOperationLimit(),
   }).store(encoded, { namespace: 'ns' });
   const task = nexusStartTask(systemNexusPayloadWith(inputReference!, signalReference!));
 
-  await visitNexusTask(task, externalStorageRetrieveVisitOptions({ payloadCache: false, externalStorage }));
+  await visitNexusTask(
+    task,
+    externalStorageRetrieveVisitOptions({
+      payloadCache: false,
+      driverOperationLimit: testDriverOperationLimit(),
+      externalStorage,
+    })
+  );
   const result = (await decodePayload(
     { ...defaultDataConverter, payloadCodecs: [shiftingCodec] },
     task.task!.request!.startOperation!.payload as Payload,
