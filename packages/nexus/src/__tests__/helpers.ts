@@ -32,5 +32,9 @@ export function makeHandlerContext(client: HandlerContext['client']): HandlerCon
     namespace: 'ns',
     taskQueue: 'tq',
     endpoint: 'endpoint',
+    service: 'service',
+    operation: 'operation',
+    requestId: 'request-id',
+    cancellationSignal: new AbortController().signal,
   };
 }

@@ -42,7 +42,7 @@ const queryOpService = nexus.service('counterQueryService', {
 
 function makeGetCountHandler() {
   return new temporalnexus.TemporalOperationHandler<QueryInput, number>({
-    async start(_ctx, client, input) {
+    async start(client, input) {
       const handle = client.getWorkflowHandle(input.workflowId, input.runId);
       // A Query resolves immediately, so the operation is synchronous.
       return temporalnexus.TemporalOperationResult.sync(await handle.query(getCountQuery));

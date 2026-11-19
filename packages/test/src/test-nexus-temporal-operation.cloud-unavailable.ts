@@ -202,17 +202,26 @@ test('TemporalOperationHandler cancel delegates to provided cancelWorkflowRun ha
   const workflowId = randomUUID();
 
   let customCancelCalled = false;
+  let startSignal: AbortSignal | undefined;
 
   const worker = await createWorker({
     nexusServices: [
       makeTemporalCancelOpServiceHandler({
         blockingOp: new temporalnexus.TemporalOperationHandler({
-          async start(_ctx, client, workflowId) {
+          async start(client, workflowId) {
+            startSignal = temporalnexus.operationInfo().cancellationSignal;
             return await client.startWorkflow(blockingTargetWorkflow, {
               workflowId,
             });
           },
-          async cancelWorkflowRun(_ctx, { workflowId }) {
+          async cancelWorkflowRun({ workflowId }) {
+            const info = temporalnexus.operationInfo();
+            t.is(info.service, temporalCancelOpService.name);
+            t.is(info.operation, 'blockingOp');
+            t.is(info.requestId, undefined);
+            t.truthy(startSignal);
+            t.not(info.cancellationSignal, startSignal);
+            t.false(info.cancellationSignal.aborted);
             const handle = temporalnexus.getClient().workflow.getHandle(workflowId);
             await handle.cancel();
             customCancelCalled = true;
@@ -251,14 +260,19 @@ test('TemporalOperationHandler cancel delegates to provided cancelWorkflowRun ha
 });
 
 test('TemporalOperationHandler async and sync happy paths - caller workflow', async (t) => {
-  const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
+  const { createWorker, startWorkflow, registerNexusEndpoint } = helpers(t);
   const { endpointName } = await registerNexusEndpoint();
+  const requestIds = new Set<string | undefined>();
 
   const worker = await createWorker({
     nexusServices: [
       makeTemporalOpServiceHandler({
         asyncOp: new temporalnexus.TemporalOperationHandler<string, string>({
-          async start(_ctx, client, input) {
+          async start(client, input) {
+            const info = temporalnexus.operationInfo();
+            t.is(info.service, temporalOpService.name);
+            t.is(info.operation, 'asyncOp');
+            requestIds.add(info.requestId);
             return await client.startWorkflow(echoWorkflow, {
               workflowId: randomUUID(),
               args: [input],
@@ -266,7 +280,11 @@ test('TemporalOperationHandler async and sync happy paths - caller workflow', as
           },
         }),
         syncOp: new temporalnexus.TemporalOperationHandler<string, string>({
-          async start(_ctx, _client, input) {
+          async start(_client, input) {
+            const info = temporalnexus.operationInfo();
+            t.is(info.service, temporalOpService.name);
+            t.is(info.operation, 'syncOp');
+            requestIds.add(info.requestId);
             return temporalnexus.TemporalOperationResult.sync(input);
           },
         }),
@@ -275,15 +293,23 @@ test('TemporalOperationHandler async and sync happy paths - caller workflow', as
   });
 
   await worker.runUntil(async () => {
-    let result = await executeWorkflow(temporalAsyncOpCaller, {
+    const asyncCaller = await startWorkflow(temporalAsyncOpCaller, {
       args: [endpointName],
     });
-    t.is(result, 'hello');
+    t.is(await asyncCaller.result(), 'hello');
+    const asyncHistory = await asyncCaller.fetchHistory();
+    t.true(asyncHistory.events?.some((event) => event.nexusOperationStartedEventAttributes != null));
 
-    result = await executeWorkflow(temporalSyncOpCaller, {
-      args: [endpointName],
-    });
-    t.is(result, 'hello');
+    for (const input of ['one', 'two']) {
+      const syncCaller = await startWorkflow(temporalSyncOpCallerWithInput, { args: [endpointName, input] });
+      t.is(await syncCaller.result(), input);
+      const syncHistory = await syncCaller.fetchHistory();
+      t.true(syncHistory.events?.some((event) => event.nexusOperationCompletedEventAttributes != null));
+      t.false(syncHistory.events?.some((event) => event.nexusOperationStartedEventAttributes != null));
+    }
+
+    t.false(requestIds.has(undefined));
+    t.is(requestIds.size, 3, 'independent Nexus operations have distinct request IDs');
   });
 });
 
@@ -326,7 +352,7 @@ for (const { name, first, second } of multipleAsyncStartCases) {
       nexusServices: [
         makeTemporalOpServiceHandler({
           doubleStartOp: new temporalnexus.TemporalOperationHandler<string, void>({
-            async start(_ctx, client, input) {
+            async start(client, input) {
               await first(client, input);
               await second(client, input); // guard trips here
               throw new nexus.HandlerError('INTERNAL', 'expected previous error to be thrown');
@@ -364,7 +390,7 @@ test('TemporalOperationHandler allows retry after failed async start', async (t)
     nexusServices: [
       makeTemporalOpServiceHandler({
         retryAfterFailedStartOp: new temporalnexus.TemporalOperationHandler<string, string>({
-          async start(_ctx, client, workflowId) {
+          async start(client, workflowId) {
             try {
               await client.startWorkflow(blockingTargetWorkflow, {
                 workflowId,
@@ -413,7 +439,7 @@ test('TemporalOperationHandler workflow REJECT_DUPLICATE failure is non-retryabl
     nexusServices: [
       makeTemporalOpServiceHandler({
         asyncOp: new temporalnexus.TemporalOperationHandler<string, string>({
-          async start(_ctx, nexusClient, workflowId) {
+          async start(nexusClient, workflowId) {
             handlerInvocations++;
             return await nexusClient.startWorkflow(echoWorkflow, {
               workflowId,
@@ -456,7 +482,7 @@ test('TemporalOperationHandler workflow conflict failure is non-retryable', asyn
     nexusServices: [
       makeTemporalOpServiceHandler({
         asyncOp: new temporalnexus.TemporalOperationHandler<string, string>({
-          async start(_ctx, nexusClient, workflowId) {
+          async start(nexusClient, workflowId) {
             handlerInvocations++;
             return await nexusClient.startWorkflow(echoWorkflow, {
               workflowId,
@@ -502,7 +528,7 @@ test('TemporalOperationHandler activity REJECT_DUPLICATE failure is non-retryabl
     nexusServices: [
       makeTemporalOpServiceHandler({
         echoActivity: new temporalnexus.TemporalOperationHandler<string, string>({
-          async start(_ctx, nexusClient, activityId) {
+          async start(nexusClient, activityId) {
             handlerInvocations++;
             return await nexusClient.typedActivity<typeof activities>().startActivity('echo', {
               id: activityId,
@@ -553,7 +579,7 @@ test.serial('TemporalOperationHandler activity conflict failure is non-retryable
     nexusServices: [
       makeTemporalOpServiceHandler({
         blockingActivity: new temporalnexus.TemporalOperationHandler<string, void>({
-          async start(_ctx, nexusClient, activityId) {
+          async start(nexusClient, activityId) {
             handlerInvocations++;
             return await nexusClient.startActivity('waitForCancellation', {
               id: activityId,
@@ -602,7 +628,7 @@ test('TemporalOperationHandler default cancelWorkflowRun cancels backing workflo
     nexusServices: [
       makeTemporalCancelOpServiceHandler({
         blockingOp: new temporalnexus.TemporalOperationHandler<string, void>({
-          async start(_ctx, client, workflowId) {
+          async start(client, workflowId) {
             const handle = await client.startWorkflow(blockingTargetWorkflow, {
               workflowId,
             });
@@ -640,7 +666,7 @@ test('TemporalOperationHandler workflow run has Nexus-Operation-Token Header', a
     nexusServices: [
       makeTemporalOpServiceHandler({
         asyncOp: new temporalnexus.TemporalOperationHandler<string, string>({
-          async start(_ctx, client, input) {
+          async start(client, input) {
             return await client.startWorkflow(echoWorkflow, {
               workflowId: input,
               args: [input],
@@ -679,7 +705,7 @@ test('TemporalOperationHandler activity has Nexus-Operation-Token Header', async
     nexusServices: [
       makeTemporalOpServiceHandler({
         asyncOp: new temporalnexus.TemporalOperationHandler<string, string>({
-          async start(_ctx, client, input) {
+          async start(client, input) {
             return await client.typedActivity<typeof activities>().startActivity('echo', {
               id: input,
               args: [input],
@@ -724,7 +750,7 @@ test('TemporalOperationHandler links a Workflow-invoked Nexus operation and its 
     nexusServices: [
       makeTemporalOpServiceHandler({
         echoActivity: new temporalnexus.TemporalOperationHandler<string, string>({
-          async start(_ctx, nexusClient, activityId) {
+          async start(nexusClient, activityId) {
             return await nexusClient.typedActivity<typeof activities>().startActivity('echo', {
               id: activityId,
               args: [activityId],
@@ -772,7 +798,7 @@ test('TemporalOperationHandler links a standalone Nexus operation and its backin
     nexusServices: [
       makeTemporalOpServiceHandler({
         echoActivity: new temporalnexus.TemporalOperationHandler<string, string>({
-          async start(_ctx, nexusClient, activityId) {
+          async start(nexusClient, activityId) {
             return await nexusClient.typedActivity<typeof activities>().startActivity('echo', {
               id: activityId,
               args: [activityId],
@@ -823,7 +849,7 @@ test('TemporalOperationHandler links Activities started through a raw ActivityCl
     nexusServices: [
       makeTemporalOpServiceHandler({
         syncOp: new temporalnexus.TemporalOperationHandler<string, string>({
-          async start(_ctx, nexusClient, input) {
+          async start(nexusClient, input) {
             const { taskQueue } = temporalnexus.operationInfo();
             const [a, b] = await Promise.all([
               nexusClient.client.activity.start('echo', {
@@ -889,7 +915,7 @@ test('TemporalOperationHandler links Activities started through getClient() dire
     nexusServices: [
       makeTemporalOpServiceHandler({
         syncOp: new temporalnexus.TemporalOperationHandler<string, string>({
-          async start(_ctx, _nexusClient, input) {
+          async start(_nexusClient, input) {
             const { taskQueue } = temporalnexus.operationInfo();
             // Note: not `nexusClient.client` — the module-level `getClient()` export, which a
             // handler could reach without ever touching the TemporalNexusClient it was handed.
@@ -977,7 +1003,7 @@ test('TemporalOperationHandler links an Activity started from an inbound startOp
     nexusServices: [
       makeTemporalOpServiceHandler({
         syncOp: new temporalnexus.TemporalOperationHandler<string, string>({
-          async start(_ctx, _nexusClient, input) {
+          async start(_nexusClient, input) {
             return temporalnexus.TemporalOperationResult.sync(input);
           },
         }),
@@ -1032,7 +1058,7 @@ test('TemporalOperationHandler preserves user-configured Activity interceptors o
     nexusServices: [
       makeTemporalOpServiceHandler({
         syncOp: new temporalnexus.TemporalOperationHandler<string, string>({
-          async start(_ctx, nexusClient, opInput) {
+          async start(nexusClient, opInput) {
             const { taskQueue } = temporalnexus.operationInfo();
             const handle = await nexusClient.client.activity.start('echo', {
               id: opInput,
@@ -1075,7 +1101,7 @@ test('TemporalOperationHandler links Activities started through a raw ActivityCl
     nexusServices: [
       makeTemporalOpServiceHandler({
         syncOp: new temporalnexus.TemporalOperationHandler<string, string>({
-          async start(_ctx, nexusClient, input) {
+          async start(nexusClient, input) {
             const { taskQueue } = temporalnexus.operationInfo();
             const [a, b] = await Promise.all([
               nexusClient.client.activity.start('echo', {
@@ -1139,7 +1165,7 @@ test('TemporalOperationHandler Activity started through a raw ActivityClient is 
     nexusServices: [
       makeTemporalOpServiceHandler({
         syncOp: new temporalnexus.TemporalOperationHandler<string, string>({
-          async start(_ctx, nexusClient, input) {
+          async start(nexusClient, input) {
             const { taskQueue } = temporalnexus.operationInfo();
             // Starts through the raw Activity client, not TemporalNexusClient.startActivity().
             const handle = await nexusClient.client.activity.start('countedEcho', {
@@ -1185,7 +1211,7 @@ test('TemporalOperationHandler Activity started through getClient() is redeliver
     nexusServices: [
       makeTemporalOpServiceHandler({
         syncOp: new temporalnexus.TemporalOperationHandler<string, string>({
-          async start(_ctx, _nexusClient, input) {
+          async start(_nexusClient, input) {
             const { taskQueue } = temporalnexus.operationInfo();
             // Not `nexusClient.client` — the module-level `getClient()` export.
             const handle = await temporalnexus.getClient().activity.start('countedEcho', {
@@ -1225,7 +1251,7 @@ test('TemporalOperationHandler activity links are not duplicated', async (t) => 
     nexusServices: [
       makeTemporalOpServiceHandler({
         asyncOp: new temporalnexus.TemporalOperationHandler<string, string>({
-          async start(_ctx, client, input) {
+          async start(client, input) {
             return await client.typedActivity<typeof activities>().startActivity('echo', {
               id: input,
               args: [input],
@@ -1265,7 +1291,7 @@ test('TemporalOperationHandler start typed standalone activity', async (t) => {
     nexusServices: [
       makeTemporalOpServiceHandler({
         echoActivity: new temporalnexus.TemporalOperationHandler({
-          async start(_ctx, client, input) {
+          async start(client, input) {
             return await client.typedActivity<typeof activities>().startActivity('echo', {
               id: randomUUID(),
               args: [input],
@@ -1296,7 +1322,7 @@ test('TemporalOperationHandler start untyped standalone activity', async (t) => 
     nexusServices: [
       makeTemporalOpServiceHandler({
         echoActivity: new temporalnexus.TemporalOperationHandler({
-          async start(_ctx, client, input) {
+          async start(client, input) {
             return await client.startActivity('echo', {
               id: randomUUID(),
               args: [input],
@@ -1327,7 +1353,7 @@ test('TemporalOperationHandler propagates backing activity failure', async (t) =
     nexusServices: [
       makeTemporalOpServiceHandler({
         failingActivity: new temporalnexus.TemporalOperationHandler<string, void>({
-          async start(_ctx, client, message) {
+          async start(client, message) {
             // throwAnError(true, message) throws a non-retryable ApplicationFailure, so the
             // backing activity fails permanently and the failure propagates to the Nexus caller.
             return await client.typedActivity<typeof activities>().startActivity('throwAnError', {
@@ -1374,7 +1400,7 @@ test.serial('TemporalOperationHandler cancels backing activity', async (t) => {
     nexusServices: [
       makeTemporalOpServiceHandler({
         blockingActivity: new temporalnexus.TemporalOperationHandler({
-          async start(_ctx, client, input) {
+          async start(client, input) {
             return await client.typedActivity<typeof cancellationActivities>().startActivity('waitForCancellation', {
               id: input,
               scheduleToCloseTimeout: '30s',
@@ -1432,13 +1458,13 @@ test.serial('TemporalOperationHandler invokes custom cancelActivity', async (t) 
     nexusServices: [
       makeTemporalOpServiceHandler({
         blockingActivity: new temporalnexus.TemporalOperationHandler({
-          async start(_ctx, client, input) {
+          async start(client, input) {
             return await client.typedActivity<typeof cancellationActivities>().startActivity('waitForCancellation', {
               id: input,
               scheduleToCloseTimeout: '30s',
             });
           },
-          async cancelActivity(_ctx, { activityId, runId }) {
+          async cancelActivity({ activityId, runId }) {
             canceledActivityRunId = runId;
             const handle = temporalnexus.getClient().activity.getHandle(activityId, runId);
             await handle.cancel('test custom cancellation');

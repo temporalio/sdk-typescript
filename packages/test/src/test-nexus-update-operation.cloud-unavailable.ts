@@ -70,7 +70,7 @@ const updateOpService = nexus.service('counterUpdateService', {
 
 function makeAddOperationHandler() {
   return new temporalnexus.TemporalOperationHandler<UpdateAddInput, UpdateAddOutput>({
-    async start(_ctx, client, input) {
+    async start(client, input) {
       return await client.getWorkflowHandle(input.workflowId).update<UpdateAddOutput, [number, number]>(addUpdateName, {
         updateId: input.updateId,
         waitForStage: 'ACCEPTED',

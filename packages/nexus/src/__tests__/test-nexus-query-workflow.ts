@@ -58,7 +58,7 @@ async function runQueryOperation(
 ): Promise<{ ctx: nexus.StartOperationContext; result: unknown; error?: Error }> {
   const ctx = makeStartContext();
   const handler = new TemporalOperationHandler<undefined, unknown>({
-    async start(_startCtx, temporalClient) {
+    async start(temporalClient) {
       const handle = temporalClient.getWorkflowHandle('wid', 'rid');
       let last: unknown;
       for (let i = 0; i < queries; i++) {

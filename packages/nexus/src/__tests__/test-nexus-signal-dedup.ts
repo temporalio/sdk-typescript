@@ -75,7 +75,7 @@ async function runInOperation(
 ): Promise<(string | undefined)[]> {
   const requestIds: (string | undefined)[] = [];
   const handler = new TemporalOperationHandler<void, void>({
-    async start(_ctx, client) {
+    async start(client) {
       await body(client);
       return TemporalOperationResult.sync(undefined);
     },
