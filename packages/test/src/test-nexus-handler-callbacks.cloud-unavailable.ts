@@ -17,7 +17,7 @@ import {
   TerminatedFailure,
   type TypeInfo,
 } from '@temporalio/common';
-import { decode, encode } from '@temporalio/common/lib/encoding';
+import { decode, encode } from '@temporalio/common/encoding';
 import * as temporalnexus from '@temporalio/nexus';
 import { temporal } from '@temporalio/proto';
 import * as workflow from '@temporalio/workflow';
