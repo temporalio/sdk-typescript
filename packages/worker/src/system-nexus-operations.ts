@@ -27,6 +27,9 @@ const protoRootWithLookup = protoRoot as typeof protoRoot & {
   lookupService(name: string): ProtobufService;
 };
 type SystemOperation = (typeof operationRegistry)[number];
+const onCompleteRequestType: string = protoRootWithLookup
+  .lookupType('temporal.api.notificationservice.v1.OnCompleteRequest')
+  .fullName.slice(1);
 
 function operationDefinition(
   service: string | null | undefined,
@@ -41,8 +44,10 @@ export function systemNexusRequestType(payload: Payload): string {
   return value == null ? '<missing>' : decode(value);
 }
 
-/** Whether `messageType` is the request type of a known System Nexus operation. */
+/** Whether `messageType` is a System Nexus request type that a Nexus handler can receive. */
 export function isKnownSystemNexusRequestType(messageType: string): boolean {
+  // Nexus Handler Callbacks deliver this request to on-complete operations in a System Nexus envelope.
+  if (messageType === onCompleteRequestType) return true;
   return operationRegistry.some(
     (entry) => requestMessageType(entry.service, entry.operation).fullName.replace(/^\./, '') === messageType
   );
@@ -70,9 +75,10 @@ export function encodeSystemNexusEnvelope(envelope: Payload, message: Record<str
 export function fromSystemNexusPayload(
   payload: Payload,
   dataConverter: SystemNexusDataConverter,
-  typeInfo: TypeInfo | undefined
+  typeInfo: TypeInfo | undefined,
+  context: SerializationContext | undefined
 ): unknown {
-  return withSystemNexusPayloadConversion(dataConverter, undefined, () =>
+  return withSystemNexusPayloadConversion(dataConverter, context, () =>
     fromPayloadWithTypeInfo(protobufPayloadConverter, payload, undefined, typeInfo)
   );
 }
