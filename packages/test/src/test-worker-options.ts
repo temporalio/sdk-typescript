@@ -1,7 +1,23 @@
 import test from 'ava';
+import { defaultFailureConverter, defaultPayloadConverter } from '@temporalio/common';
 import { Runtime, type WorkerOptions } from '@temporalio/worker';
 import { compileWorkerOptions, toNativeWorkerOptions } from '@temporalio/worker/internal';
 import { defaultOptions } from './mock-native-worker';
+
+test('preserves a pre-loaded LoadedDataConverter without reloading via require', (t) => {
+  const runtime = Runtime.instance();
+  const payloadConverter = defaultPayloadConverter;
+  const dataConverter = {
+    payloadConverter,
+    failureConverter: defaultFailureConverter,
+    payloadCodecs: [],
+  };
+
+  const compiled = compileWorkerOptions({ ...defaultOptions, dataConverter }, runtime.logger, runtime.metricMeter);
+
+  t.is(compiled.loadedDataConverter.payloadConverter, payloadConverter);
+  t.is(compiled.loadedDataConverter.failureConverter, defaultFailureConverter);
+});
 
 test('forwards the eager activity reservation limit to Core', (t) => {
   const runtime = Runtime.instance();
