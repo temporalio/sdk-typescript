@@ -1,0 +1,1 @@
+Accept a pre-loaded `LoadedDataConverter` in `Worker.create()` the same way the Client does, so ESM-imported payload converters are not replaced by a `require()`-loaded copy (which breaks `instanceof` checks).
