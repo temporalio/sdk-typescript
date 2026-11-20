@@ -407,7 +407,7 @@ impl MetricsCallBuffer {
                 // Create the metric and put it on the lazy ref
                 let metric = BufferedMetric::new(params, *kind, self.use_seconds_for_durations);
                 populate_into
-                    .set(Arc::new(BufferedMetricRef(MemoizedHandle::new(metric))))
+                    .set(BufferedMetricRef(MemoizedHandle::new(metric)))
                     .expect("Unable to set buffered metric on reference");
 
                 None
@@ -444,7 +444,7 @@ impl MetricsCallBuffer {
                 attributes,
                 update,
             } => Some(BufferedMetricUpdate {
-                metric: instrument.get().as_ref().clone(),
+                metric: instrument.get().clone(),
                 #[allow(clippy::match_same_arms, clippy::cast_precision_loss)]
                 value: match update {
                     MetricUpdateVal::Duration(v) if self.use_seconds_for_durations => {

@@ -87,6 +87,8 @@ import { uuid4FromRandom } from './random-helpers';
 import { untrackPromise } from './stack-helpers';
 import type { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
 
+export type { ExternalWorkflowHandle } from './workflow-handle';
+
 // Avoid a circular dependency
 registerSleepImplementation(sleep);
 

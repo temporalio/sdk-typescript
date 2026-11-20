@@ -29,7 +29,8 @@ async function main() {
     ]);
     await promisify(execFile)(nexgen, [
       'typescript',
-      '--native-api',
+      '--targets',
+      'workflow',
       '--system-nexus',
       '--descriptors',
       descriptor,

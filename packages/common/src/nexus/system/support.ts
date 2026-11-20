@@ -22,12 +22,12 @@ export function payloadToValue<T>(payload: Payload, typeInfo?: TypeInfo<T, any>)
   return fromPayloadWithTypeInfo(converter, payload, context, typeInfo);
 }
 
-export function failureFromProto(proto: temporal.api.failure.v1.IFailure): Error {
+export function errorFromFailure(proto: temporal.api.failure.v1.IFailure): Error {
   const { converter, failureConverter, context } = currentSystemNexusPayloadConversion();
   return failureConverter.failureToError(proto, converter, context);
 }
 
-export function failureToProto(failure: Error): temporal.api.failure.v1.IFailure {
+export function errorToFailure(failure: Error): temporal.api.failure.v1.IFailure {
   const { converter, failureConverter, context } = currentSystemNexusPayloadConversion();
   return failureConverter.errorToFailure(failure, converter, context);
 }
