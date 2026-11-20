@@ -42,7 +42,7 @@ export interface CreateWorkflow {
 export interface ActivateWorkflow {
   type: 'activate-workflow';
   runId: string;
-  activation: coresdk.workflow_activation.IWorkflowActivation | Uint8Array;
+  activation: coresdk.workflow_activation.IWorkflowActivation;
 }
 
 /**

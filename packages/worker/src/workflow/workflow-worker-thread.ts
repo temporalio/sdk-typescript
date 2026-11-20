@@ -7,7 +7,6 @@ import { ReusableVMWorkflowCreator } from './reusable-vm';
 import { VMWorkflowCreator } from './vm';
 import type { PatchActivationCallbackRequest, WorkerThreadRequest } from './workflow-worker-thread/input';
 import type { WorkerThreadResponse } from './workflow-worker-thread/output';
-import { isBun, isBunPre1_4 } from './bun';
 import {
   makePatchActivationWorkflowInfoSnapshot,
   PATCH_ACTIVATION_CALLBACK_BUFFER_SIZE,
@@ -83,25 +82,15 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
       if (workflow === undefined) {
         throw new IllegalStateError(`Tried to activate non running workflow with runId: ${input.runId}`);
       }
-      let activation;
-      if (input.activation instanceof Uint8Array) {
-        // Before Bun 1.4.0, some activation messages get silently dropped by Bun's postMessage.
-        // To work around this bug, we encode activations
-        activation = coresdk.workflow_activation.WorkflowActivation.decode(input.activation);
-      } else {
-        activation = coresdk.workflow_activation.WorkflowActivation.fromObject(input.activation);
-      }
+      const activation = coresdk.workflow_activation.WorkflowActivation.fromObject(input.activation);
       const completion = await workflow.activate(activation);
-      const maybeEncodedCompletion = isBunPre1_4
-        ? coresdk.workflow_completion.WorkflowActivationCompletion.encode(completion).finish()
-        : completion;
       return {
         requestId,
         result: {
           type: 'ok',
           output: {
             type: 'activation-completion',
-            completion: maybeEncodedCompletion,
+            completion,
           },
         },
       };
@@ -142,35 +131,12 @@ async function handleRequest({ requestId, input }: WorkerThreadRequest): Promise
 }
 
 /**
- * Transfer a response to the parent thread with zero-copy semantics when possible.
- *
- * For Bun, we use structuredClone with transfer option because Bun's postMessage
- * doesn't properly detach buffers when transferring from worker to main thread.
- * See: https://github.com/oven-sh/bun/issues/18705
- */
-function postResponse(response: WorkerThreadResponse): void {
-  const completion = response.result.type === 'ok' ? response.result.output : undefined;
-  if (
-    isBun &&
-    completion?.type === 'activation-completion' &&
-    completion.completion instanceof Uint8Array &&
-    completion.completion.buffer instanceof ArrayBuffer
-  ) {
-    const buffer = completion.completion.buffer;
-    const cloned = structuredClone(response, { transfer: [buffer] });
-    parentPort.postMessage(cloned);
-  } else {
-    parentPort.postMessage(response);
-  }
-}
-
-/**
  * Listen on messages delivered from the parent thread (the SDK Worker),
  * process any requests and respond back with result or error.
  */
 parentPort.on('message', async (request: WorkerThreadRequest) => {
   try {
-    postResponse(await handleRequest(request));
+    parentPort.postMessage(await handleRequest(request));
   } catch (err: any) {
     parentPort.postMessage({
       requestId: request.requestId,

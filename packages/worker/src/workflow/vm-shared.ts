@@ -18,8 +18,6 @@ import { UnhandledRejectionError } from '../errors';
 import type { Workflow } from './interface';
 import type { WorkflowBundleWithSourceMapAndFilename } from './workflow-worker-thread/input';
 
-import { isBunPre1_4 } from './bun';
-
 // Best effort to catch unhandled rejections from workflow code.
 // We crash the thread if we cannot find the culprit.
 export function setUnhandledRejectionHandler(getWorkflowByRunId: (runId: string) => BaseVMWorkflow | undefined): void {
@@ -398,10 +396,6 @@ export abstract class BaseVMWorkflow implements Workflow {
 
   /**
    * Send request to the Workflow runtime's worker-interface
-   *
-   * In Bun versions before 1.4.0, `microtaskMode: afterEvaluate` is not supported. On those versions, immediately
-   * schedule a task after each call into the `workflowModule` so that microtasks from a specific workflow execute
-   * while the VM is still set up for that workflow.
    */
   public async activate(
     activation: coresdk.workflow_activation.IWorkflowActivation
@@ -450,7 +444,6 @@ export abstract class BaseVMWorkflow implements Workflow {
       const initWorkflowJob = activation.jobs.find((job) => job.initializeWorkflow != null)?.initializeWorkflow;
       if (initWorkflowJob) {
         this.workflowModule.initialize(initWorkflowJob);
-        if (isBunPre1_4) await new Promise(setImmediate);
       }
 
       const hasSignals = activation.jobs.some(({ signalWorkflow }) => signalWorkflow != null);
@@ -472,11 +465,7 @@ export abstract class BaseVMWorkflow implements Workflow {
         this.workflowModule.activate(
           coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs: rest })
         );
-        if (isBunPre1_4) {
-          await this.tryUnblockConditionsAndMicrotasksWithManualFlush();
-        } else {
-          this.tryUnblockConditionsAndMicrotasks();
-        }
+        this.tryUnblockConditionsAndMicrotasks();
       } else {
         const [signals, nonSignals] = partition(
           nonPatches,
@@ -492,15 +481,10 @@ export abstract class BaseVMWorkflow implements Workflow {
             coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs }),
             batchIndex++
           );
-          if (isBunPre1_4) {
-            await this.tryUnblockConditionsAndMicrotasksWithManualFlush();
-          } else {
-            this.tryUnblockConditionsAndMicrotasks();
-          }
+          this.tryUnblockConditionsAndMicrotasks();
         }
       }
 
-      if (isBunPre1_4) await new Promise(setImmediate);
       const completion = this.workflowModule.concludeActivation();
 
       // Give unhandledRejection handler a chance to be triggered.
@@ -533,9 +517,7 @@ export abstract class BaseVMWorkflow implements Workflow {
       },
     }));
     this.workflowModule.activate(activation);
-    if (isBunPre1_4) await new Promise(setImmediate);
     const completion = this.workflowModule.concludeActivation();
-    if (isBunPre1_4) await new Promise(setImmediate);
     return completion;
   }
 
@@ -562,20 +544,6 @@ export abstract class BaseVMWorkflow implements Workflow {
    */
   protected tryUnblockConditionsAndMicrotasks(): void {
     for (;;) {
-      const numUnblocked = this.workflowModule.tryUnblockConditions();
-      if (numUnblocked === 0) break;
-    }
-  }
-
-  /**
-   * Same as `tryUnblockConditionsAndMicrotasks`, but not relying on `microtaskMode: afterEvaluate`.
-   *
-   * Instead of relying on microtasks being flushed by `microtaskMode`, await a `Promise` to give a chance for
-   * the microtasks to settle.
-   */
-  protected async tryUnblockConditionsAndMicrotasksWithManualFlush(): Promise<void> {
-    for (;;) {
-      await new Promise(setImmediate);
       const numUnblocked = this.workflowModule.tryUnblockConditions();
       if (numUnblocked === 0) break;
     }
