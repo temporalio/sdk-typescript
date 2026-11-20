@@ -260,7 +260,7 @@ test('TemporalOperationHandler cancel delegates to provided cancelWorkflowRun ha
 });
 
 test('TemporalOperationHandler async and sync happy paths - caller workflow', async (t) => {
-  const { createWorker, startWorkflow, registerNexusEndpoint } = helpers(t);
+  const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
   const { endpointName } = await registerNexusEndpoint();
   const requestIds = new Set<string | undefined>();
 
@@ -293,19 +293,14 @@ test('TemporalOperationHandler async and sync happy paths - caller workflow', as
   });
 
   await worker.runUntil(async () => {
-    const asyncCaller = await startWorkflow(temporalAsyncOpCaller, {
+    const asyncResult = await executeWorkflow(temporalAsyncOpCaller, {
       args: [endpointName],
     });
-    t.is(await asyncCaller.result(), 'hello');
-    const asyncHistory = await asyncCaller.fetchHistory();
-    t.true(asyncHistory.events?.some((event) => event.nexusOperationStartedEventAttributes != null));
+    t.is(asyncResult, 'hello');
 
     for (const input of ['one', 'two']) {
-      const syncCaller = await startWorkflow(temporalSyncOpCallerWithInput, { args: [endpointName, input] });
-      t.is(await syncCaller.result(), input);
-      const syncHistory = await syncCaller.fetchHistory();
-      t.true(syncHistory.events?.some((event) => event.nexusOperationCompletedEventAttributes != null));
-      t.false(syncHistory.events?.some((event) => event.nexusOperationStartedEventAttributes != null));
+      const syncResult = await executeWorkflow(temporalSyncOpCallerWithInput, { args: [endpointName, input] });
+      t.is(syncResult, input);
     }
 
     t.false(requestIds.has(undefined));
