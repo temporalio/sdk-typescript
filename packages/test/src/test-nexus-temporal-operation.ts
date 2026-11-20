@@ -43,6 +43,15 @@ test('TemporalOperationHandler infers correct output type from typed workflow fu
     },
   });
 
+  const directOp = new temporalnexus.TemporalOperationHandler({
+    async start(_client, input: string) {
+      return input;
+    },
+  });
+  const _directStringOp: nexus.OperationHandler<string, string> = directOp;
+  // @ts-expect-error - A direct string result does not satisfy a number output.
+  const _directNumberOp: nexus.OperationHandler<string, number> = directOp;
+
   const _explicitStringOp: nexus.OperationHandler<string, string> = new temporalnexus.TemporalOperationHandler<
     string,
     string

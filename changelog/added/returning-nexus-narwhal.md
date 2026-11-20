@@ -1,0 +1,1 @@
+`TemporalOperationHandler` start callbacks can return the output directly to complete a Nexus Operation synchronously. Explicit `TemporalOperationResult` values also work for synchronous or asynchronous results.
