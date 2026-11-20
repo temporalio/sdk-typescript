@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
+import * as inspector from 'node:inspector';
 import * as path from 'node:path';
 import * as vm from 'node:vm';
 import { EventEmitter, on } from 'node:events';
@@ -2476,26 +2477,30 @@ export function parseWorkflowCode(code: string, codePath?: string): WorkflowBund
     code = actualCode + fixedSourceMappingUrl;
   }
 
-  // Preloading the script makes breakpoints significantly more reliable and more responsive
-  let script: vm.Script | undefined = new vm.Script(code, { filename });
-  let context: any = vm.createContext({});
-  try {
-    // displayErrors: false keeps Node from formatting the stack of an error we ignore, which would parse and cache
-    // the bundle's source map.
-    script.runInContext(context, { displayErrors: false });
-  } catch (_e) {
-    // Context has not been properly configured, so eventual errors are possible. Just ignore at this point
-  }
+  // Preloading the script makes breakpoints significantly more reliable and more responsive. That only matters to a
+  // debugger, and the preload is expected to throw, which V8 treats as fatal under `--abort-on-uncaught-exception`
+  // because it can't see that the error is caught outside of the vm context.
+  if (inspector.url() !== undefined) {
+    let script: vm.Script | undefined = new vm.Script(code, { filename });
+    let context: any = vm.createContext({});
+    try {
+      // displayErrors: false keeps Node from formatting the stack of an error we ignore, which would parse and cache
+      // the bundle's source map.
+      script.runInContext(context, { displayErrors: false });
+    } catch (_e) {
+      // Context has not been properly configured, so eventual errors are possible. Just ignore at this point
+    }
 
-  // Keep these objects from GC long enough for debugger to complete parsing the source map and reporting locations
-  // to the node process. Otherwise, the debugger risks source mapping resolution errors, meaning breakpoints wont work.
-  setTimeoutUnref(10000).then(
-    () => {
-      script = undefined;
-      context = undefined;
-    },
-    () => void 0
-  );
+    // Keep these objects from GC long enough for debugger to complete parsing the source map and reporting locations
+    // to the node process. Otherwise, the debugger risks source mapping resolution errors, meaning breakpoints wont work.
+    setTimeoutUnref(10000).then(
+      () => {
+        script = undefined;
+        context = undefined;
+      },
+      () => void 0
+    );
+  }
 
   return { code, sourceMap, filename };
 }
