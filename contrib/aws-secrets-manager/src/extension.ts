@@ -95,8 +95,8 @@ export class SecretsManagerExtension implements ClientConfigExtension {
     const refreshIntervalMs = this.refreshIntervalMs();
     let maxStalenessMs =
       this.options.maxStaleness !== undefined ? msToNumber(this.options.maxStaleness) : DEFAULT_MAX_STALENESS_MS;
-    if (!(maxStalenessMs > 0)) {
-      maxStalenessMs = DEFAULT_MAX_STALENESS_MS;
+    if (Number.isNaN(maxStalenessMs) || maxStalenessMs < 0) {
+      throw new Error('maxStaleness must be a non-negative duration');
     }
     maxStalenessMs = Math.max(maxStalenessMs, refreshIntervalMs);
 

@@ -203,15 +203,24 @@ test.serial('refresh interval and max staleness', (t) => {
   try {
     delete process.env['SECRETS_MANAGER_TTL'];
     t.deepEqual(cacheSettings(load(API_KEY_PROFILE).plugin), [5 * 60_000, 24 * 3_600_000]);
-    t.deepEqual(cacheSettings(load(API_KEY_PROFILE, {}, { refreshInterval: '1m', maxStaleness: 0 }).plugin), [
-      60_000,
-      24 * 3_600_000,
-    ]);
-    // Max staleness is at least the refresh interval
+    t.deepEqual(
+      cacheSettings(load(API_KEY_PROFILE, {}, { refreshInterval: '1m', maxStaleness: '1h' }).plugin),
+      [60_000, 3_600_000]
+    );
+    // Max staleness is at least the refresh interval, including when it's 0
     t.deepEqual(cacheSettings(load(API_KEY_PROFILE, {}, { refreshInterval: '2h', maxStaleness: '1h' }).plugin), [
       2 * 3_600_000,
       2 * 3_600_000,
     ]);
+    t.deepEqual(
+      cacheSettings(load(API_KEY_PROFILE, {}, { refreshInterval: '1m', maxStaleness: 0 }).plugin),
+      [60_000, 60_000]
+    );
+    for (const maxStaleness of [-1, NaN]) {
+      t.throws(() => load(API_KEY_PROFILE, {}, { maxStaleness }), {
+        message: /maxStaleness must be a non-negative duration/,
+      });
+    }
     for (const refreshInterval of [-1, NaN, Infinity]) {
       t.throws(() => load(API_KEY_PROFILE, {}, { refreshInterval }), {
         message: /refreshInterval must be a finite, non-negative duration/,
