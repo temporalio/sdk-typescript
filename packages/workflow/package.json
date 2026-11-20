@@ -64,10 +64,6 @@
     "./internal/worker-interface": {
       "types": "./lib/worker-interface.d.ts",
       "default": "./lib/worker-interface.js"
-    },
-    "./lib/*": {
-      "types": "./lib/*.d.ts",
-      "default": "./lib/*.js"
     }
   },
   "scripts": {

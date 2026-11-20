@@ -8,7 +8,7 @@ import {
   searchAttributePayloadConverter,
   type Replace,
 } from '@temporalio/common/internal/internal-workflow';
-import { optionalTsToDate, requiredTsToDate } from '@temporalio/common/lib/time';
+import { optionalTsToDate, requiredTsToDate } from '@temporalio/common/time';
 import { decodeMapFromPayloads } from '@temporalio/common/internal/internal-non-workflow';
 import { temporal, google } from '@temporalio/proto';
 import type {

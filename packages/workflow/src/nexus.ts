@@ -6,7 +6,7 @@ import {
   type SerializationContext,
   toPayloadWithTypeInfo,
 } from '@temporalio/common';
-import { msOptionalToTs } from '@temporalio/common/lib/time';
+import { msOptionalToTs } from '@temporalio/common/time';
 import { type SystemNexusDataConverter, withSystemNexusPayloadConversion } from '@temporalio/common/internal/nexus';
 import {
   encodeSystemNexusEnvelopeBytes,

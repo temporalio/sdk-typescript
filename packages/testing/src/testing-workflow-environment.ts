@@ -9,7 +9,7 @@ import { Client, Connection } from '@temporalio/client';
 import { type InternalConnectionOptions, InternalConnectionOptionsSymbol } from '@temporalio/client/internal';
 import type { Duration } from '@temporalio/common';
 import { TypedSearchAttributes } from '@temporalio/common';
-import { msToNumber, msToTs, tsToMs } from '@temporalio/common/lib/time';
+import { msToNumber, msToTs, tsToMs } from '@temporalio/common/time';
 import type { NativeConnectionPlugin, NativeConnectionOptions } from '@temporalio/worker';
 import { NativeConnection, Runtime } from '@temporalio/worker';
 import { native } from '@temporalio/core-bridge';

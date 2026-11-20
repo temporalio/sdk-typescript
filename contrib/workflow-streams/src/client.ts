@@ -28,8 +28,8 @@ import {
   type Payload,
   type PayloadConverter,
 } from '@temporalio/common';
-import type { Duration } from '@temporalio/common/lib/time';
-import { msToNumber } from '@temporalio/common/lib/time';
+import type { Duration } from '@temporalio/common/time';
+import { msToNumber } from '@temporalio/common/time';
 import { decodePayloadWire, encodePayloadWire } from './codec';
 import { isPayload } from './is-payload';
 import type { PollInput, PollResult, WorkflowStreamItem, PublishEntry, PublishInput } from './types';

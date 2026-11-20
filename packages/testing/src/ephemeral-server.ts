@@ -1,5 +1,5 @@
 import type { Duration, SearchAttributeType, SearchAttributeKey } from '@temporalio/common';
-import { msToNumber } from '@temporalio/common/lib/time';
+import { msToNumber } from '@temporalio/common/time';
 import type { native } from '@temporalio/core-bridge';
 import pkg from './pkg';
 
