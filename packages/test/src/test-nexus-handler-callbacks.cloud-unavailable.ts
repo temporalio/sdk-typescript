@@ -350,7 +350,7 @@ test('on-complete operation can start an activity', async (t) => {
       OnCompleteRequest<{ value: string }, CallbackContext>,
       OnCompleteResponse
     >({
-      async start(_ctx, client, input) {
+      async start(client, input) {
         if (input.result.tag !== 'success') throw new Error('expected a successful result');
         return await client.typedActivity<typeof activities>().startActivity('recordCompletionActivity', {
           id: `on-complete-${input.sourceContext.label}`,
@@ -400,7 +400,7 @@ test('on-complete operation can start a workflow linked to the callback', async 
       OnCompleteRequest<{ value: string }, CallbackContext>,
       OnCompleteResponse
     >({
-      async start(_ctx, client, input) {
+      async start(client, input) {
         if (input.result.tag !== 'success') throw new Error('expected a successful result');
         return await client.startWorkflow(recordCompletion, {
           workflowId: `on-complete-${input.sourceContext.label}`,
