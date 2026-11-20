@@ -166,12 +166,18 @@ export class SecretCache {
 
   /**
    * Returns an entry's current value without waiting, and starts refreshing it in the background if
-   * it's due. The entry must already have a value.
+   * it's due.
    *
-   * The value is refreshed at most every `minRefreshIntervalMs`, and is kept if refreshing it fails,
-   * even past the max staleness.
+   * The value is refreshed at most every `minRefreshIntervalMs`. If refreshing fails, the current
+   * value keeps being returned until it's older than the max staleness, and then undefined is
+   * returned until a refresh succeeds.
+   *
+   * Since callers can't wait for a refresh, a value older than the max staleness is still returned
+   * until a refresh has actually been tried and failed. Otherwise callers would get no value while
+   * a healthy refresh is in progress, e.g. when the value was due for refresh right at the max
+   * staleness, or wasn't looked up at all for longer than that.
    */
-  getNow<T>(entry: CacheEntry<T>, minRefreshIntervalMs: number, tel: Telemetry): T {
+  getNow<T>(entry: CacheEntry<T>, minRefreshIntervalMs: number, tel: Telemetry): T | undefined {
     const now = this.now();
     if (
       entry.inFlight === undefined &&
@@ -181,7 +187,12 @@ export class SecretCache {
       // Failures are already logged and counted by the cache
       this.get(entry, tel).catch(() => undefined);
     }
-    return entry.value as T;
+    // No value, or it's older than the max staleness and a refresh tried since then failed
+    const expiresAt = entry.fetchedAt + this.maxStalenessMs;
+    if (entry.versionIds === undefined || (now >= expiresAt && (entry.failedAt ?? -Infinity) >= expiresAt)) {
+      return undefined;
+    }
+    return entry.value;
   }
 
   private baseTags(entry: CacheEntry<unknown>): MetricTags {
@@ -194,7 +205,9 @@ export class SecretCache {
     try {
       result = await this.fetch(entry);
     } catch (err) {
-      result = err as SecretFetchError;
+      // fetch only throws SecretFetchError, but anything else must still be recorded as a failed
+      // fetch rather than cached as the value
+      result = err instanceof SecretFetchError ? err : new SecretFetchError(errorMessage(err), 'other', { cause: err });
     }
     const latencyMs = this.now() - start;
 

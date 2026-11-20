@@ -8,7 +8,7 @@ import { loadClientConnectConfig } from '@temporalio/envconfig';
 import type { NativeConnection, NativeConnectionOptions } from '@temporalio/worker';
 import { NativeConnection as RealNativeConnection, Runtime } from '@temporalio/worker';
 import type { SecretCache } from '../cache';
-import { SecretFetchError } from '../cache';
+import { FAILED_REFRESH_RETRY_INTERVAL_MS, SecretFetchError } from '../cache';
 import type { SecretsManagerExtensionOptions } from '../extension';
 import { SecretsManagerExtension } from '../extension';
 import type { LogEntry } from './helpers';
@@ -212,9 +212,11 @@ test.serial('refresh interval and max staleness', (t) => {
       2 * 3_600_000,
       2 * 3_600_000,
     ]);
-    t.throws(() => load(API_KEY_PROFILE, {}, { refreshInterval: -1 }), {
-      message: /refreshInterval must not be negative/,
-    });
+    for (const refreshInterval of [-1, NaN, Infinity]) {
+      t.throws(() => load(API_KEY_PROFILE, {}, { refreshInterval }), {
+        message: /refreshInterval must be a finite, non-negative duration/,
+      });
+    }
 
     process.env['SECRETS_MANAGER_TTL'] = '0';
     t.deepEqual(cacheSettings(load(API_KEY_PROFILE).plugin)[0], 0);
@@ -378,6 +380,80 @@ test('NativeConnection API key is kept when a background refresh fails', async (
   await waitUntil(() => updates.length > updatesAfterFailure);
   t.deepEqual(new Set(updates), new Set(['key1']));
   close();
+});
+
+test.serial('NativeConnection API key is removed past max staleness', async (t) => {
+  logs.length = 0;
+  const secrets = new FakeSecrets({ id: 'key1' });
+  const { plugin } = load(API_KEY_PROFILE, {}, { secretsClient: secrets.client, refreshInterval: 0 });
+  plugin!.minRefreshIntervalMs = 20;
+  const cache = (plugin as any).cache as SecretCache;
+  let now = 0;
+  cache.now = () => now;
+  const { conn, updates, close } = fakeNativeConnection();
+  await plugin!.connectNative({}, async () => conn);
+
+  secrets.secrets.set('id', new Error('down'));
+  now += cache.maxStalenessMs + 1;
+  // NativeConnection can't unset its key, so it's set to an empty one
+  await waitUntil(() => updates[updates.length - 1] === '');
+  t.true(logs.some((l) => l.message === 'Removed client API key, no AWS Secrets Manager value within max staleness'));
+
+  // A successful refresh sets the key again
+  secrets.secrets.set('id', 'key2');
+  await waitUntil(() => updates[updates.length - 1] === 'key2');
+  close();
+});
+
+test.serial('NativeConnection API key is removed on an unexpected refresh error', async (t) => {
+  logs.length = 0;
+  const secrets = new FakeSecrets({ id: 'key1' });
+  const { plugin } = load(API_KEY_PROFILE, {}, { secretsClient: secrets.client, refreshInterval: 0 });
+  plugin!.minRefreshIntervalMs = 20;
+  const cache = (plugin as any).cache as SecretCache;
+  const now = cache.now;
+  const { conn, updates, close } = fakeNativeConnection();
+  await plugin!.connectNative({}, async () => conn);
+
+  // Not a fetch failure, so a bug in the cache
+  cache.now = () => {
+    throw new Error('bug');
+  };
+  await waitUntil(() => updates[updates.length - 1] === '');
+  t.true(logs.some((l) => l.message === 'Unexpected error refreshing client API key from AWS Secrets Manager'));
+
+  // Refreshing continues
+  cache.now = now;
+  secrets.secrets.set('id', 'key2');
+  await waitUntil(() => updates[updates.length - 1] === 'key2');
+  close();
+});
+
+test('Connection API key is removed past max staleness', async (t) => {
+  const secrets = new FakeSecrets({ id: 'key1' });
+  const { plugin } = load(API_KEY_PROFILE, {}, { secretsClient: secrets.client, refreshInterval: 0 });
+  plugin!.minRefreshIntervalMs = 20;
+  const cache = (plugin as any).cache as SecretCache;
+  let now = 0;
+  cache.now = () => now;
+  const { next, calls } = recordingNext<ConnectionOptions, Connection>({} as Connection);
+  await plugin!.connect({}, next);
+  const apiKey = calls[0]!.apiKey as () => string;
+  t.is(apiKey(), 'key1');
+
+  // Kept while refreshing, then an empty key sends no Authorization header once the refresh fails
+  secrets.secrets.set('id', new Error('down'));
+  now += cache.maxStalenessMs;
+  t.is(apiKey(), 'key1');
+  await waitUntil(() => cache.apiKey!.inFlight === undefined);
+  t.is(apiKey(), '');
+
+  // A successful refresh sets the key again
+  secrets.secrets.set('id', 'key2');
+  now += FAILED_REFRESH_RETRY_INTERVAL_MS;
+  t.is(apiKey(), '');
+  await waitUntil(() => cache.apiKey!.inFlight === undefined);
+  t.is(apiKey(), 'key2');
 });
 
 test('Connection API key is refreshed when used', async (t) => {

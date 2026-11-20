@@ -259,18 +259,37 @@ test('getNow returns the current value and refreshes in the background when due'
   await waitUntil(() => entry.inFlight === undefined);
   t.is(cache.getNow(entry, 1000, rec.telemetry), 'v2');
 
-  // A failed refresh keeps the current value, even past max staleness, and isn't retried until the
+  // A failed refresh keeps the current value up to the max staleness, and isn't retried until the
   // retry interval has passed
   fetcher.fail('key', new Error('down'));
-  clock.now += MAX_STALENESS_MS;
+  clock.now += 2000;
   t.is(cache.getNow(entry, 1000, rec.telemetry), 'v2');
   await waitUntil(() => entry.inFlight === undefined);
   t.is(cache.getNow(entry, 1000, rec.telemetry), 'v2');
   t.is(entry.inFlight, undefined);
-  clock.now += FAILED_REFRESH_RETRY_INTERVAL_MS;
-  cache.getNow(entry, 1000, rec.telemetry);
+
+  // Past the max staleness, the value is kept until a refresh started after then fails, after which
+  // there's no value, but refreshing continues
+  clock.now += MAX_STALENESS_MS;
+  t.is(cache.getNow(entry, 1000, rec.telemetry), 'v2');
   t.not(entry.inFlight, undefined);
   await waitUntil(() => entry.inFlight === undefined);
+  t.is(cache.getNow(entry, 1000, rec.telemetry), undefined);
+  t.is(entry.inFlight, undefined);
+  fetcher.set('key', 'v3', 'ver3');
+  clock.now += FAILED_REFRESH_RETRY_INTERVAL_MS;
+  t.is(cache.getNow(entry, 1000, rec.telemetry), undefined);
+  t.not(entry.inFlight, undefined);
+  await waitUntil(() => entry.inFlight === undefined);
+  t.is(cache.getNow(entry, 1000, rec.telemetry), 'v3');
+
+  // A value that wasn't looked up for longer than the max staleness is kept while it's refreshed
+  fetcher.set('key', 'v4', 'ver4');
+  clock.now += MAX_STALENESS_MS;
+  t.is(cache.getNow(entry, 1000, rec.telemetry), 'v3');
+  t.not(entry.inFlight, undefined);
+  await waitUntil(() => entry.inFlight === undefined);
+  t.is(cache.getNow(entry, 1000, rec.telemetry), 'v4');
 });
 
 test('bundled client cert and key', async (t) => {

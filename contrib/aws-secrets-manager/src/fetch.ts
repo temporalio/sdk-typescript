@@ -11,8 +11,9 @@ const LAMBDA_EXTENSION_TOKEN_HEADER = 'X-Aws-Parameters-Secrets-Token';
 const LAMBDA_EXTENSION_HOST = 'localhost';
 const DEFAULT_LAMBDA_EXTENSION_PORT = 2773;
 // Probing a local port is either accepted or refused almost immediately, so this only bounds
-// pathological cases
-const LAMBDA_EXTENSION_PROBE_TIMEOUT_MS = 100;
+// pathological cases. It's generous since the timeout runs on the event loop, which may be busy,
+// e.g. at startup.
+const LAMBDA_EXTENSION_PROBE_TIMEOUT_MS = 1000;
 
 const AWS_SDK_PACKAGE = '@aws-sdk/client-secrets-manager';
 

@@ -10,10 +10,10 @@ import type {
 } from '@temporalio/envconfig';
 import type { NativeConnection, NativeConnectionOptions } from '@temporalio/worker';
 import type { CacheEntry, SecretIDs } from './cache';
-import { FAILED_REFRESH_RETRY_INTERVAL_MS, hasTLS, SecretCache } from './cache';
+import { FAILED_REFRESH_RETRY_INTERVAL_MS, hasTLS, SecretCache, SecretFetchError } from './cache';
 import type { Fetcher } from './fetch';
 import { awsSdkAvailable, awsSdkMissingError, newDefaultFetcher, SDKFetcher } from './fetch';
-import { noopTelemetry, Telemetry } from './telemetry';
+import { FetchTimeoutError, noopTelemetry, Telemetry } from './telemetry';
 
 /**
  * The name of the extension, which is also its table key under `profile.<profile>.ext`.
@@ -117,8 +117,8 @@ export class SecretsManagerExtension implements ClientConfigExtension {
   private refreshIntervalMs(): number {
     if (this.options.refreshInterval !== undefined) {
       const ms = msToNumber(this.options.refreshInterval);
-      if (ms < 0) {
-        throw new Error('refreshInterval must not be negative');
+      if (!Number.isFinite(ms) || ms < 0) {
+        throw new Error('refreshInterval must be a finite, non-negative duration');
       }
       return ms;
     }
@@ -265,8 +265,10 @@ class SecretsManagerPlugin implements ClientConfigExtensionPlugin {
     if (entry !== undefined) {
       // Connection calls this before each request. It returns the cached key right away, and starts
       // fetching it again in the background when due, so a rotated key is picked up without
-      // reconnecting, and requests never wait on Secrets Manager.
-      resolved.apiKey = () => this.cache.getNow(entry, this.minRefreshIntervalMs, tel);
+      // reconnecting, and requests never wait on Secrets Manager. If the key is older than the max
+      // staleness and refreshing it fails, an empty key sends no Authorization header, so requests
+      // fail until a refresh succeeds instead of using the stale key indefinitely.
+      resolved.apiKey = () => this.cache.getNow(entry, this.minRefreshIntervalMs, tel) ?? '';
     }
     return next({ ...options, ...resolved } as ConnectionOptions);
   }
@@ -328,18 +330,21 @@ class SecretsManagerPlugin implements ClientConfigExtensionPlugin {
    * Keeps a native connection's API key up to date until it's closed or garbage collected.
    * `NativeConnection` only takes a static API key, so it's pushed to the connection when refreshed.
    */
-  private refreshAPIKey(ref: WeakRef<NativeConnection>, entry: CacheEntry<string>, apiKey: string, tel: Telemetry) {
+  private refreshAPIKey(ref: WeakRef<NativeConnection>, entry: CacheEntry<string>, initialKey: string, tel: Telemetry) {
     const intervalMs = Math.max(this.cache.refreshIntervalMs, this.minRefreshIntervalMs);
+    // Undefined while removed
+    let apiKey: string | undefined = initialKey;
 
     // Returns false if the connection is gone or closed. Not held across awaits, so that the
-    // connection can be collected.
-    const setAPIKey = async (key: string): Promise<boolean> => {
+    // connection can be collected. NativeConnection can't unset its key, so a removed key is set
+    // to an empty one, which isn't a usable credential.
+    const setAPIKey = async (key: string | undefined): Promise<boolean> => {
       const conn = ref.deref();
       if (conn === undefined) {
         return false;
       }
       try {
-        await conn.setApiKey(key);
+        await conn.setApiKey(key ?? '');
         return true;
       } catch {
         return false;
@@ -347,33 +352,72 @@ class SecretsManagerPlugin implements ClientConfigExtensionPlugin {
     };
 
     const schedule = () => {
-      // Retry sooner if the last refresh failed
-      const delayMs = entry.failedAt !== undefined ? this.minRefreshIntervalMs : intervalMs;
+      // Retry sooner if the last refresh failed or the key was removed
+      const delayMs = entry.failedAt !== undefined || apiKey === undefined ? this.minRefreshIntervalMs : intervalMs;
       // Unref'd so that it doesn't keep the process alive
       setTimeout(() => void tick(), Math.min(delayMs, MAX_TIMER_DELAY_MS)).unref();
     };
 
-    const tick = async () => {
+    // Returns whether to keep refreshing
+    const refresh = async (): Promise<boolean> => {
       // Setting the current key detects a closed connection before fetching for it
       if (!(await setAPIKey(apiKey))) {
-        return;
+        return false;
       }
-      let newKey: string;
+      let newKey: string | undefined;
+      let error: unknown;
       try {
         newKey = await this.cache.get(entry, tel);
-      } catch {
-        // Already logged and counted by the cache, and the current key keeps being used
-        schedule();
-        return;
-      }
-      if (newKey !== apiKey) {
-        if (!(await setAPIKey(newKey))) {
-          return;
+      } catch (err) {
+        // Expected failures are already counted by the cache, and are only thrown when there's no
+        // value within the max staleness, so stop using the current key instead of using it
+        // indefinitely. Calls fail until a refresh succeeds. Anything else is a bug, but is still
+        // treated as having no usable key, rather than letting refreshing stop and keep the current
+        // key forever.
+        if (!(err instanceof SecretFetchError || err instanceof FetchTimeoutError)) {
+          tel.record(() =>
+            tel.logger?.error('Unexpected error refreshing client API key from AWS Secrets Manager', {
+              error: err,
+            })
+          );
         }
-        apiKey = newKey;
+        newKey = undefined;
+        error = err;
+      }
+      if (newKey === apiKey) {
+        return true;
+      }
+      if (!(await setAPIKey(newKey))) {
+        return false;
+      }
+      apiKey = newKey;
+      if (newKey === undefined) {
+        tel.record(() =>
+          tel.logger?.warn('Removed client API key, no AWS Secrets Manager value within max staleness', {
+            maxStalenessMs: this.cache.maxStalenessMs,
+            error: error instanceof Error ? error.message : String(error),
+          })
+        );
+      } else {
         tel.record(() => tel.logger?.debug('Updated client API key from AWS Secrets Manager'));
       }
-      schedule();
+      return true;
+    };
+
+    const tick = async () => {
+      let keepRefreshing: boolean;
+      try {
+        keepRefreshing = await refresh();
+      } catch (err) {
+        // Shouldn't happen, but keep refreshing rather than stop silently or reject unhandled
+        tel.record(() =>
+          tel.logger?.error('Unexpected error refreshing client API key from AWS Secrets Manager', { error: err })
+        );
+        keepRefreshing = true;
+      }
+      if (keepRefreshing) {
+        schedule();
+      }
     };
 
     schedule();
