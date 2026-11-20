@@ -1,8 +1,11 @@
+import { setTimeout } from 'timers/promises';
 import * as nexus from 'nexus-rpc';
-import { NexusOperationFailure, TimeoutFailure, TimeoutType } from '@temporalio/common';
+import { CancelledFailure, NexusOperationFailure, TimeoutFailure, TimeoutType } from '@temporalio/common';
 import { WorkflowFailedError } from '@temporalio/client';
+import { operationInfo, TemporalOperationHandler, TemporalOperationResult } from '@temporalio/nexus';
 import * as workflow from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
+import { waitUntil } from './helpers';
 
 const test = makeTestFunction({ workflowsPath: __filename });
 
@@ -121,4 +124,56 @@ test('startToCloseTimeout fires when async Nexus operation never completes', asy
     return t.fail(`Expected TimeoutFailure cause, got: ${err.cause.cause}`);
   }
   t.is(err.cause.cause.timeoutType, TimeoutType.START_TO_CLOSE);
+});
+
+const invocationTimeoutService = nexus.service('nexus-invocation-timeout-test-service', {
+  stall: nexus.operation<void, void>(),
+});
+
+export async function invocationTimeoutCallerWorkflow(endpoint: string): Promise<void> {
+  const client = workflow.createNexusServiceClient({ endpoint, service: invocationTimeoutService });
+  await client.executeOperation('stall', undefined, { scheduleToCloseTimeout: '3s' });
+}
+
+test('the Nexus task timeout aborts the handler invocation signal', async (t) => {
+  const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
+  const { endpointName } = await registerNexusEndpoint();
+  let finished = false;
+  let cancellationReason: Error | undefined;
+  const worker = await createWorker({
+    nexusServices: [
+      nexus.serviceHandler(invocationTimeoutService, {
+        stall: new TemporalOperationHandler<void, void>({
+          async start() {
+            const { cancellationSignal } = operationInfo();
+            t.false(cancellationSignal.aborted);
+            try {
+              await setTimeout(5000, undefined, { signal: cancellationSignal });
+              return TemporalOperationResult.sync(undefined);
+            } catch (err) {
+              cancellationReason = cancellationSignal.reason;
+              t.is((err as Error).cause, cancellationReason);
+              t.true(cancellationSignal.aborted);
+              t.is(
+                t.throws(() => cancellationSignal.throwIfAborted()),
+                cancellationReason
+              );
+              throw cancellationReason;
+            } finally {
+              finished = true;
+            }
+          },
+        }),
+      }),
+    ],
+  });
+
+  await worker.runUntil(async () => {
+    await t.throwsAsync(executeWorkflow(invocationTimeoutCallerWorkflow, { args: [endpointName] }), {
+      instanceOf: WorkflowFailedError,
+    });
+    await waitUntil(async () => finished, 6000);
+    t.true(cancellationReason instanceof CancelledFailure);
+    t.is(cancellationReason?.message, 'TIMED_OUT');
+  });
 });

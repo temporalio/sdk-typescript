@@ -11,8 +11,6 @@ export {
   metricMeter,
   operationInfo,
   type OperationInfo,
-  type TemporalCancelOperationContext,
-  type TemporalStartOperationContext,
 } from './context';
 
 export {
