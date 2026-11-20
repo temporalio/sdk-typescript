@@ -53,10 +53,10 @@ extension is always enabled, so no code changes are needed:
 
 Secrets are fetched through the
 [AWS Parameters and Secrets Lambda Extension](https://docs.aws.amazon.com/secretsmanager/latest/userguide/retrieving-secrets_lambda.html)
-if the function has it. Otherwise they are fetched directly with the AWS SDK for JavaScript. Add
-`@aws-sdk/client-secrets-manager` to your function's dependencies to control its version; without it, the unpinned copy
-included in the Lambda Node.js runtime is used (see [Install](../../contrib/aws-secrets-manager#install) for bundling).
-Either way, secrets are cached across warm invocations. The Lambda execution role needs `secretsmanager:GetSecretValue`
+if the function has it. Otherwise they are fetched directly with the AWS SDK for JavaScript, which requires adding
+`@aws-sdk/client-secrets-manager` to your function's dependencies (see
+[Install](../../contrib/aws-secrets-manager#install) for bundling). Either way, secrets are cached across warm
+invocations. The Lambda execution role needs `secretsmanager:GetSecretValue`
 on the configured secrets. See the [`@temporalio/aws-secrets-manager` README](../../contrib/aws-secrets-manager) for the
 full set of options, validation rules, caching behavior, and observability metrics.
 

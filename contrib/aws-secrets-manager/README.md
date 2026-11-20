@@ -22,9 +22,7 @@ are fetched directly with the AWS SDK, which requires
 npm install @aws-sdk/client-secrets-manager
 ```
 
-In Lambda, the runtime's copy of the AWS SDK is used if the package isn't found, but its version can change with runtime
-updates. The package is loaded with a dynamic import, so when bundling, mark it as external and deploy it in
-`node_modules`.
+The package is loaded with a dynamic import, so when bundling, mark it as external and deploy it in `node_modules`.
 
 ## Usage
 
