@@ -1,5 +1,5 @@
 import type { Service as ProtobufService, Type as ProtobufType } from 'protobufjs';
-import type { Payload, SerializationContext, TypeInfo } from '@temporalio/common';
+import type { Payload, SerializationContext, StorageDriverTargetInfo, TypeInfo } from '@temporalio/common';
 import { defaultPayloadConverter, fromPayloadWithTypeInfo, METADATA_MESSAGE_TYPE_KEY } from '@temporalio/common';
 import { ProtobufBinaryPayloadConverter } from '@temporalio/common/lib/protobufs';
 import { type SystemNexusDataConverter, withSystemNexusPayloadConversion } from '@temporalio/common/internal/nexus';
@@ -7,6 +7,7 @@ import {
   decode,
   decodeSystemNexusEnvelopeBytes,
   SYSTEM_NEXUS_CONTEXT_METADATA_KEY,
+  SYSTEM_NEXUS_STORAGE_TARGET_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE,
 } from '@temporalio/common/internal/internal-workflow';
@@ -86,6 +87,7 @@ export function fromSystemNexusPayload(
 export interface EncodedSystemNexusInput {
   payload: Payload;
   context: SerializationContext | undefined;
+  storageTarget: StorageDriverTargetInfo | undefined;
 }
 
 /** Converts the isolate JSON envelope to the protobuf-binary server envelope. */
@@ -99,8 +101,12 @@ export async function encodeSystemNexusInput(
   if (payload == null) return undefined;
   const definition = requireSystemOperation(service, operation);
   const metadataContext = contextFromMetadata(payload);
+  const storageTarget = storageTargetFromMetadata(payload);
   if (definition.serializationContext != null && metadataContext == null) {
     throw new TypeError('missing System Nexus serialization context metadata');
+  }
+  if (definition.storageTarget != null && storageTarget == null) {
+    throw new TypeError('missing System Nexus storage target metadata');
   }
   const context = metadataContext ?? workflowContext;
   const properties = decodeSystemNexusEnvelopeBytes(defaultPayloadConverter.fromPayload(payload)) as Record<
@@ -113,7 +119,7 @@ export async function encodeSystemNexusInput(
   if (encoded == null) throw new Error('failed to encode System Nexus protobuf envelope');
   encoded.metadata ??= {};
   encoded.metadata[SYSTEM_NEXUS_PAYLOAD_METADATA_KEY] = SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE;
-  return { payload: encoded, context };
+  return { payload: encoded, context, storageTarget };
 }
 
 /** Applies a payload transformation to values nested in a protobuf-binary System Nexus envelope. */
@@ -154,6 +160,30 @@ export async function visitNexusTask<Ctx>(task: coresdk.nexus.INexusTask, option
   // The start operation payload is the only payload in a Nexus task, so walking the nested request covers the task.
   await visit(message, walkPayloadsInMessage, options);
   start.payload = encodeSystemNexusEnvelope(envelope, message);
+}
+
+function storageTargetFromMetadata(payload: Payload): StorageDriverTargetInfo | undefined {
+  const value = payload.metadata?.[SYSTEM_NEXUS_STORAGE_TARGET_METADATA_KEY];
+  if (value == null) return undefined;
+  try {
+    const target: unknown = JSON.parse(new TextDecoder().decode(value));
+    if (
+      target == null ||
+      typeof target !== 'object' ||
+      !('kind' in target) ||
+      (target.kind !== 'workflow' && target.kind !== 'activity') ||
+      !('namespace' in target) ||
+      typeof target.namespace !== 'string' ||
+      ['id', 'runId', 'type'].some(
+        (key) => key in target && typeof (target as Record<string, unknown>)[key] !== 'string'
+      )
+    ) {
+      throw new TypeError('invalid System Nexus storage target metadata');
+    }
+    return target as StorageDriverTargetInfo;
+  } catch {
+    throw new TypeError('invalid System Nexus storage target metadata');
+  }
 }
 
 function contextFromMetadata(payload: Payload): SerializationContext | undefined {

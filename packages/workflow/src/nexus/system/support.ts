@@ -70,6 +70,17 @@ export function signalWithStartWorkflowSerializationContext(
   };
 }
 
+export function signalWithStartWorkflowStorageTarget(
+  request: SignalWithStartWorkflowRequest
+): common.StorageDriverWorkflowInfo {
+  return {
+    kind: 'workflow',
+    namespace: request.namespace ?? workflowInfo().namespace,
+    id: request.id,
+    type: workflowFunctionName(request.workflow),
+  };
+}
+
 export function payloadFromProto(payload: temporal.api.common.v1.IPayload): common.Payload {
   return payload;
 }

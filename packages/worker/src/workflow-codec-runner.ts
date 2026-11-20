@@ -3,6 +3,7 @@ import type {
   NexusSerializationContext,
   PayloadCodec,
   SerializationContext,
+  StorageDriverTargetInfo,
   WorkflowSerializationContext,
 } from '@temporalio/common';
 import type { Decoded, Encoded, VisitOptions } from '@temporalio/common/internal/internal-non-workflow';
@@ -30,7 +31,13 @@ const MAX_CONCURRENT_CODEC_OPERATIONS = 20;
  */
 type PendingNexusContext =
   | { kind: 'nexus'; context: NexusSerializationContext }
-  | { kind: 'system-nexus'; service: string; operation: string; context: SerializationContext };
+  | {
+      kind: 'system-nexus';
+      service: string;
+      operation: string;
+      context: SerializationContext;
+      storageTarget?: StorageDriverTargetInfo;
+    };
 
 /**
  * Helper class for decoding Workflow activations and encoding Workflow completions.
@@ -73,6 +80,11 @@ export class WorkflowCodecRunner {
     const entry = seq == null ? undefined : this.pendingCompletionContexts.nexusOperation.get(seq);
     if (entry?.kind !== 'system-nexus') return undefined;
     return entry.context.type === 'nexus' ? undefined : entry.context;
+  }
+
+  public systemNexusOperationStorageTarget(seq: number | null | undefined): StorageDriverTargetInfo | undefined {
+    const entry = seq == null ? undefined : this.pendingCompletionContexts.nexusOperation.get(seq);
+    return entry?.kind === 'system-nexus' ? entry.storageTarget : undefined;
   }
 
   private consumeContext<TContext>(map: Map<number, TContext>, seq: number | null | undefined): TContext | undefined {
@@ -423,6 +435,7 @@ export class WorkflowCodecRunner {
           service: input.command.service!,
           operation: input.command.operation!,
           context: encoded.context ?? this.workflowContext,
+          storageTarget: encoded.storageTarget,
         });
       }
     }
