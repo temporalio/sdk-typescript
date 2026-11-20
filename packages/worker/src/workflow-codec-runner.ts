@@ -1,17 +1,18 @@
 import type {
   ActivitySerializationContext,
+  ExternalStorage,
   NexusSerializationContext,
   PayloadCodec,
   SerializationContext,
   WorkflowSerializationContext,
 } from '@temporalio/common';
-import type { Decoded, Encoded, VisitOptions } from '@temporalio/common/internal/internal-non-workflow';
+import type { ContextDeriver, Decoded, Encoded, VisitOptions } from '@temporalio/common/internal/internal-non-workflow';
 import {
   decode,
   encode,
+  externalStorageReferenceDecodeVisitOptions,
   limit,
   visit,
-  walkInitializeWorkflow,
   walkWorkflowActivation,
   walkWorkflowActivationCompletion,
 } from '@temporalio/common/internal/internal-non-workflow';
@@ -75,13 +76,119 @@ export class WorkflowCodecRunner {
     return entry.context.type === 'nexus' ? undefined : entry.context;
   }
 
-  private consumeContext<TContext>(map: Map<number, TContext>, seq: number | null | undefined): TContext | undefined {
+  /** Looks up a pending context, removing it when `take` is set because its command has resolved. */
+  private pendingContext<TContext>(
+    map: Map<number, TContext>,
+    seq: number | null | undefined,
+    take: boolean
+  ): TContext | undefined {
     if (seq == null) return undefined;
     const context = map.get(seq);
-    if (context !== undefined) {
+    if (context !== undefined && take) {
       map.delete(seq);
     }
     return context;
+  }
+
+  /**
+   * Derives the serialization context of each payload in an activation. When `take` is set, each
+   * pending context is removed once its command resolves.
+   */
+  private activationContextDeriver(
+    take: boolean,
+    systemResultContexts: Map<number, SerializationContext>
+  ): ContextDeriver<SerializationContext | undefined> {
+    let previousRun: { outcome: Set<object>; context: NexusSerializationContext } | undefined;
+    return (message, typeName, context) => {
+      if (previousRun?.outcome.has(message)) return previousRun.context;
+      switch (typeName) {
+        case 'coresdk.workflow_activation.InitializeWorkflow': {
+          const init = message as coresdk.workflow_activation.IInitializeWorkflow;
+          const nexusContext = nexusSerializationContextFromProto(init.propagatedNexusSerializationContext);
+          if (nexusContext != null) {
+            const outcome = [init.continuedFailure, init.lastCompletionResult].filter((m) => m != null);
+            previousRun = { outcome: new Set<object>(outcome), context: nexusContext };
+          }
+          return context;
+        }
+        case 'coresdk.workflow_activation.ResolveActivity':
+          return this.pendingContext(
+            this.pendingCompletionContexts.activity,
+            (message as coresdk.workflow_activation.IResolveActivity).seq,
+            take
+          );
+        case 'coresdk.workflow_activation.ResolveChildWorkflowExecution':
+          return this.pendingContext(
+            this.pendingCompletionContexts.childWorkflowComplete,
+            (message as coresdk.workflow_activation.IResolveChildWorkflowExecution).seq,
+            take
+          );
+        case 'coresdk.workflow_activation.ResolveChildWorkflowExecutionStart':
+          return this.pendingContext(
+            this.pendingCompletionContexts.childWorkflowStart,
+            (message as coresdk.workflow_activation.IResolveChildWorkflowExecutionStart).seq,
+            take
+          );
+        case 'coresdk.workflow_activation.ResolveSignalExternalWorkflow':
+          return this.pendingContext(
+            this.pendingCompletionContexts.signalWorkflow,
+            (message as coresdk.workflow_activation.IResolveSignalExternalWorkflow).seq,
+            take
+          );
+        case 'coresdk.workflow_activation.ResolveRequestCancelExternalWorkflow':
+          return this.pendingContext(
+            this.pendingCompletionContexts.cancelWorkflow,
+            (message as coresdk.workflow_activation.IResolveRequestCancelExternalWorkflow).seq,
+            take
+          );
+        case 'coresdk.workflow_activation.ResolveNexusOperationStart': {
+          const start = message as coresdk.workflow_activation.IResolveNexusOperationStart;
+          const seq = start.seq;
+          if (seq == null) return context;
+          const pending = this.pendingCompletionContexts.nexusOperation.get(seq);
+          if (take && start.failed != null) {
+            // A failed start is terminal: Core never sends a ResolveNexusOperation for it, so
+            // release the pending context here rather than leaving it to a resolution that will
+            // never arrive. Any other status only starts the operation, so the context is left
+            // in place for its eventual resolution to consume.
+            this.pendingCompletionContexts.nexusOperation.delete(seq);
+          }
+          return pending?.context ?? context;
+        }
+        case 'coresdk.workflow_activation.ResolveNexusOperation': {
+          const seq = (message as coresdk.workflow_activation.IResolveNexusOperation).seq;
+          return (
+            (seq != null ? systemResultContexts.get(seq) : undefined) ??
+            this.pendingContext(this.pendingCompletionContexts.nexusOperation, seq, take)?.context ??
+            context
+          );
+        }
+        default:
+          return context;
+      }
+    };
+  }
+
+  /**
+   * Decodes the activation's marked External Storage references in place, each with the context
+   * {@link decodeActivation} decodes that payload with, without consuming any pending context.
+   */
+  public async decodeActivationReferences(
+    activation: coresdk.workflow_activation.IWorkflowActivation,
+    externalStorage: ExternalStorage | undefined
+  ): Promise<void> {
+    if (this.codecs.length === 0) return;
+    await visit(
+      activation,
+      walkWorkflowActivation,
+      externalStorageReferenceDecodeVisitOptions({
+        externalStorage,
+        codecs: this.codecs,
+        skipHeaders: !this.codecHeaders,
+        deriveContext: this.activationContextDeriver(false, new Map()),
+        initialContext: this.workflowContext,
+      })
+    );
   }
 
   private activityContext(
@@ -149,22 +256,8 @@ export class WorkflowCodecRunner {
   ): Promise<Decoded<T>> {
     const decodedActivation = coresdk.workflow_activation.WorkflowActivation.fromObject(activation);
     const initializeWorkflow = decodedActivation.jobs?.find((job) => job.initializeWorkflow)?.initializeWorkflow;
-    // A retry or cron run gets the previous run's closing failure and result, which that run encoded
-    // with the Nexus context. They're split off here so they can be decoded with it.
-    let previousRunOutcome: coresdk.workflow_activation.InitializeWorkflow | undefined;
     if (initializeWorkflow != null) {
       this.nexusContext = nexusSerializationContextFromProto(initializeWorkflow.propagatedNexusSerializationContext);
-      if (
-        this.nexusContext != null &&
-        (initializeWorkflow.continuedFailure != null || initializeWorkflow.lastCompletionResult != null)
-      ) {
-        previousRunOutcome = coresdk.workflow_activation.InitializeWorkflow.create({
-          continuedFailure: initializeWorkflow.continuedFailure,
-          lastCompletionResult: initializeWorkflow.lastCompletionResult,
-        });
-        initializeWorkflow.continuedFailure = null;
-        initializeWorkflow.lastCompletionResult = null;
-      }
     }
     for (const job of decodedActivation.jobs ?? []) {
       const context = nexusSerializationContextFromProto(job.doUpdate?.propagatedNexusSerializationContext);
@@ -200,74 +293,13 @@ export class WorkflowCodecRunner {
       skipHeaders: !this.codecHeaders,
       skipSearchAttributes: true,
       limit: this.codecOperationLimit,
-      deriveContext: (message, typeName, context) => {
-        switch (typeName) {
-          case 'coresdk.workflow_activation.ResolveActivity':
-            return this.consumeContext(
-              this.pendingCompletionContexts.activity,
-              (message as coresdk.workflow_activation.IResolveActivity).seq
-            );
-          case 'coresdk.workflow_activation.ResolveChildWorkflowExecution':
-            return this.consumeContext(
-              this.pendingCompletionContexts.childWorkflowComplete,
-              (message as coresdk.workflow_activation.IResolveChildWorkflowExecution).seq
-            );
-          case 'coresdk.workflow_activation.ResolveChildWorkflowExecutionStart':
-            return this.consumeContext(
-              this.pendingCompletionContexts.childWorkflowStart,
-              (message as coresdk.workflow_activation.IResolveChildWorkflowExecutionStart).seq
-            );
-          case 'coresdk.workflow_activation.ResolveSignalExternalWorkflow':
-            return this.consumeContext(
-              this.pendingCompletionContexts.signalWorkflow,
-              (message as coresdk.workflow_activation.IResolveSignalExternalWorkflow).seq
-            );
-          case 'coresdk.workflow_activation.ResolveRequestCancelExternalWorkflow':
-            return this.consumeContext(
-              this.pendingCompletionContexts.cancelWorkflow,
-              (message as coresdk.workflow_activation.IResolveRequestCancelExternalWorkflow).seq
-            );
-          case 'coresdk.workflow_activation.ResolveNexusOperationStart': {
-            const start = message as coresdk.workflow_activation.IResolveNexusOperationStart;
-            const seq = start.seq;
-            if (seq == null) return context;
-            const pending = this.pendingCompletionContexts.nexusOperation.get(seq);
-            if (start.failed != null) {
-              // A failed start is terminal: Core never sends a ResolveNexusOperation for it, so
-              // release the pending context here rather than leaving it to a resolution that will
-              // never arrive. Any other status only starts the operation, so the context is left
-              // in place for its eventual resolution to consume.
-              this.pendingCompletionContexts.nexusOperation.delete(seq);
-            }
-            return pending?.context ?? context;
-          }
-          case 'coresdk.workflow_activation.ResolveNexusOperation': {
-            const seq = (message as coresdk.workflow_activation.IResolveNexusOperation).seq;
-            return (
-              (seq != null ? systemResultContexts.get(seq) : undefined) ??
-              this.consumeContext(this.pendingCompletionContexts.nexusOperation, seq)?.context ??
-              context
-            );
-          }
-          default:
-            return context;
-        }
-      },
+      deriveContext: this.activationContextDeriver(true, systemResultContexts),
     };
     await visit<coresdk.workflow_activation.IWorkflowActivation, SerializationContext | undefined>(
       decodedActivation,
       walkWorkflowActivation,
       { ...visitorOptions, initialContext: this.workflowContext }
     );
-    if (initializeWorkflow != null && previousRunOutcome != null) {
-      await visit<coresdk.workflow_activation.IInitializeWorkflow, SerializationContext | undefined>(
-        previousRunOutcome,
-        walkInitializeWorkflow,
-        { ...visitorOptions, initialContext: this.nexusContext }
-      );
-      initializeWorkflow.continuedFailure = previousRunOutcome.continuedFailure;
-      initializeWorkflow.lastCompletionResult = previousRunOutcome.lastCompletionResult;
-    }
     for (const output of systemOutputs) {
       output.result.completed = await decodeSystemNexusOutput(
         output.info.service,

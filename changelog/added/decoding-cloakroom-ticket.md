@@ -1,0 +1,1 @@
+**Experimental**: Workers and clients can now read External Storage reference payloads that are encoded with the configured payload codecs and marked with `__temporal_external_storage_reference` metadata.

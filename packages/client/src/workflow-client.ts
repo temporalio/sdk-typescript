@@ -40,6 +40,7 @@ import {
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
+  decodeExternalStorageReferences,
   decodeOptionalFailureToOptionalError,
   decodeOptionalSinglePayload,
   encodeMapToPayloads,
@@ -126,6 +127,7 @@ import {
   executionInfoFromRaw,
   extractWorkflowExecutionAlreadyStartedRunId,
   rethrowKnownErrorTypes,
+  workflowContextDeriver,
 } from './helpers';
 import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base-client';
 import { BaseClient, defaultBaseClientOptions } from './base-client';
@@ -983,6 +985,15 @@ export class WorkflowClient extends BaseClient {
       let res: temporal.api.workflowservice.v1.GetWorkflowExecutionHistoryResponse;
       try {
         res = await this.workflowService.getWorkflowExecutionHistory(req);
+        const serverContext = nexusSerializationContextFromProto(res.propagatedNexusSerializationContext);
+        if (serverContext != null) {
+          closeEventContext = serverContext;
+        } else if (!req.nextPageToken?.length) {
+          closeEventContext = context;
+        }
+        await decodeExternalStorageReferences(res, walkGetWorkflowExecutionHistoryResponse, this.dataConverter, {
+          initialContext: closeEventContext,
+        });
         await visit(
           res,
           walkGetWorkflowExecutionHistoryResponse,
@@ -993,12 +1004,6 @@ export class WorkflowClient extends BaseClient {
         );
       } catch (err) {
         this.rethrowGrpcError(err, 'Failed to get Workflow execution history', { workflowId, runId });
-      }
-      const serverContext = nexusSerializationContextFromProto(res.propagatedNexusSerializationContext);
-      if (serverContext != null) {
-        closeEventContext = serverContext;
-      } else if (!req.nextPageToken?.length) {
-        closeEventContext = context;
       }
       const events = res.history?.events;
 
@@ -1172,6 +1177,9 @@ export class WorkflowClient extends BaseClient {
         );
       }
       response = await this.workflowService.queryWorkflow(req);
+      await decodeExternalStorageReferences(response, walkQueryWorkflowResponse, this.dataConverter, {
+        initialContext: context,
+      });
       await visit(
         response,
         walkQueryWorkflowResponse,
@@ -1295,6 +1303,11 @@ export class WorkflowClient extends BaseClient {
       } while (
         response.stage < UpdateWorkflowExecutionLifecycleStage.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_ACCEPTED
       );
+      await decodeExternalStorageReferences(response, walkUpdateWorkflowExecutionResponse, this.dataConverter, {
+        initialContext:
+          outcomeSerializationContext(response) ??
+          this.workflowSerializationContext(input.workflowExecution.workflowId!),
+      });
       await visit(
         response,
         walkUpdateWorkflowExecutionResponse,
@@ -1396,6 +1409,12 @@ export class WorkflowClient extends BaseClient {
       }
       do {
         multiOpResp = await this.workflowService.executeMultiOperation(multiOpReq);
+        const multiOpUpdateResp = multiOpResp.responses?.[1]?.updateWorkflow;
+        await decodeExternalStorageReferences(multiOpResp, walkExecuteMultiOperationResponse, this.dataConverter, {
+          initialContext:
+            (multiOpUpdateResp != null ? outcomeSerializationContext(multiOpUpdateResp) : undefined) ??
+            this.workflowSerializationContext(input.workflowStartOptions.workflowId),
+        });
         await visit(
           multiOpResp,
           walkExecuteMultiOperationResponse,
@@ -1518,6 +1537,13 @@ export class WorkflowClient extends BaseClient {
     for (;;) {
       try {
         const response = await this.workflowService.pollWorkflowExecutionUpdate(req);
+        await decodeExternalStorageReferences(response, walkPollWorkflowExecutionUpdateResponse, this.dataConverter, {
+          initialContext:
+            outcomeSerializationContext(response) ??
+            (workflowExecution.workflowId
+              ? this.workflowSerializationContext(workflowExecution.workflowId)
+              : undefined),
+        });
         await visit(
           response,
           walkPollWorkflowExecutionUpdateResponse,
@@ -1850,6 +1876,9 @@ export class WorkflowClient extends BaseClient {
         namespace: this.options.namespace,
         execution: input.workflowExecution,
       });
+      await decodeExternalStorageReferences(response, walkDescribeWorkflowExecutionResponse, this.dataConverter, {
+        initialContext: this.workflowSerializationContext(input.workflowExecution.workflowId!),
+      });
       await visit(
         response,
         walkDescribeWorkflowExecutionResponse,
@@ -2154,6 +2183,9 @@ export class WorkflowClient extends BaseClient {
           query: input.query,
           nextPageToken,
           pageSize: input.pageSize,
+        });
+        await decodeExternalStorageReferences(response, walkListWorkflowExecutionsResponse, this.dataConverter, {
+          deriveContext: workflowContextDeriver(this.options.namespace),
         });
         await visit(
           response,

@@ -35,6 +35,7 @@ import {
 import {
   decodeArrayFromPayloads,
   decodeFromPayloadsAtIndex,
+  decodeExternalStorageReferences,
   decodeOptionalFailureToOptionalError,
   encodeToPayloadsWithContext,
   encodeUserMetadata,
@@ -461,6 +462,9 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
 
       try {
         const resp = await this.workflowService.pollActivityExecution(req);
+        await decodeExternalStorageReferences(resp, walkPollActivityExecutionResponse, this.dataConverter, {
+          initialContext: nexusSerializationContextFromProto(resp.propagatedNexusSerializationContext) ?? context,
+        });
         await visit(
           resp,
           walkPollActivityExecutionResponse,
@@ -523,6 +527,23 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
       if (!hasInfo(resp)) {
         throw new ServiceError('Missing info in describeActivityExecution response');
       }
+      const context: ActivitySerializationContext = {
+        type: 'activity',
+        namespace,
+        activityId: input.activityId,
+        isLocal: false,
+      };
+      // Input keeps the Activity context; the info and outcome use the caller-facing context.
+      const callerFacingContext =
+        nexusSerializationContextFromProto(resp.info.propagatedNexusSerializationContext) ?? context;
+      await decodeExternalStorageReferences(resp, walkDescribeActivityExecutionResponse, this.dataConverter, {
+        initialContext: context,
+        deriveContext: (_message, typeName, current) =>
+          typeName === 'temporal.api.activity.v1.ActivityExecutionInfo' ||
+          typeName === 'temporal.api.activity.v1.ActivityExecutionOutcome'
+            ? callerFacingContext
+            : current,
+      });
       await visit(
         resp,
         walkDescribeActivityExecutionResponse,
@@ -531,12 +552,6 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
           payloadCache: this.payloadCache,
         })
       );
-      const context: ActivitySerializationContext = {
-        type: 'activity',
-        namespace,
-        activityId: input.activityId,
-        isLocal: false,
-      };
       return buildActivityDescription(resp, this.dataConverter, context);
     } catch (err) {
       this.rethrowGrpcError(err, 'Failed to describe activity');
@@ -592,6 +607,7 @@ export class ActivityClient extends AsyncCompletionClient implements TypedActivi
             nextPageToken,
           });
 
+        await decodeExternalStorageReferences(resp, walkListActivityExecutionsResponse, this.dataConverter);
         await visit(
           resp,
           walkListActivityExecutionsResponse,

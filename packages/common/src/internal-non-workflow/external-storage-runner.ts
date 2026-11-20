@@ -31,7 +31,9 @@ import {
   decodeReferencePayload,
   encodeReferencePayload,
   externalStorageClaimCacheKey,
+  hasReferenceMarker,
   isReferencePayload,
+  undecodableReferenceError,
 } from './extstore-helpers';
 
 const PayloadProto = temporal.api.common.v1.Payload;
@@ -286,7 +288,11 @@ export class ExternalStorageRunner {
 
     const payloadsToRetrieve: RetrieveItem[] = [];
     for (const [i, payload] of payloads.entries()) {
-      if (!isReferencePayload(payload)) continue;
+      if (!isReferencePayload(payload)) {
+        // Still marked after the reference decode visit, which callers skip when there are no codecs
+        if (hasReferenceMarker(payload)) throw undecodableReferenceError();
+        continue;
+      }
       let decoded: ReturnType<typeof decodeReferencePayload>;
       try {
         decoded = decodeReferencePayload(payload);

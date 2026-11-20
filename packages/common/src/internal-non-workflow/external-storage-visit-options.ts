@@ -1,14 +1,19 @@
 /** Builds payload visitor options backed by one {@link ExternalStorageRunner} per visit. @module */
+import type { WalkEnv } from '@temporalio/proto/internal/payload-visitor.generated';
 import { unbounded } from '../concurrency/limit';
+import type { LoadedDataConverter } from '../converter/data-converter';
 import type { ExternalStorage, StorageDriverTargetInfo } from '../converter/extstore';
+import type { PayloadCodec } from '../converter/payload-codec';
+import type { SerializationContext } from '../converter/serialization-context';
 import { ExternalStorageNotConfiguredError } from '../errors';
 import type { Payload } from '../interfaces';
 import type { Logger } from '../logger';
 import type { PayloadCache } from '../payload-cache';
+import { decode } from './codec-helpers';
 import type { ExternalStorageMetricsAccumulator } from './external-storage-metrics';
 import { ExternalStorageRunner } from './external-storage-runner';
-import { isReferencePayload } from './extstore-helpers';
-import type { ContextDeriver, VisitOptions } from './payload-visitor';
+import { hasReferenceMarker, isReferencePayload, undecodableReferenceError } from './extstore-helpers';
+import { visit, type ContextDeriver, type VisitOptions } from './payload-visitor';
 
 /**
  * The storage target in scope at a given payload site during a store walk. It starts at
@@ -82,11 +87,12 @@ export interface ExternalStorageRetrieveVisitOptions {
 
 /**
  * Detection-only visit used when no External Storage runner is available: leaves every payload
- * untouched but throws {@link ExternalStorageNotConfiguredError} on the first reference payload.
+ * untouched but throws {@link ExternalStorageNotConfiguredError} on the first reference payload,
+ * marked or not.
  */
 function externalStorageReferenceDetectionVisitOptions(): VisitOptions<void> {
   const assertNoReference = (payloads: Payload[]): Payload[] => {
-    if (payloads.some(isReferencePayload)) {
+    if (payloads.some((payload) => isReferencePayload(payload) || hasReferenceMarker(payload))) {
       throw new ExternalStorageNotConfiguredError();
     }
     return payloads;
@@ -122,4 +128,101 @@ export function externalStorageRetrieveVisitOptions({
     limit: unbounded(),
     abortSignal,
   };
+}
+
+/** @internal @experimental */
+export interface ExternalStorageReferenceDecodeVisitOptions {
+  /** External Storage configuration, or `undefined` to reject marked reference payloads. */
+  externalStorage: ExternalStorage | undefined;
+  /** Payload codecs that encoded the references. */
+  codecs: PayloadCodec[];
+  /** Serialization context before any message is entered. */
+  initialContext?: SerializationContext;
+  /** Derives the serialization context the SDK decodes each message's payloads with. */
+  deriveContext?: ContextDeriver<SerializationContext | undefined>;
+  /** Matches the codec walk on this path: headers are skipped unless the codecs decode them. Defaults to `true`. */
+  skipHeaders?: boolean;
+}
+
+/**
+ * Must run before {@link externalStorageRetrieveVisitOptions}, which can only read decoded references.
+ * Skip this visit when there are no codecs, as {@link decodeExternalStorageReferences} does.
+ *
+ * References are decoded one at a time, as codecs are not run concurrently elsewhere.
+ *
+ * @internal
+ * @experimental
+ */
+export function externalStorageReferenceDecodeVisitOptions({
+  externalStorage,
+  codecs,
+  initialContext,
+  deriveContext,
+  skipHeaders = true,
+}: ExternalStorageReferenceDecodeVisitOptions): VisitOptions<SerializationContext | undefined> {
+  const decodeReferences = (payloads: Payload[], context: SerializationContext | undefined) =>
+    decodeReferencePayloads(payloads, codecs, context, externalStorage !== undefined);
+  return {
+    transformPayloads: decodeReferences,
+    transformPayload: (payload, context) => decodeReferences([payload], context).then((decoded) => decoded[0]!),
+    deriveContext,
+    initialContext,
+    skipHeaders,
+    skipSearchAttributes: true,
+  };
+}
+
+/**
+ * Decodes the encoded External Storage references in `message` with the data converter's codecs.
+ * Does nothing without codecs: there is nothing to decode, and the retrieve visit rejects a marked
+ * payload that is not a plain reference.
+ *
+ * @internal
+ * @experimental
+ */
+export async function decodeExternalStorageReferences<Root>(
+  message: Root,
+  walk: (
+    root: Root,
+    env: WalkEnv<SerializationContext | undefined>,
+    context: SerializationContext | undefined
+  ) => Promise<unknown>[],
+  dataConverter: Pick<LoadedDataConverter, 'externalStorage' | 'payloadCodecs'>,
+  options: Pick<ExternalStorageReferenceDecodeVisitOptions, 'initialContext' | 'deriveContext' | 'skipHeaders'> = {}
+): Promise<void> {
+  if (dataConverter.payloadCodecs.length === 0) return;
+  await visit(
+    message,
+    walk,
+    externalStorageReferenceDecodeVisitOptions({
+      externalStorage: dataConverter.externalStorage,
+      codecs: dataConverter.payloadCodecs,
+      ...options,
+    })
+  );
+}
+
+async function decodeReferencePayloads(
+  payloads: Payload[],
+  codecs: PayloadCodec[],
+  context: SerializationContext | undefined,
+  storageConfigured: boolean
+): Promise<Payload[]> {
+  const decoded: Payload[] = [];
+  for (const payload of payloads) {
+    if (!hasReferenceMarker(payload)) {
+      decoded.push(payload);
+      continue;
+    }
+    // Nothing could retrieve the reference, so fail before decoding it.
+    if (!storageConfigured) throw new ExternalStorageNotConfiguredError();
+    // The marker and externalPayloads stay on the payload the codec decodes. A codec must tolerate
+    // them, because codec servers receive payloads exactly as they appear in history.
+    const [reference] = await decode(codecs, [payload], context);
+    if (reference === undefined || !isReferencePayload(reference)) throw undecodableReferenceError();
+    decoded.push(
+      reference.externalPayloads?.length ? reference : { ...reference, externalPayloads: payload.externalPayloads }
+    );
+  }
+  return decoded;
 }
