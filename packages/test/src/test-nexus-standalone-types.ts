@@ -1,12 +1,17 @@
 import test from 'ava';
 import * as nexus from 'nexus-rpc';
+import { Client as ClientImpl, createCompletionCallback } from '@temporalio/client';
 import type {
   Client,
+  CompletionCallback,
+  ConnectionLike,
   GetNexusOperationHandleOptions,
   NexusOperationHandle,
   NexusOperationHandleDefinitionOptions,
 } from '@temporalio/client';
-import type { TypeInfo } from '@temporalio/common';
+import { defaultPayloadConverter, type RawValue, type SerializationContext, type TypeInfo } from '@temporalio/common';
+import type { temporal } from '@temporalio/proto';
+import type { OnCompleteRequest, OnCompleteResponse } from '@temporalio/nexus/notifications';
 
 interface MyInput {
   value: string;
@@ -14,6 +19,10 @@ interface MyInput {
 
 interface MyOutput {
   result: string;
+}
+
+interface CallbackContext {
+  label: string;
 }
 
 const myService = nexus.service('myService', {
@@ -290,4 +299,265 @@ test('Missing required id option produces type error', async (t) => {
     await nexusClient.executeOperation('mySyncOp', { value: 'hello' }, { scheduleToCloseTimeout: '10s' });
   }
   t.pass();
+});
+
+const notificationService = nexus.service('notificationService', {
+  onMyOutput: nexus.operation<OnCompleteRequest<MyOutput, CallbackContext>, OnCompleteResponse>({ name: 'OnMyOutput' }),
+  onAnything: nexus.operation<OnCompleteRequest<unknown, CallbackContext>, OnCompleteResponse>(),
+  onRawValue: nexus.operation<OnCompleteRequest<RawValue, CallbackContext>, OnCompleteResponse>(),
+  notOnComplete: nexus.operation<string, string>(),
+});
+
+test('completion callbacks must accept the operation output type', async (t) => {
+  async function _assertion() {
+    const nexusClient = client.nexus.createServiceClient({ endpoint: 'my-endpoint', service: myService });
+    const onMyOutput = createCompletionCallback({
+      service: notificationService,
+      operation: notificationService.operations.onMyOutput,
+      taskQueue: 'tq',
+      sourceContext: { label: 'a' },
+    });
+    const _typed: CompletionCallback<MyOutput> = onMyOutput;
+    const onAnything = createCompletionCallback({
+      service: notificationService,
+      operation: notificationService.operations.onAnything,
+      taskQueue: 'tq',
+      sourceContext: { label: 'a' },
+    });
+    const onRawValue = createCompletionCallback({
+      service: notificationService,
+      operation: notificationService.operations.onRawValue,
+      taskQueue: 'tq',
+      sourceContext: { label: 'a' },
+    });
+    const byName = createCompletionCallback({ service: 's', operation: 'o', taskQueue: 'tq', sourceContext: 1 });
+    const byKey: CompletionCallback<MyOutput> = createCompletionCallback({
+      service: notificationService,
+      operation: 'onMyOutput',
+      taskQueue: 'tq',
+      sourceContext: { label: 'a' },
+    });
+
+    await nexusClient.startOperation(
+      myService.operations.mySyncOp,
+      { value: 'v' },
+      {
+        id: 'op-1',
+        completionCallbacks: [onMyOutput, onAnything, onRawValue, byName, byKey],
+      }
+    );
+    await nexusClient.executeOperation('mySyncOp', { value: 'v' }, { id: 'op-1', completionCallbacks: [onMyOutput] });
+    await nexusClient.executeOperation('myOtherOp', 'v', {
+      id: 'op-1',
+      completionCallbacks: [onAnything, onRawValue, byName],
+    });
+    // @ts-expect-error callback accepts MyOutput but operation returns number
+    await nexusClient.executeOperation('myOtherOp', 'v', { id: 'op-1', completionCallbacks: [onMyOutput] });
+    const wrongOutput = { id: 'op-1', completionCallbacks: [onMyOutput] };
+    // @ts-expect-error callback accepts MyOutput but operation returns number
+    await nexusClient.startOperation(myService.operations.myOtherOp, 'v', wrongOutput);
+    const service = notificationService;
+    const wrongContext = { service, operation: service.operations.onMyOutput, taskQueue: 'tq', sourceContext: 'x' };
+    // @ts-expect-error source context must match the on-complete operation
+    createCompletionCallback(wrongContext);
+    const wrongRawContext = { service, operation: service.operations.onRawValue, taskQueue: 'tq', sourceContext: 'x' };
+    // @ts-expect-error source context must match the on-complete operation
+    createCompletionCallback(wrongRawContext);
+    const notOnComplete = { service, operation: service.operations.notOnComplete, taskQueue: 'tq', sourceContext: {} };
+    // @ts-expect-error operation must be an on-complete operation
+    createCompletionCallback(notOnComplete);
+    // @ts-expect-error source context must match the on-complete operation
+    createCompletionCallback({ service, operation: 'onMyOutput', taskQueue: 'tq', sourceContext: 'x' });
+    // @ts-expect-error operation key must name an on-complete operation
+    createCompletionCallback({ service, operation: 'notOnComplete', taskQueue: 'tq', sourceContext: {} });
+    // @ts-expect-error operation key must exist on the service
+    createCompletionCallback({ service, operation: 'missing', taskQueue: 'tq', sourceContext: { label: 'a' } });
+    // @ts-expect-error callback accepts MyOutput but operation returns number
+    await nexusClient.executeOperation('myOtherOp', 'v', { id: 'op-1', completionCallbacks: [byKey] });
+  }
+
+  t.pass();
+});
+
+test('completion callbacks for a union of operations must suit every operation', async (t) => {
+  const unionService = nexus.service('unionService', {
+    onString: nexus.operation<OnCompleteRequest<string, { a: string }>, OnCompleteResponse>(),
+    onNumber: nexus.operation<OnCompleteRequest<number, { b: number }>, OnCompleteResponse>(),
+    onAnyString: nexus.operation<OnCompleteRequest<RawValue, { a: string }>, OnCompleteResponse>(),
+    onBoolean: nexus.operation<OnCompleteRequest<MyOutput, boolean>, OnCompleteResponse>(),
+  });
+
+  async function _assertion(key: 'onString' | 'onNumber', stringKey: 'onString' | 'onAnyString') {
+    const service = unionService;
+    const contextForOne = { service, operation: key, taskQueue: 'tq', sourceContext: { a: 'x' } };
+    // @ts-expect-error source context must suit every operation in the union
+    createCompletionCallback(contextForOne);
+    const either = createCompletionCallback({
+      service,
+      operation: key,
+      taskQueue: 'tq',
+      sourceContext: { a: 'x', b: 1 },
+    });
+    // @ts-expect-error the callback may belong to the operation that accepts strings
+    const _number: CompletionCallback<number> = either;
+    // @ts-expect-error the callback may belong to the operation that accepts numbers
+    const _string: CompletionCallback<string> = either;
+    // A RawValue operation accepts any output, so only the other operation constrains the union
+    const _stringOnly: CompletionCallback<string> = createCompletionCallback({
+      service,
+      operation: stringKey,
+      taskQueue: 'tq',
+      sourceContext: { a: 'x' },
+    });
+    // A single operation keeps a union context such as boolean intact
+    const _boolean: CompletionCallback<MyOutput> = createCompletionCallback({
+      service,
+      operation: 'onBoolean',
+      taskQueue: 'tq',
+      sourceContext: true,
+    });
+  }
+
+  t.pass();
+});
+
+test('createCompletionCallback resolves names from definitions', (t) => {
+  t.deepEqual(
+    createCompletionCallback({
+      service: notificationService,
+      operation: notificationService.operations.onMyOutput,
+      taskQueue: 'tq',
+      sourceContext: { label: 'a' },
+    }),
+    {
+      service: 'notificationService',
+      operation: 'OnMyOutput',
+      taskQueue: 'tq',
+      sourceContext: { label: 'a' },
+      sourceContextType: undefined,
+    }
+  );
+  // Keys resolve to the operation name, which can differ from the key
+  t.deepEqual(
+    createCompletionCallback({
+      service: notificationService,
+      operation: 'onMyOutput',
+      taskQueue: 'tq',
+      sourceContext: { label: 'a' },
+    }),
+    {
+      service: 'notificationService',
+      operation: 'OnMyOutput',
+      taskQueue: 'tq',
+      sourceContext: { label: 'a' },
+      sourceContextType: undefined,
+    }
+  );
+  t.deepEqual(createCompletionCallback({ service: 's', operation: 'o', taskQueue: 'tq', sourceContext: null }), {
+    service: 's',
+    operation: 'o',
+    taskQueue: 'tq',
+    sourceContext: null,
+    sourceContextType: undefined,
+  });
+});
+
+test('createCompletionCallback rejects invalid arguments', (t) => {
+  // An operation from another service fails even when the names match
+  const lookalikeService = nexus.service('lookalikeService', {
+    onMyOutput: nexus.operation<OnCompleteRequest<MyOutput, CallbackContext>, OnCompleteResponse>({
+      name: 'OnMyOutput',
+    }),
+  });
+  t.throws(
+    () =>
+      createCompletionCallback({
+        service: lookalikeService,
+        operation: notificationService.operations.onMyOutput,
+        taskQueue: 'tq',
+        sourceContext: { label: 'a' },
+      }),
+    { instanceOf: TypeError, message: /not an operation of service lookalikeService/ }
+  );
+  // Inherited properties such as `constructor` are not operations
+  for (const operation of ['missing', 'constructor']) {
+    t.throws(
+      () =>
+        createCompletionCallback({
+          service: notificationService,
+          operation: operation as 'onMyOutput',
+          taskQueue: 'tq',
+          sourceContext: { label: 'a' },
+        }),
+      { instanceOf: TypeError, message: `Operation ${operation} is not an operation of service notificationService` }
+    );
+  }
+  for (const [service, operation, taskQueue] of [
+    ['', 'o', 'tq'],
+    ['s', '', 'tq'],
+    ['s', 'o', ''],
+  ]) {
+    t.throws(() => createCompletionCallback({ service, operation, taskQueue, sourceContext: 1 }), {
+      instanceOf: TypeError,
+      message: /must not be empty/,
+    });
+  }
+});
+
+test('completion callback source context is encoded with the started operation context', async (t) => {
+  const codecContexts: (SerializationContext | undefined)[] = [];
+  let request: temporal.api.workflowservice.v1.IStartNexusOperationExecutionRequest | undefined;
+  const connection = {
+    workflowService: {
+      startNexusOperationExecution: async (
+        req: temporal.api.workflowservice.v1.IStartNexusOperationExecutionRequest
+      ) => {
+        request = req;
+        return { runId: 'run-id' };
+      },
+    },
+    plugins: [],
+  } as unknown as ConnectionLike;
+  const recordingClient = new ClientImpl({
+    connection,
+    dataConverter: {
+      payloadCodecs: [
+        {
+          async encode(payloads, context) {
+            codecContexts.push(context);
+            return payloads;
+          },
+          async decode(payloads) {
+            return payloads;
+          },
+        },
+      ],
+    },
+  });
+
+  await recordingClient.nexus
+    .createServiceClient({ endpoint: 'source-endpoint', service: myService })
+    .startOperation(myService.operations.myOtherOp, 'input', {
+      id: 'op-1',
+      completionCallbacks: [
+        createCompletionCallback({
+          service: 'Notifications',
+          operation: 'OnComplete',
+          taskQueue: 'tq',
+          sourceContext: 'ctx',
+        }),
+      ],
+    });
+
+  const sourceContext: SerializationContext = {
+    type: 'nexus',
+    endpoint: 'source-endpoint',
+    service: 'myService',
+    operation: 'myOtherOp',
+  };
+  // One encode for the operation input, one for the callback source context
+  t.deepEqual(codecContexts, [sourceContext, sourceContext]);
+  const handler = request?.completionCallbacks?.[0]?.nexusHandler;
+  t.like(handler, { service: 'Notifications', operation: 'OnComplete', taskQueueName: 'tq' });
+  t.is(defaultPayloadConverter.fromPayload(handler!.sourceContext!), 'ctx');
 });

@@ -159,12 +159,12 @@ export interface NexusServiceClient<T extends nexus.ServiceDefinition> {
   startOperation<Op extends T['operations'][keyof T['operations']]>(
     operation: Op,
     input: nexus.OperationInput<Op>,
-    options: StartNexusOperationOptions
+    options: StartNexusOperationOptions<nexus.OperationOutput<Op>>
   ): Promise<NexusOperationHandle<nexus.OperationOutput<Op>>>;
   startOperation<K extends nexus.OperationKey<T['operations']>>(
     op: K,
     input: nexus.OperationInput<T['operations'][K]>,
-    options: StartNexusOperationOptions
+    options: StartNexusOperationOptions<nexus.OperationOutput<T['operations'][K]>>
   ): Promise<NexusOperationHandle<nexus.OperationOutput<T['operations'][K]>>>;
 
   /**
@@ -177,13 +177,13 @@ export interface NexusServiceClient<T extends nexus.ServiceDefinition> {
   executeOperation<Op extends T['operations'][keyof T['operations']]>(
     operation: Op,
     input: nexus.OperationInput<Op>,
-    options: StartNexusOperationOptions
+    options: StartNexusOperationOptions<nexus.OperationOutput<Op>>
   ): Promise<nexus.OperationOutput<Op>>;
 
   executeOperation<K extends nexus.OperationKey<T['operations']>>(
     op: K,
     input: nexus.OperationInput<T['operations'][K]>,
-    options: StartNexusOperationOptions
+    options: StartNexusOperationOptions<nexus.OperationOutput<T['operations'][K]>>
   ): Promise<nexus.OperationOutput<T['operations'][K]>>;
 }
 
@@ -240,7 +240,7 @@ export class NexusClient extends BaseClient {
     const startOperation = async <Op extends OperationReference<T>>(
       operation: Op,
       input: OperationInput<T, Op>,
-      options: StartNexusOperationOptions
+      options: StartNexusOperationOptions<OperationOutput<T, Op>>
     ): Promise<NexusOperationHandle<OperationOutput<T, Op>>> => {
       let operationName: string;
       let inputType: TypeInfo | undefined;
@@ -278,6 +278,7 @@ export class NexusClient extends BaseClient {
         idConflictPolicy: options.idConflictPolicy,
         searchAttributes: options.searchAttributes,
         headers: options.headers,
+        completionCallbacks: options.completionCallbacks,
         inputType,
         outputType,
       });
@@ -290,7 +291,7 @@ export class NexusClient extends BaseClient {
     const executeOperation = async <Op extends OperationReference<T>>(
       operation: Op,
       input: OperationInput<T, Op>,
-      options: StartNexusOperationOptions
+      options: StartNexusOperationOptions<OperationOutput<T, Op>>
     ): Promise<OperationOutput<T, Op>> => {
       const handle = await startOperation(operation, input, options);
       return await handle.result();
@@ -428,6 +429,22 @@ export class NexusClient extends BaseClient {
       searchAttributes,
       nexusHeader: input.headers ?? {},
       userMetadata,
+      // Callback source contexts use the started operation's serialization context, like the rest of the request.
+      completionCallbacks: await Promise.all(
+        (input.completionCallbacks ?? []).map(async (callback) => ({
+          nexusHandler: {
+            service: callback.service,
+            operation: callback.operation,
+            taskQueueName: callback.taskQueue,
+            sourceContext: await encodeToPayload(
+              this.dataConverter,
+              callback.sourceContext,
+              context,
+              callback.sourceContextType
+            ),
+          },
+        }))
+      ),
     };
     let res: temporal.api.workflowservice.v1.IStartNexusOperationExecutionResponse;
     try {
