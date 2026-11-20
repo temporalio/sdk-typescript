@@ -1719,7 +1719,7 @@ export class Worker {
                   };
             command.input = await transformEncodedSystemNexusEnvelope(command.service, command.operation, payload, {
               ...visitorOptions,
-              initialContext: initialTarget,
+              initialContext: workflowCodecRunner.systemNexusOperationStorageTarget(command.seq) ?? initialTarget,
             });
           }
         }

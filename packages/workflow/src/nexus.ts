@@ -4,6 +4,7 @@ import {
   type NexusSerializationContext,
   type PayloadConverter,
   type SerializationContext,
+  type StorageDriverTargetInfo,
   toPayloadWithTypeInfo,
 } from '@temporalio/common';
 import { msOptionalToTs } from '@temporalio/common/lib/time';
@@ -12,6 +13,7 @@ import {
   encodeSystemNexusEnvelopeBytes,
   makeProtoEnumConverters,
   SYSTEM_NEXUS_CONTEXT_METADATA_KEY,
+  SYSTEM_NEXUS_STORAGE_TARGET_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_KEY,
   SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE,
   TEMPORAL_SYSTEM_NEXUS_ENDPOINT,
@@ -254,7 +256,10 @@ async function startSystemNexusOperationWithSpecificInterceptors<Output>(
  * representation. Nested application values are handled by the generated
  * transfer-type converter while its scoped context is active.
  */
-function systemNexusOuterPayloadConverter(context: SerializationContext | undefined): PayloadConverter {
+function systemNexusOuterPayloadConverter(
+  context: SerializationContext | undefined,
+  storageTarget: StorageDriverTargetInfo | undefined
+): PayloadConverter {
   return {
     toPayload(value) {
       const payload = defaultPayloadConverter.toPayload(encodeSystemNexusEnvelopeBytes(value));
@@ -262,6 +267,11 @@ function systemNexusOuterPayloadConverter(context: SerializationContext | undefi
       payload.metadata[SYSTEM_NEXUS_PAYLOAD_METADATA_KEY] = SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE;
       if (context != null) {
         payload.metadata[SYSTEM_NEXUS_CONTEXT_METADATA_KEY] = new TextEncoder().encode(JSON.stringify(context));
+      }
+      if (storageTarget != null) {
+        payload.metadata[SYSTEM_NEXUS_STORAGE_TARGET_METADATA_KEY] = new TextEncoder().encode(
+          JSON.stringify(storageTarget)
+        );
       }
       return payload;
     },
@@ -394,7 +404,8 @@ function serializeNexusOperation(
     throw new TypeError(`unsupported System Nexus operation: ${service}/${operation}`);
   }
   const context = definition.serializationContext?.(input as any);
-  const outerPayloadConverter = systemNexusOuterPayloadConverter(context);
+  const storageTarget = definition.storageTarget?.(input as any);
+  const outerPayloadConverter = systemNexusOuterPayloadConverter(context, storageTarget);
   return {
     input: withSystemNexusPayloadConversion(dataConverter, context, () =>
       toPayloadWithTypeInfo(outerPayloadConverter, input, undefined, inputType)

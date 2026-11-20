@@ -1,11 +1,12 @@
 import { randomUUID } from 'crypto';
-import type { Payload, PayloadCodec, SerializationContext } from '@temporalio/common';
+import type { Payload, PayloadCodec, SerializationContext, StorageDriverSelectContext } from '@temporalio/common';
 import { defaultPayloadConverter, ExternalStorage } from '@temporalio/common';
 import { Client } from '@temporalio/client';
 import { ProtobufBinaryPayloadConverter } from '@temporalio/common/protobufs';
 import { isReferencePayload } from '@temporalio/common/internal/internal-non-workflow';
 import * as protoRoot from '@temporalio/proto';
-import { defineSignal, setHandler, signalWithStartWorkflow } from '@temporalio/workflow';
+import { condition, defineSignal, setHandler, signalWithStartWorkflow } from '@temporalio/workflow';
+import { Worker } from '@temporalio/worker';
 import type { WorkflowInterceptors } from '@temporalio/workflow';
 import { makeFakeDriver } from './extstore-fake-driver';
 import { helpers, makeTestFunction } from './helpers-integration';
@@ -191,6 +192,108 @@ test('signal-with-start invokes the generated public API from a workflow', async
     ?.workflowExecutionStartedEventAttributes?.header?.fields?.context;
   t.truthy(header, 'the interceptor header should reach the target workflow');
   t.is(defaultPayloadConverter.fromPayload(header!), 'context-header');
+});
+
+async function systemNexusStorageTarget(input: string): Promise<string[]> {
+  const signals: string[] = [];
+  setHandler(systemNexusSignal, (value) => {
+    signals.push(value);
+  });
+  await condition(() => signals.length === 2);
+  return [input, ...signals];
+}
+
+export async function systemNexusStorageTargetA(input: string): Promise<string[]> {
+  return systemNexusStorageTarget(input);
+}
+
+export async function systemNexusStorageTargetB(input: string): Promise<string[]> {
+  return systemNexusStorageTarget(input);
+}
+
+export async function systemNexusStorageCaller(ids: string[], taskQueue: string): Promise<void> {
+  for (let round = 0; round < 2; round++) {
+    await Promise.all(
+      [systemNexusStorageTargetA, systemNexusStorageTargetB].map((target, index) =>
+        signalWithStartWorkflow({
+          workflow: target,
+          args: [`start-${index}`],
+          id: ids[index]!,
+          taskQueue,
+          signal: systemNexusSignal,
+          signalArgs: [`signal-${index}-${round}`],
+        })
+      )
+    );
+  }
+}
+
+test('concurrent signal-with-start destinations select their own storage drivers and replay', async (t) => {
+  const { createWorker, taskQueue } = helpers(t);
+  const ids: string[] = [randomUUID(), randomUUID()];
+  const drivers = [makeFakeDriver({ name: 'target-a' }), makeFakeDriver({ name: 'target-b' })];
+  const selections: StorageDriverSelectContext[] = [];
+  const externalStorage = new ExternalStorage({
+    drivers,
+    payloadSizeThreshold: 1,
+    driverSelector(context) {
+      selections.push(context);
+      return drivers[ids.indexOf(context.target?.id ?? '')] ?? null;
+    },
+  });
+  const worker = await createWorker({ dataConverter: { externalStorage }, payloadCache: false });
+  const client = new Client({
+    connection: t.context.env.connection,
+    namespace: t.context.env.client.options.namespace,
+    dataConverter: { externalStorage },
+    payloadCache: false,
+  });
+  const caller = await client.workflow.start(systemNexusStorageCaller, {
+    taskQueue,
+    workflowId: randomUUID(),
+    args: [ids, taskQueue],
+  });
+  await worker.runUntil(async () => {
+    await caller.result();
+    for (const [index, id] of ids.entries()) {
+      t.deepEqual(await client.workflow.getHandle(id).result(), [
+        `start-${index}`,
+        `signal-${index}-0`,
+        `signal-${index}-1`,
+      ]);
+    }
+  });
+  for (const [index, driver] of drivers.entries()) {
+    const expected = {
+      kind: 'workflow',
+      namespace: client.options.namespace,
+      id: ids[index],
+      type: index === 0 ? 'systemNexusStorageTargetA' : 'systemNexusStorageTargetB',
+    };
+    const inputCalls = driver.storeCalls.filter((call) =>
+      call.payloads.some((payload) => {
+        const value = defaultPayloadConverter.fromPayload(payload);
+        return typeof value === 'string' && (value.startsWith('start-') || value.startsWith('signal-'));
+      })
+    );
+    t.true(inputCalls.length > 0);
+    for (const call of inputCalls) {
+      t.deepEqual(call.context.target, expected);
+      t.is(call.context.namespace, client.options.namespace);
+    }
+    t.true(driver.retrieveCalls.length > 0);
+  }
+  for (const context of selections) t.is(context.namespace, client.options.namespace);
+  for (const handle of [caller, ...ids.map((id) => client.workflow.getHandle(id))]) {
+    await Worker.runReplayHistory(
+      {
+        workflowBundle: t.context.workflowBundle,
+        dataConverter: { externalStorage },
+        payloadCache: false,
+      },
+      await handle.fetchHistory()
+    );
+  }
 });
 
 test('signal-with-start externally stores payloads nested in its request envelope', async (t) => {

@@ -1,5 +1,5 @@
 import test from 'ava';
-import type { Payload, SerializationContext } from '@temporalio/common';
+import type { Payload, SerializationContext, StorageDriverTargetInfo } from '@temporalio/common';
 import { ApplicationFailure, defaultFailureConverter, defaultPayloadConverter } from '@temporalio/common';
 import { ProtobufBinaryPayloadConverter } from '@temporalio/common/protobufs';
 import {
@@ -16,13 +16,53 @@ function payload(label: string): Payload {
   return defaultPayloadConverter.toPayload(makeContextTrace(label));
 }
 
-function systemNexusEnvelope(value: unknown, context?: SerializationContext): Payload {
+function systemNexusEnvelope(
+  value: unknown,
+  context?: SerializationContext,
+  storageTarget?: StorageDriverTargetInfo
+): Payload {
   const envelope = defaultPayloadConverter.toPayload(encodeSystemNexusEnvelopeBytes(value))!;
   envelope.metadata ??= {};
   envelope.metadata.__temporal_system_payload = new Uint8Array([116, 114, 117, 101]);
   if (context != null) envelope.metadata.__temporal_system_context = new TextEncoder().encode(JSON.stringify(context));
+  const target =
+    storageTarget ??
+    (context?.type === 'workflow'
+      ? { kind: 'workflow', namespace: context.namespace, id: context.workflowId }
+      : undefined);
+  if (target != null) {
+    envelope.metadata.__temporal_system_storage_target = new TextEncoder().encode(JSON.stringify(target));
+  }
   return envelope;
 }
+
+test('concurrent System Nexus operations retain their own storage destinations', async (t) => {
+  const runner = new WorkflowCodecRunner([], {
+    type: 'workflow',
+    namespace: 'worker-ns',
+    workflowId: 'caller-id',
+  });
+  const targets: StorageDriverTargetInfo[] = [
+    { kind: 'workflow', namespace: 'target-ns-a', id: 'target-a', type: 'TargetA' },
+    { kind: 'workflow', namespace: 'target-ns-b', id: 'target-b', type: 'TargetB' },
+  ];
+  await runner.encodeCompletion({
+    successful: {
+      commands: targets.map((target, index) => ({
+        scheduleNexusOperation: {
+          seq: index + 1,
+          endpoint: '__temporal_system',
+          service: 'temporal.api.workflowservice.v1.WorkflowService',
+          operation: 'SignalWithStartWorkflowExecution',
+          input: systemNexusEnvelope({}, targetContext, target),
+        },
+      })),
+    },
+  });
+  t.deepEqual(runner.systemNexusOperationStorageTarget(1), targets[0]);
+  t.deepEqual(runner.systemNexusOperationStorageTarget(2), targets[1]);
+  t.is(runner.systemNexusOperationStorageTarget(3), undefined);
+});
 
 function traceFromPayload(payload: Payload | null | undefined): string[] {
   return payload ? defaultPayloadConverter.fromPayload<{ trace: string[] }>(payload).trace : [];

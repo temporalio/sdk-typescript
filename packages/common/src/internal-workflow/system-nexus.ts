@@ -2,6 +2,7 @@
 export const SYSTEM_NEXUS_PAYLOAD_METADATA_KEY = '__temporal_system_payload';
 export const SYSTEM_NEXUS_PAYLOAD_METADATA_VALUE = new Uint8Array([116, 114, 117, 101]); // "true"
 export const SYSTEM_NEXUS_CONTEXT_METADATA_KEY = '__temporal_system_context';
+export const SYSTEM_NEXUS_STORAGE_TARGET_METADATA_KEY = '__temporal_system_storage_target';
 
 const SYSTEM_NEXUS_BYTES_KEY = '__temporal_system_bytes';
 
