@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./lib",
+    "rootDir": "./src"
+  },
+  "references": [
+    { "path": "../../packages/client" },
+    { "path": "../../packages/common" },
+    { "path": "../../packages/envconfig" },
+    { "path": "../../packages/worker" }
+  ],
+  "include": ["./src/**/*.ts"]
+}
