@@ -11,15 +11,30 @@ permissions:
   actions: write
 
 jobs:
+  workflow-plugin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+      - uses: ./.github/actions/compile-workflow-plugin
+        with:
+          platform: linux-x64
+          save-cache: 'true'
+
   nightly:
+    needs: workflow-plugin
     uses: ./.github/workflows/stress.yml
     with:
+      workflow-plugin-artifact: workflow-plugin-linux-x64
       test-type: ci-nightly
       test-timeout-minutes: 360 # yes, 6 hours
       reuse-v8-context: false
   nightly-reuse-context:
+    needs: workflow-plugin
     uses: ./.github/workflows/stress.yml
     with:
+      workflow-plugin-artifact: workflow-plugin-linux-x64
       test-type: ci-nightly
       test-timeout-minutes: 360 # yes, 6 hours
       reuse-v8-context: true

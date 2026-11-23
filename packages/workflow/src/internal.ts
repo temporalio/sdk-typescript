@@ -5,3 +5,4 @@ export type { Activator } from './internals';
 export type { MetricSinks } from './metrics';
 export { workflowService } from './nexus/system/generated/services';
 export { createUnsafeRandomSource } from './random-helpers';
+export { createActivityReference } from './activity-reference';

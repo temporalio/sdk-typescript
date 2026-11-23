@@ -1,0 +1,21 @@
+[package]
+name = "temporal-activity-reference-plugin"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# Matches @swc/core 1.16.21. Upgrade and test the host and plugin together.
+swc_core = { version = "=83.0.0", features = ["ecma_plugin_transform", "ecma_utils"] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = "symbols"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(swc_ast_unknown)'] }

@@ -15,6 +15,16 @@ export class WorkflowError extends Error {}
 export class DeterminismViolationError extends WorkflowError {}
 
 /**
+ * An Activity reference was not transformed or was called directly. By default, fails
+ * the Workflow Task so that corrected workflow code can resume execution. Configured
+ * workflow failure exception types apply as they do to other programming errors.
+ *
+ * @experimental
+ */
+@SymbolBasedInstanceOfError('InvalidActivityReferenceError')
+export class InvalidActivityReferenceError extends WorkflowError {}
+
+/**
  * A class that acts as a marker for this special result type
  */
 @SymbolBasedInstanceOfError('LocalActivityDoBackoff')

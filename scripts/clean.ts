@@ -54,6 +54,8 @@ function cleanCompiledRustFiles() {
   const bridgeDir = resolve(packagesPath, 'core-bridge');
   console.log('Cleaning compiled rust files');
   rmSync(resolve(bridgeDir, 'releases'), { recursive: true, force: true });
+  rmSync(resolve(packagesPath, 'worker/lib/workflow/bundler/activity-reference-plugin.wasm'), { force: true });
+  rmSync(resolve(packagesPath, 'worker/activity-reference-plugin/target'), { recursive: true, force: true });
   spawnSync('cargo', ['clean'], { cwd: bridgeDir, stdio: 'inherit' });
 }
 

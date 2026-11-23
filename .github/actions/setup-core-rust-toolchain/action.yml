@@ -1,0 +1,17 @@
+name: Setup Core Rust toolchain
+description: Use Core's pinned Rust toolchain for the bridge and workflow Wasm plugin
+runs:
+  using: composite
+  steps:
+    - name: Read Core Rust toolchain
+      id: toolchain
+      shell: bash
+      run: |
+        channel=$(sed -n 's/^[[:space:]]*channel[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' packages/core-bridge/sdk-core/rust-toolchain.toml)
+        test -n "$channel"
+        echo "channel=$channel" >> "$GITHUB_OUTPUT"
+    - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      with:
+        toolchain: ${{ steps.toolchain.outputs.channel }}
+        components: rustfmt, clippy
+        targets: wasm32-wasip1

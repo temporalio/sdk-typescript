@@ -282,9 +282,9 @@ exports.importInterceptors = function importInterceptors() {
             test: /\.ts$/,
             exclude: /node_modules/,
             use: {
-              loader: require.resolve('swc-loader'),
+              loader: require.resolve('./bundler/activity-reference-loader'),
               options: {
-                sourceMap: true,
+                sourceMaps: true,
                 jsc: {
                   target: 'es2017',
                   parser: {
@@ -445,6 +445,10 @@ export interface BundleOptions {
   /**
    * Before Workflow code is bundled with Webpack, `webpackConfigHook` is called with the Webpack
    * {@link https://webpack.js.org/configuration/ | configuration} object so you can modify it.
+   *
+   * Preserve the SDK's TypeScript loader when using imported Activity references.
+   * Its SWC Wasm plugin runs in the build process, not in the Workflow bundle;
+   * webpack's WebAssembly experiments do not need to be enabled for it.
    */
   webpackConfigHook?: (config: Configuration) => Configuration;
 

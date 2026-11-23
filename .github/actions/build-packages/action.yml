@@ -26,6 +26,12 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    - name: Download workflow Wasm plugin
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+      with:
+        name: workflow-plugin-${{ inputs.platform }}
+        path: ./packages/worker/lib/workflow/bundler
+
     - name: Download core-bridge native libraries
       uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
@@ -52,7 +58,7 @@ runs:
 
     - name: Compile code
       shell: bash
-      run: pnpm --recursive --stream --filter '!@temporalio/core-bridge' --filter '!typescript-sdk' run build
+      run: pnpm run build:ts
 
     # Normalize runner.temp on Windows (backslashes break bash path joins).
     - name: Resolve temp directory

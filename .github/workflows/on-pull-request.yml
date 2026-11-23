@@ -141,6 +141,12 @@ jobs:
           name: corebridge-native-debug-${{ matrix.platform }}
           path: ./packages/core-bridge/releases
 
+      - name: Download workflow Wasm plugin
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: workflow-plugin-${{ matrix.platform }}
+          path: ./packages/worker/lib/workflow/bundler
+
       - name: Setup Node and Install Dependencies
         if: matrix.node != 'bun'
         uses: ./.github/actions/setup-node-deps
@@ -168,7 +174,7 @@ jobs:
         working-directory: ${{ runner.temp }}
 
       - name: Compile code
-        run: pnpm --recursive --stream --filter '!@temporalio/core-bridge' --filter '!typescript-sdk' run build
+        run: pnpm run build:ts
 
       - name: Install Temporal CLI
         uses: temporalio/setup-temporal@8bde337644eaaa6644b8b527d9a8406c2207de5b # v0
@@ -283,6 +289,12 @@ jobs:
           name: corebridge-native-debug-linux-x64
           path: ./packages/core-bridge/releases
 
+      - name: Download workflow Wasm plugin
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: workflow-plugin-linux-x64
+          path: ./packages/worker/lib/workflow/bundler
+
       - name: Setup Node and install dependencies
         uses: ./.github/actions/setup-node-deps
         with:
@@ -290,7 +302,7 @@ jobs:
           platform: linux-x64
 
       - name: Compile code
-        run: pnpm --recursive --stream --filter '!@temporalio/core-bridge' --filter '!typescript-sdk' run build
+        run: pnpm run build:ts
 
       - name: Generate Cloud test certificates
         run: |
@@ -482,6 +494,7 @@ jobs:
   typescript-compatibility:
     name: TypeScript 5.7 Consumer Compatibility
     if: github.event_name == 'pull_request'
+    needs: compile-native-binaries-debug
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -496,8 +509,14 @@ jobs:
           node-version: '22'
           platform: 'linux-x64'
 
+      - name: Download workflow Wasm plugin
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: workflow-plugin-linux-x64
+          path: ./packages/worker/lib/workflow/bundler
+
       - name: Compile all non-rust code with the build compiler
-        run: pnpm --recursive --stream --filter '!@temporalio/core-bridge' --filter '!typescript-sdk' run build
+        run: pnpm run build:ts
 
       - name: Type-check existing tests with the minimum supported TypeScript
         run: pnpm test:typescript-compatibility
@@ -505,6 +524,7 @@ jobs:
   conventions:
     name: Lint and Prune
     if: github.event_name == 'pull_request'
+    needs: compile-native-binaries-debug
     uses: ./.github/workflows/conventions.yml
 
   # Runs the features repo tests with this repo's current SDK code
@@ -523,7 +543,9 @@ jobs:
     if: github.event_name == 'pull_request'
     # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
     uses: ./.github/workflows/stress.yml
+    needs: compile-native-binaries-debug
     with:
+      workflow-plugin-artifact: workflow-plugin-linux-x64
       test-type: ci-stress
       test-timeout-minutes: 20
       reuse-v8-context: false
@@ -533,7 +555,9 @@ jobs:
     if: github.event_name == 'pull_request'
     # FIXME: Update this job to reuse native build artifacts from compile-native-binaries
     uses: ./.github/workflows/stress.yml
+    needs: compile-native-binaries-debug
     with:
+      workflow-plugin-artifact: workflow-plugin-linux-x64
       test-type: ci-stress
       test-timeout-minutes: 20
       reuse-v8-context: true
@@ -541,6 +565,7 @@ jobs:
   docs:
     name: Build Docs
     if: github.event_name == 'pull_request'
+    needs: compile-native-binaries-debug
     uses: ./.github/workflows/docs.yml
     with:
       # Can't publish from forks, as secrets won't be available

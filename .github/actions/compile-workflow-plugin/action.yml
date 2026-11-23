@@ -1,0 +1,47 @@
+name: Compile workflow Wasm plugin
+description: Build once per platform and share the artifact across downstream jobs
+inputs:
+  platform:
+    description: Platform identifier for caches and the artifact name
+    required: true
+  save-cache:
+    description: Whether to save the Rust build cache
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Cache workflow Wasm plugin
+      id: artifact
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ./packages/worker/lib/workflow/bundler/activity-reference-plugin.wasm
+        key: workflow-plugin-${{ inputs.platform }}-${{ hashFiles('./packages/worker/activity-reference-plugin/Cargo.*', './packages/worker/activity-reference-plugin/src/**/*.rs', './packages/worker/activity-reference-plugin/.cargo/config.toml', './packages/worker/scripts/build-workflow-plugin.mts', './packages/worker/package.json', './packages/core-bridge/sdk-core/rust-toolchain.toml') }}
+
+    - uses: ./.github/actions/setup-core-rust-toolchain
+      if: steps.artifact.outputs.cache-hit != 'true'
+
+    - name: Rust Cargo and Build cache
+      if: steps.artifact.outputs.cache-hit != 'true'
+      uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      with:
+        cache-bin: false
+        workspaces: packages/worker/activity-reference-plugin -> target
+        prefix-key: workflow-plugin-buildcache
+        shared-key: ${{ inputs.platform }}
+        env-vars: ''
+        save-if: ${{ inputs.save-cache == 'true' }}
+
+    - name: Build workflow Wasm plugin
+      if: steps.artifact.outputs.cache-hit != 'true'
+      shell: bash
+      working-directory: packages/worker/activity-reference-plugin
+      run: |
+        cargo build --locked --release --target wasm32-wasip1 --target-dir target
+        mkdir -p ../lib/workflow/bundler
+        cp target/wasm32-wasip1/release/temporal_activity_reference_plugin.wasm ../lib/workflow/bundler/activity-reference-plugin.wasm
+
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+      with:
+        name: workflow-plugin-${{ inputs.platform }}
+        path: ./packages/worker/lib/workflow/bundler/activity-reference-plugin.wasm
+        if-no-files-found: error

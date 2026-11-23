@@ -42,7 +42,7 @@ runs:
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ./packages/core-bridge/releases
-        key: corebridge-artifactcache${{ inputs.cache-suffix }}-${{ inputs.platform }}-${{ hashFiles('./packages/core-bridge/**/Cargo.lock', './packages/core-bridge/**/*.rs') }}
+        key: corebridge-artifactcache${{ inputs.cache-suffix }}-${{ inputs.platform }}-${{ hashFiles('./packages/core-bridge/**/Cargo.lock', './packages/core-bridge/**/Cargo.toml', './packages/core-bridge/**/*.rs', './packages/core-bridge/sdk-core/rust-toolchain.toml') }}
 
     - name: Install protoc
       if: steps.cached-artifact.outputs.cache-hit != 'true' && inputs.container == ''
@@ -52,8 +52,7 @@ runs:
         version: '23.4'
         repo-token: ${{ inputs.github-token }}
 
-    - name: Upgrade Rust to latest stable
-      uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+    - uses: ./.github/actions/setup-core-rust-toolchain
 
     # FIXME: Setup volumes so that we can benefit from the cache in the Docker-build scenario.
     #        Or maybe just get rid of the cache entirely if it doesn't have sufficient benefits.
@@ -92,10 +91,12 @@ runs:
         CONTAINER: ${{ inputs.container }}
         PROTOBUF_URL: ${{ inputs.protobuf-url }}
       run: |
-        docker run --rm -e PROFILE -e TARGET -e PROTOBUF_URL -v "$(pwd):/workspace" -w /workspace \
+        CORE_RUST_CHANNEL=$(sed -n 's/^[[:space:]]*channel[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' sdk-core/rust-toolchain.toml)
+        export CORE_RUST_CHANNEL
+        docker run --rm -e PROFILE -e TARGET -e PROTOBUF_URL -e CORE_RUST_CHANNEL -v "$(pwd):/workspace" -w /workspace \
           "$CONTAINER" \
           sh -c '
-              curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
+              curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain "$CORE_RUST_CHANNEL" -y
               curl -L -o /tmp/protoc.zip "$PROTOBUF_URL"
               unzip /tmp/protoc.zip -d $HOME/.protobuf
               export PATH="$PATH:$HOME/.cargo/bin:$HOME/.protobuf/bin"
@@ -134,3 +135,8 @@ runs:
         name: corebridge-native${{ inputs.cache-suffix }}-${{ inputs.platform }}
         # Actual file will be named ${{ inputs.target }}/index.node
         path: ./packages/core-bridge/releases/*/index.node
+
+    - uses: ./.github/actions/compile-workflow-plugin
+      with:
+        platform: ${{ inputs.platform }}
+        save-cache: ${{ inputs.save-cache }}

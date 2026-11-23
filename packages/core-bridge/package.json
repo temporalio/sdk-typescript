@@ -5,8 +5,10 @@
   "main": "index.js",
   "types": "lib/index.d.ts",
   "scripts": {
+    "build:rust": "pnpm run build-rust",
+    "build:ts": "tsc --build",
     "build-rust": "tsx ./scripts/build.ts --force",
-    "build": "pnpm run build-rust",
+    "build": "pnpm run build:rust",
     "build-rust-release": "pnpm run build-rust --release",
     "format": "cargo fmt",
     "lint": "cargo clippy --fix --allow-staged",

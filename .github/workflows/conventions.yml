@@ -33,10 +33,13 @@ jobs:
           version: '23.4'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upgrade Rust to latest stable
-        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - uses: ./.github/actions/setup-core-rust-toolchain
+
+      - name: Download workflow Wasm plugin
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
-          components: clippy
+          name: workflow-plugin-linux-x64
+          path: ./packages/worker/lib/workflow/bundler
 
       - name: Rust Cargo and Build cache
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
@@ -62,7 +65,7 @@ jobs:
 
       # eslint-import-resolver-typescript requires packages to be built
       - name: Compile all non-rust code
-        run: pnpm --recursive --stream --filter '!@temporalio/core-bridge' --filter '!typescript-sdk' run build
+        run: pnpm run build:ts
 
       - name: Check generated payload visitor is up to date
         run: |

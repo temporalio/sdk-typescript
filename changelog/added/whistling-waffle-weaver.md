@@ -1,0 +1,1 @@
+Add experimental `executeActivity` and `executeLocalActivity` APIs with typed arguments and results, automatic Activity references for direct named-import calls in TypeScript workflows, and explicit `with { temporal: 'activity' }` imports for wrappers and factories.

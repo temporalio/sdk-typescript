@@ -22,6 +22,9 @@
  * ### Activities
  *
  * To schedule Activities, use {@link proxyActivities} to obtain an Activity function and call.
+ * The experimental {@link executeActivity} and {@link executeLocalActivity} APIs also accept
+ * imported Activity references with per-call options; see {@link executeActivity} for import
+ * transformation rules and examples.
  *
  * ```ts
  * import { proxyActivities } from '@temporalio/workflow';
@@ -151,6 +154,12 @@ export { log } from './logs';
 export { Trigger } from './trigger';
 export { type EventGroup, type EventGroupsOptions, createEventGroup } from './event-groups';
 export * from './workflow';
+export {
+  executeActivity,
+  executeLocalActivity,
+  type ExecuteActivityOptions,
+  type ExecuteLocalActivityOptions,
+} from './execute-activity';
 export { ChildWorkflowHandle, ExternalWorkflowHandle } from './workflow-handle';
 export { metricMeter } from './metrics';
 export {

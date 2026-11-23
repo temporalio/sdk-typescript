@@ -8,6 +8,8 @@ packages/test/protos/root.d.ts
 packages/testing/test-server*
 packages/testing/generated-protos/
 packages/core-bridge/releases
+packages/worker/activity-reference-plugin/target/
+**/.swc/
 packages/*/package-lock.json
 contrib/*/package-lock.json
 /sdk-node.iml

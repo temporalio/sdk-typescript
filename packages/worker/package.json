@@ -12,8 +12,15 @@
   ],
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
+  "preferUnplugged": true,
   "scripts": {
-    "build": "tsc --build",
+    "build": "pnpm run build:rust && pnpm run build:ts",
+    "build:rust": "node scripts/build-workflow-plugin.mts",
+    "build:ts": "tsc --build",
+    "build:workflow-plugin": "pnpm run build:rust",
+    "format": "cd activity-reference-plugin && cargo fmt",
+    "lint": "cd activity-reference-plugin && cargo clippy --fix --allow-staged --target wasm32-wasip1 --target-dir target",
+    "lint:check": "cd activity-reference-plugin && cargo fmt -- --check && cargo clippy --locked --target wasm32-wasip1 --target-dir target -- -D warnings",
     "test": "tsx ../../scripts/ava-ci.ts ./lib/__tests__/test-*.js"
   },
   "ava": {
@@ -23,7 +30,7 @@
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.13.6",
-    "@swc/core": "^1.3.102",
+    "@swc/core": "1.16.21",
     "@temporalio/activity": "workspace:*",
     "@temporalio/client": "workspace:*",
     "@temporalio/common": "workspace:*",
@@ -38,7 +45,6 @@
     "source-map": "^0.7.4",
     "source-map-loader": "^5.0.0",
     "supports-color": "^8.1.1",
-    "swc-loader": "^0.2.3",
     "unionfs": "^4.6.0",
     "webpack": "^5.108.4"
   },

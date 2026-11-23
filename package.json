@@ -31,6 +31,8 @@
     "packages:pack": "tsx scripts/pack-packages.ts",
     "rebuild": "pnpm run clean && pnpm run build",
     "build": "pnpm --recursive --stream run build",
+    "build:rust": "pnpm --recursive --stream --filter @temporalio/core-bridge --filter @temporalio/worker run build:rust",
+    "build:ts": "pnpm --filter @temporalio/proto run build && pnpm --filter @temporalio/worker run build:ts && pnpm --recursive --stream --filter '!@temporalio/core-bridge' --filter '!@temporalio/worker' --filter '!@temporalio/proto' --filter '!typescript-sdk' run build",
     "build:watch": "pnpm run gen && tsc --build --watch packages/*/tsconfig.json",
     "gen": "pnpm run gen:protos && pnpm run gen:payload-visitor",
     "gen:protos": "tsx ./packages/proto/scripts/compile-proto.ts",

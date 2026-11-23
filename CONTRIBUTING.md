@@ -185,6 +185,8 @@ specific examples, and patience with review feedback help everyone move faster.
 After your environment is set up, you can run these commands:
 
 - `pnpm build` compiles protobuf definitions, Rust bridge, C++ isolate extension, and Typescript.
+- `pnpm build:rust` builds the native bridge and workflow Wasm plugin using Cargo's incremental build checks.
+- `pnpm build:ts` builds protobuf and TypeScript output without rebuilding Rust artifacts.
 - `pnpm run rebuild` deletes all generated files in the project and reruns build.
 - `pnpm build:watch` watches filesystem for changes and incrementally compiles Typescript on change.
 - `pnpm test` runs the test suite. Tests assume you have a [Temporal server running locally](https://docs.temporal.io/cli#start-dev-server).
