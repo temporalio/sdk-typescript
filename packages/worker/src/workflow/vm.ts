@@ -11,7 +11,6 @@ import {
   setUnhandledRejectionHandler,
   toDeadlockErrorIfVmTimeout,
 } from './vm-shared';
-import { isBunPre1_4 } from './bun';
 import type { WorkflowPatchActivationCallback } from './patch-activation-callback';
 
 /**
@@ -144,11 +143,9 @@ export class VMWorkflowCreator implements WorkflowCreator {
 export class VMWorkflow extends BaseVMWorkflow {
   public async dispose(): Promise<void> {
     this.workflowModule.dispose();
-    if (isBunPre1_4) await new Promise(setImmediate);
 
     // This sandbox VM won't be reused, so we can destroy it now.
     this.workflowModule.destroy();
-    if (isBunPre1_4) await new Promise(setImmediate);
 
     VMWorkflowCreator.workflowByRunId.delete(this.runId);
     delete this.context;
