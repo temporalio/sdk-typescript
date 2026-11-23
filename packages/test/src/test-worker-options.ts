@@ -70,3 +70,26 @@ for (const [pollsOption, behaviorOption] of [
     });
   });
 }
+
+function compiledWorkflowTaskSlots(options: Partial<WorkerOptions>) {
+  const runtime = Runtime.instance();
+  const compiled = compileWorkerOptions({ ...defaultOptions, ...options }, runtime.logger, runtime.metricMeter);
+  const supplier = compiled.tuner.workflowTaskSlotSupplier;
+  return supplier.type === 'fixed-size' ? supplier.numSlots : undefined;
+}
+
+test('maxConcurrentWorkflowTaskExecutions above maxCachedWorkflows is capped to maxCachedWorkflows', (t) => {
+  t.is(compiledWorkflowTaskSlots({ maxConcurrentWorkflowTaskExecutions: 40, maxCachedWorkflows: 10 }), 10);
+});
+
+test('maxConcurrentWorkflowTaskExecutions below 2 is raised to 2 when the cache is enabled', (t) => {
+  t.is(compiledWorkflowTaskSlots({ maxConcurrentWorkflowTaskExecutions: 1, maxCachedWorkflows: 10 }), 2);
+});
+
+test('maxConcurrentWorkflowTaskExecutions is not capped when the cache is disabled', (t) => {
+  t.is(compiledWorkflowTaskSlots({ maxConcurrentWorkflowTaskExecutions: 40, maxCachedWorkflows: 0 }), 40);
+});
+
+test('maxConcurrentWorkflowTaskExecutions within bounds is kept', (t) => {
+  t.is(compiledWorkflowTaskSlots({ maxConcurrentWorkflowTaskExecutions: 5, maxCachedWorkflows: 10 }), 5);
+});

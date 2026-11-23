@@ -1038,7 +1038,26 @@ function addDefaultWorkerOptions(
     }
     setTuner = rest.tuner;
   } else {
-    const maxWft = maxConcurrentWorkflowTaskExecutions ?? 40;
+    let maxWft = maxConcurrentWorkflowTaskExecutions ?? 40;
+    if (maxConcurrentWorkflowTaskExecutions !== undefined) {
+      // maxCachedWorkflows is clamped later in compileWorkerOptions; use the same effective value here
+      const effectiveMaxCachedWorkflows =
+        maxCachedWorkflows !== undefined && maxCachedWorkflows !== 0 && maxCachedWorkflows < 2
+          ? 2
+          : (maxCachedWorkflows ?? defaultMaxCachedWorkflows);
+      if (effectiveMaxCachedWorkflows > 0 && maxWft > effectiveMaxCachedWorkflows) {
+        logger.warn(
+          "maxConcurrentWorkflowTaskExecutions can't exceed maxCachedWorkflows (unless cache is disabled). Defaulting to maxCachedWorkflows."
+        );
+        maxWft = effectiveMaxCachedWorkflows;
+      }
+      if (effectiveMaxCachedWorkflows > 0 && maxWft < 2) {
+        logger.warn(
+          "maxConcurrentWorkflowTaskExecutions can't be lower than 2 if maxCachedWorkflows is non-zero. Defaulting to 2."
+        );
+        maxWft = 2;
+      }
+    }
     maxWFTPolls = Math.min(maxWFTPolls, maxWft);
     const maxAT = maxConcurrentActivityTaskExecutions ?? 100;
     maxATPolls = Math.min(maxATPolls, maxAT);
@@ -1157,21 +1176,6 @@ export function compileWorkerOptions(
   if (opts.maxCachedWorkflows !== 0 && opts.maxCachedWorkflows < 2) {
     logger.warn('maxCachedWorkflows must be either 0 (ie. cache is disabled) or greater than 1. Defaulting to 2.');
     opts.maxCachedWorkflows = 2;
-  }
-
-  if (opts.maxConcurrentWorkflowTaskExecutions !== undefined) {
-    if (opts.maxCachedWorkflows > 0 && opts.maxConcurrentWorkflowTaskExecutions > opts.maxCachedWorkflows) {
-      logger.warn(
-        "maxConcurrentWorkflowTaskExecutions can't exceed maxCachedWorkflows (unless cache is disabled). Defaulting to maxCachedWorkflows."
-      );
-      opts.maxConcurrentWorkflowTaskExecutions = opts.maxCachedWorkflows;
-    }
-    if (opts.maxCachedWorkflows > 0 && opts.maxConcurrentWorkflowTaskExecutions < 2) {
-      logger.warn(
-        "maxConcurrentWorkflowTaskExecutions can't be lower than 2 if maxCachedWorkflows is non-zero. Defaulting to 2."
-      );
-      opts.maxConcurrentWorkflowTaskExecutions = 2;
-    }
   }
 
   const activities = new Map(Object.entries(opts.activities ?? {}).filter(([_, v]) => typeof v === 'function'));
