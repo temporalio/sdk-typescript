@@ -331,8 +331,9 @@ export interface WorkerOptions {
    * `maxConcurrentWorkflowTaskPolls` * this number = the number of max pollers that will
    * be allowed for the nonsticky queue when sticky tasks are enabled. If both defaults are used,
    * the sticky queue will allow 8 max pollers while the nonsticky queue will allow 2. The
-   * minimum for either poller is 1, so if `maxConcurrentWorkflowTaskPolls` is 1 and sticky queues are
-   * enabled, there will be 2 concurrent polls.
+   * minimum for either poller is 1. Note that `maxConcurrentWorkflowTaskPolls` itself can't be lower than 2 while
+   * sticky queues are enabled (`maxCachedWorkflows` is non-zero), so that the sticky and non-sticky queues each get
+   * at least one poller.
    *
    * @default 0.2
    */
