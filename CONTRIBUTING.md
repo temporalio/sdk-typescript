@@ -117,9 +117,10 @@ pnpm release:notes --version 1.25.0 --output release-notes.md
 This reads the completed changelog and appends Core commit links; it does not
 import entries at publish time. The shared tool selects the greatest numeric
 release tag below the requested version, including `v`-prefixed tags; pass
-`--from <previous-tag>` to override it. Publishing remains a maintainer operation;
-use this output as the GitHub Release body. The release workflow also generates a
-`release-notes` artifact on release branches.
+`--from <previous-tag>` to override it. Merging the bump pull request runs
+**On merge to main**, which uploads `package-tarballs` (kept 30 days) and, for a
+`chore: prepare for <version> release` commit, opens a draft GitHub Release with
+these notes.
 
 ## Things to Avoid
 

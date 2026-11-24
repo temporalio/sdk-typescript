@@ -97,16 +97,7 @@ jobs:
           name: package-tarballs
           path: ${{ steps.build.outputs.tarball-dir }}
           if-no-files-found: error
-
-      # Release tarballs are only needed on release branches
-      - name: Save release tarballs artifact
-        if: startsWith(github.ref, 'refs/heads/releases/')
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: release-tarballs
-          path: ${{ steps.build.outputs.tarball-dir }}
-          if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
 
   # Publish the packed packages to a local Verdaccio registry, then run the end-to-end tests against them.
   end-to-end-tests:
@@ -207,6 +198,59 @@ jobs:
         with:
           name: end-to-end-tests-${{ matrix.platform }}-${{ matrix.node }}-logs
           path: ${{ runner.temp }}/e2e-results
+
+  # The bump commit is the squash of "chore: prepare for <version> release".
+  draft-release:
+    name: Draft GitHub Release
+    needs: build-packages
+    if: "${{ vars.IS_TEMPORALIO_SDK_TYPESCRIPT_REPO == 'true' && startsWith(github.event.head_commit.message, 'chore: prepare for ') }}"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          submodules: recursive
+
+      - uses: ./.github/actions/setup-node-deps
+        with:
+          platform: linux-x64
+
+      - name: Check the changelog section and write the release notes
+        run: |
+          VERSION=$(node -p 'require("./packages/common/package.json").version')
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          pnpm exec tsx scripts/changelog.ts notes --version "$VERSION"
+          pnpm release:notes --version "$VERSION" --output release-notes.md
+
+      - name: Download package tarballs
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: package-tarballs
+          path: tarballs
+
+      - name: Create or replace the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="v$VERSION"
+          state=$(gh release view "$tag" --json isDraft --jq .isDraft 2>/dev/null || true)
+          if [ "$state" = true ]; then
+            gh release edit "$tag" --draft --title "$tag" --notes-file release-notes.md
+          elif [ -n "$state" ]; then
+            echo "Release $tag is already published."
+            exit 1
+          else
+            gh release create "$tag" --draft --target "$GITHUB_SHA" --title "$tag" --notes-file release-notes.md
+          fi
+          gh release upload "$tag" tarballs/*.tgz --clobber
 
   docs:
     name: Build Docs
