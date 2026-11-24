@@ -195,10 +195,11 @@ After your environment is set up, you can run these commands:
 - `pnpm commitlint` validates [commit messages](#style-guide).
 
 To regenerate System Nexus bindings from Core's upstream API WIT files, install the pinned nexgen
-release with its `advanced` feature and ensure `protoc` is on your `PATH`:
+release with its `advanced` feature using an up-to-date stable Rust toolchain (the bridge's Rust 1.92
+toolchain cannot compile it), and ensure `protoc` is on your `PATH`:
 
 ```sh
-cargo install nexgen --version '=0.2.13' --locked --features advanced
+cargo +stable install nexgen --version '=0.2.13' --locked --features advanced
 pnpm --filter @temporalio/workflow run gen:system-nexus
 ```
 
