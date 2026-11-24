@@ -2,10 +2,10 @@ import { mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { globSync } from 'glob';
-import { parseVersion } from './prepare-release';
-import { pnpm } from './utils';
+import { parseVersion } from './prepare';
+import { pnpm } from '../utils';
 
-const repoRoot = resolve(__dirname, '..');
+const repoRoot = resolve(__dirname, '../..');
 
 function main(): void {
   const { tarballDir, version } = parseArguments();

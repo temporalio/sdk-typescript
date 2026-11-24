@@ -3,7 +3,8 @@
   "private": true,
   "description": "Internal scripts for TS SDK repository",
   "scripts": {
-    "build": "tsc --noEmit"
+    "build": "tsc --noEmit",
+    "test": "node --import tsx --test ./release/test-*.ts"
   },
   "keywords": [
     "temporal",

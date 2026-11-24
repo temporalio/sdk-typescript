@@ -203,7 +203,7 @@ jobs:
         run: |
           pnpm --filter @temporalio/test run test &
           core_pid=$!
-          pnpm --recursive --parallel --workspace-concurrency=1 --stream --filter '!@temporalio/test' run test &
+          pnpm --recursive --parallel --workspace-concurrency=1 --stream --filter '!@temporalio/test' --filter '!scripts' run test &
           rest_pid=$!
           status=0
           wait "$core_pid" || status=1
@@ -218,7 +218,7 @@ jobs:
         run: |
           pnpm --filter @temporalio/test run test &
           core_pid=$!
-          pnpm --recursive --parallel --workspace-concurrency=1 --stream --filter '!@temporalio/test' run test &
+          pnpm --recursive --parallel --workspace-concurrency=1 --stream --filter '!@temporalio/test' --filter '!scripts' run test &
           rest_pid=$!
           status=0
           wait "$core_pid" || status=1

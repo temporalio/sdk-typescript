@@ -1,12 +1,10 @@
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import type { SpawnSyncOptions } from 'node:child_process';
-import semver from 'semver';
-import { tarballsIn } from './pack-packages';
-import { parseVersion } from './prepare-release';
-import { run } from './utils';
+import { distTag, parseVersion } from './prepare';
+import { tarballsIn } from './pack';
+import { npm, run } from '../utils';
 
-const repoRoot = resolve(__dirname, '..');
+const repoRoot = resolve(__dirname, '../..');
 const attempts = 3;
 
 function main(): void {
@@ -71,19 +69,6 @@ function publishTarball(tarball: string): void {
       run`sleep 10`;
     }
   }
-}
-
-/** `latest` for a stable version, otherwise `rc`, `beta`, or `alpha`. */
-function distTag(version: semver.SemVer): string {
-  if (version.prerelease.length === 0) return 'latest';
-  const id = version.prerelease[0];
-  if (id === 'rc' || id === 'beta' || id === 'alpha') return id;
-  throw new Error(`Expected a ga, rc, beta, or alpha version, got ${version.version}`);
-}
-
-/** npm on PATH. Windows invokes `npm.cmd`. */
-function npm(options: SpawnSyncOptions = {}) {
-  return run({ ...options, command: process.platform === 'win32' ? 'npm.cmd' : 'npm' });
 }
 
 /** Versions of `name` currently on the npm registry. */

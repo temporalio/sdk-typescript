@@ -112,6 +112,11 @@ function splitCommand(strings: TemplateStringsArray, values: CommandValue[], all
  * pnpm as started by the current `pnpm run`. `npm_execpath` is a JavaScript entry point when pnpm is
  * installed through npm, and a native binary otherwise, so a script entry point is run with node.
  */
+/** npm on PATH. Windows invokes `npm.cmd`. */
+export function npm(options: SpawnSyncOptions = {}): CommandRunner {
+  return run({ ...options, command: process.platform === 'win32' ? 'npm.cmd' : 'npm' });
+}
+
 export function pnpm(options: SpawnSyncOptions = {}): CommandRunner {
   const bin = process.env.npm_execpath;
   if (!bin) throw new Error('Run this command with pnpm');

@@ -2,9 +2,9 @@ import { copyFileSync, mkdirSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { globSync } from 'glob';
-import { targets } from '../packages/core-bridge/common';
+import { targets } from '../../packages/core-bridge/common';
 
-const repoRoot = resolve(__dirname, '..');
+const repoRoot = resolve(__dirname, '../..');
 const releasesDir = resolve(repoRoot, 'packages/core-bridge/releases');
 
 // Releases don't ship x86_64-pc-windows-gnu

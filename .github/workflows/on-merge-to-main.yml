@@ -226,7 +226,7 @@ jobs:
         run: |
           VERSION=$(node -p 'require("./packages/common/package.json").version')
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          pnpm exec tsx scripts/changelog.ts notes --version "$VERSION"
+          pnpm exec tsx scripts/release/changelog.ts notes --version "$VERSION"
           pnpm release:notes --version "$VERSION" --output release-notes.md
 
       - name: Download package tarballs

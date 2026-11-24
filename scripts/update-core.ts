@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { changelogTool, corePath, repoRoot } from './changelog';
+import { changelogTool, corePath, repoRoot } from './release/changelog';
 import { ChildProcessError, run } from './utils';
 
 const args = process.argv.slice(2);
