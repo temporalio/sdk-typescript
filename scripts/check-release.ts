@@ -9,7 +9,7 @@ const gh = run({ cwd: repoRoot, command: 'gh' });
 
 function main(): void {
   const { version, branch, commit } = parseArguments();
-  
+
   const { failures, outputs } = checkRelease(version, branch, commit);
   if (failures.length > 0) {
     console.error(`Release ${version} is not ready:\n${failures.map((failure) => `- ${failure}`).join('\n')}`);
@@ -119,7 +119,8 @@ export function checkRelease(version: string, branch: string, commitRef: string)
     const runId = successfulBuildRun(commit);
     if (!runId) return `No successful merge-to-main build for ${commit}; wait for it to finish, or re-run it`;
     outputs.buildRunId = runId;
-    if (!hasUnexpiredTarballs(runId)) return `Merge-to-main run ${runId} no longer has a package-tarballs artifact; re-run it`;
+    if (!hasUnexpiredTarballs(runId))
+      return `Merge-to-main run ${runId} no longer has a package-tarballs artifact; re-run it`;
   });
 
   return { failures, outputs };
