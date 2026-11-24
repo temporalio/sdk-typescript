@@ -2238,6 +2238,8 @@ export function walkPayloadsInMessage<Ctx>(root: object, env: WalkEnv<Ctx>, cont
       return [];
     case 'temporal.api.workflowservice.v1.UpdateTaskQueueConfigRequest':
       return [];
+    case 'temporal.api.workflowservice.v1.UpdateTaskQueueConfigRequest.ConcurrencyLimitUpdate':
+      return [];
     case 'temporal.api.workflowservice.v1.UpdateTaskQueueConfigRequest.RateLimitUpdate':
       return [];
     case 'temporal.api.workflowservice.v1.UpdateTaskQueueConfigResponse':

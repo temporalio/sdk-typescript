@@ -58,6 +58,8 @@ function systemNexusPayloadWith(
     taskQueue: { name: 'target-task-queue' },
     signalName: 'test-signal',
     namespace: 'target-namespace',
+    workflowIdReusePolicy:
+      protoRoot.temporal.api.enums.v1.WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE,
     ...overrides,
   });
   const payload = protobufPayloadConverter.toPayload(request)!;

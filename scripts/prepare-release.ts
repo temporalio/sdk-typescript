@@ -251,7 +251,7 @@ function gitRemoteSha(remote: string, branch: string): string {
 export function rollChangelog(version: string, date: string, root = repoRoot): string {
   const tool = changelogToolFor(root);
   tool`prepare --version ${version} --date ${date}`;
-  return tool({ stdio: ['pipe', 'pipe', 'inherit'] })`notes --version ${version}`;
+  return tool({ stdio: ['pipe', 'pipe', 'inherit'] })`release-notes --version ${version}`;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

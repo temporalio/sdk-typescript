@@ -215,22 +215,15 @@ export function createNexusServiceClient<T extends nexus.ServiceDefinition>(
 }
 
 /**
- * Runs the generated operation-specific interceptor chain before the dedicated
- * generic System Nexus interceptor hook. The operation-specific dispatcher is
- * kept private: both public interceptor hooks use the ordinary Nexus contract.
+ * Keeps System Nexus calls out of ordinary Nexus interception: only the generated
+ * operation-specific chain runs before scheduling.
  */
 async function startSystemNexusOperationWithSpecificInterceptors<Output>(
   input: StartNexusOperationInput
 ): Promise<NexusOperationHandle<Output>> {
   const activator = getActivator();
-  const generic = composeInterceptors(
-    activator.interceptors.outbound,
-    'startSystemNexusOperation',
-    startNexusOperationNextHandler
-  );
-
   const makeHandle = async <Request, Result>(request: Request): Promise<NexusOperationHandle<Result>> => {
-    const { token, result } = await generic({ ...input, input: request });
+    const { token, result } = await startNexusOperationNextHandler({ ...input, input: request });
     return {
       service: input.service,
       operation: input.operation,

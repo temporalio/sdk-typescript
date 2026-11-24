@@ -225,6 +225,7 @@ test('standalone Nexus worker decodes nested payloads in a marked System Nexus i
     taskQueue: { name: 'target-task-queue' },
     signalName: 'test-signal',
     namespace: t.context.env.client.options.namespace,
+    workflowIdReusePolicy: temporal.api.enums.v1.WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE,
   });
   const payload = new ProtobufBinaryPayloadConverter(protoRoot).toPayload(request)!;
   payload.metadata ??= {};
@@ -297,6 +298,7 @@ test('standalone Nexus worker retrieves External Storage references nested in a 
     taskQueue: { name: 'target-task-queue' },
     signalName: 'test-signal',
     namespace: t.context.env.client.options.namespace,
+    workflowIdReusePolicy: temporal.api.enums.v1.WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE,
   });
   const payload = new ProtobufBinaryPayloadConverter(protoRoot).toPayload(request)!;
   payload.metadata ??= {};

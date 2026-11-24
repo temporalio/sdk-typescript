@@ -167,12 +167,6 @@ export interface WorkflowOutboundCallsInterceptor extends SystemNexusWorkflowOut
     next: Next<WorkflowOutboundCallsInterceptor, 'startNexusOperation'>
   ) => Promise<StartNexusOperationOutput>;
 
-  /** Called when Workflow starts a Temporal System Nexus operation. */
-  startSystemNexusOperation?: (
-    input: StartNexusOperationInput,
-    next: Next<WorkflowOutboundCallsInterceptor, 'startSystemNexusOperation'>
-  ) => Promise<StartNexusOperationOutput>;
-
   /**
    * Called when Workflow starts a child workflow execution.
    *

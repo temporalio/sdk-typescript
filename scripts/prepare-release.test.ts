@@ -40,7 +40,7 @@ test('release preparation updates versions and lockfile, then consumes fragments
     bumpPackageVersions('1.25.0', packageJsonsWithVersion(root));
     updateLockfile(root);
     const notes = rollChangelog('1.25.0', '2026-10-08', root);
-    assert.equal(notes, '### Stabilized\n\n- Feature is stable.\n- Another feature is stable.');
+    assert.equal(notes, '## Notable Changes\n\n### Stabilized\n\n- Feature is stable.\n- Another feature is stable.');
     for (const path of ['packages/common', 'contrib/example']) {
       assert.equal(JSON.parse(readFileSync(resolve(root, path, 'package.json'), 'utf8')).version, '1.25.0');
     }
