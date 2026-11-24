@@ -1,0 +1,80 @@
+name: Release Draft
+run-name: Draft v${{ inputs.version }} from ${{ github.ref_name }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release, without a v prefix (e.g. 1.26.0 or 1.26.0-rc.1)'
+        required: true
+        type: string
+      commit:
+        description: 'Commit to release. Defaults to the head of the dispatched branch.'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-draft-${{ inputs.version }}
+  cancel-in-progress: true
+
+jobs:
+  draft-release:
+    name: Draft GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      actions: read
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ inputs.version }}
+      TAG: v${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.commit || github.sha }}
+          fetch-depth: 0
+          fetch-tags: true
+          submodules: recursive
+
+      - uses: ./.github/actions/setup-node-deps
+        with:
+          platform: linux-x64
+
+      # Outputs: `commit` (full SHA to release) and `build-run-id` (merge-to-main run whose artifacts are released).
+      # `--silent` keeps pnpm's script banner out of $GITHUB_OUTPUT.
+      - name: Check that the release is ready
+        id: check
+        run: pnpm --silent release:check "$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Download package tarballs
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: package-tarballs
+          path: tarballs
+          run-id: ${{ steps.check.outputs.build-run-id }}
+          github-token: ${{ github.token }}
+
+      - name: Write the release notes
+        run: pnpm release:notes --version "$VERSION" --output release-notes.md
+
+      - name: Create or replace the draft release
+        env:
+          COMMIT: ${{ steps.check.outputs.commit }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --draft --target "$COMMIT" --title "$TAG" --notes-file release-notes.md
+          else
+            gh release create "$TAG" --draft --target "$COMMIT" --title "$TAG" --notes-file release-notes.md
+          fi
+
+      - name: Upload the package tarballs
+        run: gh release upload "$TAG" tarballs/*.tgz --clobber

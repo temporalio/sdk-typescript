@@ -117,9 +117,27 @@ pnpm release:notes --version 1.25.0 --output release-notes.md
 This reads the completed changelog and appends Core commit links; it does not
 import entries at publish time. The shared tool selects the greatest numeric
 release tag below the requested version, including `v`-prefixed tags; pass
-`--from <previous-tag>` to override it. Publishing remains a maintainer operation;
-use this output as the GitHub Release body. The release workflow also generates a
-`release-notes` artifact on release branches.
+`--from <previous-tag>` to override it.
+
+Merging the bump pull request triggers the merge-to-main build (the **On merge to
+main** workflow), which builds, tests, and uploads `package-tarballs` (kept 30
+days). Once that run succeeds, dispatch **Release Draft** on the same branch:
+
+```bash
+gh workflow run release-draft.yml --ref main -f version=1.25.0
+```
+
+It first runs `pnpm release:check 1.25.0`, which reports every failed check: the
+branch is `main` or `releases/1.25.x`, the commit is on it, every versioned package
+is at that version, its changelog section has at least one entry, `v1.25.0` is not
+tagged on another commit or already published, and a successful merge-to-main run
+for the commit still has its tarballs. Run the same command locally (with
+`--branch` and `--commit` if needed) before dispatching. The workflow then creates
+or replaces the draft `v1.25.0` GitHub Release with these notes and the tarballs
+from that run. It releases the branch head unless `-f commit=<sha>` selects an
+earlier commit on the branch. To recover from a failed attempt, merge the fix, wait
+for its merge-to-main build to pass, and dispatch again; the draft is replaced
+until it is published.
 
 ## Things to Avoid
 

@@ -163,8 +163,7 @@ interface PullRequest {
  * before we start making any changes.
  */
 function planPullRequest(version: string): Omit<PullRequest, 'body'> {
-  const { major, minor } = parseVersion(version);
-  const expectedReleaseBranch = `releases/${major}.${minor}.x`;
+  const expectedReleaseBranch = releaseBranchFor(version);
 
   // 1) Working tree is clean
   if (git`status --porcelain`) {
@@ -195,6 +194,12 @@ function planPullRequest(version: string): Omit<PullRequest, 'body'> {
     remote,
     remoteHeadSha: gitRemoteSha(remote, head),
   };
+}
+
+/** The release branch for `version`'s minor line (e.g. "releases/1.25.x"). */
+export function releaseBranchFor(version: string): string {
+  const { major, minor } = parseVersion(version);
+  return `releases/${major}.${minor}.x`;
 }
 
 function openPullRequest(pullRequest: PullRequest): void {

@@ -97,16 +97,7 @@ jobs:
           name: package-tarballs
           path: ${{ steps.build.outputs.tarball-dir }}
           if-no-files-found: error
-
-      # Release tarballs are only needed on release branches
-      - name: Save release tarballs artifact
-        if: startsWith(github.ref, 'refs/heads/releases/')
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: release-tarballs
-          path: ${{ steps.build.outputs.tarball-dir }}
-          if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
 
   # Publish the packed packages to a local Verdaccio registry, then run the end-to-end tests against them.
   end-to-end-tests:
