@@ -120,7 +120,8 @@ release tag below the requested version, including `v`-prefixed tags; pass
 `--from <previous-tag>` to override it. Merging the bump pull request runs
 **On merge to main**, which uploads `package-tarballs` (kept 30 days) and, for a
 `chore: prepare for <version> release` commit, opens a draft GitHub Release with
-these notes.
+these notes. Publishing that release runs **Release Publish**, which publishes
+the tarballs to npm.
 
 ## Things to Avoid
 

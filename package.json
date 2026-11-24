@@ -26,6 +26,7 @@
     "changelog:prepare": "tsx scripts/changelog.ts prepare",
     "release:notes": "tsx scripts/changelog.ts release-notes --submodule packages/core-bridge/sdk-core",
     "release:prepare": "tsx scripts/prepare-release.ts",
+    "release:publish": "tsx scripts/publish-packages.ts",
     "release:test": "node --import tsx --test scripts/prepare-release.test.ts scripts/collect-bridge.test.ts scripts/pack-packages.test.ts",
     "bridge:collect": "tsx scripts/collect-bridge.ts",
     "packages:pack": "tsx scripts/pack-packages.ts",
