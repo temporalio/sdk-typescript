@@ -38,6 +38,9 @@ export interface LambdaWorkerConfig {
 
   /**
    * Connection options overrides, merged on top of values loaded via envconfig.
+   *
+   * If credentials are loaded from AWS Secrets Manager, `plugins` includes the plugin that fetches
+   * them. Keep it when adding plugins, rather than replacing the list.
    */
   connectionOptions?: Partial<NativeConnectionOptions>;
 

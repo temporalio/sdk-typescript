@@ -33,6 +33,7 @@
   "author": "Temporal Technologies Inc. <sdk@temporal.io>",
   "license": "MIT",
   "dependencies": {
+    "@temporalio/aws-secrets-manager": "workspace:*",
     "@temporalio/common": "workspace:*",
     "@temporalio/envconfig": "workspace:*",
     "@temporalio/worker": "workspace:*"
