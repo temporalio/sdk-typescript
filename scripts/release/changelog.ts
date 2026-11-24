@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
-import { CommandRunner, run } from './utils';
+import { CommandRunner, run } from '../utils';
 
-export const repoRoot = resolve(__dirname, '..');
+export const repoRoot = resolve(__dirname, '../..');
 export const corePath = 'packages/core-bridge/sdk-core';
 
 /** `changelog-tool` against `root`. Its output is inherited, so build progress stays visible. */

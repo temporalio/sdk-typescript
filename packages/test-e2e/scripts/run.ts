@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { publishablePackages, tarballsIn } from '../../../scripts/pack-packages';
+import { publishablePackages, tarballsIn } from '../../../scripts/release/pack';
 import { withRegistry } from './registry';
 import { ciLogPath, shell, sleep, spawnLogged, waitOnChild } from './utils';
 

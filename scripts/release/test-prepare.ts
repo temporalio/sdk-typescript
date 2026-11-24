@@ -6,11 +6,15 @@ import test from 'node:test';
 import { corePath, repoRoot } from './changelog';
 import {
   bumpPackageVersions,
+  distTag,
   packageJsonsWithVersion,
+  parseVersion,
   rollChangelog,
   unexpectedReleasePaths,
   updateLockfile,
-} from './prepare-release';
+  validateReleaseBase,
+  type ReleaseBase,
+} from './prepare';
 
 function fixture(): string {
   const root = mkdtempSync(resolve(tmpdir(), 'sdk-typescript-release-'));
@@ -85,4 +89,36 @@ test('changed paths guard accepts only release files', () => {
     'R  CHANGELOG.md -> HISTORY.md',
   ];
   assert.deepEqual(unexpectedReleasePaths(rejected.join('\n')), rejected);
+});
+
+function base(overrides: Partial<ReleaseBase> = {}): ReleaseBase {
+  return {
+    version: parseVersion('1.27.0'),
+    current: parseVersion('1.26.0'),
+    branch: 'main',
+    releaseBranchExists: false,
+    published: false,
+    tagExists: false,
+    force: false,
+    ...overrides,
+  };
+}
+
+test('release base allows a new minor from main and a patch from its release branch', () => {
+  validateReleaseBase(base());
+  validateReleaseBase(base({ version: parseVersion('1.26.1'), branch: 'releases/1.26.x', releaseBranchExists: true }));
+  assert.equal(distTag(parseVersion('1.27.0')), 'latest');
+  assert.equal(distTag(parseVersion('1.27.0-rc.1')), 'rc');
+  assert.equal(distTag(parseVersion('1.27.0-beta.1')), 'beta');
+  assert.equal(distTag(parseVersion('1.27.0-alpha.1')), 'alpha');
+});
+
+test('release base rejects the wrong branch, an older version, and a version that is already published', () => {
+  assert.throws(() => validateReleaseBase(base({ branch: 'releases/1.25.x' })), /from main or releases\/1\.27\.x/);
+  assert.throws(() => validateReleaseBase(base({ releaseBranchExists: true })), /that branch already exists/);
+  assert.throws(() => validateReleaseBase(base({ version: parseVersion('1.25.0') })), /newer than 1\.26\.0/);
+  assert.throws(() => validateReleaseBase(base({ published: true })), /already published/);
+  assert.throws(() => validateReleaseBase(base({ tagExists: true })), /Tag v1\.27\.0 already exists/);
+  validateReleaseBase(base({ published: true, tagExists: true, force: true }));
+  assert.throws(() => parseVersion('1.27.0-dev.1'), /ga, rc, beta, or alpha/);
 });
