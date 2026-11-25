@@ -133,7 +133,7 @@ function makeCalendarSpecFieldCoders<Unit>(
         if (start !== undefined) {
           return {
             start,
-            end: range.end !== undefined ? (encodeValueFn(range.end) ?? start) : 1,
+            end: range.end !== undefined ? (encodeValueFn(range.end) ?? start) : start,
             step: typeof range.step === 'number' && range.step > 0 ? range.step : 1,
           };
         }
