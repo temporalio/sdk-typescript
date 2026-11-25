@@ -146,11 +146,12 @@ export function mismatchedPackageVersions(version: string, root = repoRoot): str
 export function changelogSectionProblem(version: string, root = repoRoot): string | undefined {
   let notes: string;
   try {
-    notes = changelogToolFor(root)({ stdio: ['pipe', 'pipe', 'inherit'] })`notes --version ${version}`;
+    notes = changelogToolFor(root)({ stdio: ['pipe', 'pipe', 'inherit'] })`release-notes --version ${version}`;
   } catch {
     return `Cannot read the changelog section for ${version}; see the changelog-tool error above`;
   }
-  if (!notes.trim()) return `The changelog section for ${version} is empty`;
+  // `release-notes` always prints this heading, even for an empty section.
+  if (!notes.replace(/^## Notable Changes\s*/, '').trim()) return `The changelog section for ${version} is empty`;
 }
 
 function isOnRemoteBranch(commit: string, branch: string): boolean {
