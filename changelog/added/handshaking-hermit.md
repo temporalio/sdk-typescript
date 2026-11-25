@@ -1,1 +1,0 @@
-Connection and native connection plugins can now wrap connecting with the experimental `connect` and `connectNative` hooks, which run in `Connection.connect` and `NativeConnection.connect` and may modify the options asynchronously before connecting.
