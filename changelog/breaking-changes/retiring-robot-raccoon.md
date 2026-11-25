@@ -1,0 +1,1 @@
+The deprecated `@temporalio/ai-sdk` and `@temporalio/google-adk-agents` compatibility packages are no longer shipped with the TypeScript SDK. Replace them in your dependencies and imports with `@temporalio/vercel-ai-sdk` and `@temporalio/google-adk`, respectively, from [temporalio/ai-integrations](https://github.com/temporalio/ai-integrations/tree/main/typescript).

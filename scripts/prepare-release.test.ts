@@ -68,7 +68,7 @@ test('changed paths guard accepts only release files', () => {
     ' M CHANGELOG.md',
     ' M pnpm-lock.yaml',
     ' M packages/common/package.json',
-    ' M contrib/ai-sdk/package.json',
+    ' M contrib/example/package.json',
     ' D changelog/added/tap-dancing-teapot.md',
     '',
   ];
