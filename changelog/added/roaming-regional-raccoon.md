@@ -1,1 +1,0 @@
-Added `TLSConfig.verificationServerNames` for `Connection` and `NativeConnection` to accept a server certificate that is valid for any one of several names, for targets whose servers present different certificate names (for example, regional servers behind one global address). Requires `serverRootCACertificate`.

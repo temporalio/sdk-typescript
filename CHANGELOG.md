@@ -1,5 +1,58 @@
 # Changelog
 
+## [1.27.0] - 2026-11-25
+
+### Added
+
+- Core: Cloud API bindings support v0.27.0, including user group memberships, projects, project-scoped custom roles, and caller rate limit operations.
+- Core: Low-level Operator Service calls support namespace soft deletion, restoration, and restore progress queries.
+
+- Connection and native connection plugins can now wrap connecting with the experimental `connect` and `connectNative` hooks, which run in `Connection.connect` and `NativeConnection.connect` and may modify the options asynchronously before connecting.
+
+- Core: SDK bridges can opt in at build time to preserving workflow task boundaries during replay, for new workflows only. The mode is recorded on the first successful task completion and defaults to off. Core handles tasks with no activation jobs internally, without polling workflow routines; see [Disabling chunking](../../arch_docs/workflow_task_chunking.md#disabling-chunking).
+
+- **Experimental**: Added Nexus Handler Callbacks for standalone Nexus operations.
+
+- Added `TLSConfig.verificationServerNames` for `Connection` and `NativeConnection` to accept a server certificate that is valid for any one of several names, for targets whose servers present different certificate names (for example, regional servers behind one global address). Requires `serverRootCACertificate`.
+
+- New experimental `@temporalio/aws-secrets-manager` package: an `@temporalio/envconfig` extension that loads the client API key and mTLS material from AWS Secrets Manager secret IDs.
+- `@temporalio/lambda-worker` now loads Temporal client credentials from AWS Secrets Manager when secret IDs are configured with `TEMPORAL_EXT_AWS_SECRETS_MANAGER_*` env vars or in the TOML config.
+
+### Changed
+
+- Core: Workflow task completions and failures set `resource_id` to `workflow:<workflow_id>`, on every page of a paginated completion. Activity task completions, failures, cancellations, and heartbeats set it to `workflow:<workflow_id>`, or `activity:<activity_id>` for a standalone activity. Worker heartbeats set it to `worker:<worker_grouping_key>`, the grouping key each heartbeat already reports in its host info. Proxies can identify the workflow, activity, or worker without decoding task tokens or heartbeat contents.
+
+- **Experimental**: `signalWithStartWorkflow` now defaults an omitted task queue to the caller's task queue.
+
+- Nexus handlers now pass the handler operation's serialization context to payload codecs and converters when decoding payloads nested in System Nexus requests, instead of no context.
+
+### :boom: Breaking Changes
+
+- Bun versions older than 1.4.0 are no longer supported.
+
+- **Experimental**: Remove the generic `WorkflowOutboundCallsInterceptor.startSystemNexusOperation` hook. System Nexus operations use only their operation-specific interceptor chain before scheduling.
+
+- The final planned release of `@temporalio/google-adk-agents` forwards to `@temporalio/google-adk` 1.x and raises the minimum Node.js version to 22.17.0.
+
+### Fixed
+
+- Core: Nexus operations cancelled or timed out before starting retain their cancellation or timeout failure type even when the corresponding history event omits its failure.
+- Core: A Nexus operation cancelled with the `ABANDON` cancellation type that later completes, fails, or times out no longer fails workflow tasks with a nondeterminism error.
+- Core: Cancelling a Nexus operation with `ABANDON` or `TRY_CANCEL` before it starts now resolves it with a failed `ResolveNexusOperationStart` carrying a cancelled failure, instead of a `ResolveNexusOperation`. Core no longer sends a second resolution when the server later records the operation's start or outcome, which lang SDKs rejected as an unknown sequence number.
+- Core: With `WAIT_CANCELLATION_REQUESTED`, an operation whose cancel request fails is no longer resolved a second time when it later finishes.
+- Core: Workflows no longer get stuck failing workflow tasks when an activity cancelled with the `ABANDON` cancellation type later fails or times out. Those late outcomes are now ignored, as late completions of abandoned activities already were.
+- Core: Draining a metrics buffer after it has overflowed no longer panics with "You must initialize the reference before using it" (Python: `MetricBuffer.retrieve_updates`). Core already drops an instrument or attribute set when the buffer cannot accept its creation, and now also drops later recordings that depend on that dropped creation, so the next drain keeps working.
+- Core: Slot gauges now reflect the current number of used and available slots after concurrent worker updates.
+
+- Apply `maxConcurrentWorkflowTaskPolls`, `maxConcurrentActivityTaskPolls` and `maxConcurrentNexusTaskPolls`: each was accepted but ignored, so the worker polled with `min(10, maxConcurrent*Executions)` pollers whatever value was set.
+
+- Core: Core and lang SDK flags sent with a workflow task completion that the server discards, such as an update rejected on the first task of a workflow started with a start delay, are no longer treated as recorded. Core keeps sending them with later completions until history records them. On a cached run, live and query activations still list lang flags that lang already reported in `available_internal_flags`, even before history records them, while activations that replay history list only the lang flags history has recorded, as a fresh replay would. Previously, a later `patched` call could fail replay with a nondeterminism error, and lang flags used afterward could be missing from history so that replay selected different flag-dependent behavior.
+- Core: Downloading an ephemeral dev or test server binary retries a transfer that breaks while the archive streams in, such as a reset connection, instead of failing the server start.
+- Core: A workflow whose first workflow task completion only rejects updates, such as an update rejected during a start delay, is now evicted from the cache afterward (reason `UNSPECIFIED`), because the server may discard that completion without recording it. Previously the cached workflow kept state from initialization that history never recorded, so it could fail a later task with a nondeterminism error when another worker had handled the first recorded task.
+- Core: A local activity that finishes while the SDK answers a query attached to a workflow task now records its result on the task that delivers it. This prevents replay nondeterminism when a signal or other event arrives before that task. Command-free task coalescing remains subject to [#1737](https://github.com/temporalio/sdk-rust/issues/1737).
+
+- Native connections now support the Operator Service RPCs for soft-deleting namespaces, restoring namespaces, and describing namespace restores.
+
 ## [1.26.0] - 2026-11-16
 
 ### Added

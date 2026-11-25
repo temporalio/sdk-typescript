@@ -1,6 +1,6 @@
 {
   "name": "@temporalio/aws-secrets-manager",
-  "version": "1.26.0",
+  "version": "1.27.0",
   "description": "Temporal.io SDK client config extension that loads client credentials from AWS Secrets Manager",
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",
