@@ -1,0 +1,80 @@
+name: Release Publish
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    environment: npm-release
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout the release
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          submodules: recursive
+
+      - uses: ./.github/actions/setup-node-deps
+        with:
+          node-version: '24'
+          platform: linux-x64
+
+      - name: Require this commit on main or its release branch
+        run: pnpm release:check-publish
+
+      - name: Download the release tarballs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p tarballs
+          gh release download "$GITHUB_REF_NAME" --pattern '*.tgz' --dir tarballs
+
+      - name: Publish missing packages
+        run: pnpm release:publish --tarball-dir tarballs
+
+      - name: Install Temporal CLI
+        uses: temporalio/setup-temporal@1059a504f87e7fa2f385e3fa40d1aa7e62f1c6ca # v0
+
+      - name: Run Temporal CLI
+        working-directory: ${{ runner.temp }}
+        run: |
+          temporal server start-dev \
+            --db-filename temporal.sqlite \
+            --sqlite-pragma journal_mode=WAL \
+            --sqlite-pragma synchronous=OFF \
+            --headless \
+            --dynamic-config-value system.enableActivityEagerExecution=true \
+            --dynamic-config-value history.enableRequestIdRefLinks=true \
+            --dynamic-config-value frontend.activityAPIsEnabled=true \
+            --dynamic-config-value activity.enableStandalone=true \
+            --dynamic-config-value activity.startDelayEnabled=true \
+            --dynamic-config-value 'activity.longPollTimeout="5000ms"' \
+            --dynamic-config-value history.enableChasm=true \
+            --dynamic-config-value history.enableTransitionHistory=true \
+            --dynamic-config-value frontend.enableCancelWorkerPollsOnShutdown=false &
+
+      - name: Build the end-to-end tests
+        run: pnpm --filter @temporalio/test-e2e run build
+
+      - name: Smoke test the published packages
+        run: |
+          version=$(node -p 'require("./packages/common/package.json").version')
+          pnpm --filter @temporalio/test-e2e run test:e2e --sdk-version "$version"
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+          TEMPORAL_ADDRESS: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud:7233
+          TEMPORAL_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
+          TEMPORAL_CLIENT_CERT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
+          TEMPORAL_CLIENT_KEY: ${{ secrets.TEMPORAL_CLIENT_KEY }}
+          TEMPORAL_TASK_QUEUE: ${{ format('tssdk-publish-{0}-{1}', github.run_id, github.run_attempt) }}

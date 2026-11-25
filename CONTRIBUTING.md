@@ -137,7 +137,8 @@ or replaces the draft `v1.25.0` GitHub Release with these notes and the tarballs
 from that run. It releases the branch head unless `-f commit=<sha>` selects an
 earlier commit on the branch. To recover from a failed attempt, merge the fix, wait
 for its merge-to-main build to pass, and dispatch again; the draft is replaced
-until it is published.
+until it is published. Publishing that release runs **Release Publish**, which
+publishes the tarballs to npm.
 
 ## Things to Avoid
 
