@@ -45,12 +45,7 @@ import {
   loadWorkflowRunOperationToken,
   OperationTokenType,
 } from './token';
-import {
-  getClient,
-  getHandlerContext,
-  type TemporalCancelOperationContext,
-  type TemporalStartOperationContext,
-} from './context';
+import { getClient, getHandlerContext } from './context';
 import { pushResponseLink, requestLinksToTemporalLinks } from './operation-links';
 
 declare const isNexusWorkflowHandle: unique symbol;
@@ -423,7 +418,7 @@ export type ActivityOptionsFor<T, N extends ActivityName<T>> = Replace<
  * @experimental Nexus support in Temporal SDK is experimental.
  */
 async function startActivity<R>(
-  ctx: TemporalStartOperationContext,
+  ctx: nexus.StartOperationContext,
   activity: string,
   activityOptions: ActivityOptions
 ): Promise<ActivityHandle<R>> {
@@ -635,7 +630,7 @@ class TemporalNexusClientImpl implements TemporalNexusClient {
   // second signal could be dropped as a duplicate, so only one is allowed per invocation.
   private signalSent = false;
 
-  constructor(private readonly startOperationContext: TemporalStartOperationContext) {}
+  constructor(private readonly startOperationContext: nexus.StartOperationContext) {}
 
   /**
    * Reserves the single async-backing-operation slot for this invocation, runs `fn`, and releases the
@@ -864,11 +859,11 @@ async function updateWorkflowOperation<Ret, Args extends any[]>(
 
 /**
  * A handler function for the {@link TemporalOperationHandler} constructor.
+ * Use {@link operationInfo} to access invocation metadata.
  *
  * @experimental Temporal Operation handlers are experimental.
  */
 export type TemporalOperationStartHandler<I, O> = (
-  ctx: TemporalStartOperationContext,
   client: TemporalNexusClient,
   input: I
 ) => Promise<TemporalOperationResult<O>>;
@@ -936,7 +931,7 @@ export interface TemporalOperationHandlerOptions {
   /**
    * Handler invoked to cancel a workflow-run-backed operation. Defaults to canceling the workflow.
    */
-  cancelWorkflowRun?: (ctx: TemporalCancelOperationContext, options: CancelWorkflowRunOptions) => Promise<void>;
+  cancelWorkflowRun?: (options: CancelWorkflowRunOptions) => Promise<void>;
 
   /**
    * Handler invoked to cancel an UpdateWorkflow-backed operation.
@@ -944,8 +939,8 @@ export interface TemporalOperationHandlerOptions {
    * There is no meaningful default behavior for canceling a Workflow Update, so if this is not
    * provided, canceling such an operation fails with a `NOT_IMPLEMENTED` Nexus handler error.
    */
-  cancelWorkflowUpdate?: (ctx: TemporalCancelOperationContext, options: CancelWorkflowUpdateOptions) => Promise<void>;
-  cancelActivity?: (ctx: TemporalCancelOperationContext, options: CancelActivityOptions) => Promise<void>;
+  cancelWorkflowUpdate?: (options: CancelWorkflowUpdateOptions) => Promise<void>;
+  cancelActivity?: (options: CancelActivityOptions) => Promise<void>;
 }
 
 /**
@@ -967,11 +962,11 @@ export class TemporalOperationHandler<I, O> implements nexus.OperationHandler<I,
   }
 
   async start(ctx: nexus.StartOperationContext, input: I): Promise<nexus.HandlerStartOperationResult<O>> {
-    const result = await this.startHandler(ctx, new TemporalNexusClientImpl(ctx), input);
+    const result = await this.startHandler(new TemporalNexusClientImpl(ctx), input);
     return result[operationResult];
   }
 
-  async cancel(ctx: nexus.CancelOperationContext, token: string): Promise<void> {
+  async cancel(_ctx: nexus.CancelOperationContext, token: string): Promise<void> {
     let opToken;
     try {
       opToken = loadOperationToken(token);
@@ -988,7 +983,7 @@ export class TemporalOperationHandler<I, O> implements nexus.OperationHandler<I,
             cause: err,
           });
         }
-        await this.cancelWorkflowRunHandler(ctx, { workflowId: opToken.wid });
+        await this.cancelWorkflowRunHandler({ workflowId: opToken.wid });
         return;
       case OperationTokenType.ACTIVITY:
         try {
@@ -998,7 +993,7 @@ export class TemporalOperationHandler<I, O> implements nexus.OperationHandler<I,
             cause: err,
           });
         }
-        await this.cancelActivityHandler(ctx, { activityId: opToken.aid, runId: opToken.rid });
+        await this.cancelActivityHandler({ activityId: opToken.aid, runId: opToken.rid });
         return;
       case OperationTokenType.UPDATE_WORKFLOW:
         try {
@@ -1008,7 +1003,7 @@ export class TemporalOperationHandler<I, O> implements nexus.OperationHandler<I,
             cause: err,
           });
         }
-        await this.cancelWorkflowUpdateHandler(ctx, {
+        await this.cancelWorkflowUpdateHandler({
           workflowId: opToken.wid,
           runId: opToken.rid ?? '',
           updateId: opToken.uid,
@@ -1023,22 +1018,16 @@ export class TemporalOperationHandler<I, O> implements nexus.OperationHandler<I,
   }
 }
 
-async function defaultCancelWorkflowRun(_ctx: TemporalCancelOperationContext, options: CancelWorkflowRunOptions) {
+async function defaultCancelWorkflowRun(options: CancelWorkflowRunOptions) {
   await getClient().workflow.getHandle(options.workflowId).cancel();
 }
 
-async function defaultCancelWorkflowUpdate(
-  _ctx: TemporalCancelOperationContext,
-  _options: CancelWorkflowUpdateOptions
-): Promise<never> {
+async function defaultCancelWorkflowUpdate(): Promise<never> {
   // There is no default way to cancel a Workflow Update; users must supply a cancelWorkflowUpdate
   // handler if their operation needs to support cancellation.
   throw new nexus.HandlerError(nexus.HandlerErrorType.NOT_IMPLEMENTED, 'cannot cancel an UpdateWorkflow operation');
 }
 
-async function defaultCancelActivity(
-  _ctx: TemporalCancelOperationContext,
-  { activityId, runId }: CancelActivityOptions
-) {
+async function defaultCancelActivity({ activityId, runId }: CancelActivityOptions) {
   await getClient().activity.getHandle(activityId, runId).cancel(`Nexus Operation cancellation requested`);
 }

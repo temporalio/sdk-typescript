@@ -15,7 +15,7 @@ import {
   MetricMeterWithComposedTags,
 } from '@temporalio/common';
 import type { temporal, coresdk } from '@temporalio/proto';
-import { asyncLocalStorage, runWithNexusStartOperationContext } from '@temporalio/nexus/internal';
+import { asyncLocalStorage, getHandlerContext, runWithNexusStartOperationContext } from '@temporalio/nexus/internal';
 import { encodeToPayload } from '@temporalio/common/internal/internal-non-workflow';
 import { composeInterceptors, isAbortError } from '@temporalio/common/internal/internal-workflow';
 import type { Client } from '@temporalio/client';
@@ -124,6 +124,7 @@ export class NexusHandler {
       const executeNextHandler = async (interceptorInput: NexusStartOperationInput) => {
         const result = await this.invokeUserCode(
           'startOperation',
+          interceptorInput.ctx.abortSignal,
           handler.start.bind(handler, interceptorInput.ctx, interceptorInput.input)
         );
         return { result };
@@ -190,6 +191,7 @@ export class NexusHandler {
       const cancelNextHandler = async (interceptorInput: NexusCancelOperationInput) => {
         await this.invokeUserCode(
           'cancelOperation',
+          interceptorInput.ctx.abortSignal,
           handler.cancel.bind(handler, interceptorInput.ctx, interceptorInput.token)
         );
       };
@@ -213,12 +215,13 @@ export class NexusHandler {
     }
   }
 
-  protected async invokeUserCode<R>(method: string, fn: () => Promise<R>): Promise<R> {
+  protected async invokeUserCode<R>(method: string, cancellationSignal: AbortSignal, fn: () => Promise<R>): Promise<R> {
     let error: any = UNINITIALIZED; // In case someone decides to throw undefined...
     const startTime = process.hrtime.bigint();
     this.logger.debug('Nexus handler started', { method });
     try {
-      return await fn();
+      // Inbound interceptors can forward a signal that also observes application cancellation.
+      return await asyncLocalStorage.run({ ...getHandlerContext(), cancellationSignal }, fn);
     } catch (err: any) {
       error = err;
       throw err;
@@ -322,6 +325,10 @@ export class NexusHandler {
           namespace: this.namespace,
           taskQueue: this.taskQueue,
           endpoint: task.request?.endpoint ?? '',
+          service: this.context.service,
+          operation: this.context.operation,
+          requestId: task.request?.startOperation?.requestId || undefined,
+          cancellationSignal: this.context.abortSignal,
           log: LoggerWithComposedMetadata.compose(this.logger, { sdkComponent: SdkComponent.nexus }),
           metrics: this.metricMeter,
         },

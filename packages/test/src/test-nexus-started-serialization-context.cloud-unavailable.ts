@@ -171,7 +171,7 @@ const nexusStartedService = nexus.service('nexusStartedService', {
 function nexusStartedServiceHandler() {
   return nexus.serviceHandler(nexusStartedService, {
     startWorkflow: new temporalnexus.TemporalOperationHandler<NexusStartedInput, string>({
-      async start(_ctx, client, input) {
+      async start(client, input) {
         return await client.startWorkflow(nexusStartedWorkflow, {
           workflowId: input.id,
           args: [input],
@@ -180,7 +180,7 @@ function nexusStartedServiceHandler() {
       },
     }),
     startActivity: new temporalnexus.TemporalOperationHandler<NexusStartedInput, string>({
-      async start(_ctx, client, input) {
+      async start(client, input) {
         return await client.startActivity('nexusStartedActivity', {
           id: input.id,
           args: [input],
@@ -190,7 +190,7 @@ function nexusStartedServiceHandler() {
       },
     }),
     updateWorkflow: new temporalnexus.TemporalOperationHandler<NexusUpdateInput, string>({
-      async start(_ctx, client, input) {
+      async start(client, input) {
         return await client.getWorkflowHandle(input.workflowId).update(nexusUpdate, {
           args: [input.value],
           updateId: input.updateId,
