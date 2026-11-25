@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import test from 'ava';
 import * as nexus from 'nexus-rpc';
 import type { Client } from '@temporalio/client';
-import type { ProtoFailure } from '@temporalio/common';
+import type { DataConverter, ProtoFailure } from '@temporalio/common';
 import { defaultPayloadConverter, noopMetricMeter } from '@temporalio/common';
 import { loadDataConverter } from '@temporalio/common/internal/internal-non-workflow';
 import { operationInfo, TemporalOperationHandler, TemporalOperationResult } from '@temporalio/nexus';
@@ -46,11 +46,13 @@ function makeHandler(
     headers = {},
     interceptors = [],
     onClientAbortSignal,
+    dataConverter = { payloadConverterPath: converterPath, failureConverterPath: converterPath },
   }: {
     abortController?: AbortController;
     headers?: Record<string, string>;
     interceptors?: NexusInterceptorsFactory[];
     onClientAbortSignal?: (signal: AbortSignal) => void;
+    dataConverter?: DataConverter;
   } = {}
 ): NexusHandler {
   return new NexusHandler(
@@ -73,7 +75,7 @@ function makeHandler(
     } as unknown as Client,
     abortController,
     services,
-    loadDataConverter({ payloadConverterPath: converterPath, failureConverterPath: converterPath }),
+    loadDataConverter(dataConverter),
     new DefaultLogger('ERROR'),
     noopMetricMeter,
     interceptors
@@ -144,6 +146,46 @@ test('a failing cancel carries the operation context', async (t) => {
     failure?.message?.startsWith(`failure.encode.bound|${nexusCtx(ENDPOINT, SERVICE, OPERATION)}|`),
     `expected the operation context in ${JSON.stringify(failure?.message)}`
   );
+});
+
+test('a synchronous Nexus handler can return operation info with the default converter', async (t) => {
+  const requestId = 'serializable-request';
+  const abortController = new AbortController();
+  const signal = abortController.signal;
+  // A live signal can carry application state that cannot be serialized.
+  Object.assign(signal, { details: { signal } });
+
+  const service = nexus.service(SERVICE, {
+    [OPERATION]: nexus.operation<void, { info: ReturnType<typeof operationInfo> }>(),
+  });
+  const handler = nexus.serviceHandler(service, {
+    [OPERATION]: {
+      async start() {
+        const info = operationInfo();
+        t.is(info.cancellationSignal, signal);
+        return nexus.HandlerStartOperationResult.sync({ info });
+      },
+      async cancel() {},
+    },
+  });
+  const worker = makeHandler(new Map([[SERVICE, handler]]), { abortController, dataConverter: {} });
+  const completion = await worker.run({
+    taskToken: worker.taskToken,
+    request: { endpoint: ENDPOINT, startOperation: { service: SERVICE, operation: OPERATION, requestId } },
+  });
+  const payload = completion.completed?.startOperation?.syncSuccess?.payload;
+  t.truthy(payload, 'the worker must serialize operation info in a synchronous response');
+  if (payload == null) return;
+  t.deepEqual(defaultPayloadConverter.fromPayload(payload), {
+    info: {
+      namespace: 'default',
+      taskQueue: 'my-task-queue',
+      endpoint: ENDPOINT,
+      service: SERVICE,
+      operation: OPERATION,
+      requestId,
+    },
+  });
 });
 
 for (const method of ['start', 'cancel'] as const) {

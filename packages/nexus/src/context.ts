@@ -110,6 +110,7 @@ export interface OperationInfo {
   /**
    * Observes cancellation of the current handler invocation. A request to cancel the Nexus
    * Operation itself invokes the cancel handler separately.
+   * This live signal is non-enumerable and is not included in JSON serialization.
    *
    * Cancellation listeners run inline and must return promptly. Check `aborted` and `reason`
    * or use `throwIfAborted()` if the invocation may already have been canceled.
@@ -191,5 +192,7 @@ export function getClient(): Client {
  */
 export function operationInfo(): OperationInfo {
   const { namespace, taskQueue, endpoint, service, operation, requestId, cancellationSignal } = getHandlerContext();
-  return { namespace, taskQueue, endpoint, service, operation, requestId, cancellationSignal };
+  const info: OperationInfo = { namespace, taskQueue, endpoint, service, operation, requestId, cancellationSignal };
+  // Keep the live signal out of payloads and metadata snapshots.
+  return Object.defineProperty(info, 'cancellationSignal', { enumerable: false, writable: false });
 }
