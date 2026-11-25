@@ -154,7 +154,8 @@ export function changelogSectionProblem(version: string, root = repoRoot): strin
   if (!notes.replace(/^## Notable Changes\s*/, '').trim()) return `The changelog section for ${version} is empty`;
 }
 
-function isOnRemoteBranch(commit: string, branch: string): boolean {
+/** True when `commit` is contained in `origin/<branch>`. Fetches that one branch. */
+export function isOnRemoteBranch(commit: string, branch: string): boolean {
   try {
     git`fetch --quiet origin refs/heads/${branch}`;
   } catch {
