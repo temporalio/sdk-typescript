@@ -2,7 +2,7 @@ import { setTimeout } from 'timers/promises';
 import * as nexus from 'nexus-rpc';
 import { CancelledFailure, NexusOperationFailure, TimeoutFailure, TimeoutType } from '@temporalio/common';
 import { WorkflowFailedError } from '@temporalio/client';
-import { operationInfo, TemporalOperationHandler, TemporalOperationResult } from '@temporalio/nexus';
+import { operationInfo, TemporalOperationHandler } from '@temporalio/nexus';
 import * as workflow from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
 import { waitUntil } from './helpers';
@@ -149,7 +149,6 @@ test('the Nexus task timeout aborts the handler invocation signal', async (t) =>
             t.false(cancellationSignal.aborted);
             try {
               await setTimeout(5000, undefined, { signal: cancellationSignal });
-              return TemporalOperationResult.sync(undefined);
             } catch (err) {
               cancellationReason = cancellationSignal.reason;
               t.is((err as Error).cause, cancellationReason);

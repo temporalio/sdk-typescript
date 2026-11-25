@@ -471,9 +471,9 @@ async function startActivity<R>(
 }
 
 /**
- * Module-private brand and payload key for {@link TemporalOperationResult}.
+ * Brand and payload key shared by loaded copies of {@link TemporalOperationResult}.
  */
-const operationResult: unique symbol = Symbol('temporal_nexus_TemporalOperationResult');
+const operationResult: unique symbol = Symbol.for('@temporalio/nexus/TemporalOperationResult');
 
 /**
  * A result produced by a {@link TemporalOperationHandler}. Construct via
@@ -859,14 +859,15 @@ async function updateWorkflowOperation<Ret, Args extends any[]>(
 
 /**
  * A handler function for the {@link TemporalOperationHandler} constructor.
- * Use {@link operationInfo} to access invocation metadata.
+ * Return the output directly to complete the operation synchronously, or return an explicit
+ * {@link TemporalOperationResult}. Use {@link operationInfo} to access invocation metadata.
  *
  * @experimental Temporal Operation handlers are experimental.
  */
 export type TemporalOperationStartHandler<I, O> = (
   client: TemporalNexusClient,
   input: I
-) => Promise<TemporalOperationResult<O>>;
+) => Promise<O | TemporalOperationResult<O>>;
 
 /**
  * Options passed to a {@link TemporalOperationHandlerOptions.cancelWorkflowRun} handler describing
@@ -963,7 +964,10 @@ export class TemporalOperationHandler<I, O> implements nexus.OperationHandler<I,
 
   async start(ctx: nexus.StartOperationContext, input: I): Promise<nexus.HandlerStartOperationResult<O>> {
     const result = await this.startHandler(new TemporalNexusClientImpl(ctx), input);
-    return result[operationResult];
+    if (typeof result === 'object' && result !== null && operationResult in result) {
+      return result[operationResult];
+    }
+    return nexus.HandlerStartOperationResult.sync(result);
   }
 
   async cancel(_ctx: nexus.CancelOperationContext, token: string): Promise<void> {
