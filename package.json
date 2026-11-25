@@ -27,7 +27,7 @@
     "release:notes": "tsx scripts/changelog.ts release-notes --submodule packages/core-bridge/sdk-core",
     "release:prepare": "tsx scripts/prepare-release.ts",
     "release:check": "tsx scripts/check-release.ts",
-    "release:test": "node --import tsx --test scripts/prepare-release.test.ts scripts/check-release.test.ts scripts/collect-bridge.test.ts scripts/pack-packages.test.ts",
+    "release:test": "node --import tsx --test --test-concurrency=1 scripts/prepare-release.test.ts scripts/check-release.test.ts scripts/collect-bridge.test.ts scripts/pack-packages.test.ts",
     "bridge:collect": "tsx scripts/collect-bridge.ts",
     "packages:pack": "tsx scripts/pack-packages.ts",
     "rebuild": "pnpm run clean && pnpm run build",
