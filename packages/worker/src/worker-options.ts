@@ -210,7 +210,8 @@ export interface WorkerOptions {
    * Provide a custom {@link WorkerTuner}.
    *
    * Mutually exclusive with the {@link maxConcurrentWorkflowTaskExecutions}, {@link
-   * maxConcurrentActivityTaskExecutions}, and {@link maxConcurrentLocalActivityExecutions} options.
+   * maxConcurrentActivityTaskExecutions}, {@link maxConcurrentLocalActivityExecutions}, and {@link
+   * maxConcurrentNexusTaskExecutions} options.
    */
   tuner?: WorkerTuner;
 
@@ -1036,6 +1037,9 @@ function addDefaultWorkerOptions(
     }
     if (maxConcurrentWorkflowTaskExecutions !== undefined) {
       throw new TypeError('Cannot set both tuner and maxConcurrentWorkflowTaskExecutions');
+    }
+    if (maxConcurrentNexusTaskExecutions !== undefined) {
+      throw new TypeError('Cannot set both tuner and maxConcurrentNexusTaskExecutions');
     }
     setTuner = rest.tuner;
   } else {
