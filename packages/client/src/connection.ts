@@ -9,8 +9,8 @@ import {
   validateVerificationServerNames,
 } from '@temporalio/common/internal/internal-non-workflow';
 import { filterNullAndUndefined } from '@temporalio/common/internal/internal-workflow';
-import type { Duration } from '@temporalio/common/lib/time';
-import { msOptionalToNumber } from '@temporalio/common/lib/time';
+import type { Duration } from '@temporalio/common/time';
+import { msOptionalToNumber } from '@temporalio/common/time';
 import { type temporal } from '@temporalio/proto';
 import { isGrpcServiceError, ServiceError } from './errors';
 import { defaultGrpcRetryOptions, makeGrpcRetryInterceptor } from './grpc-retry';

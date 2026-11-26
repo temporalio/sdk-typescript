@@ -22,8 +22,8 @@ import {
   ExternalStorageError,
   isActivityFunctionWithOptions,
 } from '@temporalio/common';
-import type { Duration } from '@temporalio/common/lib/time';
-import { msOptionalToTs, msToNumber, optionalTsToDate, optionalTsToMs } from '@temporalio/common/lib/time';
+import type { Duration } from '@temporalio/common/time';
+import { msOptionalToTs, msToNumber, optionalTsToDate, optionalTsToMs } from '@temporalio/common/time';
 import {
   composeInterceptors,
   decodeTypedSearchAttributes,

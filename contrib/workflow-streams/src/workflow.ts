@@ -37,8 +37,8 @@ import {
   defaultPayloadConverter,
 } from '@temporalio/workflow';
 import { ApplicationFailure, type Payload, type Workflow } from '@temporalio/common';
-import type { Duration } from '@temporalio/common/lib/time';
-import { msToNumber } from '@temporalio/common/lib/time';
+import type { Duration } from '@temporalio/common/time';
+import { msToNumber } from '@temporalio/common/time';
 import { decodePayloadWire, encodePayloadProto, encodePayloadWire, encodeBase64 } from './codec';
 import { isPayload, isUint8ArrayLike } from './is-payload';
 import type { PollInput, PollResult, WorkflowStreamState, PublishInput, WorkflowStreamWireItem } from './types';

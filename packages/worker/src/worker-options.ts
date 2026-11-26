@@ -11,8 +11,8 @@ import type {
   VersioningBehavior,
   WorkerDeploymentVersion,
 } from '@temporalio/common';
-import type { Duration } from '@temporalio/common/lib/time';
-import { msOptionalToNumber, msToNumber } from '@temporalio/common/lib/time';
+import type { Duration } from '@temporalio/common/time';
+import { msOptionalToNumber, msToNumber } from '@temporalio/common/time';
 import { loadDataConverter, withPayloadCacheMetrics } from '@temporalio/common/internal/internal-non-workflow';
 import type { LoggerSinks, WorkflowInfo } from '@temporalio/workflow';
 import type { Context } from '@temporalio/activity';

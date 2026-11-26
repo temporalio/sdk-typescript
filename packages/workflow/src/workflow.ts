@@ -44,8 +44,8 @@ import {
   userMetadataToPayload,
   versioningIntentToProto,
 } from '@temporalio/common/internal/internal-workflow';
-import type { Duration } from '@temporalio/common/lib/time';
-import { msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/common/lib/time';
+import type { Duration } from '@temporalio/common/time';
+import { msOptionalToTs, msToNumber, msToTs, requiredTsToMs } from '@temporalio/common/time';
 import type { temporal } from '@temporalio/proto';
 import { eventGroupMarkersToProto, type EventGroup, type EventGroupsOptions } from './event-groups';
 import { CancellationScope, registerSleepImplementation } from './cancellation-scope';
