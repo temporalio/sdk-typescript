@@ -5,7 +5,7 @@ import { makeStartContext } from './helpers';
 
 test('update without a callback URL fails with a BAD_REQUEST handler error', async (t) => {
   const handler = new TemporalOperationHandler<undefined, number>({
-    async start(_ctx, client) {
+    async start(client) {
       // The missing callback URL is what fails the call.
       return await client.getWorkflowHandle('wid').update<number>('someUpdate', { waitForStage: 'ACCEPTED' });
     },

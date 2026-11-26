@@ -6,6 +6,13 @@ import { type InternalActivityStartOptions, InternalActivityStartOptionsSymbol }
 import * as temporalnexus from '@temporalio/nexus';
 import { asyncLocalStorage, OperationTokenType } from '@temporalio/nexus/internal';
 
+// Compile-time check only: operationInfo() requires an active handler at runtime.
+function _checkOperationInfoSpread(): void {
+  const copy = { ...temporalnexus.operationInfo() };
+  // @ts-expect-error - A spread copies the metadata, not the live signal getter.
+  const _info: temporalnexus.OperationInfo = copy;
+}
+
 async function echoWorkflow(input: string): Promise<string> {
   return input;
 }
@@ -19,7 +26,7 @@ const activities = {
 
 test('TemporalOperationHandler infers correct output type from typed workflow function', async (t) => {
   const _stringOp: nexus.OperationHandler<string, string> = new temporalnexus.TemporalOperationHandler({
-    async start(_ctx, client, input: string) {
+    async start(client, input: string) {
       return await client.startWorkflow(echoWorkflow, {
         args: [input],
         workflowId: 'test',
@@ -29,7 +36,7 @@ test('TemporalOperationHandler infers correct output type from typed workflow fu
 
   // @ts-expect-error - Output type should be string, not number
   const _mismatchedOp: nexus.OperationHandler<string, number> = new temporalnexus.TemporalOperationHandler({
-    async start(_ctx, client, input: string) {
+    async start(client, input: string) {
       return await client.startWorkflow(echoWorkflow, {
         args: [input],
         workflowId: 'test',
@@ -38,7 +45,7 @@ test('TemporalOperationHandler infers correct output type from typed workflow fu
   });
 
   const _syncOp: nexus.OperationHandler<string, string> = new temporalnexus.TemporalOperationHandler({
-    async start(_ctx, _client, input: string) {
+    async start(_client, input: string) {
       return temporalnexus.TemporalOperationResult.sync(input);
     },
   });
@@ -47,7 +54,7 @@ test('TemporalOperationHandler infers correct output type from typed workflow fu
     string,
     string
   >({
-    async start(_ctx, client, input) {
+    async start(client, input) {
       return await client.startWorkflow(echoWorkflow, {
         args: [input],
         workflowId: 'test',
@@ -63,7 +70,7 @@ test('TemporalOperationHandler infers correct output type from typed activity', 
   // echo(message?: string): Promise<string>, so typedActivity().startActivity('echo', ...)
   // resolves to TemporalOperationResult<string> and the operation output type infers as string.
   const _activityStringOp: nexus.OperationHandler<string, string> = new temporalnexus.TemporalOperationHandler({
-    async start(_ctx, client, input: string) {
+    async start(client, input: string) {
       return await client.typedActivity<typeof activities>().startActivity('echo', {
         id: 'test',
         args: [input],
@@ -74,7 +81,7 @@ test('TemporalOperationHandler infers correct output type from typed activity', 
 
   // @ts-expect-error - Output type should be string (echo returns string), not number
   const _activityMismatchedOp: nexus.OperationHandler<string, number> = new temporalnexus.TemporalOperationHandler({
-    async start(_ctx, client, input: string) {
+    async start(client, input: string) {
       return await client.typedActivity<typeof activities>().startActivity('echo', {
         id: 'test',
         args: [input],
@@ -84,7 +91,7 @@ test('TemporalOperationHandler infers correct output type from typed activity', 
   });
 
   const _activityWrongArgsOp: nexus.OperationHandler<string, string> = new temporalnexus.TemporalOperationHandler({
-    async start(_ctx, client, _input: string) {
+    async start(client, _input: string) {
       return await client.typedActivity<typeof activities>().startActivity('echo', {
         id: 'test',
         // @ts-expect-error - echo expects a string argument, not a number
@@ -95,7 +102,7 @@ test('TemporalOperationHandler infers correct output type from typed activity', 
   });
 
   const _activityUnknownNameOp = new temporalnexus.TemporalOperationHandler({
-    async start(_ctx, client, input: string) {
+    async start(client, input: string) {
       // @ts-expect-error - The activity name must be a key of the provided activity interface
       return await client.typedActivity<typeof activities>().startActivity('missingActivity', {
         id: 'test',
@@ -109,7 +116,7 @@ test('TemporalOperationHandler infers correct output type from typed activity', 
     string,
     string
   >({
-    async start(_ctx, client, input) {
+    async start(client, input) {
       return await client.typedActivity<typeof activities>().startActivity('echo', {
         id: 'test',
         args: [input],
@@ -124,7 +131,7 @@ test('TemporalOperationHandler infers correct output type from typed activity', 
 
 test('TemporalOperationHandler respects explicit output type from untyped activity', async (t) => {
   const _untypedActivityStringOp: nexus.OperationHandler<string, string> = new temporalnexus.TemporalOperationHandler({
-    async start(_ctx, client, input: string) {
+    async start(client, input: string) {
       return await client.startActivity<string>('echo', {
         id: 'test',
         args: [input],
@@ -136,7 +143,7 @@ test('TemporalOperationHandler respects explicit output type from untyped activi
   // @ts-expect-error - Explicit activity result type is string, not number
   const _untypedActivityMismatchedOp: nexus.OperationHandler<string, number> =
     new temporalnexus.TemporalOperationHandler({
-      async start(_ctx, client, input: string) {
+      async start(client, input: string) {
         return await client.startActivity<string>('echo', {
           id: 'test',
           args: [input],
@@ -151,11 +158,11 @@ test('TemporalOperationHandler respects explicit output type from untyped activi
 
 test('TemporalOperationHandler.cancel rejects invalid operation token type before invoking cancellation hooks', async (t) => {
   const handler = new temporalnexus.TemporalOperationHandler({
-    async start(_ctx, _client, _input) {
+    async start(_client, _input) {
       return temporalnexus.TemporalOperationResult.sync(undefined);
     },
 
-    async cancelWorkflowRun(_ctx, _options) {
+    async cancelWorkflowRun(_options) {
       throw new Error('cancelWorkflowRun should not be called');
     },
   });
@@ -167,6 +174,10 @@ test('TemporalOperationHandler.cancel rejects invalid operation token type befor
       endpoint: 'test-endpoint',
       namespace: 'test-namespace',
       taskQueue: 'test-task-queue',
+      service: 'service',
+      operation: 'operation',
+      requestId: undefined,
+      cancellationSignal: new AbortController().signal,
       log: undefined as any,
       metrics: undefined as any,
     },
@@ -191,11 +202,11 @@ test('TemporalOperationHandler.cancel rejects invalid operation token type befor
 test('TemporalOperationHandler.cancel rejects malformed activity token before invoking cancelActivity', async (t) => {
   let cancelActivityCalled = false;
   const handler = new temporalnexus.TemporalOperationHandler({
-    async start(_ctx, _client, _input) {
+    async start(_client, _input) {
       return temporalnexus.TemporalOperationResult.sync(undefined);
     },
 
-    async cancelActivity(_ctx, _options) {
+    async cancelActivity(_options) {
       cancelActivityCalled = true;
       throw new Error('cancelActivity should not be called');
     },
@@ -210,6 +221,10 @@ test('TemporalOperationHandler.cancel rejects malformed activity token before in
       endpoint: 'test-endpoint',
       namespace: 'test-namespace',
       taskQueue: 'test-task-queue',
+      service: 'service',
+      operation: 'operation',
+      requestId: undefined,
+      cancellationSignal: new AbortController().signal,
       log: undefined as any,
       metrics: undefined as any,
     },
@@ -272,7 +287,7 @@ test('TemporalOperationHandler places activity links based on callback presence'
       },
     } as unknown as Client;
     const handler = new temporalnexus.TemporalOperationHandler<undefined, unknown>({
-      async start(_ctx, nexusClient) {
+      async start(nexusClient) {
         return await nexusClient.startActivity('activity', {
           id: 'activity-id',
           scheduleToCloseTimeout: '1m',
@@ -286,6 +301,10 @@ test('TemporalOperationHandler places activity links based on callback presence'
         endpoint: 'endpoint',
         namespace: 'ns',
         taskQueue: 'task-queue',
+        service: 'service',
+        operation: 'operation',
+        requestId: 'request-id',
+        cancellationSignal: new AbortController().signal,
         log: undefined as any,
         metrics: undefined as any,
       },
