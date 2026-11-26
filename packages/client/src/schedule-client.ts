@@ -10,6 +10,7 @@ import {
   SymbolBasedInstanceOfError,
 } from '@temporalio/common/internal/internal-workflow';
 import {
+  decodeExternalStorageReferences,
   encodeMapToPayloads,
   externalStorageRetrieveVisitOptions,
   externalStorageStoreVisitOptions,
@@ -56,7 +57,7 @@ import {
 } from './schedule-helpers';
 import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base-client';
 import { BaseClient, defaultBaseClientOptions } from './base-client';
-import { rethrowKnownErrorTypes } from './helpers';
+import { rethrowKnownErrorTypes, workflowContextDeriver } from './helpers';
 
 /**
  * Handle to a single Schedule
@@ -303,6 +304,10 @@ export class ScheduleClient extends BaseClient {
         namespace: this.options.namespace,
         scheduleId,
       });
+      await decodeExternalStorageReferences(response, walkDescribeScheduleResponse, this.dataConverter, {
+        // The schedule's workflow action is decoded with that workflow's context.
+        deriveContext: workflowContextDeriver(this.options.namespace),
+      });
       await visit(
         response,
         walkDescribeScheduleResponse,
@@ -433,6 +438,7 @@ export class ScheduleClient extends BaseClient {
           maximumPageSize: options?.pageSize,
           query: options?.query,
         });
+        await decodeExternalStorageReferences(response, walkListSchedulesResponse, this.dataConverter);
         await visit(
           response,
           walkListSchedulesResponse,
