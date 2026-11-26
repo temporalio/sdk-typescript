@@ -375,6 +375,25 @@ test('grpc retry backoff respects status-dependent maximum intervals', (t) => {
   t.is(retryOptions.delayFunction(3, resourceExhaustedStatus), 250);
 });
 
+test('grpc retry backoff does not exceed the maximum interval after applying jitter', (t) => {
+  const retryOptions = defaultGrpcRetryOptions({
+    factor: 2,
+    maxJitter: 0.2,
+    initialIntervalMs: () => 100,
+    maxIntervalMs: () => 150,
+  });
+  const status: grpc.StatusObject = {
+    code: grpc.status.UNAVAILABLE,
+    details: 'unavailable',
+    metadata: new grpc.Metadata(),
+  };
+
+  // 100 * 2 ^ 3 is well above the maximum, even with the lowest possible jitter
+  for (let i = 0; i < 100; i++) {
+    t.is(retryOptions.delayFunction(3, status), 150);
+  }
+});
+
 test('Default keepalive settings are set while maintaining user provided channelArgs', async (t) => {
   const conn = Connection.lazy({
     channelArgs: { 'grpc.enable_channelz': 1, 'grpc.keepalive_permit_without_calls': 0 },
