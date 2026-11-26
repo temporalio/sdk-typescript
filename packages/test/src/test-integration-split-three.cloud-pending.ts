@@ -6,7 +6,6 @@ import { bundleWorkflowCode } from '@temporalio/worker';
 import { temporal } from '@temporalio/proto';
 import { QueryNotRegisteredError } from '@temporalio/client';
 import { configMacro, makeTestFn } from './helpers-integration-multi-codec';
-import { configurableHelpers } from './helpers-integration';
 import { withZeroesHTTPServer } from './zeroes-http-server';
 import * as activities from './activities';
 import { approximatelyEqual, cleanOptionalStackTrace, compareStackTrace, isBun } from './helpers';
@@ -16,8 +15,8 @@ const test = makeTestFn(() => bundleWorkflowCode({ workflowsPath: require.resolv
 test.macro(configMacro);
 
 test('cancel-http-request', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { executeWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
+  const { createWorkerWithDefaults } = config;
+  const { executeWorkflow } = config.helpers(t);
   const worker = await createWorkerWithDefaults(t, { activities });
   await withZeroesHTTPServer(async (port) => {
     const url = `http://127.0.0.1:${port}`;
@@ -33,8 +32,8 @@ test('cancel-http-request', configMacro, async (t, config) => {
 if ('promiseHooks' in v8 && !isBun) {
   // Skip in old node versions
   test('Stack trace query returns stack that makes sense', configMacro, async (t, config) => {
-    const { env, createWorkerWithDefaults } = config;
-    const { executeWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
+    const { createWorkerWithDefaults } = config;
+    const { executeWorkflow } = config.helpers(t);
     const worker = await createWorkerWithDefaults(t, { activities });
     const rawStacks = await worker.runUntil(executeWorkflow(workflows.stackTracer));
 
@@ -75,9 +74,9 @@ if ('promiseHooks' in v8 && !isBun) {
   });
 
   test('Enhanced stack trace returns trace that makes sense', configMacro, async (t, config) => {
-    const { env, createWorkerWithDefaults } = config;
+    const { createWorkerWithDefaults } = config;
 
-    const { executeWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
+    const { executeWorkflow } = config.helpers(t);
     const worker = await createWorkerWithDefaults(t, { activities });
     const enhancedStack = await worker.runUntil(executeWorkflow(workflows.enhancedStackTracer));
 
@@ -148,8 +147,8 @@ if ('promiseHooks' in v8 && !isBun) {
   });
 } else {
   test('Stack trace query throws when not enabled', configMacro, async (t, config) => {
-    const { env, createWorkerWithDefaults } = config;
-    const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
+    const { createWorkerWithDefaults } = config;
+    const { startWorkflow } = config.helpers(t);
     const worker = await createWorkerWithDefaults(t);
     const handle = await startWorkflow(workflows.unblockOrCancel);
     await worker.runUntil(async () => {
@@ -167,8 +166,8 @@ test(
   'priorities can be specified and propagated across child workflows and activities',
   configMacro,
   async (t, config) => {
-    const { env, createWorkerWithDefaults } = config;
-    const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
+    const { createWorkerWithDefaults } = config;
+    const { startWorkflow } = config.helpers(t);
     const worker = await createWorkerWithDefaults(t, { activities });
     const handle = await startWorkflow(workflows.priorityWorkflow, {
       args: [false, 1],
@@ -210,8 +209,8 @@ test(
 );
 
 test('workflow start without priorities sees undefined for the key', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
-  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
+  const { createWorkerWithDefaults } = config;
+  const { startWorkflow } = config.helpers(t);
   const worker = await createWorkerWithDefaults(t, { activities });
 
   const handle1 = await startWorkflow(workflows.priorityWorkflow, {

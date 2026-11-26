@@ -2,7 +2,7 @@ import type { SearchAttributes } from '@temporalio/common';
 import type { InjectedSinks } from '@temporalio/worker';
 import pkg from '@temporalio/worker/internal/pkg';
 import { workflowInfo } from '@temporalio/workflow';
-import { configurableHelpers, createTestWorkflowBundle } from './helpers-integration';
+import { createTestWorkflowBundle } from './helpers-integration';
 import { configMacro, makeTestFn } from './helpers-integration-multi-codec';
 import * as workflows from './workflows';
 
@@ -12,9 +12,9 @@ const test = makeTestFn(() => createTestWorkflowBundle({ workflowsPath: __filena
 test.macro(configMacro);
 
 test.serial('WorkflowHandle.describe result is wrapped', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
+  const { createWorkerWithDefaults } = config;
   const date = new Date();
-  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
+  const { startWorkflow } = config.helpers(t);
   const worker = await createWorkerWithDefaults(t);
   const handle = await startWorkflow(workflows.argsAndReturn, {
     args: ['hey', undefined, Buffer.from('abc')],
@@ -55,9 +55,9 @@ export async function returnSearchAttributes(): Promise<SearchAttributes | undef
 }
 
 test.serial('Workflow can read Search Attributes set at start', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
+  const { createWorkerWithDefaults } = config;
   const date = new Date();
-  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
+  const { startWorkflow } = config.helpers(t);
   const worker = await createWorkerWithDefaults(t);
   const handle = await startWorkflow(returnSearchAttributes, {
     searchAttributes: {
@@ -78,9 +78,9 @@ test.serial('Workflow can read Search Attributes set at start', configMacro, asy
 });
 
 test.serial('Workflow can upsert Search Attributes', configMacro, async (t, config) => {
-  const { env, createWorkerWithDefaults } = config;
+  const { createWorkerWithDefaults } = config;
   const date = new Date();
-  const { startWorkflow } = configurableHelpers(t, t.context.workflowBundle, env);
+  const { startWorkflow } = config.helpers(t);
   const worker = await createWorkerWithDefaults(t, {
     sinks: {
       customLogger: {

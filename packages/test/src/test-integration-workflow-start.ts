@@ -181,19 +181,17 @@ test('Start of workflow with signal is delayed', async (t) => {
 });
 
 test('Worker requests Eager Activity Dispatch if possible', async (t) => {
-  const { createWorker, startWorkflow, createNativeConnection } = helpers(t);
+  const { createWorker, createWorkflowlessWorker, startWorkflow, createNativeConnection } = helpers(t);
 
   // If eager activity dispatch is working, then the task will always be dispatched to the workflow
   // worker. Otherwise, chances are 50%-50% for either workers. The test workflow schedule the
   // activity 30 times to make sure that the workflow worker is really getting the task thanks to
   // eager activity dispatch, and not out of pure luck.
 
-  const activityWorker = await createWorker({
+  const activityWorker = await createWorkflowlessWorker({
     activities: {
       testActivity: () => 'activity-only-worker',
     },
-    // Override the default workflow bundle, to make this an activity-only worker
-    workflowBundle: undefined,
   });
   const workflowWorkerConnection = await createNativeConnection();
   t.teardown(() => workflowWorkerConnection.close());
@@ -214,7 +212,7 @@ test('Worker requests Eager Activity Dispatch if possible', async (t) => {
 });
 
 test("Worker doesn't request Eager Activity Dispatch if no activities are registered", async (t) => {
-  const { createNativeConnection, createWorker, startWorkflow } = helpers(t);
+  const { createNativeConnection, createWorker, createWorkflowlessWorker, startWorkflow } = helpers(t);
 
   // If the activity was eagerly dispatched to the Workflow worker even though it is a Workflow-only
   // worker, then the activity execution will timeout (because tasks are not being polled) or
@@ -222,12 +220,10 @@ test("Worker doesn't request Eager Activity Dispatch if no activities are regist
   // shows only one attempt for that activity and no timeout, that can only mean that the activity
   // was not eagerly dispatched.
 
-  const activityWorker = await createWorker({
+  const activityWorker = await createWorkflowlessWorker({
     activities: {
       testActivity: () => 'success',
     },
-    // Override the default workflow bundle, to make this an activity-only worker
-    workflowBundle: undefined,
   });
   const workflowWorkerConnection = await createNativeConnection();
   t.teardown(() => workflowWorkerConnection.close());
