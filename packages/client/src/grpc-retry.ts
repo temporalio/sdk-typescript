@@ -16,7 +16,8 @@ export interface GrpcRetryOptions {
 }
 
 /**
- * Options for the backoff formula: `factor ^ attempt * initialIntervalMs(status) * jitter(maxJitter)`
+ * Options for the backoff formula:
+ * `min(maxIntervalMs(status), factor ^ attempt * initialIntervalMs(status) * jitter(maxJitter))`
  */
 export interface BackoffOptions {
   /**
@@ -79,7 +80,7 @@ export function defaultGrpcRetryOptions(options: Partial<BackoffOptions> = {}): 
   const { maxAttempts, factor, maxJitter, initialIntervalMs, maxIntervalMs } = withDefaultBackoffOptions(options);
   return {
     delayFunction(attempt, status) {
-      return Math.min(maxIntervalMs(status), factor ** attempt * initialIntervalMs(status)) * jitter(maxJitter);
+      return Math.min(maxIntervalMs(status), factor ** attempt * initialIntervalMs(status) * jitter(maxJitter));
     },
     retryableDecider(attempt, status) {
       return attempt < maxAttempts && isRetryableError(status);
