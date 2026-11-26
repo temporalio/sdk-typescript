@@ -43,6 +43,26 @@ for (const value of [-1, 1.5, Number.NaN]) {
   });
 }
 
+test('rejects a custom tuner with maxConcurrentNexusTaskExecutions', (t) => {
+  const runtime = Runtime.instance();
+  const slotSupplier = { type: 'fixed-size', numSlots: 7 } as const;
+  const options: WorkerOptions = {
+    ...defaultOptions,
+    tuner: {
+      workflowTaskSlotSupplier: slotSupplier,
+      activityTaskSlotSupplier: slotSupplier,
+      localActivityTaskSlotSupplier: slotSupplier,
+      nexusTaskSlotSupplier: slotSupplier,
+    },
+    maxConcurrentNexusTaskExecutions: 1,
+  };
+
+  t.throws(() => compileWorkerOptions(options, runtime.logger, runtime.metricMeter), {
+    instanceOf: TypeError,
+    message: 'Cannot set both tuner and maxConcurrentNexusTaskExecutions',
+  });
+});
+
 for (const [pollsOption, behaviorOption] of [
   ['maxConcurrentWorkflowTaskPolls', 'workflowTaskPollerBehavior'],
   ['maxConcurrentActivityTaskPolls', 'activityTaskPollerBehavior'],
