@@ -6,6 +6,13 @@ import { type InternalActivityStartOptions, InternalActivityStartOptionsSymbol }
 import * as temporalnexus from '@temporalio/nexus';
 import { asyncLocalStorage, OperationTokenType } from '@temporalio/nexus/internal';
 
+// Compile-time check only: operationInfo() requires an active handler at runtime.
+function _checkOperationInfoSpread(): void {
+  const copy = { ...temporalnexus.operationInfo() };
+  // @ts-expect-error - A spread copies the metadata, not the live signal getter.
+  const _info: temporalnexus.OperationInfo = copy;
+}
+
 async function echoWorkflow(input: string): Promise<string> {
   return input;
 }

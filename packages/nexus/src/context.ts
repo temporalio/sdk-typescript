@@ -22,7 +22,7 @@ export function getHandlerContext(): HandlerContext {
 }
 
 /**
- * The raw start operation context for the current Nexus task, if any.
+ * The Nexus RPC start context for the current task, if any.
  * Read by {@link nexusActivityStartInterceptor}.
  *
  * @internal
@@ -67,7 +67,8 @@ export function runWithNexusStartOperationContext<T>(ctx: nexus.StartOperationCo
  * @internal
  * @hidden
  */
-export interface HandlerContext extends OperationInfo {
+export interface HandlerContext extends Omit<OperationInfo, 'cancellationSignal'> {
+  readonly cancellationSignal: AbortSignal;
   log: Logger;
   metrics: MetricMeter;
   client: Client;
@@ -78,7 +79,7 @@ export interface HandlerContext extends OperationInfo {
  * Holds information about the current Nexus Operation Execution.
  *
  */
-export interface OperationInfo {
+export class OperationInfo {
   /**
    * Namespace this Nexus Operation is executing in
    */
@@ -107,15 +108,29 @@ export interface OperationInfo {
    */
   readonly requestId: string | undefined;
 
+  readonly #cancellationSignal: AbortSignal;
+
+  constructor(ctx: HandlerContext) {
+    this.namespace = ctx.namespace;
+    this.taskQueue = ctx.taskQueue;
+    this.endpoint = ctx.endpoint;
+    this.service = ctx.service;
+    this.operation = ctx.operation;
+    this.requestId = ctx.requestId;
+    this.#cancellationSignal = ctx.cancellationSignal;
+  }
+
   /**
    * Observes cancellation of the current handler invocation. A request to cancel the Nexus
    * Operation itself invokes the cancel handler separately.
-   * This live signal is non-enumerable and is not included in JSON serialization.
+   * This live signal is not copied by object spread or included in JSON serialization.
    *
    * Cancellation listeners run inline and must return promptly. Check `aborted` and `reason`
    * or use `throwIfAborted()` if the invocation may already have been canceled.
    */
-  readonly cancellationSignal: AbortSignal;
+  get cancellationSignal(): AbortSignal {
+    return this.#cancellationSignal;
+  }
 }
 
 // Basic APIs //////////////////////////////////////////////////////////////////////////////////////
@@ -191,8 +206,6 @@ export function getClient(): Client {
  *
  */
 export function operationInfo(): OperationInfo {
-  const { namespace, taskQueue, endpoint, service, operation, requestId, cancellationSignal } = getHandlerContext();
-  const info: OperationInfo = { namespace, taskQueue, endpoint, service, operation, requestId, cancellationSignal };
-  // Keep the live signal out of payloads and metadata snapshots.
-  return Object.defineProperty(info, 'cancellationSignal', { enumerable: false, writable: false });
+  const ctx = getHandlerContext();
+  return new OperationInfo(ctx);
 }

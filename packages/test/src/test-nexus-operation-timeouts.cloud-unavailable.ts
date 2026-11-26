@@ -5,7 +5,6 @@ import { WorkflowFailedError } from '@temporalio/client';
 import { operationInfo, TemporalOperationHandler, TemporalOperationResult } from '@temporalio/nexus';
 import * as workflow from '@temporalio/workflow';
 import { helpers, makeTestFunction } from './helpers-integration';
-import { waitUntil } from './helpers';
 
 const test = makeTestFunction({ workflowsPath: __filename });
 
@@ -138,8 +137,10 @@ export async function invocationTimeoutCallerWorkflow(endpoint: string): Promise
 test('the Nexus task timeout aborts the handler invocation signal', async (t) => {
   const { createWorker, executeWorkflow, registerNexusEndpoint } = helpers(t);
   const { endpointName } = await registerNexusEndpoint();
-  let finished = false;
-  let cancellationReason: Error | undefined;
+  let reportCancellation!: (reason: unknown) => void;
+  const observedCancellation = new Promise<unknown>((resolve) => {
+    reportCancellation = resolve;
+  });
   const worker = await createWorker({
     nexusServices: [
       nexus.serviceHandler(invocationTimeoutService, {
@@ -151,16 +152,15 @@ test('the Nexus task timeout aborts the handler invocation signal', async (t) =>
               await setTimeout(5000, undefined, { signal: cancellationSignal });
               return TemporalOperationResult.sync(undefined);
             } catch (err) {
-              cancellationReason = cancellationSignal.reason;
-              t.is((err as Error).cause, cancellationReason);
+              const reason: unknown = cancellationSignal.reason;
+              t.is((err as Error).cause, reason);
               t.true(cancellationSignal.aborted);
               t.is(
-                t.throws(() => cancellationSignal.throwIfAborted()),
-                cancellationReason
+                reason,
+                t.throws(() => cancellationSignal.throwIfAborted())
               );
-              throw cancellationReason;
-            } finally {
-              finished = true;
+              reportCancellation(reason);
+              throw reason;
             }
           },
         }),
@@ -172,8 +172,10 @@ test('the Nexus task timeout aborts the handler invocation signal', async (t) =>
     await t.throwsAsync(executeWorkflow(invocationTimeoutCallerWorkflow, { args: [endpointName] }), {
       instanceOf: WorkflowFailedError,
     });
-    await waitUntil(async () => finished, 6000);
-    t.true(cancellationReason instanceof CancelledFailure);
-    t.is(cancellationReason?.message, 'TIMED_OUT');
+    const reason = await Promise.race([observedCancellation, setTimeout(6000, undefined, { ref: false })]);
+    if (!(reason instanceof CancelledFailure)) {
+      return t.fail(`Expected the handler to observe a CancelledFailure, got: ${reason}`);
+    }
+    t.is(reason.message, 'TIMED_OUT');
   });
 });

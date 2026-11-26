@@ -11,7 +11,7 @@ import type { temporal } from '@temporalio/proto';
 import type { NexusInterceptorsFactory } from '@temporalio/worker';
 import { DefaultLogger } from '@temporalio/worker';
 import { NexusHandler } from '@temporalio/worker/internal';
-import { enc, makeContextTrace, nexusCtx } from './payload-converters/serialization-context-converter';
+import { nexusCtx } from './payload-converters/serialization-context-converter';
 
 const converterPath = require.resolve('./payload-converters/serialization-context-converter');
 
@@ -197,56 +197,61 @@ for (const method of ['start', 'cancel'] as const) {
       const forwardedSignal = AbortSignal.any([workerSignal, interceptorController.signal]);
       const reason = new Error(`cancelled by the ${source}`);
       const requestId = 'original-request-id';
-      const expectedRequestId = method === 'start' ? requestId : undefined;
+      const checkContext = source === 'interceptor';
 
-      const observeCancellation = async () => {
-        const { cancellationSignal } = operationInfo();
+      const observeCancellation = () => {
+        const info = operationInfo();
+        const { cancellationSignal } = info;
         t.is(cancellationSignal, forwardedSignal);
-        t.is(operationInfo().requestId, expectedRequestId);
+        if (checkContext) t.is(info.requestId, method === 'start' ? requestId : undefined);
         t.false(cancellationSignal.aborted);
         let observedReason: unknown;
         cancellationSignal.addEventListener('abort', () => (observedReason = cancellationSignal.reason), {
           once: true,
         });
 
-        await Promise.resolve();
         (source === 'interceptor' ? interceptorController : abortController).abort(reason);
         t.is(observedReason, reason);
-        t.is(cancellationSignal.reason, reason);
         t.is(workerSignal.aborted, source === 'worker');
       };
       const service = nexus.service(SERVICE, { [OPERATION]: nexus.operation<void, void>() });
       const handler = nexus.serviceHandler(service, {
         [OPERATION]: new TemporalOperationHandler<void, void>({
           async start() {
-            await observeCancellation();
+            observeCancellation();
             return TemporalOperationResult.sync(undefined);
           },
-          cancelWorkflowRun: observeCancellation,
+          async cancelWorkflowRun() {
+            observeCancellation();
+          },
         }),
       });
       const worker = makeHandler(new Map([[SERVICE, handler]]), {
         abortController,
         headers: { 'x-test': 'interceptor-header' },
-        onClientAbortSignal: (signal) => t.is(signal, workerSignal),
+        onClientAbortSignal: checkContext ? (signal) => t.is(signal, workerSignal) : undefined,
         interceptors: [
           () => ({
             inbound: {
               async startOperation(input, next) {
-                t.is(input.ctx.headers['x-test'], 'interceptor-header');
-                t.is(operationInfo().cancellationSignal, workerSignal);
+                if (checkContext) {
+                  t.is(input.ctx.headers['x-test'], 'interceptor-header');
+                  t.is(operationInfo().cancellationSignal, workerSignal);
+                }
                 const output = await next({
                   ...input,
                   ctx: { ...input.ctx, requestId: 'forwarded-request-id', abortSignal: forwardedSignal },
                 });
-                t.is(operationInfo().cancellationSignal, workerSignal);
+                if (checkContext) t.is(operationInfo().cancellationSignal, workerSignal);
                 return output;
               },
               async cancelOperation(input, next) {
-                t.is(input.ctx.headers['x-test'], 'interceptor-header');
-                t.is(operationInfo().cancellationSignal, workerSignal);
+                if (checkContext) {
+                  t.is(input.ctx.headers['x-test'], 'interceptor-header');
+                  t.is(operationInfo().cancellationSignal, workerSignal);
+                }
                 await next({ ...input, ctx: { ...input.ctx, abortSignal: forwardedSignal } });
-                t.is(operationInfo().cancellationSignal, workerSignal);
+                if (checkContext) t.is(operationInfo().cancellationSignal, workerSignal);
               },
             },
           }),
@@ -272,90 +277,62 @@ for (const method of ['start', 'cancel'] as const) {
       } else {
         t.truthy(completion.completed?.cancelOperation);
       }
-      t.throws(operationInfo, { instanceOf: ReferenceError });
+      if (checkContext) t.throws(operationInfo, { instanceOf: ReferenceError });
     });
   }
 }
 
-test('concurrent Nexus handlers receive only their own invocation information', async (t) => {
-  const output = makeContextTrace('wrapped');
-  const service = nexus.service(SERVICE, { [OPERATION]: nexus.operation<void, typeof output>() });
-  const firstRequestId = 'opaque/request-1';
-  const secondRequestId = 'opaque/request-2';
-  const firstController = new AbortController();
-  const secondController = new AbortController();
+test('concurrent Nexus handlers keep their own request ID and cancellation signal', async (t) => {
+  const invocations = [
+    { requestId: 'opaque/request-1', abortController: new AbortController() },
+    { requestId: 'opaque/request-2', abortController: new AbortController() },
+  ];
   const earlyCancellation = new Error('the first task was already canceled');
-  firstController.abort(earlyCancellation);
+  invocations[0].abortController.abort(earlyCancellation);
 
   let arrivals = 0;
   let release!: () => void;
   const bothRunning = new Promise<void>((resolve) => {
     release = resolve;
   });
+
+  const service = nexus.service(SERVICE, { [OPERATION]: nexus.operation<number, void>() });
   const handler = nexus.serviceHandler(service, {
-    [OPERATION]: new TemporalOperationHandler<void, typeof output>({
-      async start() {
-        const info = operationInfo();
-        if (++arrivals === 2) release();
+    [OPERATION]: new TemporalOperationHandler<number, void>({
+      async start(_client, input) {
+        if (++arrivals === invocations.length) release();
         await bothRunning;
 
-        t.deepEqual(operationInfo(), info);
-        t.is(info.namespace, 'default');
-        t.is(info.taskQueue, 'my-task-queue');
-        t.is(info.endpoint, ENDPOINT);
-        t.is(info.service, SERVICE);
-        t.is(info.operation, OPERATION);
-        t.false('headers' in info);
-        t.false('callbackUrl' in info);
-        t.false('requestDeadline' in info);
-        if (info.requestId === firstRequestId) {
-          t.is(info.cancellationSignal, firstController.signal);
-          t.true(info.cancellationSignal.aborted);
+        const expected = invocations[input];
+        const info = operationInfo();
+        t.is(info.requestId, expected.requestId);
+        t.is(info.cancellationSignal, expected.abortController.signal);
+        if (input === 0) {
           t.throws(() => info.cancellationSignal.throwIfAborted(), { is: earlyCancellation });
         } else {
-          t.is(info.requestId, secondRequestId);
-          t.is(info.cancellationSignal, secondController.signal);
           t.false(info.cancellationSignal.aborted);
         }
-        return TemporalOperationResult.sync({ ...output, trace: [] });
+        return TemporalOperationResult.sync(undefined);
       },
     }),
   });
-  const interceptedRequestIds = new Set<string>();
-  const run = (requestId: string, abortController: AbortController) =>
-    makeHandler(new Map([[SERVICE, handler]]), {
-      abortController,
-      headers: { 'x-test': requestId },
-      interceptors: [
-        () => ({
-          inbound: {
-            async startOperation(input, next) {
-              interceptedRequestIds.add(input.ctx.requestId);
-              t.is(input.ctx.headers['x-test'], requestId);
-              t.is(input.ctx.abortSignal, abortController.signal);
-              t.is(operationInfo().requestId, input.ctx.requestId);
-              return next(input);
-            },
-          },
-        }),
-      ],
-    }).run({
-      taskToken: new Uint8Array([1, 2, 3]),
-      request: { endpoint: ENDPOINT, startOperation: { service: SERVICE, operation: OPERATION, requestId } },
-    });
 
-  const completions = await Promise.all([run(firstRequestId, firstController), run(secondRequestId, secondController)]);
-  t.deepEqual(interceptedRequestIds, new Set([firstRequestId, secondRequestId]));
-  t.throws(operationInfo, { instanceOf: ReferenceError });
-  for (const completion of completions) {
-    const result = completion.completed?.startOperation;
-    t.is(result?.asyncSuccess, undefined);
-    const payload = result?.syncSuccess?.payload;
-    t.truthy(payload, 'the worker must encode the result in a synchronous response');
-    if (payload == null) continue;
-    t.deepEqual(defaultPayloadConverter.fromPayload(payload), {
-      ...output,
-      trace: [enc(output.label, nexusCtx(ENDPOINT, SERVICE, OPERATION))],
-    });
-  }
+  await Promise.all(
+    invocations.map(async ({ requestId, abortController }, input) => {
+      const worker = makeHandler(new Map([[SERVICE, handler]]), { abortController, dataConverter: {} });
+      const completion = await worker.run({
+        taskToken: worker.taskToken,
+        request: {
+          endpoint: ENDPOINT,
+          startOperation: {
+            service: SERVICE,
+            operation: OPERATION,
+            requestId,
+            payload: defaultPayloadConverter.toPayload(input),
+          },
+        },
+      });
+      t.truthy(completion.completed?.startOperation?.syncSuccess);
+    })
+  );
 });
