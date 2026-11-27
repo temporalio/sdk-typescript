@@ -2693,6 +2693,32 @@ test('Buffered signals are dispatched to correct handler and in correct order - 
   }
 });
 
+test('A signal whose arguments cannot be decoded is dropped - signalsOrdering', async (t) => {
+  const { workflowType } = t.context;
+  const undecodable = makeSignalWorkflowJob('signalB', []);
+  undecodable.signalWorkflow!.input = [{ metadata: { encoding: u8('json/plain') }, data: u8('{not valid json') }];
+
+  const completion = await activate(
+    t,
+    makeActivation(
+      undefined,
+      makeInitializeWorkflowJob(workflowType),
+      undecodable,
+      makeSignalWorkflowJob('signalB', [5])
+    )
+  );
+
+  // The poison signal is dropped; the valid signal that follows it is still delivered.
+  compareCompletion(
+    t,
+    completion,
+    makeSuccess(
+      [makeCompleteWorkflowExecution(defaultPayloadConverter.toPayload([{ handler: 'signalB', args: [5] }]))],
+      [SdkFlags.ProcessWorkflowActivationJobsAsSingleBatch]
+    )
+  );
+});
+
 test('Buffered signals dispatch is reentrant  - signalsOrdering2', async (t) => {
   const { workflowType } = t.context;
   {
