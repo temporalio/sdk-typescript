@@ -117,7 +117,10 @@ export function overrideGlobals(): void {
       timeoutCancellationScopes.delete(handle);
       timerScope.cancel();
     } else {
+      const settled =
+        Number.isInteger(handle) && handle < activator.nextSeqs.timer && !activator.completions.timer.has(handle);
       activator.nextSeqs.timer++; // Shouldn't increase seq number, but that's the legacy behavior
+      if (settled) return;
       activator.completions.timer.delete(handle);
       activator.pushCommand({
         cancelTimer: {
