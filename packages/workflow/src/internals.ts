@@ -1216,20 +1216,26 @@ export class Activator implements ActivationHandler {
     const signalHandler = this.signalHandlers.get(signalName);
     const unfinishedPolicy = signalHandler?.unfinishedPolicy ?? HandlerUnfinishedPolicy.WARN_AND_ABANDON;
 
+    // Decode the arguments before the signal is registered as in progress. A signal whose arguments cannot be
+    // decoded is dropped, matching the Go and Java SDKs. Letting the error escape would fail the Workflow Task on
+    // every attempt, blocking the Workflow behind a signal that can never be delivered.
+    const context = this.workflowSerializationContext();
+    let args: unknown[];
+    try {
+      args = arrayFromPayloads(this.payloadConverter, activation.input, context, signalHandler?.typeInfo?.inputTypes);
+    } catch (err) {
+      log.warn(`Dropping signal '${signalName}' because its arguments could not be decoded`, { error: err });
+      return;
+    }
+
     const signalExecutionNum = this.signalHandlerExecutionSeq++;
     this.inProgressSignals.set(signalExecutionNum, { name: signalName, unfinishedPolicy });
     const execute = composeInterceptors(interceptors, 'handleSignal', this.signalWorkflowNextHandler.bind(this));
-    const context = this.workflowSerializationContext();
     const implicitMarker = createInboundEventMarker(activation.originatingEventId);
     implicitMarker
       .withScope(() =>
         execute({
-          args: arrayFromPayloads(
-            this.payloadConverter,
-            activation.input,
-            context,
-            signalHandler?.typeInfo?.inputTypes
-          ),
+          args,
           signalName,
           headers: headers ?? {},
         })
