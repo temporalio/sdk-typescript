@@ -1,5 +1,6 @@
 import * as activity from '@temporalio/activity';
 import { msToNumber, tsToMs } from '@temporalio/common/time';
+import { CancelledFailure, condition, proxyActivities } from '@temporalio/workflow';
 import {
   cancelAbandonActivityBeforeStarted,
   cancellableScopesExtensiveChecksHelper,
@@ -8,6 +9,7 @@ import {
   nonCancellableScopesBeforeAndAfterWorkflow,
 } from './integration-workflows-common';
 import { helpers, makeTestFunction } from './helpers-integration';
+import { waitUntil } from './helpers';
 
 export * from './integration-workflows-common';
 
@@ -223,4 +225,42 @@ test('Abandon activity cancel before started works', async (t) => {
   await worker.runUntil(handle.result());
 
   t.pass();
+});
+
+export async function clearTimeoutAfterCancel(): Promise<void> {
+  const { activitySleep } = proxyActivities({ startToCloseTimeout: '1m' });
+  let fired = false;
+  const early = setTimeout(() => (fired = true), 1);
+  await condition(() => fired);
+  clearTimeout(early);
+
+  const timer = setTimeout(() => undefined, 60_000);
+  try {
+    await activitySleep('30s');
+  } finally {
+    clearTimeout(timer);
+    clearTimeout(timer);
+  }
+}
+
+test('clearTimeout after the Workflow cancellation cancelled its timer', async (t) => {
+  const { createWorker, startWorkflow, assertWorkflowFailedError, runReplayHistory } = helpers(t);
+  const worker = await createWorker({
+    activities: {
+      activitySleep: activity.sleep,
+    },
+  });
+  const handle = await startWorkflow(clearTimeoutAfterCancel);
+  await worker.runUntil(async () => {
+    await waitUntil(
+      async () => (await handle.fetchHistory()).events?.some((ev) => ev.activityTaskScheduledEventAttributes) ?? false,
+      10_000
+    );
+    await handle.cancel();
+    await assertWorkflowFailedError(handle.result(), CancelledFailure);
+  });
+
+  const history = await handle.fetchHistory();
+  t.false(history.events?.some((ev) => ev.workflowTaskFailedEventAttributes));
+  await runReplayHistory({}, history);
 });
