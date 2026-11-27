@@ -13,3 +13,9 @@ export async function patchedWorkflow(): Promise<void> {
     console.log('no change 2');
   }
 }
+
+/** Like `patchedWorkflow`, but each decision shows up as the duration of the timer it starts. */
+export async function patchedTimerWorkflow(): Promise<void> {
+  await sleep(patched('my-change-id') ? 100 : 101);
+  await sleep(patched('my-change-id') ? 200 : 201);
+}

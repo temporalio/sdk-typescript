@@ -2410,6 +2410,33 @@ test('replay-with-marker patchedWorkflow', async (t) => {
   t.deepEqual(logs, [['has change'], ['has change 2']]);
 });
 
+// A worker that records a patch marker live gets no `notifyHasPatch` for it. If it later catches up
+// its cached run over tasks another worker ran, `patched()` must still return the live decision.
+test('not-replay-then-replay-no-marker patchedTimerWorkflow', async (t) => {
+  const { workflowType } = t.context;
+  {
+    const completion = await activate(t, makeStartWorkflow(workflowType));
+    compareCompletion(
+      t,
+      completion,
+      makeSuccess([
+        makeSetPatchMarker('my-change-id', false),
+        makeStartTimerCommand({ seq: 1, startToFireTimeout: msToTs(100) }),
+      ])
+    );
+  }
+  {
+    const act: coresdk.workflow_activation.IWorkflowActivation = {
+      runId: 'test-runId',
+      timestamp: msToTs(Date.now()),
+      isReplaying: true,
+      jobs: [makeFireTimerJob(1)],
+    };
+    const completion = await activate(t, act);
+    compareCompletion(t, completion, makeSuccess([makeStartTimerCommand({ seq: 2, startToFireTimeout: msToTs(200) })]));
+  }
+});
+
 test('deprecatePatchWorkflow', async (t) => {
   const { logs, workflowType } = t.context;
   {
