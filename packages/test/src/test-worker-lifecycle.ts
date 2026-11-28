@@ -18,7 +18,15 @@ import {
 } from '@temporalio/common';
 import { msToTs } from '@temporalio/common/time';
 import type { LogEntry, NativeConnection } from '@temporalio/worker';
-import { DefaultLogger, LogTimestamp, MetricsBuffer, Runtime, UnexpectedError, Worker } from '@temporalio/worker';
+import {
+  DefaultLogger,
+  LogTimestamp,
+  MetricsBuffer,
+  Runtime,
+  ShutdownError, // oxlint-disable-line typescript/no-deprecated
+  UnexpectedError,
+  Worker,
+} from '@temporalio/worker';
 import { isolateFreeWorker, Worker as MockWorker } from './mock-native-worker';
 
 test.afterEach.always(async () => {
@@ -336,8 +344,10 @@ test.serial('Worker.run preserves primary failure when finalization fails', asyn
     activities: {},
   });
 
+  let polls = 0;
   worker.native.pollWorkflowActivation = async () => {
-    throw primaryError;
+    if (polls++ === 0) throw primaryError;
+    throw new ShutdownError('Core is shut down'); // oxlint-disable-line typescript/no-deprecated
   };
   worker.native.finalizeShutdown = async () => {
     throw cleanupError;
@@ -366,3 +376,38 @@ test.serial('Worker.run propagates finalization failure on otherwise successful 
   const err = await t.throwsAsync(runPromise);
   t.is(err, cleanupError);
 });
+
+for (const poller of ['workflow', 'activity'] as const) {
+  test.serial(`Worker.run drains the ${poller} poller before finalizing after a fatal poll error`, async (t) => {
+    const worker = isolateFreeWorker({
+      taskQueue: `fatal-${poller}-poll`,
+      activities: { async noop() {} },
+    });
+    const pollMethod = poller === 'workflow' ? 'pollWorkflowActivation' : 'pollActivityTask';
+    const originalPoll = worker.native[pollMethod].bind(worker.native);
+    const polled: string[] = [];
+    worker.native[pollMethod] = async () => {
+      // Like Core, report a few errors before reporting that the poller has shut down
+      if (polled.length < 3) {
+        polled.push('error');
+        throw new Error(`fatal poll error ${polled.length}`);
+      }
+      try {
+        return await originalPoll();
+      } catch (err) {
+        polled.push((err as Error).name);
+        throw err;
+      }
+    };
+    let polledBeforeFinalize: string[] | undefined;
+    worker.native.finalizeShutdown = async () => {
+      polledBeforeFinalize = [...polled];
+    };
+
+    await t.throwsAsync(worker.run(), { message: 'fatal poll error 1' });
+
+    t.is(worker.getState(), 'FAILED');
+    t.is(worker.getStatus()[`${poller}PollerState`], 'FAILED');
+    t.deepEqual(polledBeforeFinalize, ['error', 'error', 'error', 'ShutdownError']);
+  });
+}
