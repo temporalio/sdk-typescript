@@ -1073,20 +1073,32 @@ export class Worker {
   /**
    * An observable which repeatedly polls for new tasks unless worker becomes suspended.
    * The observable stops emitting once core is shutting down.
+   *
+   * A poll error other than `ShutdownError` is fatal: it initiates Worker shutdown and is rethrown by
+   * `Worker.run()`. Polling nonetheless continues until `ShutdownError`, as Core can only be finalized
+   * once all of its pollers have been drained.
    */
-  protected pollLoop$<T>(pollFn: () => Promise<T>): Observable<T> {
+  protected pollLoop$<T>(pollFn: () => Promise<T>, pollerState: BehaviorSubject<PollerState>): Observable<T> {
+    const logger = this.logger;
+    const unexpectedErrorSubject = this.unexpectedErrorSubject;
     return from(
       (async function* () {
+        let failed = false;
         for (;;) {
           try {
             yield await pollFn();
-          } catch (err) {
-            if (err instanceof ShutdownError) {
+          } catch (error) {
+            if (error instanceof ShutdownError) {
               break;
             }
-            throw err;
+            if (!failed) {
+              failed = true;
+              logger.error('Failed to poll for tasks. Initiating Worker shutdown.', { error });
+              unexpectedErrorSubject.error(error);
+            }
           }
         }
+        pollerState.next(failed ? 'FAILED' : 'SHUTDOWN');
       })()
     );
   }
@@ -2110,18 +2122,7 @@ export class Worker {
       this.logger.trace('Got workflow activation', activation);
 
       return activation;
-    }).pipe(
-      tap({
-        complete: () => {
-          this.logger.trace('Workflow Poller changed state to SHUTDOWN');
-          this.workflowPollerStateSubject.next('SHUTDOWN');
-        },
-        error: () => {
-          this.logger.trace('Workflow Poller changed state to FAILED');
-          this.workflowPollerStateSubject.next('FAILED');
-        },
-      })
-    );
+    }, this.workflowPollerStateSubject);
   }
 
   /**
@@ -2179,16 +2180,7 @@ export class Worker {
         throw new TypeError('Got an activity task without a "variant" attribute');
       }
       return { task, base64TaskToken, protobufEncodedTask: buffer };
-    }).pipe(
-      tap({
-        complete: () => {
-          this.activityPollerStateSubject.next('SHUTDOWN');
-        },
-        error: () => {
-          this.activityPollerStateSubject.next('FAILED');
-        },
-      })
-    );
+    }, this.activityPollerStateSubject);
   }
 
   protected activity$(): Observable<void> {
@@ -2227,16 +2219,7 @@ export class Worker {
         ...task,
       });
       return { task, base64TaskToken, protobufEncodedTask: buffer };
-    }).pipe(
-      tap({
-        complete: () => {
-          this.nexusPollerStateSubject.next('SHUTDOWN');
-        },
-        error: () => {
-          this.nexusPollerStateSubject.next('FAILED');
-        },
-      })
-    );
+    }, this.nexusPollerStateSubject);
   }
 
   protected nexus$(): Observable<void> {
